@@ -4,10 +4,11 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Settings } from 'lucide-react'
-import { AgentIcon } from '@/components/icons'
+import { AgentIcon, MoonIcon, SunIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowRegistry } from '@/stores/workflow/registry'
+import { useTheme } from '../../providers/theme-provider'
 import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 
@@ -16,6 +17,7 @@ export function Sidebar() {
   const { workflows, addWorkflow } = useWorkflowRegistry()
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
+  const { theme, toggleTheme } = useTheme()
 
   const handleCreateWorkflow = () => {
     const id = crypto.randomUUID()
@@ -50,7 +52,9 @@ export function Sidebar() {
           <AgentIcon className="text-white transition-all group-hover:scale-110 -translate-y-[0.5px] w-5 h-5" />
           <span className="sr-only">Sim Studio</span>
         </Link>
-
+        <button onClick={toggleTheme} className="p-2 z-10 bg-secondary rounded-md">
+          {theme === 'dark' ? <MoonIcon /> : <SunIcon />}
+        </button>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

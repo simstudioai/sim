@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { ThemeProvider } from './w/providers/theme-provider'
 import { ZoomPrevention } from './zoom-prevention'
 
 export const metadata: Metadata = {
@@ -17,8 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ZoomPrevention />
-        {children}
+        <ThemeProvider>
+          <ZoomPrevention />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )
