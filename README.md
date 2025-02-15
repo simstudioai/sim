@@ -1,21 +1,15 @@
 # Sim Studio
 
--
+[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://twitter.com/simstudio) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-**Sim Studio** is a powerful platform that provides developers and agents with a user-friendly environment for building, testing, and optimizing agentic workflows.
+**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows. 
 
 ## Run
-
--
 
 1. Self-host
 2. [Join the Waitlist](https://simstudio.ai) for the cloud-hosted beta
 
 ## Getting Started
-
--
 
 1. Clone the repository
 
@@ -50,6 +44,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Built with [Next.js](https://nextjs.org/), [React Flow](https://reactflow.dev/), [Zustand](https://zustand-demo.pmnd.rs/), [Shadcn/ui](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com/) and lots of ☕
 
--
+##
 
 <p align="center">Made with ❤️ by the Sim Studio Team</p>
