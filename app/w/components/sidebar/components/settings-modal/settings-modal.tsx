@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { EnvironmentVariables } from './components/environment-variables/environment-variables'
+import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
 
