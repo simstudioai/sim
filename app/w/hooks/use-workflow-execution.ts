@@ -14,7 +14,7 @@ export function useWorkflowExecution() {
   const { blocks, edges, loops } = useWorkflowStore()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
-  const { addConsole, toggleConsole, isOpen } = useConsoleStore()
+  const { toggleConsole, isOpen } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
 
   const handleRunWorkflow = useCallback(async () => {
@@ -52,42 +52,11 @@ export function useWorkflowExecution() {
       // Execute workflow
       const workflow = new Serializer().serializeWorkflow(blocks, edges, loops)
       const executor = new Executor(workflow, currentBlockStates, envVarValues)
+      const result = await executor.execute(activeWorkflowId)
 
-      const result = await executor.execute('my-run-id')
       setExecutionResult(result)
 
-      // Add console entries for each block execution
-      if (result.logs) {
-        result.logs.forEach((log) => {
-          addConsole({
-            output: log.output,
-            error: log.error,
-            durationMs: log.durationMs,
-            startedAt: log.startedAt,
-            endedAt: log.endedAt,
-            workflowId: activeWorkflowId,
-            timestamp: log.startedAt,
-            blockName: log.blockName,
-            blockType: log.blockType,
-          })
-        })
-      }
-
-      if (result.logs) {
-        console.group('Detailed Block Logs')
-        result.logs.forEach((log) => {
-          console.log(`Block ${log.blockName}: Success=${log.success}`, {
-            output: log.output,
-            error: log.error,
-            durationMs: log.durationMs,
-            startedAt: log.startedAt,
-            endedAt: log.endedAt,
-          })
-        })
-        console.groupEnd()
-      }
-
-      // Show execution result with workflowId
+      // Show execution result notification
       addNotification(
         result.success ? 'console' : 'error',
         result.success
@@ -95,25 +64,13 @@ export function useWorkflowExecution() {
           : `Workflow execution failed: ${result.error}`,
         activeWorkflowId
       )
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setExecutionResult({
         success: false,
         output: { response: {} },
         error: errorMessage,
         logs: [],
-      })
-
-      // Add error entry to console
-      addConsole({
-        output: {},
-        error: errorMessage,
-        durationMs: -1,
-        startedAt: new Date().toISOString(),
-        endedAt: new Date().toISOString(),
-        workflowId: activeWorkflowId,
-        timestamp: new Date().toISOString(),
-        blockName: 'Error',
       })
 
       addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
@@ -124,8 +81,8 @@ export function useWorkflowExecution() {
     activeWorkflowId,
     blocks,
     edges,
+    loops,
     addNotification,
-    addConsole,
     isOpen,
     toggleConsole,
     getAllVariables,

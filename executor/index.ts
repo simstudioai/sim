@@ -1,3 +1,4 @@
+import { useConsoleStore } from '@/stores/console/store'
 import { getAllBlocks } from '@/blocks'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
@@ -433,6 +434,7 @@ export class Executor {
     }
 
     const blockLog = this.startBlockLog(block)
+    const addConsole = useConsoleStore.getState().addConsole
 
     try {
       let output: BlockOutput
@@ -579,18 +581,46 @@ export class Executor {
         output = { response: result.output }
       }
 
+      // Log success
       blockLog.success = true
       blockLog.output = output
       this.finalizeBlockLog(blockLog)
       context.blockLogs.push(blockLog)
 
+      // Add to console immediately
+      addConsole({
+        output: blockLog.output,
+        durationMs: blockLog.durationMs,
+        startedAt: blockLog.startedAt,
+        endedAt: blockLog.endedAt,
+        workflowId: context.workflowId,
+        timestamp: blockLog.startedAt,
+        blockName: block.metadata?.name || 'Unnamed Block',
+        blockType: block.metadata?.id || 'unknown',
+      })
+
       context.blockStates.set(block.id, output)
       return output
     } catch (error: any) {
+      // Log error
       blockLog.success = false
-      blockLog.error = error.message || 'Block execution failed'
+      blockLog.error = error.message
       this.finalizeBlockLog(blockLog)
       context.blockLogs.push(blockLog)
+
+      // Add error to console immediately
+      addConsole({
+        output: {},
+        error: error.message,
+        durationMs: blockLog.durationMs,
+        startedAt: blockLog.startedAt,
+        endedAt: blockLog.endedAt,
+        workflowId: context.workflowId,
+        timestamp: blockLog.startedAt,
+        blockName: block.metadata?.name || 'Unnamed Block',
+        blockType: block.metadata?.id || 'unknown',
+      })
+
       throw error
     }
   }
