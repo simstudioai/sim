@@ -14,7 +14,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { initializeStateLogger } from '@/stores/workflow/logger'
-import { useWorkflowRegistry } from '@/stores/workflow/registry'
+import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { NotificationList } from '@/app/w/components/notifications/notifications'
 import { getBlock } from '../../../blocks'

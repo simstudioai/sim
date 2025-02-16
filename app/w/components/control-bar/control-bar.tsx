@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { useWorkflowRegistry } from '@/stores/workflow/registry'
+import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { HistoryDropdownItem } from './components/history-dropdown-item'

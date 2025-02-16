@@ -7,7 +7,7 @@ import { Plus, Settings } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useWorkflowRegistry } from '@/stores/workflow/registry'
+import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 
