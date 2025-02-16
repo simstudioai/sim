@@ -30,13 +30,13 @@ export function General() {
         <div className="space-y-4">
           <div className="flex items-center justify-between py-1">
             <Label htmlFor="debug-mode" className="font-medium">
-              Debug Mode
+              Debug mode
             </Label>
             <Switch id="debug-mode" />
           </div>
           <div className="flex items-center justify-between py-1">
             <Label htmlFor="auto-save" className="font-medium">
-              Auto-save Workflows
+              Auto-save workflows
             </Label>
             <Switch id="auto-save" />
           </div>
@@ -46,7 +46,7 @@ export function General() {
       {/* Danger Zone Section */}
       <div>
         <div className="flex items-center justify-between py-1">
-          <Label className="font-medium">Reset All Data</Label>
+          <Label className="font-medium">Reset all data</Label>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">
@@ -67,7 +67,7 @@ export function General() {
                   onClick={handleResetData}
                   className="bg-red-600 hover:bg-red-700"
                 >
-                  Reset All Data
+                  Reset Data
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
