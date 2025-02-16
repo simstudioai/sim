@@ -1,6 +1,7 @@
 import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { ControlBar } from './components/control-bar/control-bar'
+import { ErrorBoundary } from './components/error-boundary/error-boundary'
 import { Sidebar } from './components/sidebar/sidebar'
 import { Toolbar } from './components/toolbar/toolbar'
 import Providers from './providers'
@@ -19,7 +20,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
             <Chat />
             <Console />
             <main className="grid items-start gap-2 bg-muted/40 h-[calc(100vh-4rem)]">
-              {children}
+              <ErrorBoundary>{children}</ErrorBoundary>
             </main>
           </div>
         </div>
