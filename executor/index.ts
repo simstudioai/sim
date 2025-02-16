@@ -290,78 +290,89 @@ export class Executor {
         return true
       })
 
-      // Execute all blocks in the current layer in parallel
-      const layerResults = await Promise.all(
-        executableBlocks.map(async (blockId) => {
-          const block = blocks.find((b) => b.id === blockId)
-          if (!block) throw new Error(`Block ${blockId} not found`)
+      // Create a Set to track active blocks in the current layer
+      const { setActiveBlocks } = useExecutionStore.getState()
 
-          const inputs = this.resolveInputs(block, context)
-          const result = await this.executeBlock(block, inputs, context)
-          context.blockStates.set(blockId, result)
-          lastOutput = result
+      try {
+        // Set all blocks in the layer as active before execution
+        setActiveBlocks(new Set(executableBlocks))
 
-          if (block.metadata?.id === 'router') {
-            const routerResult = result as {
-              response: {
-                content: string
-                model: string
-                tokens: { prompt: number; completion: number; total: number }
-                selectedPath: { blockId: string }
+        // Execute all blocks in the current layer in parallel
+        const layerResults = await Promise.all(
+          executableBlocks.map(async (blockId) => {
+            const block = blocks.find((b) => b.id === blockId)
+            if (!block) throw new Error(`Block ${blockId} not found`)
+
+            const inputs = this.resolveInputs(block, context)
+            const result = await this.executeBlock(block, inputs, context)
+            context.blockStates.set(blockId, result)
+            lastOutput = result
+
+            if (block.metadata?.id === 'router') {
+              const routerResult = result as {
+                response: {
+                  content: string
+                  model: string
+                  tokens: { prompt: number; completion: number; total: number }
+                  selectedPath: { blockId: string }
+                }
+              }
+              routerDecisions.set(block.id, routerResult.response.selectedPath.blockId)
+            } else if (block.metadata?.id === 'condition') {
+              const conditionResult = await this.executeConditionalBlock(block, context)
+              activeConditionalPaths.set(block.id, conditionResult.selectedConditionId)
+            }
+
+            return blockId
+          })
+        )
+
+        // Process outgoing connections and update queue using the updateInDegree helper
+        for (const finishedBlockId of layerResults) {
+          const outgoingConns = connections.filter((conn) => conn.source === finishedBlockId)
+          for (const conn of outgoingConns) {
+            this.updateInDegree(
+              conn,
+              inDegree,
+              queue,
+              blocks,
+              routerDecisions,
+              activeConditionalPaths
+            )
+          }
+        }
+
+        // Check if we need to reset any loops
+        for (const [loopId, loop] of Object.entries(this.workflow.loops || {})) {
+          const loopBlocks = new Set(loop.nodes)
+          const executedLoopBlocks = layerResults.filter((blockId) => loopBlocks.has(blockId))
+
+          if (executedLoopBlocks.length > 0) {
+            const iterations = this.loopIterations.get(loopId) || 0
+
+            // Only process if we haven't hit max iterations
+            if (iterations < loop.maxIterations) {
+              // Check if any block in the loop has outgoing connections to other blocks in the loop
+              const hasLoopConnection = executedLoopBlocks.some((blockId) => {
+                const outgoingConns = connections.filter((conn) => conn.source === blockId)
+                return outgoingConns.some((conn) => loopBlocks.has(conn.target))
+              })
+
+              // Check if this was the last block in the loop (e.g., a condition block)
+              const isLoopComplete = executedLoopBlocks.some((blockId) => {
+                const block = blocks.find((b) => b.id === blockId)
+                return block?.metadata?.id === 'condition'
+              })
+
+              if (hasLoopConnection && isLoopComplete) {
+                this.loopIterations.set(loopId, iterations + 1)
               }
             }
-            routerDecisions.set(block.id, routerResult.response.selectedPath.blockId)
-          } else if (block.metadata?.id === 'condition') {
-            const conditionResult = await this.executeConditionalBlock(block, context)
-            activeConditionalPaths.set(block.id, conditionResult.selectedConditionId)
-          }
-
-          return blockId
-        })
-      )
-
-      // Process outgoing connections and update queue using the updateInDegree helper
-      for (const finishedBlockId of layerResults) {
-        const outgoingConns = connections.filter((conn) => conn.source === finishedBlockId)
-        for (const conn of outgoingConns) {
-          this.updateInDegree(
-            conn,
-            inDegree,
-            queue,
-            blocks,
-            routerDecisions,
-            activeConditionalPaths
-          )
-        }
-      }
-
-      // Check if we need to reset any loops
-      for (const [loopId, loop] of Object.entries(this.workflow.loops || {})) {
-        const loopBlocks = new Set(loop.nodes)
-        const executedLoopBlocks = layerResults.filter((blockId) => loopBlocks.has(blockId))
-
-        if (executedLoopBlocks.length > 0) {
-          const iterations = this.loopIterations.get(loopId) || 0
-
-          // Only process if we haven't hit max iterations
-          if (iterations < loop.maxIterations) {
-            // Check if any block in the loop has outgoing connections to other blocks in the loop
-            const hasLoopConnection = executedLoopBlocks.some((blockId) => {
-              const outgoingConns = connections.filter((conn) => conn.source === blockId)
-              return outgoingConns.some((conn) => loopBlocks.has(conn.target))
-            })
-
-            // Check if this was the last block in the loop (e.g., a condition block)
-            const isLoopComplete = executedLoopBlocks.some((blockId) => {
-              const block = blocks.find((b) => b.id === blockId)
-              return block?.metadata?.id === 'condition'
-            })
-
-            if (hasLoopConnection && isLoopComplete) {
-              this.loopIterations.set(loopId, iterations + 1)
-            }
           }
         }
+      } finally {
+        // Clear active blocks after layer execution
+        setActiveBlocks(new Set())
       }
     }
 
@@ -436,12 +447,8 @@ export class Executor {
   ): Promise<BlockOutput> {
     const blockLog = this.startBlockLog(block)
     const addConsole = useConsoleStore.getState().addConsole
-    const { setActiveBlock } = useExecutionStore.getState()
 
     try {
-      // Set active block before execution
-      setActiveBlock(block.id)
-
       if (block.enabled === false) {
         throw new Error(`Cannot execute disabled block: ${block.metadata?.name || block.id}`)
       }
@@ -610,9 +617,6 @@ export class Executor {
 
       context.blockStates.set(block.id, output)
 
-      // Clear active block
-      setActiveBlock(null)
-
       return output
     } catch (error: any) {
       // Log error
@@ -633,9 +637,6 @@ export class Executor {
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
-
-      // Clear active block
-      setActiveBlock(null)
 
       throw error
     }

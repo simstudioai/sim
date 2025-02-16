@@ -1,25 +1,25 @@
 import { create } from 'zustand'
 
 interface ExecutionState {
-  activeBlockId: string | null
+  activeBlockIds: Set<string>
   isExecuting: boolean
 }
 
 interface ExecutionActions {
-  setActiveBlock: (blockId: string | null) => void
+  setActiveBlocks: (blockIds: Set<string>) => void
   setIsExecuting: (isExecuting: boolean) => void
   reset: () => void
 }
 
 const initialState: ExecutionState = {
-  activeBlockId: null,
+  activeBlockIds: new Set(),
   isExecuting: false,
 }
 
 export const useExecutionStore = create<ExecutionState & ExecutionActions>()((set) => ({
   ...initialState,
 
-  setActiveBlock: (blockId) => set({ activeBlockId: blockId }),
+  setActiveBlocks: (blockIds) => set({ activeBlockIds: new Set(blockIds) }),
   setIsExecuting: (isExecuting) => set({ isExecuting }),
   reset: () => set(initialState),
 }))

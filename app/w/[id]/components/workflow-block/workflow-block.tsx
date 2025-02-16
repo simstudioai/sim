@@ -33,7 +33,7 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
   const contentRef = useRef<HTMLDivElement>(null)
   const updateNodeInternals = useUpdateNodeInternals()
 
-  // Store selectors
+  // Workflow store selectors
   const isEnabled = useWorkflowStore((state) => state.blocks[id]?.enabled ?? true)
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[id]?.horizontalHandles ?? false
@@ -41,13 +41,13 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
 
-  // Store actions
+  // Workflow store actions
   const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
   const toggleBlockWide = useWorkflowStore((state) => state.toggleBlockWide)
   const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)
 
-  // Add execution state
-  const isActiveBlock = useExecutionStore((state) => state.activeBlockId === id)
+  // Execution store
+  const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
   // const isExecuting = useExecutionStore((state) => state.isExecuting)
 
   // Update node internals when handles change
