@@ -78,6 +78,32 @@
   }
 }
 
+/* Custom Animations */
+@layer utilities {
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--border));
+    }
+    50% {
+      box-shadow: 0 0 0 6px hsl(var(--border));
+    }
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--border));
+    }
+  }
+
+  .animate-pulse-ring {
+    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .transition-ring {
+    transition-property: box-shadow, transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+}
+
+/* Input Overrides */
 /* Chrome, Safari, Edge, Opera */
 input[type='search']::-webkit-search-cancel-button {
   -webkit-appearance: none;

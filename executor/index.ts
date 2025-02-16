@@ -1,4 +1,5 @@
 import { useConsoleStore } from '@/stores/console/store'
+import { useExecutionStore } from '@/stores/execution/store'
 import { getAllBlocks } from '@/blocks'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
@@ -34,6 +35,7 @@ export class Executor {
    * @returns Promise<ExecutionResult> - Execution results including success/failure, output, and logs
    */
   async execute(workflowId: string): Promise<ExecutionResult> {
+    const { setIsExecuting, reset } = useExecutionStore.getState()
     const startTime = new Date()
 
     // Validate that the workflow has a starter block
@@ -78,6 +80,7 @@ export class Executor {
     context.blockStates.set(starterBlock.id, { response: { result: true } })
 
     try {
+      setIsExecuting(true)
       // Execute all blocks in parallel layers (using topological sorting).
       const lastOutput = await this.executeInParallel(context)
 
@@ -101,6 +104,8 @@ export class Executor {
         error: error.message || 'Workflow execution failed',
         logs: context.blockLogs,
       }
+    } finally {
+      reset() // Reset execution state
     }
   }
 
@@ -429,14 +434,18 @@ export class Executor {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    if (block.enabled === false) {
-      throw new Error(`Cannot execute disabled block: ${block.metadata?.name || block.id}`)
-    }
-
     const blockLog = this.startBlockLog(block)
     const addConsole = useConsoleStore.getState().addConsole
+    const { setActiveBlock } = useExecutionStore.getState()
 
     try {
+      // Set active block before execution
+      setActiveBlock(block.id)
+
+      if (block.enabled === false) {
+        throw new Error(`Cannot execute disabled block: ${block.metadata?.name || block.id}`)
+      }
+
       let output: BlockOutput
 
       // Execute block based on its type.
@@ -600,6 +609,10 @@ export class Executor {
       })
 
       context.blockStates.set(block.id, output)
+
+      // Clear active block
+      setActiveBlock(null)
+
       return output
     } catch (error: any) {
       // Log error
@@ -620,6 +633,9 @@ export class Executor {
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
+
+      // Clear active block
+      setActiveBlock(null)
 
       throw error
     }
