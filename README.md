@@ -2,7 +2,7 @@
 
 [![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows. 
+**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows.
 
 ## Run
 
@@ -24,13 +24,37 @@ cd sim-studio
 npm install
 ```
 
-3. Start the development server
+3. Set up your environment variables
+
+Copy `.env.example` to `.env` and configure:
+
+- Database connection (PostgreSQL)
+- Authentication secret
+- Email provider (Resend)
+
+4. Set up the database
+
+```bash
+# Push the database schema
+npx drizzle-kit push
+```
+
+5. Start the development server
 
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000)
+6. Open [http://localhost:3000](http://localhost:3000)
+
+## Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
+- **Authentication**: [Better Auth](https://better-auth.com) with GitHub OAuth
+- **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
+- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
+- **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 
 ## Contributing
 
