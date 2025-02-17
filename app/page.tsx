@@ -1,3 +1,3 @@
-export default function Home() {
-  return <div>Go to /w/1</div>
-}
+import Landing from './(landing)/landing'
+
+export default Landing
