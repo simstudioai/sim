@@ -75,6 +75,7 @@ const initialEdges: Edge[] = [
     target: 'router',
     type: 'smoothstep',
     style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
+    className: 'animated-edge',
   },
   {
     id: 'router-agent1',
@@ -82,6 +83,7 @@ const initialEdges: Edge[] = [
     target: 'agent1',
     type: 'smoothstep',
     style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
+    className: 'animated-edge',
   },
   {
     id: 'router-agent2',
@@ -89,6 +91,7 @@ const initialEdges: Edge[] = [
     target: 'agent2',
     type: 'smoothstep',
     style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
+    className: 'animated-edge',
   },
   {
     id: 'router-agent3',
@@ -96,6 +99,7 @@ const initialEdges: Edge[] = [
     target: 'agent3',
     type: 'smoothstep',
     style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
+    className: 'animated-edge',
   },
 ]
 
@@ -105,6 +109,19 @@ export function HeroWorkflow() {
 
   return (
     <div className="w-full h-[300px] md:h-[420px]">
+      <style jsx global>{`
+        .animated-edge {
+          animation: dashdraw 7s linear infinite;
+        }
+        @keyframes dashdraw {
+          from {
+            stroke-dashoffset: 100;
+          }
+          to {
+            stroke-dashoffset: 0;
+          }
+        }
+      `}</style>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -113,27 +130,32 @@ export function HeroWorkflow() {
         nodeTypes={nodeTypes}
         defaultEdgeOptions={{
           type: 'smoothstep',
-          style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
+          style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '8,8' },
+          className: 'animated-edge',
         }}
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: '#94a3b8', strokeWidth: 2 }}
         fitView
-        minZoom={0.8}
+        minZoom={1.3}
         maxZoom={1.3}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
-        selectionOnDrag={true}
+        nodesDraggable={true}
+        nodesConnectable={false}
+        elementsSelectable={false}
         panOnScroll={false}
         zoomOnScroll={false}
         zoomOnPinch={false}
         zoomOnDoubleClick={false}
+        panOnDrag={false}
+        selectionOnDrag={false}
         nodeExtent={[
-          [-100, -200],
-          [600, 200],
+          [-200, -300],
+          [800, 300],
         ]}
         translateExtent={[
-          [-100, -200],
-          [600, 200],
+          [-200, -300],
+          [800, 300],
         ]}
       />
     </div>
