@@ -84,9 +84,218 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           error: null,
         }))
 
+        // Add starter block to new workflow
+        const starterId = crypto.randomUUID()
+        useWorkflowStore.setState({
+          blocks: {
+            [starterId]: {
+              id: starterId,
+              type: 'starter',
+              name: 'Start',
+              position: { x: 100, y: 100 },
+              subBlocks: {
+                startWorkflow: {
+                  id: 'startWorkflow',
+                  type: 'dropdown',
+                  value: 'manual',
+                },
+                webhookPath: {
+                  id: 'webhookPath',
+                  type: 'short-input',
+                  value: '',
+                },
+                webhookSecret: {
+                  id: 'webhookSecret',
+                  type: 'short-input',
+                  value: '',
+                },
+                scheduleType: {
+                  id: 'scheduleType',
+                  type: 'dropdown',
+                  value: 'daily',
+                },
+                minutesInterval: {
+                  id: 'minutesInterval',
+                  type: 'short-input',
+                  value: '',
+                },
+                minutesStartingAt: {
+                  id: 'minutesStartingAt',
+                  type: 'short-input',
+                  value: '',
+                },
+                hourlyMinute: {
+                  id: 'hourlyMinute',
+                  type: 'short-input',
+                  value: '',
+                },
+                dailyTime: {
+                  id: 'dailyTime',
+                  type: 'short-input',
+                  value: '',
+                },
+                weeklyDay: {
+                  id: 'weeklyDay',
+                  type: 'dropdown',
+                  value: 'MON',
+                },
+                weeklyDayTime: {
+                  id: 'weeklyDayTime',
+                  type: 'short-input',
+                  value: '',
+                },
+                monthlyDay: {
+                  id: 'monthlyDay',
+                  type: 'short-input',
+                  value: '',
+                },
+                monthlyTime: {
+                  id: 'monthlyTime',
+                  type: 'short-input',
+                  value: '',
+                },
+                cronExpression: {
+                  id: 'cronExpression',
+                  type: 'short-input',
+                  value: '',
+                },
+                timezone: {
+                  id: 'timezone',
+                  type: 'dropdown',
+                  value: 'UTC',
+                },
+              },
+              outputs: {
+                response: {
+                  type: {
+                    result: 'any',
+                    stdout: 'string',
+                    executionTime: 'number',
+                  },
+                },
+              },
+              enabled: true,
+              horizontalHandles: true,
+              isWide: false,
+              height: 0,
+            },
+          },
+          edges: [],
+          loops: {},
+          history: {
+            past: [],
+            present: {
+              state: {
+                blocks: {
+                  [starterId]: {
+                    id: starterId,
+                    type: 'starter',
+                    name: 'Starter',
+                    position: { x: 100, y: 100 },
+                    subBlocks: {
+                      startWorkflow: {
+                        id: 'startWorkflow',
+                        type: 'dropdown',
+                        value: 'manual',
+                      },
+                      webhookPath: {
+                        id: 'webhookPath',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      webhookSecret: {
+                        id: 'webhookSecret',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      scheduleType: {
+                        id: 'scheduleType',
+                        type: 'dropdown',
+                        value: 'daily',
+                      },
+                      minutesInterval: {
+                        id: 'minutesInterval',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      minutesStartingAt: {
+                        id: 'minutesStartingAt',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      hourlyMinute: {
+                        id: 'hourlyMinute',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      dailyTime: {
+                        id: 'dailyTime',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      weeklyDay: {
+                        id: 'weeklyDay',
+                        type: 'dropdown',
+                        value: 'MON',
+                      },
+                      weeklyDayTime: {
+                        id: 'weeklyDayTime',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      monthlyDay: {
+                        id: 'monthlyDay',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      monthlyTime: {
+                        id: 'monthlyTime',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      cronExpression: {
+                        id: 'cronExpression',
+                        type: 'short-input',
+                        value: '',
+                      },
+                      timezone: {
+                        id: 'timezone',
+                        type: 'dropdown',
+                        value: 'UTC',
+                      },
+                    },
+                    outputs: {
+                      response: {
+                        type: {
+                          result: 'any',
+                          stdout: 'string',
+                          executionTime: 'number',
+                        },
+                      },
+                    },
+                    enabled: true,
+                    horizontalHandles: true,
+                    isWide: false,
+                    height: 0,
+                  },
+                },
+                edges: [],
+                loops: {},
+              },
+              timestamp: Date.now(),
+              action: 'Initial state',
+            },
+            future: [],
+          },
+          lastSaved: Date.now(),
+        })
+
         // Save workflow list to localStorage
         const workflows = get().workflows
         localStorage.setItem('workflow-registry', JSON.stringify(workflows))
+
+        // Save initial workflow state to localStorage
+        localStorage.setItem(`workflow-${metadata.id}`, JSON.stringify(useWorkflowStore.getState()))
       },
 
       removeWorkflow: (id: string) => {
