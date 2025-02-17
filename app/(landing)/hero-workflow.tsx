@@ -136,7 +136,7 @@ export function HeroWorkflow() {
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: '#94a3b8', strokeWidth: 2 }}
         fitView
-        minZoom={0.8}
+        minZoom={0.6}
         maxZoom={1.3}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}

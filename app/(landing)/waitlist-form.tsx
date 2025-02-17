@@ -47,7 +47,7 @@ export default function WaitlistForm() {
 
   const getButtonText = () => {
     if (isSubmitting) return 'Joining...'
-    if (status === 'success') return 'Success'
+    if (status === 'success') return 'Joined!'
     if (status === 'error') return 'Try again'
     return 'Join waitlist'
   }
