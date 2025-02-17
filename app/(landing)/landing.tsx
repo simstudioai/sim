@@ -21,7 +21,7 @@ export default function Landing() {
         </div>
       </nav>
 
-      <section className="min-h-[100dvh] pt-36 text-white relative">
+      <section className="min-h-[100dvh] pt-[134px] md:pt-36 text-white relative">
         <div className="absolute inset-0 z-0">
           <Image
             src="/hero.png"

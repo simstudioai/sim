@@ -187,7 +187,7 @@ export function HeroWorkflow() {
   }, [isMobile, setNodes, setEdges])
 
   return (
-    <div className="w-full h-[260px] md:h-[320px]">
+    <div className="w-full h-[240px] md:h-[320px]">
       <style jsx global>{`
         .animated-edge {
           animation: dashdraw 7s linear infinite;
@@ -233,8 +233,8 @@ export function HeroWorkflow() {
         nodeExtent={
           isMobile
             ? [
-                [-50, -200],
-                [500, 100],
+                [-50, -175],
+                [500, 75],
               ]
             : [
                 [-190, -130],
