@@ -10,9 +10,11 @@ import { useWorkflowStore } from './workflow/store'
  * Reset all application stores to their initial state
  */
 export const resetAllStores = () => {
-  // Clear localStorage first
+  // Selectively clear localStorage items
   if (typeof window !== 'undefined') {
-    localStorage.clear()
+    const keysToKeep = ['next-favicon']
+    const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
+    keysToRemove.forEach((key) => localStorage.removeItem(key))
   }
 
   // Force immediate state reset for all stores
