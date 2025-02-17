@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useConsoleStore } from '@/stores/console/store'
-import { useEnvironmentStore } from '@/stores/environment/store'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { Executor } from '@/executor'

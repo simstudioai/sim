@@ -13,10 +13,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { resetAllStores } from '@/stores'
 
 export function General() {
   const router = useRouter()
+  const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
+  const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
 
   const handleResetData = () => {
     resetAllStores()
@@ -35,10 +38,14 @@ export function General() {
             <Switch id="debug-mode" />
           </div>
           <div className="flex items-center justify-between py-1">
-            <Label htmlFor="auto-save" className="font-medium">
-              Auto-save workflows
+            <Label htmlFor="auto-connect" className="font-medium">
+              Auto-connect on drop
             </Label>
-            <Switch id="auto-save" />
+            <Switch
+              id="auto-connect"
+              checked={isAutoConnectEnabled}
+              onCheckedChange={toggleAutoConnect}
+            />
           </div>
         </div>
       </div>

@@ -7,12 +7,14 @@ import ReactFlow, {
   ConnectionLineType,
   EdgeTypes,
   NodeTypes,
+  Position,
   ReactFlowProvider,
   useOnViewportChange,
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeStateLogger } from '@/stores/workflow/logger'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
@@ -207,6 +209,26 @@ function WorkflowContent() {
   )
 
   // Handle drops
+  const findClosestOutput = useCallback(
+    (newNodePosition: { x: number; y: number }) => {
+      const existingBlocks = Object.entries(blocks)
+        .filter(([_, block]) => block.enabled && block.type !== 'condition')
+        .map(([id, block]) => ({
+          id,
+          position: block.position,
+          distance: Math.sqrt(
+            Math.pow(block.position.x - newNodePosition.x, 2) +
+              Math.pow(block.position.y - newNodePosition.y, 2)
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)
+
+      return existingBlocks[0]?.id
+    },
+    [blocks]
+  )
+
+  // Update the onDrop handler
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault()
@@ -233,11 +255,27 @@ function WorkflowContent() {
         }`
 
         addBlock(id, data.type, name, position)
+
+        // Auto-connect logic
+        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+        if (isAutoConnectEnabled && data.type !== 'starter') {
+          const closestBlockId = findClosestOutput(position)
+          if (closestBlockId) {
+            addEdge({
+              id: crypto.randomUUID(),
+              source: closestBlockId,
+              target: id,
+              sourceHandle: 'source',
+              targetHandle: 'target',
+              type: 'custom',
+            })
+          }
+        }
       } catch (err) {
         console.error('Error dropping block:', err)
       }
     },
-    [project, blocks, addBlock]
+    [project, blocks, addBlock, addEdge, findClosestOutput]
   )
 
   // Node selection

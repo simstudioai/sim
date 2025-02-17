@@ -1,14 +1,13 @@
 import { useChatStore } from './chat/store'
 import { useConsoleStore } from './console/store'
-import { useEnvironmentStore } from './environment/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
+import { useEnvironmentStore } from './settings/environment/store'
+import { useGeneralStore } from './settings/general/store'
 import { useWorkflowRegistry } from './workflow/registry/store'
 import { useWorkflowStore } from './workflow/store'
 
-/**
- * Reset all application stores to their initial state
- */
+// Reset all application stores to their initial state
 export const resetAllStores = () => {
   // Selectively clear localStorage items
   if (typeof window !== 'undefined') {
@@ -30,12 +29,11 @@ export const resetAllStores = () => {
   useEnvironmentStore.setState({ variables: {} })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
+  useGeneralStore.setState({ isAutoConnectEnabled: true })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
 }
 
-/**
- * Log the current state of all stores
- */
+// Log the current state of all stores
 export const logAllStores = () => {
   const state = {
     workflow: useWorkflowStore.getState(),

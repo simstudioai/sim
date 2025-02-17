@@ -14,8 +14,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useEnvironmentStore } from '@/stores/environment/store'
-import { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/environment/types'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
 
 // Extend the store type with our UI-specific fields
 interface UIEnvironmentVariable extends StoreEnvironmentVariable {
