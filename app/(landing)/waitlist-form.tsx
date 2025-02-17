@@ -10,11 +10,11 @@ const emailSchema = z.string().email('Please enter a valid email')
 export default function WaitlistForm() {
   const [email, setEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [message, setMessage] = useState('')
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setMessage('')
+    setStatus('idle')
 
     try {
       // Validate email
@@ -32,21 +32,24 @@ export default function WaitlistForm() {
       const data = await response.json()
 
       if (!response.ok) {
-        setMessage(data.message || 'Failed to join waitlist')
+        setStatus('error')
         return
       }
 
-      setMessage('Thanks for joining our waitlist!')
+      setStatus('success')
       setEmail('')
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        setMessage('Please enter a valid email')
-      } else {
-        setMessage(error instanceof Error ? error.message : 'Something went wrong')
-      }
+      setStatus('error')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const getButtonText = () => {
+    if (isSubmitting) return 'Joining...'
+    if (status === 'success') return 'Success'
+    if (status === 'error') return 'Try again'
+    return 'Join waitlist'
   }
 
   return (
@@ -58,24 +61,25 @@ export default function WaitlistForm() {
         <Input
           type="email"
           placeholder="you@example.com"
-          className="flex-1 text-lg bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-12"
+          className="flex-1 text-base bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-12"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={isSubmitting}
         />
         <Button
           type="submit"
-          className="bg-white text-black hover:bg-gray-100 rounded-md px-8 h-12"
+          className={`rounded-md px-8 h-12 ${
+            status === 'success'
+              ? 'bg-green-500 hover:bg-green-600'
+              : status === 'error'
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-white text-black hover:bg-gray-100'
+          }`}
           disabled={isSubmitting}
         >
-          {isSubmitting ? 'Joining...' : 'Join waitlist'}
+          {getButtonText()}
         </Button>
       </div>
-      {message && (
-        <p className={`text-sm ${message.includes('Thanks') ? 'text-green-400' : 'text-red-400'}`}>
-          {message}
-        </p>
-      )}
     </form>
   )
 }

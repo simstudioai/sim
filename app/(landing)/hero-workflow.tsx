@@ -108,7 +108,7 @@ export function HeroWorkflow() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   return (
-    <div className="w-full h-[300px] md:h-[420px]">
+    <div className="w-full h-[260px] md:h-[340px]">
       <style jsx global>{`
         .animated-edge {
           animation: dashdraw 7s linear infinite;
@@ -136,7 +136,7 @@ export function HeroWorkflow() {
         connectionLineType={ConnectionLineType.SmoothStep}
         connectionLineStyle={{ stroke: '#94a3b8', strokeWidth: 2 }}
         fitView
-        minZoom={1.3}
+        minZoom={0.8}
         maxZoom={1.3}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}

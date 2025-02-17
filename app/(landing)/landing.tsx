@@ -21,7 +21,7 @@ export default function Landing() {
         </div>
       </nav>
 
-      <section className="min-h-[100dvh] pt-28 text-white relative">
+      <section className="min-h-[100dvh] pt-36 text-white relative">
         <div className="absolute inset-0 z-0">
           <Image
             src="/hero.png"
@@ -35,8 +35,8 @@ export default function Landing() {
           />
         </div>
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#020817]/80 to-[#020817]/40" />
-        <div className="max-w-6xl mx-auto text-center space-y-4 relative z-10 px-4">
-          <h1 className="text-4xl md:text-7xl font-medium tracking-tight">
+        <div className="max-w-6xl mx-auto text-center space-y-6 relative z-10 px-4">
+          <h1 className="text-5xl md:text-7xl font-medium">
             dev first agent
             <br />
             workflow builder
@@ -50,7 +50,7 @@ export default function Landing() {
 
           <WaitlistForm />
 
-          <div className="mt-10 -mx-4">
+          <div className="mt-16 -mx-4">
             <HeroWorkflowProvider />
           </div>
         </div>
