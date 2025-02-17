@@ -15,6 +15,13 @@
       "when": 1739773751302,
       "tag": "0001_foamy_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1739776634326,
+      "tag": "0002_previous_xavin",
+      "breakpoints": true
     }
   ]
 }

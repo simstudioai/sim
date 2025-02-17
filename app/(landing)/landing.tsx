@@ -1,7 +1,6 @@
 import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import HeroWorkflowProvider from './hero-workflow'
+import WaitlistForm from './waitlist-form'
 
 export default function Landing() {
   return (
@@ -49,16 +48,7 @@ export default function Landing() {
             user-friendly environment for devs and agents
           </p>
 
-          <div className="flex gap-3 justify-center max-w-lg mx-auto mt-8">
-            <Input
-              type="email"
-              placeholder="you@example.com"
-              className="flex-1 text-lg bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-12"
-            />
-            <Button className="bg-white text-black hover:bg-gray-100 rounded-md px-8 h-12">
-              Join waitlist
-            </Button>
-          </div>
+          <WaitlistForm />
 
           <div className="mt-10 -mx-4">
             <HeroWorkflowProvider />
