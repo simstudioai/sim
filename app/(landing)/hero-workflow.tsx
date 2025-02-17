@@ -24,7 +24,7 @@ const initialNodes: Node[] = [
   {
     id: 'api',
     type: 'heroBlock',
-    position: { x: 50, y: -150 },
+    position: { x: -150, y: -100 },
     data: {
       type: 'api',
       name: 'API Block',
@@ -35,7 +35,7 @@ const initialNodes: Node[] = [
   {
     id: 'router',
     type: 'heroBlock',
-    position: { x: 100, y: -25 },
+    position: { x: 125, y: -50 },
     data: {
       type: 'router',
       name: 'Router',
@@ -46,7 +46,7 @@ const initialNodes: Node[] = [
   {
     id: 'agent1',
     type: 'heroBlock',
-    position: { x: 400, y: -75 },
+    position: { x: 400, y: -100 },
     data: {
       type: 'agent',
       name: 'Agent 1',
@@ -57,7 +57,7 @@ const initialNodes: Node[] = [
   {
     id: 'agent2',
     type: 'heroBlock',
-    position: { x: 400, y: 25 },
+    position: { x: 400, y: 0 },
     data: {
       type: 'agent',
       name: 'Agent 2',
@@ -108,7 +108,7 @@ export function HeroWorkflow() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   return (
-    <div className="w-full h-[260px] md:h-[340px]">
+    <div className="w-full h-[260px] md:h-[320px]">
       <style jsx global>{`
         .animated-edge {
           animation: dashdraw 7s linear infinite;
@@ -137,7 +137,7 @@ export function HeroWorkflow() {
         connectionLineStyle={{ stroke: '#94a3b8', strokeWidth: 2 }}
         fitView
         minZoom={0.6}
-        maxZoom={1.3}
+        maxZoom={1.35}
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={true}
@@ -149,9 +149,11 @@ export function HeroWorkflow() {
         zoomOnDoubleClick={false}
         panOnDrag={false}
         selectionOnDrag={false}
+        preventScrolling={true}
+        autoPanOnNodeDrag={false}
         nodeExtent={[
-          [-200, -300],
-          [800, 300],
+          [-190, -130],
+          [644, 60],
         ]}
         translateExtent={[
           [-200, -300],

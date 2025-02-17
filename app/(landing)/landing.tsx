@@ -12,7 +12,7 @@ export default function Landing() {
           {/* Update navigation section */}
           <div className="flex items-center gap-6">
             <a
-              href="https://github.com/simstudioai/sim"
+              href="https://github.com/simstudioai"
               className="text-muted-foreground hover:text-muted-foreground/80 transition-colors text-sm font-normal"
             >
               GitHub
