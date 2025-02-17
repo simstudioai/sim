@@ -29,7 +29,7 @@ export const resetAllStores = () => {
   useEnvironmentStore.setState({ variables: {} })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
-  useGeneralStore.setState({ isAutoConnectEnabled: true })
+  useGeneralStore.setState({ isAutoConnectEnabled: true, isDebugModeEnabled: false })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
 }
 

@@ -99,5 +99,6 @@ export const userSettings = pgTable('user_settings', {
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One settings record per user
   isAutoConnectEnabled: boolean('is_auto_connect_enabled').notNull().default(true),
+  isDebugModeEnabled: boolean('is_debug_mode_enabled').notNull().default(false),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
