@@ -42,8 +42,8 @@ export default function Landing() {
             workflow builder
           </h1>
 
-          <p className="text-base md:text-xl text-muted-foreground max-w-3xl mx-auto">
-            Build and deploy your agentic workflows with an open source,
+          <p className="text-[15px] md:text-xl text-muted-foreground max-w-3xl mx-auto">
+            Build and deploy your agentic workflows with an open source,{' '}
             <br className="hidden md:block" />
             user-friendly environment for devs and agents
           </p>
