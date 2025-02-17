@@ -22,6 +22,16 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  socialProviders: {
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID as string,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
@@ -40,10 +50,12 @@ export const auth = betterAuth({
     },
   },
   emailVerification: {
-    sendVerificationEmail: async ({ user, url }: EmailHandler) => {
-      console.log('Attempting to send verification email to:', user.email)
-      console.log('Verification URL:', url)
+    sendVerificationEmail: async ({ user, url, token }, request) => {
       try {
+        if (!user.email) {
+          throw new Error('User email is required')
+        }
+
         const result = await resend.emails.send({
           from: 'Sim Studio <onboarding@simstudio.ai>',
           to: user.email,
@@ -55,16 +67,19 @@ export const auth = betterAuth({
             <p>If you didn't create an account, you can safely ignore this email.</p>
           `,
         })
-        console.log('Resend API response:', result)
+
+        if (!result) {
+          throw new Error('Failed to send verification email')
+        }
       } catch (error) {
-        console.error('Error sending verification email:', error)
+        console.error('Error sending verification email:', {
+          error,
+          user: user.email,
+          url,
+          token,
+        })
+        throw error
       }
-    },
-  },
-  socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     },
   },
   plugins: [nextCookies()],

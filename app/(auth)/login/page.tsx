@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Github } from 'lucide-react'
+import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -49,6 +49,14 @@ export default function LoginPage() {
     }
   }
 
+  async function signInWithGoogle() {
+    try {
+      await client.signIn.social({ provider: 'google' })
+    } catch (err) {
+      setError('Failed to sign in with Google')
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -60,10 +68,16 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-6">
-              <Button variant="outline" onClick={signInWithGithub} className="w-full">
-                <Github className="mr-2 h-4 w-4" />
-                Continue with GitHub
-              </Button>
+              <div className="grid gap-2">
+                <Button variant="outline" onClick={signInWithGithub} className="w-full">
+                  <GithubIcon className="mr-2 h-4 w-4" />
+                  Continue with GitHub
+                </Button>
+                <Button variant="outline" onClick={signInWithGoogle} className="w-full">
+                  <GoogleIcon className="mr-2 h-4 w-4" />
+                  Continue with Google
+                </Button>
+              </div>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />

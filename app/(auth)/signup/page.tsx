@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -51,6 +52,22 @@ export default function SignupPage() {
     }
   }
 
+  async function signUpWithGithub() {
+    try {
+      await client.signIn.social({ provider: 'github' })
+    } catch (err) {
+      addNotification('error', 'Failed to sign up with GitHub', null)
+    }
+  }
+
+  async function signUpWithGoogle() {
+    try {
+      await client.signIn.social({ provider: 'google' })
+    } catch (err) {
+      addNotification('error', 'Failed to sign up with Google', null)
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
       <NotificationList />
@@ -61,39 +78,61 @@ export default function SignupPage() {
             <CardTitle>Create an account</CardTitle>
             <CardDescription>Enter your details to get started</CardDescription>
           </CardHeader>
-          <form onSubmit={onSubmit}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" type="text" required />
+          <CardContent>
+            <div className="grid gap-6">
+              <div className="grid gap-2">
+                <Button variant="outline" onClick={signUpWithGithub} className="w-full">
+                  <GithubIcon className="mr-2 h-4 w-4" />
+                  Continue with GitHub
+                </Button>
+                <Button variant="outline" onClick={signUpWithGoogle} className="w-full">
+                  <GoogleIcon className="mr-2 h-4 w-4" />
+                  Continue with Google
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  required
-                />
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="password" required />
-              </div>
-            </CardContent>
-            <CardFooter className="flex flex-col space-y-4">
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Creating account...' : 'Create account'}
-              </Button>
-              <p className="text-sm text-gray-500">
-                Already have an account?{' '}
-                <Link href="/login" className="text-primary hover:underline">
-                  Sign in
-                </Link>
-              </p>
-            </CardFooter>
-          </form>
+              <form onSubmit={onSubmit}>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input id="name" name="name" type="text" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="name@example.com"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input id="password" name="password" type="password" required />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Creating account...' : 'Create account'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <p className="text-sm text-gray-500 text-center w-full">
+              Already have an account?{' '}
+              <Link href="/login" className="text-primary hover:underline">
+                Sign in
+              </Link>
+            </p>
+          </CardFooter>
         </Card>
       </div>
     </main>
