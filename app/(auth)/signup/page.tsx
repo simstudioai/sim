@@ -37,13 +37,22 @@ export default function SignupPage() {
       await client.signUp.email({ email, password, name })
       router.push('/verify-request')
     } catch (err: any) {
-      // Handle specific error messages
-      let errorMessage = 'Something went wrong. Please try again.'
+      let errorMessage = 'Failed to create account'
 
       if (err.message?.includes('Password is too short')) {
         errorMessage = 'Password must be at least 8 characters long'
       } else if (err.message?.includes('existing email')) {
-        errorMessage = 'An account with this email already exists'
+        errorMessage = 'An account with this email already exists. Please sign in instead.'
+      } else if (err.message?.includes('invalid email')) {
+        errorMessage = 'Please enter a valid email address'
+      } else if (err.message?.includes('password too long')) {
+        errorMessage = 'Password must be less than 128 characters'
+      } else if (err.message?.includes('rate limit')) {
+        errorMessage = 'Too many signup attempts. Please try again later.'
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (err.message?.includes('invalid name')) {
+        errorMessage = 'Please enter a valid name'
       }
 
       addNotification('error', errorMessage, null)
@@ -55,16 +64,40 @@ export default function SignupPage() {
   async function signUpWithGithub() {
     try {
       await client.signIn.social({ provider: 'github' })
-    } catch (err) {
-      addNotification('error', 'Failed to sign up with GitHub', null)
+    } catch (err: any) {
+      let errorMessage = 'Failed to sign up with GitHub'
+
+      if (err.message?.includes('account exists')) {
+        errorMessage = 'An account with this email already exists. Please sign in instead.'
+      } else if (err.message?.includes('cancelled')) {
+        errorMessage = 'GitHub sign up was cancelled. Please try again.'
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (err.message?.includes('rate limit')) {
+        errorMessage = 'Too many attempts. Please try again later.'
+      }
+
+      addNotification('error', errorMessage, null)
     }
   }
 
   async function signUpWithGoogle() {
     try {
       await client.signIn.social({ provider: 'google' })
-    } catch (err) {
-      addNotification('error', 'Failed to sign up with Google', null)
+    } catch (err: any) {
+      let errorMessage = 'Failed to sign up with Google'
+
+      if (err.message?.includes('account exists')) {
+        errorMessage = 'An account with this email already exists. Please sign in instead.'
+      } else if (err.message?.includes('cancelled')) {
+        errorMessage = 'Google sign up was cancelled. Please try again.'
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (err.message?.includes('rate limit')) {
+        errorMessage = 'Too many attempts. Please try again later.'
+      }
+
+      addNotification('error', errorMessage, null)
     }
   }
 

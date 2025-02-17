@@ -6,11 +6,6 @@ import { Resend } from 'resend'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
-type EmailHandler = {
-  user: { email: string }
-  url: string
-}
-
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
 const resend = process.env.RESEND_API_KEY
@@ -35,8 +30,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    sendResetPassword: async ({ user, url }: EmailHandler) => {
-      await resend.emails.send({
+    sendResetPassword: async ({ user, url, token }, request) => {
+      const result = await resend.emails.send({
         from: 'Sim Studio <team@simstudio.ai>',
         to: user.email,
         subject: 'Reset your password',
@@ -47,6 +42,10 @@ export const auth = betterAuth({
           <p>If you didn't request this, you can safely ignore this email.</p>
         `,
       })
+
+      if (!result) {
+        throw new Error('Failed to send reset password email')
+      }
     },
   },
   emailVerification: {

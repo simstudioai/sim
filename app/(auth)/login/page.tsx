@@ -16,15 +16,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
+import { useNotificationStore } from '@/stores/notifications/store'
+import { NotificationList } from '@/app/w/components/notifications/notifications'
 
 export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+  const { addNotification } = useNotificationStore()
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError('')
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
@@ -34,8 +35,27 @@ export default function LoginPage() {
     try {
       await client.signIn.email({ email, password })
       router.push('/w/1')
-    } catch (err) {
-      setError('Invalid email or password')
+    } catch (err: any) {
+      let errorMessage = 'Invalid email or password'
+
+      if (err.message?.includes('not verified')) {
+        errorMessage =
+          'Please verify your email before signing in. Check your inbox for the verification link.'
+      } else if (err.message?.includes('not found')) {
+        errorMessage = 'No account found with this email. Please sign up first.'
+      } else if (err.message?.includes('invalid password')) {
+        errorMessage = 'Invalid password. Please try again or use the forgot password link.'
+      } else if (err.message?.includes('too many attempts')) {
+        errorMessage = 'Too many login attempts. Please try again later or reset your password.'
+      } else if (err.message?.includes('account locked')) {
+        errorMessage = 'Your account has been locked for security. Please reset your password.'
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      } else if (err.message?.includes('rate limit')) {
+        errorMessage = 'Too many requests. Please wait a moment before trying again.'
+      }
+
+      addNotification('error', errorMessage, null)
     } finally {
       setIsLoading(false)
     }
@@ -44,21 +64,44 @@ export default function LoginPage() {
   async function signInWithGithub() {
     try {
       await client.signIn.social({ provider: 'github' })
-    } catch (err) {
-      setError('Failed to sign in with GitHub')
+    } catch (err: any) {
+      let errorMessage = 'Failed to sign in with GitHub'
+
+      if (err.message?.includes('account exists')) {
+        errorMessage =
+          'An account with this email already exists. Please sign in with email instead.'
+      } else if (err.message?.includes('cancelled')) {
+        errorMessage = 'GitHub sign in was cancelled. Please try again.'
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      }
+
+      addNotification('error', errorMessage, null)
     }
   }
 
   async function signInWithGoogle() {
     try {
       await client.signIn.social({ provider: 'google' })
-    } catch (err) {
-      setError('Failed to sign in with Google')
+    } catch (err: any) {
+      let errorMessage = 'Failed to sign in with Google'
+
+      if (err.message?.includes('account exists')) {
+        errorMessage =
+          'An account with this email already exists. Please sign in with email instead.'
+      } else if (err.message?.includes('cancelled')) {
+        errorMessage = 'Google sign in was cancelled. Please try again.'
+      } else if (err.message?.includes('network')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
+      }
+
+      addNotification('error', errorMessage, null)
     }
   }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
+      <NotificationList />
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
         <Card className="w-full">
@@ -102,7 +145,6 @@ export default function LoginPage() {
                     <Label htmlFor="password">Password</Label>
                     <Input id="password" name="password" type="password" required />
                   </div>
-                  {error && <p className="text-sm text-red-500">{error}</p>}
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Signing in...' : 'Sign in'}
                   </Button>
