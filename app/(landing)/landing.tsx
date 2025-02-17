@@ -33,7 +33,7 @@ export default function Landing() {
         />
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#020817]/80 to-[#020817]/40" />
         <div className="max-w-6xl mx-auto text-center space-y-4 relative z-10 px-4">
-          <h1 className="text-4xl md:text-6xl font-medium tracking-tight">
+          <h1 className="text-4xl md:text-7xl font-medium tracking-tight">
             dev first agent
             <br />
             workflow builder
@@ -49,7 +49,7 @@ export default function Landing() {
             <Input
               type="email"
               placeholder="you@example.com"
-              className="flex-1 text-md bg-[#020817] border-white/20 focus:border-white/40 rounded-md h-12"
+              className="flex-1 text-lg bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-12"
             />
             <Button className="bg-white text-black hover:bg-gray-100 rounded-md px-8 h-12">
               Join waitlist
