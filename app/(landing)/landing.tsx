@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import HeroWorkflowProvider from './hero-workflow'
@@ -22,15 +23,16 @@ export default function Landing() {
       </nav>
 
       <section className="min-h-[100dvh] pt-28 text-white relative">
-        <div
-          className="absolute inset-0 z-0"
-          style={{
-            backgroundImage: "url('/Hero.png')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-          }}
-        />
+        <div className="absolute inset-0 z-0">
+          <Image
+            src="/hero.png"
+            alt="Hero background"
+            fill
+            priority
+            className="object-cover"
+            quality={100}
+          />
+        </div>
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#020817]/80 to-[#020817]/40" />
         <div className="max-w-6xl mx-auto text-center space-y-4 relative z-10 px-4">
           <h1 className="text-4xl md:text-7xl font-medium tracking-tight">
