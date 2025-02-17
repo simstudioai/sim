@@ -25,6 +25,7 @@ async function syncWorkflowToServer(payload: SyncPayload): Promise<boolean> {
       throw new Error(`Sync failed: ${response.statusText}`)
     }
 
+    console.log('Workflow synced successfully')
     return true
   } catch (error) {
     console.error('Error syncing workflow:', error)
