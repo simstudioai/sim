@@ -91,7 +91,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             [starterId]: {
               id: starterId,
               type: 'starter',
-              name: 'Start',
+              name: 'Starter',
               position: { x: 100, y: 100 },
               subBlocks: {
                 startWorkflow: {
