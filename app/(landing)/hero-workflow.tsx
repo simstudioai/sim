@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactFlow, {
   Background,
   ConnectionLineType,
@@ -14,6 +14,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { HeroBlock } from './hero-block'
+import { useWindowSize } from './use-window-size'
 
 const nodeTypes: NodeTypes = {
   heroBlock: HeroBlock,
@@ -67,8 +68,8 @@ const initialNodes: Node[] = [
   },
 ]
 
-// Initial edges configuration
-const initialEdges: Edge[] = [
+// Consolidated edges configuration
+const baseEdges: Edge[] = [
   {
     id: 'api-router',
     source: 'api',
@@ -93,6 +94,10 @@ const initialEdges: Edge[] = [
     style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
     className: 'animated-edge',
   },
+]
+
+const initialEdges: Edge[] = [
+  ...baseEdges,
   {
     id: 'router-agent3',
     source: 'router',
@@ -103,9 +108,83 @@ const initialEdges: Edge[] = [
   },
 ]
 
+// Create mobile node positions
+const getMobileNodes = (): Node[] => [
+  {
+    id: 'api',
+    type: 'heroBlock',
+    position: { x: -25, y: -150 },
+    data: {
+      type: 'api',
+      name: 'API Block',
+      color: '#2F55FF',
+    },
+    dragHandle: '.workflow-drag-handle',
+  },
+  {
+    id: 'router',
+    type: 'heroBlock',
+    position: { x: 0, y: -30 },
+    data: {
+      type: 'router',
+      name: 'Router',
+      color: '#28C43F',
+    },
+    dragHandle: '.workflow-drag-handle',
+  },
+  {
+    id: 'agent1',
+    type: 'heroBlock',
+    position: { x: 275, y: -100 },
+    data: {
+      type: 'agent',
+      name: 'Agent 1',
+      color: '#7F2FFF',
+    },
+    dragHandle: '.workflow-drag-handle',
+  },
+  {
+    id: 'agent2',
+    type: 'heroBlock',
+    position: { x: 275, y: 0 },
+    data: {
+      type: 'agent',
+      name: 'Agent 2',
+      color: '#7F2FFF',
+    },
+    dragHandle: '.workflow-drag-handle',
+  },
+]
+
 export function HeroWorkflow() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const { width } = useWindowSize()
+  const isMobile = width ? width <= 768 : false
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(isMobile ? getMobileNodes() : initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState(isMobile ? baseEdges : initialEdges)
+
+  // Handle viewport changes with instant update
+  useEffect(() => {
+    const targetNodes = isMobile ? getMobileNodes() : initialNodes
+    const targetEdges = isMobile ? baseEdges : initialEdges
+
+    setNodes((nds) =>
+      nds.map((node) => {
+        const targetNode = targetNodes.find((n) => n.id === node.id)
+        if (targetNode) {
+          return {
+            ...node,
+            position: {
+              x: targetNode.position.x,
+              y: targetNode.position.y,
+            },
+          }
+        }
+        return node
+      })
+    )
+    setEdges(targetEdges)
+  }, [isMobile, setNodes, setEdges])
 
   return (
     <div className="w-full h-[260px] md:h-[320px]">
@@ -151,14 +230,17 @@ export function HeroWorkflow() {
         selectionOnDrag={false}
         preventScrolling={true}
         autoPanOnNodeDrag={false}
-        nodeExtent={[
-          [-190, -130],
-          [644, 60],
-        ]}
-        translateExtent={[
-          [-200, -300],
-          [800, 300],
-        ]}
+        nodeExtent={
+          isMobile
+            ? [
+                [-50, -200],
+                [500, 100],
+              ]
+            : [
+                [-190, -130],
+                [644, 60],
+              ]
+        }
       />
     </div>
   )
