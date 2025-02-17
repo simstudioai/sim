@@ -85,7 +85,7 @@
       box-shadow: 0 0 0 0 hsl(var(--border));
     }
     50% {
-      box-shadow: 0 0 0 6px hsl(var(--border));
+      box-shadow: 0 0 0 8px hsl(var(--border));
     }
     100% {
       box-shadow: 0 0 0 0 hsl(var(--border));
