@@ -33,7 +33,7 @@ export default function LoginPage() {
 
     try {
       await client.signIn.email({ email, password })
-      router.push('/dashboard')
+      router.push('/w/1')
     } catch (err) {
       setError('Invalid email or password')
     } finally {
