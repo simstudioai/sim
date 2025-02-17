@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import debounce from 'lodash.debounce'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '../registry/store'
 import { useWorkflowStore } from '../store'
 
@@ -22,6 +24,11 @@ async function syncWorkflowToServer(payload: SyncPayload): Promise<boolean> {
     })
 
     if (!response.ok) {
+      if (response.status === 401) {
+        // Auth error - will be handled by the middleware
+        window.location.href = '/login'
+        return false
+      }
       throw new Error(`Sync failed: ${response.statusText}`)
     }
 
@@ -33,6 +40,8 @@ async function syncWorkflowToServer(payload: SyncPayload): Promise<boolean> {
 }
 
 export function useDebouncedWorkflowSync() {
+  const router = useRouter()
+  const { addNotification } = useNotificationStore()
   const workflowState = useWorkflowStore((state) => ({
     blocks: state.blocks,
     edges: state.edges,
@@ -55,7 +64,14 @@ export function useDebouncedWorkflowSync() {
         state: JSON.stringify(workflowState),
       }
 
-      await syncWorkflowToServer(payload)
+      const success = await syncWorkflowToServer(payload)
+      if (!success) {
+        addNotification(
+          'error',
+          'Failed to save workflow changes. Please try again.',
+          activeWorkflowId
+        )
+      }
     }
 
     // Create a debounced version of syncWorkflow
@@ -70,10 +86,11 @@ export function useDebouncedWorkflowSync() {
     return () => {
       debouncedSyncRef.current?.cancel()
     }
-  }, [activeWorkflowId, workflows, workflowState])
+  }, [activeWorkflowId, workflows, workflowState, addNotification])
 }
 
 export function usePeriodicWorkflowSync() {
+  const { addNotification } = useNotificationStore()
   const workflowState = useWorkflowStore((state) => ({
     blocks: state.blocks,
     edges: state.edges,
@@ -94,16 +111,24 @@ export function usePeriodicWorkflowSync() {
         state: JSON.stringify(workflowState),
       }
 
-      await syncWorkflowToServer(payload)
+      const success = await syncWorkflowToServer(payload)
+      if (!success) {
+        addNotification(
+          'error',
+          'Failed to auto-save workflow changes. Please save manually.',
+          activeWorkflowId
+        )
+      }
     }
 
     const intervalId = setInterval(syncWorkflow, PERIODIC_SYNC_MS)
 
     return () => clearInterval(intervalId)
-  }, [activeWorkflowId, workflows, workflowState])
+  }, [activeWorkflowId, workflows, workflowState, addNotification])
 }
 
 export function useSyncOnUnload() {
+  const { addNotification } = useNotificationStore()
   const workflowState = useWorkflowStore((state) => ({
     blocks: state.blocks,
     edges: state.edges,
@@ -125,12 +150,20 @@ export function useSyncOnUnload() {
       }
 
       // Use the keepalive option to try to complete the request even during unload
-      await fetch('/api/workflows/sync', {
+      const response = await fetch('/api/workflows/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
         keepalive: true,
       })
+
+      if (!response.ok) {
+        addNotification(
+          'error',
+          'Failed to save workflow changes before closing.',
+          activeWorkflowId
+        )
+      }
 
       // Show a confirmation dialog
       event.preventDefault()
@@ -139,5 +172,5 @@ export function useSyncOnUnload() {
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [activeWorkflowId, workflows, workflowState])
+  }, [activeWorkflowId, workflows, workflowState, addNotification])
 }

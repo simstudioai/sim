@@ -11,5 +11,5 @@ export async function middleware(request: NextRequest) {
 
 // TODO: Add protected routes
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*', '/w/:path*'],
 }
