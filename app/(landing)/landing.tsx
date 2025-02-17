@@ -29,6 +29,8 @@ export default function Landing() {
             alt="Hero background"
             fill
             priority
+            loading="eager"
+            fetchPriority="high"
             className="object-cover"
             quality={100}
           />
