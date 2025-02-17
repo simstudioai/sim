@@ -4,8 +4,14 @@ import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
 import { useGeneralStore } from './settings/general/store'
+import { initializeSyncManager } from './sync-manager'
 import { useWorkflowRegistry } from './workflow/registry/store'
 import { useWorkflowStore } from './workflow/store'
+
+// Initialize sync manager when the store is first imported
+if (typeof window !== 'undefined') {
+  initializeSyncManager()
+}
 
 // Reset all application stores to their initial state
 export const resetAllStores = () => {
@@ -29,7 +35,7 @@ export const resetAllStores = () => {
   useEnvironmentStore.setState({ variables: {} })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
-  useGeneralStore.setState({ isAutoConnectEnabled: true })
+  useGeneralStore.setState({ isAutoConnectEnabled: true, isDebugModeEnabled: false })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
 }
 
