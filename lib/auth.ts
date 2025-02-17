@@ -25,19 +25,6 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
-    sendVerificationEmail: async ({ user, url }: EmailHandler) => {
-      await resend.emails.send({
-        from: 'Sim Studio <onboarding@simstudio.ai>',
-        to: user.email,
-        subject: 'Verify your email',
-        html: `
-          <h2>Welcome to Sim Studio!</h2>
-          <p>Click the link below to verify your email:</p>
-          <a href="${url}">${url}</a>
-          <p>If you didn't create an account, you can safely ignore this email.</p>
-        `,
-      })
-    },
     sendResetPassword: async ({ user, url }: EmailHandler) => {
       await resend.emails.send({
         from: 'Sim Studio <team@simstudio.ai>',
@@ -50,6 +37,28 @@ export const auth = betterAuth({
           <p>If you didn't request this, you can safely ignore this email.</p>
         `,
       })
+    },
+  },
+  emailVerification: {
+    sendVerificationEmail: async ({ user, url }: EmailHandler) => {
+      console.log('Attempting to send verification email to:', user.email)
+      console.log('Verification URL:', url)
+      try {
+        const result = await resend.emails.send({
+          from: 'Sim Studio <onboarding@simstudio.ai>',
+          to: user.email,
+          subject: 'Verify your email',
+          html: `
+            <h2>Welcome to Sim Studio!</h2>
+            <p>Click the link below to verify your email:</p>
+            <a href="${url}">${url}</a>
+            <p>If you didn't create an account, you can safely ignore this email.</p>
+          `,
+        })
+        console.log('Resend API response:', result)
+      } catch (error) {
+        console.error('Error sending verification email:', error)
+      }
     },
   },
   socialProviders: {
