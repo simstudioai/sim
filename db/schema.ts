@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -68,5 +68,36 @@ export const waitlist = pgTable('waitlist', {
   email: text('email').notNull().unique(),
   status: text('status').notNull().default('pending'), // pending, approved, rejected
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const consoleLog = pgTable('logs', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  executionId: text('execution_id'),
+  level: text('level').notNull(), // e.g. "info", "error", etc.
+  message: text('message').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const userEnvironment = pgTable('user_environment', {
+  id: text('id').primaryKey(), // Use the user id as the key
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' })
+    .unique(), // One environment per user
+  variables: text('variables').notNull(), // JSON stringified {key: hashedValue}
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const userSettings = pgTable('user_settings', {
+  id: text('id').primaryKey(), // Use the user id as the key
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' })
+    .unique(), // One settings record per user
+  isAutoConnectEnabled: boolean('is_auto_connect_enabled').notNull().default(true),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
