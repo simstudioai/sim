@@ -19,6 +19,7 @@ import { initializeStateLogger } from '@/stores/workflow/logger'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { NotificationList } from '@/app/w/components/notifications/notifications'
+import { WorkflowSyncWrapper } from '@/app/w/components/workflows/sync-wrapper'
 import { getBlock } from '../../../blocks'
 import { ErrorBoundary } from '../components/error-boundary/error-boundary'
 import { CustomEdge } from './components/custom-edge/custom-edge'
@@ -378,7 +379,9 @@ export default function Workflow() {
   return (
     <ReactFlowProvider>
       <ErrorBoundary>
-        <WorkflowContent />
+        <WorkflowSyncWrapper>
+          <WorkflowContent />
+        </WorkflowSyncWrapper>
       </ErrorBoundary>
     </ReactFlowProvider>
   )

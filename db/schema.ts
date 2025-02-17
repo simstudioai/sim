@@ -49,3 +49,16 @@ export const verification = pgTable('verification', {
   createdAt: timestamp('created_at'),
   updatedAt: timestamp('updated_at'),
 })
+
+export const workflow = pgTable('workflow', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  state: text('state').notNull(), // JSON stringified workflow state
+  lastSynced: timestamp('last_synced').notNull(),
+  createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull(),
+})
