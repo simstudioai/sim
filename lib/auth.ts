@@ -30,6 +30,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
+    throwOnMissingCredentials: true,
+    throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
       const result = await resend.emails.send({
         from: 'Sim Studio <team@simstudio.ai>',
