@@ -152,7 +152,13 @@ export default function LoginPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" name="password" type="password" required />
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      placeholder="Enter your password"
+                      required
+                    />
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Signing in...' : 'Sign in'}

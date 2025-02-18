@@ -20,6 +20,8 @@ export function General() {
   const router = useRouter()
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
+  const isDebugModeEnabled = useGeneralStore((state) => state.isDebugModeEnabled)
+  const toggleDebugMode = useGeneralStore((state) => state.toggleDebugMode)
 
   const handleResetData = () => {
     resetAllStores()
@@ -35,7 +37,11 @@ export function General() {
             <Label htmlFor="debug-mode" className="font-medium">
               Debug mode
             </Label>
-            <Switch id="debug-mode" />
+            <Switch
+              id="debug-mode"
+              checked={isDebugModeEnabled}
+              onCheckedChange={toggleDebugMode}
+            />
           </div>
           <div className="flex items-center justify-between py-1">
             <Label htmlFor="auto-connect" className="font-medium">
