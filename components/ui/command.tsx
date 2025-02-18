@@ -30,6 +30,9 @@ import { cn } from '@/lib/utils'
 // This file is not typed correctly from shadcn, so we're disabling the type checker
 // @ts-nocheck
 
+// This file is not typed correctly from shadcn, so we're disabling the type checker
+// @ts-nocheck
+
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive> & {

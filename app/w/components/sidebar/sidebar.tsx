@@ -50,7 +50,6 @@ export function Sidebar() {
           <AgentIcon className="text-white transition-all group-hover:scale-110 -translate-y-[0.5px] w-5 h-5" />
           <span className="sr-only">Sim Studio</span>
         </Link>
-
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

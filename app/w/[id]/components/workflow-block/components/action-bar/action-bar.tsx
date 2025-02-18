@@ -19,7 +19,7 @@ export function ActionBar({ blockId }: ActionBarProps) {
   )
 
   return (
-    <div className="absolute top-0 -right-20 flex flex-col items-center gap-2 p-2 bg-white rounded-md shadow-sm border border-gray-200">
+    <div className="absolute top-0 -right-20 flex flex-col items-center gap-2 p-2 bg-background rounded-md shadow-sm border border-gray-200 dark:border-gray-800">
       {/* <Tooltip>
         <TooltipTrigger asChild>
           <Button

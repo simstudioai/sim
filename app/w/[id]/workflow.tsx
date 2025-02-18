@@ -9,7 +9,6 @@ import ReactFlow, {
   NodeTypes,
   Position,
   ReactFlowProvider,
-  useOnViewportChange,
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
@@ -44,7 +43,7 @@ function WorkflowContent() {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, setViewport } = useReactFlow()
+  const { project } = useReactFlow()
 
   // Store access
   const { addNotification } = useNotificationStore()

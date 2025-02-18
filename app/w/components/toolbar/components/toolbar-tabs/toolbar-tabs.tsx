@@ -35,8 +35,8 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
         <button
           ref={blocksRef}
           onClick={() => onTabChange('blocks')}
-          className={`text-sm font-medium transition-colors hover:text-black ${
-            activeTab === 'blocks' ? 'text-black' : 'text-muted-foreground'
+          className={`text-sm font-medium transition-colors hover:text-foreground ${
+            activeTab === 'blocks' ? 'text-foreground' : 'text-muted-foreground'
           }`}
         >
           Blocks
@@ -44,8 +44,8 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
         <button
           ref={toolsRef}
           onClick={() => onTabChange('tools')}
-          className={`text-sm font-medium transition-colors hover:text-black ${
-            activeTab === 'tools' ? 'text-black' : 'text-muted-foreground'
+          className={`text-sm font-medium transition-colors hover:text-foreground ${
+            activeTab === 'tools' ? 'text-foreground' : 'text-muted-foreground'
           }`}
         >
           Tools
@@ -53,9 +53,9 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
       </div>
 
       <div className="relative mt-2">
-        <div className="absolute bottom-0 h-[1px] w-full bg-[#E2E8F0]" />
+        <div className="absolute bottom-0 h-[1px] w-full border-b" />
         <div
-          className="absolute bottom-0 h-[1.5px] bg-black transition-transform duration-200"
+          className="absolute bottom-0 h-[1.5px] bg-foreground transition-transform duration-200"
           style={{
             width: `${underlineStyle.width}px`,
             transform: underlineStyle.transform,
