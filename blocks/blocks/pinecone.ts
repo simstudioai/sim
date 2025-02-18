@@ -18,9 +18,11 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Query', id: 'query' },
-        { label: 'Upsert', id: 'upsert' },
-        { label: 'Delete', id: 'delete' },
+        { label: 'Generate Embeddings', id: 'generate' },
+        { label: 'Upsert Text', id: 'upsert_text' },
+        { label: 'Search Text', id: 'search_text' },
+        { label: 'Fetch Vectors', id: 'fetch' },
+        { label: 'Delete Vectors', id: 'delete' },
       ],
     },
     {
@@ -37,14 +39,43 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'my-index',
     },
-    // Query operation fields
+    // Generate embeddings fields
     {
-      id: 'queryVector',
-      title: 'Query Vector',
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'text-embedding-3-small', id: 'text-embedding-3-small' },
+        { label: 'text-embedding-3-large', id: 'text-embedding-3-large' },
+      ],
+      condition: { field: 'operation', value: 'generate' },
+    },
+    {
+      id: 'inputs',
+      title: 'Text Inputs',
       type: 'long-input',
       layout: 'full',
-      placeholder: '[0.1, 0.2, 0.3, ...]',
-      condition: { field: 'operation', value: 'query' },
+      placeholder: '[{"text": "Your text here"}]',
+      condition: { field: 'operation', value: 'generate' },
+    },
+    // Upsert text fields
+    {
+      id: 'records',
+      title: 'Records',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: '[{"_id": "doc1", "text": "Your text here", "metadata": {"key": "value"}}]',
+      condition: { field: 'operation', value: 'upsert_text' },
+    },
+    // Search text fields
+    {
+      id: 'searchQuery',
+      title: 'Search Query',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter text to search for',
+      condition: { field: 'operation', value: 'search_text' },
     },
     {
       id: 'topK',
@@ -52,49 +83,33 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: '10',
-      condition: { field: 'operation', value: 'query' },
+      condition: { field: 'operation', value: 'search_text' },
     },
     {
-      id: 'includeMetadata',
-      title: 'Include Metadata',
-      type: 'switch',
-      layout: 'half',
-      value: () => 'true',
-      condition: { field: 'operation', value: 'query' },
-    },
-    {
-      id: 'includeValues',
-      title: 'Include Values',
-      type: 'switch',
-      layout: 'half',
-      value: () => 'false',
-      condition: { field: 'operation', value: 'query' },
-    },
-    // Upsert operation fields
-    {
-      id: 'vectors',
-      title: 'Vectors',
+      id: 'filter',
+      title: 'Filter',
       type: 'long-input',
       layout: 'full',
-      placeholder: '[{"id": "vec1", "values": [0.1, 0.2, 0.3], "metadata": {"key": "value"}}]',
-      condition: { field: 'operation', value: 'upsert' },
+      placeholder: '{"key": "value"}',
+      condition: { field: 'operation', value: 'search_text' },
     },
-    // Delete operation fields
+    // Fetch fields
     {
       id: 'ids',
       title: 'Vector IDs',
       type: 'long-input',
       layout: 'full',
-      placeholder: '["vec1", "vec2", ...]',
-      condition: { field: 'operation', value: 'delete' },
+      placeholder: '["vec1", "vec2"]',
+      condition: { field: 'operation', value: 'fetch' },
     },
+    // Common fields
     {
-      id: 'deleteAll',
-      title: 'Delete All Vectors',
-      type: 'switch',
-      layout: 'half',
-      value: () => 'false',
-      condition: { field: 'operation', value: 'delete' },
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Optional namespace',
+      condition: { field: 'operation', value: 'upsert_text' },
     },
     {
       id: 'apiKey',
@@ -107,14 +122,24 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   ],
 
   tools: {
-    access: ['pinecone_query', 'pinecone_upsert', 'pinecone_delete'],
+    access: [
+      'pinecone_generate_embeddings',
+      'pinecone_upsert_text',
+      'pinecone_search_text',
+      'pinecone_fetch',
+      'pinecone_delete',
+    ],
     config: {
-      tool: (params) => {
+      tool: (params: Record<string, any>) => {
         switch (params.operation) {
-          case 'query':
-            return 'pinecone_query'
-          case 'upsert':
-            return 'pinecone_upsert'
+          case 'generate':
+            return 'pinecone_generate_embeddings'
+          case 'upsert_text':
+            return 'pinecone_upsert_text'
+          case 'search_text':
+            return 'pinecone_search_text'
+          case 'fetch':
+            return 'pinecone_fetch'
           case 'delete':
             return 'pinecone_delete'
           default:
@@ -129,15 +154,19 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     apiKey: { type: 'string', required: true },
     environment: { type: 'string', required: true },
     indexName: { type: 'string', required: true },
-    // Query operation inputs
-    queryVector: { type: 'json', required: false },
-    topK: { type: 'number', required: false },
-    includeMetadata: { type: 'boolean', required: false },
-    includeValues: { type: 'boolean', required: false },
-    // Upsert operation inputs
-    vectors: { type: 'json', required: false },
-    // Delete operation inputs
+    namespace: { type: 'string', required: false },
+    // Generate embeddings inputs
+    model: { type: 'string', required: false },
+    inputs: { type: 'json', required: false },
+    // Upsert text inputs
+    records: { type: 'json', required: false },
+    // Search text inputs
+    searchQuery: { type: 'string', required: false },
+    topK: { type: 'string', required: false },
+    filter: { type: 'json', required: false },
+    // Fetch inputs
     ids: { type: 'json', required: false },
+    // Delete inputs
     deleteAll: { type: 'boolean', required: false },
   },
 
@@ -146,7 +175,8 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: {
         matches: 'any',
         upsertedCount: 'any',
-        deletedCount: 'any',
+        embeddings: 'any',
+        usage: 'any',
       },
     },
   },

@@ -17,8 +17,10 @@ import { notionWriteTool } from './notion/write'
 import { chatTool as openAIChat } from './openai/chat'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { deleteTool as pineconeDeleteTool } from './pinecone/delete'
-import { queryTool as pineconeQueryTool } from './pinecone/query'
-import { upsertTool as pineconeUpsertTool } from './pinecone/upsert'
+import { fetchTool as pineconeFetchTool } from './pinecone/fetch'
+import { generateEmbeddingsTool as pineconeGenerateEmbeddingsTool } from './pinecone/generate'
+import { searchTextTool as pineconeSearchTextTool } from './pinecone/searchText'
+import { upsertTextTool as pineconeUpsertTextTool } from './pinecone/upsertText'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
 import { slackMessageTool } from './slack/message'
@@ -63,9 +65,11 @@ export const tools: Record<string, ToolConfig> = {
   x_read: xRead,
   x_search: xSearch,
   x_user: xUser,
-  pinecone_query: pineconeQueryTool,
-  pinecone_upsert: pineconeUpsertTool,
   pinecone_delete: pineconeDeleteTool,
+  pinecone_fetch: pineconeFetchTool,
+  pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
+  pinecone_search_text: pineconeSearchTextTool,
+  pinecone_upsert_text: pineconeUpsertTextTool,
 }
 
 // Get a tool by its ID

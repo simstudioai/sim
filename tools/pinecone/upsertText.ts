@@ -1,33 +1,34 @@
 import { ToolConfig } from '../types'
-import { PineconeParams, PineconeResponse } from './types'
+import { PineconeResponse, PineconeUpsertTextParams } from './types'
 
-export const upsertTool: ToolConfig<PineconeParams, PineconeResponse> = {
-  id: 'pinecone_upsert',
-  name: 'Pinecone Upsert',
-  description: 'Upsert vectors into Pinecone index',
+export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeResponse> = {
+  id: 'pinecone_upsert_text',
+  name: 'Pinecone Upsert Text',
+  description: 'Insert or update text records in a Pinecone index',
   version: '1.0',
 
   params: {
     apiKey: { type: 'string', required: true, description: 'Pinecone API key' },
     environment: { type: 'string', required: true, description: 'Pinecone environment' },
     indexName: { type: 'string', required: true, description: 'Name of the Pinecone index' },
-    vectors: {
+    namespace: { type: 'string', required: false, description: 'Namespace to upsert records into' },
+    records: {
       type: 'array',
       required: true,
-      description: 'Array of vectors to upsert, each with id, values, and optional metadata',
+      description: 'Array of records to upsert, each containing _id, text, and optional metadata',
     },
   },
 
   request: {
     method: 'POST',
     url: (params) =>
-      `https://${params.indexName}-${params.environment}.svc.${params.environment}.pinecone.io/vectors/upsert`,
+      `https://${params.indexName}-${params.environment}.svc.${params.environment}.pinecone.io/records/namespaces/${params.namespace || ''}/upsert`,
     headers: (params) => ({
       'Api-Key': params.apiKey,
       'Content-Type': 'application/json',
     }),
     body: (params) => ({
-      vectors: params.vectors,
+      records: params.records,
     }),
   },
 
@@ -41,5 +42,5 @@ export const upsertTool: ToolConfig<PineconeParams, PineconeResponse> = {
     }
   },
 
-  transformError: (error) => `Pinecone upsert failed: ${error.message}`,
+  transformError: (error) => `Pinecone text upsert failed: ${error.message}`,
 }
