@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { Input } from '@/components/ui/input'
+import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
@@ -31,6 +33,17 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
     }
     return value as TableRow[]
   }, [value, columns])
+
+  // Add state for managing dropdowns
+  const [activeCell, setActiveCell] = useState<{
+    rowIndex: number
+    column: string
+    showEnvVars: boolean
+    showTags: boolean
+    cursorPosition: number
+    activeSourceBlockId: string | null
+    element?: HTMLElement | null
+  } | null>(null)
 
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     const updatedRows = [...rows].map((row, idx) =>
@@ -75,19 +88,61 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
     </thead>
   )
 
-  const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => (
-    <td
-      key={`${row.id}-${column}`}
-      className={cn('p-1', cellIndex < columns.length - 1 && 'border-r')}
-    >
-      <Input
-        value={row.cells[column] || ''}
-        placeholder={column}
-        onChange={(e) => handleCellChange(rowIndex, column, e.target.value)}
-        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground placeholder:text-muted-foreground/50"
-      />
-    </td>
-  )
+  const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
+    return (
+      <td
+        key={`${row.id}-${column}`}
+        className={cn('p-1 relative', cellIndex < columns.length - 1 && 'border-r')}
+      >
+        <Input
+          value={row.cells[column] || ''}
+          placeholder={column}
+          onChange={(e) => {
+            const newValue = e.target.value
+            const cursorPosition = e.target.selectionStart ?? 0
+
+            handleCellChange(rowIndex, column, newValue)
+
+            // Check for triggers
+            const envVarTrigger = checkEnvVarTrigger(newValue, cursorPosition)
+            const tagTrigger = checkTagTrigger(newValue, cursorPosition)
+
+            setActiveCell({
+              rowIndex,
+              column,
+              showEnvVars: envVarTrigger.show,
+              showTags: tagTrigger.show,
+              cursorPosition,
+              activeSourceBlockId: null,
+              element: e.target,
+            })
+          }}
+          onFocus={(e) => {
+            setActiveCell({
+              rowIndex,
+              column,
+              showEnvVars: false,
+              showTags: false,
+              cursorPosition: 0,
+              activeSourceBlockId: null,
+              element: e.target,
+            })
+          }}
+          onBlur={() => {
+            setTimeout(() => {
+              setActiveCell(null)
+            }, 200)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setActiveCell(null)
+            }
+          }}
+          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground placeholder:text-muted-foreground/50"
+        />
+      </td>
+    )
+  }
 
   const renderDeleteButton = (rowIndex: number) =>
     rows.length > 1 && (
@@ -104,18 +159,62 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
     )
 
   return (
-    <div className="border rounded-md overflow-hidden">
-      <table className="w-full">
-        {renderHeader()}
-        <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={row.id} className="border-t group relative">
-              {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
-              {renderDeleteButton(rowIndex)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="relative">
+      <div className="border rounded-md overflow-hidden">
+        <table className="w-full">
+          {renderHeader()}
+          <tbody>
+            {rows.map((row, rowIndex) => (
+              <tr key={row.id} className="border-t group relative">
+                {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
+                {renderDeleteButton(rowIndex)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {activeCell?.element && (
+        <>
+          <EnvVarDropdown
+            visible={activeCell.showEnvVars}
+            onSelect={(newValue) => {
+              handleCellChange(activeCell.rowIndex, activeCell.column, newValue)
+              setActiveCell(null)
+            }}
+            searchTerm={
+              activeCell.showEnvVars
+                ? rows[activeCell.rowIndex].cells[activeCell.column]
+                    .slice(activeCell.cursorPosition - 2)
+                    .match(/\{\{(\w*)$/)?.[1] || ''
+                : ''
+            }
+            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
+            cursorPosition={activeCell.cursorPosition}
+            onClose={() => {
+              setActiveCell((prev) => (prev ? { ...prev, showEnvVars: false } : null))
+            }}
+            className="w-[200px] absolute"
+          />
+          <TagDropdown
+            visible={activeCell.showTags}
+            onSelect={(newValue) => {
+              handleCellChange(activeCell.rowIndex, activeCell.column, newValue)
+              setActiveCell(null)
+            }}
+            blockId={blockId}
+            activeSourceBlockId={activeCell.activeSourceBlockId}
+            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
+            cursorPosition={activeCell.cursorPosition}
+            onClose={() => {
+              setActiveCell((prev) =>
+                prev ? { ...prev, showTags: false, activeSourceBlockId: null } : null
+              )
+            }}
+            className="w-[200px] absolute"
+          />
+        </>
+      )}
     </div>
   )
 }
