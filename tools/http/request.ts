@@ -1,11 +1,12 @@
-import { HttpMethod, ToolConfig, ToolResponse } from '../types'
+import { HttpMethod, TableRow, ToolConfig, ToolResponse } from '../types'
+import { transformTable } from '../utils'
 
 export interface RequestParams {
   url: string
   method?: HttpMethod
-  headers?: Record<string, string>
+  headers?: TableRow[]
   body?: any
-  queryParams?: Record<string, string>
+  params?: TableRow[]
   pathParams?: Record<string, string>
   formData?: Record<string, string | Blob>
   timeout?: number
@@ -46,7 +47,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       type: 'object',
       description: 'Request body (for POST, PUT, PATCH)',
     },
-    queryParams: {
+    params: {
       type: 'object',
       description: 'URL query parameters to append',
     },
@@ -80,11 +81,14 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         })
       }
 
-      // Append query parameters
-      if (params.queryParams) {
-        const queryString = Object.entries(params.queryParams)
-          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-          .join('&')
+      // Handle query parameters
+      const queryParamsObj = transformTable(params.params || null)
+      const queryString = Object.entries(queryParamsObj)
+        .filter(([_, value]) => value !== undefined && value !== null)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .join('&')
+
+      if (queryString) {
         url += (url.includes('?') ? '&' : '?') + queryString
       }
 
@@ -92,9 +96,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     },
     method: 'POST' as HttpMethod,
     headers: (params: RequestParams) => {
-      const headers: Record<string, string> = {
-        ...params.headers,
-      }
+      const headers = transformTable(params.headers || null)
 
       // Set appropriate Content-Type
       if (params.formData) {

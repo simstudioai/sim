@@ -38,3 +38,11 @@ export interface ToolConfig<P = any, R extends ToolResponse = ToolResponse> {
   transformResponse: (response: Response) => Promise<R>
   transformError: (error: any) => string
 }
+
+export interface TableRow {
+  id: string
+  cells: {
+    Key: string
+    Value: string
+  }
+}
