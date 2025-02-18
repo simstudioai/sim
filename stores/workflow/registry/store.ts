@@ -2,15 +2,18 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useWorkflowStore } from '../store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
+import { generateUniqueName } from './utils'
 
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
+      // Store state
       workflows: {},
       activeWorkflowId: null,
       isLoading: false,
       error: null,
 
+      // Switch to a different workflow and manage state persistence
       setActiveWorkflow: async (id: string) => {
         const { workflows } = get()
         if (!workflows[id]) {
@@ -72,6 +75,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         set({ activeWorkflowId: id, error: null })
       },
 
+      // Create new workflow with default starter block
       addWorkflow: (metadata: WorkflowMetadata) => {
         const uniqueName = generateUniqueName(get().workflows)
         const updatedMetadata = { ...metadata, name: uniqueName }
@@ -216,6 +220,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
       },
 
+      // Delete workflow and clean up associated storage
       removeWorkflow: (id: string) => {
         set((state) => {
           const newWorkflows = { ...state.workflows }
@@ -277,6 +282,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         })
       },
 
+      // Update workflow metadata
       updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => {
         set((state) => {
           const workflow = state.workflows[id]
@@ -305,25 +311,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
   )
 )
 
-const generateUniqueName = (existingWorkflows: Record<string, WorkflowMetadata>): string => {
-  // Extract numbers from existing workflow names using regex
-  const numbers = Object.values(existingWorkflows)
-    .map((w) => {
-      const match = w.name.match(/Workflow (\d+)/)
-      return match ? parseInt(match[1]) : 0
-    })
-    .filter((n) => n > 0)
-
-  if (numbers.length === 0) {
-    return 'Workflow 1'
-  }
-
-  // Find the maximum number and add 1
-  const nextNumber = Math.max(...numbers) + 1
-  return `Workflow ${nextNumber}`
-}
-
-// Initialize registry from localStorage
+// Initialize registry from localStorage and set up persistence
 const initializeRegistry = () => {
   const savedRegistry = localStorage.getItem('workflow-registry')
   if (savedRegistry) {

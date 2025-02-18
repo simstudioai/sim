@@ -2,16 +2,20 @@ import { StateCreator } from 'zustand'
 import { HistoryActions, HistoryEntry, WorkflowHistory } from './history-types'
 import { WorkflowState, WorkflowStore } from './types'
 
+// MAX for each individual workflow
 const MAX_HISTORY_LENGTH = 20
 
+// Types for workflow store with history management capabilities
 export interface WorkflowStoreWithHistory extends WorkflowStore, HistoryActions {
   history: WorkflowHistory
 }
 
+// Higher-order store middleware that adds undo/redo functionality
 export const withHistory = (
   config: StateCreator<WorkflowStoreWithHistory>
 ): StateCreator<WorkflowStoreWithHistory> => {
   return (set, get, api) => {
+    // Initialize store with history tracking
     const initialState = config(set, get, api)
     const initialHistoryEntry: HistoryEntry = {
       state: {
@@ -31,9 +35,13 @@ export const withHistory = (
         future: [],
       },
 
+      // Check if undo operation is available
       canUndo: () => get().history.past.length > 0,
+
+      // Check if redo operation is available
       canRedo: () => get().history.future.length > 0,
 
+      // Restore previous state from history
       undo: () => {
         const { history, ...state } = get()
         if (history.past.length === 0) return
@@ -52,6 +60,7 @@ export const withHistory = (
         })
       },
 
+      // Restore next state from history
       redo: () => {
         const { history, ...state } = get()
         if (history.future.length === 0) return
@@ -70,6 +79,7 @@ export const withHistory = (
         })
       },
 
+      // Reset workflow to empty state
       clear: () => {
         const newState = {
           blocks: {},
@@ -89,6 +99,7 @@ export const withHistory = (
         return newState
       },
 
+      // Jump to specific point in history
       revertToHistoryState: (index: number) => {
         const { history, ...state } = get()
         const allStates = [...history.past, history.present, ...history.future]
@@ -113,6 +124,7 @@ export const withHistory = (
   }
 }
 
+// Create a new history entry with current state snapshot
 export const createHistoryEntry = (state: WorkflowState, action: string): HistoryEntry => ({
   state: {
     blocks: { ...state.blocks },
@@ -123,6 +135,7 @@ export const createHistoryEntry = (state: WorkflowState, action: string): Histor
   action,
 })
 
+// Add new entry to history and maintain history size limit
 export const pushHistory = (
   set: (
     partial:

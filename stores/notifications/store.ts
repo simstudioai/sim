@@ -3,18 +3,20 @@ import { devtools } from 'zustand/middleware'
 import { Notification, NotificationStore, NotificationType } from './types'
 
 const STORAGE_KEY = 'workflow-notifications'
+// Maximum number of notifications to keep across all workflows
+const MAX_NOTIFICATIONS = 50
 
 // Helper to load persisted notifications
 const loadPersistedNotifications = (): Notification[] => {
   if (typeof window === 'undefined') return []
   const saved = localStorage.getItem(STORAGE_KEY)
-  return saved ? JSON.parse(saved) : []
+  return saved ? JSON.parse(saved).slice(0, MAX_NOTIFICATIONS) : []
 }
 
 // Helper to save notifications to localStorage
 const persistNotifications = (notifications: Notification[]) => {
   if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications.slice(0, MAX_NOTIFICATIONS)))
 }
 
 export const useNotificationStore = create<NotificationStore>()(
@@ -36,7 +38,11 @@ export const useNotificationStore = create<NotificationStore>()(
         }
 
         set((state) => {
-          const newNotifications = [...state.notifications, notification]
+          // Add new notification at the start and limit total count
+          const newNotifications = [notification, ...state.notifications].slice(
+            0,
+            MAX_NOTIFICATIONS
+          )
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
         })
