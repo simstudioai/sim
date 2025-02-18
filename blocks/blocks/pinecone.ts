@@ -22,24 +22,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
         { label: 'Upsert Text', id: 'upsert_text' },
         { label: 'Search Text', id: 'search_text' },
         { label: 'Fetch Vectors', id: 'fetch' },
-        { label: 'Delete Vectors', id: 'delete' },
       ],
-    },
-    {
-      id: 'environment',
-      title: 'Environment',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'gcp-starter',
-      condition: { field: 'operation', value: 'upsert_text' },
-    },
-    {
-      id: 'indexName',
-      title: 'Index Name',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'my-index',
-      condition: { field: 'operation', value: 'upsert_text' },
     },
     // Generate embeddings fields
     {
@@ -64,11 +47,28 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     },
     // Upsert text fields
     {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'upsert_text' },
+    },
+    {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Optional namespace',
+      condition: { field: 'operation', value: 'upsert_text' },
+    },
+    {
       id: 'records',
       title: 'Records',
       type: 'long-input',
       layout: 'full',
-      placeholder: '[{"_id": "doc1", "text": "Your text here", "metadata": {"key": "value"}}]',
+      placeholder:
+        '{"_id": "rec1", "text": "Apple\'s first product, the Apple I, was released in 1976.", "category": "product"}\n{"_id": "rec2", "chunk_text": "Apples are a great source of dietary fiber.", "category": "nutrition"}',
       condition: { field: 'operation', value: 'upsert_text' },
     },
     // Search text fields
@@ -89,14 +89,38 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       condition: { field: 'operation', value: 'search_text' },
     },
     {
+      id: 'fields',
+      title: 'Fields to Return',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: '["category", "text"]',
+      condition: { field: 'operation', value: 'search_text' },
+    },
+    {
       id: 'filter',
       title: 'Filter',
       type: 'long-input',
       layout: 'full',
-      placeholder: '{"key": "value"}',
+      placeholder: '{"category": "product"}',
+      condition: { field: 'operation', value: 'search_text' },
+    },
+    {
+      id: 'rerank',
+      title: 'Rerank Options',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: '{"model": "bge-reranker-v2-m3", "rank_fields": ["text"], "top_n": 2}',
       condition: { field: 'operation', value: 'search_text' },
     },
     // Fetch fields
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'fetch' },
+    },
     {
       id: 'ids',
       title: 'Vector IDs',
@@ -105,15 +129,15 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       placeholder: '["vec1", "vec2"]',
       condition: { field: 'operation', value: 'fetch' },
     },
-    // Common fields
     {
       id: 'namespace',
       title: 'Namespace',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Optional namespace',
-      condition: { field: 'operation', value: 'upsert_text' },
+      condition: { field: 'operation', value: 'fetch' },
     },
+    // Common fields
     {
       id: 'apiKey',
       title: 'API Key',
@@ -130,7 +154,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       'pinecone_upsert_text',
       'pinecone_search_text',
       'pinecone_fetch',
-      'pinecone_delete',
     ],
     config: {
       tool: (params: Record<string, any>) => {
@@ -143,8 +166,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
             return 'pinecone_search_text'
           case 'fetch':
             return 'pinecone_fetch'
-          case 'delete':
-            return 'pinecone_delete'
           default:
             throw new Error('Invalid operation selected')
         }
@@ -157,6 +178,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     apiKey: { type: 'string', required: true },
     environment: { type: 'string', required: false },
     indexName: { type: 'string', required: false },
+    indexHost: { type: 'string', required: false },
     namespace: { type: 'string', required: false },
     // Generate embeddings inputs
     model: { type: 'string', required: false },
@@ -167,11 +189,11 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     // Search text inputs
     searchQuery: { type: 'string', required: false },
     topK: { type: 'string', required: false },
+    fields: { type: 'json', required: false },
     filter: { type: 'json', required: false },
+    rerank: { type: 'json', required: false },
     // Fetch inputs
     ids: { type: 'json', required: false },
-    // Delete inputs
-    deleteAll: { type: 'boolean', required: false },
   },
 
   outputs: {

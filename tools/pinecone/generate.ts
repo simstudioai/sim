@@ -11,7 +11,12 @@ export const generateEmbeddingsTool: ToolConfig<
   version: '1.0',
 
   params: {
-    apiKey: { type: 'string', required: true, description: 'Pinecone API key' },
+    apiKey: {
+      type: 'string',
+      required: true,
+      requiredForToolCall: true,
+      description: 'Pinecone API key',
+    },
     model: {
       type: 'string',
       required: true,

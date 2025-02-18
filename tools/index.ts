@@ -16,7 +16,6 @@ import { notionReadTool } from './notion/read'
 import { notionWriteTool } from './notion/write'
 import { chatTool as openAIChat } from './openai/chat'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
-import { deleteTool as pineconeDeleteTool } from './pinecone/delete'
 import { fetchTool as pineconeFetchTool } from './pinecone/fetch'
 import { generateEmbeddingsTool as pineconeGenerateEmbeddingsTool } from './pinecone/generate'
 import { searchTextTool as pineconeSearchTextTool } from './pinecone/searchText'
@@ -65,7 +64,6 @@ export const tools: Record<string, ToolConfig> = {
   x_read: xRead,
   x_search: xSearch,
   x_user: xUser,
-  pinecone_delete: pineconeDeleteTool,
   pinecone_fetch: pineconeFetchTool,
   pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
   pinecone_search_text: pineconeSearchTextTool,

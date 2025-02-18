@@ -1,5 +1,5 @@
 import { ToolConfig } from '../types'
-import { PineconeFetchParams, PineconeResponse } from './types'
+import { PineconeFetchParams, PineconeResponse, PineconeVector } from './types'
 
 export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   id: 'pinecone_fetch',
@@ -8,17 +8,31 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   version: '1.0',
 
   params: {
-    apiKey: { type: 'string', required: true, description: 'Pinecone API key' },
-    environment: { type: 'string', required: true, description: 'Pinecone environment' },
-    indexName: { type: 'string', required: true, description: 'Name of the Pinecone index' },
-    ids: { type: 'array', required: true, description: 'Array of vector IDs to fetch' },
+    apiKey: {
+      type: 'string',
+      required: true,
+      requiredForToolCall: true,
+      description: 'Pinecone API key',
+    },
+    indexHost: {
+      type: 'string',
+      required: true,
+      requiredForToolCall: true,
+      description: 'Full Pinecone index host URL',
+    },
+    ids: {
+      type: 'array',
+      required: true,
+      requiredForToolCall: true,
+      description: 'Array of vector IDs to fetch',
+    },
     namespace: { type: 'string', required: false, description: 'Namespace to fetch vectors from' },
   },
 
   request: {
     method: 'GET',
     url: (params) => {
-      const baseUrl = `https://${params.indexName}-${params.environment}.svc.${params.environment}.pinecone.io/vectors/fetch`
+      const baseUrl = `${params.indexHost}/vectors/fetch`
       const queryParams = new URLSearchParams()
       queryParams.append('ids', params.ids.join(','))
       if (params.namespace) {
@@ -34,15 +48,24 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
 
   transformResponse: async (response) => {
     const data = await response.json()
+    const vectors = data.vectors as Record<string, PineconeVector>
+
     return {
       success: true,
       output: {
-        matches: Object.entries(data.vectors).map(([id, vector]: [string, any]) => ({
+        matches: Object.entries(vectors).map(([id, vector]) => ({
           id,
-          score: 1.0, // Fetch doesn't return scores, so we use 1.0 for exact matches
           values: vector.values,
           metadata: vector.metadata,
+          score: 1.0, // Fetch returns exact matches
         })),
+        data: Object.values(vectors).map((vector) => ({
+          values: vector.values,
+          vector_type: 'dense' as const,
+        })),
+        usage: {
+          total_tokens: data.usage?.readUnits || 0,
+        },
       },
     }
   },

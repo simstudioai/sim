@@ -2,9 +2,9 @@ import { ToolResponse } from '../types'
 
 // Base Pinecone params shared across all operations
 export interface PineconeBaseParams {
+  indexHost: string
+  namespace: string
   apiKey: string
-  environment: string
-  indexName: string
 }
 
 // Response types
@@ -19,7 +19,6 @@ export interface PineconeResponse extends ToolResponse {
   output: {
     matches?: PineconeMatchResponse[]
     upsertedCount?: number
-    deletedCount?: number
     data?: Array<{
       values: number[]
       vector_type: 'dense' | 'sparse'
@@ -44,18 +43,19 @@ export interface PineconeGenerateEmbeddingsParams {
 }
 
 // Upsert Text
+export interface PineconeUpsertTextRecord {
+  _id: string
+  chunk_text: string
+  category?: string
+  [key: string]: any
+}
+
 export interface PineconeUpsertTextParams extends PineconeBaseParams {
-  namespace?: string
-  records: {
-    _id: string
-    text: string
-    metadata?: Record<string, any>
-  }[]
+  records: PineconeUpsertTextRecord | PineconeUpsertTextRecord[]
 }
 
 // Upsert Vectors
 export interface PineconeUpsertVectorsParams extends PineconeBaseParams {
-  namespace?: string
   vectors: {
     id: string
     values: number[]
@@ -68,33 +68,75 @@ export interface PineconeUpsertVectorsParams extends PineconeBaseParams {
 }
 
 // Search Text
-export interface PineconeSearchTextParams extends PineconeBaseParams {
-  namespace?: string
-  query: {
-    inputs: string
-    top_k: number
-    filter?: Record<string, any>
+export interface PineconeSearchQuery {
+  inputs?: { text: string }
+  vector?: {
+    values: number[]
+    sparse_values?: number[]
+    sparse_indices?: number[]
   }
-  fields?: string[]
-  rerank?: {
-    model: string
-    rank_fields: string[]
-    top_n?: number
-    parameters?: Record<string, any>
-    query?: string
+  id?: string
+  top_k: number
+  filter?: Record<string, any>
+}
+
+export interface PineconeRerank {
+  model: string
+  rank_fields: string[]
+  top_n?: number
+  parameters?: Record<string, any>
+  query?: { text: string }
+}
+
+export interface PineconeSearchTextParams extends PineconeBaseParams {
+  searchQuery: string
+  topK?: string
+  fields?: string[] | string
+  filter?: Record<string, any> | string
+  rerank?: PineconeRerank | string
+}
+
+export interface PineconeSearchHit {
+  _id: string
+  _score: number
+  fields?: Record<string, any>
+}
+
+export interface PineconeSearchResponse {
+  result: {
+    hits: PineconeSearchHit[]
+  }
+  usage: {
+    read_units: number
+    embed_total_tokens?: number
+    rerank_units?: number
   }
 }
 
 // Fetch Vectors
 export interface PineconeFetchParams extends PineconeBaseParams {
   ids: string[]
+}
+
+export interface PineconeVector {
+  id: string
+  values: number[]
+  metadata?: Record<string, any>
+}
+
+export interface PineconeUsage {
+  readUnits: number
+}
+
+export interface PineconeFetchResponse {
+  vectors: Record<string, PineconeVector>
   namespace?: string
+  usage: PineconeUsage
 }
 
 export interface PineconeParams {
   apiKey: string
-  environment: string
-  indexName: string
+  indexHost: string
   operation: 'query' | 'upsert' | 'delete'
   // Query operation
   queryVector?: number[]
@@ -107,7 +149,4 @@ export interface PineconeParams {
     values: number[]
     metadata?: Record<string, any>
   }>
-  // Delete operation
-  ids?: string[]
-  deleteAll?: boolean
 }

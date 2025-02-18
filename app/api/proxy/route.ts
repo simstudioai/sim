@@ -48,7 +48,16 @@ export async function POST(request: Request) {
       const method = params.method || defaultMethod || 'GET'
       const headers = headersFn ? headersFn(params) : {}
       const hasBody = method !== 'GET' && method !== 'HEAD' && !!bodyFn
-      const body = hasBody ? JSON.stringify(bodyFn!(params)) : undefined
+
+      const bodyResult = bodyFn ? bodyFn(params) : undefined
+
+      // Special handling for NDJSON content type
+      const isNDJSON = headers['Content-Type'] === 'application/x-ndjson'
+      const body = hasBody
+        ? isNDJSON && bodyResult
+          ? bodyResult.body
+          : JSON.stringify(bodyResult)
+        : undefined
 
       const externalResponse = await fetch(url, { method, headers, body })
 
