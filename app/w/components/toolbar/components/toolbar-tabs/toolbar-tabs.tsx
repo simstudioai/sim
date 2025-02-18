@@ -53,7 +53,7 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
       </div>
 
       <div className="relative mt-2">
-        <div className="absolute bottom-0 h-[1px] w-full bg-[#E2E8F0]" />
+        <div className="absolute bottom-0 h-[1px] w-full border-b" />
         <div
           className="absolute bottom-0 h-[1.5px] bg-foreground transition-transform duration-200"
           style={{

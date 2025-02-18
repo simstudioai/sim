@@ -12,6 +12,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { resetAllStores } from '@/stores'
@@ -22,6 +29,8 @@ export function General() {
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
   const isDebugModeEnabled = useGeneralStore((state) => state.isDebugModeEnabled)
   const toggleDebugMode = useGeneralStore((state) => state.toggleDebugMode)
+  const theme = useGeneralStore((state) => state.theme)
+  const setTheme = useGeneralStore((state) => state.setTheme)
 
   const handleResetData = () => {
     resetAllStores()
@@ -33,6 +42,20 @@ export function General() {
       <div>
         <h2 className="text-lg font-medium mb-4">General Settings</h2>
         <div className="space-y-4">
+          <div className="flex items-center justify-between py-1">
+            <Label htmlFor="theme-select" className="font-medium">
+              Theme
+            </Label>
+            <Select value={theme} onValueChange={setTheme}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center justify-between py-1">
             <Label htmlFor="debug-mode" className="font-medium">
               Debug mode

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import { ThemeProvider } from './w/providers/theme-provider'
 import { ZoomPrevention } from './zoom-prevention'
 
 export const viewport: Viewport = {
@@ -36,10 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ThemeProvider>
-          <ZoomPrevention />
-          {children}
-        </ThemeProvider>
+        <ZoomPrevention />
+        {children}
       </body>
     </html>
   )

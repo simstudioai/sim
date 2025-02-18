@@ -253,11 +253,11 @@ export function ControlBar() {
         </DropdownMenu>
 
         <Button
-          className="gap-2 bg-[#7F2FFF] hover:bg-[#7F2FFF]/90"
+          className="gap-2 bg-[#7F2FFF] hover:bg-[#7F2FFF]/90 text-white"
           onClick={handleRunWorkflow}
           disabled={isExecuting}
         >
-          <Play fill="currentColor" className="!h-3.5 !w-3.5" />
+          <Play fill="white" stroke="white" className="!h-3.5 !w-3.5" />
           {isExecuting ? 'Running...' : 'Run'}
         </Button>
       </div>

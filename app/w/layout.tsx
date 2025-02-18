@@ -4,7 +4,7 @@ import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error-boundary/error-boundary'
 import { Sidebar } from './components/sidebar/sidebar'
 import { Toolbar } from './components/toolbar/toolbar'
-import Providers from './providers'
+import Providers from './providers/providers'
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (
