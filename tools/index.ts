@@ -15,6 +15,9 @@ import { readUrlTool } from './jina/reader'
 import { notionReadTool } from './notion/read'
 import { notionWriteTool } from './notion/write'
 import { chatTool as openAIChat } from './openai/chat'
+import { deleteTool as pineconeDeleteTool } from './pinecone/delete'
+import { queryTool as pineconeQueryTool } from './pinecone/query'
+import { upsertTool as pineconeUpsertTool } from './pinecone/upsert'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
 import { slackMessageTool } from './slack/message'
@@ -58,6 +61,9 @@ export const tools: Record<string, ToolConfig> = {
   x_read: xRead,
   x_search: xSearch,
   x_user: xUser,
+  pinecone_query: pineconeQueryTool,
+  pinecone_upsert: pineconeUpsertTool,
+  pinecone_delete: pineconeDeleteTool,
 }
 
 // Get a tool by its ID
