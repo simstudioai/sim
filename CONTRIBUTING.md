@@ -33,10 +33,10 @@ We strive to keep our workflow as simple as possible. To contribute:
    Create a new branch with a descriptive name:
 
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feat/your-feature-name
    ```
 
-   Use a clear naming convention to indicate the type of work (e.g., `feature/`, `fix/`, `docs/`).
+   Use a clear naming convention to indicate the type of work (e.g., `feat/`, `fix/`, `docs/`).
 
 4. **Make Your Changes**  
    Ensure your changes are small, focused, and adhere to our coding guidelines.
