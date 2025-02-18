@@ -37,13 +37,13 @@ export default function Landing() {
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#020817]/80 to-[#020817]/40" />
         <div className="max-w-6xl mx-auto text-center space-y-6 relative z-10 px-4">
           <h1 className="text-5xl md:text-7xl font-medium">
-            dev and deploy
+            build / deploy
             <br />
             agent workflows
           </h1>
 
           <p className="text-[14.5px] md:text-xl text-muted-foreground max-w-3xl mx-auto">
-            Build and deploy agentic workflows with an open source, <br />
+            Launch agentic workflows with an open source, <br />
             user-friendly environment for devs and agents
           </p>
 
