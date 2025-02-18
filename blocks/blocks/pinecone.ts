@@ -59,7 +59,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       title: 'Namespace',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Optional namespace',
+      placeholder: 'default',
       condition: { field: 'operation', value: 'upsert_text' },
     },
     {
@@ -72,6 +72,22 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       condition: { field: 'operation', value: 'upsert_text' },
     },
     // Search text fields
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'search_text' },
+    },
+    {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'default',
+      condition: { field: 'operation', value: 'search_text' },
+    },
     {
       id: 'searchQuery',
       title: 'Search Query',
@@ -122,19 +138,19 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       condition: { field: 'operation', value: 'fetch' },
     },
     {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Namespace',
+      condition: { field: 'operation', value: 'fetch' },
+    },
+    {
       id: 'ids',
       title: 'Vector IDs',
       type: 'long-input',
       layout: 'full',
       placeholder: '["vec1", "vec2"]',
-      condition: { field: 'operation', value: 'fetch' },
-    },
-    {
-      id: 'namespace',
-      title: 'Namespace',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Optional namespace',
       condition: { field: 'operation', value: 'fetch' },
     },
     // Common fields
