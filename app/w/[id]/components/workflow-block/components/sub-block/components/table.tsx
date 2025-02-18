@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
+import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
@@ -41,6 +42,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
     showEnvVars: boolean
     showTags: boolean
     cursorPosition: number
+    searchTerm: string
     activeSourceBlockId: string | null
     element?: HTMLElement | null
   } | null>(null)
@@ -89,57 +91,66 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
   )
 
   const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
+    const cellValue = row.cells[column] || ''
+
     return (
       <td
         key={`${row.id}-${column}`}
         className={cn('p-1 relative', cellIndex < columns.length - 1 && 'border-r')}
       >
-        <Input
-          value={row.cells[column] || ''}
-          placeholder={column}
-          onChange={(e) => {
-            const newValue = e.target.value
-            const cursorPosition = e.target.selectionStart ?? 0
+        <div className="relative">
+          <Input
+            value={cellValue}
+            placeholder={column}
+            onChange={(e) => {
+              const newValue = e.target.value
+              const cursorPosition = e.target.selectionStart ?? 0
 
-            handleCellChange(rowIndex, column, newValue)
+              handleCellChange(rowIndex, column, newValue)
 
-            // Check for triggers
-            const envVarTrigger = checkEnvVarTrigger(newValue, cursorPosition)
-            const tagTrigger = checkTagTrigger(newValue, cursorPosition)
+              // Check for triggers
+              const envVarTrigger = checkEnvVarTrigger(newValue, cursorPosition)
+              const tagTrigger = checkTagTrigger(newValue, cursorPosition)
 
-            setActiveCell({
-              rowIndex,
-              column,
-              showEnvVars: envVarTrigger.show,
-              showTags: tagTrigger.show,
-              cursorPosition,
-              activeSourceBlockId: null,
-              element: e.target,
-            })
-          }}
-          onFocus={(e) => {
-            setActiveCell({
-              rowIndex,
-              column,
-              showEnvVars: false,
-              showTags: false,
-              cursorPosition: 0,
-              activeSourceBlockId: null,
-              element: e.target,
-            })
-          }}
-          onBlur={() => {
-            setTimeout(() => {
-              setActiveCell(null)
-            }, 200)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setActiveCell(null)
-            }
-          }}
-          className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground placeholder:text-muted-foreground/50"
-        />
+              setActiveCell({
+                rowIndex,
+                column,
+                showEnvVars: envVarTrigger.show,
+                showTags: tagTrigger.show,
+                cursorPosition,
+                searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
+                activeSourceBlockId: null,
+                element: e.target,
+              })
+            }}
+            onFocus={(e) => {
+              setActiveCell({
+                rowIndex,
+                column,
+                showEnvVars: false,
+                showTags: false,
+                cursorPosition: 0,
+                searchTerm: '',
+                activeSourceBlockId: null,
+                element: e.target,
+              })
+            }}
+            onBlur={() => {
+              setTimeout(() => {
+                setActiveCell(null)
+              }, 200)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setActiveCell(null)
+              }
+            }}
+            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50"
+          />
+          <div className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre scrollbar-none text-sm bg-transparent">
+            {formatDisplayText(cellValue)}
+          </div>
+        </div>
       </td>
     )
   }
@@ -182,13 +193,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
               handleCellChange(activeCell.rowIndex, activeCell.column, newValue)
               setActiveCell(null)
             }}
-            searchTerm={
-              activeCell.showEnvVars
-                ? rows[activeCell.rowIndex].cells[activeCell.column]
-                    .slice(activeCell.cursorPosition - 2)
-                    .match(/\{\{(\w*)$/)?.[1] || ''
-                : ''
-            }
+            searchTerm={activeCell.searchTerm}
             inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
             cursorPosition={activeCell.cursorPosition}
             onClose={() => {
