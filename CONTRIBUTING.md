@@ -49,7 +49,7 @@ We strive to keep our workflow as simple as possible. To contribute:
 6. **Push Your Branch**
 
    ```bash
-   git push origin feature/your-feature-name
+   git push origin feat/your-feature-name
    ```
 
 7. **Create a Pull Request**  
