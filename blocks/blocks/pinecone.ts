@@ -24,14 +24,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       ],
     },
     {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Your Pinecone API key',
-      password: true,
-    },
-    {
       id: 'environment',
       title: 'Environment',
       type: 'short-input',
@@ -58,7 +50,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       id: 'topK',
       title: 'Top K Results',
       type: 'short-input',
-      layout: 'half',
+      layout: 'full',
       placeholder: '10',
       condition: { field: 'operation', value: 'query' },
     },
@@ -103,6 +95,14 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'half',
       value: () => 'false',
       condition: { field: 'operation', value: 'delete' },
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Your Pinecone API key',
+      password: true,
     },
   ],
 

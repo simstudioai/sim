@@ -25,6 +25,17 @@ export const GitHubBlock: BlockConfig<RepoInfoResponse> = {
       placeholder: 'e.g., vscode',
     },
     {
+      id: 'action',
+      title: 'Action',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Get general info', id: 'general_info' },
+        { label: 'Get pull requests', id: 'pull_requests' },
+      ],
+      value: () => 'general_info',
+    },
+    {
       id: 'apiKey',
       title: 'GitHub Token',
       type: 'short-input',
