@@ -16,13 +16,53 @@ Only return the translated text without any explanations or notes. The translati
 
 export const TranslateBlock: BlockConfig<ChatResponse> = {
   type: 'translate',
-  toolbar: {
-    title: 'Translate',
-    description: 'Translate text to any language',
-    bgColor: '#FF4B4B',
-    icon: TranslateIcon,
-    category: 'tools',
-  },
+  name: 'Translate',
+  description: 'Translate text to any language',
+  category: 'tools',
+  bgColor: '#FF4B4B',
+  icon: TranslateIcon,
+  subBlocks: [
+    {
+      id: 'context',
+      title: 'Text to Translate',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter the text you want to translate',
+    },
+    {
+      id: 'targetLanguage',
+      title: 'Translate To',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter language (e.g. Spanish, French, etc.)',
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      layout: 'half',
+      options: Object.keys(MODEL_TOOLS),
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your API key',
+      password: true,
+      connectionDroppable: false,
+    },
+    {
+      id: 'systemPrompt',
+      title: 'System Prompt',
+      type: 'code',
+      layout: 'full',
+      hidden: true,
+      value: (params: Record<string, any>) => {
+        return getTranslationPrompt(params.targetLanguage || 'English')
+      },
+    },
+  ],
   tools: {
     access: ['openai_chat', 'anthropic_chat', 'google_chat'],
     config: {
@@ -43,63 +83,19 @@ export const TranslateBlock: BlockConfig<ChatResponse> = {
       },
     },
   },
-  workflow: {
-    inputs: {
-      context: { type: 'string', required: true },
-      targetLanguage: { type: 'string', required: true },
-      apiKey: { type: 'string', required: true },
-      systemPrompt: { type: 'string', required: true },
-    },
-    outputs: {
-      response: {
-        type: {
-          content: 'string',
-          model: 'string',
-          tokens: 'any',
-        },
+  inputs: {
+    context: { type: 'string', required: true },
+    targetLanguage: { type: 'string', required: true },
+    apiKey: { type: 'string', required: true },
+    systemPrompt: { type: 'string', required: true },
+  },
+  outputs: {
+    response: {
+      type: {
+        content: 'string',
+        model: 'string',
+        tokens: 'any',
       },
     },
-    subBlocks: [
-      {
-        id: 'context',
-        title: 'Text to Translate',
-        type: 'long-input',
-        layout: 'full',
-        placeholder: 'Enter the text you want to translate',
-      },
-      {
-        id: 'targetLanguage',
-        title: 'Translate To',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Enter language (e.g. Spanish, French, etc.)',
-      },
-      {
-        id: 'model',
-        title: 'Model',
-        type: 'dropdown',
-        layout: 'half',
-        options: Object.keys(MODEL_TOOLS),
-      },
-      {
-        id: 'apiKey',
-        title: 'API Key',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Enter your API key',
-        password: true,
-        connectionDroppable: false,
-      },
-      {
-        id: 'systemPrompt',
-        title: 'System Prompt',
-        type: 'code',
-        layout: 'full',
-        hidden: true,
-        value: (params: Record<string, any>) => {
-          return getTranslationPrompt(params.targetLanguage || 'English')
-        },
-      },
-    ],
   },
 }

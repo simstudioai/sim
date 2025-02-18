@@ -29,12 +29,12 @@ export interface SerializedBlock {
   inputs: Record<string, ParamType>
   outputs: Record<string, BlockOutput>
   metadata?: {
-    title?: string
+    id: string
+    name?: string
     description?: string
     category?: string
     icon?: string
     color?: string
-    type: string
   }
   enabled: boolean
 }

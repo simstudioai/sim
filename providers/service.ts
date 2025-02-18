@@ -1,27 +1,58 @@
 import { executeTool, getTool } from '@/tools'
 import { getProvider } from './registry'
 import { ProviderRequest, ProviderResponse, TokenInfo } from './types'
+import { extractAndParseJSON } from './utils'
 
 // Helper function to generate provider-specific structured output instructions
 function generateStructuredOutputInstructions(responseFormat: any): string {
   if (!responseFormat?.fields) return ''
 
-  const fields = responseFormat.fields
+  function generateFieldStructure(field: any): string {
+    if (field.type === 'object' && field.properties) {
+      return `{
+    ${Object.entries(field.properties)
+      .map(([key, prop]: [string, any]) => `"${key}": ${prop.type === 'number' ? '0' : '"value"'}`)
+      .join(',\n    ')}
+  }`
+    }
+    return field.type === 'string'
+      ? '"value"'
+      : field.type === 'number'
+        ? '0'
+        : field.type === 'boolean'
+          ? 'true/false'
+          : '[]'
+  }
+
+  const exampleFormat = responseFormat.fields
+    .map((field: any) => `  "${field.name}": ${generateFieldStructure(field)}`)
+    .join(',\n')
+
+  const fieldDescriptions = responseFormat.fields
     .map((field: any) => {
-      return `${field.name} (${field.type})${field.description ? `: ${field.description}` : ''}`
+      let desc = `${field.name} (${field.type})`
+      if (field.description) desc += `: ${field.description}`
+      if (field.type === 'object' && field.properties) {
+        desc += '\nProperties:'
+        Object.entries(field.properties).forEach(([key, prop]: [string, any]) => {
+          desc += `\n  - ${key} (${(prop as any).type}): ${(prop as any).description || ''}`
+        })
+      }
+      return desc
     })
     .join('\n')
 
   return `
 Please provide your response in the following JSON format:
 {
-  ${responseFormat.fields.map((field: any) => `"${field.name}": "${field.type === 'string' ? 'value' : field.type === 'number' ? '0' : field.type === 'boolean' ? 'true/false' : '[]'}"`).join(',\n  ')}
+${exampleFormat}
 }
 
 Field descriptions:
-${fields}
+${fieldDescriptions}
 
-Your response MUST be valid JSON and include all the specified fields with their correct types.`
+Your response MUST be valid JSON and include all the specified fields with their correct types.
+Each metric should be an object containing 'score' (number) and 'reasoning' (string).`
 }
 
 export async function executeProviderRequest(
@@ -62,8 +93,6 @@ export async function executeProviderRequest(
 
   try {
     while (iterationCount < MAX_ITERATIONS) {
-      console.log(`Processing iteration ${iterationCount + 1}`)
-
       // Transform the response using provider-specific logic
       const transformedResponse = provider.transformResponse(currentResponse)
       content = transformedResponse.content
@@ -71,8 +100,8 @@ export async function executeProviderRequest(
       // If responseFormat is specified and we have content (not a function call), validate and parse the response
       if (request.responseFormat && content && !provider.hasFunctionCall(currentResponse)) {
         try {
-          // Try to parse the content as JSON
-          const parsedContent = JSON.parse(content)
+          // Extract and parse the JSON content
+          const parsedContent = extractAndParseJSON(content)
 
           // Validate that all required fields are present and have correct types
           const validationErrors = request.responseFormat.fields
@@ -108,8 +137,8 @@ export async function executeProviderRequest(
           // Store the validated JSON response
           content = JSON.stringify(parsedContent)
         } catch (error: any) {
-          console.error('Error parsing structured response:', error)
-          throw new Error(`Failed to parse response as structured output: ${error.message}`)
+          console.error('Raw content:', content)
+          throw new Error(`Failed to parse structured response: ${error.message}`)
         }
       }
 
@@ -125,11 +154,9 @@ export async function executeProviderRequest(
 
       // Check for function calls using provider-specific logic
       const hasFunctionCall = provider.hasFunctionCall(currentResponse)
-      console.log('Has function call:', hasFunctionCall)
 
       // Break if we have content and no function call
       if (!hasFunctionCall) {
-        console.log('No function call detected, breaking loop')
         break
       }
 
@@ -157,24 +184,18 @@ export async function executeProviderRequest(
       }
 
       if (!functionCall) {
-        console.log('No function call after transformation, breaking loop')
         break
       }
-
-      console.log('Function call:', functionCall.name)
 
       // Execute the tool
       const tool = getTool(functionCall.name)
       if (!tool) {
-        console.log(`Tool not found: ${functionCall.name}`)
         break
       }
 
       const result = await executeTool(functionCall.name, functionCall.arguments)
-      console.log('Tool execution result:', result.success)
 
       if (!result.success) {
-        console.log('Tool execution failed')
         break
       }
 
@@ -211,7 +232,7 @@ export async function executeProviderRequest(
     }
 
     if (iterationCount >= MAX_ITERATIONS) {
-      console.log('Max iterations reached, breaking loop')
+      console.log('Max iterations of tool calls reached, breaking loop')
     }
   } catch (error) {
     console.error('Error executing tool:', error)
@@ -228,8 +249,6 @@ export async function executeProviderRequest(
 }
 
 async function makeProxyRequest(providerId: string, payload: any, apiKey: string) {
-  console.log('Making proxy request for provider:', providerId)
-
   const response = await fetch('/api/proxy', {
     method: 'POST',
     headers: {
@@ -250,6 +269,5 @@ async function makeProxyRequest(providerId: string, payload: any, apiKey: string
     throw new Error(data.error || 'Provider API error')
   }
 
-  console.log('Proxy request completed')
   return data.output
 }

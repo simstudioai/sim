@@ -21,13 +21,13 @@ export const calculateBlockPosition = (
   ySpacing = 150
 ) => {
   const blocksCount = Object.keys(existingBlocks).length
-  
+
   // Calculate position based on existing blocks and current action index
   const row = Math.floor((blocksCount + index) / 5) // 5 blocks per row
   const col = (blocksCount + index) % 5
-  
+
   return {
-    x: startX + (col * xSpacing),
-    y: startY + (row * ySpacing)
+    x: startX + col * xSpacing,
+    y: startY + row * ySpacing,
   }
 }

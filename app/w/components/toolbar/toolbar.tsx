@@ -23,8 +23,7 @@ export function Toolbar() {
     const query = searchQuery.toLowerCase()
     return getAllBlocks().filter(
       (block) =>
-        block.toolbar.title.toLowerCase().includes(query) ||
-        block.toolbar.description.toLowerCase().includes(query)
+        block.name.toLowerCase().includes(query) || block.description.toLowerCase().includes(query)
     )
   }, [searchQuery, activeTab])
 

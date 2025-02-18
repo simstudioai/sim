@@ -5,7 +5,7 @@ import { BlockOutput } from '@/blocks/types'
  */
 export interface BlockLog {
   blockId: string
-  blockTitle?: string
+  blockName?: string
   blockType?: string
   startedAt: string
   endedAt: string

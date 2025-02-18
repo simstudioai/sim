@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { useEnvironmentStore } from '@/stores/environment/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 
 interface EnvVarDropdownProps {
   visible: boolean

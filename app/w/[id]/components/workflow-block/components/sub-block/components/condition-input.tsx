@@ -10,6 +10,7 @@ import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-drop
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useWorkflowStore } from '@/stores/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface ConditionalBlock {
@@ -40,6 +41,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const editorRef = useRef<HTMLDivElement>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<{ [key: string]: number[] }>({})
   const updateNodeInternals = useUpdateNodeInternals()
+  const removeEdge = useWorkflowStore((state) => state.removeEdge)
+  const edges = useWorkflowStore((state) => state.edges)
 
   // Initialize conditional blocks with if and else blocks
   const [conditionalBlocks, setConditionalBlocks] = useState<ConditionalBlock[]>([
@@ -350,6 +353,13 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   }
 
   const removeBlock = (id: string) => {
+    // Remove any associated edges before removing the block
+    edges.forEach((edge) => {
+      if (edge.sourceHandle?.startsWith(`condition-${id}`)) {
+        removeEdge(edge.id)
+      }
+    })
+
     if (conditionalBlocks.length === 1) return
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
   }
@@ -414,6 +424,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               type="source"
               position={Position.Right}
               id={`condition-${block.id}`}
+              key={`${block.id}-${index}`}
               className={cn(
                 '!w-3.5 !h-3.5',
                 '!bg-white !rounded-full !border !border-gray-200',
@@ -430,6 +441,11 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               }}
               isConnectableStart={true}
               isConnectableEnd={false}
+              isValidConnection={(connection) => {
+                const sourceNodeId = connection.source?.split('-')[0]
+                const targetNodeId = connection.target?.split('-')[0]
+                return sourceNodeId !== targetNodeId
+              }}
             />
             <div className="flex items-center gap-1">
               <Tooltip>

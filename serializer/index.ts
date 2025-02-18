@@ -38,8 +38,8 @@ export class Serializer {
 
     // Get inputs from block config
     const inputs: Record<string, any> = {}
-    if (blockConfig.workflow.inputs) {
-      Object.entries(blockConfig.workflow.inputs).forEach(([key, config]) => {
+    if (blockConfig.inputs) {
+      Object.entries(blockConfig.inputs).forEach(([key, config]) => {
         inputs[key] = config.type
       })
     }
@@ -62,11 +62,11 @@ export class Serializer {
           : {}),
       },
       metadata: {
-        title: block.name,
-        description: blockConfig.toolbar.description,
-        category: blockConfig.toolbar.category,
-        color: blockConfig.toolbar.bgColor,
-        type: block.type,
+        id: block.type,
+        name: block.name,
+        description: blockConfig.description,
+        category: blockConfig.category,
+        color: blockConfig.bgColor,
       },
       enabled: block.enabled,
     }
@@ -86,7 +86,7 @@ export class Serializer {
     })
 
     // Then check for any subBlocks with default values
-    blockConfig.workflow.subBlocks.forEach((subBlockConfig) => {
+    blockConfig.subBlocks.forEach((subBlockConfig) => {
       const id = subBlockConfig.id
       if (params[id] === null && subBlockConfig.value) {
         // If the value is null and there's a default value function, use it
@@ -125,9 +125,9 @@ export class Serializer {
   }
 
   private deserializeBlock(serializedBlock: SerializedBlock): BlockState {
-    const blockType = serializedBlock.metadata?.type
+    const blockType = serializedBlock.metadata?.id
     if (!blockType) {
-      throw new Error(`Invalid block type: ${serializedBlock.metadata?.type}`)
+      throw new Error(`Invalid block type: ${serializedBlock.metadata?.id}`)
     }
 
     const blockConfig = getBlock(blockType)
@@ -136,7 +136,7 @@ export class Serializer {
     }
 
     const subBlocks: Record<string, any> = {}
-    blockConfig.workflow.subBlocks.forEach((subBlock) => {
+    blockConfig.subBlocks.forEach((subBlock) => {
       subBlocks[subBlock.id] = {
         id: subBlock.id,
         type: subBlock.type,
@@ -147,7 +147,7 @@ export class Serializer {
     return {
       id: serializedBlock.id,
       type: blockType,
-      name: serializedBlock.metadata?.title || blockConfig.toolbar.title,
+      name: serializedBlock.metadata?.name || blockConfig.name,
       position: serializedBlock.position,
       subBlocks,
       outputs: serializedBlock.outputs,

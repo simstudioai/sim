@@ -38,11 +38,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const block = state.blocks[blockId]
           if (!block) return state
 
+          // Handle different value types appropriately
           const processedValue = Array.isArray(value)
             ? value
-            : typeof value === 'string'
-              ? value
-              : JSON.stringify(value, null, 2)
+            : block.subBlocks[subBlockId]?.type === 'slider'
+              ? Number(value) // Convert slider values to numbers
+              : typeof value === 'string'
+                ? value
+                : JSON.stringify(value, null, 2)
 
           // Only attempt JSON parsing for agent responseFormat validation
           if (
@@ -50,15 +53,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             subBlockId === 'responseFormat' &&
             typeof processedValue === 'string'
           ) {
-            console.log('Validating responseFormat input:', {
-              type: typeof processedValue,
-              rawValue: processedValue,
-            })
-
             try {
               // Parse the input string to validate JSON but keep original string value
               const parsed = JSON.parse(processedValue)
-              console.log('Parsed responseFormat:', parsed)
 
               // Simple validation of required schema structure
               if (!parsed.fields || !Array.isArray(parsed.fields)) {
@@ -67,7 +64,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               }
 
               for (const field of parsed.fields) {
-                console.log('Validating field:', field)
                 if (!field.name || !field.type) {
                   console.error('Validation failed: field missing name or type', field)
                   throw new Error('Each field must have a name and type')
@@ -80,7 +76,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 }
               }
 
-              console.log('responseFormat validation successful')
               // Don't modify the value, keep it as the original string
             } catch (error: any) {
               console.error('responseFormat validation error:', error)
@@ -112,7 +107,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         if (!blockConfig) return
 
         const subBlocks: Record<string, SubBlockState> = {}
-        blockConfig.workflow.subBlocks.forEach((subBlock) => {
+        blockConfig.subBlocks.forEach((subBlock) => {
           const subBlockId = subBlock.id
           subBlocks[subBlockId] = {
             id: subBlockId,
@@ -121,7 +116,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         })
 
-        const outputs = resolveOutputType(blockConfig.workflow.outputs, subBlocks)
+        const outputs = resolveOutputType(blockConfig.outputs, subBlocks)
 
         const newState = {
           blocks: {
@@ -194,6 +189,20 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       addEdge: (edge: Edge) => {
+        // Check for duplicate connections
+        const isDuplicate = get().edges.some(
+          (existingEdge) =>
+            existingEdge.source === edge.source &&
+            existingEdge.target === edge.target &&
+            existingEdge.sourceHandle === edge.sourceHandle &&
+            existingEdge.targetHandle === edge.targetHandle
+        )
+
+        // If it's a duplicate connection, return early without adding the edge
+        if (isDuplicate) {
+          return
+        }
+
         const newEdge = {
           id: edge.id || crypto.randomUUID(),
           source: edge.source,

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { ConsoleEntry, ConsoleStore } from './types'
 
+// MAX across all workflows
 const MAX_ENTRIES = 50
 
 export const useConsoleStore = create<ConsoleStore>()(

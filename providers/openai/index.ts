@@ -49,8 +49,6 @@ export const openaiProvider: ProviderConfig = {
   },
 
   transformRequest: (request: ProviderRequest, functions?: any) => {
-    console.log('OpenAI transformRequest - Input:', JSON.stringify(request, null, 2))
-
     const isO1Model = request.model?.startsWith('o1')
     const isO1Mini = request.model === 'o1-mini'
 
@@ -139,8 +137,6 @@ export const openaiProvider: ProviderConfig = {
       payload.functions = functions
       payload.function_call = 'auto'
     }
-
-    console.log('OpenAI transformRequest - Output:', JSON.stringify(payload, null, 2))
     return payload
   },
 

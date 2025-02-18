@@ -16,13 +16,13 @@ export function SliderInput({
   blockId,
   subBlockId,
 }: SliderInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+  const [value, setValue] = useSubBlockValue<number>(blockId, subBlockId)
   const sliderValue = value ?? defaultValue
 
   return (
     <div className="relative pt-2 pb-6">
       <Slider
-        value={[Number(sliderValue)]}
+        value={[sliderValue]}
         min={min}
         max={max}
         step={0.1}

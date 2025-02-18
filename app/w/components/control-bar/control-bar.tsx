@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { useWorkflowRegistry } from '@/stores/workflow/registry'
+import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { HistoryDropdownItem } from './components/history-dropdown-item'
@@ -32,7 +32,7 @@ import { NotificationDropdownItem } from './components/notification-dropdown-ite
 
 export function ControlBar() {
   const { notifications, getWorkflowNotifications } = useNotificationStore()
-  const { history, undo, redo, revertToHistoryState } = useWorkflowStore()
+  const { history, undo, redo, revertToHistoryState, lastSaved } = useWorkflowStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
@@ -125,10 +125,10 @@ export function ControlBar() {
             {activeWorkflowId ? workflows[activeWorkflowId].name : 'Workflow'}
           </h2>
         )}
-        {mounted && ( // Only render the timestamp after client-side hydration
+        {mounted && (
           <p className="text-xs text-muted-foreground">
             Saved{' '}
-            {formatDistanceToNow(history.present.timestamp, {
+            {formatDistanceToNow(lastSaved || Date.now(), {
               addSuffix: true,
             })}
           </p>

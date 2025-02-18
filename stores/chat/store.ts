@@ -1,9 +1,9 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { useEnvironmentStore } from '../settings/environment/store'
 import { useWorkflowStore } from '../workflow/store'
-import { useEnvironmentStore } from '../environment/store'
-import { ChatStore, ChatMessage } from './types'
-import { getNextBlockNumber, calculateBlockPosition } from './utils'
+import { ChatMessage, ChatStore } from './types'
+import { calculateBlockPosition, getNextBlockNumber } from './utils'
 
 export const useChatStore = create<ChatStore>()(
   devtools(
@@ -15,12 +15,14 @@ export const useChatStore = create<ChatStore>()(
       sendMessage: async (content: string) => {
         try {
           set({ isProcessing: true, error: null })
-          
+
           const workflowStore = useWorkflowStore.getState()
           const apiKey = useEnvironmentStore.getState().getVariable('OPENAI_API_KEY')
-          
+
           if (!apiKey) {
-            throw new Error('OpenAI API key not found. Please add it to your environment variables.')
+            throw new Error(
+              'OpenAI API key not found. Please add it to your environment variables.'
+            )
           }
 
           // User message
@@ -33,34 +35,34 @@ export const useChatStore = create<ChatStore>()(
 
           // Format messages for OpenAI API
           const formattedMessages = [
-            ...get().messages.map(msg => ({
+            ...get().messages.map((msg) => ({
               role: msg.role,
-              content: msg.content
+              content: msg.content,
             })),
             {
               role: newMessage.role,
-              content: newMessage.content
-            }
+              content: newMessage.content,
+            },
           ]
 
           // Add message to local state first
-          set(state => ({
-            messages: [...state.messages, newMessage]
+          set((state) => ({
+            messages: [...state.messages, newMessage],
           }))
 
           const response = await fetch('/api/chat', {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
-              'X-OpenAI-Key': apiKey
+              'X-OpenAI-Key': apiKey,
             },
             body: JSON.stringify({
               messages: formattedMessages,
               workflowState: {
                 blocks: workflowStore.blocks,
-                edges: workflowStore.edges
-              }
-            })
+                edges: workflowStore.edges,
+              },
+            }),
           })
 
           if (!response.ok) {
@@ -70,35 +72,28 @@ export const useChatStore = create<ChatStore>()(
           const data = await response.json()
 
           console.log('OPENAI RESPONSE', data)
-          
+
           // Handle any actions returned from the API
           if (data.actions) {
             // Process all block additions first to properly calculate positions
-            const blockActions = data.actions.filter(
-              (action: any) => action.name === 'addBlock'
-            )
-            
+            const blockActions = data.actions.filter((action: any) => action.name === 'addBlock')
+
             blockActions.forEach((action: any, index: number) => {
               const { type, name } = action.parameters
               const id = crypto.randomUUID()
-              
+
               // Calculate position based on current blocks and action index
-              const position = calculateBlockPosition(
-                workflowStore.blocks,
-                index
-              )
-              
+              const position = calculateBlockPosition(workflowStore.blocks, index)
+
               // Generate name if not provided
               const blockName = name || `${type} ${getNextBlockNumber(workflowStore.blocks, type)}`
-              
+
               workflowStore.addBlock(id, type, blockName, position)
             })
 
             // Handle other actions (edges, removals, etc.)
-            const otherActions = data.actions.filter(
-              (action: any) => action.name !== 'addBlock'
-            )
-            
+            const otherActions = data.actions.filter((action: any) => action.name !== 'addBlock')
+
             otherActions.forEach((action: any) => {
               switch (action.name) {
                 case 'addEdge': {
@@ -109,7 +104,7 @@ export const useChatStore = create<ChatStore>()(
                     target: targetId,
                     sourceHandle,
                     targetHandle,
-                    type: 'custom'
+                    type: 'custom',
                   })
                   break
                 }
@@ -127,16 +122,18 @@ export const useChatStore = create<ChatStore>()(
 
           // Add assistant's response to chat
           if (data.message) {
-            set(state => ({
-              messages: [...state.messages, {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: data.message,
-                timestamp: Date.now()
-              }]
+            set((state) => ({
+              messages: [
+                ...state.messages,
+                {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: data.message,
+                  timestamp: Date.now(),
+                },
+              ],
             }))
           }
-
         } catch (error) {
           console.error('Chat error:', error)
           set({ error: error instanceof Error ? error.message : 'Unknown error' })
@@ -146,7 +143,7 @@ export const useChatStore = create<ChatStore>()(
       },
 
       clearChat: () => set({ messages: [], error: null }),
-      setError: (error) => set({ error })
+      setError: (error) => set({ error }),
     }),
     { name: 'chat-store' }
   )

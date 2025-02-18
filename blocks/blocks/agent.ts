@@ -24,13 +24,63 @@ interface AgentResponse extends ToolResponse {
 
 export const AgentBlock: BlockConfig<AgentResponse> = {
   type: 'agent',
-  toolbar: {
-    title: 'Agent',
-    description: 'Build an agent',
-    bgColor: '#7F2FFF',
-    icon: AgentIcon,
-    category: 'blocks',
-  },
+  name: 'Agent',
+  description: 'Build an agent',
+  category: 'blocks',
+  bgColor: '#7F2FFF',
+  icon: AgentIcon,
+  subBlocks: [
+    {
+      id: 'systemPrompt',
+      title: 'System Prompt',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter system prompt...',
+    },
+    {
+      id: 'context',
+      title: 'User Prompt',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter context or user message...',
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      layout: 'half',
+      options: Object.keys(MODEL_TOOLS),
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      min: 0,
+      max: 1,
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your API key',
+      password: true,
+      connectionDroppable: false,
+    },
+    {
+      id: 'tools',
+      title: 'Tools',
+      type: 'tool-input',
+      layout: 'full',
+    },
+    {
+      id: 'responseFormat',
+      title: 'Response Format',
+      type: 'code',
+      layout: 'full',
+    },
+  ],
   tools: {
     access: [
       'openai_chat',
@@ -54,166 +104,97 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       },
     },
   },
-  workflow: {
-    inputs: {
-      systemPrompt: { type: 'string', required: true },
-      context: { type: 'string', required: false },
-      model: { type: 'string', required: true },
-      apiKey: { type: 'string', required: true },
-      responseFormat: {
-        type: 'json',
-        required: false,
-        description:
-          'Define the expected response format. If not provided, returns plain text content.',
-        schema: {
-          type: 'object',
-          properties: {
-            fields: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: {
-                    type: 'string',
-                    description: 'Name of the field',
-                  },
-                  type: {
-                    type: 'string',
-                    enum: ['string', 'number', 'boolean', 'array', 'object'],
-                    description: 'Type of the field',
-                  },
-                  isArray: {
-                    type: 'boolean',
-                    description: 'Whether this field contains multiple values',
-                  },
-                  items: {
-                    type: 'object',
-                    description: 'Schema for array items (required when isArray is true)',
+  inputs: {
+    systemPrompt: { type: 'string', required: true },
+    context: { type: 'string', required: false },
+    model: { type: 'string', required: true },
+    apiKey: { type: 'string', required: true },
+    responseFormat: {
+      type: 'json',
+      required: false,
+      description:
+        'Define the expected response format. If not provided, returns plain text content.',
+      schema: {
+        type: 'object',
+        properties: {
+          fields: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                name: {
+                  type: 'string',
+                  description: 'Name of the field',
+                },
+                type: {
+                  type: 'string',
+                  enum: ['string', 'number', 'boolean', 'array', 'object'],
+                  description: 'Type of the field',
+                },
+                isArray: {
+                  type: 'boolean',
+                  description: 'Whether this field contains multiple values',
+                },
+                items: {
+                  type: 'object',
+                  description: 'Schema for array items (required when isArray is true)',
+                  properties: {
+                    type: {
+                      type: 'string',
+                      enum: ['string', 'number', 'boolean', 'object'],
+                    },
                     properties: {
-                      type: {
-                        type: 'string',
-                        enum: ['string', 'number', 'boolean', 'object'],
-                      },
-                      properties: {
-                        type: 'array',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            name: { type: 'string' },
-                            type: {
-                              type: 'string',
-                              enum: ['string', 'number', 'boolean'],
-                            },
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          type: {
+                            type: 'string',
+                            enum: ['string', 'number', 'boolean'],
                           },
-                          required: ['name', 'type'],
                         },
+                        required: ['name', 'type'],
                       },
                     },
                   },
-                  description: {
-                    type: 'string',
-                    description: 'Description of what this field represents',
-                  },
                 },
-                required: ['name', 'type'],
-                additionalProperties: false,
+                description: {
+                  type: 'string',
+                  description: 'Description of what this field represents',
+                },
               },
+              required: ['name', 'type'],
+              additionalProperties: false,
             },
           },
-          required: ['fields'],
         },
+        required: ['fields'],
       },
-      temperature: { type: 'number', required: false },
-      tools: { type: 'json', required: false },
     },
-    outputs: {
-      response: {
-        type: {
-          content: 'string',
-          model: 'string',
-          tokens: 'any',
-          toolCalls: 'any',
-        },
-        dependsOn: {
-          subBlockId: 'responseFormat',
-          condition: {
-            whenEmpty: {
-              content: 'string',
-              model: 'string',
-              tokens: 'any',
-              toolCalls: 'any',
-            },
-            whenFilled: 'json',
+    temperature: { type: 'number', required: false },
+    tools: { type: 'json', required: false },
+  },
+  outputs: {
+    response: {
+      type: {
+        content: 'string',
+        model: 'string',
+        tokens: 'any',
+        toolCalls: 'any',
+      },
+      dependsOn: {
+        subBlockId: 'responseFormat',
+        condition: {
+          whenEmpty: {
+            content: 'string',
+            model: 'string',
+            tokens: 'any',
+            toolCalls: 'any',
           },
+          whenFilled: 'json',
         },
       },
     },
-    subBlocks: [
-      {
-        id: 'systemPrompt',
-        title: 'System Prompt',
-        type: 'long-input',
-        layout: 'full',
-        placeholder: 'Enter system prompt...',
-      },
-      {
-        id: 'context',
-        title: 'User Prompt',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Enter context or user message...',
-      },
-      {
-        id: 'model',
-        title: 'Model',
-        type: 'dropdown',
-        layout: 'half',
-        options: Object.keys(MODEL_TOOLS),
-      },
-      {
-        id: 'temperature',
-        title: 'Temperature',
-        type: 'slider',
-        layout: 'half',
-        min: 0,
-        max: 2,
-      },
-      {
-        id: 'apiKey',
-        title: 'API Key',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Enter your API key',
-        password: true,
-        connectionDroppable: false,
-      },
-      {
-        id: 'tools',
-        title: 'Tools',
-        type: 'tool-input',
-        layout: 'full',
-      },
-      {
-        id: 'responseFormat',
-        title: 'Response Format',
-        type: 'code',
-        layout: 'full',
-        minimizable: true,
-        placeholder: `{
-  "fields": [
-    {
-      "name": "sentiment",
-      "type": "string",
-      "description": "The sentiment of the text (positive, negative, neutral)"
-    },
-    {
-      "name": "score",
-      "type": "number",
-      "description": "Confidence score between 0 and 1"
-    }
-  ]
-}`,
-      },
-    ],
   },
 }

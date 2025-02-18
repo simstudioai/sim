@@ -4,35 +4,32 @@ import { BlockConfig } from '../types'
 
 export const ConditionBlock: BlockConfig<CodeExecutionOutput> = {
   type: 'condition',
-  toolbar: {
-    title: 'Condition',
-    description: 'Add a condition',
-    bgColor: '#FF972F',
-    icon: ConditionalIcon,
-    category: 'blocks',
-  },
+  name: 'Condition',
+  description: 'Add a condition',
+  longDescription: 'Add a condition to the workflow',
+  bgColor: '#FF972F',
+  icon: ConditionalIcon,
+  category: 'blocks',
+  subBlocks: [
+    {
+      id: 'conditions',
+      type: 'condition-input',
+      layout: 'full',
+    },
+  ],
   tools: {
     access: ['function_execute'],
   },
-  workflow: {
-    inputs: {
-      code: { type: 'string', required: true },
-    },
-    outputs: {
-      response: {
-        type: {
-          result: 'any',
-          stdout: 'string',
-          executionTime: 'number',
-        },
+  inputs: {
+    code: { type: 'string', required: true },
+  },
+  outputs: {
+    response: {
+      type: {
+        result: 'any',
+        stdout: 'string',
+        executionTime: 'number',
       },
     },
-    subBlocks: [
-      {
-        id: 'conditions',
-        type: 'condition-input',
-        layout: 'full',
-      },
-    ],
   },
 }

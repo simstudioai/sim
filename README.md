@@ -1,51 +1,20 @@
 # Sim Studio
 
-<p align="center">
-  <!-- You can add your logo here -->
-  <h3 align="center">Agent Workflow Testing Platform</h3>
-</p>
+[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Overview
+**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows.
 
-Sim Studio is an open-source, drag-and-drop workflow builder designed specifically for developers to test and simulate API workflows. Think of it as Postman evolved - with a focus on visual workflow creation, real-time testing, and developer experience.
+## Run
 
-### Key Features
-
-- 🎨 **Visual Workflow Builder** - Intuitive drag-and-drop interface for creating complex API workflows
-- ⚡ **Fast & Responsive** - Built with performance in mind using Next.js
-- 🔄 **Real-time Testing** - Instant feedback as you build and modify your workflows
-- 🛠️ **Developer-First** - Created by developers, for developers
-- 📱 **Modern UI/UX** - Clean, intuitive interface that stays out of your way
-
-## Icons Library
-
-Sim Studio comes with a comprehensive set of built-in icons for your workflows:
-
-`AirplaneIcon`, `AmbulanceIcon`, `ApiIcon`, `AtomIcon`, `BankIcon`, `BoatIcon`, `BrightIcon`, `CalendarIcon`, `CancelIcon`, `ChartBarIcon`, `ChromeIcon`, `CodeIcon`, `ComponentIcon`, `ConditionalIcon`, `CookieIcon`, `CrateIcon`, `CreditCardIcon`, `DatabaseIcon`, `DollarIcon`, `ElevatorIcon`, `ErrorIcon`, `MailIcon`, `MessagesIcon`, `NotificationsIcon`, `ReminderIcon`, `SectionIcon`, `SignalIcon`, `StudentIcon`, `TrashIcon`, `UploadIcon`, `WarnIcon`, `WorkIcon`
-
-All icons are available as React components and can be imported from `components/icons.tsx`:
-
-```tsx
-import { ApiIcon, CodeIcon, ErrorIcon } from '@/components/icons'
-
-// Usage
-
-;<ApiIcon className="w-6 h-6" />
-```
+1. Self-host
+2. [Join the Waitlist](https://simstudio.ai) for the cloud-hosted beta
 
 ## Getting Started
-
-### Prerequisites
-
-- Node.js 18.0 or later
-- npm (Node Package Manager)
-
-### Installation
 
 1. Clone the repository
 
 ```bash
-git clone https://github.com/emir-karabeg/sim.git
+git clone https://github.com/simstudioai/sim.git
 cd sim-studio
 ```
 
@@ -55,20 +24,37 @@ cd sim-studio
 npm install
 ```
 
-3. Start the development server
+3. Set up your environment variables
+
+Copy `.env.example` to `.env` and configure:
+
+- Database connection (PostgreSQL)
+- Authentication secret
+- Email provider (Resend)
+
+4. Set up the database
+
+```bash
+# Push the database schema
+npx drizzle-kit push
+```
+
+5. Start the development server
 
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to see Sim Studio in action
+6. Open [http://localhost:3000](http://localhost:3000)
 
-## Why Sim Studio?
+## Tech Stack
 
-- **Easy to Use**: Visual workflow building that doesn't sacrifice power
-- **Fast**: Built on Next.js for optimal performance
-- **Reliable**: Robust testing capabilities you can trust
-- **Open Source**: Community-driven development and transparency
+- **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
+- **Authentication**: [Better Auth](https://better-auth.com) with GitHub OAuth
+- **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
+- **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
+- **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 
 ## Contributing
 
@@ -78,16 +64,10 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
-
-- 📚 [Documentation](docs/README.md)
-- 💬 [Discord Community](your-discord-link)
-- 🐛 [Issue Tracker](issues)
-
 ## Acknowledgments
 
-Built with [Next.js](https://nextjs.org/) and lots of ☕
+Built with [Next.js](https://nextjs.org/), [React Flow](https://reactflow.dev/), [Zustand](https://zustand-demo.pmnd.rs/), [Shadcn/ui](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com/) and lots of ☕
 
----
+##
 
 <p align="center">Made with ❤️ by the Sim Studio Team</p>

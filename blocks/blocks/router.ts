@@ -87,13 +87,46 @@ Remember: Your response must be ONLY the block ID - no additional text, formatti
 
 export const RouterBlock: BlockConfig<RouterResponse> = {
   type: 'router',
-  toolbar: {
-    title: 'Router',
-    description: 'Add a router',
-    bgColor: '#28C43F',
-    icon: ConnectIcon,
-    category: 'blocks',
-  },
+  name: 'Router',
+  description: 'Route workflow',
+  category: 'blocks',
+  bgColor: '#28C43F',
+  icon: ConnectIcon,
+  subBlocks: [
+    {
+      id: 'prompt',
+      title: 'Prompt',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Route to the correct block based on the input...',
+    },
+    {
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      layout: 'half',
+      options: Object.keys(MODEL_TOOLS),
+    },
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your API key',
+      password: true,
+      connectionDroppable: false,
+    },
+    {
+      id: 'systemPrompt',
+      title: 'System Prompt',
+      type: 'code',
+      layout: 'full',
+      hidden: true,
+      value: (params: Record<string, any>) => {
+        return generateRouterPrompt(params.prompt || '')
+      },
+    },
+  ],
   tools: {
     access: [
       'openai_chat',
@@ -117,56 +150,19 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       },
     },
   },
-  workflow: {
-    inputs: {
-      prompt: { type: 'string', required: true },
-      model: { type: 'string', required: true },
-      apiKey: { type: 'string', required: true },
-    },
-    outputs: {
-      response: {
-        type: {
-          content: 'string',
-          model: 'string',
-          tokens: 'any',
-          selectedPath: 'json',
-        },
+  inputs: {
+    prompt: { type: 'string', required: true },
+    model: { type: 'string', required: true },
+    apiKey: { type: 'string', required: true },
+  },
+  outputs: {
+    response: {
+      type: {
+        content: 'string',
+        model: 'string',
+        tokens: 'any',
+        selectedPath: 'json',
       },
     },
-    subBlocks: [
-      {
-        id: 'prompt',
-        title: 'Prompt',
-        type: 'long-input',
-        layout: 'full',
-        placeholder: 'Route to the correct block based on the input...',
-      },
-      {
-        id: 'model',
-        title: 'Model',
-        type: 'dropdown',
-        layout: 'half',
-        options: Object.keys(MODEL_TOOLS),
-      },
-      {
-        id: 'apiKey',
-        title: 'API Key',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Enter your API key',
-        password: true,
-        connectionDroppable: false,
-      },
-      {
-        id: 'systemPrompt',
-        title: 'System Prompt',
-        type: 'code',
-        layout: 'full',
-        hidden: true,
-        value: (params: Record<string, any>) => {
-          return generateRouterPrompt(params.prompt || '')
-        },
-      },
-    ],
   },
 }

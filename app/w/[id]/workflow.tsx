@@ -7,16 +7,19 @@ import ReactFlow, {
   ConnectionLineType,
   EdgeTypes,
   NodeTypes,
+  Position,
   ReactFlowProvider,
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeStateLogger } from '@/stores/workflow/logger'
-import { useWorkflowRegistry } from '@/stores/workflow/registry'
+import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { NotificationList } from '@/app/w/components/notifications/notifications'
 import { getBlock } from '../../../blocks'
+import { ErrorBoundary } from '../components/error-boundary/error-boundary'
 import { CustomEdge } from './components/custom-edge/custom-edge'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { LoopInput } from './components/workflow-loop/components/loop-input/loop-input'
@@ -205,6 +208,26 @@ function WorkflowContent() {
   )
 
   // Handle drops
+  const findClosestOutput = useCallback(
+    (newNodePosition: { x: number; y: number }) => {
+      const existingBlocks = Object.entries(blocks)
+        .filter(([_, block]) => block.enabled && block.type !== 'condition')
+        .map(([id, block]) => ({
+          id,
+          position: block.position,
+          distance: Math.sqrt(
+            Math.pow(block.position.x - newNodePosition.x, 2) +
+              Math.pow(block.position.y - newNodePosition.y, 2)
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)
+
+      return existingBlocks[0]?.id
+    },
+    [blocks]
+  )
+
+  // Update the onDrop handler
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault()
@@ -226,16 +249,32 @@ function WorkflowContent() {
         }
 
         const id = crypto.randomUUID()
-        const name = `${blockConfig.toolbar.title} ${
+        const name = `${blockConfig.name} ${
           Object.values(blocks).filter((b) => b.type === data.type).length + 1
         }`
 
         addBlock(id, data.type, name, position)
+
+        // Auto-connect logic
+        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+        if (isAutoConnectEnabled && data.type !== 'starter') {
+          const closestBlockId = findClosestOutput(position)
+          if (closestBlockId) {
+            addEdge({
+              id: crypto.randomUUID(),
+              source: closestBlockId,
+              target: id,
+              sourceHandle: 'source',
+              targetHandle: 'target',
+              type: 'custom',
+            })
+          }
+        }
       } catch (err) {
         console.error('Error dropping block:', err)
       }
     },
-    [project, blocks, addBlock]
+    [project, blocks, addBlock, addEdge, findClosestOutput]
   )
 
   // Node selection
@@ -304,6 +343,7 @@ function WorkflowContent() {
         onDrop={onDrop}
         onDragOver={(e) => e.preventDefault()}
         fitView
+        minZoom={0.4}
         maxZoom={1}
         panOnScroll
         defaultEdgeOptions={{ type: 'custom' }}
@@ -336,7 +376,9 @@ function WorkflowContent() {
 export default function Workflow() {
   return (
     <ReactFlowProvider>
-      <WorkflowContent />
+      <ErrorBoundary>
+        <WorkflowContent />
+      </ErrorBoundary>
     </ReactFlowProvider>
   )
 }

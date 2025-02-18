@@ -18,17 +18,17 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
     >
       <div
         className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-        style={{ backgroundColor: config.toolbar.bgColor }}
+        style={{ backgroundColor: config.bgColor }}
       >
-        <config.toolbar.icon
+        <config.icon
           className={`text-white transition-transform duration-200 group-hover:scale-110 ${
             config.type === 'agent' ? 'w-[24px] h-[24px]' : 'w-[22px] h-[22px]'
           }`}
         />
       </div>
       <div className="flex flex-col gap-1">
-        <h3 className="font-medium leading-none">{config.toolbar.title}</h3>
-        <p className="text-sm text-muted-foreground">{config.toolbar.description}</p>
+        <h3 className="font-medium leading-none">{config.name}</h3>
+        <p className="text-sm text-muted-foreground">{config.description}</p>
       </div>
     </div>
   )

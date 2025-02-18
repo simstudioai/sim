@@ -8,6 +8,15 @@ interface Field {
   description?: string
 }
 
+interface Metric {
+  name: string
+  description: string
+  range: {
+    min: number
+    max: number
+  }
+}
+
 interface TagDropdownProps {
   visible: boolean
   onSelect: (newValue: string) => void
@@ -68,7 +77,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       const blockName = sourceBlock.name || sourceBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // Check for response format first
+      // First check for evaluator metrics
+      if (sourceBlock.type === 'evaluator') {
+        try {
+          const metricsValue = sourceBlock.subBlocks?.metrics?.value as unknown as Metric[]
+          if (Array.isArray(metricsValue)) {
+            return {
+              tags: metricsValue.map(
+                (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
+              ),
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing metrics:', e)
+        }
+      }
+
+      // Then check for response format
       try {
         const responseFormatValue = sourceBlock.subBlocks?.responseFormat?.value
         if (typeof responseFormatValue === 'string' && responseFormatValue) {
@@ -87,7 +112,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       // Fall back to default outputs if no response format
       const outputPaths = getOutputPaths(sourceBlock.outputs)
-
       return {
         tags: outputPaths.map((path) => `${normalizedBlockName}.${path}`),
       }
@@ -115,6 +139,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       } catch (e) {
         console.error('Error parsing response format:', e)
+      }
+
+      if (sourceBlock.type === 'evaluator') {
+        try {
+          const metricsValue = sourceBlock.subBlocks?.metrics?.value as unknown as Metric[]
+          if (Array.isArray(metricsValue)) {
+            return metricsValue.map(
+              (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
+            )
+          }
+        } catch (e) {
+          console.error('Error parsing metrics:', e)
+          return []
+        }
       }
 
       // Fall back to default outputs if no response format
@@ -184,7 +222,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }, [visible, selectedIndex, filteredTags])
 
   // Don't render if not visible or no tags
-  if (!visible || tags.length === 0) return null
+  if (!visible || tags.length === 0 || filteredTags.length === 0) return null
 
   return (
     <div
