@@ -20,19 +20,27 @@ export interface PineconeResponse extends ToolResponse {
     matches?: PineconeMatchResponse[]
     upsertedCount?: number
     deletedCount?: number
-    embeddings?: number[][]
+    data?: Array<{
+      values: number[]
+      vector_type: 'dense' | 'sparse'
+    }>
+    model?: string
+    vector_type?: 'dense' | 'sparse'
     usage?: {
-      prompt_tokens: number
       total_tokens: number
     }
   }
 }
 
 // Generate Embeddings
-export interface PineconeGenerateEmbeddingsParams extends PineconeBaseParams {
+export interface PineconeGenerateEmbeddingsParams {
+  apiKey: string
   model: string
   inputs: { text: string }[]
-  parameters?: Record<string, any>
+  parameters?: {
+    input_type?: 'passage'
+    truncate?: 'END'
+  }
 }
 
 // Upsert Text

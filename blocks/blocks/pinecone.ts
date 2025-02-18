@@ -31,6 +31,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'gcp-starter',
+      condition: { field: 'operation', value: 'upsert_text' },
     },
     {
       id: 'indexName',
@@ -38,6 +39,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'my-index',
+      condition: { field: 'operation', value: 'upsert_text' },
     },
     // Generate embeddings fields
     {
@@ -46,8 +48,9 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'text-embedding-3-small', id: 'text-embedding-3-small' },
-        { label: 'text-embedding-3-large', id: 'text-embedding-3-large' },
+        { label: 'multilingual-e5-large', id: 'multilingual-e5-large' },
+        { label: 'llama-text-embed-v2', id: 'llama-text-embed-v2' },
+        { label: 'pinecone-sparse-english-v0', id: 'pinecone-sparse-english-v0' },
       ],
       condition: { field: 'operation', value: 'generate' },
     },
@@ -152,12 +155,13 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    environment: { type: 'string', required: true },
-    indexName: { type: 'string', required: true },
+    environment: { type: 'string', required: false },
+    indexName: { type: 'string', required: false },
     namespace: { type: 'string', required: false },
     // Generate embeddings inputs
     model: { type: 'string', required: false },
     inputs: { type: 'json', required: false },
+    parameters: { type: 'json', required: false },
     // Upsert text inputs
     records: { type: 'json', required: false },
     // Search text inputs
@@ -175,7 +179,9 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       type: {
         matches: 'any',
         upsertedCount: 'any',
-        embeddings: 'any',
+        data: 'any',
+        model: 'any',
+        vector_type: 'any',
         usage: 'any',
       },
     },

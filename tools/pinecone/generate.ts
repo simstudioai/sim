@@ -12,8 +12,6 @@ export const generateEmbeddingsTool: ToolConfig<
 
   params: {
     apiKey: { type: 'string', required: true, description: 'Pinecone API key' },
-    environment: { type: 'string', required: true, description: 'Pinecone environment' },
-    indexName: { type: 'string', required: true, description: 'Name of the Pinecone index' },
     model: {
       type: 'string',
       required: true,
@@ -24,7 +22,6 @@ export const generateEmbeddingsTool: ToolConfig<
       required: true,
       description: 'Array of text inputs to generate embeddings for',
     },
-    parameters: { type: 'object', required: false, description: 'Additional model parameters' },
   },
 
   request: {
@@ -38,7 +35,7 @@ export const generateEmbeddingsTool: ToolConfig<
     body: (params) => ({
       model: params.model,
       inputs: params.inputs,
-      parameters: {
+      parameters: params.parameters || {
         input_type: 'passage',
         truncate: 'END',
       },
@@ -50,7 +47,9 @@ export const generateEmbeddingsTool: ToolConfig<
     return {
       success: true,
       output: {
-        embeddings: data.embeddings,
+        data: data.data,
+        model: data.model,
+        vector_type: data.vector_type,
         usage: data.usage,
       },
     }
