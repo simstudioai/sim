@@ -10,6 +10,7 @@ import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
 import { JinaBlock } from './blocks/jina'
 import { NotionBlock } from './blocks/notion'
+import { OpenAIBlock } from './blocks/openai'
 import { PineconeBlock } from './blocks/pinecone'
 import { RouterBlock } from './blocks/router'
 import { SerperBlock } from './blocks/serper'
@@ -43,6 +44,7 @@ export {
   XBlock,
   StarterBlock,
   PineconeBlock,
+  OpenAIBlock,
 }
 
 // Registry of all block configurations
@@ -67,6 +69,7 @@ const blocks: Record<string, BlockConfig> = {
   gmail: GmailBlock,
   x: XBlock,
   pinecone: PineconeBlock,
+  openai: OpenAIBlock,
 }
 
 // Helper functions
