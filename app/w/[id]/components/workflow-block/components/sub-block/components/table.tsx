@@ -18,39 +18,10 @@ interface TableRow {
 
 export function Table({ columns, blockId, subBlockId }: TableProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
-  const activePositionRef = useRef<{ rowIndex: number; column: string } | null>(null)
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
-
-  useEffect(() => {
-    if (activePositionRef.current && document.activeElement === document.body) {
-      const { rowIndex, column } = activePositionRef.current
-      const input = document.querySelector(
-        `input[data-row="${rowIndex}"][data-column="${column}"]`
-      ) as HTMLInputElement
-      if (input) {
-        input.focus()
-      }
-    }
-  })
-
-  // Add new useEffect for handling input scrolling
-  useEffect(() => {
-    if (activePositionRef.current) {
-      const { rowIndex, column } = activePositionRef.current
-      const key = `${rowIndex}-${column}`
-      const input = inputRefs.current.get(key)
-
-      if (input) {
-        const scrollPosition = (input.selectionStart ?? 0) * 8
-        input.scrollLeft = scrollPosition - input.offsetWidth / 2
-      }
-    }
-  }, [value])
 
   // Ensure value is properly typed and initialized
   const rows = useMemo(() => {
     if (!Array.isArray(value)) {
-      // Initialize with a single empty row if value is null or invalid
       return [
         {
           id: crypto.randomUUID(),
@@ -71,7 +42,6 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
         : row
     )
 
-    // Add new row if typing in the last row
     if (rowIndex === rows.length - 1 && value !== '') {
       updatedRows.push({
         id: crypto.randomUUID(),
@@ -83,73 +53,65 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
   }
 
   const handleDeleteRow = (rowIndex: number) => {
-    if (rows.length === 1) return // Don't delete if it's the last row
+    if (rows.length === 1) return
     setValue(rows.filter((_, index) => index !== rowIndex))
   }
+
+  const renderHeader = () => (
+    <thead>
+      <tr className="border-b">
+        {columns.map((column, index) => (
+          <th
+            key={column}
+            className={cn(
+              'px-4 py-2 text-left text-sm font-medium',
+              index < columns.length - 1 && 'border-r'
+            )}
+          >
+            {column}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  )
+
+  const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => (
+    <td
+      key={`${row.id}-${column}`}
+      className={cn('p-1', cellIndex < columns.length - 1 && 'border-r')}
+    >
+      <Input
+        value={row.cells[column] || ''}
+        placeholder={column}
+        onChange={(e) => handleCellChange(rowIndex, column, e.target.value)}
+        className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground placeholder:text-muted-foreground/50"
+      />
+    </td>
+  )
+
+  const renderDeleteButton = (rowIndex: number) =>
+    rows.length > 1 && (
+      <td className="w-0 p-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="opacity-0 group-hover:opacity-100 h-8 w-8 absolute right-2 top-1/2 -translate-y-1/2"
+          onClick={() => handleDeleteRow(rowIndex)}
+        >
+          <Trash2 className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      </td>
+    )
 
   return (
     <div className="border rounded-md overflow-hidden">
       <table className="w-full">
-        <thead>
-          <tr className="border-b">
-            {columns.map((column, index) => (
-              <th
-                key={column}
-                className={cn(
-                  'px-4 py-2 text-left text-sm font-medium',
-                  index < columns.length - 1 && 'border-r'
-                )}
-              >
-                {column}
-              </th>
-            ))}
-          </tr>
-        </thead>
+        {renderHeader()}
         <tbody>
           {rows.map((row, rowIndex) => (
             <tr key={row.id} className="border-t group relative">
-              {columns.map((column, cellIndex) => (
-                <td
-                  key={`${row.id}-${column}`}
-                  className={cn('p-1', cellIndex < columns.length - 1 && 'border-r')}
-                >
-                  <Input
-                    ref={(el) => {
-                      if (el) {
-                        inputRefs.current.set(`${rowIndex}-${column}`, el)
-                      } else {
-                        inputRefs.current.delete(`${rowIndex}-${column}`)
-                      }
-                    }}
-                    data-row={rowIndex}
-                    data-column={column}
-                    value={row.cells[column] || ''}
-                    placeholder={column}
-                    onChange={(e) => handleCellChange(rowIndex, column, e.target.value)}
-                    onFocus={() => {
-                      activePositionRef.current = { rowIndex, column }
-                    }}
-                    onSelect={(e) => {
-                      const input = e.currentTarget
-                      const scrollPosition = (input.selectionStart ?? 0) * 8
-                      input.scrollLeft = scrollPosition - input.offsetWidth / 2
-                    }}
-                    className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-muted-foreground placeholder:text-muted-foreground/50 allow-scroll"
-                  />
-                </td>
-              ))}
-              {rows.length > 1 && (
-                <td className="w-0 p-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 h-8 w-8 absolute right-2 top-1/2 -translate-y-1/2"
-                    onClick={() => handleDeleteRow(rowIndex)}
-                  >
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </td>
-              )}
+              {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
+              {renderDeleteButton(rowIndex)}
             </tr>
           ))}
         </tbody>

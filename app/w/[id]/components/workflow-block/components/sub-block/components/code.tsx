@@ -13,9 +13,15 @@ interface CodeProps {
   blockId: string
   subBlockId: string
   isConnecting: boolean
+  placeholder?: string
 }
 
-export function Code({ blockId, subBlockId, isConnecting }: CodeProps) {
+export function Code({
+  blockId,
+  subBlockId,
+  isConnecting,
+  placeholder = 'Write JavaScript...',
+}: CodeProps) {
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [code, setCode] = useState('')
@@ -201,7 +207,7 @@ export function Code({ blockId, subBlockId, isConnecting }: CodeProps) {
       >
         {code.length === 0 && (
           <div className="absolute left-[42px] top-[12px] text-muted-foreground/50 select-none pointer-events-none">
-            Write JavaScript...
+            {placeholder}
           </div>
         )}
 

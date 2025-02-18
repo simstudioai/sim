@@ -25,6 +25,13 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       options: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     },
     {
+      id: 'params',
+      title: 'Query Params',
+      type: 'table',
+      layout: 'full',
+      columns: ['Key', 'Value'],
+    },
+    {
       id: 'headers',
       title: 'Headers',
       type: 'table',
@@ -36,6 +43,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       title: 'Body',
       type: 'code',
       layout: 'full',
+      placeholder: 'Enter JSON...',
     },
   ],
   tools: {
