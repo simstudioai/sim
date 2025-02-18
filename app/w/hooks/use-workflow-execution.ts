@@ -4,6 +4,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
+import { useSubBlockStore } from '@/stores/workflow/subblock/store'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -27,16 +28,30 @@ export function useWorkflowExecution() {
     }
 
     try {
-      // Extract existing block states
+      // Get all subblock values from the subblock store
       const currentBlockStates = Object.entries(blocks).reduce(
-        (acc, [id, block]) => {
-          const responseValue = block.subBlocks?.response?.value
-          if (responseValue !== undefined) {
-            acc[id] = { response: responseValue }
+        (acc, [blockId]) => {
+          const subBlocks = Object.keys(blocks[blockId].subBlocks)
+
+          // For each subblock, get its value from the subblock store
+          const blockValues = subBlocks.reduce(
+            (subAcc, subBlockId) => {
+              const value = useSubBlockStore.getState().getValue(blockId, subBlockId)
+              if (value !== null) {
+                subAcc[subBlockId] = value
+              }
+              return subAcc
+            },
+            {} as Record<string, any>
+          )
+
+          // Only add to accumulator if there are values
+          if (Object.keys(blockValues).length > 0) {
+            acc[blockId] = blockValues
           }
           return acc
         },
-        {} as Record<string, any>
+        {} as Record<string, Record<string, any>>
       )
 
       // Get environment variables

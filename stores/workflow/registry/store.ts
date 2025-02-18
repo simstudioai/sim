@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useWorkflowStore } from '../store'
+import { useSubBlockStore } from '../subblock/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName } from './utils'
 
@@ -36,10 +37,14 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           )
         }
 
-        // Load new workflow state
+        // Load workflow state
         const savedState = localStorage.getItem(`workflow-${id}`)
         if (savedState) {
           const { blocks, edges, history, loops } = JSON.parse(savedState)
+
+          // Initialize subblock store with workflow values
+          useSubBlockStore.getState().initializeFromWorkflow(id, blocks)
+
           useWorkflowStore.setState({
             blocks,
             edges,

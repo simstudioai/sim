@@ -35,6 +35,8 @@ const nodeTypes: NodeTypes = {
 const edgeTypes: EdgeTypes = { custom: CustomEdge }
 
 function WorkflowContent() {
+  console.log('Workflow render')
+
   // State
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
@@ -323,9 +325,9 @@ function WorkflowContent() {
   }, [selectedEdgeId, removeEdge])
 
   // Initialize state logging
-  useEffect(() => {
-    initializeStateLogger()
-  }, [])
+  // useEffect(() => {
+  //   initializeStateLogger()
+  // }, [])
 
   if (!isInitialized) return null
 

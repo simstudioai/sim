@@ -41,7 +41,6 @@ export interface WorkflowState {
 export interface WorkflowActions {
   addBlock: (id: string, type: string, name: string, position: Position) => void
   updateBlockPosition: (id: string, position: Position) => void
-  updateSubBlock: (blockId: string, subBlockId: string, subBlock: SubBlockState) => void
   removeBlock: (id: string) => void
   addEdge: (edge: Edge) => void
   removeEdge: (edgeId: string) => void
