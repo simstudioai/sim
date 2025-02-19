@@ -16,9 +16,19 @@ export function mergeSubblockState(
 
   return Object.entries(blocksToProcess).reduce(
     (acc, [id, block]) => {
+      // Skip if block is undefined or doesn't have subBlocks
+      if (!block || !block.subBlocks) {
+        return acc
+      }
+
       // Create a deep copy of the block's subBlocks to maintain structure
       const mergedSubBlocks = Object.entries(block.subBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
+          // Skip if subBlock is undefined
+          if (!subBlock) {
+            return subAcc
+          }
+
           // Get the stored value for this subblock
           const storedValue = useSubBlockStore.getState().getValue(id, subBlockId)
 

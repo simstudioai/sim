@@ -9,9 +9,9 @@ import { useWorkflowRegistry } from './workflow/registry/store'
 import { useWorkflowStore } from './workflow/store'
 
 // Initialize sync manager when the store is first imported
-// if (typeof window !== 'undefined') {
-//   initializeSyncManager()
-// }
+if (typeof window !== 'undefined') {
+  initializeSyncManager()
+}
 
 // Reset all application stores to their initial state
 export const resetAllStores = () => {
