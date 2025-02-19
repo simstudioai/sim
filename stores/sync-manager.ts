@@ -21,13 +21,6 @@ export function addDeletedWorkflow(id: string) {
   deletedWorkflowIds.add(id)
 }
 
-// Track deleted workflow IDs until they're synced
-const deletedWorkflowIds = new Set<string>()
-
-export function addDeletedWorkflow(id: string) {
-  deletedWorkflowIds.add(id)
-}
-
 async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<boolean> {
   try {
     const response = await fetch('/api/db/sync', {
