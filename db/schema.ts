@@ -102,3 +102,17 @@ export const userSettings = pgTable('user_settings', {
   isDebugModeEnabled: boolean('is_debug_mode_enabled').notNull().default(false),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const workflowSchedule = pgTable('workflow_schedule', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  cronExpression: text('cron_expression'),
+  nextRunAt: timestamp('next_run_at'),
+  lastRanAt: timestamp('last_ran_at'),
+  triggerType: text('trigger_type').notNull(), // "manual", "webhook", "schedule"
+  timezone: text('timezone').notNull().default('UTC'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
