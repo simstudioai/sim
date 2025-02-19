@@ -1,5 +1,5 @@
 import { db } from '@/db'
-import { consoleLog } from '@/db/schema'
+import { workflowLogs } from '@/db/schema'
 
 export interface LogEntry {
   id: string
@@ -11,5 +11,5 @@ export interface LogEntry {
 }
 
 export async function persistLog(log: LogEntry) {
-  await db.insert(consoleLog).values(log)
+  await db.insert(workflowLogs).values(log)
 }

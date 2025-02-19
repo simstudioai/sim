@@ -1,4 +1,4 @@
-import { boolean, integer, json, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { boolean, json, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -71,7 +71,7 @@ export const waitlist = pgTable('waitlist', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const consoleLog = pgTable('workflow_logs', {
+export const workflowLogs = pgTable('workflow_logs', {
   id: text('id').primaryKey(),
   workflowId: text('workflow_id')
     .notNull()
@@ -82,7 +82,7 @@ export const consoleLog = pgTable('workflow_logs', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const userEnvironment = pgTable('environment', {
+export const environment = pgTable('environment', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
     .notNull()

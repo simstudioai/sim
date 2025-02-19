@@ -8,7 +8,7 @@ import { decryptSecret } from '@/lib/utils'
 import { BlockState, WorkflowState } from '@/stores/workflow/types'
 import { mergeSubblockState } from '@/stores/workflow/utils'
 import { db } from '@/db'
-import { userEnvironment, workflow, workflowSchedule } from '@/db/schema'
+import { environment, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 
@@ -170,8 +170,8 @@ export async function POST(req: NextRequest) {
       // Retrieve environment variables for this user
       const [userEnv] = await db
         .select()
-        .from(userEnvironment)
-        .where(eq(userEnvironment.userId, workflowRecord.userId))
+        .from(environment)
+        .where(eq(environment.userId, workflowRecord.userId))
         .limit(1)
 
       if (!userEnv) {
@@ -312,8 +312,8 @@ export async function GET(req: NextRequest) {
       // Retrieve environment variables for this user
       const [userEnv] = await db
         .select()
-        .from(userEnvironment)
-        .where(eq(userEnvironment.userId, workflowRecord.userId))
+        .from(environment)
+        .where(eq(environment.userId, workflowRecord.userId))
         .limit(1)
 
       if (!userEnv) {

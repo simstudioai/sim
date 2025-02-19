@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { encryptSecret } from '@/lib/utils'
 import { EnvironmentVariable } from '@/stores/settings/environment/types'
 import { db } from '@/db'
-import { userEnvironment } from '@/db/schema'
+import { environment } from '@/db/schema'
 
 // Schema for environment variable updates
 const EnvVarSchema = z.object({
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     // Upsert the environment variables
     await db
-      .insert(userEnvironment)
+      .insert(environment)
       .values({
         id: crypto.randomUUID(),
         userId: session.user.id,
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [userEnvironment.userId],
+        target: [environment.userId],
         set: {
           variables: encryptedVariables,
           updatedAt: new Date(),
@@ -70,8 +70,8 @@ export async function GET(request: Request) {
 
     const result = await db
       .select()
-      .from(userEnvironment)
-      .where(eq(userEnvironment.userId, userId))
+      .from(environment)
+      .where(eq(environment.userId, userId))
       .limit(1)
 
     if (!result.length || !result[0].variables) {
