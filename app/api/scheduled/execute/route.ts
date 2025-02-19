@@ -127,191 +127,6 @@ export const config = {
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
-export async function POST(req: NextRequest) {
-  const now = new Date()
-
-  // Query schedules due for execution
-  const dueSchedules = await db
-    .select()
-    .from(workflowSchedule)
-    .where(lte(workflowSchedule.nextRunAt, now))
-    // Limit to 10 workflows per minute to prevent overload
-    .limit(10)
-
-  for (const schedule of dueSchedules) {
-    try {
-      // Skip if this workflow is already running
-      if (runningExecutions.has(schedule.workflowId)) {
-        console.log(`Skipping workflow ${schedule.workflowId} - already running`)
-        continue
-      }
-
-      runningExecutions.add(schedule.workflowId)
-
-      // Retrieve the workflow record
-      const [workflowRecord] = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.id, schedule.workflowId))
-        .limit(1)
-
-      if (!workflowRecord) {
-        runningExecutions.delete(schedule.workflowId)
-        continue
-      }
-
-      // The state in the database is exactly what we store in localStorage
-      const state = workflowRecord.state as WorkflowState
-      const { blocks, edges, loops } = state
-
-      // Use the same execution flow as in use-workflow-execution.ts
-      const mergedStates = mergeSubblockState(blocks)
-
-      // Retrieve environment variables for this user
-      const [userEnv] = await db
-        .select()
-        .from(environment)
-        .where(eq(environment.userId, workflowRecord.userId))
-        .limit(1)
-
-      if (!userEnv) {
-        throw new Error('No environment variables found for this user')
-      }
-
-      // Add debug logging
-      console.log('Raw variables from DB:', userEnv.variables)
-
-      // Parse and validate environment variables
-      const variables = EnvVarsSchema.parse(userEnv.variables)
-
-      // Add more debug logging
-      console.log('Parsed variables:', Object.keys(variables))
-
-      // Replace environment variables in the block states
-      const currentBlockStates = await Object.entries(mergedStates).reduce(
-        async (accPromise, [id, block]) => {
-          const acc = await accPromise
-          acc[id] = await Object.entries(block.subBlocks).reduce(
-            async (subAccPromise, [key, subBlock]) => {
-              const subAcc = await subAccPromise
-              let value = subBlock.value
-
-              // If the value is a string and contains environment variable syntax
-              if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
-                const matches = value.match(/{{([^}]+)}}/g)
-                if (matches) {
-                  console.log('Processing block:', id, 'subBlock:', key)
-                  console.log('Found variable matches:', matches)
-
-                  // Process all matches sequentially
-                  for (const match of matches) {
-                    const varName = match.slice(2, -2) // Remove {{ and }}
-                    console.log('Looking for variable:', varName)
-                    console.log('Available variables:', Object.keys(variables))
-
-                    const encryptedValue = variables[varName]
-                    console.log('Found encrypted value:', encryptedValue)
-
-                    if (!encryptedValue) {
-                      throw new Error(`Environment variable "${varName}" was not found`)
-                    }
-
-                    try {
-                      console.log('Attempting to decrypt value for:', varName)
-                      const { decrypted } = await decryptSecret(encryptedValue)
-                      console.log('Successfully decrypted value for:', varName)
-                      value = (value as string).replace(match, decrypted)
-                      console.log('Successfully replaced value for:', varName)
-                    } catch (error: any) {
-                      console.error('Error decrypting value:', error)
-                      throw new Error(
-                        `Failed to decrypt environment variable "${varName}": ${error.message}`
-                      )
-                    }
-                  }
-                }
-              }
-
-              subAcc[key] = value
-              return subAcc
-            },
-            Promise.resolve({} as Record<string, any>)
-          )
-          return acc
-        },
-        Promise.resolve({} as Record<string, Record<string, any>>)
-      )
-
-      // Create a map of decrypted environment variables
-      const decryptedEnvVars: Record<string, string> = {}
-      for (const [key, encryptedValue] of Object.entries(variables)) {
-        try {
-          const { decrypted } = await decryptSecret(encryptedValue)
-          decryptedEnvVars[key] = decrypted
-        } catch (error: any) {
-          console.error(`Failed to decrypt ${key}:`, error)
-          throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
-        }
-      }
-
-      // Add logging for the final block states
-      console.log('Final block states:', JSON.stringify(currentBlockStates, null, 2))
-
-      // Serialize and execute the workflow
-      const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-      console.log('Serialized workflow:', JSON.stringify(serializedWorkflow, null, 2))
-
-      const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
-      const executionId = uuidv4()
-      console.log('Starting execution with ID:', executionId)
-
-      const result = await executor.execute(schedule.workflowId)
-      console.log('Execution result:', result)
-
-      // Log the execution result
-      await persistLog({
-        id: uuidv4(),
-        workflowId: schedule.workflowId,
-        executionId,
-        level: result.success ? 'info' : 'error',
-        message: result.success
-          ? 'Scheduled workflow executed successfully'
-          : `Scheduled workflow execution failed: ${result.error}`,
-        createdAt: new Date(),
-      })
-
-      // Calculate the next run time based on the schedule configuration
-      const nextRunAt = calculateNextRunTime(schedule, blocks)
-
-      // Update the schedule with the next run time
-      await db
-        .update(workflowSchedule)
-        .set({
-          lastRanAt: now,
-          updatedAt: now,
-          nextRunAt,
-        })
-        .where(eq(workflowSchedule.id, schedule.id))
-    } catch (error: any) {
-      await persistLog({
-        id: uuidv4(),
-        workflowId: schedule.workflowId,
-        executionId: uuidv4(),
-        level: 'error',
-        message: error.message || 'Unknown error during scheduled workflow execution',
-        createdAt: new Date(),
-      })
-    } finally {
-      runningExecutions.delete(schedule.workflowId)
-    }
-  }
-
-  return NextResponse.json({
-    message: 'Scheduled workflow executions processed',
-    executedCount: dueSchedules.length,
-  })
-}
-
 // Add GET handler for cron job
 export async function GET(req: NextRequest) {
   const now = new Date()
@@ -364,14 +179,8 @@ export async function GET(req: NextRequest) {
         throw new Error('No environment variables found for this user')
       }
 
-      // Add debug logging
-      console.log('Raw variables from DB:', userEnv.variables)
-
       // Parse and validate environment variables
       const variables = EnvVarsSchema.parse(userEnv.variables)
-
-      // Add more debug logging
-      console.log('Parsed variables:', Object.keys(variables))
 
       // Replace environment variables in the block states
       const currentBlockStates = await Object.entries(mergedStates).reduce(
@@ -386,28 +195,17 @@ export async function GET(req: NextRequest) {
               if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
                 const matches = value.match(/{{([^}]+)}}/g)
                 if (matches) {
-                  console.log('Processing block:', id, 'subBlock:', key)
-                  console.log('Found variable matches:', matches)
-
                   // Process all matches sequentially
                   for (const match of matches) {
                     const varName = match.slice(2, -2) // Remove {{ and }}
-                    console.log('Looking for variable:', varName)
-                    console.log('Available variables:', Object.keys(variables))
-
                     const encryptedValue = variables[varName]
-                    console.log('Found encrypted value:', encryptedValue)
-
                     if (!encryptedValue) {
                       throw new Error(`Environment variable "${varName}" was not found`)
                     }
 
                     try {
-                      console.log('Attempting to decrypt value for:', varName)
                       const { decrypted } = await decryptSecret(encryptedValue)
-                      console.log('Successfully decrypted value for:', varName)
                       value = (value as string).replace(match, decrypted)
-                      console.log('Successfully replaced value for:', varName)
                     } catch (error: any) {
                       console.error('Error decrypting value:', error)
                       throw new Error(
@@ -440,21 +238,27 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Add logging for the final block states
-      console.log('Final block states:', JSON.stringify(currentBlockStates, null, 2))
-
       // Serialize and execute the workflow
       const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-      console.log('Serialized workflow:', JSON.stringify(serializedWorkflow, null, 2))
-
       const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
       const executionId = uuidv4()
-      console.log('Starting execution with ID:', executionId)
-
       const result = await executor.execute(schedule.workflowId)
-      console.log('Execution result:', result)
 
-      // Log the execution result
+      // Log each execution step
+      for (const log of result.logs || []) {
+        await persistLog({
+          id: uuidv4(),
+          workflowId: schedule.workflowId,
+          executionId,
+          level: log.success ? 'info' : 'error',
+          message: `Block ${log.blockName || log.blockId} (${log.blockType}): ${
+            log.error || `Completed in ${log.durationMs}ms`
+          }`,
+          createdAt: new Date(log.endedAt || log.startedAt),
+        })
+      }
+
+      // Log the final execution result
       await persistLog({
         id: uuidv4(),
         workflowId: schedule.workflowId,
