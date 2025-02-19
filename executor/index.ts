@@ -1020,7 +1020,7 @@ export class Executor {
     const blockById = new Map(this.workflow.blocks.map((b) => [b.id, b]))
     const blockByName = new Map(
       this.workflow.blocks.map((b) => [
-        b.metadata?.name?.toLowerCase().replace(/\s+/g, '') || '',
+        b.metadata?.name ? b.metadata.name.toLowerCase().replace(/\s+/g, '') : b.id,
         b,
       ])
     )
@@ -1035,7 +1035,8 @@ export class Executor {
             blockByName,
             context.blockStates,
             block.metadata?.name || '',
-            block.metadata?.id || ''
+            block.metadata?.id || '',
+            this.workflow.loops
           )
 
           // Resolve environment variables

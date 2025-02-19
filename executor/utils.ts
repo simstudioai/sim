@@ -41,9 +41,10 @@ export function resolveBlockReferences(
   value: string,
   blockById: Map<string, any>,
   blockByName: Map<string, any>,
-  contextBlockStates: Map<string, any>,
-  currentBlockTitle: string,
-  currentBlockType: string
+  blockStates: Map<string, any>,
+  blockName: string,
+  blockType: string,
+  workflowLoops?: Record<string, { nodes: string[] }>
 ): string {
   const blockMatches = value.match(/<([^>]+)>/g)
   let resolvedValue = value
@@ -61,26 +62,51 @@ export function resolveBlockReferences(
       }
       if (sourceBlock.enabled === false) {
         throw new Error(
-          `Block "${sourceBlock.metadata?.title}" is disabled, and block "${currentBlockTitle}" depends on it.`
+          `Block "${sourceBlock.metadata?.title || sourceBlock.name}" is disabled, and block "${blockName}" depends on it.`
         )
       }
-      const sourceState = contextBlockStates.get(sourceBlock.id)
+      let sourceState = blockStates.get(sourceBlock.id)
+      let defaulted = false
       if (!sourceState) {
-        throw new Error(
-          `No state found for block "${sourceBlock.metadata?.title}" (ID: ${sourceBlock.id}).`
-        )
+        if (workflowLoops) {
+          for (const loopKey in workflowLoops) {
+            const loop = workflowLoops[loopKey]
+            if (loop.nodes.includes(sourceBlock.id)) {
+              defaulted = true
+              sourceState = {} // default to empty object
+              break
+            }
+          }
+        }
+        if (!sourceState) {
+          throw new Error(
+            `No state found for block "${sourceBlock.metadata?.title || sourceBlock.name}" (ID: ${sourceBlock.id}).`
+          )
+        }
       }
       // Drill into the property path.
       let replacementValue: any = sourceState
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
-          throw new Error(`Invalid path "${part}" in "${path}" for block "${currentBlockTitle}".`)
+          if (defaulted) {
+            replacementValue = ''
+            break
+          } else {
+            throw new Error(`Invalid path "${part}" in "${path}" for block "${blockName}".`)
+          }
         }
         replacementValue = replacementValue[part]
       }
+      if (replacementValue === undefined && defaulted) {
+        replacementValue = ''
+      } else if (replacementValue === undefined) {
+        throw new Error(
+          `No value found at path "${path}" in block "${sourceBlock.metadata?.title || sourceBlock.name}".`
+        )
+      }
       if (replacementValue !== undefined) {
         // For condition blocks, we need to properly stringify the value
-        if (currentBlockType === 'condition') {
+        if (blockType === 'condition') {
           resolvedValue = resolvedValue.replace(match, stringifyValue(replacementValue))
         } else {
           resolvedValue = resolvedValue.replace(
@@ -90,12 +116,28 @@ export function resolveBlockReferences(
               : String(replacementValue)
           )
         }
-      } else {
-        throw new Error(
-          `No value found at path "${path}" in block "${sourceBlock.metadata?.title}".`
-        )
       }
     }
+  }
+
+  if (typeof resolvedValue === 'undefined') {
+    const refRegex = /<([^>]+)>/
+    const match = value.match(refRegex)
+    const ref = match ? match[1] : ''
+    const refParts = ref.split('.')
+    const refBlockId = refParts[0]
+
+    if (workflowLoops) {
+      for (const loopKey in workflowLoops) {
+        const loop = workflowLoops[loopKey]
+        if (loop.nodes.includes(refBlockId)) {
+          // Block exists in a loop, so return empty string instead of error
+          return ''
+        }
+      }
+    }
+
+    throw new Error(`No state found for block "${refBlockId}" (ID: ${refBlockId})`)
   }
 
   return resolvedValue
