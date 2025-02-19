@@ -78,7 +78,7 @@ export const StarterBlock: BlockConfig = {
       title: 'Starting At',
       type: 'short-input',
       layout: 'full',
-      placeholder: '09:00',
+      placeholder: '14:30 (24-hour format)',
       condition: {
         field: 'scheduleType',
         value: 'minutes',
@@ -94,7 +94,7 @@ export const StarterBlock: BlockConfig = {
       title: 'Start at Minute',
       type: 'short-input',
       layout: 'full',
-      placeholder: '00',
+      placeholder: '00-59',
       condition: {
         field: 'scheduleType',
         value: 'hourly',
@@ -110,7 +110,7 @@ export const StarterBlock: BlockConfig = {
       title: 'Time',
       type: 'short-input',
       layout: 'full',
-      placeholder: '09:00',
+      placeholder: '14:30 (24-hour format)',
       condition: {
         field: 'scheduleType',
         value: 'daily',
@@ -150,7 +150,7 @@ export const StarterBlock: BlockConfig = {
       title: 'Time',
       type: 'short-input',
       layout: 'half',
-      placeholder: '09:00',
+      placeholder: '14:30 (24-hour format)',
       condition: {
         field: 'scheduleType',
         value: 'weekly',
@@ -166,7 +166,7 @@ export const StarterBlock: BlockConfig = {
       title: 'Day of Month',
       type: 'short-input',
       layout: 'half',
-      placeholder: '1',
+      placeholder: '1-31',
       condition: {
         field: 'scheduleType',
         value: 'monthly',
@@ -181,7 +181,7 @@ export const StarterBlock: BlockConfig = {
       title: 'Time',
       type: 'short-input',
       layout: 'half',
-      placeholder: '09:00',
+      placeholder: '14:30 (24-hour format)',
       condition: {
         field: 'scheduleType',
         value: 'monthly',
