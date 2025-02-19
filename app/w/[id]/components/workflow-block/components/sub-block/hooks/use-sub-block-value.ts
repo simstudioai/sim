@@ -1,24 +1,36 @@
 import { useCallback } from 'react'
 import { useWorkflowStore } from '@/stores/workflow/store'
+import { useSubBlockStore } from '@/stores/workflow/subblock/store'
 
 export function useSubBlockValue<T = any>(
   blockId: string,
-  subBlockId: string
+  subBlockId: string,
+  triggerWorkflowUpdate: boolean = false
 ): readonly [T | null, (value: T) => void] {
-  const value = useWorkflowStore(
+  // Get initial value from workflow store
+  const initialValue = useWorkflowStore(
     useCallback(
       (state) => state.blocks[blockId]?.subBlocks[subBlockId]?.value ?? null,
       [blockId, subBlockId]
     )
   )
 
-  const updateSubBlock = useWorkflowStore((state) => state.updateSubBlock)
+  // Get value and setter from subblock store
+  const value = useSubBlockStore(
+    useCallback(
+      (state) => state.getValue(blockId, subBlockId) ?? initialValue,
+      [blockId, subBlockId, initialValue]
+    )
+  )
 
   const setValue = useCallback(
     (newValue: T) => {
-      updateSubBlock(blockId, subBlockId, newValue as any)
+      useSubBlockStore.getState().setValue(blockId, subBlockId, newValue)
+      if (triggerWorkflowUpdate) {
+        useWorkflowStore.getState().triggerUpdate()
+      }
     },
-    [blockId, subBlockId, updateSubBlock]
+    [blockId, subBlockId, triggerWorkflowUpdate]
   )
 
   return [value as T | null, setValue] as const

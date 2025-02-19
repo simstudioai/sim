@@ -4,6 +4,8 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
+import { useSubBlockStore } from '@/stores/workflow/subblock/store'
+import { mergeSubblockState } from '@/stores/workflow/utils'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -27,17 +29,31 @@ export function useWorkflowExecution() {
     }
 
     try {
-      // Extract existing block states
-      const currentBlockStates = Object.entries(blocks).reduce(
+      // Use the mergeSubblockState utility to get all block states
+      const mergedStates = mergeSubblockState(blocks)
+      const currentBlockStates = Object.entries(mergedStates).reduce(
         (acc, [id, block]) => {
-          const responseValue = block.subBlocks?.response?.value
-          if (responseValue !== undefined) {
-            acc[id] = { response: responseValue }
-          }
+          acc[id] = Object.entries(block.subBlocks).reduce(
+            (subAcc, [key, subBlock]) => {
+              subAcc[key] = subBlock.value
+              return subAcc
+            },
+            {} as Record<string, any>
+          )
           return acc
         },
-        {} as Record<string, any>
+        {} as Record<string, Record<string, any>>
       )
+
+      // Debug logging
+      console.group('Workflow Execution State')
+      console.log('Block Configurations:', blocks)
+      console.log(
+        'SubBlock Store Values:',
+        useSubBlockStore.getState().workflowValues[activeWorkflowId]
+      )
+      console.log('Merged Block States for Execution:', currentBlockStates)
+      console.groupEnd()
 
       // Get environment variables
       const envVars = getAllVariables()
@@ -50,7 +66,7 @@ export function useWorkflowExecution() {
       )
 
       // Execute workflow
-      const workflow = new Serializer().serializeWorkflow(blocks, edges, loops)
+      const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
       const executor = new Executor(workflow, currentBlockStates, envVarValues)
       const result = await executor.execute(activeWorkflowId)
 
@@ -65,6 +81,7 @@ export function useWorkflowExecution() {
         activeWorkflowId
       )
     } catch (error: any) {
+      console.error('Workflow Execution Error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       setExecutionResult({
         success: false,

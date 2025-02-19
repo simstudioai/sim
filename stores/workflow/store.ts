@@ -4,6 +4,8 @@ import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { WorkflowStoreWithHistory, pushHistory, withHistory } from './middleware'
+import { useWorkflowRegistry } from './registry/store'
+import { useSubBlockStore } from './subblock/store'
 import { Loop, Position, SubBlockState } from './types'
 import { detectCycle } from './utils'
 
@@ -32,75 +34,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       canUndo: () => false,
       canRedo: () => false,
       revertToHistoryState: () => {},
-
-      updateSubBlock: (blockId: string, subBlockId: string, value: any) => {
-        set((state) => {
-          const block = state.blocks[blockId]
-          if (!block) return state
-
-          // Handle different value types appropriately
-          const processedValue = Array.isArray(value)
-            ? value
-            : block.subBlocks[subBlockId]?.type === 'slider'
-              ? Number(value) // Convert slider values to numbers
-              : typeof value === 'string'
-                ? value
-                : JSON.stringify(value, null, 2)
-
-          // Only attempt JSON parsing for agent responseFormat validation
-          if (
-            block.type === 'agent' &&
-            subBlockId === 'responseFormat' &&
-            typeof processedValue === 'string'
-          ) {
-            try {
-              // Parse the input string to validate JSON but keep original string value
-              const parsed = JSON.parse(processedValue)
-
-              // Simple validation of required schema structure
-              if (!parsed.fields || !Array.isArray(parsed.fields)) {
-                console.error('Validation failed: missing fields array')
-                throw new Error('Response format must have a fields array')
-              }
-
-              for (const field of parsed.fields) {
-                if (!field.name || !field.type) {
-                  console.error('Validation failed: field missing name or type', field)
-                  throw new Error('Each field must have a name and type')
-                }
-                if (!['string', 'number', 'boolean', 'array', 'object'].includes(field.type)) {
-                  console.error('Validation failed: invalid field type', field)
-                  throw new Error(
-                    `Invalid type "${field.type}" - must be one of: string, number, boolean, array, object`
-                  )
-                }
-              }
-
-              // Don't modify the value, keep it as the original string
-            } catch (error: any) {
-              console.error('responseFormat validation error:', error)
-              throw new Error(`Invalid JSON schema: ${error.message}`)
-            }
-          }
-
-          return {
-            blocks: {
-              ...state.blocks,
-              [blockId]: {
-                ...block,
-                subBlocks: {
-                  ...block.subBlocks,
-                  [subBlockId]: {
-                    ...block.subBlocks[subBlockId],
-                    value: processedValue,
-                  },
-                },
-              },
-            },
-          }
-        })
-        get().updateLastSaved()
-      },
 
       addBlock: (id: string, type: string, name: string, position: Position) => {
         const blockConfig = getBlock(type)
@@ -158,20 +91,38 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       removeBlock: (id: string) => {
+        // First, clean up any subblock values for this block
+        const subBlockStore = useSubBlockStore.getState()
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
           loops: { ...get().loops },
         }
 
-        // Remove the block from any loops that contain it
+        // Clean up subblock values before removing the block
+        if (activeWorkflowId) {
+          const updatedWorkflowValues = {
+            ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
+          }
+          delete updatedWorkflowValues[id]
+
+          // Update subblock store
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [activeWorkflowId]: updatedWorkflowValues,
+            },
+          }))
+        }
+
+        // Clean up loops
         Object.entries(newState.loops).forEach(([loopId, loop]) => {
           if (loop.nodes.includes(id)) {
-            // If the loop would only have 1 or 0 nodes after removal, delete the loop
             if (loop.nodes.length <= 2) {
               delete newState.loops[loopId]
             } else {
-              // Otherwise, just remove the node from the loop
               newState.loops[loopId] = {
                 ...loop,
                 nodes: loop.nodes.filter((nodeId) => nodeId !== id),
@@ -180,7 +131,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         })
 
-        // Delete the block itself
+        // Delete the block last
         delete newState.blocks[id]
 
         set(newState)
@@ -449,6 +400,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Update loop max iterations')
         get().updateLastSaved()
+      },
+
+      triggerUpdate: () => {
+        set((state) => ({
+          ...state,
+          lastUpdate: Date.now(),
+        }))
       },
     })),
     { name: 'workflow-store' }

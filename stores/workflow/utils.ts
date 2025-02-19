@@ -1,4 +1,49 @@
 import { Edge } from 'reactflow'
+import { useSubBlockStore } from './subblock/store'
+import { BlockState, SubBlockState } from './types'
+
+/**
+ * Merges workflow block states with subblock values while maintaining block structure
+ * @param blocks - Block configurations from workflow store
+ * @param blockId - Optional specific block ID to merge (merges all if not provided)
+ * @returns Merged block states with updated values
+ */
+export function mergeSubblockState(
+  blocks: Record<string, BlockState>,
+  blockId?: string
+): Record<string, BlockState> {
+  const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
+
+  return Object.entries(blocksToProcess).reduce(
+    (acc, [id, block]) => {
+      // Create a deep copy of the block's subBlocks to maintain structure
+      const mergedSubBlocks = Object.entries(block.subBlocks).reduce(
+        (subAcc, [subBlockId, subBlock]) => {
+          // Get the stored value for this subblock
+          const storedValue = useSubBlockStore.getState().getValue(id, subBlockId)
+
+          // Create a new subblock object with the same structure but updated value
+          subAcc[subBlockId] = {
+            ...subBlock,
+            value: storedValue !== undefined && storedValue !== null ? storedValue : subBlock.value,
+          }
+
+          return subAcc
+        },
+        {} as Record<string, SubBlockState>
+      )
+
+      // Return the full block state with updated subBlocks
+      acc[id] = {
+        ...block,
+        subBlocks: mergedSubBlocks,
+      }
+
+      return acc
+    },
+    {} as Record<string, BlockState>
+  )
+}
 
 /**
  * Performs a depth-first search to detect all cycles in the graph

@@ -36,12 +36,12 @@ export interface WorkflowState {
   edges: Edge[]
   lastSaved?: number
   loops: Record<string, Loop>
+  lastUpdate?: number
 }
 
 export interface WorkflowActions {
   addBlock: (id: string, type: string, name: string, position: Position) => void
   updateBlockPosition: (id: string, position: Position) => void
-  updateSubBlock: (blockId: string, subBlockId: string, subBlock: SubBlockState) => void
   removeBlock: (id: string) => void
   addEdge: (edge: Edge) => void
   removeEdge: (edgeId: string) => void
@@ -54,6 +54,7 @@ export interface WorkflowActions {
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
   updateLoopMaxIterations: (loopId: string, maxIterations: number) => void
+  triggerUpdate: () => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

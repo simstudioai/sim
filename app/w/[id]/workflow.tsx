@@ -323,9 +323,9 @@ function WorkflowContent() {
   }, [selectedEdgeId, removeEdge])
 
   // Initialize state logging
-  useEffect(() => {
-    initializeStateLogger()
-  }, [])
+  // useEffect(() => {
+  //   initializeStateLogger()
+  // }, [])
 
   if (!isInitialized) return null
 
