@@ -42,7 +42,18 @@ export async function encryptSecret(secret: string): Promise<{ encrypted: string
  * @returns A promise that resolves to an object containing the decrypted secret
  */
 export async function decryptSecret(encryptedValue: string): Promise<{ decrypted: string }> {
-  const [ivHex, encrypted, authTagHex] = encryptedValue.split(':')
+  console.log('Decrypting value:', encryptedValue)
+  const parts = encryptedValue.split(':')
+  console.log('Split parts:', parts)
+
+  // Handle case where encrypted part might contain colons
+  const ivHex = parts[0]
+  const authTagHex = parts[parts.length - 1]
+  // Join any middle parts back together as they might be part of the encrypted value
+  const encrypted = parts.slice(1, -1).join(':')
+
+  console.log('Extracted parts:', { ivHex, encrypted: encrypted?.slice(0, 20) + '...', authTagHex })
+
   if (!ivHex || !encrypted || !authTagHex) {
     throw new Error('Invalid encrypted value format. Expected "iv:encrypted:authTag"')
   }
@@ -51,13 +62,18 @@ export async function decryptSecret(encryptedValue: string): Promise<{ decrypted
   const iv = Buffer.from(ivHex, 'hex')
   const authTag = Buffer.from(authTagHex, 'hex')
 
-  const decipher = createDecipheriv('aes-256-gcm', key, iv)
-  decipher.setAuthTag(authTag)
+  try {
+    const decipher = createDecipheriv('aes-256-gcm', key, iv)
+    decipher.setAuthTag(authTag)
 
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8')
-  decrypted += decipher.final('utf8')
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
 
-  return { decrypted }
+    return { decrypted }
+  } catch (error: any) {
+    console.error('Decryption error:', error.message)
+    throw error
+  }
 }
 
 export function convertScheduleOptionsToCron(

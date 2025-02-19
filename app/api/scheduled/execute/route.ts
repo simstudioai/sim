@@ -178,8 +178,14 @@ export async function POST(req: NextRequest) {
         throw new Error('No environment variables found for this user')
       }
 
+      // Add debug logging
+      console.log('Raw variables from DB:', userEnv.variables)
+
       // Parse and validate environment variables
       const variables = EnvVarsSchema.parse(userEnv.variables)
+
+      // Add more debug logging
+      console.log('Parsed variables:', Object.keys(variables))
 
       // Replace environment variables in the block states
       const currentBlockStates = await Object.entries(mergedStates).reduce(
@@ -194,16 +200,34 @@ export async function POST(req: NextRequest) {
               if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
                 const matches = value.match(/{{([^}]+)}}/g)
                 if (matches) {
+                  console.log('Processing block:', id, 'subBlock:', key)
+                  console.log('Found variable matches:', matches)
+
                   // Process all matches sequentially
                   for (const match of matches) {
                     const varName = match.slice(2, -2) // Remove {{ and }}
+                    console.log('Looking for variable:', varName)
+                    console.log('Available variables:', Object.keys(variables))
+
                     const encryptedValue = variables[varName]
+                    console.log('Found encrypted value:', encryptedValue)
+
                     if (!encryptedValue) {
                       throw new Error(`Environment variable "${varName}" was not found`)
                     }
-                    // Decrypt the value
-                    const { decrypted } = await decryptSecret(encryptedValue)
-                    value = (value as string).replace(match, decrypted)
+
+                    try {
+                      console.log('Attempting to decrypt value for:', varName)
+                      const { decrypted } = await decryptSecret(encryptedValue)
+                      console.log('Successfully decrypted value for:', varName)
+                      value = (value as string).replace(match, decrypted)
+                      console.log('Successfully replaced value for:', varName)
+                    } catch (error: any) {
+                      console.error('Error decrypting value:', error)
+                      throw new Error(
+                        `Failed to decrypt environment variable "${varName}": ${error.message}`
+                      )
+                    }
                   }
                 }
               }
@@ -320,8 +344,14 @@ export async function GET(req: NextRequest) {
         throw new Error('No environment variables found for this user')
       }
 
+      // Add debug logging
+      console.log('Raw variables from DB:', userEnv.variables)
+
       // Parse and validate environment variables
       const variables = EnvVarsSchema.parse(userEnv.variables)
+
+      // Add more debug logging
+      console.log('Parsed variables:', Object.keys(variables))
 
       // Replace environment variables in the block states
       const currentBlockStates = await Object.entries(mergedStates).reduce(
@@ -336,16 +366,34 @@ export async function GET(req: NextRequest) {
               if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
                 const matches = value.match(/{{([^}]+)}}/g)
                 if (matches) {
+                  console.log('Processing block:', id, 'subBlock:', key)
+                  console.log('Found variable matches:', matches)
+
                   // Process all matches sequentially
                   for (const match of matches) {
                     const varName = match.slice(2, -2) // Remove {{ and }}
+                    console.log('Looking for variable:', varName)
+                    console.log('Available variables:', Object.keys(variables))
+
                     const encryptedValue = variables[varName]
+                    console.log('Found encrypted value:', encryptedValue)
+
                     if (!encryptedValue) {
                       throw new Error(`Environment variable "${varName}" was not found`)
                     }
-                    // Decrypt the value
-                    const { decrypted } = await decryptSecret(encryptedValue)
-                    value = (value as string).replace(match, decrypted)
+
+                    try {
+                      console.log('Attempting to decrypt value for:', varName)
+                      const { decrypted } = await decryptSecret(encryptedValue)
+                      console.log('Successfully decrypted value for:', varName)
+                      value = (value as string).replace(match, decrypted)
+                      console.log('Successfully replaced value for:', varName)
+                    } catch (error: any) {
+                      console.error('Error decrypting value:', error)
+                      throw new Error(
+                        `Failed to decrypt environment variable "${varName}": ${error.message}`
+                      )
+                    }
                   }
                 }
               }
