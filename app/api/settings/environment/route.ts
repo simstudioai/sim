@@ -1,54 +1,61 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
 import { z } from 'zod'
-import { hashSecret } from '@/lib/utils'
+import { getSession } from '@/lib/auth'
+import { encryptSecret } from '@/lib/utils'
 import { EnvironmentVariable } from '@/stores/settings/environment/types'
 import { db } from '@/db'
 import { userEnvironment } from '@/db/schema'
 
-const EnvironmentSchema = z.object({
-  userId: z.string(),
-  data: z.string(), // A JSON stringified object of envvars
+// Schema for environment variable updates
+const EnvVarSchema = z.object({
+  variables: z.record(z.string()),
 })
 
-export async function POST(request: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await request.json()
-    const { userId, data } = EnvironmentSchema.parse(body)
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    // Parse the incoming JSON string
-    const parsedData = JSON.parse(data) as Record<string, EnvironmentVariable>
+    const body = await req.json()
+    const { variables } = EnvVarSchema.parse(body)
 
-    // Hash all environment variables with unique salts
-    const securedData = await Promise.all(
-      Object.entries(parsedData).map(async ([key, value]) => {
-        const { hash, salt } = await hashSecret(value.value)
-        return [key, { key, value: hash, salt }]
-      })
-    )
+    // Encrypt each environment variable value
+    const encryptedVariables: Record<string, string> = {}
+    for (const [key, value] of Object.entries(variables)) {
+      const { encrypted } = await encryptSecret(value)
+      encryptedVariables[key] = encrypted
+    }
 
-    // Store the hashed values
+    // Upsert the environment variables
     await db
       .insert(userEnvironment)
       .values({
-        id: nanoid(),
-        userId,
-        variables: Object.fromEntries(securedData),
+        id: crypto.randomUUID(),
+        userId: session.user.id,
+        variables: encryptedVariables,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [userEnvironment.userId],
         set: {
-          variables: Object.fromEntries(securedData),
+          variables: encryptedVariables,
           updatedAt: new Date(),
         },
       })
 
-    return NextResponse.json({ success: true }, { status: 200 })
-  } catch (error: any) {
-    console.error('Environment update error:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Error updating environment variables:', error)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json({ error: 'Failed to update environment variables' }, { status: 500 })
   }
 }
 

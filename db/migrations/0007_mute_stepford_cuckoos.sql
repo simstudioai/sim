@@ -1,0 +1,1 @@
+ALTER TABLE "workflow_schedule" ADD CONSTRAINT "workflow_schedule_workflow_id_unique" UNIQUE("workflow_id");

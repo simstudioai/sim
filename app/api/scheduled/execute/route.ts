@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Cron } from 'croner'
 import { eq, lte } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 import { persistLog } from '@/lib/logging'
+import { decryptSecret } from '@/lib/utils'
 import { BlockState, WorkflowState } from '@/stores/workflow/types'
 import { mergeSubblockState } from '@/stores/workflow/utils'
 import { db } from '@/db'
-import { workflow, workflowSchedule } from '@/db/schema'
+import { userEnvironment, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 
@@ -114,6 +116,9 @@ function calculateNextRunTime(
   }
 }
 
+// Define the schema for environment variables
+const EnvVarsSchema = z.record(z.string())
+
 export const config = {
   runtime: 'edge',
   schedule: '*/1 * * * *',
@@ -161,18 +166,56 @@ export async function POST(req: NextRequest) {
 
       // Use the same execution flow as in use-workflow-execution.ts
       const mergedStates = mergeSubblockState(blocks)
-      const currentBlockStates = Object.entries(mergedStates).reduce(
-        (acc, [id, block]) => {
-          acc[id] = Object.entries(block.subBlocks).reduce(
-            (subAcc, [key, subBlock]) => {
-              subAcc[key] = subBlock.value
+
+      // Retrieve environment variables for this user
+      const [userEnv] = await db
+        .select()
+        .from(userEnvironment)
+        .where(eq(userEnvironment.userId, workflowRecord.userId))
+        .limit(1)
+
+      if (!userEnv) {
+        throw new Error('No environment variables found for this user')
+      }
+
+      // Parse and validate environment variables
+      const variables = EnvVarsSchema.parse(userEnv.variables)
+
+      // Replace environment variables in the block states
+      const currentBlockStates = await Object.entries(mergedStates).reduce(
+        async (accPromise, [id, block]) => {
+          const acc = await accPromise
+          acc[id] = await Object.entries(block.subBlocks).reduce(
+            async (subAccPromise, [key, subBlock]) => {
+              const subAcc = await subAccPromise
+              let value = subBlock.value
+
+              // If the value is a string and contains environment variable syntax
+              if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
+                const matches = value.match(/{{([^}]+)}}/g)
+                if (matches) {
+                  // Process all matches sequentially
+                  for (const match of matches) {
+                    const varName = match.slice(2, -2) // Remove {{ and }}
+                    const encryptedValue = variables[varName]
+                    if (!encryptedValue) {
+                      throw new Error(`Environment variable "${varName}" was not found`)
+                    }
+                    // Decrypt the value
+                    const { decrypted } = await decryptSecret(encryptedValue)
+                    value = (value as string).replace(match, decrypted)
+                  }
+                }
+              }
+
+              subAcc[key] = value
               return subAcc
             },
-            {} as Record<string, any>
+            Promise.resolve({} as Record<string, any>)
           )
           return acc
         },
-        {} as Record<string, Record<string, any>>
+        Promise.resolve({} as Record<string, Record<string, any>>)
       )
 
       // Serialize and execute the workflow
@@ -265,18 +308,56 @@ export async function GET(req: NextRequest) {
 
       // Use the same execution flow as in use-workflow-execution.ts
       const mergedStates = mergeSubblockState(blocks)
-      const currentBlockStates = Object.entries(mergedStates).reduce(
-        (acc, [id, block]) => {
-          acc[id] = Object.entries(block.subBlocks).reduce(
-            (subAcc, [key, subBlock]) => {
-              subAcc[key] = subBlock.value
+
+      // Retrieve environment variables for this user
+      const [userEnv] = await db
+        .select()
+        .from(userEnvironment)
+        .where(eq(userEnvironment.userId, workflowRecord.userId))
+        .limit(1)
+
+      if (!userEnv) {
+        throw new Error('No environment variables found for this user')
+      }
+
+      // Parse and validate environment variables
+      const variables = EnvVarsSchema.parse(userEnv.variables)
+
+      // Replace environment variables in the block states
+      const currentBlockStates = await Object.entries(mergedStates).reduce(
+        async (accPromise, [id, block]) => {
+          const acc = await accPromise
+          acc[id] = await Object.entries(block.subBlocks).reduce(
+            async (subAccPromise, [key, subBlock]) => {
+              const subAcc = await subAccPromise
+              let value = subBlock.value
+
+              // If the value is a string and contains environment variable syntax
+              if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
+                const matches = value.match(/{{([^}]+)}}/g)
+                if (matches) {
+                  // Process all matches sequentially
+                  for (const match of matches) {
+                    const varName = match.slice(2, -2) // Remove {{ and }}
+                    const encryptedValue = variables[varName]
+                    if (!encryptedValue) {
+                      throw new Error(`Environment variable "${varName}" was not found`)
+                    }
+                    // Decrypt the value
+                    const { decrypted } = await decryptSecret(encryptedValue)
+                    value = (value as string).replace(match, decrypted)
+                  }
+                }
+              }
+
+              subAcc[key] = value
               return subAcc
             },
-            {} as Record<string, any>
+            Promise.resolve({} as Record<string, any>)
           )
           return acc
         },
-        {} as Record<string, Record<string, any>>
+        Promise.resolve({} as Record<string, Record<string, any>>)
       )
 
       // Serialize and execute the workflow

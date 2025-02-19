@@ -169,19 +169,27 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     setEnvVars(newEnvVars.length ? newEnvVars : [INITIAL_ENV_VAR])
   }
 
-  const handleSave = () => {
-    const validVars = envVars.filter((v) => v.key && v.value)
-    validVars.forEach((v) => setVariable(v.key, v.value))
+  const handleSave = async () => {
+    try {
+      const validVars = envVars.filter((v) => v.key && v.value)
+      validVars.forEach((v) => setVariable(v.key, v.value))
 
-    const currentKeys = new Set(validVars.map((v) => v.key))
-    Object.keys(variables).forEach((key) => {
-      if (!currentKeys.has(key)) {
-        removeVariable(key)
-      }
-    })
+      const currentKeys = new Set(validVars.map((v) => v.key))
+      Object.keys(variables).forEach((key) => {
+        if (!currentKeys.has(key)) {
+          removeVariable(key)
+        }
+      })
 
-    setShowUnsavedChanges(false)
-    onOpenChange(false)
+      // Sync with database
+      await useEnvironmentStore.getState().syncWithDatabase()
+
+      setShowUnsavedChanges(false)
+      onOpenChange(false)
+    } catch (error) {
+      console.error('Failed to save environment variables:', error)
+      // You might want to show an error notification here
+    }
   }
 
   const renderEnvVarRow = (envVar: UIEnvironmentVariable, index: number) => (

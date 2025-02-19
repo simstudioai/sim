@@ -1,27 +1,63 @@
 import { type ClassValue, clsx } from 'clsx'
-import { createHash } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { twMerge } from 'tailwind-merge'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+function getEncryptionKey(): Buffer {
+  const key = process.env.ENCRYPTION_KEY
+  if (!key || key.length !== 64) {
+    throw new Error('ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)')
+  }
+  return Buffer.from(key, 'hex')
+}
+
 /**
- * Hashes a secret using SHA-256 with a salt
- * @param secret - The secret to hash
- * @param salt - Optional salt to use for hashing. If not provided, a random salt will be generated
- * @returns A promise that resolves to an object containing the hashed secret and salt
+ * Encrypts a secret using AES-256-GCM
+ * @param secret - The secret to encrypt
+ * @returns A promise that resolves to an object containing the encrypted secret and IV
  */
-export async function hashSecret(
-  secret: string,
-  salt?: string
-): Promise<{ hash: string; salt: string }> {
-  const useSalt =
-    salt || createHash('sha256').update(crypto.randomUUID()).digest('hex').slice(0, 16)
-  const hash = createHash('sha256')
-    .update(secret + useSalt)
-    .digest('hex')
-  return { hash, salt: useSalt }
+export async function encryptSecret(secret: string): Promise<{ encrypted: string; iv: string }> {
+  const iv = randomBytes(16)
+  const key = getEncryptionKey()
+
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(secret, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+
+  const authTag = cipher.getAuthTag()
+
+  // Format: iv:encrypted:authTag
+  return {
+    encrypted: `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`,
+    iv: iv.toString('hex'),
+  }
+}
+
+/**
+ * Decrypts an encrypted secret
+ * @param encryptedValue - The encrypted value in format "iv:encrypted:authTag"
+ * @returns A promise that resolves to an object containing the decrypted secret
+ */
+export async function decryptSecret(encryptedValue: string): Promise<{ decrypted: string }> {
+  const [ivHex, encrypted, authTagHex] = encryptedValue.split(':')
+  if (!ivHex || !encrypted || !authTagHex) {
+    throw new Error('Invalid encrypted value format. Expected "iv:encrypted:authTag"')
+  }
+
+  const key = getEncryptionKey()
+  const iv = Buffer.from(ivHex, 'hex')
+  const authTag = Buffer.from(authTagHex, 'hex')
+
+  const decipher = createDecipheriv('aes-256-gcm', key, iv)
+  decipher.setAuthTag(authTag)
+
+  let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+  decrypted += decipher.final('utf8')
+
+  return { decrypted }
 }
 
 export function convertScheduleOptionsToCron(

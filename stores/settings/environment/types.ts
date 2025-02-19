@@ -13,4 +13,5 @@ export interface EnvironmentStore extends EnvironmentState {
   clearVariables: () => void
   getVariable: (key: string) => string | undefined
   getAllVariables: () => Record<string, EnvironmentVariable>
+  syncWithDatabase: () => Promise<void>
 }
