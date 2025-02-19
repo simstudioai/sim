@@ -1,20 +1,21 @@
 import { useWorkflowRegistry } from './workflow/registry/store'
 import { useWorkflowStore } from './workflow/store'
+import { mergeSubblockState } from './workflow/utils'
 
-interface SyncPayload {
+interface WorkflowSyncPayload {
   id: string
   name: string
-  description?: string
+  description?: string | undefined
   state: string
 }
 
-async function syncWorkflowToServer(payload: SyncPayload): Promise<boolean> {
+async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<boolean> {
   try {
-    const response = await fetch('/api/workflows/sync', {
+    const response = await fetch('/api/db/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      keepalive: true, // Ensures request completes even during page unload
+      body: JSON.stringify({ workflows: payloads }),
+      keepalive: true,
     })
 
     if (!response.ok) {
@@ -22,13 +23,13 @@ async function syncWorkflowToServer(payload: SyncPayload): Promise<boolean> {
         window.location.href = '/login'
         return false
       }
-      throw new Error(`Sync failed: ${response.statusText}`)
+      throw new Error(`Batch sync failed: ${response.statusText}`)
     }
 
-    console.log('Workflow synced successfully')
+    console.log('Workflows synced successfully')
     return true
   } catch (error) {
-    console.error('Error syncing workflow:', error)
+    console.error('Error syncing workflows:', error)
     return false
   }
 }
@@ -37,32 +38,46 @@ export function initializeSyncManager() {
   if (typeof window === 'undefined') return
 
   const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
-    const { activeWorkflowId, workflows } = useWorkflowRegistry.getState()
-    const workflowState = useWorkflowStore.getState()
+    const { workflows } = useWorkflowRegistry.getState()
 
-    if (!activeWorkflowId || !workflows[activeWorkflowId]) {
-      return
+    // Prepare sync payloads for all workflows
+    const syncPayloads: (WorkflowSyncPayload | null)[] = await Promise.all(
+      Object.entries(workflows).map(async ([id, metadata]) => {
+        // Get workflow state from localStorage
+        const savedState = localStorage.getItem(`workflow-${id}`)
+        if (!savedState) return null
+
+        const state = JSON.parse(savedState)
+        // Merge subblock states for all blocks in the workflow
+        const mergedBlocks = mergeSubblockState(state.blocks)
+
+        return {
+          id,
+          name: metadata.name,
+          description: metadata.description,
+          state: JSON.stringify({
+            blocks: mergedBlocks,
+            edges: state.edges,
+            loops: state.loops,
+            lastSaved: state.lastSaved,
+          }),
+        }
+      })
+    )
+
+    // Filter out null values and sync if there are workflows to sync
+    const validPayloads = syncPayloads.filter(
+      (payload): payload is WorkflowSyncPayload => payload !== null
+    )
+
+    if (validPayloads.length > 0) {
+      // Show confirmation dialog
+      event.preventDefault()
+      event.returnValue = ''
+
+      // Attempt to sync
+      await syncWorkflowsToServer(validPayloads)
     }
-
-    const activeWorkflow = workflows[activeWorkflowId]
-    const payload: SyncPayload = {
-      id: activeWorkflowId,
-      name: activeWorkflow.name,
-      description: activeWorkflow.description,
-      state: JSON.stringify({
-        blocks: workflowState.blocks,
-        edges: workflowState.edges,
-        loops: workflowState.loops,
-        lastSaved: workflowState.lastSaved,
-      }),
-    }
-
-    // Show confirmation dialog
-    event.preventDefault()
-    event.returnValue = ''
-
-    // Attempt to sync
-    await syncWorkflowToServer(payload)
   }
 
   window.addEventListener('beforeunload', handleBeforeUnload)
