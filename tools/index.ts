@@ -102,7 +102,13 @@ export async function executeTool(
     }
 
     // For external APIs, use the proxy
-    const response = await fetch('/api/proxy', {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (!baseUrl) {
+      throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
+    }
+
+    const proxyUrl = new URL('/api/proxy', baseUrl).toString()
+    const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ toolId, params }),

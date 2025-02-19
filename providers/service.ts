@@ -249,7 +249,13 @@ export async function executeProviderRequest(
 }
 
 async function makeProxyRequest(providerId: string, payload: any, apiKey: string) {
-  const response = await fetch('/api/proxy', {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
+  }
+
+  const proxyUrl = new URL('/api/proxy', baseUrl).toString()
+  const response = await fetch(proxyUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
