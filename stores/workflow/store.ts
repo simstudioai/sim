@@ -4,6 +4,8 @@ import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { WorkflowStoreWithHistory, pushHistory, withHistory } from './middleware'
+import { useWorkflowRegistry } from './registry/store'
+import { useSubBlockStore } from './subblock/store'
 import { Loop, Position, SubBlockState } from './types'
 import { detectCycle } from './utils'
 
@@ -89,20 +91,38 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       removeBlock: (id: string) => {
+        // First, clean up any subblock values for this block
+        const subBlockStore = useSubBlockStore.getState()
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
           loops: { ...get().loops },
         }
 
-        // Remove the block from any loops that contain it
+        // Clean up subblock values before removing the block
+        if (activeWorkflowId) {
+          const updatedWorkflowValues = {
+            ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
+          }
+          delete updatedWorkflowValues[id]
+
+          // Update subblock store
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [activeWorkflowId]: updatedWorkflowValues,
+            },
+          }))
+        }
+
+        // Clean up loops
         Object.entries(newState.loops).forEach(([loopId, loop]) => {
           if (loop.nodes.includes(id)) {
-            // If the loop would only have 1 or 0 nodes after removal, delete the loop
             if (loop.nodes.length <= 2) {
               delete newState.loops[loopId]
             } else {
-              // Otherwise, just remove the node from the loop
               newState.loops[loopId] = {
                 ...loop,
                 nodes: loop.nodes.filter((nodeId) => nodeId !== id),
@@ -111,7 +131,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }
         })
 
-        // Delete the block itself
+        // Delete the block last
         delete newState.blocks[id]
 
         set(newState)
