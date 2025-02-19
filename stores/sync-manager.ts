@@ -19,6 +19,7 @@ interface WorkflowSyncPayload {
 const SYNC_INTERVAL_MS = 30000
 const API_ENDPOINTS = {
   SYNC: '/api/db/sync',
+  SCHEDULE: '/api/scheduled/schedule',
   LOGIN: '/login',
 } as const
 
@@ -55,9 +56,19 @@ async function prepareSyncPayload(
   }
 }
 
+// Check if workflow has scheduling enabled
+function hasSchedulingEnabled(state: WorkflowSyncPayload['state']): boolean {
+  const starterBlock = Object.values(state.blocks).find((block) => block.type === 'starter')
+  if (!starterBlock) return false
+
+  const startWorkflow = starterBlock.subBlocks.startWorkflow?.value
+  return startWorkflow === 'schedule'
+}
+
 // Server sync logic
 async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<boolean> {
   try {
+    // First sync workflows to the database
     const response = await fetch(API_ENDPOINTS.SYNC, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -75,6 +86,39 @@ async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<b
       }
       throw new Error(`Batch sync failed: ${response.statusText}`)
     }
+
+    // Then update schedules for workflows that have scheduling enabled
+    const scheduleResults = await Promise.allSettled(
+      payloads.map(async (payload) => {
+        // Update schedule if workflow has scheduling enabled
+        if (hasSchedulingEnabled(payload.state)) {
+          const response = await fetch(API_ENDPOINTS.SCHEDULE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              workflowId: payload.id,
+              state: payload.state,
+            }),
+          })
+
+          if (!response.ok) {
+            throw new Error(
+              `Failed to update schedule for workflow ${payload.id}: ${response.statusText}`
+            )
+          }
+
+          const result = await response.json()
+          console.log(`Schedule updated for workflow ${payload.id}:`, result)
+        }
+      })
+    )
+
+    // Log any schedule sync failures but don't fail the overall sync
+    scheduleResults.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`Failed to sync schedule for workflow ${payloads[index].id}:`, result.reason)
+      }
+    })
 
     deletedWorkflowIds.clear()
     console.log('Workflows synced successfully')

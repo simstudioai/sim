@@ -34,6 +34,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "cron-parser": "^5.0.2",
+    "croner": "^9.0.0",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.39.3",
     "lodash.debounce": "^4.0.8",
@@ -49,6 +51,7 @@
     "resend": "^4.1.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.0.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {
