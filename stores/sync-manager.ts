@@ -83,10 +83,6 @@ async function performSync() {
   const validPayloads = syncPayloads.filter(
     (payload): payload is WorkflowSyncPayload => payload !== null
   )
-  // Filter out null values and sync if there are workflows to sync
-  const validPayloads = syncPayloads.filter(
-    (payload): payload is WorkflowSyncPayload => payload !== null
-  )
 
   if (validPayloads.length > 0) {
     await syncWorkflowsToServer(validPayloads)
