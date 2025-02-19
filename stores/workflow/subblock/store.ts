@@ -4,8 +4,7 @@ import { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '../registry/store'
 
 interface SubBlockState {
-  // Store values per workflow ID
-  workflowValues: Record<string, Record<string, Record<string, any>>>
+  workflowValues: Record<string, Record<string, Record<string, any>>> // Store values per workflow ID
 }
 
 interface SubBlockStore extends SubBlockState {
