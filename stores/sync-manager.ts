@@ -65,20 +65,24 @@ async function performSync() {
       const state = JSON.parse(savedState)
       const mergedBlocks = mergeSubblockState(state.blocks)
 
-        return {
-          id,
-          name: metadata.name,
-          description: metadata.description,
-          state: {
-            blocks: mergedBlocks,
-            edges: state.edges,
-            loops: state.loops,
-            lastSaved: state.lastSaved,
-          },
-        }
-      })
-    )
+      return {
+        id,
+        name: metadata.name,
+        description: metadata.description,
+        state: {
+          blocks: mergedBlocks,
+          edges: state.edges,
+          loops: state.loops,
+          lastSaved: state.lastSaved,
+        },
+      }
+    })
+  )
 
+  // Filter out null values and sync if there are workflows to sync
+  const validPayloads = syncPayloads.filter(
+    (payload): payload is WorkflowSyncPayload => payload !== null
+  )
   // Filter out null values and sync if there are workflows to sync
   const validPayloads = syncPayloads.filter(
     (payload): payload is WorkflowSyncPayload => payload !== null
@@ -95,8 +99,8 @@ export function initializeSyncManager() {
   // Start periodic sync
   syncInterval = setInterval(performSync, 30000) // Sync every 30 seconds
 
-  // Perform final sync before unloading
   const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
+    // Perform one final sync before unloading
     event.preventDefault()
     event.returnValue = ''
     await performSync()
