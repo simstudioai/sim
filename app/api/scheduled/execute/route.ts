@@ -242,11 +242,31 @@ export async function POST(req: NextRequest) {
         Promise.resolve({} as Record<string, Record<string, any>>)
       )
 
+      // Create a map of decrypted environment variables
+      const decryptedEnvVars: Record<string, string> = {}
+      for (const [key, encryptedValue] of Object.entries(variables)) {
+        try {
+          const { decrypted } = await decryptSecret(encryptedValue)
+          decryptedEnvVars[key] = decrypted
+        } catch (error: any) {
+          console.error(`Failed to decrypt ${key}:`, error)
+          throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
+        }
+      }
+
+      // Add logging for the final block states
+      console.log('Final block states:', JSON.stringify(currentBlockStates, null, 2))
+
       // Serialize and execute the workflow
       const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-      const executor = new Executor(serializedWorkflow, currentBlockStates, {})
+      console.log('Serialized workflow:', JSON.stringify(serializedWorkflow, null, 2))
+
+      const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
       const executionId = uuidv4()
+      console.log('Starting execution with ID:', executionId)
+
       const result = await executor.execute(schedule.workflowId)
+      console.log('Execution result:', result)
 
       // Log the execution result
       await persistLog({
@@ -408,11 +428,31 @@ export async function GET(req: NextRequest) {
         Promise.resolve({} as Record<string, Record<string, any>>)
       )
 
+      // Create a map of decrypted environment variables
+      const decryptedEnvVars: Record<string, string> = {}
+      for (const [key, encryptedValue] of Object.entries(variables)) {
+        try {
+          const { decrypted } = await decryptSecret(encryptedValue)
+          decryptedEnvVars[key] = decrypted
+        } catch (error: any) {
+          console.error(`Failed to decrypt ${key}:`, error)
+          throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
+        }
+      }
+
+      // Add logging for the final block states
+      console.log('Final block states:', JSON.stringify(currentBlockStates, null, 2))
+
       // Serialize and execute the workflow
       const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-      const executor = new Executor(serializedWorkflow, currentBlockStates, {})
+      console.log('Serialized workflow:', JSON.stringify(serializedWorkflow, null, 2))
+
+      const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
       const executionId = uuidv4()
+      console.log('Starting execution with ID:', executionId)
+
       const result = await executor.execute(schedule.workflowId)
+      console.log('Execution result:', result)
 
       // Log the execution result
       await persistLog({
