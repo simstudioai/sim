@@ -216,26 +216,6 @@ export class Executor {
       }
     }
 
-    // Function to reset inDegree for blocks in a loop
-    const resetLoopBlocksDegrees = (loopId: string) => {
-      const loop = this.workflow.loops?.[loopId]
-      if (!loop) return
-
-      for (const blockId of loop.nodes) {
-        // For each block in the loop, recalculate its initial inDegree
-        let degree = 0
-        for (const conn of connections) {
-          if (conn.target === blockId && loop.nodes.includes(conn.source)) {
-            // Count non-feedback edges within the loop
-            if (!isFeedbackEdge(conn)) {
-              degree++
-            }
-          }
-        }
-        inDegree.set(blockId, degree)
-      }
-    }
-
     // Maps for tracking routing decisions
     const routerDecisions = new Map<string, string>()
     const activeConditionalPaths = new Map<string, string>()
@@ -320,7 +300,10 @@ export class Executor {
               routerDecisions.set(block.id, routerResult.response.selectedPath.blockId)
             } else if (block.metadata?.id === 'condition') {
               const conditionResult = await this.executeConditionalBlock(block, context)
-              activeConditionalPaths.set(block.id, conditionResult.selectedConditionId)
+              activeConditionalPaths.set(
+                block.id,
+                (conditionResult as any).response.selectedConditionId
+              )
             }
 
             return blockId
@@ -457,31 +440,11 @@ export class Executor {
 
       // Execute block based on its type.
       if (block.metadata?.id === 'router') {
-        const routerOutput = await this.executeRouterBlock(block, context)
-        output = {
-          response: {
-            content: routerOutput.content,
-            model: routerOutput.model,
-            tokens: routerOutput.tokens,
-            selectedPath: routerOutput.selectedPath,
-          },
-        }
+        output = await this.executeRouterBlock(block, context)
       } else if (block.metadata?.id === 'evaluator') {
-        const evaluatorOutput = await this.executeEvaluatorBlock(block, context)
-        output = evaluatorOutput
+        output = await this.executeEvaluatorBlock(block, context)
       } else if (block.metadata?.id === 'condition') {
-        const conditionResult = await this.executeConditionalBlock(block, context)
-        output = {
-          response: {
-            result: conditionResult.sourceOutput,
-            content: conditionResult.content,
-            condition: {
-              result: conditionResult.condition,
-              selectedPath: conditionResult.selectedPath,
-              selectedConditionId: conditionResult.selectedConditionId,
-            },
-          },
-        }
+        output = await this.executeConditionalBlock(block, context)
       } else if (block.metadata?.id === 'agent') {
         // Agent block: use a provider request.
         let responseFormat: any = undefined
@@ -658,20 +621,7 @@ export class Executor {
   private async executeRouterBlock(
     block: SerializedBlock,
     context: ExecutionContext
-  ): Promise<{
-    content: string
-    model: string
-    tokens: {
-      prompt: number
-      completion: number
-      total: number
-    }
-    selectedPath: {
-      blockId: string
-      blockType: string
-      blockTitle: string
-    }
-  }> {
+  ): Promise<BlockOutput> {
     // Resolve inputs for the router block.
     const resolvedInputs = this.resolveInputs(block, context)
     const outgoingConnections = this.workflow.connections.filter((conn) => conn.source === block.id)
@@ -717,19 +667,21 @@ export class Executor {
 
     const tokens = response.tokens || { prompt: 0, completion: 0, total: 0 }
     return {
-      content: resolvedInputs.prompt,
-      model: response.model,
-      tokens: {
-        prompt: tokens.prompt || 0,
-        completion: tokens.completion || 0,
-        total: tokens.total || 0,
+      response: {
+        content: resolvedInputs.prompt,
+        model: response.model,
+        tokens: {
+          prompt: tokens.prompt || 0,
+          completion: tokens.completion || 0,
+          total: tokens.total || 0,
+        },
+        selectedPath: {
+          blockId: chosenBlock.id,
+          blockType: chosenBlock.type || 'unknown',
+          blockTitle: chosenBlock.title || 'Untitled Block',
+        },
       },
-      selectedPath: {
-        blockId: chosenBlock.id,
-        blockType: chosenBlock.type || 'unknown',
-        blockTitle: chosenBlock.title || 'Untitled Block',
-      },
-    }
+    } as BlockOutput
   }
 
   /**
@@ -856,17 +808,7 @@ export class Executor {
   private async executeConditionalBlock(
     block: SerializedBlock,
     context: ExecutionContext
-  ): Promise<{
-    content: string
-    condition: boolean
-    selectedConditionId: string
-    sourceOutput: BlockOutput
-    selectedPath: {
-      blockId: string
-      blockType: string
-      blockTitle: string
-    }
-  }> {
+  ): Promise<BlockOutput> {
     const conditions = JSON.parse(block.config.params.conditions)
 
     // Identify the source block that feeds into this condition block.
@@ -967,37 +909,20 @@ export class Executor {
       throw new Error(`No state found for source block ${sourceBlockId}`)
     }
 
-    // Create the block output with the source output when condition is met.
-    const blockOutput = {
-      response: {
-        result: conditionMet ? sourceBlockState : false,
-        content: `Condition '${selectedCondition.title}' evaluated to ${conditionMet}`,
-        condition: {
-          result: conditionMet,
-          selectedPath: {
-            blockId: targetBlock.id,
-            blockType: targetBlock.metadata?.id || '',
-            blockTitle: targetBlock.metadata?.name || '',
-          },
-          selectedConditionId: selectedCondition.id,
-        },
-      },
-    }
-
-    // Store the block output in the context.
-    context.blockStates.set(block.id, blockOutput)
-
+    // Return a properly typed BlockOutput with response wrapper
     return {
-      content: `Condition '${selectedCondition.title}' chosen`,
-      condition: conditionMet,
-      selectedConditionId: selectedCondition.id,
-      sourceOutput: sourceBlockState,
-      selectedPath: {
-        blockId: targetBlock.id,
-        blockType: targetBlock.metadata?.id || '',
-        blockTitle: targetBlock.metadata?.name || '',
+      response: {
+        ...((sourceOutput as any)?.response || {}),
+        content: `Condition '${selectedCondition.title}' chosen`,
+        result: conditionMet,
+        selectedPath: {
+          blockId: targetBlock.id,
+          blockType: targetBlock.metadata?.id || '',
+          blockTitle: targetBlock.metadata?.name || '',
+        },
+        selectedConditionId: selectedCondition.id,
       },
-    }
+    } as BlockOutput
   }
 
   /**

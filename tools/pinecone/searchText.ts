@@ -67,7 +67,6 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
         }
       }
 
-      console.log('Search request body:', body)
       return body
     },
   },
