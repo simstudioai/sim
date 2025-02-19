@@ -252,11 +252,17 @@ export async function GET(req: NextRequest) {
           executionId,
           level: log.success ? 'info' : 'error',
           message: `Block ${log.blockName || log.blockId} (${log.blockType}): ${
-            log.error || `Completed in ${log.durationMs}ms`
+            log.error || `Completed successfully`
           }`,
+          duration: log.success ? `${log.durationMs}ms` : 'NA',
           createdAt: new Date(log.endedAt || log.startedAt),
         })
       }
+
+      // Calculate total duration from successful block logs
+      const totalDuration = (result.logs || [])
+        .filter((log) => log.success)
+        .reduce((sum, log) => sum + log.durationMs, 0)
 
       // Log the final execution result
       await persistLog({
@@ -267,6 +273,7 @@ export async function GET(req: NextRequest) {
         message: result.success
           ? 'Scheduled workflow executed successfully'
           : `Scheduled workflow execution failed: ${result.error}`,
+        duration: result.success ? `${totalDuration}ms` : 'NA',
         createdAt: new Date(),
       })
 

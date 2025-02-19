@@ -8,6 +8,7 @@ export interface LogEntry {
   level: string
   message: string
   createdAt: Date
+  duration?: string
 }
 
 export async function persistLog(log: LogEntry) {
