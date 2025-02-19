@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import { db } from '@/db'
-import { userSettings } from '@/db/schema'
+import { settings } from '@/db/schema'
 
 const SettingsSchema = z.object({
   userId: z.string(),
@@ -17,17 +17,17 @@ export async function POST(request: Request) {
 
     // Store the settings
     await db
-      .insert(userSettings)
+      .insert(settings)
       .values({
         id: nanoid(),
         userId,
-        isAutoConnectEnabled,
+        general: { isAutoConnectEnabled },
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [userSettings.userId],
+        target: [settings.userId],
         set: {
-          isAutoConnectEnabled,
+          general: { isAutoConnectEnabled },
           updatedAt: new Date(),
         },
       })
@@ -48,11 +48,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
-    const result = await db
-      .select()
-      .from(userSettings)
-      .where(eq(userSettings.userId, userId))
-      .limit(1)
+    const result = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
 
     if (!result.length) {
       return NextResponse.json(
@@ -65,10 +61,11 @@ export async function GET(request: Request) {
       )
     }
 
+    const generalSettings = result[0].general as { isAutoConnectEnabled: boolean }
     return NextResponse.json(
       {
         data: {
-          isAutoConnectEnabled: result[0].isAutoConnectEnabled,
+          isAutoConnectEnabled: generalSettings.isAutoConnectEnabled,
         },
       },
       { status: 200 }
