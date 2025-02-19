@@ -401,6 +401,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, 'Update loop max iterations')
         get().updateLastSaved()
       },
+
+      triggerUpdate: () => {
+        set((state) => ({
+          ...state,
+          lastUpdate: Date.now(),
+        }))
+      },
     })),
     { name: 'workflow-store' }
   )

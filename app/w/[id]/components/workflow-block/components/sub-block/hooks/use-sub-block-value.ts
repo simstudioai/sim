@@ -4,7 +4,8 @@ import { useSubBlockStore } from '@/stores/workflow/subblock/store'
 
 export function useSubBlockValue<T = any>(
   blockId: string,
-  subBlockId: string
+  subBlockId: string,
+  triggerWorkflowUpdate: boolean = false
 ): readonly [T | null, (value: T) => void] {
   // Get initial value from workflow store
   const initialValue = useWorkflowStore(
@@ -25,8 +26,11 @@ export function useSubBlockValue<T = any>(
   const setValue = useCallback(
     (newValue: T) => {
       useSubBlockStore.getState().setValue(blockId, subBlockId, newValue)
+      if (triggerWorkflowUpdate) {
+        useWorkflowStore.getState().triggerUpdate()
+      }
     },
-    [blockId, subBlockId]
+    [blockId, subBlockId, triggerWorkflowUpdate]
   )
 
   return [value as T | null, setValue] as const

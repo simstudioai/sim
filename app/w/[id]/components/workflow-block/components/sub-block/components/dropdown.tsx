@@ -16,7 +16,7 @@ interface DropdownProps {
 }
 
 export function Dropdown({ options, defaultValue, blockId, subBlockId }: DropdownProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+  const [value, setValue] = useSubBlockValue(blockId, subBlockId, true)
 
   // Set the value to the first option if it's not set
   useEffect(() => {

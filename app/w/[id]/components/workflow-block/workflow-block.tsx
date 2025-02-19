@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
+import { mergeSubblockState } from '@/stores/workflow/utils'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
@@ -34,6 +35,7 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
   const updateNodeInternals = useUpdateNodeInternals()
 
   // Workflow store selectors
+  const lastUpdate = useWorkflowStore((state) => state.lastUpdate)
   const isEnabled = useWorkflowStore((state) => state.blocks[id]?.enabled ?? true)
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[id]?.horizontalHandles ?? false
@@ -100,13 +102,17 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
         cancelAnimationFrame(rafId)
       }
     }
-  }, [id, blockHeight, updateBlockHeight, updateNodeInternals])
+  }, [id, blockHeight, updateBlockHeight, updateNodeInternals, lastUpdate])
 
   // SubBlock layout management
   function groupSubBlocks(subBlocks: SubBlockConfig[], blockId: string) {
     const rows: SubBlockConfig[][] = []
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
+
+    // Get merged state for this block
+    const blocks = useWorkflowStore.getState().blocks
+    const mergedState = mergeSubblockState(blocks, blockId)[blockId]
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
@@ -115,11 +121,10 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 
-      // Get the values of the fields this block depends on
-      const fieldValue =
-        useWorkflowStore.getState().blocks[blockId]?.subBlocks[block.condition.field]?.value
+      // Get the values of the fields this block depends on from merged state
+      const fieldValue = mergedState?.subBlocks[block.condition.field]?.value
       const andFieldValue = block.condition.and
-        ? useWorkflowStore.getState().blocks[blockId]?.subBlocks[block.condition.and.field]?.value
+        ? mergedState?.subBlocks[block.condition.and.field]?.value
         : undefined
 
       // Check both conditions if 'and' is present
