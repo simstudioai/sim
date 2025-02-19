@@ -71,13 +71,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: {} }, { status: 200 })
     }
 
-    // Parse the variables and return just the structure without the hashed values
-    const variables = result[0].variables as Record<string, any>
+    // Update the type handling for variables
+    const variables = result[0].variables as Record<string, EnvironmentVariable>
     const sanitizedVariables = Object.fromEntries(
-      Object.entries(variables).map(([key, value]) => [
-        key,
-        { key, value: '••••••••' }, // Hide the actual value
-      ])
+      Object.entries(variables).map(([key, value]) => [key, { key, value: '••••••••' }])
     )
 
     return NextResponse.json({ data: sanitizedVariables }, { status: 200 })
