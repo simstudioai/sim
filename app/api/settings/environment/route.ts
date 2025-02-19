@@ -34,13 +34,13 @@ export async function POST(request: Request) {
       .values({
         id: nanoid(),
         userId,
-        variables: JSON.stringify(Object.fromEntries(securedData)),
+        variables: Object.fromEntries(securedData),
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [userEnvironment.userId],
         set: {
-          variables: JSON.stringify(Object.fromEntries(securedData)),
+          variables: Object.fromEntries(securedData),
           updatedAt: new Date(),
         },
       })
@@ -67,14 +67,14 @@ export async function GET(request: Request) {
       .where(eq(userEnvironment.userId, userId))
       .limit(1)
 
-    if (!result.length) {
+    if (!result.length || !result[0].variables) {
       return NextResponse.json({ data: {} }, { status: 200 })
     }
 
     // Parse the variables and return just the structure without the hashed values
-    const variables = JSON.parse(result[0].variables)
+    const variables = result[0].variables as Record<string, any>
     const sanitizedVariables = Object.fromEntries(
-      Object.entries(variables).map(([key, value]: [string, any]) => [
+      Object.entries(variables).map(([key, value]) => [
         key,
         { key, value: '••••••••' }, // Hide the actual value
       ])

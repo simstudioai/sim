@@ -10,7 +10,7 @@ const WorkflowSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  state: z.string(), // JSON stringified workflow state
+  state: z.record(z.any()),
 })
 
 // Define the schema for batch sync
