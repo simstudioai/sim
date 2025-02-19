@@ -1,5 +1,4 @@
 import { useWorkflowRegistry } from './workflow/registry/store'
-import { useWorkflowStore } from './workflow/store'
 import { mergeSubblockState } from './workflow/utils'
 
 interface WorkflowSyncPayload {
@@ -34,52 +33,65 @@ async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<b
   }
 }
 
+let syncInterval: NodeJS.Timeout | null = null
+
+async function performSync() {
+  const { workflows } = useWorkflowRegistry.getState()
+
+  // Prepare sync payloads for all workflows
+  const syncPayloads: (WorkflowSyncPayload | null)[] = await Promise.all(
+    Object.entries(workflows).map(async ([id, metadata]) => {
+      const savedState = localStorage.getItem(`workflow-${id}`)
+      if (!savedState) return null
+
+      const state = JSON.parse(savedState)
+      const mergedBlocks = mergeSubblockState(state.blocks)
+
+      return {
+        id,
+        name: metadata.name,
+        description: metadata.description,
+        state: JSON.stringify({
+          blocks: mergedBlocks,
+          edges: state.edges,
+          loops: state.loops,
+          lastSaved: state.lastSaved,
+        }),
+      }
+    })
+  )
+
+  // Filter out null values and sync if there are workflows to sync
+  const validPayloads = syncPayloads.filter(
+    (payload): payload is WorkflowSyncPayload => payload !== null
+  )
+
+  if (validPayloads.length > 0) {
+    await syncWorkflowsToServer(validPayloads)
+  }
+}
+
 export function initializeSyncManager() {
   if (typeof window === 'undefined') return
 
+  // Start periodic sync
+  syncInterval = setInterval(performSync, 30000) // Sync every 30 seconds
+
   const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
-    const { workflows } = useWorkflowRegistry.getState()
-
-    // Prepare sync payloads for all workflows
-    const syncPayloads: (WorkflowSyncPayload | null)[] = await Promise.all(
-      Object.entries(workflows).map(async ([id, metadata]) => {
-        // Get workflow state from localStorage
-        const savedState = localStorage.getItem(`workflow-${id}`)
-        if (!savedState) return null
-
-        const state = JSON.parse(savedState)
-        // Merge subblock states for all blocks in the workflow
-        const mergedBlocks = mergeSubblockState(state.blocks)
-
-        return {
-          id,
-          name: metadata.name,
-          description: metadata.description,
-          state: JSON.stringify({
-            blocks: mergedBlocks,
-            edges: state.edges,
-            loops: state.loops,
-            lastSaved: state.lastSaved,
-          }),
-        }
-      })
-    )
-
-    // Filter out null values and sync if there are workflows to sync
-    const validPayloads = syncPayloads.filter(
-      (payload): payload is WorkflowSyncPayload => payload !== null
-    )
-
-    if (validPayloads.length > 0) {
-      // Show confirmation dialog
-      event.preventDefault()
-      event.returnValue = ''
-
-      // Attempt to sync
-      await syncWorkflowsToServer(validPayloads)
-    }
+    // Perform one final sync before unloading
+    event.preventDefault()
+    event.returnValue = ''
+    await performSync()
   }
 
   window.addEventListener('beforeunload', handleBeforeUnload)
-  return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+
+  // Return cleanup function
+  return () => {
+    window.removeEventListener('beforeunload', handleBeforeUnload)
+    if (syncInterval) {
+      clearInterval(syncInterval)
+      syncInterval = null
+    }
+  }
 }
