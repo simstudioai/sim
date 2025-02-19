@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { addDeletedWorkflow } from '../../sync-manager'
 import { useWorkflowStore } from '../store'
 import { useSubBlockStore } from '../subblock/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
@@ -230,6 +231,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         set((state) => {
           const newWorkflows = { ...state.workflows }
           delete newWorkflows[id]
+
+          // Track deletion for next sync
+          addDeletedWorkflow(id)
 
           // Remove workflow state from localStorage
           localStorage.removeItem(`workflow-${id}`)

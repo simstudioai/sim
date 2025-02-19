@@ -8,12 +8,22 @@ interface WorkflowSyncPayload {
   state: string
 }
 
+// Track deleted workflow IDs until they're synced
+const deletedWorkflowIds = new Set<string>()
+
+export function addDeletedWorkflow(id: string) {
+  deletedWorkflowIds.add(id)
+}
+
 async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<boolean> {
   try {
     const response = await fetch('/api/db/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workflows: payloads }),
+      body: JSON.stringify({
+        workflows: payloads,
+        deletedWorkflowIds: Array.from(deletedWorkflowIds),
+      }),
       keepalive: true,
     })
 
@@ -25,6 +35,8 @@ async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<b
       throw new Error(`Batch sync failed: ${response.statusText}`)
     }
 
+    // Clear the deleted IDs set after successful sync
+    deletedWorkflowIds.clear()
     console.log('Workflows synced successfully')
     return true
   } catch (error) {

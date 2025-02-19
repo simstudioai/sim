@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
@@ -16,6 +16,7 @@ const WorkflowSchema = z.object({
 // Define the schema for batch sync
 const BatchSyncSchema = z.object({
   workflows: z.array(WorkflowSchema),
+  deletedWorkflowIds: z.array(z.string()).optional(),
 })
 
 export async function POST(request: Request) {
@@ -26,11 +27,21 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { workflows } = BatchSyncSchema.parse(body)
+    const { workflows, deletedWorkflowIds } = BatchSyncSchema.parse(body)
     const now = new Date()
 
-    // Process all workflows in a single transaction
+    // Process all operations in a single transaction
     await db.transaction(async (tx) => {
+      // Handle deletions first
+      if (deletedWorkflowIds?.length) {
+        await tx
+          .delete(workflow)
+          .where(
+            sql`${workflow.id} IN ${deletedWorkflowIds} AND ${workflow.userId} = ${session.user.id}`
+          )
+      }
+
+      // Handle updates/inserts
       for (const workflowData of workflows) {
         await tx
           .insert(workflow)
