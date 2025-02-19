@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
+import { boolean, integer, json, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -57,7 +57,7 @@ export const workflow = pgTable('workflow', {
     .references(() => user.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  state: text('state').notNull(), // JSON stringified workflow state
+  state: json('state').notNull(),
   lastSynced: timestamp('last_synced').notNull(),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
@@ -71,7 +71,7 @@ export const waitlist = pgTable('waitlist', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const consoleLog = pgTable('logs', {
+export const consoleLog = pgTable('workflow_logs', {
   id: text('id').primaryKey(),
   workflowId: text('workflow_id')
     .notNull()
@@ -82,24 +82,23 @@ export const consoleLog = pgTable('logs', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
-export const userEnvironment = pgTable('user_environment', {
+export const userEnvironment = pgTable('environment', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One environment per user
-  variables: text('variables').notNull(), // JSON stringified {key: hashedValue}
+  variables: json('variables').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const userSettings = pgTable('user_settings', {
+export const settings = pgTable('settings', {
   id: text('id').primaryKey(), // Use the user id as the key
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One settings record per user
-  isAutoConnectEnabled: boolean('is_auto_connect_enabled').notNull().default(true),
-  isDebugModeEnabled: boolean('is_debug_mode_enabled').notNull().default(false),
+  general: json('general').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
