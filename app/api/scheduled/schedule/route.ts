@@ -56,39 +56,72 @@ export async function POST(req: NextRequest) {
     // Get schedule configuration from starter block
     const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
 
-    // Calculate initial next run time based on schedule type
+    // Calculate cron expression based on schedule type
     let cronExpression: string | null = null
-    let nextRunAt = new Date()
+    let shouldUpdateNextRunAt = false
+    let nextRunAt: Date | undefined
+
+    // First check if there's an existing schedule
+    const existingSchedule = await db
+      .select()
+      .from(workflowSchedule)
+      .where(eq(workflowSchedule.workflowId, workflowId))
+      .limit(1)
 
     switch (scheduleType) {
       case 'minutes': {
         const interval = parseInt(getSubBlockValue(starterBlock, 'minutesInterval') || '15')
-        const startingAt = getSubBlockValue(starterBlock, 'minutesStartingAt')
-        if (startingAt) {
-          const [hours, minutes] = startingAt.split(':')
-          nextRunAt.setHours(parseInt(hours), parseInt(minutes), 0, 0)
-          while (nextRunAt <= new Date()) {
-            nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
-          }
-        } else {
-          nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
-        }
         cronExpression = `*/${interval} * * * *`
+
+        // Check if we need to update next_run_at
+        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
+          shouldUpdateNextRunAt = true
+          nextRunAt = new Date()
+          const startingAt = getSubBlockValue(starterBlock, 'minutesStartingAt')
+
+          if (startingAt) {
+            const [hours, minutes] = startingAt.split(':')
+            nextRunAt.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+            while (nextRunAt <= new Date()) {
+              nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
+            }
+          } else {
+            // Round down to nearest interval boundary
+            const now = new Date()
+            const currentMinutes = now.getMinutes()
+            const lastIntervalBoundary = Math.floor(currentMinutes / interval) * interval
+            nextRunAt = new Date(now)
+            nextRunAt.setMinutes(lastIntervalBoundary, 0, 0)
+            while (nextRunAt <= now) {
+              nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
+            }
+          }
+        }
         break
       }
       case 'hourly': {
         const minute = parseInt(getSubBlockValue(starterBlock, 'hourlyMinute') || '0')
-        nextRunAt.setHours(nextRunAt.getHours() + 1, minute, 0, 0)
         cronExpression = `${minute} * * * *`
+
+        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
+          shouldUpdateNextRunAt = true
+          nextRunAt = new Date()
+          nextRunAt.setHours(nextRunAt.getHours() + 1, minute, 0, 0)
+        }
         break
       }
       case 'daily': {
         const [hours, minutes] = getSubBlockValue(starterBlock, 'dailyTime').split(':')
-        nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-        if (nextRunAt <= new Date()) {
-          nextRunAt.setDate(nextRunAt.getDate() + 1)
-        }
         cronExpression = `${minutes || '0'} ${hours || '9'} * * *`
+
+        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
+          shouldUpdateNextRunAt = true
+          nextRunAt = new Date()
+          nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
+          if (nextRunAt <= new Date()) {
+            nextRunAt.setDate(nextRunAt.getDate() + 1)
+          }
+        }
         break
       }
       case 'weekly': {
@@ -103,22 +136,32 @@ export async function POST(req: NextRequest) {
         }
         const targetDay = dayMap[getSubBlockValue(starterBlock, 'weeklyDay') || 'MON']
         const [hours, minutes] = getSubBlockValue(starterBlock, 'weeklyDayTime').split(':')
-        nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-        while (nextRunAt.getDay() !== targetDay || nextRunAt <= new Date()) {
-          nextRunAt.setDate(nextRunAt.getDate() + 1)
-        }
         cronExpression = `${minutes || '0'} ${hours || '9'} * * ${targetDay}`
+
+        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
+          shouldUpdateNextRunAt = true
+          nextRunAt = new Date()
+          nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
+          while (nextRunAt.getDay() !== targetDay || nextRunAt <= new Date()) {
+            nextRunAt.setDate(nextRunAt.getDate() + 1)
+          }
+        }
         break
       }
       case 'monthly': {
         const day = parseInt(getSubBlockValue(starterBlock, 'monthlyDay') || '1')
         const [hours, minutes] = getSubBlockValue(starterBlock, 'monthlyTime').split(':')
-        nextRunAt.setDate(day)
-        nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-        if (nextRunAt <= new Date()) {
-          nextRunAt.setMonth(nextRunAt.getMonth() + 1)
-        }
         cronExpression = `${minutes || '0'} ${hours || '9'} ${day} * *`
+
+        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
+          shouldUpdateNextRunAt = true
+          nextRunAt = new Date()
+          nextRunAt.setDate(day)
+          nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
+          if (nextRunAt <= new Date()) {
+            nextRunAt.setMonth(nextRunAt.getMonth() + 1)
+          }
+        }
         break
       }
       case 'custom': {
@@ -129,39 +172,56 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           )
         }
-        // The execute-workflows endpoint will handle custom cron calculation
-        nextRunAt = new Date()
-        nextRunAt.setMinutes(nextRunAt.getMinutes() + 1) // Start in 1 minute
+
+        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
+          shouldUpdateNextRunAt = true
+          nextRunAt = new Date()
+          nextRunAt.setMinutes(nextRunAt.getMinutes() + 1)
+        }
         break
       }
       default:
         return NextResponse.json({ error: 'Invalid schedule type' }, { status: 400 })
     }
 
+    // Prepare the values for upsert
+    const values: any = {
+      id: crypto.randomUUID(),
+      workflowId,
+      cronExpression,
+      triggerType: 'schedule',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    // Only include next_run_at if it should be updated
+    if (shouldUpdateNextRunAt && nextRunAt) {
+      values.nextRunAt = nextRunAt
+    }
+
+    // Prepare the set values for update
+    const setValues: any = {
+      cronExpression,
+      updatedAt: new Date(),
+    }
+
+    // Only include next_run_at in the update if it should be updated
+    if (shouldUpdateNextRunAt && nextRunAt) {
+      setValues.nextRunAt = nextRunAt
+    }
+
     // Upsert the schedule
     await db
       .insert(workflowSchedule)
-      .values({
-        id: crypto.randomUUID(),
-        workflowId,
-        cronExpression,
-        nextRunAt,
-        triggerType: 'schedule',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .values(values)
       .onConflictDoUpdate({
         target: [workflowSchedule.workflowId],
-        set: {
-          cronExpression,
-          nextRunAt,
-          updatedAt: new Date(),
-        },
+        set: setValues,
       })
 
     return NextResponse.json({
       message: 'Schedule updated',
-      nextRunAt,
+      nextRunAt: shouldUpdateNextRunAt ? nextRunAt : existingSchedule[0]?.nextRunAt,
       cronExpression,
     })
   } catch (error) {
