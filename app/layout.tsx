@@ -2,6 +2,42 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
 
+// Add browser extension attributes that we want to ignore
+const BROWSER_EXTENSION_ATTRIBUTES = [
+  'data-new-gr-c-s-check-loaded',
+  'data-gr-ext-installed',
+  'data-gr-ext-disabled',
+  'data-grammarly',
+  'data-fgm',
+  'data-lt-installed',
+  // Add other known extension attributes here
+]
+
+if (typeof window !== 'undefined') {
+  const originalError = console.error
+  console.error = (...args) => {
+    // Check if it's a hydration error
+    if (args[0].includes('Hydration')) {
+      // Check if the error is related to browser extensions
+      const isExtensionError = BROWSER_EXTENSION_ATTRIBUTES.some((attr) =>
+        args.some((arg) => typeof arg === 'string' && arg.includes(attr))
+      )
+
+      if (!isExtensionError) {
+        // Log non-extension hydration errors with more detail
+        console.group('Hydration Error')
+        console.log('Error Details:', args)
+        console.log(
+          'Component Stack:',
+          args.find((arg) => typeof arg === 'string' && arg.includes('component stack'))
+        )
+        console.groupEnd()
+      }
+    }
+    originalError.apply(console, args)
+  }
+}
+
 export const viewport: Viewport = {
   themeColor: '#ffffff',
 }
@@ -27,14 +63,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <ZoomPrevention />
         {children}
       </body>
