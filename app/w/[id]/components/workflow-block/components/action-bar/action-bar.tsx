@@ -6,9 +6,10 @@ import { useWorkflowStore } from '@/stores/workflow/store'
 
 interface ActionBarProps {
   blockId: string
+  blockType: string
 }
 
-export function ActionBar({ blockId }: ActionBarProps) {
+export function ActionBar({ blockId, blockType }: ActionBarProps) {
   const removeBlock = useWorkflowStore((state) => state.removeBlock)
   const toggleBlockEnabled = useWorkflowStore((state) => state.toggleBlockEnabled)
   const toggleBlockHandles = useWorkflowStore((state) => state.toggleBlockHandles)
@@ -17,6 +18,8 @@ export function ActionBar({ blockId }: ActionBarProps) {
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[blockId]?.horizontalHandles ?? false
   )
+
+  const isStarterBlock = blockType === 'starter'
 
   return (
     <div className="absolute top-0 -right-20 flex flex-col items-center gap-2 p-2 bg-background rounded-md shadow-sm border border-gray-200 dark:border-gray-800">
@@ -51,19 +54,21 @@ export function ActionBar({ blockId }: ActionBarProps) {
         <TooltipContent side="right">{isEnabled ? 'Disable Block' : 'Enable Block'}</TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => duplicateBlock(blockId)}
-            className="text-gray-500"
-          >
-            <Copy className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">Duplicate Block</TooltipContent>
-      </Tooltip>
+      {!isStarterBlock && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => duplicateBlock(blockId)}
+              className="text-gray-500"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Duplicate Block</TooltipContent>
+        </Tooltip>
+      )}
 
       <Tooltip>
         <TooltipTrigger asChild>
@@ -85,19 +90,21 @@ export function ActionBar({ blockId }: ActionBarProps) {
         </TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => removeBlock(blockId)}
-            className="text-gray-500 hover:text-red-600"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">Delete Block</TooltipContent>
-      </Tooltip>
+      {!isStarterBlock && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => removeBlock(blockId)}
+              className="text-gray-500 hover:text-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Delete Block</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   )
 }

@@ -191,7 +191,7 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
           isActiveBlock && 'ring-2 animate-pulse-ring'
         )}
       >
-        {selected && <ActionBar blockId={id} />}
+        {selected && <ActionBar blockId={id} blockType={type} />}
         <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
 
         {/* Input Handle - Don't show for starter blocks */}

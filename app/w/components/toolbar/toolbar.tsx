@@ -16,15 +16,16 @@ export function Toolbar() {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const blocks = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return getBlocksByCategory(activeTab)
-    }
+    const filteredBlocks = !searchQuery.trim() ? getBlocksByCategory(activeTab) : getAllBlocks()
 
-    const query = searchQuery.toLowerCase()
-    return getAllBlocks().filter(
-      (block) =>
-        block.name.toLowerCase().includes(query) || block.description.toLowerCase().includes(query)
-    )
+    return filteredBlocks.filter((block) => {
+      if (block.type === 'starter') return false
+      return (
+        !searchQuery.trim() ||
+        block.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        block.description.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    })
   }, [searchQuery, activeTab])
 
   if (isCollapsed) {
