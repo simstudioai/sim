@@ -55,7 +55,6 @@ export async function POST(req: NextRequest) {
 
     // Get schedule configuration from starter block
     const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
-    const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
 
     // Calculate initial next run time based on schedule type
     let cronExpression: string | null = null
@@ -147,7 +146,6 @@ export async function POST(req: NextRequest) {
         workflowId,
         cronExpression,
         nextRunAt,
-        timezone,
         triggerType: 'schedule',
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -157,7 +155,6 @@ export async function POST(req: NextRequest) {
         set: {
           cronExpression,
           nextRunAt,
-          timezone,
           updatedAt: new Date(),
         },
       })

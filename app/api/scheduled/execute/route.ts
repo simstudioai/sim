@@ -30,7 +30,6 @@ function calculateNextRunTime(
   if (!starterBlock) throw new Error('No starter block found')
 
   const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
-  const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
 
   switch (scheduleType) {
     case 'minutes': {
@@ -102,8 +101,8 @@ function calculateNextRunTime(
       const cronExpression = getSubBlockValue(starterBlock, 'cronExpression')
       if (!cronExpression) throw new Error('No cron expression provided')
 
-      // Create a new cron instance with the expression and timezone
-      const cron = new Cron(cronExpression, { timezone })
+      // Create a new cron instance with the expression
+      const cron = new Cron(cronExpression)
 
       // Get the next occurrence after now
       const nextDate = cron.nextRun()

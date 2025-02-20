@@ -113,7 +113,6 @@ export const workflowSchedule = pgTable('workflow_schedule', {
   nextRunAt: timestamp('next_run_at'),
   lastRanAt: timestamp('last_ran_at'),
   triggerType: text('trigger_type').notNull(), // "manual", "webhook", "schedule"
-  timezone: text('timezone').notNull().default('UTC'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
