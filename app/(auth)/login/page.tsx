@@ -33,13 +33,11 @@ export default function LoginPage() {
     const password = formData.get('password') as string
 
     try {
-      const result = await client.signIn.email({ email, password })
+      const result = await client.signIn.email({ email, password, callbackURL: '/w' })
 
       if (!result || result.error) {
         throw new Error(result?.error?.message || 'Authentication failed')
       }
-
-      router.push('/w/1')
     } catch (err: any) {
       let errorMessage = 'Invalid email or password'
 
@@ -70,8 +68,7 @@ export default function LoginPage() {
 
   async function signInWithGithub() {
     try {
-      await client.signIn.social({ provider: 'github' })
-      router.push('/w/1')
+      await client.signIn.social({ provider: 'github', callbackURL: '/w' })
     } catch (err: any) {
       let errorMessage = 'Failed to sign in with GitHub'
 
@@ -90,8 +87,7 @@ export default function LoginPage() {
 
   async function signInWithGoogle() {
     try {
-      await client.signIn.social({ provider: 'google' })
-      router.push('/w/1')
+      await client.signIn.social({ provider: 'google', callbackURL: '/w' })
     } catch (err: any) {
       let errorMessage = 'Failed to sign in with Google'
 

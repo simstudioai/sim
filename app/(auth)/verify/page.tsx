@@ -22,8 +22,8 @@ function VerifyContent() {
       .verifyEmail({ query: { token } })
       .then(() => {
         setStatus('success')
-        // Redirect to dashboard after a short delay
-        setTimeout(() => router.push('/w/1'), 2000)
+        // Redirect to workflow page after a short delay
+        setTimeout(() => router.push('/w'), 2000)
       })
       .catch(() => setStatus('error'))
   }, [searchParams, router])
