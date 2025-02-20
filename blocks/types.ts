@@ -23,6 +23,8 @@ export type SubBlockType =
   | 'checkbox-list' // Multiple selection
   | 'condition-input' // Conditional logic
   | 'eval-input' // Evaluation input
+  | 'date-input' // Date input
+  | 'time-input' // Time input
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'

@@ -3,6 +3,7 @@ import { SubBlockConfig } from '../../../../../../../blocks/types'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
+import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { LongInput } from './components/long-input'
@@ -10,6 +11,7 @@ import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
 import { Switch } from './components/switch'
 import { Table } from './components/table'
+import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input'
 
 interface SubBlockProps {
@@ -97,6 +99,14 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         )
       case 'eval-input':
         return <EvalInput blockId={blockId} subBlockId={config.id} />
+      case 'date-input':
+        return (
+          <DateInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+        )
+      case 'time-input':
+        return (
+          <TimeInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+        )
       default:
         return null
     }

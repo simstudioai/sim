@@ -40,7 +40,23 @@ export const StarterBlock: BlockConfig = {
       password: true,
       condition: { field: 'startWorkflow', value: 'webhook' },
     },
-    // Schedule configuration
+    // Common schedule fields for all frequency types
+    {
+      id: 'scheduleStartAt',
+      title: 'Start At',
+      type: 'date-input',
+      layout: 'half',
+      placeholder: 'Select day',
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'scheduleTime',
+      title: 'Time',
+      type: 'time-input',
+      layout: 'half',
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    // Frequency configuration
     {
       id: 'scheduleType',
       title: 'Frequency',
@@ -67,124 +83,6 @@ export const StarterBlock: BlockConfig = {
       condition: {
         field: 'scheduleType',
         value: 'minutes',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    {
-      id: 'minutesStartingAt',
-      title: 'Starting At',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: '14:30 (24-hour format)',
-      condition: {
-        field: 'scheduleType',
-        value: 'minutes',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    // Hourly schedule options
-    {
-      id: 'hourlyMinute',
-      title: 'Start at Minute',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: '00-59',
-      condition: {
-        field: 'scheduleType',
-        value: 'hourly',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    // Daily schedule options
-    {
-      id: 'dailyTime',
-      title: 'Time',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: '14:30 (24-hour format)',
-      condition: {
-        field: 'scheduleType',
-        value: 'daily',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    // Weekly schedule options
-    {
-      id: 'weeklyDay',
-      title: 'Day of Week',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        { label: 'Monday', id: 'MON' },
-        { label: 'Tuesday', id: 'TUE' },
-        { label: 'Wednesday', id: 'WED' },
-        { label: 'Thursday', id: 'THU' },
-        { label: 'Friday', id: 'FRI' },
-        { label: 'Saturday', id: 'SAT' },
-        { label: 'Sunday', id: 'SUN' },
-      ],
-      value: () => 'MON',
-      condition: {
-        field: 'scheduleType',
-        value: 'weekly',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    {
-      id: 'weeklyDayTime',
-      title: 'Time',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '14:30 (24-hour format)',
-      condition: {
-        field: 'scheduleType',
-        value: 'weekly',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    // Monthly schedule options
-    {
-      id: 'monthlyDay',
-      title: 'Day of Month',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '1-31',
-      condition: {
-        field: 'scheduleType',
-        value: 'monthly',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
-    },
-    {
-      id: 'monthlyTime',
-      title: 'Time',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '14:30 (24-hour format)',
-      condition: {
-        field: 'scheduleType',
-        value: 'monthly',
         and: {
           field: 'startWorkflow',
           value: 'schedule',
