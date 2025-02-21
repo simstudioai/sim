@@ -15,6 +15,7 @@ Thank you for your interest in contributing to Sim Studio! Our goal is to provid
 - [Commit Message Guidelines](#commit-message-guidelines)
 - [Local Development Setup](#local-development-setup)
 - [License](#license)
+- [Adding New Blocks and Tools](#adding-new-blocks-and-tools)
 
 ---
 
@@ -159,6 +160,154 @@ To set up your local development environment:
 ## License
 
 This project is licensed under the MIT License. By contributing, you agree that your contributions will be licensed under the MIT License as well.
+
+---
+
+## Adding New Blocks and Tools
+
+Sim Studio is built in a modular fashion where blocks and tools extend the platform's functionality. To maintain consistency and quality, please follow the guidelines below when adding a new block or tool.
+
+### Where to Add Your Code
+
+- **Blocks:** Create your new block file under the `/blocks/blocks` directory.
+- **Tools:** Create your new tool file under the `/tools` directory.
+
+In addition, you will need to update the registries:
+
+- **Block Registry:** Update the blocks index (usually `/blocks/index.ts`) to include your new block.
+- **Tool Registry:** Update the tools registry (`/tools/index.ts`) to add your new tool.
+
+### How to Create a New Block
+
+1. **Create a New File:**  
+   Create a file for your block (e.g., `newBlock.ts`) in the `/blocks/blocks` directory.
+
+2. **Create a New Icon:**
+   Create a new icon for your block in the `/components/icons.tsx` file.
+
+3. **Define the Block Configuration:**  
+   Your block should export a constant of type `BlockConfig`. For example:
+
+   ```typescript:blocks/blocks/newBlock.ts
+   import { SomeIcon } from '@/components/icons'
+   import { BlockConfig } from '../types'
+
+   // Define response type if needed
+   interface NewBlockResponse {
+     output: {
+       // Define expected output here
+       result: string
+     }
+   }
+
+   export const NewBlock: BlockConfig<NewBlockResponse> = {
+     type: 'new',
+     name: 'New Block',
+     description: 'Description of the new block',
+     category: 'blocks',
+     bgColor: '#123456',
+     icon: SomeIcon,
+     inputs: {
+       // Define inputs here
+       exampleInput: { type: 'string', required: true },
+     },
+     outputs: {
+       response: {
+         type: {
+           result: 'string',
+         },
+       },
+     },
+   }
+   ```
+
+4. **Register Your Block:**  
+   Import and add your block to the blocks registry (`blocks/index.ts`) in the appropriate index file so it appears in the workflow builder.
+
+5. **Test Your Block:**  
+   Ensure that the block displays correctly in the UI and that its functionality works as expected.
+
+### How to Create a New Tool
+
+1. **Create a New File:**  
+   Create a file for your tool (e.g., `newTool.ts`) in the `/tools` directory.
+
+2. **Define the Tool Configuration:**  
+   Your tool should export a constant of type `ToolConfig`. For example:
+
+   ```typescript:tools/newTool.ts
+   import { ToolConfig, ToolResponse } from './types'
+
+   interface NewToolParams {
+     apiKey: string
+     query: string
+   }
+
+   interface NewToolResponse extends ToolResponse {
+     output: {
+       result: string
+     }
+   }
+
+   export const newTool: ToolConfig<NewToolParams, NewToolResponse> = {
+     id: 'new_tool',
+     name: 'New Tool',
+     description: 'Description for the new tool',
+     params: {
+       apiKey: { type: 'string', required: true },
+       query: { type: 'string', required: true },
+     },
+     request: {
+       url: 'https://api.example.com/query',
+       method: 'POST',
+       headers: (params) => ({
+         'Content-Type': 'application/json',
+         Authorization: `Bearer ${params.apiKey}`,
+       }),
+       body: (params) => JSON.stringify({ query: params.query }),
+     },
+     transformResponse: async (response: Response) => {
+       const data = await response.json()
+       return {
+         success: true,
+         output: { result: data.result },
+       }
+     },
+     transformError: (error) => {
+       return error.message || 'An error occurred while processing the tool request'
+     },
+   }
+   ```
+
+3. **Register Your Tool:**  
+   Update the tools registry in `/tools/index.ts` to include your new tool. For example, add it to the exported `tools` object:
+
+   ```typescript:tools/index.ts
+   import { newTool } from './newTool'
+   // ... other imports
+
+   export const tools: Record<string, ToolConfig> = {
+     // ... existing tools
+     new_tool: newTool,
+   }
+
+   export function getTool(toolId: string): ToolConfig | undefined {
+     return tools[toolId]
+   }
+   ```
+
+4. **Test Your Tool:**  
+   Ensure that your tool functions correctly by making test requests and verifying the responses.
+
+### Guidelines & Best Practices
+
+- **Code Style:** Follow the project's ESLint and Prettier configurations. Use meaningful variable names and small, focused functions.
+- **Documentation:** Clearly document the purpose, inputs, outputs, and any special behavior for your block/tool.
+- **Error Handling:** Implement robust error handling and provide user-friendly error messages.
+- **Testing:** Add unit or integration tests to verify your changes when possible.
+- **Commit Changes:** Update all related components and registries, and describe your changes in your pull request.
+
+Happy coding!
 
 ---
 
