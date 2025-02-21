@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DateInputProps {
@@ -17,8 +18,27 @@ interface DateInputProps {
 
 export function DateInput({ blockId, subBlockId, placeholder }: DateInputProps) {
   const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true)
-
+  const addNotification = useNotificationStore((state) => state.addNotification)
   const date = value ? new Date(value) : undefined
+
+  const isPastDate = React.useMemo(() => {
+    if (!date) return false
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return date < today
+  }, [date])
+
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (selectedDate) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      if (selectedDate < today) {
+        addNotification('error', 'Cannot start at a date in the past', blockId)
+      }
+    }
+    setValue(selectedDate?.toISOString() || '')
+  }
 
   return (
     <Popover>
@@ -27,20 +47,16 @@ export function DateInput({ blockId, subBlockId, placeholder }: DateInputProps) 
           variant="outline"
           className={cn(
             'w-full justify-start text-left font-normal',
-            !date && 'text-muted-foreground'
+            !date && 'text-muted-foreground',
+            isPastDate && 'border-red-500'
           )}
         >
-          <CalendarIcon className="mr-2 h-4 w-4" />
+          <CalendarIcon className="mr-1 h-4 w-4" />
           {date ? format(date, 'MMM d, yy') : <span>{placeholder || 'Pick a date'}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={(date) => setValue(date?.toISOString() || '')}
-          initialFocus
-        />
+        <Calendar mode="single" selected={date} onSelect={handleDateSelect} initialFocus />
       </PopoverContent>
     </Popover>
   )

@@ -82,7 +82,7 @@ export function TimeInput({ blockId, subBlockId, placeholder }: TimeInputProps) 
             !value && 'text-muted-foreground'
           )}
         >
-          <Clock className="mr-2 h-4 w-4" />
+          <Clock className="mr-1 h-4 w-4" />
           {value ? formatDisplayTime(value) : <span>{placeholder || 'Select time'}</span>}
         </Button>
       </PopoverTrigger>
