@@ -8,6 +8,7 @@ import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { Loop, Position, SubBlockState } from './types'
 import { detectCycle } from './utils'
+import { mergeSubblockState } from './utils'
 
 const initialState = {
   blocks: {},
@@ -290,7 +291,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newName =
           match && match[2] ? `${match[1]}${parseInt(match[2]) + 1}` : `${block.name} 1`
 
-        const newSubBlocks = Object.entries(block.subBlocks).reduce(
+        // Get merged state to capture current subblock values
+        const mergedBlock = mergeSubblockState(get().blocks, id)[id]
+
+        // Create new subblocks with merged values
+        const newSubBlocks = Object.entries(mergedBlock.subBlocks).reduce(
           (acc, [subId, subBlock]) => ({
             ...acc,
             [subId]: {
@@ -314,6 +319,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+        }
+
+        // Update the subblock store with the duplicated values
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          const subBlockValues =
+            useSubBlockStore.getState().workflowValues[activeWorkflowId]?.[id] || {}
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [activeWorkflowId]: {
+                ...state.workflowValues[activeWorkflowId],
+                [newId]: JSON.parse(JSON.stringify(subBlockValues)),
+              },
+            },
+          }))
         }
 
         set(newState)
