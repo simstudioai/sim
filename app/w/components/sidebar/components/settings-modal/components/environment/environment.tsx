@@ -200,6 +200,7 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
         onChange={(e) => updateEnvVar(index, 'key', e.target.value)}
         onPaste={(e) => handlePaste(e, index)}
         placeholder="e.g. API_KEY"
+        autoComplete="off"
       />
       <Input
         data-input-type="value"
@@ -212,6 +213,7 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
         onPaste={(e) => handlePaste(e, index)}
         placeholder="Enter value"
         className="allow-scroll"
+        autoComplete="off"
       />
       <Button variant="ghost" size="icon" onClick={() => removeEnvVar(index)} className="h-10 w-10">
         ×
