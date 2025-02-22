@@ -35,6 +35,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse> = {
       layout: 'full',
       placeholder: 'Enter your Jina API key',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

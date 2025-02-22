@@ -42,6 +42,7 @@ export const GitHubBlock: BlockConfig<RepoInfoResponse> = {
       layout: 'full',
       placeholder: 'Enter GitHub Token',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

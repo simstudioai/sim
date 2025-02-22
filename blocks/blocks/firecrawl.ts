@@ -30,6 +30,7 @@ export const FirecrawlBlock: BlockConfig<ScrapeResponse> = {
       layout: 'full',
       placeholder: 'Enter your Firecrawl API key',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

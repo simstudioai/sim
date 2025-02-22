@@ -32,6 +32,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       layout: 'full',
       placeholder: 'Enter your Tavily API key',
       password: true,
+      sensitive: true,
     },
     // Search operation inputs
     {

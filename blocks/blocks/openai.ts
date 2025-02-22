@@ -35,6 +35,7 @@ export const OpenAIBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Enter your OpenAI API key',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

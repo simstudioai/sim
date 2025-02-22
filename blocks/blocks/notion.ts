@@ -42,6 +42,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       layout: 'full',
       placeholder: 'Enter your Notion API key',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

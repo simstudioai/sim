@@ -38,6 +38,7 @@ export const CrewAIVisionBlock: BlockConfig<VisionResponse> = {
       layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

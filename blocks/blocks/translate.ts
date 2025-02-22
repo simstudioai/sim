@@ -50,6 +50,7 @@ export const TranslateBlock: BlockConfig<ChatResponse> = {
       layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
+      sensitive: true,
       connectionDroppable: false,
     },
     {

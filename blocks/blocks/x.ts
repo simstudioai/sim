@@ -34,6 +34,7 @@ export const XBlock: BlockConfig<XResponse> = {
       layout: 'full',
       placeholder: 'Enter your X Bearer token',
       password: true,
+      sensitive: true,
     },
     // Write operation inputs
     {

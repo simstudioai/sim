@@ -31,6 +31,7 @@ export const SlackBlock: BlockConfig<SlackMessageResponse> = {
       layout: 'full',
       placeholder: 'Enter your Slack OAuth token',
       password: true,
+      sensitive: true,
       connectionDroppable: false,
     },
   ],

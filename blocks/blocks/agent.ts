@@ -66,6 +66,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
+      sensitive: true,
       connectionDroppable: false,
     },
     {

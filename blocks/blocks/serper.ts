@@ -52,6 +52,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
       layout: 'full',
       placeholder: 'Enter your Serper API key',
       password: true,
+      sensitive: true,
     },
   ],
   tools: {

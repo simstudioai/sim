@@ -24,6 +24,7 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
       layout: 'full',
       placeholder: 'Enter YouTube API Key',
       password: true,
+      sensitive: true,
     },
     {
       id: 'maxResults',

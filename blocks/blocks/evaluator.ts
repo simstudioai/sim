@@ -90,6 +90,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       layout: 'full',
       placeholder: 'Enter your API key',
       password: true,
+      sensitive: true,
       connectionDroppable: false,
     },
     {

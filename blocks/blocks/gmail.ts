@@ -30,6 +30,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       layout: 'full',
       placeholder: 'Enter Gmail OAuth token',
       password: true,
+      sensitive: true,
     },
     // Send Email Fields
     {

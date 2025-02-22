@@ -161,6 +161,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       layout: 'full',
       placeholder: 'Your Pinecone API key',
       password: true,
+      sensitive: true,
     },
   ],
 
