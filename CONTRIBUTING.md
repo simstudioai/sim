@@ -28,7 +28,7 @@ We strive to keep our workflow as simple as possible. To contribute:
 
 2. **Clone Your Fork**
    ```bash
-   git clone https://github.com/<your-username>/sim-studio.git
+   git clone https://github.com/<your-username>/sim.git
    ```
 3. **Create a Feature Branch**  
    Create a new branch with a descriptive name:
