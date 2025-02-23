@@ -21,7 +21,8 @@ interface WorkflowBlockProps {
 }
 
 // Combine both interfaces into a single component
-export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockProps>) {
+export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
+  console.log('Rendering WorkflowBlock', id)
   const { type, config, name } = data
 
   // State management
@@ -50,7 +51,6 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
 
   // Execution store
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
-  // const isExecuting = useExecutionStore((state) => state.isExecuting)
 
   // Update node internals when handles change
   useEffect(() => {
@@ -180,18 +180,18 @@ export function WorkflowBlock({ id, data, selected }: NodeProps<WorkflowBlockPro
   }
 
   return (
-    <div className="relative">
+    <div className="relative group">
       <Card
         ref={blockRef}
         className={cn(
-          'shadow-md select-none group relative cursor-default',
+          'shadow-md select-none relative cursor-default',
           'transition-ring transition-block-bg',
           isWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
           isActiveBlock && 'ring-2 animate-pulse-ring'
         )}
       >
-        {selected && <ActionBar blockId={id} blockType={type} />}
+        <ActionBar blockId={id} blockType={type} />
         <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
 
         {/* Input Handle - Don't show for starter blocks */}

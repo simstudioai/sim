@@ -22,7 +22,14 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
   const isStarterBlock = blockType === 'starter'
 
   return (
-    <div className="absolute top-0 -right-20 flex flex-col items-center gap-2 p-2 bg-background rounded-md shadow-sm border border-gray-200 dark:border-gray-800">
+    <div
+      className={cn(
+        'absolute top-0 -right-20',
+        'flex flex-col items-center gap-2 p-2',
+        'bg-background rounded-md shadow-sm border border-gray-200 dark:border-gray-800',
+        'opacity-0 group-hover:opacity-100 transition-opacity duration-200'
+      )}
+    >
       {/* <Tooltip>
         <TooltipTrigger asChild>
           <Button

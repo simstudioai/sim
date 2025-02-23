@@ -36,7 +36,6 @@ const edgeTypes: EdgeTypes = { custom: CustomEdge }
 
 function WorkflowContent() {
   // State
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -143,7 +142,6 @@ function WorkflowContent() {
         position,
         parentId: parentLoop ? `loop-${parentLoop[0]}` : undefined,
         dragHandle: '.workflow-drag-handle',
-        selected: block.id === selectedBlockId,
         data: {
           type: block.type,
           config: blockConfig,
@@ -153,7 +151,7 @@ function WorkflowContent() {
     })
 
     return nodeArray
-  }, [blocks, loops, selectedBlockId])
+  }, [blocks, loops])
 
   // Update nodes
   const onNodesChange = useCallback(
@@ -277,23 +275,14 @@ function WorkflowContent() {
     [project, blocks, addBlock, addEdge, findClosestOutput]
   )
 
-  // Node selection
-  const onNodeClick = useCallback((event: React.MouseEvent, node: any) => {
-    event.stopPropagation()
-    setSelectedBlockId(node.id)
-    setSelectedEdgeId(null)
-  }, [])
-
-  // Clear selection
+  // Update onPaneClick to only handle edge selection
   const onPaneClick = useCallback(() => {
-    setSelectedBlockId(null)
     setSelectedEdgeId(null)
   }, [])
 
   // Edge selection
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: any) => {
     setSelectedEdgeId(edge.id)
-    setSelectedBlockId(null)
   }, [])
 
   // Transform edges to include selection state
@@ -354,7 +343,10 @@ function WorkflowContent() {
           strokeDasharray: '5,5',
         }}
         connectionLineType={ConnectionLineType.SmoothStep}
-        onNodeClick={onNodeClick}
+        onNodeClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+        }}
         onPaneClick={onPaneClick}
         onEdgeClick={onEdgeClick}
         elementsSelectable={true}
