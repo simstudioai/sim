@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflow/store'
+import { useSubBlockStore } from '@/stores/workflow/subblock/store'
 
 interface Field {
   name: string
@@ -95,7 +96,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       // Then check for response format
       try {
-        const responseFormatValue = sourceBlock.subBlocks?.responseFormat?.value
+        const responseFormatValue = useSubBlockStore
+          .getState()
+          .getValue(activeSourceBlockId, 'responseFormat')
         if (typeof responseFormatValue === 'string' && responseFormatValue) {
           const responseFormat = JSON.parse(responseFormatValue)
           if (responseFormat?.fields) {
@@ -128,7 +131,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       // Check for response format first
       try {
-        const responseFormatValue = sourceBlock.subBlocks?.responseFormat?.value
+        const responseFormatValue = useSubBlockStore
+          .getState()
+          .getValue(edge.source, 'responseFormat')
         if (typeof responseFormatValue === 'string' && responseFormatValue) {
           const responseFormat = JSON.parse(responseFormatValue)
           if (responseFormat?.fields) {

@@ -1,5 +1,6 @@
 import { shallow } from 'zustand/shallow'
 import { useWorkflowStore } from '@/stores/workflow/store'
+import { useSubBlockStore } from '@/stores/workflow/subblock/store'
 
 interface Field {
   name: string
@@ -30,7 +31,12 @@ export function useBlockConnections(blockId: string) {
     .filter((edge) => edge.target === blockId)
     .map((edge) => {
       const sourceBlock = blocks[edge.source]
-      const responseFormatValue = sourceBlock.subBlocks?.responseFormat?.value
+
+      // Get the response format from the subblock store instead
+      const responseFormatValue = useSubBlockStore
+        .getState()
+        .getValue(edge.source, 'responseFormat')
+
       let responseFormat
 
       try {
