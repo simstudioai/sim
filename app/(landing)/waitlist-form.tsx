@@ -61,7 +61,7 @@ export default function WaitlistForm() {
         <Input
           type="email"
           placeholder="you@example.com"
-          className="flex-1 text-sm md:text-md bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-[50px]"
+          className="flex-1 text-sm md:text-md bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-[49px]"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={isSubmitting}
