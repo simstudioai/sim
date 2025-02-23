@@ -130,7 +130,7 @@ async function syncWorkflowsToServer(payloads: WorkflowSyncPayload[]): Promise<b
 }
 
 // Periodic sync execution
-async function performSync(): Promise<void> {
+export async function performSync(): Promise<void> {
   const { workflows } = useWorkflowRegistry.getState()
 
   const syncPayloads = await Promise.all(
