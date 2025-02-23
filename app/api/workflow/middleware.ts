@@ -22,27 +22,27 @@ export async function validateWorkflowAccess(
       }
     }
 
-    // Check deployment status if required
-    if (requireDeployment && !workflow.isDeployed) {
-      return {
-        error: {
-          message: 'Workflow is not deployed',
-          status: 403,
-        },
+    if (requireDeployment) {
+      if (!workflow.isDeployed) {
+        return {
+          error: {
+            message: 'Workflow is not deployed',
+            status: 403,
+          },
+        }
+      }
+
+      // API key authentication
+      const apiKey = request.headers.get('x-api-key')
+      if (!apiKey || !workflow.apiKey || apiKey !== workflow.apiKey) {
+        return {
+          error: {
+            message: 'Unauthorized',
+            status: 401,
+          },
+        }
       }
     }
-
-    // API key authentication
-    const apiKey = request.headers.get('x-api-key')
-    if (!apiKey || !workflow.apiKey || apiKey !== workflow.apiKey) {
-      return {
-        error: {
-          message: 'Unauthorized',
-          status: 401,
-        },
-      }
-    }
-
     return { workflow }
   } catch (error) {
     console.error('Validation error:', error)

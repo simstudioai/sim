@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { AlertCircle, Terminal } from 'lucide-react'
+import { AlertCircle, Copy, Key, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 
@@ -11,6 +12,7 @@ const FADE_DURATION = 300
 const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
+  api: Key,
 }
 
 const NotificationColors = {
@@ -18,18 +20,19 @@ const NotificationColors = {
     'border-red-500 bg-red-50 text-destructive dark:border-border dark:text-foreground dark:bg-background',
   console:
     'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
+  api: 'border-green-500 bg-green-50 text-green-700 dark:border-border dark:text-green-500 dark:bg-background',
 }
 
 export function NotificationList() {
   const { notifications, hideNotification } = useNotificationStore()
   const [fadingNotifications, setFadingNotifications] = useState<Set<string>>(new Set())
+  const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
 
-  // Only show visible notifications in the display
   const visibleNotifications = notifications.filter((n) => n.isVisible)
 
   useEffect(() => {
     notifications.forEach((notification) => {
-      if (!notification.isVisible) return
+      if (!notification.isVisible || notification.options?.isPersistent) return
 
       // Start fade out
       const fadeTimer = setTimeout(() => {
@@ -52,6 +55,14 @@ export function NotificationList() {
       }
     })
   }, [notifications, hideNotification])
+
+  const handleCopy = async (id: string, sectionIndex: number, content: string) => {
+    await navigator.clipboard.writeText(content)
+    setCopiedMap((prev) => ({ ...prev, [`${id}-${sectionIndex}`]: true }))
+    setTimeout(() => {
+      setCopiedMap((prev) => ({ ...prev, [`${id}-${sectionIndex}`]: false }))
+    }, 2000)
+  }
 
   if (visibleNotifications.length === 0) return null
 
@@ -76,16 +87,55 @@ export function NotificationList() {
               NotificationColors[notification.type]
             )}
           >
-            <Icon
-              className={cn('h-4 w-4', {
-                '!text-red-500': notification.type === 'error',
-                'text-foreground': notification.type === 'console',
-              })}
-            />
-            <AlertTitle className="ml-2">
-              {notification.type === 'error' ? 'Error' : 'Console'}
-            </AlertTitle>
-            <AlertDescription className="ml-2">{notification.message}</AlertDescription>
+            <div className="flex items-start gap-2 w-full">
+              <Icon
+                className={cn('h-4 w-4 mt-1', {
+                  '!text-red-500': notification.type === 'error',
+                  'text-foreground': notification.type === 'console',
+                  '!text-green-500': notification.type === 'api',
+                })}
+              />
+              <div className="flex-1">
+                <AlertTitle className="flex items-center justify-between">
+                  <span>
+                    {notification.type === 'error'
+                      ? 'Error'
+                      : notification.type === 'api'
+                        ? 'API'
+                        : 'Console'}
+                  </span>
+                  {notification.options?.isPersistent && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 hover:bg-transparent hover:text-destructive -mt-1"
+                      onClick={() => hideNotification(notification.id)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </AlertTitle>
+                <AlertDescription>
+                  <p className="mb-4">{notification.message}</p>
+                  {notification.options?.sections?.map((section, index) => (
+                    <div key={index} className="mt-4">
+                      <div className="text-xs font-medium mb-2">{section.label}</div>
+                      <div
+                        className="relative group cursor-pointer"
+                        onClick={() => handleCopy(notification.id, index, section.content)}
+                      >
+                        <pre className="bg-muted rounded-md p-2 pr-20 text-xs font-mono whitespace-pre-wrap transition-colors hover:bg-muted/80">
+                          {section.content}
+                        </pre>
+                        <div className="absolute top-2 right-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                          {copiedMap[`${notification.id}-${index}`] ? 'Copied!' : 'Click to copy'}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </AlertDescription>
+              </div>
+            </div>
           </Alert>
         )
       })}

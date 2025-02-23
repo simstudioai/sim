@@ -135,18 +135,29 @@ export function ControlBar() {
       if (!response.ok) throw new Error('Failed to deploy workflow')
 
       const { apiKey } = await response.json()
+      const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflow/${activeWorkflowId}/execute`
 
-      addNotification(
-        'console',
-        `Your workflow is now accessible at: /api/workflow/${activeWorkflowId}/execute\n` +
-          `API Key (save this, it won't be shown again): ${apiKey}\n` +
-          `Use the API key in the X-API-Key header when calling the endpoint.`,
-        null
-      )
+      addNotification('api', 'Workflow successfully deployed', activeWorkflowId, {
+        isPersistent: true,
+        sections: [
+          {
+            label: 'API Endpoint',
+            content: endpoint,
+          },
+          {
+            label: 'API Key',
+            content: apiKey,
+          },
+          {
+            label: 'Example curl command',
+            content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+          },
+        ],
+      })
 
       setIsDeployed(true)
     } catch (error) {
-      addNotification('error', 'Failed to deploy workflow. Please try again.', null)
+      addNotification('error', 'Failed to deploy workflow. Please try again.', activeWorkflowId)
     } finally {
       setIsDeploying(false)
     }
@@ -317,7 +328,14 @@ export function ControlBar() {
               {[...workflowNotifications]
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .map((notification) => (
-                  <NotificationDropdownItem key={notification.id} {...notification} />
+                  <NotificationDropdownItem
+                    key={notification.id}
+                    id={notification.id}
+                    type={notification.type}
+                    message={notification.message}
+                    timestamp={notification.timestamp}
+                    options={notification.options}
+                  />
                 ))}
             </DropdownMenuContent>
           )}

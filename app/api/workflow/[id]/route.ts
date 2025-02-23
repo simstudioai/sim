@@ -9,8 +9,10 @@ export const dynamic = 'force-dynamic'
 async function executeWorkflow(workflow: any, input?: any) {
   try {
     const executor = new Executor(workflow.state as SerializedWorkflow, input)
-    return await executor.execute(workflow.id)
+    const result = await executor.execute(workflow.id)
+    return result
   } catch (error: any) {
+    console.error('Workflow execution failed:', { workflowId: workflow.id, error })
     throw new Error(`Execution failed: ${error.message}`)
   }
 }
@@ -18,6 +20,7 @@ async function executeWorkflow(workflow: any, input?: any) {
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
     const validation = await validateWorkflowAccess(request, id)
 
     if (validation.error) {

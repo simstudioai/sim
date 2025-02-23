@@ -13,7 +13,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
 
   try {
-    const validation = await validateWorkflowAccess(request, id)
+    const validation = await validateWorkflowAccess(request, id, false)
+
     if (validation.error) {
       return createErrorResponse(validation.error.message, validation.error.status)
     }
