@@ -290,6 +290,7 @@ export async function GET(req: NextRequest) {
               log.error || `Completed successfully`
             }`,
             duration: log.success ? `${log.durationMs}ms` : 'NA',
+            trigger: 'schedule',
             createdAt: new Date(log.endedAt || log.startedAt),
           })
         }
@@ -309,6 +310,7 @@ export async function GET(req: NextRequest) {
             ? 'Scheduled workflow executed successfully'
             : `Scheduled workflow execution failed: ${result.error}`,
           duration: result.success ? `${totalDuration}ms` : 'NA',
+          trigger: 'schedule',
           createdAt: new Date(),
         })
 
@@ -353,6 +355,7 @@ export async function GET(req: NextRequest) {
           level: 'error',
           message: error.message || 'Unknown error during scheduled workflow execution',
           createdAt: new Date(),
+          trigger: 'schedule',
         })
 
         // On error, increment next_run_at by a small delay to prevent immediate retries

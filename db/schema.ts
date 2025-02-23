@@ -83,6 +83,7 @@ export const workflowLogs = pgTable('workflow_logs', {
   level: text('level').notNull(), // e.g. "info", "error", etc.
   message: text('message').notNull(),
   duration: text('duration'), // Store as text to allow 'NA' for errors
+  trigger: text('trigger'), // e.g. "api", "schedule", "manual"
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

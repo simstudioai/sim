@@ -1,6 +1,4 @@
 import { NextRequest } from 'next/server'
-import { auth } from '@/lib/auth'
-import { validateApiKey } from '@/lib/utils'
 import { getWorkflowById } from '@/lib/workflows'
 
 export interface ValidationResult {
@@ -34,22 +32,9 @@ export async function validateWorkflowAccess(
       }
     }
 
-    // Try API key authentication first
+    // API key authentication
     const apiKey = request.headers.get('x-api-key')
-    if (apiKey && workflow.apiKey) {
-      const isValidApiKey = await validateApiKey(apiKey, workflow.apiKey)
-      if (isValidApiKey) {
-        return { workflow }
-      }
-    }
-
-    // Fall back to session auth
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    })
-
-    const isOwner = session?.user?.id === workflow.userId
-    if (!isOwner) {
+    if (!apiKey || !workflow.apiKey || apiKey !== workflow.apiKey) {
       return {
         error: {
           message: 'Unauthorized',
