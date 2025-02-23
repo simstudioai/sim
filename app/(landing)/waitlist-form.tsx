@@ -61,14 +61,14 @@ export default function WaitlistForm() {
         <Input
           type="email"
           placeholder="you@example.com"
-          className="flex-1 text-base bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-12"
+          className="flex-1 text-sm md:text-md bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-[50px]"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={isSubmitting}
         />
         <Button
           type="submit"
-          className={`rounded-md px-8 h-12 ${
+          className={`rounded-md px-8 h-[48px] ${
             status === 'success'
               ? 'bg-green-500 hover:bg-green-600'
               : status === 'error'

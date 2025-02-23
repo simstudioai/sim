@@ -1,3 +1,5 @@
+'use client'
+
 import Image from 'next/image'
 import HeroWorkflowProvider from './hero-workflow'
 import WaitlistForm from './waitlist-form'
@@ -23,31 +25,34 @@ export default function Landing() {
 
       <section className="min-h-[100dvh] pt-[134px] md:pt-36 text-white relative">
         <div className="absolute inset-0 z-0">
-          <Image
-            src="/hero.png"
-            alt="Hero background"
-            fill
-            priority
-            loading="eager"
-            fetchPriority="high"
-            className="object-cover"
-            quality={100}
-          />
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            className="h-full w-full object-cover"
+            poster="/hero.png"
+          >
+            <source src="/hero.webm" type="video/webm" media="all" />
+          </video>
         </div>
         <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#020817]/80 to-[#020817]/40" />
         <div className="max-w-6xl mx-auto text-center space-y-6 relative z-10 px-4">
-          <h1 className="text-5xl md:text-7xl font-medium">
+          <h1 className="text-5xl md:text-7xl font-medium animate-fade-up [animation-delay:200ms] opacity-0 translate-y-[-10px]">
             build / deploy
             <br />
             agent workflows
           </h1>
 
-          <p className="text-[14.5px] md:text-xl text-muted-foreground max-w-3xl mx-auto">
+          <p className="text-[15px] md:text-xl text-muted-foreground max-w-3xl mx-auto animate-fade-up [animation-delay:400ms] opacity-0 translate-y-[-10px]">
             Launch agentic workflows with an open source, <br />
             user-friendly environment for devs and agents
           </p>
 
-          <WaitlistForm />
+          <div className="animate-fade-up [animation-delay:600ms] opacity-0 translate-y-[-10px]">
+            <WaitlistForm />
+          </div>
 
           <div className="mt-16 -mx-4">
             <HeroWorkflowProvider />
