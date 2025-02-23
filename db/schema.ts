@@ -61,6 +61,9 @@ export const workflow = pgTable('workflow', {
   lastSynced: timestamp('last_synced').notNull(),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
+  isDeployed: boolean('is_deployed').notNull().default(false),
+  deployedAt: timestamp('deployed_at'),
+  apiKey: text('api_key'),
 })
 
 export const waitlist = pgTable('waitlist', {

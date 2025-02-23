@@ -1,6 +1,6 @@
 {
-  "id": "b90e880d-8074-44c6-808a-fc57568d7bd3",
-  "prevId": "1e6e54f4-6927-4625-983d-b4a1b1fad36d",
+  "id": "7e51973f-f82e-4094-86b3-34866e50f43e",
+  "prevId": "b90e880d-8074-44c6-808a-fc57568d7bd3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -503,6 +503,25 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": true
+        },
+        "is_deployed": {
+          "name": "is_deployed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "deployed_at": {
+          "name": "deployed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "api_key": {
+          "name": "api_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},

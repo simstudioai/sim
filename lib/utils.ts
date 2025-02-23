@@ -1,5 +1,5 @@
 import { type ClassValue, clsx } from 'clsx'
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { twMerge } from 'tailwind-merge'
 
 export function cn(...inputs: ClassValue[]) {
@@ -116,4 +116,18 @@ export function convertScheduleOptionsToCron(
     default:
       throw new Error('Unsupported schedule type')
   }
+}
+
+export async function generateApiKey(): Promise<string> {
+  const buffer = randomBytes(32)
+  const hash = createHash('sha256').update(buffer).digest('hex')
+  return `wf_${hash}`
+}
+
+export async function validateApiKey(
+  apiKey: string | null,
+  storedApiKey: string | null
+): Promise<boolean> {
+  if (!apiKey || !storedApiKey) return false
+  return apiKey === storedApiKey
 }

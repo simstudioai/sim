@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, History, MessageSquare, Play, Trash2 } from 'lucide-react'
+import { Bell, History, Play, Rocket, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +31,7 @@ import { HistoryDropdownItem } from './components/history-dropdown-item'
 import { NotificationDropdownItem } from './components/notification-dropdown-item'
 
 export function ControlBar() {
-  const { notifications, getWorkflowNotifications } = useNotificationStore()
+  const { notifications, getWorkflowNotifications, addNotification } = useNotificationStore()
   const { history, undo, redo, revertToHistoryState, lastSaved } = useWorkflowStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
@@ -100,6 +100,55 @@ export function ControlBar() {
       handleNameSubmit()
     } else if (e.key === 'Escape') {
       setIsEditing(false)
+    }
+  }
+
+  // Add the deployment state and handlers
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [isDeployed, setIsDeployed] = useState(false)
+
+  // Check deployment status on mount
+  useEffect(() => {
+    async function checkStatus() {
+      if (!activeWorkflowId) return
+      try {
+        const response = await fetch(`/api/workflow/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+          setIsDeployed(data.isDeployed)
+        }
+      } catch (error) {
+        console.error('Failed to check deployment status:', error)
+      }
+    }
+    checkStatus()
+  }, [activeWorkflowId])
+
+  const handleDeploy = async () => {
+    if (!activeWorkflowId) return
+    try {
+      setIsDeploying(true)
+      const response = await fetch(`/api/workflow/${activeWorkflowId}/deploy`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) throw new Error('Failed to deploy workflow')
+
+      const { apiKey } = await response.json()
+
+      addNotification(
+        'console',
+        `Your workflow is now accessible at: /api/workflow/${activeWorkflowId}/execute\n` +
+          `API Key (save this, it won't be shown again): ${apiKey}\n` +
+          `Use the API key in the X-API-Key header when calling the endpoint.`,
+        null
+      )
+
+      setIsDeployed(true)
+    } catch (error) {
+      addNotification('error', 'Failed to deploy workflow. Please try again.', null)
+    } finally {
+      setIsDeploying(false)
     }
   }
 
@@ -176,6 +225,28 @@ export function ControlBar() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDeploy}
+              disabled={isDeploying || isDeployed}
+              className={isDeployed ? 'text-green-500' : ''}
+            >
+              <Rocket className={`h-5 w-5 ${isDeploying ? 'animate-pulse' : ''}`} />
+              <span className="sr-only">Deploy API</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isDeploying
+              ? 'Deploying...'
+              : isDeployed
+                ? 'Deployed as API'
+                : 'Deploy as API Endpoint'}
+          </TooltipContent>
+        </Tooltip>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
