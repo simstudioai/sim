@@ -7,8 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "jest",
-    "test:watch": "jest --watch",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
@@ -56,9 +54,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@jest/globals": "^29.7.0",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
-    "@types/jest": "^29.5.14",
     "@types/node": "^20",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19",
@@ -66,13 +62,11 @@
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.4",
     "husky": "^9.1.7",
-    "jest": "^29.7.0",
     "lint-staged": "^15.4.3",
     "postcss": "^8",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.1",
-    "ts-jest": "^29.2.5",
     "typescript": "^5.7.3"
   },
   "lint-staged": {
