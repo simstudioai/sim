@@ -22,7 +22,6 @@ interface WorkflowBlockProps {
 
 // Combine both interfaces into a single component
 export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
-  console.log('Rendering WorkflowBlock', id)
   const { type, config, name } = data
 
   // State management
