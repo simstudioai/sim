@@ -22,6 +22,15 @@ export const StarterBlock: BlockConfig = {
       ],
       value: () => 'manual',
     },
+    // Manual input configuration
+    {
+      id: 'manualInput',
+      title: 'Input',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter input value (optional)',
+      condition: { field: 'startWorkflow', value: 'manual' },
+    },
     // Webhook configuration
     {
       id: 'webhookPath',
