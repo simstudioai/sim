@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
@@ -35,6 +36,8 @@ export function ControlBar() {
   const { history, undo, redo, revertToHistoryState, lastSaved } = useWorkflowStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
   const [, forceUpdate] = useState({})
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
@@ -243,29 +246,33 @@ export function ControlBar() {
               variant="ghost"
               size="icon"
               onClick={handleDeploy}
-              disabled={isDeploying || isDeployed}
-              className={isDeployed ? 'text-green-500' : ''}
+              disabled={isDeploying}
+              className={cn(
+                'hover:text-foreground',
+                isDeployed && 'text-green-500 hover:text-green-500'
+              )}
             >
               <Rocket className={`h-5 w-5 ${isDeploying ? 'animate-pulse' : ''}`} />
               <span className="sr-only">Deploy API</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {isDeploying
-              ? 'Deploying...'
-              : isDeployed
-                ? 'Deployed as API'
-                : 'Deploy as API Endpoint'}
+            {isDeploying ? 'Deploying...' : isDeployed ? 'Deployed' : 'Deploy as API Endpoint'}
           </TooltipContent>
         </Tooltip>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <History />
-              <span className="sr-only">Version History</span>
-            </Button>
-          </DropdownMenuTrigger>
+        <DropdownMenu open={historyOpen} onOpenChange={setHistoryOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <History />
+                  <span className="sr-only">Version History</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            {!historyOpen && <TooltipContent>History</TooltipContent>}
+          </Tooltip>
 
           {history.past.length === 0 && history.future.length === 0 ? (
             <DropdownMenuContent align="end" className="w-40">
@@ -309,13 +316,18 @@ export function ControlBar() {
           )}
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Bell />
-              <span className="sr-only">Notifications</span>
-            </Button>
-          </DropdownMenuTrigger>
+        <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Bell />
+                  <span className="sr-only">Notifications</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
+          </Tooltip>
 
           {workflowNotifications.length === 0 ? (
             <DropdownMenuContent align="end" className="w-40">
