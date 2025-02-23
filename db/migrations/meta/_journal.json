@@ -64,6 +64,27 @@
       "when": 1740004147676,
       "tag": "0008_quick_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1740336159745,
+      "tag": "0009_cynical_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1740340257207,
+      "tag": "0010_flashy_nebula",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1740340299261,
+      "tag": "0011_youthful_iron_lad",
+      "breakpoints": true
     }
   ]
 }

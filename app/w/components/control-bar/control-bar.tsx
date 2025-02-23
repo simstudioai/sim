@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, History, MessageSquare, Play, Trash2 } from 'lucide-react'
+import { Bell, History, Play, Rocket, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
@@ -31,10 +32,12 @@ import { HistoryDropdownItem } from './components/history-dropdown-item'
 import { NotificationDropdownItem } from './components/notification-dropdown-item'
 
 export function ControlBar() {
-  const { notifications, getWorkflowNotifications } = useNotificationStore()
+  const { notifications, getWorkflowNotifications, addNotification } = useNotificationStore()
   const { history, undo, redo, revertToHistoryState, lastSaved } = useWorkflowStore()
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
   const [, forceUpdate] = useState({})
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
@@ -100,6 +103,66 @@ export function ControlBar() {
       handleNameSubmit()
     } else if (e.key === 'Escape') {
       setIsEditing(false)
+    }
+  }
+
+  // Add the deployment state and handlers
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [isDeployed, setIsDeployed] = useState(false)
+
+  // Check deployment status on mount
+  useEffect(() => {
+    async function checkStatus() {
+      if (!activeWorkflowId) return
+      try {
+        const response = await fetch(`/api/workflow/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+          setIsDeployed(data.isDeployed)
+        }
+      } catch (error) {
+        console.error('Failed to check deployment status:', error)
+      }
+    }
+    checkStatus()
+  }, [activeWorkflowId])
+
+  const handleDeploy = async () => {
+    if (!activeWorkflowId) return
+    try {
+      setIsDeploying(true)
+      const response = await fetch(`/api/workflow/${activeWorkflowId}/deploy`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) throw new Error('Failed to deploy workflow')
+
+      const { apiKey } = await response.json()
+      const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflow/${activeWorkflowId}/execute`
+
+      addNotification('api', 'Workflow successfully deployed', activeWorkflowId, {
+        isPersistent: true,
+        sections: [
+          {
+            label: 'API Endpoint',
+            content: endpoint,
+          },
+          {
+            label: 'API Key',
+            content: apiKey,
+          },
+          {
+            label: 'Example curl command',
+            content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+          },
+        ],
+      })
+
+      setIsDeployed(true)
+    } catch (error) {
+      addNotification('error', 'Failed to deploy workflow. Please try again.', activeWorkflowId)
+    } finally {
+      setIsDeploying(false)
     }
   }
 
@@ -177,13 +240,39 @@ export function ControlBar() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <History />
-              <span className="sr-only">Version History</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDeploy}
+              disabled={isDeploying}
+              className={cn(
+                'hover:text-foreground',
+                isDeployed && 'text-green-500 hover:text-green-500'
+              )}
+            >
+              <Rocket className={`h-5 w-5 ${isDeploying ? 'animate-pulse' : ''}`} />
+              <span className="sr-only">Deploy API</span>
             </Button>
-          </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isDeploying ? 'Deploying...' : isDeployed ? 'Deployed' : 'Deploy as API Endpoint'}
+          </TooltipContent>
+        </Tooltip>
+
+        <DropdownMenu open={historyOpen} onOpenChange={setHistoryOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <History />
+                  <span className="sr-only">Version History</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            {!historyOpen && <TooltipContent>History</TooltipContent>}
+          </Tooltip>
 
           {history.past.length === 0 && history.future.length === 0 ? (
             <DropdownMenuContent align="end" className="w-40">
@@ -227,13 +316,18 @@ export function ControlBar() {
           )}
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Bell />
-              <span className="sr-only">Notifications</span>
-            </Button>
-          </DropdownMenuTrigger>
+        <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Bell />
+                  <span className="sr-only">Notifications</span>
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
+          </Tooltip>
 
           {workflowNotifications.length === 0 ? (
             <DropdownMenuContent align="end" className="w-40">
@@ -246,7 +340,14 @@ export function ControlBar() {
               {[...workflowNotifications]
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .map((notification) => (
-                  <NotificationDropdownItem key={notification.id} {...notification} />
+                  <NotificationDropdownItem
+                    key={notification.id}
+                    id={notification.id}
+                    type={notification.type}
+                    message={notification.message}
+                    timestamp={notification.timestamp}
+                    options={notification.options}
+                  />
                 ))}
             </DropdownMenuContent>
           )}

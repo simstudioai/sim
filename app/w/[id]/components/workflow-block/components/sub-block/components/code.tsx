@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -148,7 +149,7 @@ export function Code({
 
   // Render helpers
   const renderLineNumbers = () => {
-    const numbers: JSX.Element[] = []
+    const numbers: ReactElement[] = []
     let lineNumber = 1
 
     visualLineHeights.forEach((height) => {

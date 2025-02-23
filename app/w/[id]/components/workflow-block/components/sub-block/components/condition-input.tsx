@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -220,7 +221,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
   // Modify the line numbers rendering to be block-specific
   const renderLineNumbers = (blockId: string) => {
-    const numbers: JSX.Element[] = []
+    const numbers: ReactElement[] = []
     let lineNumber = 1
     const blockHeights = visualLineHeights[blockId] || []
 

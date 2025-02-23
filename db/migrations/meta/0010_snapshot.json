@@ -1,6 +1,6 @@
 {
-  "id": "7e51973f-f82e-4094-86b3-34866e50f43e",
-  "prevId": "b90e880d-8074-44c6-808a-fc57568d7bd3",
+  "id": "141235ed-23e4-420b-8e3c-d502c64a4c28",
+  "prevId": "7e51973f-f82e-4094-86b3-34866e50f43e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -581,6 +581,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         },
         "created_at": {
           "name": "created_at",
