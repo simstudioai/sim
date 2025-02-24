@@ -43,7 +43,7 @@ export const chatTool: ToolConfig<ChatParams, ChatResponse> = {
     },
     model: {
       type: 'string',
-      default: 'claude-3-5-sonnet-20241022',
+      default: 'claude-3-7-sonnet-20250219',
       description: 'Model to use',
     },
     temperature: {
@@ -78,7 +78,7 @@ export const chatTool: ToolConfig<ChatParams, ChatResponse> = {
       }
 
       return {
-        model: params.model || 'claude-3-5-sonnet-20241022',
+        model: params.model || 'claude-3-7-sonnet-20250219',
         messages,
         system: params.systemPrompt,
         temperature: params.temperature || 0.7,

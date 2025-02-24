@@ -11,8 +11,8 @@ export const anthropicProvider: ProviderConfig = {
   name: 'Anthropic',
   description: "Anthropic's Claude models",
   version: '1.0.0',
-  models: ['claude-3-5-sonnet-20241022'],
-  defaultModel: 'claude-3-5-sonnet-20241022',
+  models: ['claude-3-7-sonnet-20250219'],
+  defaultModel: 'claude-3-7-sonnet-20250219',
 
   baseUrl: 'https://api.anthropic.com/v1/messages',
   headers: (apiKey: string) => ({
@@ -130,7 +130,7 @@ export const anthropicProvider: ProviderConfig = {
 
     // Build the request payload
     const payload = {
-      model: request.model || 'claude-3-5-sonnet-20241022',
+      model: request.model || 'claude-3-7-sonnet-20250219',
       messages,
       system: request.systemPrompt || '',
       max_tokens: parseInt(String(request.maxTokens)) || 1024,
@@ -195,7 +195,7 @@ ${request.responseFormat.fields.map((field) => `${field.name} (${field.type})${f
 
       return {
         content,
-        model: rawResponse?.model || response?.model || 'claude-3-5-sonnet-20241022',
+        model: rawResponse?.model || response?.model || 'claude-3-7-sonnet-20250219',
         tokens: rawResponse?.usage && {
           prompt: rawResponse.usage.input_tokens,
           completion: rawResponse.usage.output_tokens,
