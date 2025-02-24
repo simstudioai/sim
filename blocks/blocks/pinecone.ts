@@ -20,7 +20,8 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       options: [
         { label: 'Generate Embeddings', id: 'generate' },
         { label: 'Upsert Text', id: 'upsert_text' },
-        { label: 'Search Text', id: 'search_text' },
+        { label: 'Search With Text', id: 'search_text' },
+        { label: 'Search With Vector', id: 'search_vector' },
         { label: 'Fetch Vectors', id: 'fetch' },
       ],
     },
@@ -153,6 +154,50 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       placeholder: '["vec1", "vec2"]',
       condition: { field: 'operation', value: 'fetch' },
     },
+    // Add vector search fields
+    {
+      id: 'indexHost',
+      title: 'Index Host',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'https://index-name-abc123.svc.project-id.pinecone.io',
+      condition: { field: 'operation', value: 'search_vector' },
+    },
+    {
+      id: 'namespace',
+      title: 'Namespace',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'default',
+      condition: { field: 'operation', value: 'search_vector' },
+    },
+    {
+      id: 'vector',
+      title: 'Query Vector',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: '[0.1, 0.2, 0.3, ...]',
+      condition: { field: 'operation', value: 'search_vector' },
+    },
+    {
+      id: 'topK',
+      title: 'Top K Results',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '10',
+      condition: { field: 'operation', value: 'search_vector' },
+    },
+    {
+      id: 'options',
+      title: 'Options',
+      type: 'checkbox-list',
+      layout: 'full',
+      options: [
+        { id: 'includeValues', label: 'Include Values' },
+        { id: 'includeMetadata', label: 'Include Metadata' },
+      ],
+      condition: { field: 'operation', value: 'search_vector' },
+    },
     // Common fields
     {
       id: 'apiKey',
@@ -169,6 +214,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       'pinecone_generate_embeddings',
       'pinecone_upsert_text',
       'pinecone_search_text',
+      'pinecone_search_vector',
       'pinecone_fetch',
     ],
     config: {
@@ -182,6 +228,8 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
             return 'pinecone_search_text'
           case 'fetch':
             return 'pinecone_fetch'
+          case 'search_vector':
+            return 'pinecone_search_vector'
           default:
             throw new Error('Invalid operation selected')
         }
@@ -192,8 +240,6 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    environment: { type: 'string', required: false },
-    indexName: { type: 'string', required: false },
     indexHost: { type: 'string', required: false },
     namespace: { type: 'string', required: false },
     // Generate embeddings inputs
@@ -210,6 +256,9 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
     rerank: { type: 'json', required: false },
     // Fetch inputs
     ids: { type: 'json', required: false },
+    vector: { type: 'json', required: false },
+    includeValues: { type: 'boolean', required: false },
+    includeMetadata: { type: 'boolean', required: false },
   },
 
   outputs: {

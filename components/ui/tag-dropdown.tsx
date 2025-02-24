@@ -81,7 +81,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       // First check for evaluator metrics
       if (sourceBlock.type === 'evaluator') {
         try {
-          const metricsValue = sourceBlock.subBlocks?.metrics?.value as unknown as Metric[]
+          const metricsValue = useSubBlockStore
+            .getState()
+            .getValue(activeSourceBlockId, 'metrics') as unknown as Metric[]
           if (Array.isArray(metricsValue)) {
             return {
               tags: metricsValue.map(
@@ -148,7 +150,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       if (sourceBlock.type === 'evaluator') {
         try {
-          const metricsValue = sourceBlock.subBlocks?.metrics?.value as unknown as Metric[]
+          const metricsValue = useSubBlockStore
+            .getState()
+            .getValue(edge.source, 'metrics') as unknown as Metric[]
           if (Array.isArray(metricsValue)) {
             return metricsValue.map(
               (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`

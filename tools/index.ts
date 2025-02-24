@@ -21,6 +21,7 @@ import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { fetchTool as pineconeFetchTool } from './pinecone/fetch'
 import { generateEmbeddingsTool as pineconeGenerateEmbeddingsTool } from './pinecone/generate'
 import { searchTextTool as pineconeSearchTextTool } from './pinecone/searchText'
+import { searchVectorTool as pineconeSearchVectorTool } from './pinecone/searchVector'
 import { upsertTextTool as pineconeUpsertTextTool } from './pinecone/upsertText'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
@@ -69,6 +70,7 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_fetch: pineconeFetchTool,
   pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
   pinecone_search_text: pineconeSearchTextTool,
+  pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
   github_pr: prTool,
   github_comment: commentTool,

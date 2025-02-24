@@ -150,3 +150,12 @@ export interface PineconeParams {
     metadata?: Record<string, any>
   }>
 }
+
+// Search Vector
+export interface PineconeSearchVectorParams extends PineconeBaseParams {
+  vector: number[] | string
+  topK?: number | string
+  filter?: Record<string, any> | string
+  includeValues?: boolean
+  includeMetadata?: boolean
+}
