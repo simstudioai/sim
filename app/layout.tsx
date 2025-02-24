@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
+
+// Initialize the Inter font
+const inter = Inter({ subsets: ['latin'] })
 
 // Add browser extension attributes that we want to ignore
 const BROWSER_EXTENSION_ATTRIBUTES = [
@@ -63,7 +67,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.className}>
       <head>
         <meta
           name="viewport"
