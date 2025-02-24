@@ -913,8 +913,7 @@ export class Executor {
     return {
       response: {
         ...((sourceOutput as any)?.response || {}),
-        content: `Condition '${selectedCondition.title}' chosen`,
-        result: conditionMet,
+        conditionResult: conditionMet,
         selectedPath: {
           blockId: targetBlock.id,
           blockType: targetBlock.metadata?.id || '',
