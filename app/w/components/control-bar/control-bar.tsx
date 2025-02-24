@@ -128,6 +128,7 @@ export function ControlBar() {
     checkStatus()
   }, [activeWorkflowId])
 
+  // Deploy the workflow
   const handleDeploy = async () => {
     if (!activeWorkflowId) return
     try {

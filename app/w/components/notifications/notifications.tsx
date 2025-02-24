@@ -87,16 +87,16 @@ export function NotificationList() {
               NotificationColors[notification.type]
             )}
           >
-            <div className="flex items-start gap-2 w-full">
+            <div className="flex items-start gap-4 py-1">
               <Icon
-                className={cn('h-4 w-4 mt-1', {
+                className={cn('h-4 w-4', {
                   '!text-red-500': notification.type === 'error',
                   'text-foreground': notification.type === 'console',
                   '!text-green-500': notification.type === 'api',
                 })}
               />
-              <div className="flex-1">
-                <AlertTitle className="flex items-center justify-between">
+              <div className="flex-1 space-y-2">
+                <AlertTitle className="flex items-center justify-between -mt-0.5">
                   <span>
                     {notification.type === 'error'
                       ? 'Error'
@@ -108,26 +108,28 @@ export function NotificationList() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-4 w-4 hover:bg-transparent hover:text-destructive -mt-1"
+                      className="h-6 w-6 hover:bg-transparent hover:text-destructive"
                       onClick={() => hideNotification(notification.id)}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-4 w-4" />
                     </Button>
                   )}
                 </AlertTitle>
-                <AlertDescription>
-                  <p className="mb-4">{notification.message}</p>
+                <AlertDescription className="space-y-4">
+                  <p>{notification.message}</p>
                   {notification.options?.sections?.map((section, index) => (
-                    <div key={index} className="mt-4">
-                      <div className="text-xs font-medium mb-2">{section.label}</div>
+                    <div key={index} className="space-y-1.5">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {section.label}
+                      </div>
                       <div
                         className="relative group cursor-pointer"
                         onClick={() => handleCopy(notification.id, index, section.content)}
                       >
-                        <pre className="bg-muted rounded-md p-2 pr-20 text-xs font-mono whitespace-pre-wrap transition-colors hover:bg-muted/80">
+                        <pre className="bg-muted rounded-md p-3 text-xs font-mono whitespace-pre-wrap transition-colors hover:bg-muted/80">
                           {section.content}
                         </pre>
-                        <div className="absolute top-2 right-2 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-3 right-3 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
                           {copiedMap[`${notification.id}-${index}`] ? 'Copied!' : 'Click to copy'}
                         </div>
                       </div>
