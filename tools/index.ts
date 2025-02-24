@@ -4,6 +4,8 @@ import { chatTool as deepseekChat } from './deepseek/chat'
 import { reasonerTool as deepseekReasoner } from './deepseek/reasoner'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
+import { commentTool } from './github/comment'
+import { prTool } from './github/pr'
 import { repoInfoTool } from './github/repo'
 import { gmailReadTool } from './gmail/read'
 import { gmailSearchTool } from './gmail/search'
@@ -68,6 +70,8 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
+  github_pr: prTool,
+  github_comment: commentTool,
 }
 
 // Get a tool by its ID
