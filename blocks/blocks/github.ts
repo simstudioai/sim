@@ -55,6 +55,14 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       condition: { field: 'operation', value: 'github_comment' },
     },
     {
+      id: 'pullNumber',
+      title: 'Pull Request Number',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'e.g., 123',
+      condition: { field: 'operation', value: 'github_comment' },
+    },
+    {
       id: 'apiKey',
       title: 'GitHub Token',
       type: 'short-input',
