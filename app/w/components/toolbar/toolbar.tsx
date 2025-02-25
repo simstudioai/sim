@@ -52,7 +52,7 @@ export function Toolbar() {
           <div className="relative">
             <Search className="absolute left-3 top-[50%] h-4 w-4 -translate-y-[50%] text-muted-foreground" />
             <Input
-              placeholder="Search blocks..."
+              placeholder="Search..."
               className="pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
