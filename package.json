@@ -11,7 +11,10 @@
     "format:check": "prettier --check .",
     "prepare": "husky",
     "db:push": "drizzle-kit push:pg",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.5",
@@ -54,7 +57,11 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20",
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19",
@@ -62,11 +69,14 @@
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.4",
     "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
     "lint-staged": "^15.4.3",
     "postcss": "^8",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.1",
+    "ts-jest": "^29.2.6",
     "typescript": "^5.7.3"
   },
   "lint-staged": {

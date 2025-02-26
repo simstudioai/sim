@@ -62,6 +62,8 @@ export class Executor {
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
 
+    this.validateWorkflow()
+
     const context = this.createExecutionContext(workflowId, startTime)
 
     try {
