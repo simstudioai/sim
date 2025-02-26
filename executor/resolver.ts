@@ -127,37 +127,27 @@ export class InputResolver {
       const isInActivePath = context.activeExecutionPath.has(sourceBlock.id)
 
       if (!isInActivePath) {
-        if (pathParts.length > 0) {
-          const lastPart = pathParts[pathParts.length - 1]
-          if (lastPart.includes('content')) {
-            resolvedValue = resolvedValue.replace(match, '""')
-          } else if (lastPart.includes('data') || lastPart.includes('response')) {
-            resolvedValue = resolvedValue.replace(match, '{}')
-          } else if (lastPart.includes('list') || lastPart.includes('array')) {
-            resolvedValue = resolvedValue.replace(match, '[]')
-          } else {
-            resolvedValue = resolvedValue.replace(match, '""')
-          }
-          continue
-        } else {
-          resolvedValue = resolvedValue.replace(match, '{}')
-          continue
-        }
+        resolvedValue = resolvedValue.replace(match, '')
+        continue
       }
 
       const blockState = context.blockStates.get(sourceBlock.id)
 
       if (!blockState) {
+        // If the block is in a loop, return empty string
         const isInLoop = Object.values(this.workflow.loops || {}).some((loop) =>
           loop.nodes.includes(sourceBlock.id)
         )
 
         if (isInLoop) {
-          if (pathParts.length > 0) {
-            resolvedValue = resolvedValue.replace(match, '""')
-          } else {
-            resolvedValue = resolvedValue.replace(match, '{}')
-          }
+          resolvedValue = resolvedValue.replace(match, '')
+          continue
+        }
+
+        // If the block hasn't been executed and isn't in the active path,
+        // it means it's in an inactive branch - return empty string
+        if (!context.activeExecutionPath.has(sourceBlock.id)) {
+          resolvedValue = resolvedValue.replace(match, '')
           continue
         }
 

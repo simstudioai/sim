@@ -246,6 +246,7 @@ export class Executor {
         continue
       }
 
+      // Only consider blocks in the active execution path
       if (!context.activeExecutionPath.has(block.id)) {
         continue
       }
@@ -270,36 +271,44 @@ export class Executor {
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
 
+          // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
             const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
             if (sourceBlock?.metadata?.id === 'condition') {
               const conditionId = conn.sourceHandle.replace('condition-', '')
               const selectedCondition = context.decisions.condition.get(conn.source)
 
+              // If source is executed and this is not the selected path, consider it met
               if (sourceExecuted && selectedCondition && conditionId !== selectedCondition) {
                 return true
               }
 
+              // Otherwise, this dependency is met only if source is executed and this is the selected path
               return sourceExecuted && conditionId === selectedCondition
             }
           }
 
+          // For router blocks, check if this is the selected target
           const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
           if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(conn.source)
 
+            // If source is executed and this is not the selected target, consider it met
             if (sourceExecuted && selectedTarget && conn.target !== selectedTarget) {
               return true
             }
 
+            // Otherwise, this dependency is met only if source is executed and this is the selected target
             return sourceExecuted && conn.target === selectedTarget
           }
 
-          const isSourceInActivePath = context.activeExecutionPath.has(conn.source)
-          if (!isSourceInActivePath) {
+          // If source is not in active path, consider this dependency met
+          // This allows blocks with multiple inputs to execute even if some inputs are from inactive paths
+          if (!context.activeExecutionPath.has(conn.source)) {
             return true
           }
 
+          // For regular blocks, dependency is met if source is executed
           return sourceExecuted
         })
 

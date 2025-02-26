@@ -60,7 +60,7 @@ export class PathTracker {
 
   /**
    * Updates execution paths based on newly executed blocks.
-   * Handles router and condition block decisions to activate or deactivate paths.
+   * Handles router and condition block decisions to activate paths without deactivating others.
    *
    * @param executedBlockIds - IDs of blocks that were just executed
    * @param context - Current execution context
@@ -68,28 +68,22 @@ export class PathTracker {
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
     for (const blockId of executedBlockIds) {
       const block = this.workflow.blocks.find((b) => b.id === blockId)
+
       if (block?.metadata?.id === 'router') {
         const routerOutput = context.blockStates.get(blockId)?.output
         const selectedPath = routerOutput?.response?.selectedPath?.blockId
 
         if (selectedPath) {
+          // Record the decision but don't deactivate other paths
           context.decisions.router.set(blockId, selectedPath)
           context.activeExecutionPath.add(selectedPath)
-
-          const connectedBlocks = this.workflow.connections
-            .filter((conn) => conn.source === blockId && conn.target !== selectedPath)
-            .map((conn) => conn.target)
-
-          for (const connectedId of connectedBlocks) {
-            context.activeExecutionPath.delete(connectedId)
-            this.removeDownstreamBlocks(connectedId, context, new Set())
-          }
         }
       } else if (block?.metadata?.id === 'condition') {
         const conditionOutput = context.blockStates.get(blockId)?.output
         const selectedConditionId = conditionOutput?.response?.selectedConditionId
 
         if (selectedConditionId) {
+          // Record the decision but don't deactivate other paths
           context.decisions.condition.set(blockId, selectedConditionId)
 
           const targetConnection = this.workflow.connections.find(
@@ -99,21 +93,10 @@ export class PathTracker {
 
           if (targetConnection) {
             context.activeExecutionPath.add(targetConnection.target)
-
-            const otherConnections = this.workflow.connections.filter(
-              (conn) =>
-                conn.source === blockId &&
-                conn.sourceHandle?.startsWith('condition-') &&
-                conn.sourceHandle !== `condition-${selectedConditionId}`
-            )
-
-            for (const conn of otherConnections) {
-              context.activeExecutionPath.delete(conn.target)
-              this.removeDownstreamBlocks(conn.target, context, new Set())
-            }
           }
         }
       } else {
+        // For regular blocks, activate all outgoing connections
         const outgoingConnections = this.workflow.connections.filter(
           (conn) => conn.source === blockId
         )
@@ -121,51 +104,6 @@ export class PathTracker {
         for (const conn of outgoingConnections) {
           context.activeExecutionPath.add(conn.target)
         }
-      }
-    }
-  }
-
-  /**
-   * Recursively removes blocks that are only reachable through inactive paths.
-   * Prevents execution of blocks that should be skipped due to routing decisions.
-   *
-   * @param blockId - ID of the block to start removal from
-   * @param context - Current execution context
-   * @param visited - Set of already visited block IDs to prevent cycles
-   */
-  private removeDownstreamBlocks(
-    blockId: string,
-    context: ExecutionContext,
-    visited: Set<string>
-  ): void {
-    // Prevent infinite recursion by tracking visited blocks
-    if (visited.has(blockId)) {
-      return
-    }
-
-    // Mark this block as visited
-    visited.add(blockId)
-
-    const outgoingConnections = this.workflow.connections.filter((conn) => conn.source === blockId)
-
-    for (const conn of outgoingConnections) {
-      const targetId = conn.target
-
-      // Skip if we've already visited this target
-      if (visited.has(targetId)) {
-        continue
-      }
-
-      const hasOtherActivePaths = this.workflow.connections.some(
-        (otherConn) =>
-          otherConn.target === targetId &&
-          otherConn.source !== blockId &&
-          context.activeExecutionPath.has(otherConn.source)
-      )
-
-      if (!hasOtherActivePaths) {
-        context.activeExecutionPath.delete(targetId)
-        this.removeDownstreamBlocks(targetId, context, visited)
       }
     }
   }
