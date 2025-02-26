@@ -12,18 +12,22 @@ export class LoopManager {
 
   /**
    * Process all loops and check if any need to be iterated
+   * @returns true if any loop has reached its maximum iterations
    */
-  async processLoopIterations(context: ExecutionContext): Promise<void> {
+  async processLoopIterations(context: ExecutionContext): Promise<boolean> {
+    let hasLoopReachedMaxIterations = false
+
     // Nothing to do if no loops
-    if (Object.keys(this.loops).length === 0) return
+    if (Object.keys(this.loops).length === 0) return hasLoopReachedMaxIterations
 
     // Check each loop to see if it should iterate
     for (const [loopId, loop] of Object.entries(this.loops)) {
       // Get current iteration count
       const currentIteration = context.loopIterations.get(loopId) || 0
 
-      // If we've hit the max iterations, skip this loop
+      // If we've hit the max iterations, skip this loop and mark flag
       if (currentIteration >= loop.maxIterations) {
+        hasLoopReachedMaxIterations = true
         continue
       }
 
@@ -33,6 +37,11 @@ export class LoopManager {
       if (shouldIterate) {
         // Increment iteration counter
         context.loopIterations.set(loopId, currentIteration + 1)
+
+        // Check if we've now reached max iterations after incrementing
+        if (currentIteration + 1 >= loop.maxIterations) {
+          hasLoopReachedMaxIterations = true
+        }
 
         // Reset ALL blocks in the loop, not just blocks after the entry
         for (const nodeId of loop.nodes) {
@@ -54,6 +63,8 @@ export class LoopManager {
         }
       }
     }
+
+    return hasLoopReachedMaxIterations
   }
 
   /**

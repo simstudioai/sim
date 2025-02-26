@@ -117,6 +117,35 @@ export class InputResolver {
         )
       }
 
+      // NEW LOGIC: Check if the block is in an inactive path
+      const isInActivePath = context.activeExecutionPath.has(sourceBlock.id)
+
+      // If block is not in active path, return empty value based on path type
+      if (!isInActivePath) {
+        // Return appropriate empty value based on the path
+        if (pathParts.length > 0) {
+          const lastPart = pathParts[pathParts.length - 1]
+          // Try to infer the type from the path
+          if (lastPart.includes('content')) {
+            resolvedValue = resolvedValue.replace(match, '""')
+            continue
+          } else if (lastPart.includes('data') || lastPart.includes('response')) {
+            resolvedValue = resolvedValue.replace(match, '{}')
+            continue
+          } else if (lastPart.includes('list') || lastPart.includes('array')) {
+            resolvedValue = resolvedValue.replace(match, '[]')
+            continue
+          } else {
+            resolvedValue = resolvedValue.replace(match, '""')
+            continue
+          }
+        } else {
+          // Default to empty object for full block references
+          resolvedValue = resolvedValue.replace(match, '{}')
+          continue
+        }
+      }
+
       // Get the state of the referenced block
       const blockState = context.blockStates.get(sourceBlock.id)
 
@@ -130,7 +159,12 @@ export class InputResolver {
         if (isInLoop) {
           // For loop blocks that haven't been executed yet, return an empty value
           // This avoids breaking the execution when blocks reference future loop iterations
-          return pathParts.length > 0 ? '' : '{}'
+          if (pathParts.length > 0) {
+            resolvedValue = resolvedValue.replace(match, '""')
+          } else {
+            resolvedValue = resolvedValue.replace(match, '{}')
+          }
+          continue
         }
 
         // If not in a loop, it's an error

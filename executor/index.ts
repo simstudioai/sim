@@ -97,7 +97,12 @@ export class Executor {
           }
 
           // Process any loop iterations
-          await this.loopManager.processLoopIterations(context)
+          const hasLoopReachedMaxIterations = await this.loopManager.processLoopIterations(context)
+
+          // If any loop has reached its maximum iterations, add a log entry and terminate
+          if (hasLoopReachedMaxIterations) {
+            hasMoreLayers = false
+          }
         }
 
         iteration++
@@ -292,6 +297,13 @@ export class Executor {
             if (sourceBlock?.metadata?.id === 'condition') {
               const conditionId = conn.sourceHandle.replace('condition-', '')
               const selectedCondition = context.decisions.condition.get(conn.source)
+
+              // If the condition block has made a decision and this isn't the selected path,
+              // we don't need to wait for this dependency
+              if (sourceExecuted && selectedCondition && conditionId !== selectedCondition) {
+                return true // Skip this dependency check
+              }
+
               return sourceExecuted && conditionId === selectedCondition
             }
           }
@@ -300,7 +312,22 @@ export class Executor {
           const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
           if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(conn.source)
+
+            // If the router has made a decision and this isn't the selected target,
+            // we don't need to wait for this dependency
+            if (sourceExecuted && selectedTarget && conn.target !== selectedTarget) {
+              return true // Skip this dependency check
+            }
+
             return sourceExecuted && conn.target === selectedTarget
+          }
+
+          // Check if the source block is in an inactive path
+          const isSourceInActivePath = context.activeExecutionPath.has(conn.source)
+
+          // If source is not in active path, don't require it to be executed
+          if (!isSourceInActivePath) {
+            return true // Skip this dependency check
           }
 
           return sourceExecuted

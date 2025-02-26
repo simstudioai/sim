@@ -17,52 +17,39 @@ export class PathTracker {
       return true
     }
 
-    // If we have router decisions, check them
-    for (const [routerId, targetId] of context.decisions.router.entries()) {
-      // If this block is the target of a router decision, it's in the path
-      if (blockId === targetId) {
-        return true
-      }
-
-      // If this block is connected to a router but is not the selected target, it's not in the path
-      const isConnectedToRouter = this.workflow.connections.some(
-        (conn) => conn.source === routerId && conn.target === blockId
-      )
-
-      if (isConnectedToRouter && blockId !== targetId) {
-        return false
-      }
-    }
-
-    // If we have condition decisions, check them
-    for (const [conditionId, selectedConditionId] of context.decisions.condition.entries()) {
-      // Check if this block is connected to the condition block
-      const connection = this.workflow.connections.find(
-        (conn) =>
-          conn.source === conditionId &&
-          conn.target === blockId &&
-          conn.sourceHandle?.startsWith('condition-')
-      )
-
-      if (connection) {
-        const conditionSourceId = connection.sourceHandle?.replace('condition-', '')
-        // If this is not the selected condition path, block is not in the path
-        if (conditionSourceId !== selectedConditionId) {
-          return false
-        }
-        // If this is the selected condition path, block is in the path
-        return true
-      }
-    }
-
-    // If no specific routing decisions affect this block, check normal connectivity
-    // A block is in the path if it's connected to an executed block that's in the path
+    // Get all incoming connections to this block
     const incomingConnections = this.workflow.connections.filter((conn) => conn.target === blockId)
 
+    // A block is in the active path if at least one of its incoming connections
+    // is from an active and executed block
     return incomingConnections.some((conn) => {
-      const sourceExecuted = context.executedBlocks.has(conn.source)
-      const sourceInPath = this.isInActivePath(conn.source, context)
-      return sourceExecuted && sourceInPath
+      const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
+
+      // For router blocks, check if this is the selected target
+      if (sourceBlock?.metadata?.id === 'router') {
+        const selectedTarget = context.decisions.router.get(conn.source)
+        // This path is active if the router selected this target
+        if (context.executedBlocks.has(conn.source) && selectedTarget === blockId) {
+          return true
+        }
+        return false
+      }
+
+      // For condition blocks, check if this is the selected condition
+      if (sourceBlock?.metadata?.id === 'condition') {
+        if (conn.sourceHandle?.startsWith('condition-')) {
+          const conditionId = conn.sourceHandle.replace('condition-', '')
+          const selectedCondition = context.decisions.condition.get(conn.source)
+          // This path is active if the condition selected this path
+          if (context.executedBlocks.has(conn.source) && conditionId === selectedCondition) {
+            return true
+          }
+          return false
+        }
+      }
+
+      // For regular blocks, check if the source is in the active path and executed
+      return context.activeExecutionPath.has(conn.source) && context.executedBlocks.has(conn.source)
     })
   }
 
@@ -88,6 +75,9 @@ export class PathTracker {
 
           for (const connectedId of connectedBlocks) {
             context.activeExecutionPath.delete(connectedId)
+
+            // Also remove any blocks that are only reachable through this inactive path
+            this.removeDownstreamBlocks(connectedId, context)
           }
         }
       }
@@ -119,6 +109,9 @@ export class PathTracker {
 
             for (const conn of otherConnections) {
               context.activeExecutionPath.delete(conn.target)
+
+              // Also remove any blocks that are only reachable through this inactive path
+              this.removeDownstreamBlocks(conn.target, context)
             }
           }
         }
@@ -133,6 +126,30 @@ export class PathTracker {
         for (const conn of outgoingConnections) {
           context.activeExecutionPath.add(conn.target)
         }
+      }
+    }
+  }
+
+  // New helper method to recursively remove blocks that are only reachable through inactive paths
+  private removeDownstreamBlocks(blockId: string, context: ExecutionContext): void {
+    // Get all blocks that are only reachable through this block
+    const outgoingConnections = this.workflow.connections.filter((conn) => conn.source === blockId)
+
+    for (const conn of outgoingConnections) {
+      const targetId = conn.target
+
+      // Check if the target has any other incoming connections from active blocks
+      const hasOtherActivePaths = this.workflow.connections.some(
+        (otherConn) =>
+          otherConn.target === targetId &&
+          otherConn.source !== blockId &&
+          context.activeExecutionPath.has(otherConn.source)
+      )
+
+      // If no other active paths to this block, remove it and its downstream blocks
+      if (!hasOtherActivePaths) {
+        context.activeExecutionPath.delete(targetId)
+        this.removeDownstreamBlocks(targetId, context)
       }
     }
   }
