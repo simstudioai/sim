@@ -9,10 +9,26 @@ import { PathTracker } from './path'
 import { ExecutionContext } from './types'
 
 /**
- * Interface for block handlers that execute specific block types
+ * Interface for block handlers that execute specific block types.
+ * Each handler is responsible for executing a particular type of block.
  */
 export interface BlockHandler {
+  /**
+   * Determines if this handler can process the given block.
+   *
+   * @param block - Block to check
+   * @returns True if this handler can process the block
+   */
   canHandle(block: SerializedBlock): boolean
+
+  /**
+   * Executes the block with the given inputs and context.
+   *
+   * @param block - Block to execute
+   * @param inputs - Resolved input parameters
+   * @param context - Current execution context
+   * @returns Block execution output
+   */
   execute(
     block: SerializedBlock,
     inputs: Record<string, any>,
@@ -21,7 +37,7 @@ export interface BlockHandler {
 }
 
 /**
- * Handler for Agent blocks
+ * Handler for Agent blocks that process LLM requests with optional tools.
  */
 export class AgentBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
@@ -46,11 +62,10 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    // Get model and provider
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
 
-    // Format tools if provided
+    // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)
       ? inputs.tools
           .map((tool: any) => {
@@ -88,7 +103,6 @@ export class AgentBlockHandler implements BlockHandler {
           .filter((t): t is NonNullable<typeof t> => t !== null)
       : []
 
-    // Execute provider request
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt: inputs.systemPrompt,
@@ -102,7 +116,7 @@ export class AgentBlockHandler implements BlockHandler {
       responseFormat,
     })
 
-    // Format output based on response format
+    // Return structured or standard response based on responseFormat
     return responseFormat
       ? {
           ...JSON.parse(response.content),
@@ -137,9 +151,12 @@ export class AgentBlockHandler implements BlockHandler {
 }
 
 /**
- * Handler for Router blocks
+ * Handler for Router blocks that dynamically select execution paths.
  */
 export class RouterBlockHandler implements BlockHandler {
+  /**
+   * @param pathTracker - Utility for tracking execution paths
+   */
   constructor(private pathTracker: PathTracker) {}
 
   canHandle(block: SerializedBlock): boolean {
@@ -151,10 +168,8 @@ export class RouterBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Get potential targets for the router
     const targetBlocks = this.getTargetBlocks(block, context)
 
-    // Router configuration
     const routerConfig = {
       prompt: inputs.prompt,
       model: inputs.model || 'gpt-4o',
@@ -162,10 +177,8 @@ export class RouterBlockHandler implements BlockHandler {
       temperature: inputs.temperature || 0,
     }
 
-    // Get provider
     const providerId = getProviderFromModel(routerConfig.model)
 
-    // Generate and execute router prompt
     const response = await executeProviderRequest(providerId, {
       model: routerConfig.model,
       systemPrompt: generateRouterPrompt(routerConfig.prompt, targetBlocks),
@@ -174,7 +187,6 @@ export class RouterBlockHandler implements BlockHandler {
       apiKey: routerConfig.apiKey,
     })
 
-    // Process the response to get the chosen block ID
     const chosenBlockId = response.content.trim().toLowerCase()
     const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
 
@@ -182,10 +194,8 @@ export class RouterBlockHandler implements BlockHandler {
       throw new Error(`Invalid routing decision: ${chosenBlockId}`)
     }
 
-    // Format tokens information
     const tokens = response.tokens || { prompt: 0, completion: 0, total: 0 }
 
-    // Return formatted output
     return {
       response: {
         content: inputs.prompt,
@@ -204,8 +214,15 @@ export class RouterBlockHandler implements BlockHandler {
     }
   }
 
+  /**
+   * Gets all potential target blocks for this router.
+   *
+   * @param block - Router block
+   * @param context - Current execution context
+   * @returns Array of potential target blocks with metadata
+   * @throws Error if target block not found
+   */
   private getTargetBlocks(block: SerializedBlock, context: ExecutionContext) {
-    // Find blocks connected to this router
     return context.workflow?.connections
       .filter((conn) => conn.source === block.id)
       .map((conn) => {
@@ -226,9 +243,12 @@ export class RouterBlockHandler implements BlockHandler {
 }
 
 /**
- * Handler for Condition blocks
+ * Handler for Condition blocks that evaluate expressions to determine execution paths.
  */
 export class ConditionBlockHandler implements BlockHandler {
+  /**
+   * @param pathTracker - Utility for tracking execution paths
+   */
   constructor(private pathTracker: PathTracker) {}
 
   canHandle(block: SerializedBlock): boolean {
@@ -240,7 +260,6 @@ export class ConditionBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Parse conditions
     const conditions = Array.isArray(inputs.conditions)
       ? inputs.conditions
       : JSON.parse(inputs.conditions || '[]')
@@ -274,13 +293,13 @@ export class ConditionBlockHandler implements BlockHandler {
       (conn) => conn.source === block.id
     )
 
-    // Build evaluation context
+    // Build evaluation context with source block output
     const evalContext = {
       ...(typeof sourceOutput === 'object' && sourceOutput !== null ? sourceOutput : {}),
       [sourceKey]: sourceOutput,
     }
 
-    // Evaluate conditions
+    // Evaluate conditions in order (if, else if, else)
     let selectedConnection: { target: string; sourceHandle?: string } | null = null
     let selectedCondition: { id: string; title: string; value: string } | null = null
 
@@ -328,7 +347,6 @@ export class ConditionBlockHandler implements BlockHandler {
       throw new Error(`Target block ${selectedConnection!.target} not found`)
     }
 
-    // Return properly formatted output
     return {
       response: {
         ...((sourceOutput as any)?.response || {}),
@@ -343,13 +361,19 @@ export class ConditionBlockHandler implements BlockHandler {
     }
   }
 
+  /**
+   * Normalizes a block name for consistent lookups.
+   *
+   * @param name - Block name to normalize
+   * @returns Normalized block name (lowercase, no spaces)
+   */
   private normalizeBlockName(name: string): string {
     return name.toLowerCase().replace(/\s+/g, '')
   }
 }
 
 /**
- * Handler for Evaluator blocks
+ * Handler for Evaluator blocks that assess content against criteria.
  */
 export class EvaluatorBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
@@ -361,7 +385,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Get model and provider
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
 
@@ -384,7 +407,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     // Parse response content
     const parsedContent = JSON.parse(response.content)
 
-    // Create result in expected format
+    // Create result with metrics as direct fields for easy access
     return {
       response: {
         content: inputs.content,
@@ -394,7 +417,6 @@ export class EvaluatorBlockHandler implements BlockHandler {
           completion: response.tokens?.completion || 0,
           total: response.tokens?.total || 0,
         },
-        // Add each metric as a direct field for easy access
         ...Object.fromEntries(
           Object.entries(parsedContent).map(([key, value]) => [key.toLowerCase(), value])
         ),
@@ -404,7 +426,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 }
 
 /**
- * Handler for API blocks
+ * Handler for API blocks that make external HTTP requests.
  */
 export class ApiBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
@@ -416,13 +438,11 @@ export class ApiBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Get the tool for this block
     const tool = getTool(block.config.tool)
     if (!tool) {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    // Execute the tool
     const result = await executeTool(block.config.tool, inputs)
     if (!result.success) {
       throw new Error(result.error || `API request failed with no error message`)
@@ -433,7 +453,7 @@ export class ApiBlockHandler implements BlockHandler {
 }
 
 /**
- * Handler for Function blocks
+ * Handler for Function blocks that execute custom code.
  */
 export class FunctionBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
@@ -445,13 +465,11 @@ export class FunctionBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Get the tool for this block
     const tool = getTool(block.config.tool)
     if (!tool) {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    // Execute the tool
     const result = await executeTool(block.config.tool, inputs)
     if (!result.success) {
       throw new Error(result.error || `Function execution failed with no error message`)
@@ -462,11 +480,11 @@ export class FunctionBlockHandler implements BlockHandler {
 }
 
 /**
- * Generic handler for any other block types
+ * Generic handler for any block types not covered by specialized handlers.
+ * Acts as a fallback for custom or future block types.
  */
 export class GenericBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    // This is a fallback handler that can handle any block type
     return true
   }
 
@@ -475,13 +493,11 @@ export class GenericBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Get the tool for this block
     const tool = getTool(block.config.tool)
     if (!tool) {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    // Execute the tool
     const result = await executeTool(block.config.tool, inputs)
     if (!result.success) {
       throw new Error(result.error || `Block execution failed with no error message`)

@@ -23,7 +23,12 @@ export class InputResolver {
   }
 
   /**
-   * Resolve all inputs for a block based on current context
+   * Resolves all inputs for a block based on current context.
+   * Handles block references, environment variables, and JSON parsing.
+   *
+   * @param block - Block to resolve inputs for
+   * @param context - Current execution context
+   * @returns Resolved input parameters
    */
   resolveInputs(block: SerializedBlock, context: ExecutionContext): Record<string, any> {
     const inputs = { ...block.config.params }
@@ -79,14 +84,20 @@ export class InputResolver {
   }
 
   /**
-   * Resolve block references in a string (<blockId.property> or <blockName.property>)
+   * Resolves block references in a string (<blockId.property> or <blockName.property>).
+   * Handles inactive paths, missing blocks, and formats values appropriately.
+   *
+   * @param value - String containing block references
+   * @param context - Current execution context
+   * @param currentBlock - Block that contains the references
+   * @returns String with resolved references
+   * @throws Error if referenced block is not found or disabled
    */
   resolveBlockReferences(
     value: string,
     context: ExecutionContext,
     currentBlock: SerializedBlock
   ): string {
-    // Match all block references: <blockReference.path.to.property>
     const blockMatches = value.match(/<([^>]+)>/g)
     if (!blockMatches) return value
 
@@ -96,69 +107,52 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      // Try to find the referenced block
       let sourceBlock = this.blockById.get(blockRef)
 
-      // If not found by ID, try by normalized name
       if (!sourceBlock) {
         const normalizedRef = this.normalizeBlockName(blockRef)
         sourceBlock = this.blockByNormalizedName.get(normalizedRef)
       }
 
-      // If still not found, throw error
       if (!sourceBlock) {
         throw new Error(`Block reference "${blockRef}" was not found.`)
       }
 
-      // Check if block is enabled
       if (sourceBlock.enabled === false) {
         throw new Error(
           `Block "${sourceBlock.metadata?.name || sourceBlock.id}" is disabled, and block "${currentBlock.metadata?.name || currentBlock.id}" depends on it.`
         )
       }
 
-      // NEW LOGIC: Check if the block is in an inactive path
       const isInActivePath = context.activeExecutionPath.has(sourceBlock.id)
 
-      // If block is not in active path, return empty value based on path type
       if (!isInActivePath) {
-        // Return appropriate empty value based on the path
         if (pathParts.length > 0) {
           const lastPart = pathParts[pathParts.length - 1]
-          // Try to infer the type from the path
           if (lastPart.includes('content')) {
             resolvedValue = resolvedValue.replace(match, '""')
-            continue
           } else if (lastPart.includes('data') || lastPart.includes('response')) {
             resolvedValue = resolvedValue.replace(match, '{}')
-            continue
           } else if (lastPart.includes('list') || lastPart.includes('array')) {
             resolvedValue = resolvedValue.replace(match, '[]')
-            continue
           } else {
             resolvedValue = resolvedValue.replace(match, '""')
-            continue
           }
+          continue
         } else {
-          // Default to empty object for full block references
           resolvedValue = resolvedValue.replace(match, '{}')
           continue
         }
       }
 
-      // Get the state of the referenced block
       const blockState = context.blockStates.get(sourceBlock.id)
 
-      // Handle loops - if we're in a loop and the block state isn't available yet
       if (!blockState) {
-        // Check if the block is part of a loop
         const isInLoop = Object.values(this.workflow.loops || {}).some((loop) =>
           loop.nodes.includes(sourceBlock.id)
         )
 
         if (isInLoop) {
-          // For loop blocks that haven't been executed yet, return an empty value
-          // This avoids breaking the execution when blocks reference future loop iterations
           if (pathParts.length > 0) {
             resolvedValue = resolvedValue.replace(match, '""')
           } else {
@@ -167,13 +161,11 @@ export class InputResolver {
           continue
         }
 
-        // If not in a loop, it's an error
         throw new Error(
           `No state found for block "${sourceBlock.metadata?.name || sourceBlock.id}" (ID: ${sourceBlock.id}).`
         )
       }
 
-      // Drill into the property path to get the value
       let replacementValue: any = blockState.output
 
       for (const part of pathParts) {
@@ -191,21 +183,17 @@ export class InputResolver {
         }
       }
 
-      // Format replacement value based on block type
       let formattedValue: string
 
       if (currentBlock.metadata?.id === 'condition') {
-        // For conditions, stringified values may need special handling
         formattedValue = this.stringifyForCondition(replacementValue)
       } else {
-        // For other blocks, just convert to string representation
         formattedValue =
           typeof replacementValue === 'object'
             ? JSON.stringify(replacementValue)
             : String(replacementValue)
       }
 
-      // Replace the match with the resolved value
       resolvedValue = resolvedValue.replace(match, formattedValue)
     }
 
@@ -213,10 +201,13 @@ export class InputResolver {
   }
 
   /**
-   * Resolve environment variables in any value ({{ENV_VAR}})
+   * Resolves environment variables in any value ({{ENV_VAR}}).
+   *
+   * @param value - Value that may contain environment variable references
+   * @returns Value with environment variables resolved
+   * @throws Error if referenced environment variable is not found
    */
   resolveEnvVariables(value: any): any {
-    // Handle strings
     if (typeof value === 'string') {
       const envMatches = value.match(/\{\{([^}]+)\}\}/g)
       if (envMatches) {
@@ -236,12 +227,10 @@ export class InputResolver {
       return value
     }
 
-    // Handle arrays
     if (Array.isArray(value)) {
       return value.map((item) => this.resolveEnvVariables(item))
     }
 
-    // Handle objects
     if (value && typeof value === 'object') {
       return Object.entries(value).reduce(
         (acc, [k, v]) => ({ ...acc, [k]: this.resolveEnvVariables(v) }),
@@ -249,12 +238,17 @@ export class InputResolver {
       )
     }
 
-    // Return other types as-is
     return value
   }
 
   /**
-   * Resolve block references in an object or array
+   * Resolves block references in an object or array.
+   * Recursively processes nested objects and arrays.
+   *
+   * @param obj - Object containing block references
+   * @param context - Current execution context
+   * @param currentBlock - Block that contains the references
+   * @returns Object with resolved references
    */
   private resolveObjectReferences(
     obj: Record<string, any>,
@@ -286,7 +280,11 @@ export class InputResolver {
   }
 
   /**
-   * Properly format a value for use in condition blocks
+   * Formats a value for use in condition blocks.
+   * Handles strings, null, undefined, and objects appropriately.
+   *
+   * @param value - Value to format
+   * @returns Formatted string representation
    */
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
@@ -302,7 +300,11 @@ export class InputResolver {
   }
 
   /**
-   * Normalize block name for consistent lookups
+   * Normalizes block name for consistent lookups.
+   * Converts to lowercase and removes whitespace.
+   *
+   * @param name - Block name to normalize
+   * @returns Normalized block name
    */
   private normalizeBlockName(name: string): string {
     return name.toLowerCase().replace(/\s+/g, '')

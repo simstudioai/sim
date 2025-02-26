@@ -9,7 +9,12 @@ export class PathTracker {
   constructor(private workflow: SerializedWorkflow) {}
 
   /**
-   * Check if a block is in the active execution path
+   * Checks if a block is in the active execution path.
+   * Considers router and condition block decisions.
+   *
+   * @param blockId - ID of the block to check
+   * @param context - Current execution context
+   * @returns Whether the block is in the active execution path
    */
   isInActivePath(blockId: string, context: ExecutionContext): boolean {
     // If the block is already in the active path set, it's valid
@@ -54,11 +59,14 @@ export class PathTracker {
   }
 
   /**
-   * Update execution paths based on newly executed blocks
+   * Updates execution paths based on newly executed blocks.
+   * Handles router and condition block decisions to activate or deactivate paths.
+   *
+   * @param executedBlockIds - IDs of blocks that were just executed
+   * @param context - Current execution context
    */
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
     for (const blockId of executedBlockIds) {
-      // For router blocks, update target decisions
       const block = this.workflow.blocks.find((b) => b.id === blockId)
       if (block?.metadata?.id === 'router') {
         const routerOutput = context.blockStates.get(blockId)?.output
@@ -68,29 +76,22 @@ export class PathTracker {
           context.decisions.router.set(blockId, selectedPath)
           context.activeExecutionPath.add(selectedPath)
 
-          // Remove other connected blocks from active path
           const connectedBlocks = this.workflow.connections
             .filter((conn) => conn.source === blockId && conn.target !== selectedPath)
             .map((conn) => conn.target)
 
           for (const connectedId of connectedBlocks) {
             context.activeExecutionPath.delete(connectedId)
-
-            // Also remove any blocks that are only reachable through this inactive path
             this.removeDownstreamBlocks(connectedId, context)
           }
         }
-      }
-
-      // For condition blocks, update path decisions
-      else if (block?.metadata?.id === 'condition') {
+      } else if (block?.metadata?.id === 'condition') {
         const conditionOutput = context.blockStates.get(blockId)?.output
         const selectedConditionId = conditionOutput?.response?.selectedConditionId
 
         if (selectedConditionId) {
           context.decisions.condition.set(blockId, selectedConditionId)
 
-          // Find the target block for the selected condition
           const targetConnection = this.workflow.connections.find(
             (conn) =>
               conn.source === blockId && conn.sourceHandle === `condition-${selectedConditionId}`
@@ -99,7 +100,6 @@ export class PathTracker {
           if (targetConnection) {
             context.activeExecutionPath.add(targetConnection.target)
 
-            // Remove other connected blocks from active path
             const otherConnections = this.workflow.connections.filter(
               (conn) =>
                 conn.source === blockId &&
@@ -109,16 +109,11 @@ export class PathTracker {
 
             for (const conn of otherConnections) {
               context.activeExecutionPath.delete(conn.target)
-
-              // Also remove any blocks that are only reachable through this inactive path
               this.removeDownstreamBlocks(conn.target, context)
             }
           }
         }
-      }
-
-      // For regular blocks, add outgoing connections to active path
-      else {
+      } else {
         const outgoingConnections = this.workflow.connections.filter(
           (conn) => conn.source === blockId
         )
@@ -130,15 +125,19 @@ export class PathTracker {
     }
   }
 
-  // New helper method to recursively remove blocks that are only reachable through inactive paths
+  /**
+   * Recursively removes blocks that are only reachable through inactive paths.
+   * Prevents execution of blocks that should be skipped due to routing decisions.
+   *
+   * @param blockId - ID of the block to start removal from
+   * @param context - Current execution context
+   */
   private removeDownstreamBlocks(blockId: string, context: ExecutionContext): void {
-    // Get all blocks that are only reachable through this block
     const outgoingConnections = this.workflow.connections.filter((conn) => conn.source === blockId)
 
     for (const conn of outgoingConnections) {
       const targetId = conn.target
 
-      // Check if the target has any other incoming connections from active blocks
       const hasOtherActivePaths = this.workflow.connections.some(
         (otherConn) =>
           otherConn.target === targetId &&
@@ -146,7 +145,6 @@ export class PathTracker {
           context.activeExecutionPath.has(otherConn.source)
       )
 
-      // If no other active paths to this block, remove it and its downstream blocks
       if (!hasOtherActivePaths) {
         context.activeExecutionPath.delete(targetId)
         this.removeDownstreamBlocks(targetId, context)
