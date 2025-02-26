@@ -82,7 +82,7 @@ export class PathTracker {
 
           for (const connectedId of connectedBlocks) {
             context.activeExecutionPath.delete(connectedId)
-            this.removeDownstreamBlocks(connectedId, context)
+            this.removeDownstreamBlocks(connectedId, context, new Set())
           }
         }
       } else if (block?.metadata?.id === 'condition') {
@@ -109,7 +109,7 @@ export class PathTracker {
 
             for (const conn of otherConnections) {
               context.activeExecutionPath.delete(conn.target)
-              this.removeDownstreamBlocks(conn.target, context)
+              this.removeDownstreamBlocks(conn.target, context, new Set())
             }
           }
         }
@@ -131,12 +131,30 @@ export class PathTracker {
    *
    * @param blockId - ID of the block to start removal from
    * @param context - Current execution context
+   * @param visited - Set of already visited block IDs to prevent cycles
    */
-  private removeDownstreamBlocks(blockId: string, context: ExecutionContext): void {
+  private removeDownstreamBlocks(
+    blockId: string,
+    context: ExecutionContext,
+    visited: Set<string>
+  ): void {
+    // Prevent infinite recursion by tracking visited blocks
+    if (visited.has(blockId)) {
+      return
+    }
+
+    // Mark this block as visited
+    visited.add(blockId)
+
     const outgoingConnections = this.workflow.connections.filter((conn) => conn.source === blockId)
 
     for (const conn of outgoingConnections) {
       const targetId = conn.target
+
+      // Skip if we've already visited this target
+      if (visited.has(targetId)) {
+        continue
+      }
 
       const hasOtherActivePaths = this.workflow.connections.some(
         (otherConn) =>
@@ -147,7 +165,7 @@ export class PathTracker {
 
       if (!hasOtherActivePaths) {
         context.activeExecutionPath.delete(targetId)
-        this.removeDownstreamBlocks(targetId, context)
+        this.removeDownstreamBlocks(targetId, context, visited)
       }
     }
   }
