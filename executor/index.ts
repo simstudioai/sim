@@ -456,14 +456,7 @@ export class Executor {
     const blockType = block.metadata?.id
 
     if (blockType === 'agent') {
-      return {
-        response: {
-          content: output?.content || '',
-          model: output?.model || '',
-          tokens: output?.tokens || { prompt: 0, completion: 0, total: 0 },
-          toolCalls: output?.toolCalls || { list: [], count: 0 },
-        },
-      }
+      return output
     }
 
     if (blockType === 'router') {

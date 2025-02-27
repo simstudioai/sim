@@ -64,15 +64,7 @@ export class InputResolver {
       }
       // Handle objects and arrays recursively
       else if (typeof value === 'object') {
-        if (Array.isArray(value)) {
-          result[key] = value.map((item) =>
-            typeof item === 'string'
-              ? this.resolveEnvVariables(this.resolveBlockReferences(item, context, block))
-              : item
-          )
-        } else {
-          result[key] = this.resolveObjectReferences(value, context, block)
-        }
+        result[key] = this.resolveNestedStructure(value, context, block)
       }
       // Pass through other value types
       else {
@@ -232,41 +224,48 @@ export class InputResolver {
   }
 
   /**
-   * Resolves block references in an object or array.
-   * Recursively processes nested objects and arrays.
+   * Resolves references and environment variables in any nested structure (object or array).
+   * This is a more general approach that handles any level of nesting.
    *
-   * @param obj - Object containing block references
+   * @param value - The value to resolve (object, array, or primitive)
    * @param context - Current execution context
    * @param currentBlock - Block that contains the references
-   * @returns Object with resolved references
+   * @returns Resolved value with all references and environment variables processed
    */
-  private resolveObjectReferences(
-    obj: Record<string, any>,
+  private resolveNestedStructure(
+    value: any,
     context: ExecutionContext,
     currentBlock: SerializedBlock
-  ): Record<string, any> {
-    const result: Record<string, any> = {}
-
-    for (const [key, value] of Object.entries(obj)) {
-      if (typeof value === 'string') {
-        result[key] = this.resolveBlockReferences(value, context, currentBlock)
-        result[key] = this.resolveEnvVariables(result[key])
-      } else if (Array.isArray(value)) {
-        result[key] = value.map((item) =>
-          typeof item === 'string'
-            ? this.resolveEnvVariables(this.resolveBlockReferences(item, context, currentBlock))
-            : typeof item === 'object'
-              ? this.resolveObjectReferences(item, context, currentBlock)
-              : item
-        )
-      } else if (value && typeof value === 'object') {
-        result[key] = this.resolveObjectReferences(value, context, currentBlock)
-      } else {
-        result[key] = value
-      }
+  ): any {
+    // Handle null or undefined
+    if (value === null || value === undefined) {
+      return value
     }
 
-    return result
+    // Handle strings
+    if (typeof value === 'string') {
+      // First resolve block references
+      const resolvedReferences = this.resolveBlockReferences(value, context, currentBlock)
+      // Then resolve environment variables
+      return this.resolveEnvVariables(resolvedReferences)
+    }
+
+    // Handle arrays
+    if (Array.isArray(value)) {
+      return value.map((item) => this.resolveNestedStructure(item, context, currentBlock))
+    }
+
+    // Handle objects
+    if (typeof value === 'object') {
+      const result: Record<string, any> = {}
+      for (const [k, v] of Object.entries(value)) {
+        result[k] = this.resolveNestedStructure(v, context, currentBlock)
+      }
+      return result
+    }
+
+    // Return primitives as is
+    return value
   }
 
   /**
