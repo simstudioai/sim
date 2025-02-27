@@ -1,58 +1,159 @@
-import { ProviderId } from './registry'
+import { anthropicProvider } from './anthropic'
+import { cerebrasProvider } from './cerebras'
+import { deepseekProvider } from './deepseek'
+import { googleProvider } from './google'
+import { openaiProvider } from './openai'
+import { ProviderConfig, ProviderId } from './types'
+import { xAIProvider } from './xai'
 
 /**
- * Direct mapping from model names to provider IDs
+ * Provider configurations with associated model names/patterns
  */
-export const MODEL_PROVIDERS: Record<string, ProviderId> = {
-  'gpt-4o': 'openai',
-  o1: 'openai',
-  'o3-mini': 'openai',
-  'claude-3-7-sonnet-20250219': 'anthropic',
-  'gemini-2.0-flash': 'google',
-  'grok-2-latest': 'xai',
-  'deepseek-v3': 'deepseek',
-  'deepseek-r1': 'deepseek',
-  'llama-3.3-70b': 'cerebras',
+export const providers: Record<
+  ProviderId,
+  ProviderConfig & {
+    models: string[]
+    modelPatterns?: RegExp[]
+  }
+> = {
+  openai: {
+    ...openaiProvider,
+    models: ['gpt-4o', 'o1', 'o3-mini'],
+    modelPatterns: [/^gpt/, /^o1/],
+  },
+  anthropic: {
+    ...anthropicProvider,
+    models: ['claude-3-7-sonnet-20250219'],
+    modelPatterns: [/^claude/],
+  },
+  google: {
+    ...googleProvider,
+    models: ['gemini-2.0-flash'],
+    modelPatterns: [/^gemini/],
+  },
+  deepseek: {
+    ...deepseekProvider,
+    models: ['deepseek-v3', 'deepseek-r1'],
+    modelPatterns: [/^deepseek/],
+  },
+  xai: {
+    ...xAIProvider,
+    models: ['grok-2-latest'],
+    modelPatterns: [/^grok/],
+  },
+  cerebras: {
+    ...cerebrasProvider,
+    models: ['llama-3.3-70b'],
+    modelPatterns: [/^llama/],
+  },
 }
 
 /**
- * Determines the provider ID based on the model name.
- * Uses the MODEL_PROVIDERS mapping and falls back to pattern matching if needed.
- *
- * @param model - The model name/identifier
- * @returns The corresponding provider ID
+ * Direct mapping from model names to provider IDs
+ * Automatically generated from the providers configuration
  */
+export const MODEL_PROVIDERS: Record<string, ProviderId> = Object.entries(providers).reduce(
+  (map, [providerId, config]) => {
+    config.models.forEach((model) => {
+      map[model.toLowerCase()] = providerId as ProviderId
+    })
+    return map
+  },
+  {} as Record<string, ProviderId>
+)
+
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
-
-  // First try to match exactly from our MODEL_PROVIDERS mapping
   if (normalizedModel in MODEL_PROVIDERS) {
     return MODEL_PROVIDERS[normalizedModel]
   }
 
-  // If no exact match, use pattern matching as fallback
-  if (normalizedModel.startsWith('gpt') || normalizedModel.startsWith('o1')) {
-    return 'openai'
+  for (const [providerId, config] of Object.entries(providers)) {
+    if (config.modelPatterns) {
+      for (const pattern of config.modelPatterns) {
+        if (pattern.test(normalizedModel)) {
+          return providerId as ProviderId
+        }
+      }
+    }
   }
 
-  if (normalizedModel.startsWith('claude')) {
-    return 'anthropic'
-  }
-
-  if (normalizedModel.startsWith('gemini')) {
-    return 'google'
-  }
-
-  if (normalizedModel.startsWith('grok')) {
-    return 'xai'
-  }
-
-  if (normalizedModel.startsWith('llama')) {
-    return 'cerebras'
-  }
-
-  // Default to deepseek for any other models
   return 'deepseek'
+}
+
+export function getProvider(id: string): ProviderConfig | undefined {
+  // Handle both formats: 'openai' and 'openai/chat'
+  const providerId = id.split('/')[0] as ProviderId
+  return providers[providerId]
+}
+
+export function getProviderConfigFromModel(model: string): ProviderConfig | undefined {
+  const providerId = getProviderFromModel(model)
+  return providers[providerId]
+}
+
+export function getAllModels(): string[] {
+  return Object.values(providers).flatMap((provider) => provider.models || [])
+}
+
+export function getAllProviderIds(): ProviderId[] {
+  return Object.keys(providers) as ProviderId[]
+}
+
+export function getProviderModels(providerId: ProviderId): string[] {
+  const provider = providers[providerId]
+  return provider?.models || []
+}
+
+export function generateStructuredOutputInstructions(responseFormat: any): string {
+  if (!responseFormat?.fields) return ''
+
+  function generateFieldStructure(field: any): string {
+    if (field.type === 'object' && field.properties) {
+      return `{
+    ${Object.entries(field.properties)
+      .map(([key, prop]: [string, any]) => `"${key}": ${prop.type === 'number' ? '0' : '"value"'}`)
+      .join(',\n    ')}
+  }`
+    }
+    return field.type === 'string'
+      ? '"value"'
+      : field.type === 'number'
+        ? '0'
+        : field.type === 'boolean'
+          ? 'true/false'
+          : '[]'
+  }
+
+  const exampleFormat = responseFormat.fields
+    .map((field: any) => `  "${field.name}": ${generateFieldStructure(field)}`)
+    .join(',\n')
+
+  const fieldDescriptions = responseFormat.fields
+    .map((field: any) => {
+      let desc = `${field.name} (${field.type})`
+      if (field.description) desc += `: ${field.description}`
+      if (field.type === 'object' && field.properties) {
+        desc += '\nProperties:'
+        Object.entries(field.properties).forEach(([key, prop]: [string, any]) => {
+          desc += `\n  - ${key} (${(prop as any).type}): ${(prop as any).description || ''}`
+        })
+      }
+      return desc
+    })
+    .join('\n')
+
+  return `
+Please provide your response in the following JSON format:
+{
+${exampleFormat}
+}
+
+Field descriptions:
+${fieldDescriptions}
+
+Your response MUST be valid JSON and include all the specified fields with their correct types.
+Each metric should be an object containing 'score' (number) and 'reasoning' (string).`
 }
 
 export function extractAndParseJSON(content: string): any {

@@ -1,6 +1,6 @@
 import { ConnectIcon } from '@/components/icons'
-import { MODEL_PROVIDERS } from '@/providers/consts'
-import { ProviderId } from '@/providers/registry'
+import { ProviderId } from '@/providers/types'
+import { MODEL_PROVIDERS } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 

@@ -1,6 +1,6 @@
 import { TranslateIcon } from '@/components/icons'
-import { MODEL_PROVIDERS } from '@/providers/consts'
-import { ProviderId } from '@/providers/registry'
+import { ProviderId } from '@/providers/types'
+import { MODEL_PROVIDERS } from '@/providers/utils'
 import { BlockConfig } from '../types'
 
 const getTranslationPrompt = (

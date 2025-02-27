@@ -1,4 +1,4 @@
-import { ToolConfig } from '@/tools/types'
+export type ProviderId = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'cerebras'
 
 export interface TokenInfo {
   prompt?: number
@@ -18,33 +18,7 @@ export interface ProviderConfig {
   version: string
   models: string[]
   defaultModel: string
-
-  // Provider implementation type
-  implementationType: 'sdk' | 'http'
-
-  // For HTTP-based providers
-  baseUrl?: string
-  headers?: (apiKey: string) => Record<string, string>
-
-  // For SDK-based providers
   executeRequest?: (request: ProviderRequest) => Promise<ProviderResponse>
-
-  // Tool calling support
-  transformToolsToFunctions: (tools: ProviderToolConfig[]) => any
-  transformFunctionCallResponse: (
-    response: any,
-    tools?: ProviderToolConfig[]
-  ) => FunctionCallResponse
-
-  // Provider-specific request/response transformations
-  transformRequest: (request: ProviderRequest, functions?: any) => any
-  transformResponse: (response: any) => TransformedResponse
-
-  // Function to check if response contains a function call
-  hasFunctionCall: (response: any) => boolean
-
-  // Internal state for tool name mapping
-  _toolNameMapping?: Map<string, string>
 }
 
 export interface FunctionCallResponse {

@@ -1,4 +1,6 @@
-import { FunctionCallResponse, ProviderConfig, ProviderRequest, ProviderToolConfig } from '../types'
+import OpenAI from 'openai'
+import { executeTool } from '@/tools'
+import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
 
 export const deepseekProvider: ProviderConfig = {
   id: 'deepseek',
@@ -8,116 +10,74 @@ export const deepseekProvider: ProviderConfig = {
   models: ['deepseek-chat'],
   defaultModel: 'deepseek-chat',
 
-  baseUrl: 'https://api.deepseek.com/v1/chat/completions',
-  headers: (apiKey: string) => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${apiKey}`,
-  }),
-
-  transformToolsToFunctions: (tools: ProviderToolConfig[]) => {
-    if (!tools || tools.length === 0) {
-      return undefined
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+    if (!request.apiKey) {
+      throw new Error('API key is required for Deepseek')
     }
 
-    return tools.map((tool) => ({
-      type: 'function',
-      function: {
-        name: tool.id,
-        description: tool.description,
-        parameters: tool.parameters,
-      },
-    }))
-  },
-
-  transformFunctionCallResponse: (
-    response: any,
-    tools?: ProviderToolConfig[]
-  ): FunctionCallResponse => {
-    const toolCall = response.choices?.[0]?.message?.tool_calls?.[0]
-    if (!toolCall || !toolCall.function) {
-      throw new Error('No valid tool call found in response')
-    }
-
-    const tool = tools?.find((t) => t.id === toolCall.function.name)
-    if (!tool) {
-      throw new Error(`Tool not found: ${toolCall.function.name}`)
-    }
-
-    let args = toolCall.function.arguments
-    if (typeof args === 'string') {
-      try {
-        args = JSON.parse(args)
-      } catch (e) {
-        console.error('Failed to parse tool arguments:', e)
-        args = {}
-      }
-    }
-
-    return {
-      name: toolCall.function.name,
-      arguments: {
-        ...tool.params,
-        ...args,
-      },
-    }
-  },
-
-  transformRequest: (request: ProviderRequest, functions?: any) => {
-    // Transform messages from internal format to Deepseek format
-    const messages = (request.messages || []).map((msg) => {
-      if (msg.role === 'function') {
-        return {
-          role: 'tool',
-          content: msg.content,
-          tool_call_id: msg.name,
-        }
-      }
-
-      if (msg.function_call) {
-        return {
-          role: 'assistant',
-          content: null,
-          tool_calls: [
-            {
-              id: msg.function_call.name,
-              type: 'function',
-              function: {
-                name: msg.function_call.name,
-                arguments: msg.function_call.arguments,
-              },
-            },
-          ],
-        }
-      }
-
-      return msg
+    // Deepseek uses the OpenAI SDK with a custom baseURL
+    const deepseek = new OpenAI({
+      apiKey: request.apiKey,
+      baseURL: 'https://api.deepseek.com/v1',
+      dangerouslyAllowBrowser: true,
     })
 
-    const payload = {
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: request.systemPrompt },
-        ...(request.context ? [{ role: 'user', content: request.context }] : []),
-        ...messages,
-      ],
-      temperature: request.temperature || 0.7,
-      max_tokens: request.maxTokens || 1024,
-      ...(functions && { tools: functions }),
+    // Start with an empty array for all messages
+    const allMessages = []
+
+    // Add system prompt if present
+    if (request.systemPrompt) {
+      allMessages.push({
+        role: 'system',
+        content: request.systemPrompt,
+      })
     }
 
-    return payload
-  },
-
-  transformResponse: (response: any) => {
-    if (!response) {
-      console.warn('Received undefined response from Deepseek API')
-      return { content: '' }
+    // Add context if present
+    if (request.context) {
+      allMessages.push({
+        role: 'user',
+        content: request.context,
+      })
     }
 
-    const output = response.choices?.[0]?.message
+    // Add remaining messages
+    if (request.messages) {
+      allMessages.push(...request.messages)
+    }
 
-    // Try to clean up the response content if it exists
-    let content = output?.content || ''
+    // Transform tools to OpenAI format if provided
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          type: 'function',
+          function: {
+            name: tool.id,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }))
+      : undefined
+
+    const payload: any = {
+      model: 'deepseek-chat', // Hardcode to deepseek-chat regardless of what's selected in the UI
+      messages: allMessages,
+    }
+
+    // Add optional parameters
+    if (request.temperature !== undefined) payload.temperature = request.temperature
+    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+
+    // Add tools if provided
+    if (tools?.length) {
+      payload.tools = tools
+      payload.tool_choice = 'auto'
+    }
+
+    // Make the initial API request
+    let currentResponse = await deepseek.chat.completions.create(payload)
+    let content = currentResponse.choices[0]?.message?.content || ''
+
+    // Clean up the response content if it exists
     if (content) {
       // Remove any markdown code block markers
       content = content.replace(/```json\n?|\n?```/g, '')
@@ -125,18 +85,110 @@ export const deepseekProvider: ProviderConfig = {
       content = content.trim()
     }
 
+    let tokens = {
+      prompt: currentResponse.usage?.prompt_tokens || 0,
+      completion: currentResponse.usage?.completion_tokens || 0,
+      total: currentResponse.usage?.total_tokens || 0,
+    }
+    let toolCalls = []
+    let toolResults = []
+    let currentMessages = [...allMessages]
+    let iterationCount = 0
+    const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+    try {
+      while (iterationCount < MAX_ITERATIONS) {
+        // Check for tool calls
+        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
+          break
+        }
+
+        // Process each tool call
+        for (const toolCall of toolCallsInResponse) {
+          try {
+            const toolName = toolCall.function.name
+            const toolArgs = JSON.parse(toolCall.function.arguments)
+
+            // Get the tool from the tools registry
+            const tool = request.tools?.find((t) => t.id === toolName)
+            if (!tool) continue
+
+            // Execute the tool
+            const mergedArgs = { ...tool.params, ...toolArgs }
+            const result = await executeTool(toolName, mergedArgs, true)
+
+            if (!result.success) continue
+
+            toolResults.push(result.output)
+            toolCalls.push({
+              name: toolName,
+              arguments: toolArgs,
+            })
+
+            // Add the tool call and result to messages
+            currentMessages.push({
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: toolCall.id,
+                  type: 'function',
+                  function: {
+                    name: toolName,
+                    arguments: toolCall.function.arguments,
+                  },
+                },
+              ],
+            })
+
+            currentMessages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result.output),
+            })
+          } catch (error) {
+            console.error('Error processing tool call:', error)
+          }
+        }
+
+        // Make the next request with updated messages
+        const nextPayload = {
+          ...payload,
+          messages: currentMessages,
+        }
+
+        // Make the next request
+        currentResponse = await deepseek.chat.completions.create(nextPayload)
+
+        // Update content if we have a text response
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
+          // Clean up the response content
+          content = content.replace(/```json\n?|\n?```/g, '')
+          content = content.trim()
+        }
+
+        // Update token counts
+        if (currentResponse.usage) {
+          tokens.prompt += currentResponse.usage.prompt_tokens || 0
+          tokens.completion += currentResponse.usage.completion_tokens || 0
+          tokens.total += currentResponse.usage.total_tokens || 0
+        }
+
+        iterationCount++
+      }
+    } catch (error) {
+      console.error('Error in Deepseek request:', error)
+      throw error
+    }
+
     return {
       content,
-      tokens: response.usage && {
-        prompt: response.usage.prompt_tokens,
-        completion: response.usage.completion_tokens,
-        total: response.usage.total_tokens,
-      },
+      model: request.model,
+      tokens,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      toolResults: toolResults.length > 0 ? toolResults : undefined,
     }
-  },
-
-  hasFunctionCall: (response: any) => {
-    if (!response) return false
-    return !!response.choices?.[0]?.message?.tool_calls?.[0]
   },
 }

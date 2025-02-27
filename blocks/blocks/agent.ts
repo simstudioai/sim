@@ -1,5 +1,5 @@
 import { AgentIcon } from '@/components/icons'
-import { MODEL_PROVIDERS } from '@/providers/consts'
+import { MODEL_PROVIDERS } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 

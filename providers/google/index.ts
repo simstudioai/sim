@@ -1,205 +1,189 @@
-import { ToolConfig } from '@/tools/types'
-import { FunctionCallResponse, ProviderConfig, ProviderRequest, ProviderToolConfig } from '../types'
+import OpenAI from 'openai'
+import { executeTool } from '@/tools'
+import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
 
 export const googleProvider: ProviderConfig = {
   id: 'google',
   name: 'Google',
   description: "Google's Gemini models",
   version: '1.0.0',
-  models: ['gemini-2.0-flash-001'],
-  defaultModel: 'gemini-2.0-flash-001',
+  models: ['gemini-2.0-flash'],
+  defaultModel: 'gemini-2.0-flash',
 
-  baseUrl:
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent',
-  headers: (apiKey: string) => ({
-    'Content-Type': 'application/json',
-    'x-goog-api-key': apiKey,
-  }),
-
-  transformToolsToFunctions: (tools: ProviderToolConfig[]) => {
-    if (!tools || tools.length === 0) {
-      return undefined
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+    if (!request.apiKey) {
+      throw new Error('API key is required for Google Gemini')
     }
 
-    const transformProperties = (properties: Record<string, any>): Record<string, any> => {
-      return Object.entries(properties).reduce((acc, [key, value]) => {
-        // Skip complex JSON/object parameters for Gemini
-        if (value.type === 'json' || (value.type === 'object' && !value.properties)) {
-          return acc
-        }
+    const openai = new OpenAI({
+      apiKey: request.apiKey,
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      dangerouslyAllowBrowser: true,
+    })
 
-        // For object types with defined properties
-        if (value.type === 'object' && value.properties) {
-          return {
-            ...acc,
-            [key]: {
-              type: 'OBJECT',
-              description: value.description || '',
-              properties: transformProperties(value.properties),
-            },
-          }
-        }
+    // Start with an empty array for all messages
+    const allMessages = []
 
-        // For simple types
-        return {
-          ...acc,
-          [key]: {
-            type: (value.type || 'string').toUpperCase(),
-            description: value.description || '',
+    // Add system prompt if present
+    if (request.systemPrompt) {
+      allMessages.push({
+        role: 'system',
+        content: request.systemPrompt,
+      })
+    }
+
+    // Add context if present
+    if (request.context) {
+      allMessages.push({
+        role: 'user',
+        content: request.context,
+      })
+    }
+
+    // Add remaining messages
+    if (request.messages) {
+      allMessages.push(...request.messages)
+    }
+
+    // Transform tools to OpenAI format if provided
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          type: 'function',
+          function: {
+            name: tool.id,
+            description: tool.description,
+            parameters: tool.parameters,
           },
+        }))
+      : undefined
+
+    // Build the request payload
+    const payload: any = {
+      model: request.model || 'gemini-2.0-flash',
+      messages: allMessages,
+    }
+
+    // Add optional parameters
+    if (request.temperature !== undefined) payload.temperature = request.temperature
+    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+
+    // Add response format for structured output if specified
+    if (request.responseFormat) {
+      payload.response_format = { type: 'json_object' }
+    }
+
+    // Add tools if provided
+    if (tools?.length) {
+      payload.tools = tools
+      payload.tool_choice = 'auto'
+    }
+
+    // Make the initial API request
+    let currentResponse = await openai.chat.completions.create(payload)
+    let content = currentResponse.choices[0]?.message?.content || ''
+    let tokens = {
+      prompt: currentResponse.usage?.prompt_tokens || 0,
+      completion: currentResponse.usage?.completion_tokens || 0,
+      total: currentResponse.usage?.total_tokens || 0,
+    }
+    let toolCalls = []
+    let toolResults = []
+    let currentMessages = [...allMessages]
+    let iterationCount = 0
+    const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+    try {
+      while (iterationCount < MAX_ITERATIONS) {
+        // Check for tool calls
+        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
+          break
         }
-      }, {})
-    }
 
-    return {
-      functionDeclarations: tools.map((tool) => {
-        // Get properties excluding complex types
-        const properties = transformProperties(tool.parameters.properties)
+        // Process each tool call
+        for (const toolCall of toolCallsInResponse) {
+          try {
+            const toolName = toolCall.function.name
+            const toolArgs = JSON.parse(toolCall.function.arguments)
 
-        // Filter required fields to only include ones that exist in properties
-        const required = (tool.parameters.required || []).filter((field) => field in properties)
+            // Get the tool from the tools registry
+            const tool = request.tools?.find((t) => t.id === toolName)
+            if (!tool) continue
 
-        return {
-          name: tool.id,
-          description: tool.description || '',
-          parameters: {
-            type: 'OBJECT',
-            properties,
-            required,
-          },
-        }
-      }),
-    }
-  },
+            // Execute the tool
+            const mergedArgs = { ...tool.params, ...toolArgs }
+            const result = await executeTool(toolName, mergedArgs, true)
 
-  transformFunctionCallResponse: (
-    response: any,
-    tools?: ProviderToolConfig[]
-  ): FunctionCallResponse => {
-    // Extract function call from Gemini response
-    const functionCall = response.candidates?.[0]?.content?.parts?.[0]?.functionCall
-    if (!functionCall) {
-      throw new Error('No function call found in response')
-    }
+            if (!result.success) continue
 
-    // Log the function call for debugging
-    console.log('Raw function call from Gemini:', JSON.stringify(functionCall, null, 2))
+            toolResults.push(result.output)
+            toolCalls.push({
+              name: toolName,
+              arguments: toolArgs,
+            })
 
-    const tool = tools?.find((t) => t.id === functionCall.name)
-    if (!tool) {
-      throw new Error(`Tool not found: ${functionCall.name}`)
-    }
-
-    // Ensure args is an object
-    let args = functionCall.args
-    if (typeof args === 'string') {
-      try {
-        args = JSON.parse(args)
-      } catch (e) {
-        console.error('Failed to parse function call args:', e)
-        args = {}
-      }
-    }
-
-    // Get arguments from function call, but NEVER override apiKey
-    const { apiKey: _, ...functionArgs } = args
-
-    return {
-      name: functionCall.name,
-      arguments: {
-        ...functionArgs,
-        apiKey: tool.params.apiKey, // Always use the apiKey from tool params
-      },
-    }
-  },
-
-  transformRequest: (request: ProviderRequest, functions?: any) => {
-    // Combine system prompt and context into a single message if both exist
-    const initialMessage = request.systemPrompt + (request.context ? `\n\n${request.context}` : '')
-
-    const messages = [
-      { role: 'user', parts: [{ text: initialMessage }] },
-      ...(request.messages || []).map((msg) => {
-        if (msg.role === 'function') {
-          return {
-            role: 'user',
-            parts: [
-              {
-                functionResponse: {
-                  name: msg.name,
-                  response: {
-                    name: msg.name,
-                    content: JSON.parse(msg.content || '{}'),
+            // Add the tool call and result to messages
+            currentMessages.push({
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: toolCall.id,
+                  type: 'function',
+                  function: {
+                    name: toolName,
+                    arguments: toolCall.function.arguments,
                   },
                 },
-              },
-            ],
+              ],
+            })
+
+            const toolResultContent = JSON.stringify(result.output)
+
+            currentMessages.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: toolResultContent,
+            })
+          } catch (error) {
+            console.error('Error processing tool call:', error)
           }
         }
 
-        if (msg.function_call) {
-          return {
-            role: 'model',
-            parts: [
-              {
-                functionCall: {
-                  name: msg.function_call.name,
-                  args: JSON.parse(msg.function_call.arguments),
-                },
-              },
-            ],
-          }
+        // Make the next request with updated messages
+        const nextPayload = {
+          ...payload,
+          messages: currentMessages,
         }
 
-        return {
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content || '' }],
+        // Make the next request
+        currentResponse = await openai.chat.completions.create(nextPayload)
+
+        // Update content if we have a text response
+        if (currentResponse.choices[0]?.message?.content) {
+          content = currentResponse.choices[0].message.content
         }
-      }),
-    ]
 
-    // Log the request for debugging
-    console.log(
-      'Gemini request:',
-      JSON.stringify(
-        {
-          messages,
-          tools: functions ? [{ functionDeclarations: functions.functionDeclarations }] : undefined,
-        },
-        null,
-        2
-      )
-    )
+        // Update token counts
+        if (currentResponse.usage) {
+          tokens.prompt += currentResponse.usage.prompt_tokens || 0
+          tokens.completion += currentResponse.usage.completion_tokens || 0
+          tokens.total += currentResponse.usage.total_tokens || 0
+        }
 
-    return {
-      contents: messages,
-      tools: functions ? [{ functionDeclarations: functions.functionDeclarations }] : undefined,
-      generationConfig: {
-        temperature: request.temperature || 0.7,
-        maxOutputTokens: request.maxTokens || 1024,
-      },
-    }
-  },
-
-  transformResponse: (response: any) => {
-    let content = response.candidates?.[0]?.content?.parts?.[0]?.text || ''
-
-    if (content) {
-      content = content.replace(/```json\n?|\n?```/g, '')
-      content = content.trim()
+        iterationCount++
+      }
+    } catch (error) {
+      console.error('Error in Google Gemini request:', error)
+      throw error
     }
 
     return {
       content,
-      tokens: response.usageMetadata && {
-        prompt: response.usageMetadata.promptTokenCount,
-        completion: response.usageMetadata.candidatesTokenCount,
-        total: response.usageMetadata.totalTokenCount,
-      },
+      model: request.model,
+      tokens,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      toolResults: toolResults.length > 0 ? toolResults : undefined,
     }
-  },
-
-  hasFunctionCall: (response: any) => {
-    return !!response.candidates?.[0]?.content?.parts?.[0]?.functionCall
   },
 }

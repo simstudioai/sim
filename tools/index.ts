@@ -24,6 +24,7 @@ import { slackMessageTool } from './slack/message'
 import { extractTool as tavilyExtract } from './tavily/extract'
 import { searchTool as tavilySearch } from './tavily/search'
 import { ToolConfig, ToolResponse } from './types'
+import { executeRequest, formatRequestParams, validateToolRequest } from './utils'
 import { readTool as xRead } from './x/read'
 import { searchTool as xSearch } from './x/search'
 import { userTool as xUser } from './x/user'
@@ -72,58 +73,98 @@ export function getTool(toolId: string): ToolConfig | undefined {
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
 export async function executeTool(
   toolId: string,
-  params: Record<string, any>
+  params: Record<string, any>,
+  skipProxy = false
 ): Promise<ToolResponse> {
   try {
     const tool = getTool(toolId)
+    console.log(`Tool being called: ${toolId}`, {
+      params: { ...params, apiKey: params.apiKey ? '[REDACTED]' : undefined },
+      skipProxy,
+    })
+
+    // Validate the tool and its parameters
+    validateToolRequest(toolId, tool, params)
+
+    // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    // For internal routes, call the API directly
-    if (tool.request.isInternalRoute) {
-      const url =
-        typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
-
-      const response = await fetch(url, {
-        method: tool.request.method,
-        headers: tool.request.headers(params),
-        body: JSON.stringify(tool.request.body ? tool.request.body(params) : params),
+    // For internal routes or when skipProxy is true, call the API directly
+    if (tool.request.isInternalRoute || skipProxy) {
+      console.log(`Calling internal request for ${toolId}`)
+      const result = await handleInternalRequest(toolId, tool, params)
+      console.log(`Tool ${toolId} execution result:`, {
+        success: result.success,
+        outputKeys: result.success ? Object.keys(result.output) : [],
+        error: result.error,
       })
-
-      const result = await tool.transformResponse(response)
       return result
     }
 
     // For external APIs, use the proxy
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-    if (!baseUrl) {
-      throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
-    }
-
-    const proxyUrl = new URL('/api/proxy', baseUrl).toString()
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ toolId, params }),
-    })
-
-    const result = await response.json()
-
-    if (!result.success) {
-      return {
-        success: false,
-        output: {},
-        error: result.error,
-      }
-    }
-
-    return result
+    console.log(`Calling proxy request for ${toolId}`)
+    return await handleProxyRequest(toolId, params)
   } catch (error: any) {
+    console.error(`Error executing tool ${toolId}:`, error)
     return {
       success: false,
       output: {},
       error: error.message || 'Unknown error',
     }
   }
+}
+
+/**
+ * Handle an internal/direct tool request
+ */
+async function handleInternalRequest(
+  toolId: string,
+  tool: ToolConfig,
+  params: Record<string, any>
+): Promise<ToolResponse> {
+  // Log the request for debugging
+  console.log(`Executing tool ${toolId} with params:`, {
+    toolId,
+    params: { ...params, apiKey: params.apiKey ? '[REDACTED]' : undefined },
+  })
+
+  // Format the request parameters
+  const requestParams = formatRequestParams(tool, params)
+
+  // Execute the request
+  return await executeRequest(toolId, tool, requestParams)
+}
+
+/**
+ * Handle a request via the proxy
+ */
+async function handleProxyRequest(
+  toolId: string,
+  params: Record<string, any>
+): Promise<ToolResponse> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!baseUrl) {
+    throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
+  }
+
+  const proxyUrl = new URL('/api/proxy', baseUrl).toString()
+  const response = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ toolId, params }),
+  })
+
+  const result = await response.json()
+
+  if (!result.success) {
+    return {
+      success: false,
+      output: {},
+      error: result.error,
+    }
+  }
+
+  return result
 }

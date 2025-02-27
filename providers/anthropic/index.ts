@@ -1,10 +1,6 @@
-import {
-  FunctionCallResponse,
-  Message,
-  ProviderConfig,
-  ProviderRequest,
-  ProviderToolConfig,
-} from '../types'
+import Anthropic from '@anthropic-ai/sdk'
+import { executeTool } from '@/tools'
+import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
 
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
@@ -14,73 +10,40 @@ export const anthropicProvider: ProviderConfig = {
   models: ['claude-3-7-sonnet-20250219'],
   defaultModel: 'claude-3-7-sonnet-20250219',
 
-  baseUrl: 'https://api.anthropic.com/v1/messages',
-  headers: (apiKey: string) => ({
-    'Content-Type': 'application/json',
-    'x-api-key': apiKey,
-    'anthropic-version': '2023-06-01',
-  }),
-
-  transformToolsToFunctions: (tools: ProviderToolConfig[]) => {
-    if (!tools || tools.length === 0) {
-      return undefined
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+    if (!request.apiKey) {
+      throw new Error('API key is required for Anthropic')
     }
 
-    return tools.map((tool) => ({
-      name: tool.id,
-      description: tool.description,
-      input_schema: {
-        type: 'object',
-        properties: tool.parameters.properties,
-        required: tool.parameters.required,
-      },
-    }))
-  },
+    const anthropic = new Anthropic({
+      apiKey: request.apiKey,
+      dangerouslyAllowBrowser: true,
+    })
 
-  transformFunctionCallResponse: (
-    response: any,
-    tools?: ProviderToolConfig[]
-  ): FunctionCallResponse => {
-    const rawResponse = response?.output || response
-    if (!rawResponse?.content) {
-      throw new Error('No content found in response')
+    // Helper function to generate a simple unique ID for tool uses
+    const generateToolUseId = (toolName: string) => {
+      return `${toolName}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     }
 
-    const toolUse = rawResponse.content.find((item: any) => item.type === 'tool_use')
-    if (!toolUse) {
-      throw new Error('No tool use found in response')
-    }
-
-    const tool = tools?.find((t) => t.id === toolUse.name)
-    if (!tool) {
-      throw new Error(`Tool not found: ${toolUse.name}`)
-    }
-
-    let input = toolUse.input
-    if (typeof input === 'string') {
-      try {
-        input = JSON.parse(input)
-      } catch (e) {
-        console.error('Failed to parse tool input:', e)
-        input = {}
-      }
-    }
-
-    return {
-      name: toolUse.name,
-      arguments: {
-        ...tool.params,
-        ...input,
-      },
-    }
-  },
-
-  transformRequest: (request: ProviderRequest, functions?: any) => {
     // Transform messages to Anthropic format
-    const messages =
-      request.messages?.map((msg) => {
+    const messages = []
+
+    // Add system prompt if present
+    let systemPrompt = request.systemPrompt || ''
+
+    // Add context if present
+    if (request.context) {
+      messages.push({
+        role: 'user',
+        content: request.context,
+      })
+    }
+
+    // Add remaining messages
+    if (request.messages) {
+      request.messages.forEach((msg) => {
         if (msg.role === 'function') {
-          return {
+          messages.push({
             role: 'user',
             content: [
               {
@@ -89,58 +52,55 @@ export const anthropicProvider: ProviderConfig = {
                 content: msg.content,
               },
             ],
-          }
-        }
-
-        if (msg.function_call) {
-          return {
+          })
+        } else if (msg.function_call) {
+          const toolUseId = msg.function_call.name + '-' + Date.now()
+          messages.push({
             role: 'assistant',
             content: [
               {
                 type: 'tool_use',
-                id: msg.function_call.name,
+                id: toolUseId,
                 name: msg.function_call.name,
                 input: JSON.parse(msg.function_call.arguments),
               },
             ],
-          }
+          })
+        } else {
+          messages.push({
+            role: msg.role === 'assistant' ? 'assistant' : 'user',
+            content: msg.content ? [{ type: 'text', text: msg.content }] : [],
+          })
         }
-
-        return {
-          role: msg.role === 'assistant' ? 'assistant' : 'user',
-          content: msg.content ? [{ type: 'text', text: msg.content }] : [],
-        }
-      }) || []
-
-    // Add context if provided
-    if (request.context) {
-      messages.unshift({
-        role: 'user',
-        content: [{ type: 'text', text: request.context }],
       })
     }
 
-    // Ensure there's at least one message by adding the system prompt as a user message if no messages exist
+    // Ensure there's at least one message
     if (messages.length === 0) {
       messages.push({
         role: 'user',
-        content: [{ type: 'text', text: request.systemPrompt || '' }],
+        content: [{ type: 'text', text: systemPrompt || 'Hello' }],
       })
+      // Clear system prompt since we've used it as a user message
+      systemPrompt = ''
     }
 
-    // Build the request payload
-    const payload = {
-      model: request.model || 'claude-3-7-sonnet-20250219',
-      messages,
-      system: request.systemPrompt || '',
-      max_tokens: parseInt(String(request.maxTokens)) || 1024,
-      temperature: parseFloat(String(request.temperature ?? 0.7)),
-      ...(functions && { tools: functions }),
-    }
+    // Transform tools to Anthropic format if provided
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          name: tool.id,
+          description: tool.description,
+          input_schema: {
+            type: 'object',
+            properties: tool.parameters.properties,
+            required: tool.parameters.required,
+          },
+        }))
+      : undefined
 
     // If response format is specified, add strict formatting instructions
     if (request.responseFormat) {
-      payload.system = `${payload.system}\n\nIMPORTANT RESPONSE FORMAT INSTRUCTIONS:
+      systemPrompt = `${systemPrompt}\n\nIMPORTANT RESPONSE FORMAT INSTRUCTIONS:
 1. Your response must be EXACTLY in this format, with no additional fields:
 {
 ${request.responseFormat.fields.map((field) => `  "${field.name}": ${field.type === 'string' ? '"value"' : field.type === 'array' ? '[]' : field.type === 'object' ? '{}' : field.type === 'number' ? '0' : 'true/false'}`).join(',\n')}
@@ -155,67 +115,163 @@ ${request.responseFormat.fields.map((field) => `${field.name} (${field.type})${f
 5. Your response MUST be valid JSON and include all the specified fields with their correct types`
     }
 
-    return payload
-  },
+    // Build the request payload
+    const payload: any = {
+      model: request.model || 'claude-3-7-sonnet-20250219',
+      messages,
+      system: systemPrompt,
+      max_tokens: parseInt(String(request.maxTokens)) || 1024,
+      temperature: parseFloat(String(request.temperature ?? 0.7)),
+    }
 
-  transformResponse: (response: any) => {
+    // Add tools if provided
+    if (tools?.length) {
+      payload.tools = tools
+    }
+
+    // Make the initial API request
+    let currentResponse = await anthropic.messages.create(payload)
+    let content = ''
+
+    // Extract text content from the message
+    if (Array.isArray(currentResponse.content)) {
+      content = currentResponse.content
+        .filter((item) => item.type === 'text')
+        .map((item) => item.text)
+        .join('\n')
+    }
+
+    let tokens = {
+      prompt: currentResponse.usage?.input_tokens || 0,
+      completion: currentResponse.usage?.output_tokens || 0,
+      total:
+        (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
+    }
+
+    let toolCalls = []
+    let toolResults = []
+    let currentMessages = [...messages]
+    let iterationCount = 0
+    const MAX_ITERATIONS = 10 // Prevent infinite loops
+
     try {
-      if (!response) {
-        console.warn('Received undefined response from Anthropic API')
-        return { content: '' }
-      }
+      while (iterationCount < MAX_ITERATIONS) {
+        // Check for tool calls
+        const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
+        if (!toolUses || toolUses.length === 0) {
+          break
+        }
 
-      // Get the actual response content
-      const rawResponse = response.output || response
+        // Process each tool call
+        for (const toolUse of toolUses) {
+          try {
+            const toolName = toolUse.name
+            const toolArgs = toolUse.input as Record<string, any>
 
-      // Extract text content from the message
-      let content = ''
-      const messageContent = rawResponse?.content || rawResponse?.message?.content
+            // Get the tool from the tools registry
+            const tool = request.tools?.find((t) => t.id === toolName)
+            if (!tool) continue
 
-      if (Array.isArray(messageContent)) {
-        content = messageContent
+            // Execute the tool
+            const mergedArgs = { ...tool.params, ...toolArgs }
+            const result = await executeTool(toolName, mergedArgs, true)
+
+            if (!result.success) continue
+
+            toolResults.push(result.output)
+            toolCalls.push({
+              name: toolName,
+              arguments: toolArgs,
+            })
+
+            // Add the tool call and result to messages
+            const toolUseId = generateToolUseId(toolName)
+
+            currentMessages.push({
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  id: toolUseId,
+                  name: toolName,
+                  input: toolArgs,
+                } as any,
+              ],
+            })
+
+            currentMessages.push({
+              role: 'user',
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: toolUseId,
+                  content: JSON.stringify(result.output),
+                } as any,
+              ],
+            })
+          } catch (error) {
+            console.error('Error processing tool call:', error)
+          }
+        }
+
+        // Make the next request with updated messages
+        const nextPayload = {
+          ...payload,
+          messages: currentMessages,
+        }
+
+        // Make the next request
+        currentResponse = await anthropic.messages.create(nextPayload)
+
+        // Update content if we have a text response
+        const textContent = currentResponse.content
           .filter((item) => item.type === 'text')
           .map((item) => item.text)
           .join('\n')
-      } else if (typeof messageContent === 'string') {
-        content = messageContent
-      }
 
-      // If the content looks like it contains JSON, extract just the JSON part
-      if (content.includes('{') && content.includes('}')) {
-        try {
-          const jsonMatch = content.match(/\{[\s\S]*\}/m)
-          if (jsonMatch) {
-            content = jsonMatch[0]
-          }
-        } catch (e) {
-          console.error('Error extracting JSON from response:', e)
+        if (textContent) {
+          content = textContent
         }
-      }
 
-      return {
-        content,
-        model: rawResponse?.model || response?.model || 'claude-3-7-sonnet-20250219',
-        tokens: rawResponse?.usage && {
-          prompt: rawResponse.usage.input_tokens,
-          completion: rawResponse.usage.output_tokens,
-          total: rawResponse.usage.input_tokens + rawResponse.usage.output_tokens,
-        },
+        // Update token counts
+        if (currentResponse.usage) {
+          tokens.prompt += currentResponse.usage.input_tokens || 0
+          tokens.completion += currentResponse.usage.output_tokens || 0
+          tokens.total +=
+            (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+        }
+
+        iterationCount++
       }
     } catch (error) {
-      console.error('Error in transformResponse:', error)
-      return { content: '' }
+      console.error('Error in Anthropic request:', error)
+      throw error
     }
-  },
 
-  hasFunctionCall: (response: any) => {
-    try {
-      if (!response) return false
-      const rawResponse = response.output || response
-      return rawResponse?.content?.some((item: any) => item.type === 'tool_use') || false
-    } catch (error) {
-      console.error('Error in hasFunctionCall:', error)
-      return false
+    // If the content looks like it contains JSON, extract just the JSON part
+    if (content.includes('{') && content.includes('}')) {
+      try {
+        const jsonMatch = content.match(/\{[\s\S]*\}/m)
+        if (jsonMatch) {
+          content = jsonMatch[0]
+        }
+      } catch (e) {
+        console.error('Error extracting JSON from response:', e)
+      }
+    }
+
+    return {
+      content,
+      model: request.model || 'claude-3-7-sonnet-20250219',
+      tokens,
+      toolCalls:
+        toolCalls.length > 0
+          ? toolCalls.map((tc) => ({
+              name: tc.name,
+              arguments: tc.arguments as Record<string, any>,
+            }))
+          : undefined,
+      toolResults: toolResults.length > 0 ? toolResults : undefined,
     }
   },
 }

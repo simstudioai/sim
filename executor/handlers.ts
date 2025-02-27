@@ -1,7 +1,7 @@
 import { getAllBlocks } from '@/blocks'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
-import { executeProviderRequest } from '@/providers/service'
+import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool, getTool } from '@/tools'
@@ -103,9 +103,6 @@ export class AgentBlockHandler implements BlockHandler {
           .filter((t): t is NonNullable<typeof t> => t !== null)
       : []
 
-    // Add local_execution: true for Cerebras provider
-    const additionalParams = providerId === 'cerebras' ? { local_execution: true } : {}
-
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt: inputs.systemPrompt,
@@ -117,7 +114,6 @@ export class AgentBlockHandler implements BlockHandler {
       maxTokens: inputs.maxTokens,
       apiKey: inputs.apiKey,
       responseFormat,
-      ...additionalParams,
     })
 
     // Return structured or standard response based on responseFormat
@@ -447,7 +443,7 @@ export class ApiBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs)
+    const result = await executeTool(block.config.tool, inputs, true)
     if (!result.success) {
       throw new Error(result.error || `API request failed with no error message`)
     }
@@ -474,7 +470,7 @@ export class FunctionBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs)
+    const result = await executeTool(block.config.tool, inputs, true)
     if (!result.success) {
       throw new Error(result.error || `Function execution failed with no error message`)
     }
@@ -502,7 +498,7 @@ export class GenericBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs)
+    const result = await executeTool(block.config.tool, inputs, true)
     if (!result.success) {
       throw new Error(result.error || `Block execution failed with no error message`)
     }
