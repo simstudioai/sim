@@ -1,4 +1,5 @@
 import { executeTool, getTool } from '@/tools'
+import { executeCerebrasRequest } from './cerebras/service'
 import { getProvider } from './registry'
 import { ProviderRequest, ProviderResponse, TokenInfo } from './types'
 import { extractAndParseJSON } from './utils'
@@ -62,6 +63,11 @@ export async function executeProviderRequest(
   const provider = getProvider(providerId)
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
+  }
+
+  // Special handling for Cerebras provider which uses SDK directly
+  if (providerId === 'cerebras') {
+    return executeCerebrasRequest(request)
   }
 
   // If responseFormat is provided, modify the system prompt to enforce structured output

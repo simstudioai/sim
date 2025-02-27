@@ -1,6 +1,6 @@
 import { AgentIcon } from '@/components/icons'
+import { MODEL_PROVIDERS } from '@/providers/consts'
 import { ToolResponse } from '@/tools/types'
-import { MODEL_TOOLS, ModelType } from '../consts'
 import { BlockConfig } from '../types'
 
 interface AgentResponse extends ToolResponse {
@@ -49,7 +49,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_TOOLS),
+      options: Object.keys(MODEL_PROVIDERS),
     },
     {
       id: 'temperature',
@@ -96,7 +96,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = MODEL_TOOLS[model as ModelType]
+        const tool = MODEL_PROVIDERS[model]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

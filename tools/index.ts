@@ -1,7 +1,4 @@
-import { chatTool as anthropicChat } from './anthropic/chat'
 import { visionTool as crewAIVision } from './crewai/vision'
-import { chatTool as deepseekChat } from './deepseek/chat'
-import { reasonerTool as deepseekReasoner } from './deepseek/reasoner'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
 import { commentTool } from './github/comment'
@@ -10,13 +7,11 @@ import { repoInfoTool } from './github/repo'
 import { gmailReadTool } from './gmail/read'
 import { gmailSearchTool } from './gmail/search'
 import { gmailSendTool } from './gmail/send'
-import { chatTool as googleChat } from './google/chat'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
 import { notionReadTool } from './notion/read'
 import { notionWriteTool } from './notion/write'
-import { chatTool as openAIChat } from './openai/chat'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { fetchTool as pineconeFetchTool } from './pinecone/fetch'
 import { generateEmbeddingsTool as pineconeGenerateEmbeddingsTool } from './pinecone/generate'
@@ -33,18 +28,11 @@ import { readTool as xRead } from './x/read'
 import { searchTool as xSearch } from './x/search'
 import { userTool as xUser } from './x/user'
 import { writeTool as xWrite } from './x/write'
-import { chatTool as xaiChat } from './xai/chat'
 import { youtubeSearchTool } from './youtube/search'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
-  openai_chat: openAIChat,
   openai_embeddings: openAIEmbeddings,
-  anthropic_chat: anthropicChat,
-  google_chat: googleChat,
-  xai_chat: xaiChat,
-  deepseek_chat: deepseekChat,
-  deepseek_reasoner: deepseekReasoner,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,

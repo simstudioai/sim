@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MODEL_PROVIDERS } from '@/providers/consts'
 import { getProvider } from '@/providers/registry'
 import { getTool } from '@/tools'
 
@@ -17,6 +18,37 @@ export async function POST(request: Request) {
       const response = await fetch(provider.baseUrl, {
         method: 'POST',
         headers: provider.headers(apiKey),
+        body: JSON.stringify(restParams),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error?.message || `${toolId} API error`)
+      }
+
+      return NextResponse.json({
+        success: true,
+        output: await response.json(),
+      })
+    }
+
+    // Check if this is an LLM provider tool (e.g., openai_chat, anthropic_chat)
+    const providerPrefix = toolId.split('_')[0]
+    if (Object.values(MODEL_PROVIDERS).includes(providerPrefix)) {
+      // Redirect to the provider system
+      const providerInstance = getProvider(providerPrefix)
+      if (!providerInstance) {
+        throw new Error(`Provider not found for tool: ${toolId}`)
+      }
+
+      const { apiKey, ...restParams } = params
+      if (!apiKey) {
+        throw new Error('API key is required')
+      }
+
+      const response = await fetch(providerInstance.baseUrl, {
+        method: 'POST',
+        headers: providerInstance.headers(apiKey),
         body: JSON.stringify(restParams),
       })
 

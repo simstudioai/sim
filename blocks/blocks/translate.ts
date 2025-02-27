@@ -1,6 +1,6 @@
 import { TranslateIcon } from '@/components/icons'
-import { ChatResponse } from '@/tools/openai/chat'
-import { MODEL_TOOLS, ModelType } from '../consts'
+import { MODEL_PROVIDERS } from '@/providers/consts'
+import { ProviderId } from '@/providers/registry'
 import { BlockConfig } from '../types'
 
 const getTranslationPrompt = (
@@ -14,7 +14,7 @@ const getTranslationPrompt = (
 
 Only return the translated text without any explanations or notes. The translation should be natural and fluent in ${targetLanguage || 'English'}.`
 
-export const TranslateBlock: BlockConfig<ChatResponse> = {
+export const TranslateBlock: BlockConfig = {
   type: 'translate',
   name: 'Translate',
   description: 'Translate text to any language',
@@ -41,7 +41,7 @@ export const TranslateBlock: BlockConfig<ChatResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_TOOLS),
+      options: Object.keys(MODEL_PROVIDERS),
     },
     {
       id: 'apiKey',
@@ -73,7 +73,7 @@ export const TranslateBlock: BlockConfig<ChatResponse> = {
           throw new Error('No model selected')
         }
 
-        const tool = MODEL_TOOLS[model as ModelType]
+        const tool = MODEL_PROVIDERS[model as ProviderId]
 
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)

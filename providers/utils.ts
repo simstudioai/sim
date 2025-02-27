@@ -1,9 +1,23 @@
-import { MODEL_TOOLS, ModelType } from '@/blocks/consts'
 import { ProviderId } from './registry'
 
 /**
+ * Direct mapping from model names to provider IDs
+ */
+export const MODEL_PROVIDERS: Record<string, ProviderId> = {
+  'gpt-4o': 'openai',
+  o1: 'openai',
+  'o3-mini': 'openai',
+  'claude-3-7-sonnet-20250219': 'anthropic',
+  'gemini-2.0-flash': 'google',
+  'grok-2-latest': 'xai',
+  'deepseek-v3': 'deepseek',
+  'deepseek-r1': 'deepseek',
+  'llama-3.3-70b': 'cerebras',
+}
+
+/**
  * Determines the provider ID based on the model name.
- * Uses the existing MODEL_TOOLS mapping and falls back to pattern matching if needed.
+ * Uses the MODEL_PROVIDERS mapping and falls back to pattern matching if needed.
  *
  * @param model - The model name/identifier
  * @returns The corresponding provider ID
@@ -11,11 +25,9 @@ import { ProviderId } from './registry'
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
-  // First try to match exactly from our MODEL_TOOLS mapping
-  if (normalizedModel in MODEL_TOOLS) {
-    const toolId = MODEL_TOOLS[normalizedModel as ModelType]
-    // Extract provider ID from tool ID (e.g., 'openai_chat' -> 'openai')
-    return toolId.split('_')[0] as ProviderId
+  // First try to match exactly from our MODEL_PROVIDERS mapping
+  if (normalizedModel in MODEL_PROVIDERS) {
+    return MODEL_PROVIDERS[normalizedModel]
   }
 
   // If no exact match, use pattern matching as fallback
@@ -33,6 +45,10 @@ export function getProviderFromModel(model: string): ProviderId {
 
   if (normalizedModel.startsWith('grok')) {
     return 'xai'
+  }
+
+  if (normalizedModel.startsWith('llama')) {
+    return 'cerebras'
   }
 
   // Default to deepseek for any other models

@@ -1,6 +1,7 @@
 import { ChartBarIcon } from '@/components/icons'
+import { MODEL_PROVIDERS } from '@/providers/consts'
+import { ProviderId } from '@/providers/registry'
 import { ToolResponse } from '@/tools/types'
-import { MODEL_TOOLS, ModelType } from '../consts'
 import { BlockConfig, ParamType } from '../types'
 
 interface Metric {
@@ -81,7 +82,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_TOOLS),
+      options: Object.keys(MODEL_PROVIDERS),
     },
     {
       id: 'apiKey',
@@ -125,7 +126,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = MODEL_TOOLS[model as ModelType]
+        const tool = MODEL_PROVIDERS[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

@@ -103,6 +103,9 @@ export class AgentBlockHandler implements BlockHandler {
           .filter((t): t is NonNullable<typeof t> => t !== null)
       : []
 
+    // Add local_execution: true for Cerebras provider
+    const additionalParams = providerId === 'cerebras' ? { local_execution: true } : {}
+
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt: inputs.systemPrompt,
@@ -114,6 +117,7 @@ export class AgentBlockHandler implements BlockHandler {
       maxTokens: inputs.maxTokens,
       apiKey: inputs.apiKey,
       responseFormat,
+      ...additionalParams,
     })
 
     // Return structured or standard response based on responseFormat

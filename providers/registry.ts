@@ -1,11 +1,12 @@
 import { anthropicProvider } from './anthropic'
+import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
 import { openaiProvider } from './openai'
 import { ProviderConfig } from './types'
 import { xAIProvider } from './xai'
 
-export type ProviderId = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai'
+export type ProviderId = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'cerebras'
 
 export const providers: Record<ProviderId, ProviderConfig> = {
   openai: openaiProvider,
@@ -13,6 +14,7 @@ export const providers: Record<ProviderId, ProviderConfig> = {
   google: googleProvider,
   deepseek: deepseekProvider,
   xai: xAIProvider,
+  cerebras: cerebrasProvider,
 }
 
 export function getProvider(id: string): ProviderConfig | undefined {
