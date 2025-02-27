@@ -1,3 +1,4 @@
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { visionTool as crewAIVision } from './crewai/vision'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
@@ -67,7 +68,94 @@ export const tools: Record<string, ToolConfig> = {
 
 // Get a tool by its ID
 export function getTool(toolId: string): ToolConfig | undefined {
-  return tools[toolId]
+  // Check for built-in tools
+  const builtInTool = tools[toolId]
+  if (builtInTool) return builtInTool
+
+  // Check if it's a custom tool
+  if (toolId.startsWith('custom_')) {
+    return getCustomTool(toolId)
+  }
+
+  return undefined
+}
+
+// Create a tool config from a custom tool definition
+function getCustomTool(customToolId: string): ToolConfig | undefined {
+  // Extract the identifier part (could be UUID or title)
+  const identifier = customToolId.replace('custom_', '')
+
+  const customToolsStore = useCustomToolsStore.getState()
+
+  // Try to find the tool directly by ID first
+  let customTool = customToolsStore.getTool(identifier)
+
+  // If not found by ID, try to find by title (for backward compatibility)
+  if (!customTool) {
+    const allTools = customToolsStore.getAllTools()
+    customTool = allTools.find((tool) => tool.title === identifier)
+  }
+
+  if (!customTool) {
+    console.error(`Custom tool not found: ${identifier}`)
+    return undefined
+  }
+
+  // Create a parameter schema from the custom tool schema
+  const params: Record<string, any> = {}
+
+  if (customTool.schema.function?.parameters?.properties) {
+    Object.entries(customTool.schema.function.parameters.properties).forEach(([key, config]) => {
+      params[key] = {
+        type: config.type || 'string',
+        required: customTool.schema.function.parameters.required?.includes(key) || false,
+        requiredForToolCall: customTool.schema.function.parameters.required?.includes(key) || false,
+        description: config.description || '',
+      }
+    })
+  }
+
+  // Create a tool config for the custom tool
+  return {
+    id: customToolId,
+    name: customTool.title,
+    description: customTool.schema.function?.description || '',
+    version: '1.0.0',
+    params,
+
+    // Request configuration - for custom tools we'll use the execute endpoint
+    request: {
+      url: '/api/execute',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: (params: Record<string, any>) => {
+        // Include everything needed for execution
+        return {
+          code: customTool.code,
+          params: params, // These will be available in the VM context
+          schema: customTool.schema.function.parameters, // For validation on the client side
+        }
+      },
+      isInternalRoute: true,
+    },
+
+    // Response handling
+    transformResponse: async (response: Response) => {
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'Custom tool execution failed')
+      }
+
+      return {
+        success: true,
+        output: data.output.result || data.output,
+        error: undefined,
+      }
+    },
+    transformError: (error: any) =>
+      `Custom tool execution error: ${error.message || 'Unknown error'}`,
+  }
 }
 
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
@@ -78,10 +166,6 @@ export async function executeTool(
 ): Promise<ToolResponse> {
   try {
     const tool = getTool(toolId)
-    console.log(`Tool being called: ${toolId}`, {
-      params: { ...params, apiKey: params.apiKey ? '[REDACTED]' : undefined },
-      skipProxy,
-    })
 
     // Validate the tool and its parameters
     validateToolRequest(toolId, tool, params)
@@ -93,21 +177,25 @@ export async function executeTool(
 
     // For internal routes or when skipProxy is true, call the API directly
     if (tool.request.isInternalRoute || skipProxy) {
-      console.log(`Calling internal request for ${toolId}`)
       const result = await handleInternalRequest(toolId, tool, params)
-      console.log(`Tool ${toolId} execution result:`, {
-        success: result.success,
-        outputKeys: result.success ? Object.keys(result.output) : [],
-        error: result.error,
-      })
       return result
     }
 
     // For external APIs, use the proxy
-    console.log(`Calling proxy request for ${toolId}`)
     return await handleProxyRequest(toolId, params)
   } catch (error: any) {
     console.error(`Error executing tool ${toolId}:`, error)
+
+    // For custom tools, provide more helpful error information
+    if (toolId.startsWith('custom_')) {
+      const identifier = toolId.replace('custom_', '')
+      const allTools = useCustomToolsStore.getState().getAllTools()
+      const availableTools = allTools.map((t) => ({ id: t.id, title: t.title }))
+
+      console.error('Available custom tools:', availableTools)
+      console.error(`Looking for custom tool with identifier: ${identifier}`)
+    }
+
     return {
       success: false,
       output: {},
@@ -124,17 +212,113 @@ async function handleInternalRequest(
   tool: ToolConfig,
   params: Record<string, any>
 ): Promise<ToolResponse> {
-  // Log the request for debugging
-  console.log(`Executing tool ${toolId} with params:`, {
-    toolId,
-    params: { ...params, apiKey: params.apiKey ? '[REDACTED]' : undefined },
-  })
-
   // Format the request parameters
   const requestParams = formatRequestParams(tool, params)
 
-  // Execute the request
-  return await executeRequest(toolId, tool, requestParams)
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    // Handle the case where url may be a function or string
+    const endpointUrl =
+      typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+
+    const fullUrl = new URL(endpointUrl, baseUrl).toString()
+
+    // For custom tools, validate parameters on the client side before sending
+    if (toolId.startsWith('custom_') && tool.request.body) {
+      const requestBody = tool.request.body(params)
+      if (requestBody.schema && requestBody.params) {
+        validateClientSideParams(requestBody.params, requestBody.schema)
+      }
+    }
+
+    const response = await fetch(fullUrl, {
+      method: requestParams.method,
+      headers: requestParams.headers,
+      body: requestParams.body,
+    })
+
+    if (!response.ok) {
+      let errorData
+      try {
+        errorData = await response.json()
+      } catch (e) {
+        errorData = { error: response.statusText }
+      }
+
+      throw new Error(errorData.error || `Request failed with status ${response.status}`)
+    }
+
+    // Use the tool's response transformer if available
+    if (tool.transformResponse) {
+      return await tool.transformResponse(response)
+    }
+
+    // Default response handling
+    const data = await response.json()
+    return {
+      success: true,
+      output: data.output || data,
+      error: undefined,
+    }
+  } catch (error: any) {
+    // Use the tool's error transformer if available
+    if (tool.transformError) {
+      return {
+        success: false,
+        output: {},
+        error: tool.transformError(error),
+      }
+    }
+
+    return {
+      success: false,
+      output: {},
+      error: error.message || 'Request failed',
+    }
+  }
+}
+
+/**
+ * Validates parameters on the client side before sending to the execute endpoint
+ */
+function validateClientSideParams(
+  params: Record<string, any>,
+  schema: { type: string; properties: Record<string, any>; required?: string[] }
+) {
+  if (!schema || schema.type !== 'object') {
+    throw new Error('Invalid schema format')
+  }
+
+  // Check required parameters
+  if (schema.required) {
+    for (const requiredParam of schema.required) {
+      if (!(requiredParam in params)) {
+        throw new Error(`Required parameter missing: ${requiredParam}`)
+      }
+    }
+  }
+
+  // Check parameter types (basic validation)
+  for (const [paramName, paramValue] of Object.entries(params)) {
+    const paramSchema = schema.properties[paramName]
+    if (!paramSchema) {
+      throw new Error(`Unknown parameter: ${paramName}`)
+    }
+
+    // Basic type checking
+    const type = paramSchema.type
+    if (type === 'string' && typeof paramValue !== 'string') {
+      throw new Error(`Parameter ${paramName} should be a string`)
+    } else if (type === 'number' && typeof paramValue !== 'number') {
+      throw new Error(`Parameter ${paramName} should be a number`)
+    } else if (type === 'boolean' && typeof paramValue !== 'boolean') {
+      throw new Error(`Parameter ${paramName} should be a boolean`)
+    } else if (type === 'array' && !Array.isArray(paramValue)) {
+      throw new Error(`Parameter ${paramName} should be an array`)
+    } else if (type === 'object' && (typeof paramValue !== 'object' || paramValue === null)) {
+      throw new Error(`Parameter ${paramName} should be an object`)
+    }
+  }
 }
 
 /**

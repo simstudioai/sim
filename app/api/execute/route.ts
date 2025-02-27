@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const { code, timeout = 3000 } = body
+    const { code, params = {}, timeout = 3000 } = body
 
     // Check if code contains unresolved template variables
     if (code.includes('<') && code.includes('>')) {
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
     // Create a secure context with console logging
     const context = createContext({
+      params,
       console: {
         log: (...args: any[]) => {
           const logMessage =
@@ -42,7 +43,6 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Create and run the script
     const script = new Script(`
       (async () => {
         try {

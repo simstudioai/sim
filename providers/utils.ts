@@ -1,9 +1,10 @@
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
 import { openaiProvider } from './openai'
-import { ProviderConfig, ProviderId } from './types'
+import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
 
 /**
@@ -191,4 +192,38 @@ export function extractAndParseJSON(content: string): any {
       )
     }
   }
+}
+
+/**
+ * Transforms a custom tool schema into a provider tool config
+ */
+export function transformCustomTool(customTool: any): ProviderToolConfig {
+  const schema = customTool.schema
+
+  if (!schema || !schema.function) {
+    throw new Error('Invalid custom tool schema')
+  }
+
+  return {
+    id: `custom_${customTool.id}`, // Prefix with 'custom_' to identify custom tools
+    name: schema.function.name,
+    description: schema.function.description || '',
+    params: {}, // This will be derived from parameters
+    parameters: {
+      type: schema.function.parameters.type,
+      properties: schema.function.parameters.properties,
+      required: schema.function.parameters.required || [],
+    },
+  }
+}
+
+/**
+ * Gets all available custom tools as provider tool configs
+ */
+export function getCustomTools(): ProviderToolConfig[] {
+  // Get custom tools from the store
+  const customTools = useCustomToolsStore.getState().getAllTools()
+
+  // Transform each custom tool into a provider tool config
+  return customTools.map(transformCustomTool)
 }

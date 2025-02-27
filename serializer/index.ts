@@ -28,13 +28,36 @@ export class Serializer {
       throw new Error(`Invalid block type: ${block.type}`)
     }
 
-    // Get tool ID from block config
-    const toolId = blockConfig.tools.config?.tool
-      ? blockConfig.tools.config.tool(this.extractParams(block))
-      : blockConfig.tools.access[0]
-
-    // Extract params from subBlocks
+    // Check if this is an agent block with custom tools
     const params = this.extractParams(block)
+    let toolId = ''
+
+    if (block.type === 'agent' && params.tools) {
+      // Process the tools in the agent block
+      try {
+        const tools = Array.isArray(params.tools) ? params.tools : JSON.parse(params.tools)
+
+        // If there are custom tools, we just keep them as is
+        // They'll be handled by the executor during runtime
+
+        // For non-custom tools, we determine the tool ID
+        const nonCustomTools = tools.filter((tool: any) => tool.type !== 'custom-tool')
+        if (nonCustomTools.length > 0) {
+          toolId = blockConfig.tools.config?.tool
+            ? blockConfig.tools.config.tool(params)
+            : blockConfig.tools.access[0]
+        }
+      } catch (error) {
+        console.error('Error processing tools in agent block:', error)
+        // Default to the first tool if we can't process tools
+        toolId = blockConfig.tools.access[0]
+      }
+    } else {
+      // For non-agent blocks, get tool ID from block config as usual
+      toolId = blockConfig.tools.config?.tool
+        ? blockConfig.tools.config.tool(params)
+        : blockConfig.tools.access[0]
+    }
 
     // Get inputs from block config
     const inputs: Record<string, any> = {}

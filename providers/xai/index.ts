@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
 
 export const xAIProvider: ProviderConfig = {
@@ -141,13 +142,7 @@ export const xAIProvider: ProviderConfig = {
             const tool = request.tools?.find((t) => t.id === toolName)
             if (!tool) continue
 
-            const { executeTool } = await import('@/tools')
             const mergedArgs = { ...tool.params, ...toolArgs }
-            console.log(`Merged tool args for ${toolName}:`, {
-              toolParams: tool.params,
-              llmArgs: toolArgs,
-              mergedArgs,
-            })
             const result = await executeTool(toolName, mergedArgs, true)
 
             if (!result.success) continue

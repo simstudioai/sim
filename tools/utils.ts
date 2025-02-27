@@ -66,13 +66,7 @@ export async function executeRequest(
   try {
     const { url, method, headers, body } = requestParams
 
-    // Log the request for debugging
-    console.log(`Executing tool ${toolId}:`, { url, method })
-
     const externalResponse = await fetch(url, { method, headers, body })
-
-    // Log response status
-    console.log(`${toolId} response status:`, externalResponse.status, externalResponse.statusText)
 
     if (!externalResponse.ok) {
       let errorContent

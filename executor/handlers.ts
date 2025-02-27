@@ -69,6 +69,22 @@ export class AgentBlockHandler implements BlockHandler {
     const formattedTools = Array.isArray(inputs.tools)
       ? inputs.tools
           .map((tool: any) => {
+            // Handle custom tools
+            if (tool.type === 'custom-tool' && tool.schema) {
+              return {
+                id: `custom_${tool.title}`,
+                name: tool.schema.function.name,
+                description: tool.schema.function.description || '',
+                params: tool.params || {},
+                parameters: {
+                  type: tool.schema.function.parameters.type,
+                  properties: tool.schema.function.parameters.properties,
+                  required: tool.schema.function.parameters.required || [],
+                },
+              }
+            }
+
+            // Handle regular block tools
             const blockFound = getAllBlocks().find((b) => b.type === tool.type)
             const toolId = blockFound?.tools.access[0]
             if (!toolId) return null
