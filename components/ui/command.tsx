@@ -39,6 +39,12 @@ import { cn } from '@/lib/utils'
 // This file is not typed correctly from shadcn, so we're disabling the type checker
 // @ts-nocheck
 
+// This file is not typed correctly from shadcn, so we're disabling the type checker
+// @ts-nocheck
+
+// This file is not typed correctly from shadcn, so we're disabling the type checker
+// @ts-nocheck
+
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive> & {
@@ -119,6 +125,7 @@ const CommandGroup = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Group>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Group> & {
     children?: React.ReactNode
+    className?: string
   }
 >(({ className, ...props }, ref) => (
   <CommandPrimitive.Group

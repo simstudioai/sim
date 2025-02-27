@@ -1,5 +1,6 @@
 import { useChatStore } from './chat/store'
 import { useConsoleStore } from './console/store'
+import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
@@ -9,9 +10,9 @@ import { useWorkflowRegistry } from './workflow/registry/store'
 import { useWorkflowStore } from './workflow/store'
 
 // Initialize sync manager when the store is first imported
-if (typeof window !== 'undefined') {
-  initializeSyncManager()
-}
+// if (typeof window !== 'undefined') {
+//   initializeSyncManager()
+// }
 
 // Reset all application stores to their initial state
 export const resetAllStores = () => {
@@ -43,6 +44,7 @@ export const resetAllStores = () => {
   useConsoleStore.setState({ entries: [], isOpen: false })
   useGeneralStore.setState({ isAutoConnectEnabled: true, isDebugModeEnabled: false })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
+  useCustomToolsStore.setState({ tools: {} })
 }
 
 // Log the current state of all stores
@@ -55,6 +57,7 @@ export const logAllStores = () => {
     execution: useExecutionStore.getState(),
     console: useConsoleStore.getState(),
     chat: useChatStore.getState(),
+    customTools: useCustomToolsStore.getState(),
   }
 
   console.group('Application State')
@@ -77,4 +80,5 @@ export {
   useExecutionStore,
   useConsoleStore,
   useChatStore,
+  useCustomToolsStore,
 }

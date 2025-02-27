@@ -12,7 +12,7 @@ import { SliderInput } from './components/slider-input'
 import { Switch } from './components/switch'
 import { Table } from './components/table'
 import { TimeInput } from './components/time-input'
-import { ToolInput } from './components/tool-input'
+import { ToolInput } from './components/tool-input/tool-input'
 
 interface SubBlockProps {
   blockId: string
