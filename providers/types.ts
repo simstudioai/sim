@@ -19,9 +19,15 @@ export interface ProviderConfig {
   models: string[]
   defaultModel: string
 
-  // Provider-specific configuration
-  baseUrl: string
-  headers: (apiKey: string) => Record<string, string>
+  // Provider implementation type
+  implementationType: 'sdk' | 'http'
+
+  // For HTTP-based providers
+  baseUrl?: string
+  headers?: (apiKey: string) => Record<string, string>
+
+  // For SDK-based providers
+  executeRequest?: (request: ProviderRequest) => Promise<ProviderResponse>
 
   // Tool calling support
   transformToolsToFunctions: (tools: ProviderToolConfig[]) => any
@@ -78,6 +84,15 @@ export interface Message {
     name: string
     arguments: string
   }
+  tool_calls?: Array<{
+    id: string
+    type: 'function'
+    function: {
+      name: string
+      arguments: string
+    }
+  }>
+  tool_call_id?: string
 }
 
 export interface ProviderRequest {
@@ -96,6 +111,7 @@ export interface ProviderRequest {
       description?: string
     }>
   }
+  local_execution?: boolean
 }
 
 // Map of provider IDs to their configurations

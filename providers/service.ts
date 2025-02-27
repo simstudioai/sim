@@ -1,5 +1,5 @@
+import OpenAI from 'openai'
 import { executeTool, getTool } from '@/tools'
-import { executeCerebrasRequest } from './cerebras/service'
 import { getProvider } from './registry'
 import { ProviderRequest, ProviderResponse, TokenInfo } from './types'
 import { extractAndParseJSON } from './utils'
@@ -65,11 +65,20 @@ export async function executeProviderRequest(
     throw new Error(`Provider not found: ${providerId}`)
   }
 
-  // Special handling for Cerebras provider which uses SDK directly
-  if (providerId === 'cerebras') {
-    return executeCerebrasRequest(request)
+  // Use SDK-based implementation if available
+  if (provider.implementationType === 'sdk' && provider.executeRequest) {
+    return provider.executeRequest(request)
   }
 
+  // Legacy HTTP-based implementation for other providers
+  return executeHttpProviderRequest(provider, request)
+}
+
+// Legacy HTTP-based implementation
+async function executeHttpProviderRequest(
+  provider: any,
+  request: ProviderRequest
+): Promise<ProviderResponse> {
   // If responseFormat is provided, modify the system prompt to enforce structured output
   if (request.responseFormat) {
     const structuredOutputInstructions = generateStructuredOutputInstructions(
@@ -88,7 +97,7 @@ export async function executeProviderRequest(
   const payload = provider.transformRequest(request, functions)
 
   // Make the initial API request through the proxy
-  let currentResponse = await makeProxyRequest(providerId, payload, request.apiKey)
+  let currentResponse = await makeProxyRequest(provider.id, payload, request.apiKey)
   let content = ''
   let tokens: TokenInfo | undefined = undefined
   let toolCalls = []
@@ -209,19 +218,66 @@ export async function executeProviderRequest(
       toolCalls.push(functionCall)
 
       // Add the function call and result to messages
-      currentMessages.push({
-        role: 'assistant',
-        content: null,
-        function_call: {
+      // Check if we're dealing with the new tool_calls format or the legacy function_call format
+      const hasToolCalls = currentResponse.choices?.[0]?.message?.tool_calls
+
+      if (hasToolCalls) {
+        const toolCall = currentResponse.choices[0].message.tool_calls[0]
+        if (toolCall && toolCall.id) {
+          currentMessages.push({
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: toolCall.id,
+                type: 'function',
+                function: {
+                  name: functionCall.name,
+                  arguments: JSON.stringify(functionCall.arguments),
+                },
+              },
+            ],
+          })
+
+          currentMessages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result.output),
+          })
+        } else {
+          // Fallback to legacy format if id is missing
+          currentMessages.push({
+            role: 'assistant',
+            content: null,
+            function_call: {
+              name: functionCall.name,
+              arguments: JSON.stringify(functionCall.arguments),
+            },
+          })
+
+          currentMessages.push({
+            role: 'function',
+            name: functionCall.name,
+            content: JSON.stringify(result.output),
+          })
+        }
+      } else {
+        // Legacy format
+        currentMessages.push({
+          role: 'assistant',
+          content: null,
+          function_call: {
+            name: functionCall.name,
+            arguments: JSON.stringify(functionCall.arguments),
+          },
+        })
+
+        currentMessages.push({
+          role: 'function',
           name: functionCall.name,
-          arguments: JSON.stringify(functionCall.arguments),
-        },
-      })
-      currentMessages.push({
-        role: 'function',
-        name: functionCall.name,
-        content: JSON.stringify(result.output),
-      })
+          content: JSON.stringify(result.output),
+        })
+      }
 
       // Prepare the next request
       const nextPayload = provider.transformRequest(
@@ -233,7 +289,7 @@ export async function executeProviderRequest(
       )
 
       // Make the next request
-      currentResponse = await makeProxyRequest(providerId, nextPayload, request.apiKey)
+      currentResponse = await makeProxyRequest(provider.id, nextPayload, request.apiKey)
       iterationCount++
     }
 
