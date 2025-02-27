@@ -113,7 +113,7 @@ async function executeWorkflow(workflow: any, input?: any) {
 
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
+    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars, input)
     const result = await executor.execute(workflowId)
 
     // Log each execution step

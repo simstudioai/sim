@@ -176,9 +176,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           outputs: {
             response: {
               type: {
-                result: 'any',
-                stdout: 'string',
-                executionTime: 'number',
+                input: 'any',
               },
             },
           },

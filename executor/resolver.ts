@@ -14,12 +14,27 @@ export class InputResolver {
   ) {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
+
+    // Initialize the normalized name map
     this.blockByNormalizedName = new Map(
       workflow.blocks.map((block) => [
         block.metadata?.name ? this.normalizeBlockName(block.metadata.name) : block.id,
         block,
       ])
     )
+
+    // Add special handling for the starter block - allow referencing it as "start"
+    const starterBlock = workflow.blocks.find((block) => block.metadata?.id === 'starter')
+    if (starterBlock) {
+      this.blockByNormalizedName.set('start', starterBlock)
+      // Also add the normalized actual name if it exists
+      if (starterBlock.metadata?.name) {
+        this.blockByNormalizedName.set(
+          this.normalizeBlockName(starterBlock.metadata.name),
+          starterBlock
+        )
+      }
+    }
   }
 
   /**
@@ -99,15 +114,53 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      let sourceBlock = this.blockById.get(blockRef)
+      // Special case for "start" references
+      // This allows users to reference the starter block using <start.response.type.input>
+      // regardless of the actual name of the starter block
+      if (blockRef.toLowerCase() === 'start') {
+        // Find the starter block
+        const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+        if (starterBlock) {
+          const blockState = context.blockStates.get(starterBlock.id)
+          if (blockState) {
+            // Navigate through the path parts
+            let replacementValue: any = blockState.output
+            for (const part of pathParts) {
+              if (!replacementValue || typeof replacementValue !== 'object') {
+                throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
+              }
+              replacementValue = replacementValue[part]
+              if (replacementValue === undefined) {
+                throw new Error(`No value found at path "${path}" in starter block.`)
+              }
+            }
 
+            // Format the value
+            const formattedValue =
+              typeof replacementValue === 'object'
+                ? JSON.stringify(replacementValue)
+                : String(replacementValue)
+
+            resolvedValue = resolvedValue.replace(match, formattedValue)
+            continue
+          }
+        }
+      }
+
+      // Standard block reference resolution
+      let sourceBlock = this.blockById.get(blockRef)
       if (!sourceBlock) {
         const normalizedRef = this.normalizeBlockName(blockRef)
         sourceBlock = this.blockByNormalizedName.get(normalizedRef)
       }
 
       if (!sourceBlock) {
-        throw new Error(`Block reference "${blockRef}" was not found.`)
+        // Provide a more helpful error message with available block names
+        const availableBlocks = Array.from(this.blockByNormalizedName.keys()).join(', ')
+        throw new Error(
+          `Block reference "${blockRef}" was not found. Available blocks: ${availableBlocks}. ` +
+            `For the starter block, try using "start" or the exact block name.`
+        )
       }
 
       if (sourceBlock.enabled === false) {
@@ -156,6 +209,7 @@ export class InputResolver {
             `Invalid path "${part}" in "${path}" for block "${currentBlock.metadata?.name || currentBlock.id}".`
           )
         }
+
         replacementValue = replacementValue[part]
 
         if (replacementValue === undefined) {

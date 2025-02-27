@@ -28,13 +28,16 @@ export class Executor {
   private loopManager: LoopManager
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
+  private workflowInput: any
 
   constructor(
     private workflow: SerializedWorkflow,
     private initialBlockStates: Record<string, BlockOutput> = {},
-    private environmentVariables: Record<string, string> = {}
+    private environmentVariables: Record<string, string> = {},
+    workflowInput?: any
   ) {
     this.validateWorkflow()
+    this.workflowInput = workflowInput || {}
 
     this.resolver = new InputResolver(workflow, environmentVariables)
     this.loopManager = new LoopManager(workflow.loops || {})
@@ -211,11 +214,22 @@ export class Executor {
 
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
+      // Initialize the starter block with the workflow input
+      const starterOutput = {
+        response: {
+          type: {
+            input: this.workflowInput,
+          },
+        },
+      }
+
       context.blockStates.set(starterBlock.id, {
-        output: { response: { result: true } },
+        output: starterOutput,
         executed: true,
         executionTime: 0,
       })
+
+      // Mark the starter block as executed and add its connections to the active path
       context.executedBlocks.add(starterBlock.id)
 
       const connectedToStarter = this.workflow.connections
@@ -369,6 +383,15 @@ export class Executor {
     const block = this.workflow.blocks.find((b) => b.id === blockId)
     if (!block) {
       throw new Error(`Block ${blockId} not found`)
+    }
+
+    // Special case for starter block - it's already been initialized in createExecutionContext
+    // This ensures we don't re-execute the starter block and just return its existing state
+    if (block.metadata?.id === 'starter') {
+      const starterState = context.blockStates.get(blockId)
+      if (starterState) {
+        return starterState.output as NormalizedBlockOutput
+      }
     }
 
     const blockLog = this.createBlockLog(block)

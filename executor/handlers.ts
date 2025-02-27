@@ -103,12 +103,15 @@ export class AgentBlockHandler implements BlockHandler {
           .filter((t): t is NonNullable<typeof t> => t !== null)
       : []
 
+    // Ensure context is properly formatted for the provider
     const response = await executeProviderRequest(providerId, {
       model,
       systemPrompt: inputs.systemPrompt,
       context: Array.isArray(inputs.context)
         ? JSON.stringify(inputs.context, null, 2)
-        : inputs.context,
+        : typeof inputs.context === 'string'
+          ? inputs.context
+          : JSON.stringify(inputs.context, null, 2),
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
