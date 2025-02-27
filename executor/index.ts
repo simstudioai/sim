@@ -214,12 +214,7 @@ export class Executor {
 
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
-      console.log('Workflow Input:', this.workflowInput)
-      console.log('Workflow Input Type:', typeof this.workflowInput)
-
-      // Ensure the starter block output structure is consistent
-      // The structure should match what's expected in the reference resolution
-      // For example, <start.response.type.input> expects this structure
+      // Initialize the starter block with the workflow input
       const starterOutput = {
         response: {
           type: {
@@ -234,15 +229,7 @@ export class Executor {
         executionTime: 0,
       })
 
-      console.log(
-        'Starter Block Output Structure:',
-        JSON.stringify(context.blockStates.get(starterBlock.id)?.output)
-      )
-      console.log(
-        'Starter Block Input Value:',
-        JSON.stringify(context.blockStates.get(starterBlock.id)?.output.response.type.input)
-      )
-
+      // Mark the starter block as executed and add its connections to the active path
       context.executedBlocks.add(starterBlock.id)
 
       const connectedToStarter = this.workflow.connections
@@ -399,6 +386,7 @@ export class Executor {
     }
 
     // Special case for starter block - it's already been initialized in createExecutionContext
+    // This ensures we don't re-execute the starter block and just return its existing state
     if (block.metadata?.id === 'starter') {
       const starterState = context.blockStates.get(blockId)
       if (starterState) {

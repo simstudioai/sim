@@ -201,11 +201,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = await request.json().catch(() => ({}))
-    if (body) {
-      console.log('Workflow execution input:', body)
-    } else {
-      console.log('No input provided')
-    }
     const result = await executeWorkflow(validation.workflow, body)
     return createSuccessResponse(result)
   } catch (error: any) {
