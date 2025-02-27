@@ -41,7 +41,7 @@ async function prepareSyncPayload(
   if (!savedState) return null
 
   const state = JSON.parse(savedState)
-  const mergedBlocks = mergeSubblockState(state.blocks)
+  const mergedBlocks = mergeSubblockState(state.blocks, id)
 
   return {
     id,
