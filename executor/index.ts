@@ -28,13 +28,16 @@ export class Executor {
   private loopManager: LoopManager
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
+  private workflowInput: any
 
   constructor(
     private workflow: SerializedWorkflow,
     private initialBlockStates: Record<string, BlockOutput> = {},
-    private environmentVariables: Record<string, string> = {}
+    private environmentVariables: Record<string, string> = {},
+    workflowInput?: any
   ) {
     this.validateWorkflow()
+    this.workflowInput = workflowInput || {}
 
     this.resolver = new InputResolver(workflow, environmentVariables)
     this.loopManager = new LoopManager(workflow.loops || {})
@@ -211,11 +214,29 @@ export class Executor {
 
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
+      console.log('Workflow Input:', this.workflowInput)
+
       context.blockStates.set(starterBlock.id, {
-        output: { response: { result: true } },
+        output: {
+          response: {
+            type: {
+              input: this.workflowInput,
+            },
+          },
+        },
         executed: true,
         executionTime: 0,
       })
+
+      console.log(
+        'Starter Block Output Structure:',
+        JSON.stringify(context.blockStates.get(starterBlock.id)?.output)
+      )
+      console.log(
+        'Starter Block Input Value:',
+        JSON.stringify(context.blockStates.get(starterBlock.id)?.output.response.type.input)
+      )
+
       context.executedBlocks.add(starterBlock.id)
 
       const connectedToStarter = this.workflow.connections

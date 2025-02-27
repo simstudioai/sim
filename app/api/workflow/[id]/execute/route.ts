@@ -113,7 +113,7 @@ async function executeWorkflow(workflow: any, input?: any) {
 
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
+    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars, input)
     const result = await executor.execute(workflowId)
 
     // Log each execution step
@@ -201,6 +201,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = await request.json().catch(() => ({}))
+    if (body) {
+      console.log('Workflow execution input:', body)
+    } else {
+      console.log('No input provided')
+    }
     const result = await executeWorkflow(validation.workflow, body)
     return createSuccessResponse(result)
   } catch (error: any) {

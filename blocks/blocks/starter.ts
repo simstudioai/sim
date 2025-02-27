@@ -131,15 +131,12 @@ export const StarterBlock: BlockConfig = {
     access: [],
   },
   inputs: {
-    code: { type: 'string', required: true },
-    executionMode: { type: 'string', required: true },
+    input: { type: 'json', required: false },
   },
   outputs: {
     response: {
       type: {
-        result: 'any',
-        stdout: 'string',
-        executionTime: 'number',
+        input: 'any',
       },
     },
   },
