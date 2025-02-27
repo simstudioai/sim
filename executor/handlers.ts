@@ -49,6 +49,9 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
+    console.log(`Executing agent block: ${block.metadata?.name || block.id}`)
+    console.log(`Agent inputs:`, JSON.stringify(inputs))
+
     // Parse response format if provided
     let responseFormat: any = undefined
     if (inputs.responseFormat) {
@@ -64,6 +67,10 @@ export class AgentBlockHandler implements BlockHandler {
 
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
+
+    // Log the context that will be sent to the provider
+    console.log(`Agent context:`, inputs.context)
+    console.log(`Agent context type:`, typeof inputs.context)
 
     // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)
@@ -108,13 +115,17 @@ export class AgentBlockHandler implements BlockHandler {
       systemPrompt: inputs.systemPrompt,
       context: Array.isArray(inputs.context)
         ? JSON.stringify(inputs.context, null, 2)
-        : inputs.context,
+        : typeof inputs.context === 'string'
+          ? inputs.context
+          : JSON.stringify(inputs.context, null, 2),
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
       apiKey: inputs.apiKey,
       responseFormat,
     })
+
+    console.log(`Provider response:`, response.content)
 
     // Return structured or standard response based on responseFormat
     return responseFormat

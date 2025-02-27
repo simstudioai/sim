@@ -215,15 +215,21 @@ export class Executor {
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
       console.log('Workflow Input:', this.workflowInput)
+      console.log('Workflow Input Type:', typeof this.workflowInput)
 
-      context.blockStates.set(starterBlock.id, {
-        output: {
-          response: {
-            type: {
-              input: this.workflowInput,
-            },
+      // Ensure the starter block output structure is consistent
+      // The structure should match what's expected in the reference resolution
+      // For example, <start.response.type.input> expects this structure
+      const starterOutput = {
+        response: {
+          type: {
+            input: this.workflowInput,
           },
         },
+      }
+
+      context.blockStates.set(starterBlock.id, {
+        output: starterOutput,
         executed: true,
         executionTime: 0,
       })
@@ -390,6 +396,14 @@ export class Executor {
     const block = this.workflow.blocks.find((b) => b.id === blockId)
     if (!block) {
       throw new Error(`Block ${blockId} not found`)
+    }
+
+    // Special case for starter block - it's already been initialized in createExecutionContext
+    if (block.metadata?.id === 'starter') {
+      const starterState = context.blockStates.get(blockId)
+      if (starterState) {
+        return starterState.output as NormalizedBlockOutput
+      }
     }
 
     const blockLog = this.createBlockLog(block)

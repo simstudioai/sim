@@ -14,12 +14,27 @@ export class InputResolver {
   ) {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
+
+    // Initialize the normalized name map
     this.blockByNormalizedName = new Map(
       workflow.blocks.map((block) => [
         block.metadata?.name ? this.normalizeBlockName(block.metadata.name) : block.id,
         block,
       ])
     )
+
+    // Add special handling for the starter block - allow referencing it as "start"
+    const starterBlock = workflow.blocks.find((block) => block.metadata?.id === 'starter')
+    if (starterBlock) {
+      this.blockByNormalizedName.set('start', starterBlock)
+      // Also add the normalized actual name if it exists
+      if (starterBlock.metadata?.name) {
+        this.blockByNormalizedName.set(
+          this.normalizeBlockName(starterBlock.metadata.name),
+          starterBlock
+        )
+      }
+    }
   }
 
   /**
@@ -34,32 +49,48 @@ export class InputResolver {
     const inputs = { ...block.config.params }
     const result: Record<string, any> = {}
 
+    console.log(
+      `Resolving inputs for block ${block.metadata?.name || block.id} (${block.metadata?.id})`
+    )
+    console.log(`Input parameters:`, JSON.stringify(inputs))
+
     // Process each input parameter
     for (const [key, value] of Object.entries(inputs)) {
       // Skip null or undefined values
       if (value === null || value === undefined) {
         result[key] = value
+        console.log(`Parameter ${key} is null or undefined, skipping`)
         continue
       }
+
+      console.log(
+        `Processing parameter ${key} with value:`,
+        typeof value === 'string' ? value : JSON.stringify(value)
+      )
 
       // Handle string values that may contain references
       if (typeof value === 'string') {
         // Resolve block references
         let resolvedValue = this.resolveBlockReferences(value, context, block)
+        console.log(`After resolving block references, ${key} =`, resolvedValue)
 
         // Resolve environment variables
         resolvedValue = this.resolveEnvVariables(resolvedValue)
+        console.log(`After resolving env variables, ${key} =`, resolvedValue)
 
         // Convert JSON strings to objects if possible
         try {
           if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
             result[key] = JSON.parse(resolvedValue)
+            console.log(`Parsed ${key} as JSON:`, JSON.stringify(result[key]))
           } else {
             result[key] = resolvedValue
+            console.log(`Set ${key} as string:`, result[key])
           }
         } catch {
           // If it's not valid JSON, keep it as a string
           result[key] = resolvedValue
+          console.log(`Failed to parse as JSON, keeping ${key} as string:`, result[key])
         }
       }
       // Handle objects and arrays recursively
@@ -99,15 +130,77 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      let sourceBlock = this.blockById.get(blockRef)
+      // Special case for "start" references
+      if (blockRef.toLowerCase() === 'start') {
+        console.log(`Special handling for starter block reference: ${path}`)
+        // Find the starter block
+        const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+        if (starterBlock) {
+          console.log(`Found starter block with ID: ${starterBlock.id}`)
+          const blockState = context.blockStates.get(starterBlock.id)
+          if (blockState) {
+            console.log(`Found starter block state:`, JSON.stringify(blockState.output))
 
-      if (!sourceBlock) {
+            // Navigate through the path parts
+            let replacementValue: any = blockState.output
+            for (const part of pathParts) {
+              console.log(`Accessing part "${part}" from:`, JSON.stringify(replacementValue))
+              if (!replacementValue || typeof replacementValue !== 'object') {
+                console.error(
+                  `Invalid path part "${part}" for starter block - value is:`,
+                  replacementValue
+                )
+                throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
+              }
+              replacementValue = replacementValue[part]
+              if (replacementValue === undefined) {
+                console.error(
+                  `Property "${part}" not found in starter block output:`,
+                  JSON.stringify(blockState.output)
+                )
+                throw new Error(`No value found at path "${path}" in starter block.`)
+              }
+            }
+
+            // Format the value
+            const formattedValue =
+              typeof replacementValue === 'object'
+                ? JSON.stringify(replacementValue)
+                : String(replacementValue)
+
+            console.log(`Starter block reference resolved to:`, formattedValue)
+            resolvedValue = resolvedValue.replace(match, formattedValue)
+            continue
+          }
+        }
+      }
+
+      // Add debugging for block reference resolution
+      console.log(`Resolving block reference: ${blockRef} with path parts: ${pathParts.join('.')}`)
+      console.log(
+        `Available normalized block names:`,
+        Array.from(this.blockByNormalizedName.keys())
+      )
+
+      let sourceBlock = this.blockById.get(blockRef)
+      if (sourceBlock) {
+        console.log(`Found block by ID: ${blockRef}`)
+      } else {
         const normalizedRef = this.normalizeBlockName(blockRef)
+        console.log(`Looking up normalized name: ${normalizedRef}`)
         sourceBlock = this.blockByNormalizedName.get(normalizedRef)
+        if (sourceBlock) {
+          console.log(`Found block by normalized name: ${normalizedRef}`)
+        }
       }
 
       if (!sourceBlock) {
-        throw new Error(`Block reference "${blockRef}" was not found.`)
+        // Provide a more helpful error message with available block names
+        const availableBlocks = Array.from(this.blockByNormalizedName.keys()).join(', ')
+        throw new Error(
+          `Block reference "${blockRef}" was not found. Available blocks: ${availableBlocks}. ` +
+            `For the starter block, try using "start" or the exact block name.`
+        )
       }
 
       if (sourceBlock.enabled === false) {
@@ -149,16 +242,24 @@ export class InputResolver {
       }
 
       let replacementValue: any = blockState.output
+      console.log(
+        `Block state for ${sourceBlock.metadata?.name || sourceBlock.id}:`,
+        JSON.stringify(blockState.output)
+      )
 
       for (const part of pathParts) {
         if (!replacementValue || typeof replacementValue !== 'object') {
+          console.error(`Invalid path part "${part}" - replacementValue is:`, replacementValue)
           throw new Error(
             `Invalid path "${part}" in "${path}" for block "${currentBlock.metadata?.name || currentBlock.id}".`
           )
         }
+
+        console.log(`Accessing property "${part}" from:`, JSON.stringify(replacementValue))
         replacementValue = replacementValue[part]
 
         if (replacementValue === undefined) {
+          console.error(`Property "${part}" not found in:`, JSON.stringify(blockState.output))
           throw new Error(
             `No value found at path "${path}" in block "${sourceBlock.metadata?.name || sourceBlock.id}".`
           )
@@ -169,14 +270,21 @@ export class InputResolver {
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
+        console.log(`Formatted value for condition block: ${formattedValue}`)
       } else {
+        console.log(`Formatting replacement value:`, replacementValue)
+        console.log(`Replacement value type: ${typeof replacementValue}`)
+
         formattedValue =
           typeof replacementValue === 'object'
             ? JSON.stringify(replacementValue)
             : String(replacementValue)
+
+        console.log(`Formatted value: ${formattedValue}`)
       }
 
       resolvedValue = resolvedValue.replace(match, formattedValue)
+      console.log(`After replacement, resolved value: ${resolvedValue}`)
     }
 
     return resolvedValue
