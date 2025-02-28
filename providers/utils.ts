@@ -44,8 +44,8 @@ export const providers: Record<
   },
   cerebras: {
     ...cerebrasProvider,
-    models: ['llama-3.3-70b'],
-    modelPatterns: [/^llama/],
+    models: ['cerebras/llama-3.3-70b'],
+    modelPatterns: [/^cerebras\/llama/],
   },
 }
 
