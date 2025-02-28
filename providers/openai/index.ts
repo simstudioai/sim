@@ -80,7 +80,14 @@ export const openaiProvider: ProviderConfig = {
     // Make the initial API request
     const startTime = Date.now()
     console.log(`[OpenAI Provider] Starting request at ${new Date(startTime).toISOString()}`)
+
+    const firstRequestStartTime = Date.now()
     let currentResponse = await openai.chat.completions.create(payload)
+    const firstRequestEndTime = Date.now()
+    console.log(
+      `[OpenAI Provider] First request took ${firstRequestEndTime - firstRequestStartTime}ms`
+    )
+
     let content = currentResponse.choices[0]?.message?.content || ''
     let tokens = {
       prompt: currentResponse.usage?.prompt_tokens || 0,
@@ -181,6 +188,7 @@ export const openaiProvider: ProviderConfig = {
     console.log(
       `[OpenAI Provider] Completed request at ${new Date(endTime).toISOString()} (${endTime - startTime}ms)`
     )
+    console.log(`[OpenAI Provider] Time taken: ${endTime - startTime}ms`)
 
     return {
       content,
