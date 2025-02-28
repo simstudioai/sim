@@ -78,6 +78,8 @@ export const openaiProvider: ProviderConfig = {
     }
 
     // Make the initial API request
+    const startTime = Date.now()
+    console.log(`[OpenAI Provider] Starting request at ${new Date(startTime).toISOString()}`)
     let currentResponse = await openai.chat.completions.create(payload)
     let content = currentResponse.choices[0]?.message?.content || ''
     let tokens = {
@@ -174,6 +176,11 @@ export const openaiProvider: ProviderConfig = {
       console.error('Error in OpenAI request:', error)
       throw error
     }
+
+    const endTime = Date.now()
+    console.log(
+      `[OpenAI Provider] Completed request at ${new Date(endTime).toISOString()} (${endTime - startTime}ms)`
+    )
 
     return {
       content,
