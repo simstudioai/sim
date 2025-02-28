@@ -11,6 +11,9 @@ export const openaiProvider: ProviderConfig = {
   defaultModel: 'gpt-4o',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+    // Add tool execution mode with default of 'parameters-only'
+    const toolExecutionMode = 'parameters-only' // 'sync', 'parameters-only'
+
     if (!request.apiKey) {
       throw new Error('API key is required for OpenAI')
     }
@@ -88,13 +91,39 @@ export const openaiProvider: ProviderConfig = {
       `[OpenAI Provider] First request took ${firstRequestEndTime - firstRequestStartTime}ms`
     )
 
+    // Extract content and token information
     let content = currentResponse.choices[0]?.message?.content || ''
     let tokens = {
       prompt: currentResponse.usage?.prompt_tokens || 0,
       completion: currentResponse.usage?.completion_tokens || 0,
       total: currentResponse.usage?.total_tokens || 0,
     }
-    let toolCalls = []
+
+    // Extract tool calls if present
+    let toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+    const toolCalls =
+      toolCallsInResponse?.map((toolCall) => ({
+        name: toolCall.function.name,
+        arguments: JSON.parse(toolCall.function.arguments),
+      })) || []
+
+    // If parameters-only mode or no tool calls, return immediately
+    if (toolExecutionMode === 'parameters-only' || !toolCalls.length) {
+      const endTime = Date.now()
+      console.log(
+        `[OpenAI Provider] Completed request at ${new Date(endTime).toISOString()} (${endTime - startTime}ms)`
+      )
+
+      return {
+        content,
+        model: request.model,
+        tokens,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        // No tool results since we didn't execute them
+      }
+    }
+
+    // If we reach here, we're in sync mode and need to execute tools
     let toolResults = []
     let currentMessages = [...allMessages]
     let iterationCount = 0
@@ -103,7 +132,6 @@ export const openaiProvider: ProviderConfig = {
     try {
       while (iterationCount < MAX_ITERATIONS) {
         // Check for tool calls
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
@@ -125,10 +153,6 @@ export const openaiProvider: ProviderConfig = {
             if (!result.success) continue
 
             toolResults.push(result.output)
-            toolCalls.push({
-              name: toolName,
-              arguments: toolArgs,
-            })
 
             // Add the tool call and result to messages
             currentMessages.push({
@@ -169,6 +193,9 @@ export const openaiProvider: ProviderConfig = {
         if (currentResponse.choices[0]?.message?.content) {
           content = currentResponse.choices[0].message.content
         }
+
+        // Get new tool calls for next iteration
+        toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
 
         // Update token counts
         if (currentResponse.usage) {
