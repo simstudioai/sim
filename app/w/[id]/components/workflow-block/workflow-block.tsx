@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
 import { mergeSubblockState } from '@/stores/workflow/utils'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -111,7 +112,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
     // Get merged state for this block
     const blocks = useWorkflowStore.getState().blocks
-    const mergedState = mergeSubblockState(blocks, blockId)[blockId]
+    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
+    const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
