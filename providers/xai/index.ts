@@ -143,7 +143,7 @@ export const xAIProvider: ProviderConfig = {
             if (!tool) continue
 
             const mergedArgs = { ...tool.params, ...toolArgs }
-            const result = await executeTool(toolName, mergedArgs, true)
+            const result = await executeTool(toolName, mergedArgs)
 
             if (!result.success) continue
 

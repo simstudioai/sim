@@ -111,7 +111,7 @@ export const openaiProvider: ProviderConfig = {
 
             // Execute the tool
             const mergedArgs = { ...tool.params, ...toolArgs }
-            const result = await executeTool(toolName, mergedArgs, true)
+            const result = await executeTool(toolName, mergedArgs)
 
             if (!result.success) continue
 
