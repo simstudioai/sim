@@ -175,6 +175,8 @@ export async function GET(req: NextRequest) {
         cronExpression: schedule.cronExpression,
       })
 
+      const executionId = uuidv4()
+
       try {
         // Skip if this workflow is already running
         if (runningExecutions.has(schedule.workflowId)) {
@@ -276,7 +278,6 @@ export async function GET(req: NextRequest) {
         // Serialize and execute the workflow
         const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
         const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
-        const executionId = uuidv4()
         const result = await executor.execute(schedule.workflowId)
 
         // Log each execution step
@@ -351,11 +352,12 @@ export async function GET(req: NextRequest) {
         await persistLog({
           id: uuidv4(),
           workflowId: schedule.workflowId,
-          executionId: uuidv4(),
+          executionId,
           level: 'error',
-          message: error.message || 'Unknown error during scheduled workflow execution',
-          createdAt: new Date(),
+          message: `Scheduled workflow execution failed: ${error.message || 'Unknown error'}`,
+          duration: 'NA',
           trigger: 'schedule',
+          createdAt: new Date(),
         })
 
         // On error, increment next_run_at by a small delay to prevent immediate retries

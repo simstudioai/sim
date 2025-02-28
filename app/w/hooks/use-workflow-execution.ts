@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { useConsoleStore } from '@/stores/console/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
@@ -19,6 +20,24 @@ export function useWorkflowExecution() {
   const { toggleConsole, isOpen } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
 
+  const persistLogs = async (logs: any[], executionId: string) => {
+    try {
+      const response = await fetch(`/api/workflow/${activeWorkflowId}/log`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ logs, executionId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to persist logs')
+      }
+    } catch (error) {
+      console.error('Error persisting logs:', error)
+    }
+  }
+
   const handleRunWorkflow = useCallback(async () => {
     if (!activeWorkflowId) return
     setIsExecuting(true)
@@ -27,6 +46,8 @@ export function useWorkflowExecution() {
     if (!isOpen) {
       toggleConsole()
     }
+
+    const executionId = uuidv4()
 
     try {
       // Use the mergeSubblockState utility to get all block states
@@ -70,6 +91,34 @@ export function useWorkflowExecution() {
       const executor = new Executor(workflow, currentBlockStates, envVarValues)
       const result = await executor.execute(activeWorkflowId)
 
+      // Prepare logs for persistence
+      const blockLogs = (result.logs || []).map((log) => ({
+        level: log.success ? 'info' : 'error',
+        message: `Block ${log.blockName || log.blockId} (${log.blockType}): ${
+          log.error || 'Completed successfully'
+        }`,
+        duration: log.success ? `${log.durationMs}ms` : 'NA',
+        createdAt: new Date(log.endedAt || log.startedAt).toISOString(),
+      }))
+
+      // Calculate total duration from successful block logs
+      const totalDuration = (result.logs || [])
+        .filter((log) => log.success)
+        .reduce((sum, log) => sum + log.durationMs, 0)
+
+      // Add final execution result log
+      blockLogs.push({
+        level: result.success ? 'info' : 'error',
+        message: result.success
+          ? 'Manual workflow executed successfully'
+          : `Manual workflow execution failed: ${result.error}`,
+        duration: result.success ? `${totalDuration}ms` : 'NA',
+        createdAt: new Date().toISOString(),
+      })
+
+      // Persist all logs
+      await persistLogs(blockLogs, executionId)
+
       setExecutionResult(result)
 
       // Show execution result notification
@@ -89,6 +138,19 @@ export function useWorkflowExecution() {
         error: errorMessage,
         logs: [],
       })
+
+      // Persist error log
+      await persistLogs(
+        [
+          {
+            level: 'error',
+            message: `Manual workflow execution failed: ${errorMessage}`,
+            duration: 'NA',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        executionId
+      )
 
       addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
     } finally {
