@@ -51,6 +51,7 @@ export function General() {
                 <SelectValue placeholder="Select theme" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="system">System</SelectItem>
                 <SelectItem value="light">Light</SelectItem>
                 <SelectItem value="dark">Dark</SelectItem>
               </SelectContent>
