@@ -69,7 +69,7 @@ export function Sidebar() {
       {/* Scrollable workflows section */}
       <nav className="flex-1 overflow-y-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <div className="flex flex-col items-center gap-4">
-          {Object.values(workflows || {}).map((workflow) => (
+          {Object.values(workflows).map((workflow) => (
             <NavItem key={workflow.id} href={`/w/${workflow.id}`} label={workflow.name}>
               <div
                 className="h-4 w-4 rounded-full"

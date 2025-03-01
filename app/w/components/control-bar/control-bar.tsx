@@ -190,9 +190,7 @@ export function ControlBar() {
             className="font-semibold text-sm hover:text-muted-foreground w-fit"
             onClick={handleNameClick}
           >
-            {activeWorkflowId && workflows[activeWorkflowId]
-              ? workflows[activeWorkflowId].name
-              : 'Workflow'}
+            {activeWorkflowId ? workflows[activeWorkflowId].name : 'Workflow'}
           </h2>
         )}
         {mounted && (

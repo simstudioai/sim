@@ -320,15 +320,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
 // Initialize registry from localStorage and set up persistence
 const initializeRegistry = () => {
-  // First check if we have a registry in localStorage
   const savedRegistry = localStorage.getItem('workflow-registry')
   if (savedRegistry) {
     const workflows = JSON.parse(savedRegistry)
     useWorkflowRegistry.setState({ workflows })
   }
-
-  // Note: We don't need to do anything else here as the sync manager
-  // will handle fetching from the server and updating localStorage
 
   // Add event listeners for page unload
   window.addEventListener('beforeunload', () => {

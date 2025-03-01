@@ -19,7 +19,6 @@ interface WorkflowSyncPayload {
 const SYNC_INTERVAL_MS = 30000
 const API_ENDPOINTS = {
   SYNC: '/api/db/sync',
-  FETCH: '/api/db/fetch',
   SCHEDULE: '/api/scheduled/schedule',
   LOGIN: '/login',
 } as const
@@ -147,105 +146,11 @@ export async function performSync(): Promise<void> {
   }
 }
 
-// New function to fetch workflows from the server
-export async function fetchWorkflowsFromServer(): Promise<boolean> {
-  try {
-    const response = await fetch(API_ENDPOINTS.FETCH, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        window.location.href = API_ENDPOINTS.LOGIN
-        return false
-      }
-      console.error(`Failed to fetch workflows: ${response.statusText}`)
-      return false
-    }
-
-    const data = await response.json()
-    const { workflows } = data
-
-    if (!workflows || !Array.isArray(workflows)) {
-      console.warn('No workflows returned from server')
-      return false
-    }
-
-    // Update workflow registry
-    const registry: Record<string, any> = {}
-    workflows.forEach((workflow: any) => {
-      // Store workflow in registry
-      registry[workflow.id] = {
-        id: workflow.id,
-        name: workflow.name,
-        description: workflow.description || '',
-        lastModified: new Date(workflow.updatedAt),
-      }
-
-      // Store workflow state in localStorage
-      localStorage.setItem(
-        `workflow-${workflow.id}`,
-        JSON.stringify({
-          blocks: workflow.state.blocks,
-          edges: workflow.state.edges,
-          loops: workflow.state.loops,
-          history: {
-            past: [],
-            present: {
-              state: {
-                blocks: workflow.state.blocks,
-                edges: workflow.state.edges,
-                loops: workflow.state.loops,
-              },
-              timestamp: Date.now(),
-              action: 'Loaded from server',
-            },
-            future: [],
-          },
-          lastSaved: Date.now(),
-        })
-      )
-
-      // Initialize subblock values
-      const subblockValues: Record<string, Record<string, any>> = {}
-      Object.entries(workflow.state.blocks).forEach(([blockId, block]: [string, any]) => {
-        subblockValues[blockId] = {}
-        if (block.subBlocks) {
-          Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
-            if (subBlock && subBlock.value !== undefined) {
-              subblockValues[blockId][subBlockId] = subBlock.value
-            }
-          })
-        }
-      })
-
-      // Store subblock values in localStorage
-      localStorage.setItem(`subblock-values-${workflow.id}`, JSON.stringify(subblockValues))
-    })
-
-    // Update registry in localStorage
-    localStorage.setItem('workflow-registry', JSON.stringify(registry))
-
-    // Update the registry store
-    useWorkflowRegistry.setState({ workflows: registry })
-
-    console.log('Workflows loaded from server successfully')
-    return true
-  } catch (error) {
-    console.error('Error fetching workflows:', error)
-    return false
-  }
-}
-
-// Modify the initialization function to fetch from server first
+// Sync manager initialization
 export function initializeSyncManager(): (() => void) | undefined {
   if (typeof window === 'undefined') return
 
-  // First try to load from server, then set up regular syncing
-  fetchWorkflowsFromServer().then(() => {
-    syncInterval = setInterval(performSync, SYNC_INTERVAL_MS)
-  })
+  syncInterval = setInterval(performSync, SYNC_INTERVAL_MS)
 
   const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
     const { workflows } = useWorkflowRegistry.getState()
