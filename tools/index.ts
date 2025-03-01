@@ -2,6 +2,7 @@ import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { visionTool as crewAIVision } from './crewai/vision'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
+import { webcontainerExecuteTool as webcontainerExecute } from './function/webcontainer'
 import { commentTool } from './github/comment'
 import { prTool } from './github/pr'
 import { repoInfoTool } from './github/repo'
@@ -39,6 +40,7 @@ export const tools: Record<string, ToolConfig> = {
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecute,
+  webcontainer_execute: webcontainerExecute,
   crewai_vision: crewAIVision,
   firecrawl_scrape: scrapeTool,
   jina_readurl: readUrlTool,

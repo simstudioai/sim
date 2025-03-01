@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useConsoleStore } from '@/stores/console/store'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
@@ -12,13 +13,13 @@ import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 
 export function useWorkflowExecution() {
-  const [isExecuting, setIsExecuting] = useState(false)
-  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
   const { blocks, edges, loops } = useWorkflowStore()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
   const { toggleConsole, isOpen } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
+  const { isExecuting, setIsExecuting } = useExecutionStore()
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
   const persistLogs = async (logs: any[], executionId: string) => {
     try {
@@ -91,7 +92,17 @@ export function useWorkflowExecution() {
       const executor = new Executor(workflow, currentBlockStates, envVarValues)
       const result = await executor.execute(activeWorkflowId)
 
-      // Prepare logs for persistence
+      // Set result and show notification immediately
+      setExecutionResult(result)
+      addNotification(
+        result.success ? 'console' : 'error',
+        result.success
+          ? 'Workflow completed successfully'
+          : `Workflow execution failed: ${result.error}`,
+        activeWorkflowId
+      )
+
+      // Prepare logs for persistence (moved after notification)
       const blockLogs = (result.logs || []).map((log) => ({
         level: log.success ? 'info' : 'error',
         message: `Block ${log.blockName || log.blockId} (${log.blockType}): ${
@@ -116,30 +127,22 @@ export function useWorkflowExecution() {
         createdAt: new Date().toISOString(),
       })
 
-      // Persist all logs
+      // Persist logs after notification
       await persistLogs(blockLogs, executionId)
-
-      setExecutionResult(result)
-
-      // Show execution result notification
-      addNotification(
-        result.success ? 'console' : 'error',
-        result.success
-          ? 'Workflow completed successfully'
-          : `Workflow execution failed: ${result.error}`,
-        activeWorkflowId
-      )
     } catch (error: any) {
       console.error('Workflow Execution Error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+      // Set error result and show notification immediately
       setExecutionResult({
         success: false,
         output: { response: {} },
         error: errorMessage,
         logs: [],
       })
+      addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
 
-      // Persist error log
+      // Persist error log after notification
       await persistLogs(
         [
           {
@@ -151,8 +154,6 @@ export function useWorkflowExecution() {
         ],
         executionId
       )
-
-      addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
     } finally {
       setIsExecuting(false)
     }
@@ -165,6 +166,8 @@ export function useWorkflowExecution() {
     isOpen,
     toggleConsole,
     getAllVariables,
+    isExecuting,
+    setIsExecuting,
   ])
 
   return { isExecuting, executionResult, handleRunWorkflow }

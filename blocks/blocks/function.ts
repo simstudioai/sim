@@ -17,12 +17,11 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     },
   ],
   tools: {
-    access: ['function_execute'],
+    access: ['webcontainer_execute'],
   },
   inputs: {
     code: { type: 'string', required: true },
     timeout: { type: 'number', required: false },
-    memoryLimit: { type: 'number', required: false },
   },
   outputs: {
     response: {

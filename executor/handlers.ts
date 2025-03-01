@@ -460,17 +460,44 @@ export class FunctionBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    const tool = getTool(block.config.tool)
-    if (!tool) {
-      throw new Error(`Tool not found: ${block.config.tool}`)
+    // Only try WebContainer in browser environment with direct execution
+    const isBrowser = typeof window !== 'undefined'
+    if (isBrowser && window.crossOriginIsolated) {
+      try {
+        // Dynamically import WebContainer to prevent server-side import
+        const { executeCode } = await import('@/lib/webcontainer')
+
+        // Prepare code for execution
+        const codeContent = Array.isArray(inputs.code)
+          ? inputs.code.map((c: { content: string }) => c.content).join('\n')
+          : inputs.code
+
+        // Execute directly in the browser
+        const result = await executeCode(codeContent, inputs, inputs.timeout || 5000)
+
+        if (!result.success) {
+          console.warn(`WebContainer API execution failed: ${result.error}`)
+          throw new Error(result.error || `WebContainer execution failed with no error message`)
+        }
+
+        return { response: result.output }
+      } catch (error: any) {
+        console.warn('WebContainer execution failed, falling back to VM:', error.message)
+      }
     }
 
-    const result = await executeTool(block.config.tool, inputs, true)
-    if (!result.success) {
-      throw new Error(result.error || `Function execution failed with no error message`)
-    }
+    // Fall back to VM execution if WebContainer fails or not available
+    try {
+      const vmResult = await executeTool('function_execute', inputs, true)
 
-    return { response: result.output }
+      if (!vmResult.success) {
+        throw new Error(vmResult.error || `Function execution failed with no error message`)
+      }
+
+      return { response: vmResult.output }
+    } catch (vmError: any) {
+      throw new Error(`Function execution failed: ${vmError.message}`)
+    }
   }
 }
 
