@@ -1,6 +1,6 @@
 import { shallow } from 'zustand/shallow'
-import { useWorkflowStore } from '@/stores/workflow/store'
-import { useSubBlockStore } from '@/stores/workflow/subblock/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface Field {
   name: string

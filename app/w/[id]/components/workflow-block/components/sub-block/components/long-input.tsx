@@ -4,7 +4,7 @@ import { formatDisplayText } from '@/components/ui/formatted-text'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflow/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 

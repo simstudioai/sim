@@ -1,5 +1,5 @@
-import { useWorkflowStore } from '@/stores/workflow/store'
-import { Loop } from '@/stores/workflow/types'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { Loop } from '@/stores/workflows/workflow/types'
 
 interface WorkflowLoopProps {
   loopId: string

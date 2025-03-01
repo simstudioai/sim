@@ -1,6 +1,6 @@
-import { useWorkflowRegistry } from './workflow/registry/store'
-import { BlockState } from './workflow/types'
-import { mergeSubblockState } from './workflow/utils'
+import { useWorkflowRegistry } from './workflows/registry/store'
+import { mergeSubblockState } from './workflows/utils'
+import { BlockState } from './workflows/workflow/types'
 
 // Type definitions
 interface WorkflowSyncPayload {

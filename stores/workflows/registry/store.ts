@@ -1,8 +1,17 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { addDeletedWorkflow } from '../../sync-manager'
-import { useWorkflowStore } from '../store'
+import {
+  STORAGE_KEYS,
+  loadRegistry,
+  loadWorkflowState,
+  removeFromStorage,
+  saveRegistry,
+  saveSubblockValues,
+  saveWorkflowState,
+} from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
+import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
 
@@ -27,23 +36,26 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const currentId = get().activeWorkflowId
         if (currentId) {
           const currentState = useWorkflowStore.getState()
-          localStorage.setItem(
-            `workflow-${currentId}`,
-            JSON.stringify({
-              blocks: currentState.blocks,
-              edges: currentState.edges,
-              loops: currentState.loops,
-              history: currentState.history,
-              isDeployed: currentState.isDeployed,
-              deployedAt: currentState.deployedAt,
-            })
-          )
+          saveWorkflowState(currentId, {
+            blocks: currentState.blocks,
+            edges: currentState.edges,
+            loops: currentState.loops,
+            history: currentState.history,
+            isDeployed: currentState.isDeployed,
+            deployedAt: currentState.deployedAt,
+            lastSaved: Date.now(),
+          })
+
+          // Also save current subblock values
+          const currentSubblockValues = useSubBlockStore.getState().workflowValues[currentId]
+          if (currentSubblockValues) {
+            saveSubblockValues(currentId, currentSubblockValues)
+          }
         }
 
         // Load workflow state
-        const savedState = localStorage.getItem(`workflow-${id}`)
-        if (savedState) {
-          const parsedState = JSON.parse(savedState)
+        const parsedState = loadWorkflowState(id)
+        if (parsedState) {
           const { blocks, edges, history, loops } = parsedState
 
           // Initialize subblock store with workflow values
@@ -71,6 +83,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               },
               future: [],
             },
+            lastSaved: parsedState.lastSaved || Date.now(),
           })
         } else {
           useWorkflowStore.setState({
@@ -252,10 +265,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Save workflow list to localStorage
         const updatedWorkflows = get().workflows
-        localStorage.setItem('workflow-registry', JSON.stringify(updatedWorkflows))
+        saveRegistry(updatedWorkflows)
 
         // Save initial workflow state to localStorage
-        localStorage.setItem(`workflow-${id}`, JSON.stringify(initialState))
+        saveWorkflowState(id, initialState)
 
         // If this is the first workflow or it's an initial workflow, set it as active
         if (options.isInitial || Object.keys(updatedWorkflows).length === 1) {
@@ -276,10 +289,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           addDeletedWorkflow(id)
 
           // Remove workflow state from localStorage
-          localStorage.removeItem(`workflow-${id}`)
+          removeFromStorage(STORAGE_KEYS.WORKFLOW(id))
+
+          // Remove subblock values from localStorage
+          removeFromStorage(STORAGE_KEYS.SUBBLOCK(id))
 
           // Update registry in localStorage
-          localStorage.setItem('workflow-registry', JSON.stringify(newWorkflows))
+          saveRegistry(newWorkflows)
 
           // If deleting active workflow, switch to another one
           let newActiveWorkflowId = state.activeWorkflowId
@@ -287,10 +303,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             const remainingIds = Object.keys(newWorkflows)
             // Switch to first available workflow
             newActiveWorkflowId = remainingIds[0]
-            const savedState = localStorage.getItem(`workflow-${newActiveWorkflowId}`)
+            const savedState = loadWorkflowState(newActiveWorkflowId)
             if (savedState) {
-              const { blocks, edges, history, loops, isDeployed, deployedAt } =
-                JSON.parse(savedState)
+              const { blocks, edges, history, loops, isDeployed, deployedAt } = savedState
               useWorkflowStore.setState({
                 blocks,
                 edges,
@@ -360,7 +375,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
 
           // Update registry in localStorage
-          localStorage.setItem('workflow-registry', JSON.stringify(updatedWorkflows))
+          saveRegistry(updatedWorkflows)
 
           return {
             workflows: updatedWorkflows,
@@ -372,35 +387,3 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
     { name: 'workflow-registry' }
   )
 )
-
-// Initialize registry from localStorage and set up persistence
-const initializeRegistry = () => {
-  const savedRegistry = localStorage.getItem('workflow-registry')
-  if (savedRegistry) {
-    const workflows = JSON.parse(savedRegistry)
-    useWorkflowRegistry.setState({ workflows })
-  }
-
-  // Add event listeners for page unload
-  window.addEventListener('beforeunload', () => {
-    const currentId = useWorkflowRegistry.getState().activeWorkflowId
-    if (currentId) {
-      const currentState = useWorkflowStore.getState()
-      localStorage.setItem(
-        `workflow-${currentId}`,
-        JSON.stringify({
-          blocks: currentState.blocks,
-          edges: currentState.edges,
-          loops: currentState.loops,
-          history: currentState.history,
-          isDeployed: currentState.isDeployed,
-          deployedAt: currentState.deployedAt,
-        })
-      )
-    }
-  })
-}
-
-if (typeof window !== 'undefined') {
-  initializeRegistry()
-}

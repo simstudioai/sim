@@ -6,8 +6,9 @@ import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
 import { useGeneralStore } from './settings/general/store'
 import { addDeletedWorkflow, initializeSyncManager } from './sync-manager'
-import { useWorkflowRegistry } from './workflow/registry/store'
-import { useWorkflowStore } from './workflow/store'
+import { useWorkflowRegistry } from './workflows/registry/store'
+import { useSubBlockStore } from './workflows/subblock/store'
+import { useWorkflowStore } from './workflows/workflow/store'
 
 // Initialize sync manager when the store is first imported
 if (typeof window !== 'undefined') {
@@ -31,13 +32,14 @@ export const resetAllStores = () => {
 
   // Force immediate state reset for all stores
   // This ensures in-memory state is also cleared
-  useWorkflowStore.getState().clear()
   useWorkflowRegistry.setState({
     workflows: {},
     activeWorkflowId: null,
     isLoading: false,
     error: null,
   })
+  useWorkflowStore.getState().clear()
+  useSubBlockStore.getState().clear()
   useNotificationStore.setState({ notifications: [] })
   useEnvironmentStore.setState({ variables: {} })
   useExecutionStore.getState().reset()
@@ -58,6 +60,7 @@ export const logAllStores = () => {
     console: useConsoleStore.getState(),
     chat: useChatStore.getState(),
     customTools: useCustomToolsStore.getState(),
+    subBlock: useSubBlockStore.getState(),
   }
 
   console.group('Application State')

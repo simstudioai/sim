@@ -3,12 +3,13 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
-import { WorkflowStoreWithHistory, pushHistory, withHistory } from './middleware'
-import { useWorkflowRegistry } from './registry/store'
-import { useSubBlockStore } from './subblock/store'
+import { WorkflowStoreWithHistory, pushHistory, withHistory } from '../middleware'
+import { saveWorkflowState } from '../persistence'
+import { useWorkflowRegistry } from '../registry/store'
+import { useSubBlockStore } from '../subblock/store'
+import { mergeSubblockState } from '../utils'
 import { Loop, Position, SubBlockState } from './types'
 import { detectCycle } from './utils'
-import { mergeSubblockState } from './utils'
 
 const initialState = {
   blocks: {},
@@ -266,6 +267,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
+
+        // Save current state to localStorage
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          const currentState = get()
+          saveWorkflowState(activeWorkflowId, {
+            blocks: currentState.blocks,
+            edges: currentState.edges,
+            loops: currentState.loops,
+            history: currentState.history,
+            isDeployed: currentState.isDeployed,
+            deployedAt: currentState.deployedAt,
+            lastSaved: Date.now(),
+          })
+        }
       },
 
       toggleBlockEnabled: (id: string) => {

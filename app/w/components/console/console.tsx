@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useConsoleStore } from '@/stores/console/store'
-import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { ConsoleEntry } from './components/console-entry/console-entry'
 
 export function Console() {

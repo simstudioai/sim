@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { SubBlockConfig } from '@/blocks/types'
+import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 
 interface SubBlockState {
@@ -38,9 +39,8 @@ export const useSubBlockStore = create<SubBlockStore>()(
           }))
 
           // Persist to localStorage for backup
-          const storageKey = `subblock-values-${activeWorkflowId}`
           const currentValues = get().workflowValues[activeWorkflowId] || {}
-          localStorage.setItem(storageKey, JSON.stringify(currentValues))
+          saveSubblockValues(activeWorkflowId, currentValues)
         },
 
         getValue: (blockId: string, subBlockId: string) => {
@@ -61,20 +61,18 @@ export const useSubBlockStore = create<SubBlockStore>()(
             },
           }))
 
-          localStorage.removeItem(`subblock-values-${activeWorkflowId}`)
+          saveSubblockValues(activeWorkflowId, {})
         },
 
         initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
           // First, try to load from localStorage
-          const storageKey = `subblock-values-${workflowId}`
-          const savedValues = localStorage.getItem(storageKey)
+          const savedValues = loadSubblockValues(workflowId)
 
           if (savedValues) {
-            const parsedValues = JSON.parse(savedValues)
             set((state) => ({
               workflowValues: {
                 ...state.workflowValues,
-                [workflowId]: parsedValues,
+                [workflowId]: savedValues,
               },
             }))
             return
@@ -97,7 +95,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
           }))
 
           // Save to localStorage
-          localStorage.setItem(storageKey, JSON.stringify(values))
+          saveSubblockValues(workflowId, values)
         },
       }),
       {

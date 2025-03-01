@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { BlockState } from '@/stores/workflow/types'
+import { BlockState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { workflow, workflowSchedule } from '@/db/schema'
 

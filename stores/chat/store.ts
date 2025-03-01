@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { useEnvironmentStore } from '../settings/environment/store'
-import { useWorkflowStore } from '../workflow/store'
+import { useWorkflowStore } from '../workflows/workflow/store'
 import { ChatMessage, ChatStore } from './types'
 import { calculateBlockPosition, getNextBlockNumber } from './utils'
 
