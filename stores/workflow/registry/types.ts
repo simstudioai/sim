@@ -15,9 +15,9 @@ export interface WorkflowRegistryState {
 
 export interface WorkflowRegistryActions {
   setActiveWorkflow: (id: string) => Promise<void>
-  addWorkflow: (metadata: WorkflowMetadata) => void
   removeWorkflow: (id: string) => void
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
+  createWorkflow: (options?: { isInitial?: boolean }) => string
 }
 
 export type WorkflowRegistry = WorkflowRegistryState & WorkflowRegistryActions

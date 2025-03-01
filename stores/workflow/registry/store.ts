@@ -4,7 +4,7 @@ import { addDeletedWorkflow } from '../../sync-manager'
 import { useWorkflowStore } from '../store'
 import { useSubBlockStore } from '../subblock/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
-import { generateUniqueName } from './utils'
+import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
@@ -81,18 +81,23 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         set({ activeWorkflowId: id, error: null })
       },
 
-      // Create new workflow with default starter block
-      addWorkflow: (metadata: WorkflowMetadata) => {
-        const uniqueName = generateUniqueName(get().workflows)
-        const updatedMetadata = { ...metadata, name: uniqueName }
+      /**
+       * Creates a new workflow with appropriate metadata and initial blocks
+       * @param options - Optional configuration for workflow creation
+       * @returns The ID of the newly created workflow
+       */
+      createWorkflow: (options = {}) => {
+        const { workflows } = get()
+        const id = crypto.randomUUID()
 
-        set((state) => ({
-          workflows: {
-            ...state.workflows,
-            [metadata.id]: updatedMetadata,
-          },
-          error: null,
-        }))
+        // Generate workflow metadata with appropriate name and color
+        const newWorkflow: WorkflowMetadata = {
+          id,
+          name: generateUniqueName(workflows),
+          lastModified: new Date(),
+          description: 'New workflow',
+          color: getNextWorkflowColor(workflows),
+        }
 
         // Create starter block for new workflow
         const starterId = crypto.randomUUID()
@@ -210,18 +215,29 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           lastSaved: Date.now(),
         }
 
+        // Add workflow to registry
+        set((state) => ({
+          workflows: {
+            ...state.workflows,
+            [id]: newWorkflow,
+          },
+          error: null,
+        }))
+
         // Save workflow list to localStorage
-        const workflows = get().workflows
-        localStorage.setItem('workflow-registry', JSON.stringify(workflows))
+        const updatedWorkflows = get().workflows
+        localStorage.setItem('workflow-registry', JSON.stringify(updatedWorkflows))
 
         // Save initial workflow state to localStorage
-        localStorage.setItem(`workflow-${metadata.id}`, JSON.stringify(initialState))
+        localStorage.setItem(`workflow-${id}`, JSON.stringify(initialState))
 
-        // If this is the first workflow, set it as active and update workflow store
-        if (Object.keys(workflows).length === 1) {
-          set({ activeWorkflowId: metadata.id })
+        // If this is the first workflow or it's an initial workflow, set it as active
+        if (options.isInitial || Object.keys(updatedWorkflows).length === 1) {
+          set({ activeWorkflowId: id })
           useWorkflowStore.setState(initialState)
         }
+
+        return id
       },
 
       // Delete workflow and clean up associated storage

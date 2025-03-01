@@ -46,7 +46,7 @@ function WorkflowContent() {
 
   // Store access
   const { addNotification } = useNotificationStore()
-  const { workflows, setActiveWorkflow, addWorkflow } = useWorkflowRegistry()
+  const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
 
@@ -65,25 +65,13 @@ function WorkflowContent() {
   useEffect(() => {
     if (!isInitialized) return
 
-    const createInitialWorkflow = () => {
-      const id = crypto.randomUUID()
-      const newWorkflow = {
-        id,
-        name: 'Workflow 1',
-        lastModified: new Date(),
-        description: 'New workflow',
-        color: '#3972F6',
-      }
-      addWorkflow(newWorkflow)
-      return id
-    }
-
     const validateAndNavigate = () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.id as string
 
       if (workflowIds.length === 0) {
-        const newId = createInitialWorkflow()
+        // Create initial workflow using the centralized function
+        const newId = createWorkflow({ isInitial: true })
         router.replace(`/w/${newId}`)
         return
       }
@@ -97,7 +85,7 @@ function WorkflowContent() {
     }
 
     validateAndNavigate()
-  }, [params.id, workflows, setActiveWorkflow, addWorkflow, router, isInitialized])
+  }, [params.id, workflows, setActiveWorkflow, createWorkflow, router, isInitialized])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {

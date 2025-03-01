@@ -12,31 +12,12 @@ import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 
 export function Sidebar() {
-  const WORKFLOW_COLORS = ['#3972F6', '#F639DD', '#F6B539', '#8139F6', '#F64439']
-  const { workflows, addWorkflow } = useWorkflowRegistry()
+  const { workflows, createWorkflow } = useWorkflowRegistry()
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
 
   const handleCreateWorkflow = () => {
-    const id = crypto.randomUUID()
-    const workflowArray = Object.values(workflows)
-    const lastWorkflow = workflowArray[workflowArray.length - 1]
-
-    // Find the index of the last used color, defaulting to first color if undefined
-    const lastColorIndex = lastWorkflow?.color ? WORKFLOW_COLORS.indexOf(lastWorkflow.color) : -1
-
-    // Get next color index, wrapping around to 0 if we reach the end
-    const nextColorIndex = (lastColorIndex + 1) % WORKFLOW_COLORS.length
-
-    const newWorkflow = {
-      id,
-      name: `Workflow ${workflowArray.length + 1}`,
-      lastModified: new Date(),
-      description: 'New workflow',
-      color: WORKFLOW_COLORS[nextColorIndex],
-    }
-
-    addWorkflow(newWorkflow)
+    const id = createWorkflow()
     router.push(`/w/${id}`)
   }
 

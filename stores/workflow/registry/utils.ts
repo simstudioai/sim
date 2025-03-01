@@ -1,5 +1,8 @@
 import { WorkflowMetadata } from './types'
 
+// Available workflow colors
+export const WORKFLOW_COLORS = ['#3972F6', '#F639DD', '#F6B539', '#8139F6', '#F64439']
+
 export function generateUniqueName(existingWorkflows: Record<string, WorkflowMetadata>): string {
   // Extract numbers from existing workflow names using regex
   const numbers = Object.values(existingWorkflows)
@@ -16,4 +19,27 @@ export function generateUniqueName(existingWorkflows: Record<string, WorkflowMet
   // Find the maximum number and add 1
   const nextNumber = Math.max(...numbers) + 1
   return `Workflow ${nextNumber}`
+}
+
+/**
+ * Determines the next color to use for a new workflow based on the last used color
+ * @param existingWorkflows - Current workflows in the registry
+ * @returns The next color from the predefined color palette
+ */
+export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowMetadata>): string {
+  const workflowArray = Object.values(existingWorkflows)
+
+  if (workflowArray.length === 0) {
+    return WORKFLOW_COLORS[0]
+  }
+
+  const lastWorkflow = workflowArray[workflowArray.length - 1]
+
+  // Find the index of the last used color, defaulting to first color if undefined
+  const lastColorIndex = lastWorkflow?.color ? WORKFLOW_COLORS.indexOf(lastWorkflow.color) : -1
+
+  // Get next color index, wrapping around to 0 if we reach the end
+  const nextColorIndex = (lastColorIndex + 1) % WORKFLOW_COLORS.length
+
+  return WORKFLOW_COLORS[nextColorIndex]
 }
