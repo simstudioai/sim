@@ -57,6 +57,10 @@ export function Toolbar() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+              name={`search-input-${Math.random()}`}
             />
           </div>
         </div>
