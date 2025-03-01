@@ -502,7 +502,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       {requiredParams.map((param) => (
                         <div key={param.id} className="space-y-1.5 relative">
                           <div className="text-xs font-medium text-muted-foreground">
-                            {param.id}
+                            {param.id === 'apiKey' ? 'API Key' : param.id}
                           </div>
                           <div className="relative">
                             <ShortInput

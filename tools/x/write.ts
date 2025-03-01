@@ -12,7 +12,7 @@ export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
       type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: 'X API Bearer token for authentication',
+      description: 'X API Bearer token',
     },
     text: {
       type: 'string',
