@@ -37,7 +37,7 @@ export interface WorkflowState {
   lastSaved?: number
   loops: Record<string, Loop>
   lastUpdate?: number
-  isDeployed: boolean
+  isDeployed?: boolean
   deployedAt?: Date
 }
 

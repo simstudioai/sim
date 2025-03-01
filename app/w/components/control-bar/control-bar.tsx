@@ -77,6 +77,7 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
+  // TODO: Put this in sync-manager
   // Check deployment status on mount or when activeWorkflowId changes
   useEffect(() => {
     async function checkStatus() {

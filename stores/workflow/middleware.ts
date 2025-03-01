@@ -25,8 +25,6 @@ export const withHistory = (
         blocks: initialState.blocks,
         edges: initialState.edges,
         loops: initialState.loops,
-        isDeployed: initialState.isDeployed || false,
-        deployedAt: initialState.deployedAt,
       },
       timestamp: Date.now(),
       action: 'Initial state',
@@ -138,7 +136,7 @@ export const withHistory = (
           history: {
             past: [],
             present: {
-              state: { blocks: {}, edges: [], loops: {}, isDeployed: false },
+              state: { blocks: {}, edges: [], loops: {} },
               timestamp: Date.now(),
               action: 'Clear workflow',
               subblockValues: {},
@@ -206,8 +204,6 @@ export const createHistoryEntry = (state: WorkflowState, action: string): Histor
     blocks: { ...state.blocks },
     edges: [...state.edges],
     loops: { ...state.loops },
-    isDeployed: state.isDeployed !== undefined ? state.isDeployed : false,
-    deployedAt: state.deployedAt,
   }
 
   // Capture the current subblock values for this workflow

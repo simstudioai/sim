@@ -73,8 +73,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
-          isDeployed: get().isDeployed,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
@@ -105,8 +103,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
           loops: { ...get().loops },
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         // Clean up subblock values before removing the block
@@ -199,8 +195,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: newEdges,
           loops: newLoops,
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
@@ -238,8 +232,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: newEdges,
           loops: newLoops,
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
@@ -252,8 +244,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: {},
           edges: [],
           loops: {},
-          isDeployed: false,
-          deployedAt: undefined,
           history: {
             past: [],
             present: {
@@ -261,8 +251,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 blocks: {},
                 edges: [],
                 loops: {},
-                isDeployed: false,
-                deployedAt: undefined,
               },
               timestamp: Date.now(),
               action: 'Initial state',
@@ -290,8 +278,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
@@ -341,8 +327,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         // Update the subblock store with the duplicated values
@@ -376,8 +360,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
@@ -395,8 +377,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
@@ -415,8 +395,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...state.edges],
           loops: { ...get().loops },
-          isDeployed: state.isDeployed || false,
-          deployedAt: state.deployedAt,
         }))
         get().updateLastSaved()
       },
@@ -431,8 +409,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...state.edges],
-          isDeployed: state.isDeployed || false,
-          deployedAt: state.deployedAt,
         }))
         get().updateLastSaved()
       },
@@ -448,8 +424,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               maxIterations: Math.max(1, Math.min(50, maxIterations)), // Clamp between 1-50
             },
           },
-          isDeployed: get().isDeployed || false,
-          deployedAt: get().deployedAt,
         }
 
         set(newState)
