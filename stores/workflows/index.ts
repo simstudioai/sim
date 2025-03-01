@@ -37,6 +37,3 @@ export function getBlockWithValues(blockId: string): BlockState | null {
 
 // Export all stores for direct access
 export { useWorkflowRegistry, useWorkflowStore, useSubBlockStore }
-
-// Export types
-export * from './types'
