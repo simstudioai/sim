@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Copy, Key, Terminal, X } from 'lucide-react'
+import { AlertCircle, Copy, Rocket, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
@@ -23,13 +23,13 @@ interface NotificationDropdownItemProps {
 const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
-  api: Key,
+  api: Rocket,
 }
 
 const NotificationColors = {
   error: 'text-destructive',
   console: 'text-foreground',
-  api: 'text-green-500',
+  api: 'text-[#7F2FFF]',
 }
 
 export function NotificationDropdownItem({
@@ -37,6 +37,7 @@ export function NotificationDropdownItem({
   type,
   message,
   timestamp,
+  options,
 }: NotificationDropdownItemProps) {
   const { showNotification } = useNotificationStore()
   const Icon = NotificationIcon[type]
@@ -58,7 +59,9 @@ export function NotificationDropdownItem({
       <Icon className={cn('h-4 w-4', NotificationColors[type])} />
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium">{type === 'error' ? 'Error' : 'Console'}</span>
+          <span className="text-xs font-medium">
+            {type === 'error' ? 'Error' : type === 'api' ? 'API' : 'Console'}
+          </span>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>
         <p className="text-sm text-foreground">{message}</p>

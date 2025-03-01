@@ -73,11 +73,11 @@ export default {
         },
         'notification-fade-out': {
           '0%': {
-            opacity: '1',
+            opacity: '0',
             transform: 'translateY(0)',
           },
           '100%': {
-            opacity: '0',
+            opacity: '1',
             transform: 'translateY(0)',
           },
         },
@@ -91,12 +91,21 @@ export default {
             transform: 'translateY(0)',
           },
         },
+        'rocket-pulse': {
+          '0%, 100%': {
+            opacity: '1',
+          },
+          '50%': {
+            opacity: '0.7',
+          },
+        },
       },
       animation: {
         'slide-down': 'slide-down 0.3s ease-out',
         'notification-slide': 'notification-slide 0.3s ease-out forwards',
         'notification-fade-out': 'notification-fade-out 0.2s ease-out forwards',
         'fade-up': 'fade-up 0.5s ease-out forwards',
+        'rocket-pulse': 'rocket-pulse 1.5s ease-in-out infinite',
       },
     },
   },

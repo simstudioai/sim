@@ -40,7 +40,8 @@ export function ControlBar() {
   const router = useRouter()
 
   // Store hooks
-  const { notifications, getWorkflowNotifications, addNotification } = useNotificationStore()
+  const { notifications, getWorkflowNotifications, addNotification, showNotification } =
+    useNotificationStore()
   const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
     useWorkflowStore()
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
@@ -152,6 +153,57 @@ export function ControlBar() {
    */
   const handleDeploy = async () => {
     if (!activeWorkflowId) return
+
+    // If already deployed, show the existing deployment info instead of redeploying
+    if (isDeployed) {
+      // Find existing API notification for this workflow
+      const apiNotification = workflowNotifications.find(
+        (n) => n.type === 'api' && n.workflowId === activeWorkflowId
+      )
+
+      if (apiNotification) {
+        // Show the existing notification
+        showNotification(apiNotification.id)
+        return
+      }
+
+      // If notification not found but workflow is deployed, fetch deployment info
+      try {
+        setIsDeploying(true)
+
+        const response = await fetch(`/api/workflow/${activeWorkflowId}/deploy/info`)
+        if (!response.ok) throw new Error('Failed to fetch deployment info')
+
+        const { apiKey } = await response.json()
+        const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflow/${activeWorkflowId}/execute`
+
+        // Create a new notification with the deployment info
+        addNotification('api', 'Workflow deployment information', activeWorkflowId, {
+          isPersistent: true,
+          sections: [
+            {
+              label: 'API Endpoint',
+              content: endpoint,
+            },
+            {
+              label: 'API Key',
+              content: apiKey,
+            },
+            {
+              label: 'Example curl command',
+              content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+            },
+          ],
+        })
+      } catch (error) {
+        addNotification('error', 'Failed to fetch deployment information', activeWorkflowId)
+      } finally {
+        setIsDeploying(false)
+      }
+      return
+    }
+
+    // If not deployed, proceed with deployment
     try {
       setIsDeploying(true)
 
@@ -277,17 +329,14 @@ export function ControlBar() {
           size="icon"
           onClick={handleDeploy}
           disabled={isDeploying}
-          className={cn(
-            'hover:text-foreground',
-            isDeployed && 'text-green-500 hover:text-green-500'
-          )}
+          className={cn('hover:text-[#7F2FFF]', (isDeployed || isDeploying) && 'text-[#7F2FFF]')}
         >
-          <Rocket className={`h-5 w-5 ${isDeploying ? 'animate-pulse' : ''}`} />
+          <Rocket className={cn('h-5 w-5', isDeploying && 'animate-rocket-pulse text-[#7F2FFF]')} />
           <span className="sr-only">Deploy API</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        {isDeploying ? 'Deploying...' : isDeployed ? 'Deployed' : 'Deploy as API Endpoint'}
+        {isDeploying ? 'Deploying...' : isDeployed ? 'Deployed' : 'Deploy as API'}
       </TooltipContent>
     </Tooltip>
   )
@@ -419,9 +468,9 @@ export function ControlBar() {
       {/* Right Section - Actions */}
       <div className="flex items-center gap-3">
         {renderDeleteButton()}
-        {renderDeployButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
+        {renderDeployButton()}
         {renderRunButton()}
       </div>
     </div>
