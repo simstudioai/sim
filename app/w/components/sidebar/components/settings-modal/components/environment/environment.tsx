@@ -17,7 +17,10 @@ import { Label } from '@/components/ui/label'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
 
-// Extend the store type with our UI-specific fields
+// Constants
+const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),40px] gap-4'
+const INITIAL_ENV_VAR: UIEnvironmentVariable = { key: '', value: '' }
+
 interface UIEnvironmentVariable extends StoreEnvironmentVariable {
   id?: number
 }
@@ -26,19 +29,21 @@ interface EnvironmentVariablesProps {
   onOpenChange: (open: boolean) => void
 }
 
-const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),40px] gap-4'
-const INITIAL_ENV_VAR: UIEnvironmentVariable = { key: '', value: '' }
-
 export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps) {
+  // Store access
   const { variables, setVariable, removeVariable } = useEnvironmentStore()
+
+  // State
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
   const [focusedValueIndex, setFocusedValueIndex] = useState<number | null>(null)
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
+
+  // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const pendingClose = useRef(false)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
 
-  // Check if there are unsaved changes by comparing with initial state
+  // Derived state
   const hasChanges = useMemo(() => {
     const initialVars = initialVarsRef.current.filter((v) => v.key || v.value)
     const currentVars = envVars.filter((v) => v.key || v.value)
@@ -60,7 +65,7 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     return false
   }, [envVars])
 
-  // Initialize environment variables
+  // Initialization effect
   useEffect(() => {
     const existingVars = Object.values(variables)
     const initialVars = existingVars.length ? existingVars : [INITIAL_ENV_VAR]
@@ -69,33 +74,34 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     pendingClose.current = false
   }, [variables])
 
-  const handleClose = () => {
-    if (hasChanges) {
-      setShowUnsavedChanges(true)
-      pendingClose.current = true
-    } else {
-      onOpenChange(false)
-    }
-  }
-
-  const handleCancel = () => {
-    setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
-    setShowUnsavedChanges(false)
-    if (pendingClose.current) {
-      onOpenChange(false)
-    }
-  }
-
+  // Scroll effect
   useEffect(() => {
     if (scrollContainerRef.current) {
-      // Smooth scroll to bottom when new variables are added
       scrollContainerRef.current.scrollTo({
         top: scrollContainerRef.current.scrollHeight,
         behavior: 'smooth',
       })
     }
-  }, [envVars.length]) // Only trigger on length changes
+  }, [envVars.length])
 
+  // Variable management functions
+  const addEnvVar = () => {
+    const newVar = { key: '', value: '', id: Date.now() }
+    setEnvVars([...envVars, newVar])
+  }
+
+  const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
+    const newEnvVars = [...envVars]
+    newEnvVars[index][field] = value
+    setEnvVars(newEnvVars)
+  }
+
+  const removeEnvVar = (index: number) => {
+    const newEnvVars = envVars.filter((_, i) => i !== index)
+    setEnvVars(newEnvVars.length ? newEnvVars : [INITIAL_ENV_VAR])
+  }
+
+  // Input event handlers
   const handleValueFocus = (index: number, e: React.FocusEvent<HTMLInputElement>) => {
     setFocusedValueIndex(index)
     e.target.scrollLeft = 0
@@ -153,24 +159,31 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     }
   }
 
-  const addEnvVar = () => {
-    const newVar = { key: '', value: '', id: Date.now() }
-    setEnvVars([...envVars, newVar])
+  // Dialog management
+  const handleClose = () => {
+    if (hasChanges) {
+      setShowUnsavedChanges(true)
+      pendingClose.current = true
+    } else {
+      onOpenChange(false)
+    }
   }
 
-  const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
-    const newEnvVars = [...envVars]
-    newEnvVars[index][field] = value
-    setEnvVars(newEnvVars)
-  }
-
-  const removeEnvVar = (index: number) => {
-    const newEnvVars = envVars.filter((_, i) => i !== index)
-    setEnvVars(newEnvVars.length ? newEnvVars : [INITIAL_ENV_VAR])
+  const handleCancel = () => {
+    setEnvVars(JSON.parse(JSON.stringify(initialVarsRef.current)))
+    setShowUnsavedChanges(false)
+    if (pendingClose.current) {
+      onOpenChange(false)
+    }
   }
 
   const handleSave = async () => {
     try {
+      // Close the modal immediately
+      setShowUnsavedChanges(false)
+      onOpenChange(false)
+
+      // Process everything in the background
       const validVars = envVars.filter((v) => v.key && v.value)
       validVars.forEach((v) => setVariable(v.key, v.value))
 
@@ -181,17 +194,24 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
         }
       })
 
-      // Sync with database
-      await useEnvironmentStore.getState().syncWithDatabase()
+      // Sync with database and get the result
+      const success = await useEnvironmentStore.getState().sync()
 
-      setShowUnsavedChanges(false)
-      onOpenChange(false)
+      // Optionally show a success or error notification
+      if (success) {
+        // Show success notification if needed
+        console.log('Environment variables saved successfully')
+      } else {
+        // Show error notification
+        console.error('Failed to save environment variables')
+      }
     } catch (error) {
       console.error('Failed to save environment variables:', error)
-      // You might want to show an error notification here
+      // Consider adding a toast notification here since the modal is already closed
     }
   }
 
+  // UI rendering
   const renderEnvVarRow = (envVar: UIEnvironmentVariable, index: number) => (
     <div key={envVar.id || index} className={`${GRID_COLS} items-center`}>
       <Input
