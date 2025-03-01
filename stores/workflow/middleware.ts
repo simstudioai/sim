@@ -1,6 +1,9 @@
 import { StateCreator } from 'zustand'
 import { HistoryActions, HistoryEntry, WorkflowHistory } from './history-types'
+import { useWorkflowRegistry } from './registry/store'
+import { useSubBlockStore } from './subblock/store'
 import { WorkflowState, WorkflowStore } from './types'
+import { mergeSubblockState } from './utils'
 
 // MAX for each individual workflow
 const MAX_HISTORY_LENGTH = 20
@@ -22,9 +25,12 @@ export const withHistory = (
         blocks: initialState.blocks,
         edges: initialState.edges,
         loops: initialState.loops,
+        isDeployed: initialState.isDeployed || false,
+        deployedAt: initialState.deployedAt,
       },
       timestamp: Date.now(),
       action: 'Initial state',
+      subblockValues: {}, // Add storage for subblock values
     }
 
     return {
@@ -49,6 +55,11 @@ export const withHistory = (
         const previous = history.past[history.past.length - 1]
         const newPast = history.past.slice(0, history.past.length - 1)
 
+        // Get active workflow ID for subblock handling
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) return
+
+        // Apply the state change
         set({
           ...state,
           ...previous.state,
@@ -58,6 +69,23 @@ export const withHistory = (
             future: [history.present, ...history.future],
           },
         })
+
+        // Restore subblock values from the previous state's snapshot
+        if (previous.subblockValues && activeWorkflowId) {
+          // Update the subblock store with the saved values
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...useSubBlockStore.getState().workflowValues,
+              [activeWorkflowId]: previous.subblockValues,
+            },
+          })
+
+          // Also update localStorage for backup
+          localStorage.setItem(
+            `subblock-values-${activeWorkflowId}`,
+            JSON.stringify(previous.subblockValues)
+          )
+        }
       },
 
       // Restore next state from history
@@ -68,6 +96,11 @@ export const withHistory = (
         const next = history.future[0]
         const newFuture = history.future.slice(1)
 
+        // Get active workflow ID for subblock handling
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) return
+
+        // Apply the state change
         set({
           ...state,
           ...next.state,
@@ -77,6 +110,23 @@ export const withHistory = (
             future: newFuture,
           },
         })
+
+        // Restore subblock values from the next state's snapshot
+        if (next.subblockValues && activeWorkflowId) {
+          // Update the subblock store with the saved values
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...useSubBlockStore.getState().workflowValues,
+              [activeWorkflowId]: next.subblockValues,
+            },
+          })
+
+          // Also update localStorage for backup
+          localStorage.setItem(
+            `subblock-values-${activeWorkflowId}`,
+            JSON.stringify(next.subblockValues)
+          )
+        }
       },
 
       // Reset workflow to empty state
@@ -88,9 +138,10 @@ export const withHistory = (
           history: {
             past: [],
             present: {
-              state: { blocks: {}, edges: [], loops: {} },
+              state: { blocks: {}, edges: [], loops: {}, isDeployed: false },
               timestamp: Date.now(),
               action: 'Clear workflow',
+              subblockValues: {},
             },
             future: [],
           },
@@ -107,6 +158,10 @@ export const withHistory = (
 
         if (!targetState) return
 
+        // Get active workflow ID for subblock handling
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (!activeWorkflowId) return
+
         const newPast = allStates.slice(0, index)
         const newFuture = allStates.slice(index + 1)
 
@@ -119,21 +174,60 @@ export const withHistory = (
             future: newFuture,
           },
         })
+
+        // Restore subblock values from the target state's snapshot
+        if (targetState.subblockValues && activeWorkflowId) {
+          // Update the subblock store with the saved values
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...useSubBlockStore.getState().workflowValues,
+              [activeWorkflowId]: targetState.subblockValues,
+            },
+          })
+
+          // Also update localStorage for backup
+          localStorage.setItem(
+            `subblock-values-${activeWorkflowId}`,
+            JSON.stringify(targetState.subblockValues)
+          )
+        }
       },
     }
   }
 }
 
 // Create a new history entry with current state snapshot
-export const createHistoryEntry = (state: WorkflowState, action: string): HistoryEntry => ({
-  state: {
+export const createHistoryEntry = (state: WorkflowState, action: string): HistoryEntry => {
+  // Get active workflow ID for subblock handling
+  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+
+  // Create a deep copy of the state
+  const stateCopy = {
     blocks: { ...state.blocks },
     edges: [...state.edges],
     loops: { ...state.loops },
-  },
-  timestamp: Date.now(),
-  action,
-})
+    isDeployed: state.isDeployed !== undefined ? state.isDeployed : false,
+    deployedAt: state.deployedAt,
+  }
+
+  // Capture the current subblock values for this workflow
+  let subblockValues = {}
+
+  if (activeWorkflowId) {
+    // Get the current subblock values from the store
+    const currentValues = useSubBlockStore.getState().workflowValues[activeWorkflowId] || {}
+
+    // Create a deep copy to ensure we don't have reference issues
+    subblockValues = JSON.parse(JSON.stringify(currentValues))
+  }
+
+  return {
+    state: stateCopy,
+    timestamp: Date.now(),
+    action,
+    subblockValues,
+  }
+}
 
 // Add new entry to history and maintain history size limit
 export const pushHistory = (

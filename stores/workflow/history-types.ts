@@ -4,6 +4,7 @@ export interface HistoryEntry {
   state: WorkflowState
   timestamp: number
   action: string
+  subblockValues: Record<string, Record<string, any>>
 }
 
 export interface WorkflowHistory {

@@ -21,6 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Generate a new API key
     const apiKey = `wf_${uuidv4().replace(/-/g, '')}`
+    const deployedAt = new Date()
 
     // Update the workflow with the API key and deployment status
     await db
@@ -28,11 +29,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .set({
         apiKey,
         isDeployed: true,
-        deployedAt: new Date(),
+        deployedAt,
       })
       .where(eq(workflow.id, id))
 
-    return createSuccessResponse({ apiKey })
+    return createSuccessResponse({ apiKey, isDeployed: true, deployedAt })
   } catch (error: any) {
     console.error('Error deploying workflow:', error)
     return createErrorResponse(error.message || 'Failed to deploy workflow', 500)

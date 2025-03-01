@@ -34,6 +34,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               edges: currentState.edges,
               loops: currentState.loops,
               history: currentState.history,
+              isDeployed: currentState.isDeployed,
+              deployedAt: currentState.deployedAt,
             })
           )
         }
@@ -41,7 +43,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Load workflow state
         const savedState = localStorage.getItem(`workflow-${id}`)
         if (savedState) {
-          const { blocks, edges, history, loops } = JSON.parse(savedState)
+          const parsedState = JSON.parse(savedState)
+          const { blocks, edges, history, loops } = parsedState
 
           // Initialize subblock store with workflow values
           useSubBlockStore.getState().initializeFromWorkflow(id, blocks)
@@ -50,12 +53,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks,
             edges,
             loops,
+            isDeployed: parsedState.isDeployed !== undefined ? parsedState.isDeployed : false,
+            deployedAt: parsedState.deployedAt ? new Date(parsedState.deployedAt) : undefined,
             history: history || {
               past: [],
               present: {
-                state: { blocks, edges, loops: {} },
+                state: {
+                  blocks,
+                  edges,
+                  loops: {},
+                  isDeployed: parsedState.isDeployed !== undefined ? parsedState.isDeployed : false,
+                  deployedAt: parsedState.deployedAt,
+                },
                 timestamp: Date.now(),
                 action: 'Initial state',
+                subblockValues: {},
               },
               future: [],
             },
@@ -65,12 +77,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks: {},
             edges: [],
             loops: {},
+            isDeployed: false,
+            deployedAt: undefined,
             history: {
               past: [],
               present: {
-                state: { blocks: {}, edges: [], loops: {} },
+                state: {
+                  blocks: {},
+                  edges: [],
+                  loops: {},
+                  isDeployed: false,
+                  deployedAt: undefined,
+                },
                 timestamp: Date.now(),
                 action: 'Initial state',
+                subblockValues: {},
               },
               future: [],
             },
@@ -197,6 +218,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           },
           edges: [],
           loops: {},
+          isDeployed: false,
+          deployedAt: undefined,
           history: {
             past: [],
             present: {
@@ -206,9 +229,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 },
                 edges: [],
                 loops: {},
+                isDeployed: false,
+                deployedAt: undefined,
               },
               timestamp: Date.now(),
               action: 'Initial state',
+              subblockValues: {},
             },
             future: [],
           },
@@ -263,17 +289,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             newActiveWorkflowId = remainingIds[0]
             const savedState = localStorage.getItem(`workflow-${newActiveWorkflowId}`)
             if (savedState) {
-              const { blocks, edges, history, loops } = JSON.parse(savedState)
+              const { blocks, edges, history, loops, isDeployed, deployedAt } =
+                JSON.parse(savedState)
               useWorkflowStore.setState({
                 blocks,
                 edges,
                 loops,
+                isDeployed: isDeployed || false,
+                deployedAt: deployedAt ? new Date(deployedAt) : undefined,
                 history: history || {
                   past: [],
                   present: {
-                    state: { blocks, edges, loops },
+                    state: { blocks, edges, loops, isDeployed: isDeployed || false, deployedAt },
                     timestamp: Date.now(),
                     action: 'Initial state',
+                    subblockValues: {},
                   },
                   future: [],
                 },
@@ -283,12 +313,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: {},
                 edges: [],
                 loops: {},
+                isDeployed: false,
+                deployedAt: undefined,
                 history: {
                   past: [],
                   present: {
-                    state: { blocks: {}, edges: [], loops: {} },
+                    state: {
+                      blocks: {},
+                      edges: [],
+                      loops: {},
+                      isDeployed: false,
+                      deployedAt: undefined,
+                    },
                     timestamp: Date.now(),
                     action: 'Initial state',
+                    subblockValues: {},
                   },
                   future: [],
                 },
@@ -354,6 +393,8 @@ const initializeRegistry = () => {
           edges: currentState.edges,
           loops: currentState.loops,
           history: currentState.history,
+          isDeployed: currentState.isDeployed,
+          deployedAt: currentState.deployedAt,
         })
       )
     }

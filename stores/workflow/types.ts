@@ -37,6 +37,8 @@ export interface WorkflowState {
   lastSaved?: number
   loops: Record<string, Loop>
   lastUpdate?: number
+  isDeployed: boolean
+  deployedAt?: Date
 }
 
 export interface WorkflowActions {
@@ -55,6 +57,7 @@ export interface WorkflowActions {
   updateBlockHeight: (id: string, height: number) => void
   updateLoopMaxIterations: (loopId: string, maxIterations: number) => void
   triggerUpdate: () => void
+  setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions
