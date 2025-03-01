@@ -2,7 +2,8 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, autoComplete = 'off', name, ...props }, ref) => {
+    const randomName = name || `input-${Math.random()}`
     return (
       <input
         type={type}
@@ -11,6 +12,11 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
           className
         )}
         ref={ref}
+        autoComplete={autoComplete}
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        name={randomName}
         {...props}
       />
     )
