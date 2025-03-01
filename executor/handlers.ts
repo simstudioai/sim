@@ -3,6 +3,7 @@ import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
 import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
+import { transformBlockTool } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool, getTool } from '@/tools'
 import { PathTracker } from './path'
@@ -84,37 +85,12 @@ export class AgentBlockHandler implements BlockHandler {
               }
             }
 
-            // Handle regular block tools
-            const blockFound = getAllBlocks().find((b) => b.type === tool.type)
-            const toolId = blockFound?.tools.access[0]
-            if (!toolId) return null
-
-            const toolConfig = getTool(toolId)
-            if (!toolConfig) return null
-
-            return {
-              id: toolConfig.id,
-              name: toolConfig.name,
-              description: toolConfig.description,
-              params: tool.params || {},
-              parameters: {
-                type: 'object',
-                properties: Object.entries(toolConfig.params).reduce(
-                  (acc, [key, config]) => ({
-                    ...acc,
-                    [key]: {
-                      type: config.type === 'json' ? 'object' : config.type,
-                      description: config.description || '',
-                      ...(key in tool.params && { default: tool.params[key] }),
-                    },
-                  }),
-                  {}
-                ),
-                required: Object.entries(toolConfig.params)
-                  .filter(([_, config]) => config.required)
-                  .map(([key]) => key),
-              },
-            }
+            // Handle regular block tools with operation selection
+            return transformBlockTool(tool, {
+              selectedOperation: tool.operation,
+              getAllBlocks,
+              getTool,
+            })
           })
           .filter((t): t is NonNullable<typeof t> => t !== null)
       : []

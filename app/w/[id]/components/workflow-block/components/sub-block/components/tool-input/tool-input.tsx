@@ -11,6 +11,13 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useWorkflowStore } from '@/stores/workflow/store'
@@ -32,6 +39,7 @@ interface StoredTool {
   isExpanded?: boolean
   schema?: any // For custom tools
   code?: string // For custom tools implementation
+  operation?: string // For tools with multiple operations
 }
 
 interface ToolParam {
@@ -77,6 +85,37 @@ const getCustomToolParams = (schema: any): ToolParam[] => {
   }))
 }
 
+// Check if a block has multiple operations
+const hasMultipleOperations = (blockType: string): boolean => {
+  const block = getAllBlocks().find((block) => block.type === blockType)
+  return (block?.tools?.access?.length || 0) > 1
+}
+
+// Get operation options for a block
+const getOperationOptions = (blockType: string): { label: string; id: string }[] => {
+  const block = getAllBlocks().find((block) => block.type === blockType)
+  if (!block || !block.tools?.access) return []
+
+  // Look for an operation dropdown in the block's subBlocks
+  const operationSubBlock = block.subBlocks.find((sb) => sb.id === 'operation')
+  if (
+    operationSubBlock &&
+    operationSubBlock.type === 'dropdown' &&
+    Array.isArray(operationSubBlock.options)
+  ) {
+    return operationSubBlock.options as { label: string; id: string }[]
+  }
+
+  // Fallback: create options from tools.access
+  return block.tools.access.map((toolId) => {
+    const tool = getTool(toolId)
+    return {
+      id: toolId,
+      label: tool?.name || toolId,
+    }
+  })
+}
+
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -99,12 +138,16 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       return
     }
 
-    const toolId = getToolIdFromBlock(toolBlock.type)
+    const hasOperations = hasMultipleOperations(toolBlock.type)
+    const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
+    const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
+
     const newTool: StoredTool = {
       type: toolBlock.type,
       title: toolBlock.name,
       params: {},
       isExpanded: true,
+      operation: defaultOperation,
     }
 
     // If isWide, keep tools in the same row expanded
@@ -212,6 +255,19 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                 ...tool.params,
                 [paramId]: paramValue,
               },
+            }
+          : tool
+      )
+    )
+  }
+
+  const handleOperationChange = (toolIndex: number, operation: string) => {
+    setValue(
+      selectedTools.map((tool, index) =>
+        index === toolIndex
+          ? {
+              ...tool,
+              operation,
             }
           : tool
       )
@@ -349,6 +405,8 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
             const toolId = !isCustomTool ? getToolIdFromBlock(tool.type) : null
+            const hasOperations = !isCustomTool && hasMultipleOperations(tool.type)
+            const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
 
             // Get parameters based on tool type
             const requiredParams = isCustomTool
@@ -409,7 +467,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     </div>
                   </div>
 
-                  {tool.isExpanded && !isCustomTool && requiredParams.length > 0 && (
+                  {tool.isExpanded && !isCustomTool && (
                     <div
                       className="p-3 space-y-3"
                       onClick={(e) => {
@@ -418,6 +476,29 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                         }
                       }}
                     >
+                      {/* Add operation dropdown for tools with multiple operations */}
+                      {hasOperations && operationOptions.length > 0 && (
+                        <div className="space-y-1.5 relative">
+                          <div className="text-xs font-medium text-muted-foreground">Operation</div>
+                          <Select
+                            value={tool.operation || operationOptions[0].id}
+                            onValueChange={(value) => handleOperationChange(toolIndex, value)}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select operation" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {operationOptions.map((option) => (
+                                <SelectItem key={option.id} value={option.id}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Existing parameters */}
                       {requiredParams.map((param) => (
                         <div key={param.id} className="space-y-1.5 relative">
                           <div className="text-xs font-medium text-muted-foreground">

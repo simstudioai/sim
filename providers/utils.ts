@@ -227,3 +227,81 @@ export function getCustomTools(): ProviderToolConfig[] {
   // Transform each custom tool into a provider tool config
   return customTools.map(transformCustomTool)
 }
+
+/**
+ * Transforms a block tool into a provider tool config with operation selection
+ *
+ * @param block The block to transform
+ * @param options Additional options including dependencies and selected operation
+ * @returns The provider tool config or null if transform fails
+ */
+export function transformBlockTool(
+  block: any,
+  options: {
+    selectedOperation?: string
+    getAllBlocks: () => any[]
+    getTool: (toolId: string) => any
+  }
+): ProviderToolConfig | null {
+  const { selectedOperation, getAllBlocks, getTool } = options
+
+  // Get the block definition
+  const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
+  if (!blockDef) return null
+
+  // If the block has multiple operations, use the selected one or the first one
+  let toolId: string | null = null
+
+  if ((blockDef.tools?.access?.length || 0) > 1) {
+    // If we have an operation dropdown in the block and a selected operation
+    if (selectedOperation && blockDef.tools?.config?.tool) {
+      // Use the block's tool selection function to get the right tool
+      try {
+        toolId = blockDef.tools.config.tool({
+          ...block.params,
+          operation: selectedOperation,
+        })
+      } catch (error) {
+        console.error('Error selecting tool:', error)
+        return null
+      }
+    } else {
+      // Default to first tool if no operation specified
+      toolId = blockDef.tools.access[0]
+    }
+  } else {
+    // Single tool case
+    toolId = blockDef.tools?.access?.[0] || null
+  }
+
+  if (!toolId) return null
+
+  // Get the tool config
+  const toolConfig = getTool(toolId)
+  if (!toolConfig) return null
+
+  // Return formatted tool config
+  return {
+    id: toolConfig.id,
+    name: toolConfig.name,
+    description: toolConfig.description,
+    params: block.params || {},
+    parameters: {
+      type: 'object',
+      properties: Object.entries(toolConfig.params).reduce(
+        (acc, [key, config]: [string, any]) => ({
+          ...acc,
+          [key]: {
+            type: config.type === 'json' ? 'object' : config.type,
+            description: config.description || '',
+            ...(key in block.params && { default: block.params[key] }),
+          },
+        }),
+        {}
+      ),
+      required: Object.entries(toolConfig.params)
+        .filter(([_, config]: [string, any]) => config.required)
+        .map(([key]) => key),
+    },
+  }
+}
