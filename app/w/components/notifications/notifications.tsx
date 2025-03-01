@@ -227,14 +227,14 @@ function NotificationAlert({
       >
         {type === 'api' ? (
           // Special layout for API notifications with equal spacing
-          <div className="flex items-start py-1">
+          <div className="flex items-start py-1 relative">
             {/* Left icon */}
             <div className="flex-shrink-0 mt-0.5">
               <Icon className="!text-[#7F2FFF] h-4 w-4" />
             </div>
 
             {/* Content area with equal margins */}
-            <div className="flex-1 space-y-2 pt-[3.5px] mx-4">
+            <div className="flex-1 space-y-2 pt-[3.5px] mx-4 pr-4">
               <AlertTitle className="-mt-0.5">
                 <span>API</span>
               </AlertTitle>
@@ -308,19 +308,20 @@ function NotificationAlert({
               </AlertDescription>
             </div>
 
-            {/* Close button on the right, aligned with header */}
-            <div className="flex-shrink-0 mt-[-3.5px]">
-              {options?.isPersistent && (
+            {/* Absolute positioned close button in the top right */}
+            {options?.isPersistent && (
+              <div className="absolute top-0.5 right-1">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 hover:bg-transparent hover:text-destructive"
+                  size="sm"
+                  className="h-6 w-6 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
                   onClick={() => onHide(id)}
                 >
                   <X className="h-4 w-4" />
+                  <span className="sr-only">Close</span>
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           // Original layout for error and console notifications
@@ -344,11 +345,12 @@ function NotificationAlert({
                 {options?.isPersistent && (
                   <Button
                     variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 hover:bg-transparent hover:text-destructive"
+                    size="sm"
+                    className="h-6 w-6 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
                     onClick={() => onHide(id)}
                   >
                     <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
                   </Button>
                 )}
               </AlertTitle>
