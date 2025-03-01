@@ -172,6 +172,8 @@ export async function executeCode(
 }> {
   const startTime = Date.now()
   let process: any = null
+  let stdout = ''
+  let result: any = null
 
   try {
     // Get or initialize WebContainer
@@ -186,10 +188,22 @@ export async function executeCode(
     const imports = []
     let remainingCode = code
 
+    // More carefully extract imports to prevent consuming the entire code
     let match
-    while ((match = importRegex.exec(code)) !== null) {
-      imports.push(match[0])
-      remainingCode = remainingCode.replace(match[0], '')
+    let codeLines = code.split('\n')
+    let importLines = []
+
+    // Find import lines
+    for (let i = 0; i < codeLines.length; i++) {
+      if (codeLines[i].trim().startsWith('import ')) {
+        importLines.push(i)
+      }
+    }
+
+    // Extract imports and remaining code separately
+    if (importLines.length > 0) {
+      imports.push(...importLines.map((idx) => codeLines[idx]))
+      remainingCode = codeLines.filter((_, idx) => !importLines.includes(idx)).join('\n')
     }
 
     // Create the module file with proper structure
@@ -222,8 +236,6 @@ export async function executeCode(
     await webcontainer.fs.writeFile('/code.mjs', moduleCode)
 
     // Set up stdout capture
-    let stdout = ''
-    let result: any = null
     let processCompleted = false
 
     // Run the code with Node.js in ES module mode
@@ -258,7 +270,7 @@ export async function executeCode(
         })
       )
 
-      // Listen for process exit
+      // Handle process exit
       process.exit.then((code: number) => {
         processCompleted = true
         if (code === 0) {
@@ -269,25 +281,36 @@ export async function executeCode(
       })
     })
 
-    // Add a timeout
+    // Set up error handling
+    const errorPromise = new Promise<void>((_, reject) => {
+      process.stderr.pipeTo(
+        new WritableStream({
+          write(data) {
+            console.error('WebContainer executeCode - Process error:', data)
+            stdout += `ERROR: ${data}\n`
+          },
+        })
+      )
+    })
+
+    // Set up timeout
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
-        if (!processCompleted && process) {
-          process.kill()
+        if (!processCompleted) {
+          console.error('WebContainer executeCode - Process timed out after', timeout, 'ms')
+          reject(new Error(`Execution timed out after ${timeout}ms`))
         }
-        reject(new Error(`Execution timed out after ${timeout}ms`))
       }, timeout)
     })
 
     // Wait for either completion or timeout
-    await Promise.race([resultPromise, timeoutPromise])
+    await Promise.race([resultPromise, errorPromise, timeoutPromise])
 
     const executionTime = Date.now() - startTime
 
-    // Clean stdout of our result markers
+    // Clean the stdout from our internal markers and result JSON
     const cleanedStdout = stdout
-      .replace(/(__RESULT_START__|__RESULT_END__)/g, '')
-      .replace(/\n{3,}/g, '\n\n') // Reduce multiple newlines
+      .replace(/\r?\n?__RESULT_START__\r?\n?[\s\S]*?__RESULT_END__\r?\n?/g, '')
       .trim()
 
     return {
@@ -299,25 +322,38 @@ export async function executeCode(
       },
     }
   } catch (error: any) {
-    // Ensure process is killed on error
+    console.error('WebContainer executeCode - Execution failed:', {
+      error: error.message,
+      name: error.name,
+      stack: error.stack,
+      stdout: stdout || 'No stdout',
+    })
+
+    // Try to kill the process if it's still running
     if (process) {
       try {
-        process.kill()
+        await process.kill()
       } catch (killError) {
-        console.error('Error killing process:', killError)
+        console.error('WebContainer executeCode - Failed to kill process:', killError)
       }
     }
 
-    const executionTime = Date.now() - startTime
+    // Clean stdout before returning, even in error case
+    let cleanedStdout = ''
+    if (stdout) {
+      cleanedStdout = stdout
+        .replace(/\r?\n?__RESULT_START__\r?\n?[\s\S]*?__RESULT_END__\r?\n?/g, '')
+        .trim()
+    }
 
     return {
       success: false,
+      error: error.message || 'Unknown error occurred during execution',
       output: {
         result: null,
-        stdout: '',
-        executionTime,
+        stdout: cleanedStdout,
+        executionTime: Date.now() - startTime,
       },
-      error: error.message || 'Code execution failed',
     }
   }
 }

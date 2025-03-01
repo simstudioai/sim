@@ -482,7 +482,12 @@ export class FunctionBlockHandler implements BlockHandler {
 
         return { response: result.output }
       } catch (error: any) {
-        console.warn('WebContainer execution failed, falling back to VM:', error.message)
+        console.warn('WebContainer execution failed, falling back to VM:', error)
+        console.error('WebContainer error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        })
       }
     }
 
