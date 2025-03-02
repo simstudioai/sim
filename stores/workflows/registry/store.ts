@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { addDeletedWorkflow } from '../../sync-manager'
 import {
   STORAGE_KEYS,
   loadRegistry,
@@ -11,6 +10,7 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
+import { syncSpecificWorkflow, syncWorkflowDeletion } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
@@ -276,6 +276,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useWorkflowStore.setState(initialState)
         }
 
+        // Sync the new workflow with the database
+        syncSpecificWorkflow(id)
+
         return id
       },
 
@@ -285,8 +288,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           const newWorkflows = { ...state.workflows }
           delete newWorkflows[id]
 
-          // Track deletion for next sync
-          addDeletedWorkflow(id)
+          // Sync workflow deletion with the database
+          syncWorkflowDeletion(id)
 
           // Remove workflow state from localStorage
           removeFromStorage(STORAGE_KEYS.WORKFLOW(id))
@@ -376,6 +379,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           // Update registry in localStorage
           saveRegistry(updatedWorkflows)
+
+          // Sync the updated workflow with the database
+          syncSpecificWorkflow(id)
 
           return {
             workflows: updatedWorkflows,

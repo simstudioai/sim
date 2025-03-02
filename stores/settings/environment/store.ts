@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { syncEnvironmentVariables } from './sync'
+import { syncEnvironmentVariables, syncEnvironmentVariablesWithResult } from './sync'
 import { EnvironmentStore, EnvironmentVariable } from './types'
 
 export const useEnvironmentStore = create<EnvironmentStore>()(
@@ -36,8 +36,16 @@ export const useEnvironmentStore = create<EnvironmentStore>()(
         return get().variables
       },
 
-      sync: async () => {
-        return await syncEnvironmentVariables()
+      sync: () => {
+        // Use fire-and-forget pattern for optimistic updates
+        syncEnvironmentVariables()
+        // Return a resolved promise with true to maintain the expected return type
+        return Promise.resolve(true)
+      },
+
+      // Add a method that returns a promise for cases where we need to wait
+      syncWithResult: async () => {
+        return await syncEnvironmentVariablesWithResult()
       },
     }),
     {

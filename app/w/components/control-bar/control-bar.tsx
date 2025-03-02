@@ -25,7 +25,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { performSync } from '@/stores/sync-manager'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
@@ -206,8 +205,6 @@ export function ControlBar() {
     // If not deployed, proceed with deployment
     try {
       setIsDeploying(true)
-
-      await performSync()
 
       const response = await fetch(`/api/workflow/${activeWorkflowId}/deploy`, {
         method: 'POST',

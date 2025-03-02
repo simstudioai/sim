@@ -5,25 +5,20 @@ import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
 import { useGeneralStore } from './settings/general/store'
-import { addDeletedWorkflow, initializeSyncManager } from './sync-manager'
+import { initializeSyncSystem } from './sync'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
 
-// Initialize sync manager when the store is first imported
+// Initialize sync system when the store is first imported
 if (typeof window !== 'undefined') {
-  initializeSyncManager()
+  initializeSyncSystem()
 }
 
 // Reset all application stores to their initial state
 export const resetAllStores = () => {
   // Track all workflow IDs for deletion before clearing
   if (typeof window !== 'undefined') {
-    const workflowRegistry = useWorkflowRegistry.getState().workflows
-    Object.keys(workflowRegistry).forEach((id) => {
-      addDeletedWorkflow(id)
-    })
-
     // Selectively clear localStorage items
     const keysToKeep = ['next-favicon']
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))

@@ -177,7 +177,7 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = () => {
     try {
       // Close the modal immediately
       setShowUnsavedChanges(false)
@@ -194,17 +194,8 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
         }
       })
 
-      // Sync with database and get the result
-      const success = await useEnvironmentStore.getState().sync()
-
-      // Optionally show a success or error notification
-      if (success) {
-        // Show success notification if needed
-        console.log('Environment variables saved successfully')
-      } else {
-        // Show error notification
-        console.error('Failed to save environment variables')
-      }
+      // Sync with database - fire and forget
+      useEnvironmentStore.getState().sync()
     } catch (error) {
       console.error('Failed to save environment variables:', error)
       // Consider adding a toast notification here since the modal is already closed
