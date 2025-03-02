@@ -10,7 +10,7 @@ import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
 
-// Initialize sync system when the store is first imported
+// Initialize sync system immediately when imported on client
 if (typeof window !== 'undefined') {
   initializeSyncSystem()
 }

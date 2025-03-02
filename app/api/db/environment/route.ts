@@ -22,14 +22,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { variables } = EnvVarSchema.parse(body)
 
-    // Encrypt each environment variable value
-    const encryptedVariables: Record<string, string> = {}
-    for (const [key, value] of Object.entries(variables)) {
-      const { encrypted } = await encryptSecret(value)
-      encryptedVariables[key] = encrypted
-    }
+    // Encrypt all variables
+    const encryptedVariables = await Object.entries(variables).reduce(
+      async (accPromise, [key, value]) => {
+        const acc = await accPromise
+        const { encrypted } = await encryptSecret(value)
+        return { ...acc, [key]: encrypted }
+      },
+      Promise.resolve({})
+    )
 
-    // Upsert the environment variables
+    // Replace all environment variables for user
     await db
       .insert(environment)
       .values({

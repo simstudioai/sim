@@ -31,7 +31,7 @@ interface EnvironmentVariablesProps {
 
 export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps) {
   // Store access
-  const { variables, setVariable, removeVariable } = useEnvironmentStore()
+  const { variables } = useEnvironmentStore()
 
   // State
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
@@ -179,26 +179,25 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
 
   const handleSave = () => {
     try {
-      // Close the modal immediately
+      // Close modal immediately for optimistic updates
       setShowUnsavedChanges(false)
       onOpenChange(false)
 
-      // Process everything in the background
-      const validVars = envVars.filter((v) => v.key && v.value)
-      validVars.forEach((v) => setVariable(v.key, v.value))
+      // Convert valid env vars to Record<string, string>
+      const validVariables = envVars
+        .filter((v) => v.key && v.value)
+        .reduce(
+          (acc, { key, value }) => ({
+            ...acc,
+            [key]: value,
+          }),
+          {}
+        )
 
-      const currentKeys = new Set(validVars.map((v) => v.key))
-      Object.keys(variables).forEach((key) => {
-        if (!currentKeys.has(key)) {
-          removeVariable(key)
-        }
-      })
-
-      // Sync with database - fire and forget
-      useEnvironmentStore.getState().sync()
+      // Single store update that triggers sync
+      useEnvironmentStore.getState().setVariables(validVariables)
     } catch (error) {
       console.error('Failed to save environment variables:', error)
-      // Consider adding a toast notification here since the modal is already closed
     }
   }
 

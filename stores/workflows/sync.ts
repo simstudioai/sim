@@ -1,3 +1,5 @@
+'use client'
+
 import { SyncManager, createSyncManager } from '@/stores/sync'
 import { useWorkflowRegistry } from './registry/store'
 import { mergeSubblockState } from './utils'
@@ -5,6 +7,12 @@ import { useWorkflowStore } from './workflow/store'
 
 // API endpoint for workflow operations
 const WORKFLOW_ENDPOINT = '/api/db/workflow'
+
+// Custom debounce settings for workflows
+const WORKFLOW_DEBOUNCE = {
+  delay: 800, // Slightly faster than default
+  maxWait: 3000, // Maximum 3 seconds before forced sync
+}
 
 /**
  * Prepares the workflow payload for syncing
@@ -48,12 +56,7 @@ export const workflowSyncManager: SyncManager = createSyncManager({
   preparePayload: prepareWorkflowPayload,
   syncInterval: null, // No interval syncing for now
   syncOnExit: true, // Sync on exit to prevent data loss
-
-  // Configure debouncing for workflow sync
-  debounce: {
-    delay: 2000, // 2 seconds delay for workflow changes
-    maxWait: 10000, // Maximum 10 seconds before forced sync
-  },
+  debounceConfig: WORKFLOW_DEBOUNCE, // Add debounce configuration
 
   // Optional handlers
   onSyncSuccess: () => {
@@ -72,25 +75,17 @@ export const workflowSyncManager: SyncManager = createSyncManager({
 
 /**
  * Syncs the current workflow with the database
- * Uses optimistic updates - doesn't wait for server response
+ * Uses debounced updates for frequent operations
  */
 export function syncWorkflow(): void {
-  workflowSyncManager.fireAndForgetSync()
-}
-
-/**
- * Syncs the current workflow with the database using debouncing
- * Returns a promise for cases where you need to know the result
- */
-export async function syncWorkflowDebounced(): Promise<boolean> {
-  return workflowSyncManager.debouncedSync()
+  workflowSyncManager.debouncedSync()
 }
 
 /**
  * Syncs the current workflow immediately without debouncing
- * Returns a promise for cases where you need to know the result
+ * Use for critical operations where immediate sync is required
  */
-export async function syncWorkflowImmediate(): Promise<boolean> {
+export function syncWorkflowImmediate(): Promise<boolean> {
   return workflowSyncManager.sync()
 }
 
@@ -144,7 +139,7 @@ export function createWorkflowSyncManager(workflowId: string): SyncManager {
     preparePayload: () => prepareSpecificWorkflowPayload(workflowId),
     syncInterval: null,
     syncOnExit: false,
-    debounce: true, // Use default debounce settings
+    debounceConfig: WORKFLOW_DEBOUNCE, // Add debounce configuration
     onSyncSuccess: () => {
       console.debug(`Workflow ${workflowId} synced successfully`)
     },
@@ -160,11 +155,11 @@ export function createWorkflowSyncManager(workflowId: string): SyncManager {
 
 /**
  * Syncs a specific workflow with the database by ID
- * Uses optimistic updates - doesn't wait for server response
+ * Uses debounced updates for frequent operations
  */
 export function syncSpecificWorkflow(workflowId: string): void {
   const syncManager = createWorkflowSyncManager(workflowId)
-  syncManager.fireAndForgetSync()
+  syncManager.debouncedSync()
 }
 
 /**
