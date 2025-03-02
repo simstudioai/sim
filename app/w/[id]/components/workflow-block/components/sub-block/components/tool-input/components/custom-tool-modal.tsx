@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Code, FileJson, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,7 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
+import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { CodeEditor } from './code-editor'
@@ -51,6 +53,16 @@ export function CustomToolModal({
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [toolId, setToolId] = useState<string | undefined>(undefined)
+
+  // Environment variables and tags dropdown state
+  const [showEnvVars, setShowEnvVars] = useState(false)
+  const [showTags, setShowTags] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [cursorPosition, setCursorPosition] = useState(0)
+  const codeEditorRef = useRef<HTMLDivElement>(null)
+  const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+  // Add state for dropdown positioning
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 })
 
   const addTool = useCustomToolsStore((state) => state.addTool)
   const updateTool = useCustomToolsStore((state) => state.updateTool)
@@ -240,6 +252,78 @@ export function CustomToolModal({
     if (codeError) {
       setCodeError(null)
     }
+
+    // Check for environment variables and tags
+    const textarea = codeEditorRef.current?.querySelector('textarea')
+    if (textarea) {
+      const pos = textarea.selectionStart
+      setCursorPosition(pos)
+
+      // Calculate cursor position for dropdowns
+      const textBeforeCursor = value.substring(0, pos)
+      const lines = textBeforeCursor.split('\n')
+      const currentLine = lines.length
+      const currentCol = lines[lines.length - 1].length
+
+      // Find position of cursor in the editor
+      try {
+        if (codeEditorRef.current) {
+          const editorRect = codeEditorRef.current.getBoundingClientRect()
+          const lineHeight = 21 // Same as in CodeEditor
+
+          // Calculate approximate position
+          const top = currentLine * lineHeight + 5
+          const left = Math.min(currentCol * 8, editorRect.width - 260) // Prevent dropdown from going off-screen
+
+          setDropdownPosition({ top, left })
+        }
+      } catch (error) {
+        console.error('Error calculating cursor position:', error)
+      }
+
+      // Check if we should show the environment variables dropdown
+      const envVarTrigger = checkEnvVarTrigger(value, pos)
+      setShowEnvVars(envVarTrigger.show)
+      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+
+      // Check if we should show the tags dropdown
+      const tagTrigger = checkTagTrigger(value, pos)
+      setShowTags(tagTrigger.show)
+      if (!tagTrigger.show) {
+        setActiveSourceBlockId(null)
+      }
+    }
+  }
+
+  // Handle environment variable selection
+  const handleEnvVarSelect = (newValue: string) => {
+    setFunctionCode(newValue)
+    setShowEnvVars(false)
+  }
+
+  // Handle tag selection
+  const handleTagSelect = (newValue: string) => {
+    setFunctionCode(newValue)
+    setShowTags(false)
+    setActiveSourceBlockId(null)
+  }
+
+  // Handle key press events
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Only handle Escape directly if dropdowns aren't visible
+    // Otherwise, let the dropdowns handle their own keyboard events
+    if (e.key === 'Escape' && !showEnvVars && !showTags) {
+      setShowEnvVars(false)
+      setShowTags(false)
+    }
+
+    // Don't handle other keys when dropdowns are visible
+    if (showEnvVars || showTags) {
+      if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
   }
 
   const navigationItems = [
@@ -358,14 +442,61 @@ export function CustomToolModal({
                   <span className="text-sm text-red-600 ml-4 flex-shrink-0">{codeError}</span>
                 )}
               </div>
-              <CodeEditor
-                value={functionCode}
-                onChange={handleFunctionCodeChange}
-                language="javascript"
-                placeholder={`// This code will be executed when the tool is called`}
-                minHeight="340px"
-                className={cn(codeError ? 'border-red-500' : '')}
-              />
+              <div ref={codeEditorRef} className="relative">
+                <CodeEditor
+                  value={functionCode}
+                  onChange={handleFunctionCodeChange}
+                  language="javascript"
+                  placeholder={`// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.`}
+                  minHeight="340px"
+                  className={cn(codeError ? 'border-red-500' : '')}
+                  highlightVariables={true}
+                  onKeyDown={handleKeyDown}
+                />
+
+                {/* Environment variables dropdown */}
+                {showEnvVars && (
+                  <EnvVarDropdown
+                    visible={showEnvVars}
+                    onSelect={handleEnvVarSelect}
+                    searchTerm={searchTerm}
+                    inputValue={functionCode}
+                    cursorPosition={cursorPosition}
+                    onClose={() => {
+                      setShowEnvVars(false)
+                      setSearchTerm('')
+                    }}
+                    className="w-64"
+                    style={{
+                      position: 'absolute',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
+                    }}
+                  />
+                )}
+
+                {/* Tags dropdown */}
+                {showTags && (
+                  <TagDropdown
+                    visible={showTags}
+                    onSelect={handleTagSelect}
+                    blockId=""
+                    activeSourceBlockId={activeSourceBlockId}
+                    inputValue={functionCode}
+                    cursorPosition={cursorPosition}
+                    onClose={() => {
+                      setShowTags(false)
+                      setActiveSourceBlockId(null)
+                    }}
+                    className="w-64"
+                    style={{
+                      position: 'absolute',
+                      top: `${dropdownPosition.top}px`,
+                      left: `${dropdownPosition.left}px`,
+                    }}
+                  />
+                )}
+              </div>
               <div className="h-6"></div>
             </div>
           </div>

@@ -38,6 +38,62 @@ export interface BlockHandler {
 }
 
 /**
+ * Shared helper for executing code with WebContainer and VM fallback
+ * @param code - The code to execute
+ * @param params - Parameters to pass to the code
+ * @param timeout - Execution timeout in milliseconds
+ * @returns Execution result
+ */
+async function executeCodeWithFallback(
+  code: string,
+  params: Record<string, any> = {},
+  timeout: number = 5000
+): Promise<{ success: boolean; output: any; error?: string }> {
+  // Only try WebContainer in browser environment with direct execution
+  const isBrowser = typeof window !== 'undefined'
+  if (isBrowser && window.crossOriginIsolated) {
+    try {
+      // Dynamically import WebContainer to prevent server-side import
+      const { executeCode } = await import('@/lib/webcontainer')
+
+      // Execute directly in the browser
+      const result = await executeCode(code, params, timeout)
+
+      if (!result.success) {
+        console.warn(`WebContainer API execution failed: ${result.error}`)
+        throw new Error(result.error || `WebContainer execution failed with no error message`)
+      }
+
+      return { success: true, output: result.output }
+    } catch (error: any) {
+      console.warn('WebContainer execution failed, falling back to VM:', error)
+      console.error('WebContainer error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      })
+    }
+  }
+
+  // Fall back to VM execution if WebContainer fails or not available
+  try {
+    const vmResult = await executeTool('function_execute', { code, ...params }, true)
+
+    if (!vmResult.success) {
+      throw new Error(vmResult.error || `Function execution failed with no error message`)
+    }
+
+    return { success: true, output: vmResult.output }
+  } catch (vmError: any) {
+    return {
+      success: false,
+      output: null,
+      error: `Function execution failed: ${vmError.message}`,
+    }
+  }
+}
+
+/**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
 export class AgentBlockHandler implements BlockHandler {
@@ -68,31 +124,72 @@ export class AgentBlockHandler implements BlockHandler {
 
     // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)
-      ? inputs.tools
-          .map((tool: any) => {
-            // Handle custom tools
-            if (tool.type === 'custom-tool' && tool.schema) {
-              return {
-                id: `custom_${tool.title}`,
-                name: tool.schema.function.name,
-                description: tool.schema.function.description || '',
-                params: tool.params || {},
-                parameters: {
-                  type: tool.schema.function.parameters.type,
-                  properties: tool.schema.function.parameters.properties,
-                  required: tool.schema.function.parameters.required || [],
-                },
-              }
-            }
+      ? (
+          await Promise.all(
+            inputs.tools.map(async (tool: any) => {
+              // Handle custom tools
+              if (tool.type === 'custom-tool' && tool.schema) {
+                // Add function execution capability to custom tools with code
+                if (tool.code) {
+                  // Store the tool's code and make it available for execution
+                  const toolName = tool.schema.function.name
+                  const params = tool.params || {}
 
-            // Handle regular block tools with operation selection
-            return transformBlockTool(tool, {
-              selectedOperation: tool.operation,
-              getAllBlocks,
-              getTool,
+                  // Create a tool that can execute the code
+                  return {
+                    id: `custom_${tool.title}`,
+                    name: toolName,
+                    description: tool.schema.function.description || '',
+                    params: params,
+                    parameters: {
+                      type: tool.schema.function.parameters.type,
+                      properties: tool.schema.function.parameters.properties,
+                      required: tool.schema.function.parameters.required || [],
+                    },
+                    executeFunction: async (callParams: Record<string, any>) => {
+                      try {
+                        // Execute the code with WebContainer fallback
+                        const result = await executeCodeWithFallback(
+                          tool.code,
+                          { ...params, ...callParams },
+                          tool.timeout || 5000
+                        )
+
+                        if (!result.success) {
+                          throw new Error(result.error || 'Function execution failed')
+                        }
+
+                        return result.output
+                      } catch (error: any) {
+                        console.error(`Error executing custom tool ${toolName}:`, error)
+                        throw new Error(`Error in ${toolName}: ${error.message}`)
+                      }
+                    },
+                  }
+                }
+
+                return {
+                  id: `custom_${tool.title}`,
+                  name: tool.schema.function.name,
+                  description: tool.schema.function.description || '',
+                  params: tool.params || {},
+                  parameters: {
+                    type: tool.schema.function.parameters.type,
+                    properties: tool.schema.function.parameters.properties,
+                    required: tool.schema.function.parameters.required || [],
+                  },
+                }
+              }
+
+              // Handle regular block tools with operation selection
+              return transformBlockTool(tool, {
+                selectedOperation: tool.operation,
+                getAllBlocks,
+                getTool,
+              })
             })
-          })
-          .filter((t): t is NonNullable<typeof t> => t !== null)
+          )
+        ).filter((t: any): t is NonNullable<typeof t> => t !== null)
       : []
 
     // Ensure context is properly formatted for the provider
@@ -460,49 +557,19 @@ export class FunctionBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Only try WebContainer in browser environment with direct execution
-    const isBrowser = typeof window !== 'undefined'
-    if (isBrowser && window.crossOriginIsolated) {
-      try {
-        // Dynamically import WebContainer to prevent server-side import
-        const { executeCode } = await import('@/lib/webcontainer')
+    // Prepare code for execution
+    const codeContent = Array.isArray(inputs.code)
+      ? inputs.code.map((c: { content: string }) => c.content).join('\n')
+      : inputs.code
 
-        // Prepare code for execution
-        const codeContent = Array.isArray(inputs.code)
-          ? inputs.code.map((c: { content: string }) => c.content).join('\n')
-          : inputs.code
+    // Use the shared helper function
+    const result = await executeCodeWithFallback(codeContent, inputs, inputs.timeout || 5000)
 
-        // Execute directly in the browser
-        const result = await executeCode(codeContent, inputs, inputs.timeout || 5000)
-
-        if (!result.success) {
-          console.warn(`WebContainer API execution failed: ${result.error}`)
-          throw new Error(result.error || `WebContainer execution failed with no error message`)
-        }
-
-        return { response: result.output }
-      } catch (error: any) {
-        console.warn('WebContainer execution failed, falling back to VM:', error)
-        console.error('WebContainer error details:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        })
-      }
+    if (!result.success) {
+      throw new Error(result.error || 'Function execution failed')
     }
 
-    // Fall back to VM execution if WebContainer fails or not available
-    try {
-      const vmResult = await executeTool('function_execute', inputs, true)
-
-      if (!vmResult.success) {
-        throw new Error(vmResult.error || `Function execution failed with no error message`)
-      }
-
-      return { response: vmResult.output }
-    } catch (vmError: any) {
-      throw new Error(`Function execution failed: ${vmError.message}`)
-    }
+    return { response: result.output }
   }
 }
 

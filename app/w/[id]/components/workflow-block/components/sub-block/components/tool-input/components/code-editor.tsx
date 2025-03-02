@@ -14,6 +14,8 @@ interface CodeEditorProps {
   placeholder?: string
   className?: string
   minHeight?: string
+  highlightVariables?: boolean
+  onKeyDown?: (e: React.KeyboardEvent) => void
 }
 
 export function CodeEditor({
@@ -23,6 +25,8 @@ export function CodeEditor({
   placeholder = '',
   className = '',
   minHeight = '360px',
+  highlightVariables = true,
+  onKeyDown,
 }: CodeEditorProps) {
   const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
@@ -103,6 +107,38 @@ export function CodeEditor({
     return numbers
   }
 
+  // Custom highlighter that highlights environment variables and tags
+  const customHighlight = (code: string) => {
+    if (!highlightVariables || language !== 'javascript') {
+      // Use default Prism highlighting for non-JS or when variable highlighting is off
+      return highlight(code, languages[language], language)
+    }
+
+    // First, get the default Prism highlighting
+    let highlighted = highlight(code, languages[language], language)
+
+    // Then, highlight environment variables with {{var_name}} syntax in blue
+    if (highlighted.includes('{{')) {
+      highlighted = highlighted.replace(
+        /\{\{([^}]+)\}\}/g,
+        '<span class="text-blue-500">{{$1}}</span>'
+      )
+    }
+
+    // Also highlight tags with <tag_name> syntax in blue
+    if (highlighted.includes('<') && !language.includes('html')) {
+      highlighted = highlighted.replace(/<([^>\s/]+)>/g, (match, group) => {
+        // Avoid replacing HTML tags in comments
+        if (match.startsWith('<!--') || match.includes('</')) {
+          return match
+        }
+        return `<span class="text-blue-500">&lt;${group}&gt;</span>`
+      })
+    }
+
+    return highlighted
+  }
+
   return (
     <div
       className={cn(
@@ -159,7 +195,8 @@ export function CodeEditor({
               onChange(newCode)
             }
           }}
-          highlight={(code) => highlight(code, languages[language], language)}
+          onKeyDown={onKeyDown}
+          highlight={(code) => customHighlight(code)}
           padding={12}
           style={{
             fontFamily: 'inherit',

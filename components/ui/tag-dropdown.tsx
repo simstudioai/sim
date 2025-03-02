@@ -27,6 +27,7 @@ interface TagDropdownProps {
   inputValue: string
   cursorPosition: number
   onClose?: () => void
+  style?: React.CSSProperties
 }
 
 export const TagDropdown: React.FC<TagDropdownProps> = ({
@@ -38,6 +39,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   inputValue,
   cursorPosition,
   onClose,
+  style,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
 
@@ -198,35 +200,38 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     onClose?.()
   }
 
-  // Handle keyboard navigation
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!visible || filteredTags.length === 0) return
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelectedIndex((prev) => (prev < filteredTags.length - 1 ? prev + 1 : prev))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
-        break
-      case 'Enter':
-        e.preventDefault()
-        handleTagSelect(filteredTags[selectedIndex])
-        break
-      case 'Escape':
-        e.preventDefault()
-        onClose?.()
-        break
-    }
-  }
-
   // Add and remove keyboard event listener
   useEffect(() => {
     if (visible) {
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
+      const handleKeyboardEvent = (e: KeyboardEvent) => {
+        if (!filteredTags.length) return
+
+        switch (e.key) {
+          case 'ArrowDown':
+            e.preventDefault()
+            e.stopPropagation()
+            setSelectedIndex((prev) => (prev < filteredTags.length - 1 ? prev + 1 : prev))
+            break
+          case 'ArrowUp':
+            e.preventDefault()
+            e.stopPropagation()
+            setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+            break
+          case 'Enter':
+            e.preventDefault()
+            e.stopPropagation()
+            handleTagSelect(filteredTags[selectedIndex])
+            break
+          case 'Escape':
+            e.preventDefault()
+            e.stopPropagation()
+            onClose?.()
+            break
+        }
+      }
+
+      window.addEventListener('keydown', handleKeyboardEvent, true)
+      return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
   }, [visible, selectedIndex, filteredTags])
 
@@ -239,6 +244,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         'absolute z-[9999] w-full mt-1 overflow-hidden bg-popover rounded-md border shadow-md',
         className
       )}
+      style={style}
     >
       <div className="py-1">
         {filteredTags.length === 0 ? (

@@ -1,4 +1,5 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
@@ -82,6 +83,16 @@ export function getTool(toolId: string): ToolConfig | undefined {
   return undefined
 }
 
+// Check if we're running in the browser
+function isBrowser(): boolean {
+  return typeof window !== 'undefined'
+}
+
+// Check if WebContainer is available
+function isWebContainerAvailable(): boolean {
+  return isBrowser() && !!window.crossOriginIsolated
+}
+
 // Create a tool config from a custom tool definition
 function getCustomTool(customToolId: string): ToolConfig | undefined {
   // Extract the identifier part (could be UUID or title)
@@ -131,14 +142,107 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
       body: (params: Record<string, any>) => {
+        // Get environment variables from the store
+        const envStore = useEnvironmentStore.getState()
+        const allEnvVars = envStore.getAllVariables()
+
+        // Convert environment variables to a simple key-value object
+        const envVars = Object.entries(allEnvVars).reduce(
+          (acc, [key, variable]) => {
+            acc[key] = variable.value
+            return acc
+          },
+          {} as Record<string, string>
+        )
+
         // Include everything needed for execution
         return {
           code: customTool.code,
           params: params, // These will be available in the VM context
           schema: customTool.schema.function.parameters, // For validation on the client side
+          envVars: envVars, // Pass environment variables for server-side resolution
         }
       },
       isInternalRoute: true,
+    },
+
+    // Direct execution support for browser environment with WebContainer
+    directExecution: async (params: Record<string, any>) => {
+      // If there's no code, we can't execute directly
+      if (!customTool.code) {
+        return {
+          success: false,
+          output: {},
+          error: 'No code provided for tool execution',
+        }
+      }
+
+      // If we're in a browser with WebContainer available, use it
+      if (isWebContainerAvailable()) {
+        try {
+          // Get environment variables from the store
+          const envStore = useEnvironmentStore.getState()
+          const envVars = envStore.getAllVariables()
+
+          // Create a merged params object that includes environment variables
+          const mergedParams = { ...params }
+
+          // Add environment variables to the params
+          Object.entries(envVars).forEach(([key, variable]) => {
+            if (variable.value && !mergedParams[key]) {
+              mergedParams[key] = variable.value
+            }
+          })
+
+          // Resolve environment variables and tags in the code
+          let resolvedCode = customTool.code
+
+          // Resolve environment variables with {{var_name}} syntax
+          const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
+          for (const match of envVarMatches) {
+            const varName = match.slice(2, -2).trim()
+            // Look for the variable in our environment store first, then in params
+            const envVar = envVars[varName]
+            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
+            resolvedCode = resolvedCode.replace(match, varValue)
+          }
+
+          // Resolve tags with <tag_name> syntax
+          const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
+          for (const match of tagMatches) {
+            const tagName = match.slice(1, -1).trim()
+            const tagValue = mergedParams[tagName] || ''
+            resolvedCode = resolvedCode.replace(match, tagValue)
+          }
+
+          // Dynamically import the executeCode function
+          const { executeCode } = await import('@/lib/webcontainer')
+
+          // Execute the code with resolved variables
+          const result = await executeCode(
+            resolvedCode,
+            mergedParams, // Use the merged params that include env vars
+            5000 // Default timeout
+          )
+
+          if (!result.success) {
+            throw new Error(result.error || 'WebContainer execution failed')
+          }
+
+          return {
+            success: true,
+            output: result.output.result || result.output,
+            error: undefined,
+          }
+        } catch (error: any) {
+          console.warn('WebContainer execution failed, falling back to API:', error.message)
+          // Fall back to API route if WebContainer fails
+          return undefined
+        }
+      }
+
+      // No WebContainer or not in browser, return undefined to use regular API route
+      return undefined
     },
 
     // Response handling
@@ -175,6 +279,15 @@ export async function executeTool(
     // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
+    }
+
+    // For custom tools, try direct execution in browser first if available
+    if (toolId.startsWith('custom_') && tool.directExecution) {
+      const directResult = await tool.directExecution(params)
+      if (directResult) {
+        return directResult
+      }
+      // If directExecution returns undefined, fall back to API route
     }
 
     // For internal routes or when skipProxy is true, call the API directly

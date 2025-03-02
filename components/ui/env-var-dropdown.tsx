@@ -10,6 +10,7 @@ interface EnvVarDropdownProps {
   inputValue: string
   cursorPosition: number
   onClose?: () => void
+  style?: React.CSSProperties
 }
 
 export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
@@ -20,6 +21,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   inputValue,
   cursorPosition,
   onClose,
+  style,
 }) => {
   const envVars = useEnvironmentStore((state) => Object.keys(state.variables))
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -57,35 +59,38 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
     onClose?.()
   }
 
-  // Handle keyboard navigation
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!visible || filteredEnvVars.length === 0) return
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelectedIndex((prev) => (prev < filteredEnvVars.length - 1 ? prev + 1 : prev))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
-        break
-      case 'Enter':
-        e.preventDefault()
-        handleEnvVarSelect(filteredEnvVars[selectedIndex])
-        break
-      case 'Escape':
-        e.preventDefault()
-        onClose?.()
-        break
-    }
-  }
-
   // Add and remove keyboard event listener
   useEffect(() => {
     if (visible) {
-      window.addEventListener('keydown', handleKeyDown)
-      return () => window.removeEventListener('keydown', handleKeyDown)
+      const handleKeyboardEvent = (e: KeyboardEvent) => {
+        if (!filteredEnvVars.length) return
+
+        switch (e.key) {
+          case 'ArrowDown':
+            e.preventDefault()
+            e.stopPropagation()
+            setSelectedIndex((prev) => (prev < filteredEnvVars.length - 1 ? prev + 1 : prev))
+            break
+          case 'ArrowUp':
+            e.preventDefault()
+            e.stopPropagation()
+            setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+            break
+          case 'Enter':
+            e.preventDefault()
+            e.stopPropagation()
+            handleEnvVarSelect(filteredEnvVars[selectedIndex])
+            break
+          case 'Escape':
+            e.preventDefault()
+            e.stopPropagation()
+            onClose?.()
+            break
+        }
+      }
+
+      window.addEventListener('keydown', handleKeyboardEvent, true)
+      return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
   }, [visible, selectedIndex, filteredEnvVars])
 
@@ -97,6 +102,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         'absolute z-[9999] w-full mt-1 overflow-hidden bg-popover rounded-md border shadow-md',
         className
       )}
+      style={style}
     >
       {filteredEnvVars.length === 0 ? (
         <div className="px-3 py-2 text-sm text-muted-foreground">
