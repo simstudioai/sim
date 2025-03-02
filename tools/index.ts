@@ -82,6 +82,16 @@ export function getTool(toolId: string): ToolConfig | undefined {
   return undefined
 }
 
+// Check if we're running in the browser
+function isBrowser(): boolean {
+  return typeof window !== 'undefined'
+}
+
+// Check if WebContainer is available
+function isWebContainerAvailable(): boolean {
+  return isBrowser() && !!window.crossOriginIsolated
+}
+
 // Create a tool config from a custom tool definition
 function getCustomTool(customToolId: string): ToolConfig | undefined {
   // Extract the identifier part (could be UUID or title)
@@ -141,6 +151,49 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       isInternalRoute: true,
     },
 
+    // Direct execution support for browser environment with WebContainer
+    directExecution: async (params: Record<string, any>) => {
+      // If there's no code, we can't execute directly
+      if (!customTool.code) {
+        return {
+          success: false,
+          output: {},
+          error: 'No code provided for tool execution',
+        }
+      }
+
+      // If we're in a browser with WebContainer available, use it
+      if (isWebContainerAvailable()) {
+        try {
+          // Dynamically import the executeCodeWithFallback function
+          const { executeCode } = await import('@/lib/webcontainer')
+
+          // Execute the code
+          const result = await executeCode(
+            customTool.code,
+            params,
+            5000 // Default timeout
+          )
+
+          if (!result.success) {
+            throw new Error(result.error || 'WebContainer execution failed')
+          }
+
+          return {
+            success: true,
+            output: result.output.result || result.output,
+            error: undefined,
+          }
+        } catch (error: any) {
+          console.warn('WebContainer execution failed, falling back to API:', error.message)
+          // Fall back to API route if WebContainer fails
+          return undefined
+        }
+      }
+
+      return undefined
+    },
+
     // Response handling
     transformResponse: async (response: Response) => {
       const data = await response.json()
@@ -175,6 +228,15 @@ export async function executeTool(
     // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
+    }
+
+    // For custom tools, try direct execution in browser first if available
+    if (toolId.startsWith('custom_') && tool.directExecution) {
+      const directResult = await tool.directExecution(params)
+      if (directResult) {
+        return directResult
+      }
+      // If directExecution returns undefined, fall back to API route
     }
 
     // For internal routes or when skipProxy is true, call the API directly

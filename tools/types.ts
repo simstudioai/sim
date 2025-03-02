@@ -34,6 +34,9 @@ export interface ToolConfig<P = any, R extends ToolResponse = ToolResponse> {
     isInternalRoute?: boolean // Whether this is an internal API route
   }
 
+  // Direct execution in browser (optional) - bypasses HTTP request
+  directExecution?: (params: P) => Promise<R | undefined>
+
   // Response handling
   transformResponse: (response: Response) => Promise<R>
   transformError: (error: any) => string
