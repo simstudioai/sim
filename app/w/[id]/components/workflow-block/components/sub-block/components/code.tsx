@@ -17,6 +17,24 @@ interface CodeProps {
   placeholder?: string
 }
 
+if (typeof document !== 'undefined') {
+  const styleId = 'code-dark-mode-fix'
+  if (!document.getElementById(styleId)) {
+    const style = document.createElement('style')
+    style.id = styleId
+    style.textContent = `
+      .dark .token.operator {
+        color: #9cdcfe !important;
+        background: transparent !important;
+      }
+      .dark .token.punctuation {
+        color: #d4d4d4 !important;
+      }
+    `
+    document.head.appendChild(style)
+  }
+}
+
 export function Code({
   blockId,
   subBlockId,
