@@ -1,6 +1,10 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
+import { answerTool as exaAnswer } from './exa/answer'
+import { findSimilarLinksTool as exaFindSimilarLinks } from './exa/findSimilarLinks'
+import { getContentsTool as exaGetContents } from './exa/getContents'
+import { searchTool as exaSearch } from './exa/search'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
 import { webcontainerExecuteTool as webcontainerExecute } from './function/webcontainer'
@@ -67,6 +71,10 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_upsert_text: pineconeUpsertTextTool,
   github_pr: prTool,
   github_comment: commentTool,
+  exa_search: exaSearch,
+  exa_get_contents: exaGetContents,
+  exa_find_similar_links: exaFindSimilarLinks,
+  exa_answer: exaAnswer,
 }
 
 // Get a tool by its ID

@@ -4,6 +4,7 @@ import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
 import { CrewAIVisionBlock } from './blocks/crewai'
 import { EvaluatorBlock } from './blocks/evaluator'
+import { ExaBlock } from './blocks/exa'
 import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
@@ -45,31 +46,33 @@ export {
   StarterBlock,
   PineconeBlock,
   OpenAIBlock,
+  ExaBlock,
 }
 
-// Registry of all block configurations
+// Registry of all block configurations, alphabetically sorted
 const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
   api: ApiBlock,
-  starter: StarterBlock,
   condition: ConditionBlock,
-  function: FunctionBlock,
-  router: RouterBlock,
-  evaluator: EvaluatorBlock,
   crewai_vision: CrewAIVisionBlock,
+  evaluator: EvaluatorBlock,
+  exa: ExaBlock,
   firecrawl: FirecrawlBlock,
-  jina: JinaBlock,
-  translate: TranslateBlock,
-  slack: SlackBlock,
+  function: FunctionBlock,
   github: GitHubBlock,
-  serper: SerperBlock,
-  tavily: TavilyBlock,
-  youtube: YouTubeBlock,
-  notion: NotionBlock,
   gmail: GmailBlock,
-  x: XBlock,
-  pinecone: PineconeBlock,
+  jina: JinaBlock,
+  notion: NotionBlock,
   openai: OpenAIBlock,
+  pinecone: PineconeBlock,
+  router: RouterBlock,
+  serper: SerperBlock,
+  slack: SlackBlock,
+  starter: StarterBlock,
+  tavily: TavilyBlock,
+  translate: TranslateBlock,
+  x: XBlock,
+  youtube: YouTubeBlock,
 }
 
 // Helper functions
