@@ -5,6 +5,40 @@ import { Script, createContext } from 'vm'
 export const dynamic = 'force-dynamic' // Disable static optimization
 export const runtime = 'nodejs' // Use Node.js runtime
 
+/**
+ * Resolves environment variables and tags in code
+ * @param code - Code with variables
+ * @param params - Parameters that may contain variable values
+ * @param envVars - Environment variables from the workflow
+ * @returns Resolved code
+ */
+function resolveCodeVariables(
+  code: string,
+  params: Record<string, any>,
+  envVars: Record<string, string> = {}
+): string {
+  let resolvedCode = code
+
+  // Resolve environment variables with {{var_name}} syntax
+  const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
+  for (const match of envVarMatches) {
+    const varName = match.slice(2, -2).trim()
+    // Priority: 1. Environment variables from workflow, 2. Params, 3. process.env
+    const varValue = envVars[varName] || params[varName] || process.env[varName] || ''
+    resolvedCode = resolvedCode.replace(match, varValue)
+  }
+
+  // Resolve tags with <tag_name> syntax
+  const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
+  for (const match of tagMatches) {
+    const tagName = match.slice(1, -1).trim()
+    const tagValue = params[tagName] || ''
+    resolvedCode = resolvedCode.replace(match, tagValue)
+  }
+
+  return resolvedCode
+}
+
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
   let stdout = ''
@@ -12,18 +46,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const { code, params = {}, timeout = 3000 } = body
+    const { code, params = {}, timeout = 3000, envVars = {} } = body
 
-    // Check if code contains unresolved template variables
-    if (code.includes('<') && code.includes('>')) {
-      throw new Error(
-        'Code contains unresolved template variables. Please ensure all variables are resolved before execution.'
-      )
-    }
+    // Resolve variables in the code with workflow environment variables
+    const resolvedCode = resolveCodeVariables(code, params, envVars)
 
     // Create a secure context with console logging
     const context = createContext({
       params,
+      environmentVariables: envVars, // Make environment variables available in the context
       console: {
         log: (...args: any[]) => {
           const logMessage =
@@ -46,7 +77,7 @@ export async function POST(req: NextRequest) {
     const script = new Script(`
       (async () => {
         try {
-          ${code}
+          ${resolvedCode}
         } catch (error) {
           console.error(error);
           throw error;

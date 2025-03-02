@@ -1,4 +1,5 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool as functionExecute } from './function/execute'
@@ -141,11 +142,25 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
       body: (params: Record<string, any>) => {
+        // Get environment variables from the store
+        const envStore = useEnvironmentStore.getState()
+        const allEnvVars = envStore.getAllVariables()
+
+        // Convert environment variables to a simple key-value object
+        const envVars = Object.entries(allEnvVars).reduce(
+          (acc, [key, variable]) => {
+            acc[key] = variable.value
+            return acc
+          },
+          {} as Record<string, string>
+        )
+
         // Include everything needed for execution
         return {
           code: customTool.code,
           params: params, // These will be available in the VM context
           schema: customTool.schema.function.parameters, // For validation on the client side
+          envVars: envVars, // Pass environment variables for server-side resolution
         }
       },
       isInternalRoute: true,
@@ -165,13 +180,48 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       // If we're in a browser with WebContainer available, use it
       if (isWebContainerAvailable()) {
         try {
-          // Dynamically import the executeCodeWithFallback function
+          // Get environment variables from the store
+          const envStore = useEnvironmentStore.getState()
+          const envVars = envStore.getAllVariables()
+
+          // Create a merged params object that includes environment variables
+          const mergedParams = { ...params }
+
+          // Add environment variables to the params
+          Object.entries(envVars).forEach(([key, variable]) => {
+            if (variable.value && !mergedParams[key]) {
+              mergedParams[key] = variable.value
+            }
+          })
+
+          // Resolve environment variables and tags in the code
+          let resolvedCode = customTool.code
+
+          // Resolve environment variables with {{var_name}} syntax
+          const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
+          for (const match of envVarMatches) {
+            const varName = match.slice(2, -2).trim()
+            // Look for the variable in our environment store first, then in params
+            const envVar = envVars[varName]
+            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
+            resolvedCode = resolvedCode.replace(match, varValue)
+          }
+
+          // Resolve tags with <tag_name> syntax
+          const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
+          for (const match of tagMatches) {
+            const tagName = match.slice(1, -1).trim()
+            const tagValue = mergedParams[tagName] || ''
+            resolvedCode = resolvedCode.replace(match, tagValue)
+          }
+
+          // Dynamically import the executeCode function
           const { executeCode } = await import('@/lib/webcontainer')
 
-          // Execute the code
+          // Execute the code with resolved variables
           const result = await executeCode(
-            customTool.code,
-            params,
+            resolvedCode,
+            mergedParams, // Use the merged params that include env vars
             5000 // Default timeout
           )
 
@@ -191,6 +241,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
         }
       }
 
+      // No WebContainer or not in browser, return undefined to use regular API route
       return undefined
     },
 
