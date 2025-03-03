@@ -28,7 +28,7 @@ export function getAllWorkflowsWithValues() {
       id,
       name: metadata.name,
       description: metadata.description,
-      color: metadata.color,
+      color: metadata.color || '#3972F6',
       state: {
         blocks: mergedBlocks,
         edges: state.edges,

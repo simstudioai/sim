@@ -3,7 +3,7 @@ export interface WorkflowMetadata {
   name: string
   lastModified: Date
   description?: string
-  color?: string
+  color: string
 }
 
 export interface WorkflowRegistryState {
