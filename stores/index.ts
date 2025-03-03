@@ -5,7 +5,7 @@ import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
-import { syncManagers } from './sync-registry'
+import { getSyncManagers, initializeSyncManagers } from './sync-registry'
 import {
   loadRegistry,
   loadSubblockValues,
@@ -22,6 +22,9 @@ import { useWorkflowStore } from './workflows/workflow/store'
  */
 function initializeApplication(): void {
   if (typeof window === 'undefined') return
+
+  // Initialize sync system first
+  initializeSyncManagers()
 
   // 1. Load persisted data and initialize stores
   const workflows = loadRegistry()
@@ -76,14 +79,14 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
   }
 
   // 2. Final sync for managers that need it
-  syncManagers
+  getSyncManagers()
     .filter((manager) => manager.config.syncOnExit)
     .forEach((manager) => {
       manager.sync()
     })
 
   // 3. Cleanup managers
-  syncManagers.forEach((manager) => manager.dispose())
+  getSyncManagers().forEach((manager) => manager.dispose())
 
   // Standard beforeunload pattern
   event.preventDefault()
@@ -95,8 +98,7 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
  */
 function cleanupApplication(): void {
   window.removeEventListener('beforeunload', handleBeforeUnload)
-  syncManagers.forEach((manager) => manager.dispose())
-  syncManagers.length = 0
+  getSyncManagers().forEach((manager) => manager.dispose())
 }
 
 /**

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { environmentSync } from './sync'
-import { EnvironmentStore } from './types'
+import { EnvironmentStore, EnvironmentVariable } from './types'
 
 export const useEnvironmentStore = create<EnvironmentStore>()(
   persist(
@@ -21,8 +21,12 @@ export const useEnvironmentStore = create<EnvironmentStore>()(
         environmentSync.sync()
       },
 
-      getVariable: (key: string) => {
+      getVariable: (key: string): string | undefined => {
         return get().variables[key]?.value
+      },
+
+      getAllVariables: (): Record<string, EnvironmentVariable> => {
+        return get().variables
       },
     }),
     {

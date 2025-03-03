@@ -122,6 +122,18 @@ export function createSingletonSyncManager(
   key: string,
   configFactory: () => SyncConfig
 ): SyncManager {
+  if (typeof window === 'undefined') {
+    // Return a no-op manager for server-side rendering
+    return {
+      id: key,
+      config: configFactory(),
+      sync: () => {},
+      startIntervalSync: () => {},
+      stopIntervalSync: () => {},
+      dispose: () => {},
+    }
+  }
+
   const existing = syncManagerRegistry.get(key)
   if (existing) {
     return existing
