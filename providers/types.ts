@@ -1,4 +1,11 @@
-export type ProviderId = 'openai' | 'anthropic' | 'google' | 'deepseek' | 'xai' | 'cerebras'
+export type ProviderId =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'deepseek'
+  | 'xai'
+  | 'cerebras'
+  | 'groq'
 
 export interface TokenInfo {
   prompt?: number

@@ -3,6 +3,7 @@ import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
+import { groqProvider } from './groq'
 import { openaiProvider } from './openai'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
@@ -45,7 +46,16 @@ export const providers: Record<
   cerebras: {
     ...cerebrasProvider,
     models: ['cerebras/llama-3.3-70b'],
-    modelPatterns: [/^cerebras\/llama/],
+    modelPatterns: [/^cerebras/],
+  },
+  groq: {
+    ...groqProvider,
+    models: [
+      'groq/llama-3.3-70b-specdec',
+      'groq/deepseek-r1-distill-llama-70b',
+      'groq/qwen-2.5-32b',
+    ],
+    modelPatterns: [/^groq/],
   },
 }
 
