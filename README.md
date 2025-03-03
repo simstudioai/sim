@@ -9,22 +9,52 @@
 1. Self-host
 2. [Join the Waitlist](https://simstudio.ai) for the cloud-hosted beta
 
-## Getting Started
+## Quick Start
 
-1. Clone the repository
+The quickest way to get Sim Studio running locally:
+
+1. **Clone the repository**
 
 ```bash
 git clone https://github.com/simstudioai/sim.git
-cd sim-studio
+cd sim
 ```
 
-2. Install dependencies
+2. **Start with Docker**
+
+```bash
+docker compose up -d
+```
+
+Or use the convenience script for automatic setup:
+
+```bash
+chmod +x start_simstudio_docker.sh
+./start_simstudio_docker.sh
+```
+
+This will start Sim Studio at http://localhost:3000 with a local PostgreSQL database.
+
+3. **[Optional] Configure Your Environment**
+
+Copy `.env.example` to `.env` and configure:
+
+- Authentication secrets (required for login functionality)
+- API keys:
+  - **Essential**: Resend API key (for authentication emails)
+  - **Optional**: OpenAI, Anthropic, etc. (for specific block functionality)
+
+## Manual Setup
+
+If you prefer not to use Docker:
+
+1. **Install dependencies**
 
 ```bash
 npm install
 ```
 
-3. Set up your environment variables
+2. **Set up environment variables**
 
 Copy `.env.example` to `.env` and configure:
 
@@ -32,20 +62,20 @@ Copy `.env.example` to `.env` and configure:
 - Authentication secret
 - Email provider (Resend)
 
-4. Set up the database
+3. **Set up the database**
 
 ```bash
 # Push the database schema
 npx drizzle-kit push
 ```
 
-5. Start the development server
+4. **Start the development server**
 
 ```bash
 npm run dev
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000)
+5. **Open [http://localhost:3000](http://localhost:3000)**
 
 ## Tech Stack
 

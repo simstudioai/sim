@@ -127,33 +127,84 @@ Using clear and consistent commit messages makes it easier for everyone to under
 
 To set up your local development environment:
 
+### Option 1: Using Docker (Recommended)
+
+Docker provides a consistent development environment with all dependencies pre-configured.
+
+1. **Clone the Repository:**
+
+   ```bash
+   git clone https://github.com/<your-username>/sim.git
+   cd sim
+   ```
+
+2. **Start the Docker Environment:**
+
+   ```bash
+   docker compose up -d
+   ```
+
+   Or use the convenience script which handles environment setup and migrations:
+
+   ```bash
+   chmod +x start_simstudio_docker.sh
+   ./start_simstudio_docker.sh
+   ```
+
+   This will:
+
+   - Start a PostgreSQL database container
+   - Build and run the Next.js application with hot-reloading
+   - Set up all necessary environment variables
+   - Apply database migrations automatically
+
+3. **View Logs:**
+
+   ```bash
+   docker compose logs -f simstudio
+   ```
+
+4. **Make Your Changes:**
+   - Edit files in your local directory
+   - Changes will be automatically reflected thanks to hot-reloading
+
+### Option 2: Manual Setup
+
+If you prefer not to use Docker:
+
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/<your-username>/sim-studio.git
+   git clone https://github.com/<your-username>/sim.git
+   cd sim
    ```
-2. **Navigate to the Project Directory:**
-   ```bash
-   cd sim-studio
-   ```
-3. **Install Dependencies:**
-   - Using Yarn:
-     ```bash
-     yarn install
-     ```
-   - Or using NPM:
+2. **Install Dependencies:**
+
+   - Using NPM:
      ```bash
      npm install
      ```
-4. **Run the Development Server:**
-   - With Yarn:
+
+3. **Set Up Environment:**
+
+   - Copy `.env.example` to `.env`
+   - Configure database connection and other required variables
+
+4. **Set Up Database:**
+
+   - You need a PostgreSQL instance running
+   - Run migrations:
      ```bash
-     yarn dev
+     npm run db:push
      ```
+
+5. **Run the Development Server:**
+
    - With NPM:
      ```bash
      npm run dev
      ```
-5. **Make Your Changes and Test Locally.**
+
+6. **Make Your Changes and Test Locally.**
 
 ---
 
