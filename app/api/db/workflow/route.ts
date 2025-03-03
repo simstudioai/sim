@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
             userId: session.user.id,
             name: clientWorkflow.name,
             description: clientWorkflow.description,
+            color: clientWorkflow.color,
             state: clientWorkflow.state,
             lastSynced: now,
             createdAt: now,
@@ -92,7 +93,8 @@ export async function POST(req: NextRequest) {
         const needsUpdate =
           JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
           dbWorkflow.name !== clientWorkflow.name ||
-          dbWorkflow.description !== clientWorkflow.description
+          dbWorkflow.description !== clientWorkflow.description ||
+          dbWorkflow.color !== clientWorkflow.color
 
         if (needsUpdate) {
           operations.push(
@@ -101,6 +103,7 @@ export async function POST(req: NextRequest) {
               .set({
                 name: clientWorkflow.name,
                 description: clientWorkflow.description,
+                color: clientWorkflow.color,
                 state: clientWorkflow.state,
                 lastSynced: now,
                 updatedAt: now,
