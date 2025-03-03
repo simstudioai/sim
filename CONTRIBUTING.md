@@ -187,7 +187,7 @@ If you prefer not to use Docker:
 3. **Set Up Environment:**
 
    - Copy `.env.example` to `.env`
-   - Configure database connection and other required variables
+   - Configure database connection and other required authentication variables
 
 4. **Set Up Database:**
 

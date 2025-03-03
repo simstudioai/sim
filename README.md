@@ -37,12 +37,7 @@ This will start Sim Studio at http://localhost:3000 with a local PostgreSQL data
 
 3. **[Optional] Configure Your Environment**
 
-Copy `.env.example` to `.env` and configure:
-
-- Authentication secrets (required for login functionality)
-- API keys:
-  - **Essential**: Resend API key (for authentication emails)
-  - **Optional**: OpenAI, Anthropic, etc. (for specific block functionality)
+In `.env`, configure Authentication secrets (required for login functionality) and optionally a Resend API key (for authentication emails).
 
 ## Manual Setup
 
