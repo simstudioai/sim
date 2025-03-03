@@ -58,6 +58,7 @@ export const workflow = pgTable('workflow', {
   name: text('name').notNull(),
   description: text('description'),
   state: json('state').notNull(),
+  color: text('color').notNull().default('#3972F6'),
   lastSynced: timestamp('last_synced').notNull(),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
