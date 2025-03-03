@@ -32,13 +32,20 @@ async function initializeApplication(): Promise<void> {
     // Initialize sync system first and fetch data from DB
     await initializeSyncManagers()
 
-    // 1. Load persisted data and initialize stores
-    const workflows = loadRegistry()
-    if (workflows) {
-      useWorkflowRegistry.setState({ workflows })
-      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (activeWorkflowId) {
-        initializeWorkflowState(activeWorkflowId)
+    // After DB sync, check if we need to load from localStorage
+    // This is a fallback in case DB sync failed or there's no data in DB
+    const registryState = useWorkflowRegistry.getState()
+    if (Object.keys(registryState.workflows).length === 0) {
+      // No workflows loaded from DB, try localStorage
+      const workflows = loadRegistry()
+      if (workflows && Object.keys(workflows).length > 0) {
+        console.log('Loading workflows from localStorage as fallback')
+        useWorkflowRegistry.setState({ workflows })
+
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          initializeWorkflowState(activeWorkflowId)
+        }
       }
     }
 
@@ -52,22 +59,32 @@ async function initializeApplication(): Promise<void> {
 }
 
 function initializeWorkflowState(workflowId: string): void {
+  // Load the specific workflow state from localStorage
   const workflowState = loadWorkflowState(workflowId)
-  if (workflowState) {
-    useWorkflowStore.setState(workflowState)
-
-    const subblockValues = loadSubblockValues(workflowId)
-    if (subblockValues) {
-      useSubBlockStore.setState((state) => ({
-        workflowValues: {
-          ...state.workflowValues,
-          [workflowId]: subblockValues,
-        },
-      }))
-    } else if (workflowState.blocks) {
-      useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks)
-    }
+  if (!workflowState) {
+    console.warn(`No saved state found for workflow ${workflowId}`)
+    return
   }
+
+  // Set the workflow store state with the loaded state
+  useWorkflowStore.setState(workflowState)
+
+  // Initialize subblock values for this workflow
+  const subblockValues = loadSubblockValues(workflowId)
+  if (subblockValues) {
+    // Update the subblock store with the loaded values
+    useSubBlockStore.setState((state) => ({
+      workflowValues: {
+        ...state.workflowValues,
+        [workflowId]: subblockValues,
+      },
+    }))
+  } else if (workflowState.blocks) {
+    // If no saved subblock values, initialize from blocks
+    useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks)
+  }
+
+  console.log(`Initialized workflow state for ${workflowId}`)
 }
 
 /**
@@ -78,11 +95,20 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
   const currentId = useWorkflowRegistry.getState().activeWorkflowId
   if (currentId) {
     const currentState = useWorkflowStore.getState()
+
+    // Save the current workflow state with its ID
     saveWorkflowState(currentId, {
-      ...currentState,
+      blocks: currentState.blocks,
+      edges: currentState.edges,
+      loops: currentState.loops,
+      isDeployed: currentState.isDeployed,
+      deployedAt: currentState.deployedAt,
       lastSaved: Date.now(),
+      // Include history for undo/redo functionality
+      history: currentState.history,
     })
 
+    // Save subblock values for the current workflow
     const subblockValues = useSubBlockStore.getState().workflowValues[currentId]
     if (subblockValues) {
       saveSubblockValues(currentId, subblockValues)

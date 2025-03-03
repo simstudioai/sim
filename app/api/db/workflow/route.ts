@@ -19,13 +19,34 @@ const WorkflowSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().optional(),
-  color: z.string(),
+  color: z.string().optional(),
   state: WorkflowStateSchema,
 })
 
 const SyncPayloadSchema = z.object({
   workflows: z.record(z.string(), WorkflowSchema),
 })
+
+export async function GET(request: Request) {
+  try {
+    // Get the session directly in the API route
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+
+    // Fetch all workflows for the user
+    const workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
+
+    // Return the workflows
+    return NextResponse.json({ data: workflows }, { status: 200 })
+  } catch (error: any) {
+    console.error('Workflow fetch error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,7 +81,6 @@ export async function POST(req: NextRequest) {
             userId: session.user.id,
             name: clientWorkflow.name,
             description: clientWorkflow.description,
-            color: clientWorkflow.color,
             state: clientWorkflow.state,
             lastSynced: now,
             createdAt: now,
@@ -72,8 +92,7 @@ export async function POST(req: NextRequest) {
         const needsUpdate =
           JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
           dbWorkflow.name !== clientWorkflow.name ||
-          dbWorkflow.description !== clientWorkflow.description ||
-          dbWorkflow.color !== clientWorkflow.color
+          dbWorkflow.description !== clientWorkflow.description
 
         if (needsUpdate) {
           operations.push(
@@ -82,7 +101,6 @@ export async function POST(req: NextRequest) {
               .set({
                 name: clientWorkflow.name,
                 description: clientWorkflow.description,
-                color: clientWorkflow.color,
                 state: clientWorkflow.state,
                 lastSynced: now,
                 updatedAt: now,

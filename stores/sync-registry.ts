@@ -2,7 +2,7 @@
 
 import { environmentSync, fetchEnvironmentVariables } from './settings/environment/sync'
 import { SyncManager } from './sync'
-import { workflowSync } from './workflows/sync'
+import { fetchWorkflowsFromDB, workflowSync } from './workflows/sync'
 
 // Initialize managers lazily
 let initialized = false
@@ -19,6 +19,7 @@ export async function initializeSyncManagers() {
     // Fetch data from DB on initialization to replace local storage
     await Promise.all([
       fetchEnvironmentVariables(),
+      fetchWorkflowsFromDB(),
       // Add other fetch functions here as needed for other stores
     ])
 

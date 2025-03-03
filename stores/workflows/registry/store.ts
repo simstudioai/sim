@@ -36,6 +36,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const currentId = get().activeWorkflowId
         if (currentId) {
           const currentState = useWorkflowStore.getState()
+
+          // Save the complete state for the current workflow
           saveWorkflowState(currentId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
@@ -53,20 +55,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
         }
 
-        // Load workflow state
+        // Load workflow state for the new active workflow
         const parsedState = loadWorkflowState(id)
         if (parsedState) {
-          const { blocks, edges, history, loops } = parsedState
+          const { blocks, edges, history, loops, isDeployed, deployedAt } = parsedState
 
           // Initialize subblock store with workflow values
           useSubBlockStore.getState().initializeFromWorkflow(id, blocks)
 
+          // Set the workflow store state with the loaded state
           useWorkflowStore.setState({
             blocks,
             edges,
             loops,
-            isDeployed: parsedState.isDeployed !== undefined ? parsedState.isDeployed : false,
-            deployedAt: parsedState.deployedAt ? new Date(parsedState.deployedAt) : undefined,
+            isDeployed: isDeployed !== undefined ? isDeployed : false,
+            deployedAt: deployedAt ? new Date(deployedAt) : undefined,
             history: history || {
               past: [],
               present: {
@@ -74,8 +77,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   blocks,
                   edges,
                   loops: {},
-                  isDeployed: parsedState.isDeployed !== undefined ? parsedState.isDeployed : false,
-                  deployedAt: parsedState.deployedAt,
+                  isDeployed: isDeployed !== undefined ? isDeployed : false,
+                  deployedAt: deployedAt,
                 },
                 timestamp: Date.now(),
                 action: 'Initial state',
@@ -85,7 +88,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: parsedState.lastSaved || Date.now(),
           })
+
+          console.log(`Switched to workflow ${id}`)
         } else {
+          // If no saved state, initialize with empty state
           useWorkflowStore.setState({
             blocks: {},
             edges: [],
@@ -110,8 +116,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: Date.now(),
           })
+
+          console.warn(`No saved state found for workflow ${id}, initialized with empty state`)
         }
 
+        // Update the active workflow ID
         set({ activeWorkflowId: id, error: null })
       },
 

@@ -1,8 +1,9 @@
+import { loadWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
-import { BlockState } from './workflow/types'
+import { BlockState, WorkflowState } from './workflow/types'
 
 // Get a specific block with its subblock values merged in
 export function getBlockWithValues(blockId: string): BlockState | null {
@@ -19,10 +20,36 @@ export function getBlockWithValues(blockId: string): BlockState | null {
 export function getAllWorkflowsWithValues() {
   const { workflows } = useWorkflowRegistry.getState()
   const result: Record<string, any> = {}
+  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+  const currentState = useWorkflowStore.getState()
 
   for (const [id, metadata] of Object.entries(workflows)) {
-    const state = useWorkflowStore.getState()
-    const mergedBlocks = mergeSubblockState(state.blocks, id)
+    // Load the specific state for this workflow
+    let workflowState: WorkflowState
+
+    if (id === activeWorkflowId) {
+      // For the active workflow, use the current state from the store
+      workflowState = {
+        blocks: currentState.blocks,
+        edges: currentState.edges,
+        loops: currentState.loops,
+        isDeployed: currentState.isDeployed,
+        deployedAt: currentState.deployedAt,
+        lastSaved: currentState.lastSaved,
+      }
+    } else {
+      // For other workflows, load their state from localStorage
+      const savedState = loadWorkflowState(id)
+      if (!savedState) {
+        // Skip workflows with no saved state
+        console.warn(`No saved state found for workflow ${id}`)
+        continue
+      }
+      workflowState = savedState
+    }
+
+    // Merge the subblock values for this specific workflow
+    const mergedBlocks = mergeSubblockState(workflowState.blocks, id)
 
     result[id] = {
       id,
@@ -31,11 +58,11 @@ export function getAllWorkflowsWithValues() {
       color: metadata.color || '#3972F6',
       state: {
         blocks: mergedBlocks,
-        edges: state.edges,
-        loops: state.loops,
-        lastSaved: state.lastSaved,
-        isDeployed: state.isDeployed,
-        deployedAt: state.deployedAt,
+        edges: workflowState.edges,
+        loops: workflowState.loops,
+        lastSaved: workflowState.lastSaved,
+        isDeployed: workflowState.isDeployed,
+        deployedAt: workflowState.deployedAt,
       },
     }
   }
