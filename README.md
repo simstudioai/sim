@@ -39,7 +39,46 @@ This will start Sim Studio at http://localhost:3000 with a local PostgreSQL data
 
 In `.env`, configure Authentication secrets (required for login functionality) and optionally a Resend API key (for authentication emails).
 
-## Manual Setup
+## Development Options
+
+### Option 1: Docker (Recommended)
+
+The quickest way to get started with development:
+
+```bash
+docker compose up -d
+```
+
+Or use the convenience script for automatic setup:
+
+```bash
+chmod +x start_simstudio_docker.sh
+./start_simstudio_docker.sh
+```
+
+### Option 2: VS Code / Cursor Dev Containers
+
+For a great development experience with VS Code or Cursor:
+
+1. **Install Prerequisites**
+
+   - Visual Studio Code
+   - Docker Desktop
+   - Remote - Containers extension for VS Code
+
+2. **Open in Container**
+
+   - Open the project in VS Code
+   - When prompted, click "Reopen in Container" (or use F1 → "Remote-Containers: Reopen in Container")
+   - Wait for the container to build and initialize
+
+3. **Start Developing**
+   - The container automatically sets up your environment
+   - Type `sim-start` in the terminal to run the development server
+
+This method works with GitHub Codespaces too - just click "Code" → "Codespaces" → "Create codespace on main".
+
+### Option 3: Manual Setup
 
 If you prefer not to use Docker:
 
