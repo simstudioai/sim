@@ -1,5 +1,6 @@
+import { WebhookData } from '@/lib/types'
 import { db } from '@/db'
-import { workflowLogs } from '@/db/schema'
+import { workflow_logs } from '@/db/schema'
 
 export interface LogEntry {
   id: string
@@ -10,8 +11,9 @@ export interface LogEntry {
   createdAt: Date
   duration?: string
   trigger?: string
+  webhookData?: WebhookData
 }
 
 export async function persistLog(log: LogEntry) {
-  await db.insert(workflowLogs).values(log)
+  await db.insert(workflow_logs).values(log)
 }

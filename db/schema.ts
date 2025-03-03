@@ -1,4 +1,5 @@
-import { boolean, json, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, json, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { ExecutionMethod, ExecutionTrigger, WebhookData } from '@/lib/types'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -64,6 +65,8 @@ export const workflow = pgTable('workflow', {
   isDeployed: boolean('is_deployed').notNull().default(false),
   deployedAt: timestamp('deployed_at'),
   apiKey: text('api_key'),
+  executionMethod: text('execution_method').$type<ExecutionMethod>().default('manual'),
+  webhookConfig: jsonb('webhook_config'),
 })
 
 export const waitlist = pgTable('waitlist', {
@@ -74,7 +77,7 @@ export const waitlist = pgTable('waitlist', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const workflowLogs = pgTable('workflow_logs', {
+export const workflow_logs = pgTable('workflow_logs', {
   id: text('id').primaryKey(),
   workflowId: text('workflow_id')
     .notNull()
@@ -85,6 +88,8 @@ export const workflowLogs = pgTable('workflow_logs', {
   duration: text('duration'), // Store as text to allow 'NA' for errors
   trigger: text('trigger'), // e.g. "api", "schedule", "manual"
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  triggerSource: text('trigger_source').$type<ExecutionTrigger>().default('manual'),
+  webhookData: jsonb('webhook_data').$type<WebhookData>(),
 })
 
 export const environment = pgTable('environment', {

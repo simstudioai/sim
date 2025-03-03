@@ -12,6 +12,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { WebhookConfig, WorkflowMetadata } from '@/lib/types'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeStateLogger } from '@/stores/workflow/logger'
@@ -38,6 +39,10 @@ function WorkflowContent() {
   // State
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [webhookEnabled, setWebhookEnabled] = useState(false)
+  const [webhookSecret, setWebhookSecret] = useState('')
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('')
 
   // Hooks
   const params = useParams()
@@ -61,13 +66,81 @@ function WorkflowContent() {
     }
   }, [])
 
-  // Init workflow
+  // Update notification function to handle webhook status
+  const notifyWebhookStatus = (enabled: boolean, success: boolean, error?: string) => {
+    const currentId = params?.id as string
+    if (success) {
+      addNotification(
+        'api',
+        enabled
+          ? 'Webhook has been successfully enabled. Use the generated URL to send requests to this workflow.'
+          : 'Webhook has been disabled.',
+        currentId,
+        {
+          isPersistent: false,
+        }
+      )
+    } else {
+      addNotification(
+        'error',
+        error || 'An error occurred while configuring the webhook',
+        currentId,
+        {
+          isPersistent: true,
+        }
+      )
+    }
+  }
+
+  // Update useEffect for safe params handling
   useEffect(() => {
-    if (!isInitialized) return
+    const id = params?.id as string | undefined
+    if (!id || !isInitialized) return
+
+    // Save webhook configuration when changed
+    const workflow = workflows[id] as unknown as WorkflowMetadata
+    const isCurrentlyWebhook = workflow?.executionMethod === 'webhook'
+
+    if (
+      webhookEnabled !== isCurrentlyWebhook ||
+      (webhookEnabled && (workflow?.webhookConfig as WebhookConfig)?.secretToken !== webhookSecret)
+    ) {
+      // Call the webhook configuration API
+      fetch(`/api/workflow/${id}/webhook/configure`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          enabled: webhookEnabled,
+          secretToken: webhookEnabled ? webhookSecret : undefined,
+        }),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error('Failed to configure webhook')
+          }
+          return res.json()
+        })
+        .then((data) => {
+          // Update local state if needed
+          if (data.success) {
+            notifyWebhookStatus(webhookEnabled, true)
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to configure webhook:', err)
+          notifyWebhookStatus(
+            webhookEnabled,
+            false,
+            err instanceof Error ? err.message : 'Unknown error'
+          )
+        })
+    }
 
     const validateAndNavigate = () => {
       const workflowIds = Object.keys(workflows)
-      const currentId = params.id as string
+      const currentId = id
 
       if (workflowIds.length === 0) {
         // Create initial workflow using the centralized function
@@ -82,10 +155,29 @@ function WorkflowContent() {
       }
 
       setActiveWorkflow(currentId)
+
+      // Create webhook URL
+      setWebhookUrl(`${window.location.origin}/api/workflow/${currentId}/webhook/receive`)
+
+      // Check if current workflow has webhook enabled
+      const currentWorkflow = workflows[currentId] as unknown as WorkflowMetadata
+      if (currentWorkflow && currentWorkflow.executionMethod === 'webhook') {
+        setWebhookEnabled(true)
+        // Check if webhook config exists and has a secretToken
+        const config = currentWorkflow.webhookConfig as WebhookConfig
+        if (config?.secretToken) {
+          setWebhookSecret(config.secretToken)
+        } else {
+          // Generate a new secret if none exists
+          generateWebhookSecret()
+        }
+      } else {
+        setWebhookEnabled(false)
+      }
     }
 
     validateAndNavigate()
-  }, [params.id, workflows, setActiveWorkflow, createWorkflow, router, isInitialized])
+  }, [params?.id, workflows, setActiveWorkflow, createWorkflow, router, isInitialized])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {
@@ -304,6 +396,17 @@ function WorkflowContent() {
   //   initializeStateLogger()
   // }, [])
 
+  // Generate webhook secret
+  const generateWebhookSecret = () => {
+    const randomBytes = new Uint8Array(32)
+    crypto.getRandomValues(randomBytes)
+    const secret = Array.from(randomBytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .substring(0, 32)
+    setWebhookSecret(secret)
+  }
+
   if (!isInitialized) return null
 
   return (
@@ -348,6 +451,143 @@ function WorkflowContent() {
       >
         <Background />
       </ReactFlow>
+
+      {/* Execution Method Section */}
+      <div className="mt-6 border rounded-md p-4">
+        <h3 className="text-lg font-medium">Execution Method</h3>
+        <div className="mt-2 space-y-3">
+          {/* Manual execution option */}
+          <div className="flex items-center">
+            <input
+              type="radio"
+              id="manual"
+              name="executionMethod"
+              value="manual"
+              checked={!webhookEnabled}
+              onChange={() => {
+                setWebhookEnabled(false)
+              }}
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+            />
+            <label htmlFor="manual" className="ml-2 block text-sm">
+              Manual Execution
+            </label>
+          </div>
+
+          {/* Webhook execution option - new */}
+          <div className="flex items-center">
+            <input
+              type="radio"
+              id="webhook"
+              name="executionMethod"
+              value="webhook"
+              checked={webhookEnabled}
+              onChange={() => {
+                setWebhookEnabled(!webhookEnabled)
+                if (!webhookSecret) {
+                  generateWebhookSecret()
+                }
+              }}
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300"
+            />
+            <label htmlFor="webhook" className="ml-2 block text-sm">
+              Webhook (Trigger from external services)
+            </label>
+          </div>
+
+          {/* Webhook configuration options - new */}
+          {webhookEnabled && (
+            <div className="mt-4 pl-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium">Webhook URL</label>
+                <div className="mt-1 flex">
+                  <input
+                    type="text"
+                    readOnly
+                    value={webhookUrl}
+                    className="flex-1 min-w-0 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(webhookUrl)}
+                    className="ml-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  Use this URL in your external service to trigger this workflow
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium">Secret Token</label>
+                <div className="mt-1 flex">
+                  <div className="relative flex-grow">
+                    <input
+                      type={showWebhookSecret ? 'text' : 'password'}
+                      value={webhookSecret}
+                      onChange={(e) => setWebhookSecret(e.target.value)}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      {showWebhookSecret ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={generateWebhookSecret}
+                    className="ml-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  >
+                    Generate
+                  </button>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  Use this token to secure your webhook (recommended)
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 p-4 rounded-md">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg
+                      className="h-5 w-5 text-yellow-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">Security Information</h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>When using webhooks, we recommend:</p>
+                      <ul className="list-disc pl-5 mt-1 space-y-1">
+                        <li>Use the secret token to validate incoming requests</li>
+                        <li>
+                          Set the <code>x-webhook-signature</code> header with HMAC SHA-256 of the
+                          payload
+                        </li>
+                        <li>Keep your webhook URL and secret token secure</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

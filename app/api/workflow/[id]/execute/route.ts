@@ -22,7 +22,7 @@ const EnvVarsSchema = z.record(z.string())
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
-async function executeWorkflow(workflow: any, input?: any) {
+export async function executeWorkflow(workflow: any, input?: any) {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
