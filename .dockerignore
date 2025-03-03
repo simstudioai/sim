@@ -8,4 +8,5 @@ node_modules
 .env
 .env.*
 npm-debug.log
-README.md 
+README.md
+.devcontainer 
