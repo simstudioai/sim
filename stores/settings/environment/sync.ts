@@ -24,7 +24,6 @@ const prepareEnvironmentPayload = () => {
 export const environmentSyncManager = createSingletonSyncManager('environment', () => ({
   endpoint: ENVIRONMENT_ENDPOINT,
   preparePayload: prepareEnvironmentPayload,
-  syncOnInterval: false,
   syncOnExit: true,
   onSyncError: (error) => {
     console.error('Environment sync failed:', error)

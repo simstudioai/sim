@@ -7,6 +7,7 @@ export interface SyncConfig {
   // Required configuration
   endpoint: string
   preparePayload: () => Promise<any> | any
+  method?: 'GET' | 'POST' | 'DELETE' | 'PUT'
 
   // Sync triggers
   syncOnInterval?: boolean
@@ -64,11 +65,9 @@ async function sendWithRetry(endpoint: string, payload: any, config: SyncConfig)
 // Sends a single request to the endpoint
 async function sendRequest(endpoint: string, payload: any, config: SyncConfig): Promise<boolean> {
   const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
+    method: config.method || 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: config.method !== 'GET' ? JSON.stringify(payload) : undefined,
   })
 
   if (!response.ok) {

@@ -30,8 +30,3 @@ export const useEnvironmentStore = create<EnvironmentStore>()(
     }
   )
 )
-
-// Initialize the sync manager when the store is created
-if (typeof window !== 'undefined') {
-  environmentSyncManager.startIntervalSync()
-}

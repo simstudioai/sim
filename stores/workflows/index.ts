@@ -1,30 +1,10 @@
-import { initializeStores } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
 import { BlockState } from './workflow/types'
 
-// Initialize all stores on load
-if (typeof window !== 'undefined') {
-  initializeStores()
-}
-
-/**
- * Get the complete workflow state with subblock values merged in
- */
-export function getWorkflowWithValues(): Record<string, BlockState> {
-  const workflowState = useWorkflowStore.getState()
-  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
-  if (!activeWorkflowId) return {}
-
-  return mergeSubblockState(workflowState.blocks, activeWorkflowId)
-}
-
-/**
- * Get a specific block with its subblock values merged in
- */
+// Get a specific block with its subblock values merged in
 export function getBlockWithValues(blockId: string): BlockState | null {
   const workflowState = useWorkflowStore.getState()
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -35,5 +15,32 @@ export function getBlockWithValues(blockId: string): BlockState | null {
   return mergedBlocks[blockId] || null
 }
 
-// Export all stores for direct access
+// Get all workflows with their values merged
+export function getAllWorkflowsWithValues() {
+  const { workflows } = useWorkflowRegistry.getState()
+  const result: Record<string, any> = {}
+
+  for (const [id, metadata] of Object.entries(workflows)) {
+    const state = useWorkflowStore.getState()
+    const mergedBlocks = mergeSubblockState(state.blocks, id)
+
+    result[id] = {
+      id,
+      name: metadata.name,
+      description: metadata.description,
+      color: metadata.color,
+      state: {
+        blocks: mergedBlocks,
+        edges: state.edges,
+        loops: state.loops,
+        lastSaved: state.lastSaved,
+        isDeployed: state.isDeployed,
+        deployedAt: state.deployedAt,
+      },
+    }
+  }
+
+  return result
+}
+
 export { useWorkflowRegistry, useWorkflowStore, useSubBlockStore }

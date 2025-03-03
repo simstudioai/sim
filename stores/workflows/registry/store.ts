@@ -10,7 +10,7 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
-import { syncSpecificWorkflow, syncWorkflowDeletion } from '../sync'
+import { workflowSyncManager } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
@@ -276,8 +276,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useWorkflowStore.setState(initialState)
         }
 
-        // Sync the new workflow with the database
-        syncSpecificWorkflow(id)
+        // Trigger sync
+        workflowSyncManager.sync()
 
         return id
       },
@@ -288,17 +288,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           const newWorkflows = { ...state.workflows }
           delete newWorkflows[id]
 
-          // Sync workflow deletion with the database
-          syncWorkflowDeletion(id)
-
-          // Remove workflow state from localStorage
+          // Clean up localStorage
           removeFromStorage(STORAGE_KEYS.WORKFLOW(id))
-
-          // Remove subblock values from localStorage
           removeFromStorage(STORAGE_KEYS.SUBBLOCK(id))
-
-          // Update registry in localStorage
           saveRegistry(newWorkflows)
+
+          // Sync deletion with database
+          workflowSyncManager.sync()
 
           // If deleting active workflow, switch to another one
           let newActiveWorkflowId = state.activeWorkflowId
@@ -377,11 +373,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
           }
 
-          // Update registry in localStorage
+          // Update localStorage
           saveRegistry(updatedWorkflows)
 
-          // Sync the updated workflow with the database
-          syncSpecificWorkflow(id)
+          // Use PUT for workflow updates
+          workflowSyncManager.sync()
 
           return {
             workflows: updatedWorkflows,
