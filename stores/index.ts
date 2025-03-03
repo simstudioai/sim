@@ -17,27 +17,38 @@ import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
 
+// Track initialization state
+let isInitializing = false
+
 /**
  * Initialize the application state and sync system
  */
-function initializeApplication(): void {
-  if (typeof window === 'undefined') return
+async function initializeApplication(): Promise<void> {
+  if (typeof window === 'undefined' || isInitializing) return
 
-  // Initialize sync system first
-  initializeSyncManagers()
+  isInitializing = true
 
-  // 1. Load persisted data and initialize stores
-  const workflows = loadRegistry()
-  if (workflows) {
-    useWorkflowRegistry.setState({ workflows })
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-    if (activeWorkflowId) {
-      initializeWorkflowState(activeWorkflowId)
+  try {
+    // Initialize sync system first and fetch data from DB
+    await initializeSyncManagers()
+
+    // 1. Load persisted data and initialize stores
+    const workflows = loadRegistry()
+    if (workflows) {
+      useWorkflowRegistry.setState({ workflows })
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (activeWorkflowId) {
+        initializeWorkflowState(activeWorkflowId)
+      }
     }
-  }
 
-  // 2. Register cleanup
-  window.addEventListener('beforeunload', handleBeforeUnload)
+    // 2. Register cleanup
+    window.addEventListener('beforeunload', handleBeforeUnload)
+  } catch (error) {
+    console.error('Error during application initialization:', error)
+  } finally {
+    isInitializing = false
+  }
 }
 
 function initializeWorkflowState(workflowId: string): void {
@@ -106,7 +117,9 @@ function cleanupApplication(): void {
  */
 export function useAppInitialization() {
   useEffect(() => {
+    // Use Promise to handle async initialization
     initializeApplication()
+
     return () => {
       cleanupApplication()
     }

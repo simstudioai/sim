@@ -1,24 +1,38 @@
 'use client'
 
-import { environmentSync } from './settings/environment/sync'
+import { environmentSync, fetchEnvironmentVariables } from './settings/environment/sync'
 import { SyncManager } from './sync'
 import { workflowSync } from './workflows/sync'
 
 // Initialize managers lazily
 let initialized = false
+let initializing = false
 let managers: SyncManager[] = []
 
-export function initializeSyncManagers() {
-  if (typeof window === 'undefined' || initialized) return
+export async function initializeSyncManagers() {
+  if (typeof window === 'undefined' || initialized || initializing) return
 
+  initializing = true
   managers = [workflowSync, environmentSync]
-  initialized = true
+
+  try {
+    // Fetch data from DB on initialization to replace local storage
+    await Promise.all([
+      fetchEnvironmentVariables(),
+      // Add other fetch functions here as needed for other stores
+    ])
+
+    initialized = true
+  } catch (error) {
+    console.error('Error initializing data from DB:', error)
+  } finally {
+    initializing = false
+  }
 }
 
 export function getSyncManagers(): SyncManager[] {
-  if (!initialized) {
-    initializeSyncManagers()
-  }
+  // Return the current managers regardless of initialization state
+  // This ensures we don't block the UI while fetching data
   return managers
 }
 
