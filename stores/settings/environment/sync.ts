@@ -1,31 +1,18 @@
-'use client'
-
-import { createSingletonSyncManager } from '@/stores/sync'
+import { API_ENDPOINTS } from '../../constants'
+import { createSingletonSyncManager } from '../../sync'
 import { useEnvironmentStore } from './store'
 
-const ENVIRONMENT_ENDPOINT = '/api/db/environment'
-
-// Prepares environment variables for sync
-const prepareEnvironmentPayload = () => {
-  const { variables } = useEnvironmentStore.getState()
-
-  return {
-    variables: Object.entries(variables).reduce(
+export const environmentSync = createSingletonSyncManager('environment-sync', () => ({
+  endpoint: API_ENDPOINTS.ENVIRONMENT,
+  preparePayload: () => ({
+    variables: Object.entries(useEnvironmentStore.getState().variables).reduce(
       (acc, [key, value]) => ({
         ...acc,
         [key]: value.value,
       }),
       {}
     ),
-  }
-}
-
-// Creates environment sync manager
-export const environmentSyncManager = createSingletonSyncManager('environment', () => ({
-  endpoint: ENVIRONMENT_ENDPOINT,
-  preparePayload: prepareEnvironmentPayload,
+  }),
+  syncOnInterval: true,
   syncOnExit: true,
-  onSyncError: (error) => {
-    console.error('Environment sync failed:', error)
-  },
 }))

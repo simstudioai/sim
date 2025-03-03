@@ -2,16 +2,10 @@
  * Centralized persistence layer for workflow stores
  * Handles localStorage interactions and synchronization
  */
+import { STORAGE_KEYS } from '../constants'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
-
-// Storage keys
-export const STORAGE_KEYS = {
-  REGISTRY: 'workflow-registry',
-  WORKFLOW: (id: string) => `workflow-${id}`,
-  SUBBLOCK: (id: string) => `subblock-values-${id}`,
-}
 
 /**
  * Save data to localStorage with error handling

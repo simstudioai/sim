@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { SYNC_INTERVALS } from './constants'
 import { DEFAULT_SYNC_CONFIG, SyncConfig, SyncOperations, performSync } from './sync-core'
 
 // Client-side sync manager with lifecycle and registry management
@@ -126,15 +127,41 @@ export function createSingletonSyncManager(
     return existing
   }
 
-  const config = configFactory()
-  const manager = createSyncManager(config)
+  const config = {
+    ...configFactory(),
+    syncInterval: SYNC_INTERVALS.DEFAULT,
+  }
 
-  // Override the ID to use the provided key
-  manager.id = key
+  const manager = {
+    id: key,
+    config,
+    sync: () => {
+      performSync(config).catch((err) => {
+        console.error(`Sync failed for ${key}:`, err)
+      })
+    },
+    startIntervalSync: () => {
+      if (!config.syncInterval || !config.syncOnInterval) return
+      manager.intervalId = setInterval(manager.sync, config.syncInterval)
+    },
+    stopIntervalSync: () => {
+      if (manager.intervalId) {
+        clearInterval(manager.intervalId)
+        manager.intervalId = null
+      }
+    },
+    dispose: () => {
+      manager.stopIntervalSync()
+      syncManagerRegistry.delete(key)
+    },
+    intervalId: null as NodeJS.Timeout | null,
+  }
 
-  // Update registry
-  syncManagerRegistry.delete(manager.id)
   syncManagerRegistry.set(key, manager)
+
+  if (config.syncOnInterval && config.syncInterval) {
+    manager.startIntervalSync()
+  }
 
   return manager
 }

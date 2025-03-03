@@ -7,7 +7,7 @@ import { WorkflowStoreWithHistory, pushHistory, withHistory } from '../middlewar
 import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
-import { workflowSyncManager } from '../sync'
+import { workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
 import { Loop, Position, SubBlockState } from './types'
 import { detectCycle } from './utils'
@@ -80,7 +80,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -146,7 +146,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove block')
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       addEdge: (edge: Edge) => {
@@ -206,7 +206,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       removeEdge: (edgeId: string) => {
@@ -244,7 +244,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       clear: () => {
@@ -269,7 +269,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
         }
         set(newState)
-        workflowSyncManager.sync()
+        workflowSync.sync()
 
         return newState
       },
@@ -307,7 +307,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       duplicateBlock: (id: string) => {
@@ -374,7 +374,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Duplicate ${block.type} block`)
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       toggleBlockHandles: (id: string) => {
@@ -391,7 +391,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       updateBlockName: (id: string, name: string) => {
@@ -410,7 +410,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       toggleBlockWide: (id: string) => {
@@ -426,7 +426,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           loops: { ...get().loops },
         }))
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       updateBlockHeight: (id: string, height: number) => {
@@ -459,7 +459,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Update loop max iterations')
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
 
       triggerUpdate: () => {
@@ -478,7 +478,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
-        workflowSyncManager.sync()
+        workflowSync.sync()
       },
     })),
     { name: 'workflow-store' }

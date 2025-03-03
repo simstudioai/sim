@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { STORAGE_KEYS } from '../../constants'
 import {
-  STORAGE_KEYS,
   loadRegistry,
   loadWorkflowState,
   removeFromStorage,
@@ -10,7 +10,7 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
-import { workflowSyncManager } from '../sync'
+import { workflowSync } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
@@ -277,7 +277,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         }
 
         // Trigger sync
-        workflowSyncManager.sync()
+        workflowSync.sync()
 
         return id
       },
@@ -294,7 +294,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           saveRegistry(newWorkflows)
 
           // Sync deletion with database
-          workflowSyncManager.sync()
+          workflowSync.sync()
 
           // If deleting active workflow, switch to another one
           let newActiveWorkflowId = state.activeWorkflowId
@@ -377,7 +377,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           saveRegistry(updatedWorkflows)
 
           // Use PUT for workflow updates
-          workflowSyncManager.sync()
+          workflowSync.sync()
 
           return {
             workflows: updatedWorkflows,
