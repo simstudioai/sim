@@ -1,0 +1,11 @@
+# Exclude files from Docker build
+.git
+.github
+node_modules
+.next
+.vercel
+.husky
+.env
+.env.*
+npm-debug.log
+README.md 
