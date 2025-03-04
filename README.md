@@ -1,33 +1,15 @@
 # Sim Studio
 
-<div align="center">
-  <img src="https://imgur.com/a/QnSEYrN" alt="Sim Studio Banner" width="600px" />
-  <p><b>Build, optimize, and test agent workflows with a powerful visual interface.</b></p>
-  <p>
-    <a href="https://github.com/simstudioai/sim/stargazers">
-      <img src="https://img.shields.io/github/stars/simstudioai/sim?style=flat-square" alt="Stars" />
-    </a>
-    <a href="https://github.com/simstudioai/sim/network/members">
-      <img src="https://img.shields.io/github/forks/simstudioai/sim?style=flat-square" alt="Forks" />
-    </a>
-    <a href="https://github.com/simstudioai/sim/issues">
-      <img src="https://img.shields.io/github/issues/simstudioai/sim?style=flat-square" alt="Issues" />
-    </a>
-    <a href="https://github.com/simstudioai/sim/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/simstudioai/sim?style=flat-square" alt="License" />
-    </a>
-    <a href="https://discord.gg/rTHJynCD">
-      <img src="https://img.shields.io/discord/1234567890?style=flat-square&label=Discord" alt="Discord" />
-    </a>
-  </p>
-</div>
+[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows.
 
 ## Run
 
 1. Self-host
 2. [Join the Waitlist](https://simstudio.ai) for the cloud-hosted beta
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Try Instantly with npx
 
