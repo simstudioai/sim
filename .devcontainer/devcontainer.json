@@ -17,7 +17,15 @@
         },
         "[typescriptreact]": {
           "editor.defaultFormatter": "esbenp.prettier-vscode"
-        }
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "args": ["--login"]
+          }
+        },
+        "terminal.integrated.shellIntegration.enabled": true
       },
       "extensions": [
         "dbaeumer.vscode-eslint",
@@ -36,13 +44,15 @@
 
   "forwardPorts": [3000, 5432],
 
-  "postCreateCommand": "sh .devcontainer/post-create.sh",
+  "postCreateCommand": "bash -c 'bash .devcontainer/post-create.sh || true'",
+
+  "postStartCommand": "bash -c 'if [ ! -f ~/.bashrc ] || ! grep -q \"sim-start\" ~/.bashrc; then cp .devcontainer/.bashrc ~/.bashrc; fi'",
 
   "remoteUser": "node",
 
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "lts"
+      "version": "20"
     },
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/devcontainers-contrib/features/npm-package:1": {

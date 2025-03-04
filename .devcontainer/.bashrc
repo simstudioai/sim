@@ -24,6 +24,19 @@ alias sim-migrate="npx drizzle-kit push"
 alias sim-generate="npx drizzle-kit generate"
 alias sim-rebuild="npm run build && npm start"
 
-# Welcome message
-echo "🚀 Welcome to Sim Studio development environment!"
-echo "Type 'sim-start' to start the development server" 
+# Welcome message - only show once per session
+if [ -z "$SIM_WELCOME_SHOWN" ]; then
+  export SIM_WELCOME_SHOWN=1
+  
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "🚀 Welcome to Sim Studio development environment!"
+  echo ""
+  echo "Available commands:"
+  echo "  sim-start    - Start the development server"
+  echo "  sim-migrate  - Push schema changes to the database"
+  echo "  sim-generate - Generate new migrations"
+  echo "  sim-rebuild  - Build and start the production server"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+fi 

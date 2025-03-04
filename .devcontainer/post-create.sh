@@ -1,12 +1,27 @@
 #!/bin/bash
 
+# Exit on error, but with some error handling
 set -e
 
 echo "🔧 Setting up Sim Studio development environment..."
 
-# Install dependencies
-echo "📦 Installing npm dependencies..."
-npm install
+# Setup .bashrc
+echo "📄 Setting up .bashrc with aliases..."
+cp .devcontainer/.bashrc ~/.bashrc
+# Add to .profile to ensure .bashrc is sourced in non-interactive shells
+echo 'if [ -f ~/.bashrc ]; then . ~/.bashrc; fi' >> ~/.profile
+
+# Clean and reinstall dependencies to ensure platform compatibility
+echo "📦 Cleaning and reinstalling npm dependencies..."
+if [ -d "node_modules" ]; then
+  echo "Removing existing node_modules to ensure platform compatibility..."
+  rm -rf node_modules
+fi
+
+# Install dependencies with platform-specific binaries
+npm install || {
+  echo "⚠️ npm install had issues but continuing setup..."
+}
 
 # Set up environment variables if .env doesn't exist
 if [ ! -f ".env" ]; then
@@ -17,18 +32,29 @@ fi
 # Run database migrations
 echo "🗃️ Running database migrations..."
 echo "Waiting for database to be ready..."
-until PGPASSWORD=postgres psql -h db -U postgres -c '\q'; do
-  echo "Database is unavailable - sleeping"
-  sleep 2
-done
+# Try to connect to the database, but don't fail the script if it doesn't work
+(
+  timeout=60
+  while [ $timeout -gt 0 ]; do
+    if PGPASSWORD=postgres psql -h db -U postgres -c '\q' 2>/dev/null; then
+      echo "Database is ready!"
+      npx drizzle-kit push
+      break
+    fi
+    echo "Database is unavailable - sleeping (${timeout}s remaining)"
+    sleep 5
+    timeout=$((timeout - 5))
+  done
+  
+  if [ $timeout -le 0 ]; then
+    echo "⚠️ Database connection timed out, skipping migrations"
+  fi
+) || echo "⚠️ Database setup had issues but continuing..."
 
-echo "Database is ready!"
-npx drizzle-kit push
-
-# Add helpful aliases to .bashrc
+# Add additional helpful aliases to .bashrc
 cat << EOF >> ~/.bashrc
 
-# Sim Studio Development Aliases
+# Additional Sim Studio Development Aliases
 alias migrate="npx drizzle-kit push"
 alias generate="npx drizzle-kit generate"
 alias dev="npm run dev"
@@ -38,11 +64,22 @@ alias lint="npm run lint"
 alias test="npm run test"
 EOF
 
-echo "✅ Development environment is ready! Here are some helpful commands:"
-echo "📦 dev - Start the development server"
-echo "🔨 build - Build the application for production"
-echo "🚀 start - Start the production server"
-echo "🧹 lint - Run ESLint"
-echo "🧪 test - Run tests"
-echo "🗃️ migrate - Push schema changes to the database"
-echo "📃 generate - Generate new migrations" 
+# Source the .bashrc to make aliases available immediately
+. ~/.bashrc
+
+# Clear the welcome message flag to ensure it shows after setup
+unset SIM_WELCOME_SHOWN
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Sim Studio development environment setup complete!"
+echo ""
+echo "Your environment is now ready. A new terminal session will show"
+echo "available commands. You can start the development server with:"
+echo ""
+echo "  sim-start"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Exit successfully regardless of any previous errors
+exit 0 
