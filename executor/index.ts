@@ -494,6 +494,21 @@ export class Executor {
     }
 
     if (blockType === 'condition') {
+      if (output && typeof output === 'object' && 'response' in output) {
+        return {
+          response: {
+            ...output.response,
+            conditionResult: output.response.conditionResult || false,
+            selectedPath: output.response.selectedPath || {
+              blockId: '',
+              blockType: '',
+              blockTitle: '',
+            },
+            selectedConditionId: output.response.selectedConditionId || '',
+          },
+        }
+      }
+
       return {
         response: {
           conditionResult: output?.conditionResult || false,

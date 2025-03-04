@@ -223,6 +223,9 @@ export class InputResolver {
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
+      } else if (currentBlock.metadata?.id === 'function' && typeof replacementValue === 'string') {
+        // For function blocks, we need to properly quote string values to avoid syntax errors
+        formattedValue = JSON.stringify(replacementValue)
       } else {
         formattedValue =
           typeof replacementValue === 'object'

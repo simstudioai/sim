@@ -2,7 +2,21 @@ import { ConditionalIcon } from '@/components/icons'
 import { CodeExecutionOutput } from '@/tools/function/execute'
 import { BlockConfig } from '../types'
 
-export const ConditionBlock: BlockConfig<CodeExecutionOutput> = {
+interface ConditionBlockOutput {
+  success: boolean
+  output: {
+    content: string
+    conditionResult: boolean
+    selectedPath: {
+      blockId: string
+      blockType: string
+      blockTitle: string
+    }
+    selectedConditionId: string
+  }
+}
+
+export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   type: 'condition',
   name: 'Condition',
   description: 'Add a condition',
@@ -26,9 +40,10 @@ export const ConditionBlock: BlockConfig<CodeExecutionOutput> = {
   outputs: {
     response: {
       type: {
-        result: 'any',
-        stdout: 'string',
-        executionTime: 'number',
+        content: 'string',
+        conditionResult: 'boolean',
+        selectedPath: 'json',
+        selectedConditionId: 'string',
       },
     },
   },
