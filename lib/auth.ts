@@ -17,6 +17,12 @@ export const auth = betterAuth({
     provider: 'pg',
     schema,
   }),
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60, // Cache duration (5 minutes)
+    },
+  },
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
