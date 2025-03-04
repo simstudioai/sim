@@ -4,11 +4,11 @@ import { execSync } from 'child_process'
 import fs from 'fs'
 import { createWriteStream } from 'fs'
 import https from 'https'
-import type { Ora } from 'ora'
 import os from 'os'
 import path from 'path'
 import { extract } from 'tar'
 import { config } from '../utils/config'
+import { SimpleSpinner, createSpinner } from '../utils/spinner'
 
 interface StartOptions {
   port: string
@@ -35,12 +35,8 @@ export async function start(options: StartOptions) {
   const port = options.port || '3000'
   const debug = options.debug || false
 
-  // Dynamically import ora
-  const oraModule = await import('ora')
-  const ora = oraModule.default
-
   // Show starting message
-  const spinner = ora(`Starting Sim Studio on port ${port}...`).start()
+  const spinner = createSpinner(`Starting Sim Studio on port ${port}...`).start()
 
   try {
     // Set environment variables for using local storage
@@ -203,7 +199,7 @@ function checkIfInProjectDirectory(): boolean {
 /**
  * Downloads and extracts the standalone app
  */
-async function downloadStandaloneApp(spinner: Ora): Promise<void> {
+async function downloadStandaloneApp(spinner: SimpleSpinner): Promise<void> {
   return new Promise((resolve, reject) => {
     // Create temp directory
     const tmpDir = path.join(os.tmpdir(), `sim-download-${Date.now()}`)
@@ -260,26 +256,23 @@ async function downloadStandaloneApp(spinner: Ora): Promise<void> {
                 }
               }
 
-              // Save version info
+              // Write version file
               fs.writeFileSync(
                 SIM_VERSION_FILE,
-                JSON.stringify({
-                  version: STANDALONE_VERSION,
-                  installedAt: new Date().toISOString(),
-                })
+                JSON.stringify({ version: STANDALONE_VERSION, date: new Date().toISOString() })
               )
 
+              spinner.succeed('Sim Studio downloaded successfully')
               resolve()
             })
-            .catch((err: Error) => {
-              spinner.fail('Extraction failed')
+            .catch((err) => {
+              spinner.fail('Failed to extract Sim Studio')
               reject(err)
             })
         })
       })
-      .on('error', (err: Error) => {
-        fs.unlink(tarballPath, () => {})
-        spinner.fail('Download failed')
+      .on('error', (err) => {
+        spinner.fail('Network error')
         reject(err)
       })
   })

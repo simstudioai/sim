@@ -1,52 +1,20 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.start = start;
-const child_process_1 = require("child_process");
 const chalk_1 = __importDefault(require("chalk"));
-const config_1 = require("../utils/config");
-const path_1 = __importDefault(require("path"));
-const fs_1 = __importDefault(require("fs"));
-const os_1 = __importDefault(require("os"));
-const tar_1 = require("tar");
-const https_1 = __importDefault(require("https"));
-const fs_2 = require("fs");
+const child_process_1 = require("child_process");
 const child_process_2 = require("child_process");
+const fs_1 = __importDefault(require("fs"));
+const fs_2 = require("fs");
+const https_1 = __importDefault(require("https"));
+const os_1 = __importDefault(require("os"));
+const path_1 = __importDefault(require("path"));
+const tar_1 = require("tar");
+const config_1 = require("../utils/config");
+const spinner_1 = require("../utils/spinner");
 // Constants for standalone app
 const SIM_HOME_DIR = path_1.default.join(os_1.default.homedir(), '.sim-studio');
 const SIM_STANDALONE_DIR = path_1.default.join(SIM_HOME_DIR, 'standalone');
@@ -63,11 +31,8 @@ async function start(options) {
     config_1.config.set('lastRun', new Date().toISOString());
     const port = options.port || '3000';
     const debug = options.debug || false;
-    // Dynamically import ora
-    const oraModule = await Promise.resolve().then(() => __importStar(require('ora')));
-    const ora = oraModule.default;
     // Show starting message
-    const spinner = ora(`Starting Sim Studio on port ${port}...`).start();
+    const spinner = (0, spinner_1.createSpinner)(`Starting Sim Studio on port ${port}...`).start();
     try {
         // Set environment variables for using local storage
         const env = {
@@ -88,7 +53,7 @@ async function start(options) {
             simProcess = (0, child_process_1.spawn)('npm', ['run', 'dev'], {
                 env,
                 stdio: 'inherit',
-                shell: true
+                shell: true,
             });
         }
         else {
@@ -132,7 +97,8 @@ async function start(options) {
             // Start the standalone app
             spinner.text = 'Starting Sim Studio standalone...';
             // Make sure the standalone directory exists
-            if (!fs_1.default.existsSync(SIM_STANDALONE_DIR) || !fs_1.default.existsSync(path_1.default.join(SIM_STANDALONE_DIR, 'server.js'))) {
+            if (!fs_1.default.existsSync(SIM_STANDALONE_DIR) ||
+                !fs_1.default.existsSync(path_1.default.join(SIM_STANDALONE_DIR, 'server.js'))) {
                 spinner.fail('Standalone app files are missing. Re-run to download again.');
                 // Force a fresh download next time
                 if (fs_1.default.existsSync(SIM_VERSION_FILE)) {
@@ -149,7 +115,7 @@ async function start(options) {
                 cwd: SIM_STANDALONE_DIR,
                 env: standaloneEnv,
                 stdio: 'inherit',
-                shell: true
+                shell: true,
             });
         }
         // Successful start
@@ -215,7 +181,8 @@ async function downloadStandaloneApp(spinner) {
         const file = (0, fs_2.createWriteStream)(tarballPath);
         spinner.text = 'Downloading Sim Studio...';
         // Download the tarball
-        https_1.default.get(DOWNLOAD_URL, (response) => {
+        https_1.default
+            .get(DOWNLOAD_URL, (response) => {
             if (response.statusCode !== 200) {
                 spinner.fail(`Failed to download: ${response.statusCode}`);
                 return reject(new Error(`Download failed with status code: ${response.statusCode}`));
@@ -233,8 +200,9 @@ async function downloadStandaloneApp(spinner) {
                 // Extract the tarball
                 (0, tar_1.extract)({
                     file: tarballPath,
-                    cwd: SIM_STANDALONE_DIR
-                }).then(() => {
+                    cwd: SIM_STANDALONE_DIR,
+                })
+                    .then(() => {
                     // Clean up
                     fs_1.default.rmSync(tmpDir, { recursive: true, force: true });
                     // Install dependencies if needed
@@ -243,24 +211,26 @@ async function downloadStandaloneApp(spinner) {
                         try {
                             (0, child_process_2.execSync)('npm install --production', {
                                 cwd: SIM_STANDALONE_DIR,
-                                stdio: 'ignore'
+                                stdio: 'ignore',
                             });
                         }
                         catch (error) {
                             spinner.warn('Error installing dependencies, but trying to continue...');
                         }
                     }
-                    // Save version info
-                    fs_1.default.writeFileSync(SIM_VERSION_FILE, JSON.stringify({ version: STANDALONE_VERSION, installedAt: new Date().toISOString() }));
+                    // Write version file
+                    fs_1.default.writeFileSync(SIM_VERSION_FILE, JSON.stringify({ version: STANDALONE_VERSION, date: new Date().toISOString() }));
+                    spinner.succeed('Sim Studio downloaded successfully');
                     resolve();
-                }).catch((err) => {
-                    spinner.fail('Extraction failed');
+                })
+                    .catch((err) => {
+                    spinner.fail('Failed to extract Sim Studio');
                     reject(err);
                 });
             });
-        }).on('error', (err) => {
-            fs_1.default.unlink(tarballPath, () => { });
-            spinner.fail('Download failed');
+        })
+            .on('error', (err) => {
+            spinner.fail('Network error');
             reject(err);
         });
     });

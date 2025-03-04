@@ -7,11 +7,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const chalk_1 = __importDefault(require("chalk"));
 const commander_1 = require("commander");
 const update_notifier_1 = __importDefault(require("update-notifier"));
-const start_1 = require("./commands/start");
 const help_1 = require("./commands/help");
+const start_1 = require("./commands/start");
 const version_1 = require("./commands/version");
-const logo_1 = require("./utils/logo");
 const config_1 = require("./utils/config");
+const logo_1 = require("./utils/logo");
 // Package info for version checking
 const pkg = require('../package.json');
 // Check for updates
