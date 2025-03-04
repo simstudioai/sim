@@ -45,7 +45,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   },
 
   request: {
-    url: '/api/execute',
+    url: '/api/function/execute',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

@@ -146,7 +146,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
 
     // Request configuration - for custom tools we'll use the execute endpoint
     request: {
-      url: '/api/execute',
+      url: '/api/function/execute',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
       body: (params: Record<string, any>) => {
