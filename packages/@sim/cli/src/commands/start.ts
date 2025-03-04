@@ -44,7 +44,7 @@ export async function start(options: StartOptions) {
       ...process.env,
       PORT: port,
       USE_LOCAL_STORAGE: 'true', // Key environment variable to switch to local storage
-      NODE_ENV: debug ? 'development' : 'production',
+      NODE_ENV: debug ? 'development' : ('production' as const),
       DEBUG: debug ? '*' : undefined,
     }
 
@@ -60,7 +60,7 @@ export async function start(options: StartOptions) {
       spinner.text = 'Detected Sim Studio project, starting with local configuration...'
 
       simProcess = spawn('npm', ['run', 'dev'], {
-        env,
+        env: env as NodeJS.ProcessEnv,
         stdio: 'inherit',
         shell: true,
       })
@@ -130,7 +130,7 @@ export async function start(options: StartOptions) {
 
       simProcess = spawn('node', ['server.js'], {
         cwd: SIM_STANDALONE_DIR,
-        env: standaloneEnv,
+        env: standaloneEnv as NodeJS.ProcessEnv,
         stdio: 'inherit',
         shell: true,
       })
