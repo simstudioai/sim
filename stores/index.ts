@@ -22,6 +22,11 @@ let isInitializing = false
 
 /**
  * Initialize the application state and sync system
+ *
+ * Note: Workflow scheduling is handled automatically by the workflowSync manager
+ * when workflows are synced to the database. The scheduling logic checks if a
+ * workflow has scheduling enabled in its starter block and updates the schedule
+ * accordingly.
  */
 async function initializeApplication(): Promise<void> {
   if (typeof window === 'undefined' || isInitializing) return

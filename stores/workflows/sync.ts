@@ -12,6 +12,68 @@ import { BlockState, WorkflowState } from './workflow/types'
 // Flag to prevent immediate sync back to DB after loading from DB
 let isLoadingFromDB = false
 
+// Track workflows that had scheduling enabled in previous syncs
+const scheduledWorkflows = new Set<string>()
+
+/**
+ * Checks if a workflow has scheduling enabled
+ * @param blocks The workflow blocks
+ * @returns true if scheduling is enabled, false otherwise
+ */
+function hasSchedulingEnabled(blocks: Record<string, BlockState>): boolean {
+  // Find the starter block
+  const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
+  if (!starterBlock) return false
+
+  // Check if the startWorkflow value is 'schedule'
+  const startWorkflow = starterBlock.subBlocks.startWorkflow?.value
+  return startWorkflow === 'schedule'
+}
+
+/**
+ * Updates or cancels the schedule for a workflow based on its current configuration
+ * @param workflowId The workflow ID
+ * @param state The workflow state
+ * @returns A promise that resolves when the schedule update is complete
+ */
+async function updateWorkflowSchedule(workflowId: string, state: any): Promise<void> {
+  try {
+    const isScheduleEnabled = hasSchedulingEnabled(state.blocks)
+
+    // Always call the schedule API to either update or cancel the schedule
+    // The API will handle the logic to create, update, or delete the schedule
+    const response = await fetch(API_ENDPOINTS.SCHEDULE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workflowId,
+        state,
+      }),
+    })
+
+    if (!response.ok) {
+      console.error(
+        `Failed to ${isScheduleEnabled ? 'update' : 'cancel'} schedule for workflow ${workflowId}:`,
+        response.statusText
+      )
+      return
+    }
+
+    const result = await response.json()
+
+    // Update our tracking of scheduled workflows
+    if (isScheduleEnabled) {
+      scheduledWorkflows.add(workflowId)
+      console.log(`Schedule updated for workflow ${workflowId}:`, result)
+    } else {
+      scheduledWorkflows.delete(workflowId)
+      console.log(`Schedule cancelled for workflow ${workflowId}:`, result)
+    }
+  } catch (error) {
+    console.error(`Error managing schedule for workflow ${workflowId}:`, error)
+  }
+}
+
 /**
  * Fetches workflows from the database and updates the local stores
  * This function handles backwards syncing on initialization
@@ -117,12 +179,17 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       if (id === activeWorkflowId) {
         useWorkflowStore.setState(workflowState)
       }
+
+      // 7. Track if this workflow has scheduling enabled
+      if (hasSchedulingEnabled(workflowState.blocks)) {
+        scheduledWorkflows.add(id)
+      }
     })
 
-    // 7. Update registry store with all workflows
+    // 8. Update registry store with all workflows
     useWorkflowRegistry.setState({ workflows: registryWorkflows })
 
-    // 8. If there's an active workflow that wasn't in the DB data, set a new active workflow
+    // 9. If there's an active workflow that wasn't in the DB data, set a new active workflow
     if (activeWorkflowId && !registryWorkflows[activeWorkflowId]) {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
       if (firstWorkflowId) {
@@ -176,7 +243,37 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
   method: 'POST',
   syncOnInterval: true,
   syncOnExit: true,
-  onSyncSuccess: (data) => {
+  onSyncSuccess: async (data) => {
     console.log('Workflows synced to DB successfully')
+
+    // After successful sync to DB, update schedules for all workflows
+    try {
+      const workflowsData = getAllWorkflowsWithValues()
+      const currentWorkflowIds = new Set(Object.keys(workflowsData))
+
+      // Process each workflow to update its schedule if needed
+      const schedulePromises = Object.entries(workflowsData).map(async ([id, workflow]) => {
+        const isCurrentlyScheduled = hasSchedulingEnabled(workflow.state.blocks)
+        const wasScheduledBefore = scheduledWorkflows.has(id)
+
+        // Only update schedule if the scheduling status has changed or it's currently scheduled
+        // This ensures we update schedules when they change and cancel them when they're disabled
+        if (isCurrentlyScheduled || wasScheduledBefore) {
+          await updateWorkflowSchedule(id, workflow.state)
+        }
+      })
+
+      // Wait for all schedule updates to complete
+      await Promise.all(schedulePromises)
+
+      // Clean up tracking for workflows that no longer exist
+      for (const id of scheduledWorkflows) {
+        if (!currentWorkflowIds.has(id)) {
+          scheduledWorkflows.delete(id)
+        }
+      }
+    } catch (error) {
+      console.error('Error updating workflow schedules:', error)
+    }
   },
 }))

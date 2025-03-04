@@ -12,6 +12,11 @@ let managers: SyncManager[] = []
 /**
  * Initialize sync managers and fetch data from DB
  * Returns a promise that resolves when initialization is complete
+ *
+ * Note: Workflow scheduling is handled automatically by the workflowSync manager
+ * when workflows are synced to the database. The scheduling logic checks if a
+ * workflow has scheduling enabled in its starter block and updates the schedule
+ * accordingly.
  */
 export async function initializeSyncManagers(): Promise<boolean> {
   if (typeof window === 'undefined') return false

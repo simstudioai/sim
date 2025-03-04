@@ -290,6 +290,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             deployedAt: currentState.deployedAt,
             lastSaved: Date.now(),
           })
+
+          // Note: Scheduling changes are automatically handled by the workflowSync
+          // When the workflow is synced to the database, the sync system checks if
+          // the starter block has scheduling enabled and updates or cancels the
+          // schedule accordingly.
         }
       },
 
