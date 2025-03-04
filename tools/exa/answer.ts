@@ -29,6 +29,7 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
   request: {
     url: 'https://api.exa.ai/answer',
     method: 'POST',
+    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,

@@ -40,6 +40,7 @@ export const searchTool: ToolConfig<ExaSearchParams, ExaSearchResponse> = {
   request: {
     url: 'https://api.exa.ai/search',
     method: 'POST',
+    isInternalRoute: false,
     headers: (params) => ({
       'Content-Type': 'application/json',
       'x-api-key': params.apiKey,

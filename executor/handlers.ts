@@ -535,7 +535,7 @@ export class ApiBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs, true)
+    const result = await executeTool(block.config.tool, inputs)
     if (!result.success) {
       throw new Error(result.error || `API request failed with no error message`)
     }
@@ -592,7 +592,7 @@ export class GenericBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs, true)
+    const result = await executeTool(block.config.tool, inputs)
     if (!result.success) {
       throw new Error(result.error || `Block execution failed with no error message`)
     }
