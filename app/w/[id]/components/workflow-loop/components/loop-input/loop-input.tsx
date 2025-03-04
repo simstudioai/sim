@@ -85,7 +85,7 @@ export function LoopInput({ id }: NodeProps) {
         <Badge
           variant="outline"
           className={cn(
-            'bg-background border-border text-foreground font-medium px-2 py-0.5 text-sm',
+            'bg-background border-border text-foreground font-medium pr-1.5 pl-2.5 py-0.5 text-sm',
             'hover:bg-accent/50 transition-colors duration-150 cursor-pointer',
             'flex items-center gap-1'
           )}
