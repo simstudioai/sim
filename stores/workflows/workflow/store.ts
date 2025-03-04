@@ -191,6 +191,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 id: loopId,
                 nodes: path,
                 maxIterations: 5,
+                minIterations: 0,
               }
               processedPaths.add(canonicalPath)
             }
@@ -229,6 +230,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 id: loopId,
                 nodes: path,
                 maxIterations: 5,
+                minIterations: 0,
               }
               processedPaths.add(canonicalPath)
             }
@@ -465,6 +467,27 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, 'Update loop max iterations')
         get().updateLastSaved()
         workflowSync.sync()
+      },
+
+      updateLoopMinIterations: (loopId: string, minIterations: number) => {
+        const newState = {
+          blocks: { ...get().blocks },
+          edges: [...get().edges],
+          loops: {
+            ...get().loops,
+            [loopId]: {
+              ...get().loops[loopId],
+              minIterations: Math.max(
+                0,
+                Math.min(get().loops[loopId].maxIterations, minIterations)
+              ), // Clamp between 0 and maxIterations
+            },
+          },
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, 'Update loop min iterations')
+        get().updateLastSaved()
       },
 
       triggerUpdate: () => {

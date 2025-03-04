@@ -13,34 +13,61 @@ export function LoopInput({ id }: NodeProps) {
 
   // Get the max iterations from the store for this loop
   const maxIterations = useWorkflowStore((state) => state.loops[loopId]?.maxIterations ?? 5)
+  const minIterations = useWorkflowStore((state) => state.loops[loopId]?.minIterations ?? 0)
   const updateLoopMaxIterations = useWorkflowStore((state) => state.updateLoopMaxIterations)
+  const updateLoopMinIterations = useWorkflowStore((state) => state.updateLoopMinIterations)
 
-  // Local state for input value
-  const [inputValue, setInputValue] = useState(maxIterations.toString())
+  // Local state for input values
+  const [maxInputValue, setMaxInputValue] = useState(maxIterations.toString())
+  const [minInputValue, setMinInputValue] = useState(minIterations.toString())
   const [open, setOpen] = useState(false)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMaxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
     const numValue = parseInt(sanitizedValue)
 
     // Only update if it's a valid number and <= 50
     if (!isNaN(numValue)) {
-      setInputValue(Math.min(50, numValue).toString())
+      setMaxInputValue(Math.min(50, numValue).toString())
     } else {
-      setInputValue(sanitizedValue)
+      setMaxInputValue(sanitizedValue)
+    }
+  }
+
+  const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
+    const numValue = parseInt(sanitizedValue)
+
+    // Only update if it's a valid number and <= max
+    if (!isNaN(numValue)) {
+      setMinInputValue(Math.min(parseInt(maxInputValue) || 50, numValue).toString())
+    } else {
+      setMinInputValue(sanitizedValue)
     }
   }
 
   const handleSave = () => {
-    const value = parseInt(inputValue)
-    if (!isNaN(value)) {
-      const newValue = Math.min(50, value)
-      updateLoopMaxIterations(loopId, newValue)
+    const maxValue = parseInt(maxInputValue)
+    const minValue = parseInt(minInputValue)
+
+    if (!isNaN(maxValue)) {
+      const newMaxValue = Math.min(50, Math.max(minValue, maxValue))
+      updateLoopMaxIterations(loopId, newMaxValue)
       // Sync input with store value
-      setInputValue(newValue.toString())
+      setMaxInputValue(newMaxValue.toString())
     } else {
       // Reset to current store value if invalid
-      setInputValue(maxIterations.toString())
+      setMaxInputValue(maxIterations.toString())
+    }
+
+    if (!isNaN(minValue)) {
+      const newMinValue = Math.min(maxValue, Math.max(0, minValue))
+      updateLoopMinIterations(loopId, newMinValue)
+      // Sync input with store value
+      setMinInputValue(newMinValue.toString())
+    } else {
+      // Reset to current store value if invalid
+      setMinInputValue(minIterations.toString())
     }
   }
 
@@ -63,24 +90,41 @@ export function LoopInput({ id }: NodeProps) {
             'flex items-center gap-1'
           )}
         >
-          Max Iterations: {maxIterations}
+          Iterations: {minIterations}-{maxIterations}
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </Badge>
       </PopoverTrigger>
       <PopoverContent className="w-48 p-3" align="start" onClick={(e) => e.stopPropagation()}>
         <div className="space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">Max Iterations</div>
+          <div className="text-xs font-medium text-muted-foreground">Min Iterations</div>
           <div className="flex items-center gap-2">
             <Input
               type="text"
-              value={inputValue}
-              onChange={handleChange}
+              value={minInputValue}
+              onChange={handleMinChange}
               onBlur={handleSave}
               onKeyDown={handleKeyDown}
               className="h-8 text-sm"
             />
           </div>
-          <div className="text-[10px] text-muted-foreground">Enter a number between 1 and 50</div>
+          <div className="text-[10px] text-muted-foreground">
+            Enter a number between 0 and {maxInputValue}
+          </div>
+
+          <div className="mt-3 text-xs font-medium text-muted-foreground">Max Iterations</div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              value={maxInputValue}
+              onChange={handleMaxChange}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              className="h-8 text-sm"
+            />
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            Enter a number between {minInputValue || 1} and 50
+          </div>
         </div>
       </PopoverContent>
     </Popover>

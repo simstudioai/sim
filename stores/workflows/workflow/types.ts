@@ -29,6 +29,7 @@ export interface Loop {
   id: string
   nodes: string[]
   maxIterations: number
+  minIterations: number
 }
 
 export interface WorkflowState {
@@ -56,6 +57,7 @@ export interface WorkflowActions {
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
   updateLoopMaxIterations: (loopId: string, maxIterations: number) => void
+  updateLoopMinIterations: (loopId: string, minIterations: number) => void
   triggerUpdate: () => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
 }

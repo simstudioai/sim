@@ -7,7 +7,8 @@ import { ExecutionContext } from './types'
 export class LoopManager {
   constructor(
     private loops: Record<string, SerializedLoop>,
-    private defaultMaxIterations: number = 5
+    private defaultMaxIterations: number = 5,
+    private defaultMinIterations: number = 0
   ) {}
 
   /**
@@ -34,8 +35,12 @@ export class LoopManager {
         continue
       }
 
+      // Check if we need to force iteration due to minimum iterations requirement
+      const minIterations = loop.minIterations || this.defaultMinIterations
+      const forceIteration = currentIteration < minIterations
+
       // Check if loop should iterate again
-      const shouldIterate = this.shouldIterateLoop(loopId, context)
+      const shouldIterate = forceIteration || this.shouldIterateLoop(loopId, context)
 
       if (shouldIterate) {
         // Increment iteration counter
@@ -174,5 +179,15 @@ export class LoopManager {
    */
   getMaxIterations(loopId: string): number {
     return this.loops[loopId]?.maxIterations || this.defaultMaxIterations
+  }
+
+  /**
+   * Gets the minimum iterations for a loop.
+   *
+   * @param loopId - ID of the loop
+   * @returns Minimum iterations for the loop
+   */
+  getMinIterations(loopId: string): number {
+    return this.loops[loopId]?.minIterations || this.defaultMinIterations
   }
 }
