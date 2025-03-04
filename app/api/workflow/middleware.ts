@@ -33,8 +33,14 @@ export async function validateWorkflowAccess(
       }
 
       // API key authentication
-      const apiKey =
-        request.headers.get('x-api-key') || request.nextUrl.searchParams.get('X-API-KEY')
+      let apiKey = null
+      for (const [key, value] of request.headers.entries()) {
+        if (key.toLowerCase() === 'x-api-key' && value) {
+          apiKey = value
+          break
+        }
+      }
+
       if (!apiKey || !workflow.apiKey || apiKey !== workflow.apiKey) {
         return {
           error: {
