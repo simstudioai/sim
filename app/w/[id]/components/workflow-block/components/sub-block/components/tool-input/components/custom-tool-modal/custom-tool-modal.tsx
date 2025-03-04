@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { CodeEditor } from './code-editor'
+import { CodeEditor } from '../code-editor/code-editor'
 
 interface CustomToolModalProps {
   open: boolean

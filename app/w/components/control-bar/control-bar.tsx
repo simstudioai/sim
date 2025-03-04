@@ -28,8 +28,8 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
-import { HistoryDropdownItem } from './components/history-dropdown-item'
-import { NotificationDropdownItem } from './components/notification-dropdown-item'
+import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
+import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 
 /**
  * Control bar for managing workflows - handles editing, deletion, deployment,

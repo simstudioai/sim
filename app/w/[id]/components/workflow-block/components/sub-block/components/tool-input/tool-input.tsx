@@ -25,8 +25,8 @@ import { getAllBlocks } from '@/blocks'
 import { getTool } from '@/tools'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ShortInput } from '../short-input'
-import { CustomTool, CustomToolModal } from './components/custom-tool-modal'
-import { ToolCommand } from './components/tool-command'
+import { CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
+import { ToolCommand } from './components/tool-command/tool-command'
 
 interface ToolInputProps {
   blockId: string
