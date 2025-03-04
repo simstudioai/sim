@@ -347,7 +347,7 @@ export function CustomToolModal({
         <DialogHeader className="px-6 py-4 border-b">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-medium">
-              {isEditing ? 'Edit AgentTool' : 'Create Agent Tool'}
+              {isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
             </DialogTitle>
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
               <X className="h-4 w-4" />

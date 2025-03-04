@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { PencilIcon, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,6 +26,7 @@ import { getTool } from '@/tools'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ShortInput } from '../short-input'
 import { CustomTool, CustomToolModal } from './components/custom-tool-modal'
+import { ToolCommand } from './components/tool-command'
 
 interface ToolInputProps {
   blockId: string
@@ -125,6 +126,26 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const customTools = useCustomToolsStore((state) => state.getAllTools())
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
+
+  // Custom filter function for the Command component
+  const customFilter = useCallback((value: string, search: string) => {
+    if (!search.trim()) return 1
+
+    const normalizedValue = value.toLowerCase()
+    const normalizedSearch = search.toLowerCase()
+
+    // Exact match gets highest priority
+    if (normalizedValue === normalizedSearch) return 1
+
+    // Starts with search term gets high priority
+    if (normalizedValue.startsWith(normalizedSearch)) return 0.8
+
+    // Contains search term gets medium priority
+    if (normalizedValue.includes(normalizedSearch)) return 0.6
+
+    // No match
+    return 0
+  }, [])
 
   const selectedTools: StoredTool[] =
     Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
@@ -300,12 +321,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
             </div>
           </PopoverTrigger>
           <PopoverContent className="p-0 w-[200px]" align="start">
-            <Command>
-              <CommandInput placeholder="Search tools..." />
-              <CommandList>
-                <CommandEmpty>No tools found.</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem
+            <ToolCommand.Root filter={customFilter}>
+              <ToolCommand.Input placeholder="Search tools..." />
+              <ToolCommand.List>
+                <ToolCommand.Empty>No tools found</ToolCommand.Empty>
+                <ToolCommand.Group>
+                  <ToolCommand.Item
+                    value="Create Tool"
                     onSelect={() => {
                       setOpen(false)
                       setCustomToolModalOpen(true)
@@ -316,19 +338,20 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       <WrenchIcon className="w-4 h-4 text-muted-foreground" />
                     </div>
                     <span>Create Tool</span>
-                  </CommandItem>
+                  </ToolCommand.Item>
 
                   {/* Display saved custom tools at the top */}
                   {customTools.length > 0 && (
                     <>
-                      <CommandSeparator />
+                      <ToolCommand.Separator />
                       <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                         Custom Tools
                       </div>
-                      <CommandGroup className="-mx-1 -px-1">
+                      <ToolCommand.Group className="-mx-1 -px-1">
                         {customTools.map((customTool) => (
-                          <CommandItem
+                          <ToolCommand.Item
                             key={customTool.id}
+                            value={customTool.title}
                             onSelect={() => {
                               const newTool: StoredTool = {
                                 type: 'custom-tool',
@@ -363,10 +386,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               <WrenchIcon className="w-4 h-4 text-white" />
                             </div>
                             <span className="truncate max-w-[140px]">{customTool.title}</span>
-                          </CommandItem>
+                          </ToolCommand.Item>
                         ))}
-                      </CommandGroup>
-                      <CommandSeparator />
+                      </ToolCommand.Group>
+                      <ToolCommand.Separator />
                     </>
                   )}
 
@@ -374,10 +397,11 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                   <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                     Built-in Tools
                   </div>
-                  <CommandGroup className="-mx-1 -px-1">
+                  <ToolCommand.Group className="-mx-1 -px-1">
                     {toolBlocks.map((block) => (
-                      <CommandItem
+                      <ToolCommand.Item
                         key={block.type}
+                        value={block.name}
                         onSelect={() => handleSelectTool(block)}
                         className="flex items-center gap-2 cursor-pointer"
                       >
@@ -388,12 +412,12 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                           <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
                         </div>
                         <span className="truncate max-w-[140px]">{block.name}</span>
-                      </CommandItem>
+                      </ToolCommand.Item>
                     ))}
-                  </CommandGroup>
-                </CommandGroup>
-              </CommandList>
-            </Command>
+                  </ToolCommand.Group>
+                </ToolCommand.Group>
+              </ToolCommand.List>
+            </ToolCommand.Root>
           </PopoverContent>
         </Popover>
       ) : (
@@ -540,12 +564,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="p-0 w-[200px]" align="start">
-              <Command>
-                <CommandInput placeholder="Search tools..." />
-                <CommandList>
-                  <CommandEmpty>No tools found.</CommandEmpty>
-                  <CommandGroup>
-                    <CommandItem
+              <ToolCommand.Root filter={customFilter}>
+                <ToolCommand.Input placeholder="Search tools..." />
+                <ToolCommand.List>
+                  <ToolCommand.Empty>No tools found.</ToolCommand.Empty>
+                  <ToolCommand.Group>
+                    <ToolCommand.Item
+                      value="Create Tool"
                       onSelect={() => {
                         setOpen(false)
                         setCustomToolModalOpen(true)
@@ -556,19 +581,20 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                         <WrenchIcon className="w-4 h-4 text-muted-foreground" />
                       </div>
                       <span>Create Tool</span>
-                    </CommandItem>
+                    </ToolCommand.Item>
 
                     {/* Display saved custom tools at the top */}
                     {customTools.length > 0 && (
                       <>
-                        <CommandSeparator />
+                        <ToolCommand.Separator />
                         <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                           Custom Tools
                         </div>
-                        <CommandGroup className="-mx-1 -px-1">
+                        <ToolCommand.Group className="-mx-1 -px-1">
                           {customTools.map((customTool) => (
-                            <CommandItem
+                            <ToolCommand.Item
                               key={customTool.id}
+                              value={customTool.title}
                               onSelect={() => {
                                 const newTool: StoredTool = {
                                   type: 'custom-tool',
@@ -606,10 +632,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 <WrenchIcon className="w-4 h-4 text-white" />
                               </div>
                               <span className="truncate max-w-[140px]">{customTool.title}</span>
-                            </CommandItem>
+                            </ToolCommand.Item>
                           ))}
-                        </CommandGroup>
-                        <CommandSeparator />
+                        </ToolCommand.Group>
+                        <ToolCommand.Separator />
                       </>
                     )}
 
@@ -617,10 +643,11 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                       Built-in Tools
                     </div>
-                    <CommandGroup className="-mx-1 -px-1">
+                    <ToolCommand.Group className="-mx-1 -px-1">
                       {toolBlocks.map((block) => (
-                        <CommandItem
+                        <ToolCommand.Item
                           key={block.type}
+                          value={block.name}
                           onSelect={() => handleSelectTool(block)}
                           className="flex items-center gap-2 cursor-pointer"
                         >
@@ -631,27 +658,29 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                             <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
                           </div>
                           <span className="truncate max-w-[140px]">{block.name}</span>
-                        </CommandItem>
+                        </ToolCommand.Item>
                       ))}
-                    </CommandGroup>
-                  </CommandGroup>
-                </CommandList>
-              </Command>
+                    </ToolCommand.Group>
+                  </ToolCommand.Group>
+                </ToolCommand.List>
+              </ToolCommand.Root>
             </PopoverContent>
           </Popover>
         </div>
       )}
 
+      {/* Custom Tool Modal */}
       <CustomToolModal
         open={customToolModalOpen}
         onOpenChange={(open) => {
           setCustomToolModalOpen(open)
           if (!open) setEditingToolIndex(null)
         }}
-        onSave={handleSaveCustomTool}
+        onSave={editingToolIndex !== null ? handleSaveCustomTool : handleAddCustomTool}
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? {
+                id: '',
                 schema: selectedTools[editingToolIndex].schema,
                 code: selectedTools[editingToolIndex].code || '',
               }
