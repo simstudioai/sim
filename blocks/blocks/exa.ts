@@ -35,15 +35,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       ],
       value: () => 'exa_search',
     },
-    // API Key (common)
-    {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter your Exa API key',
-      password: true,
-    },
     // Search operation inputs
     {
       id: 'query',
@@ -145,6 +136,15 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       type: 'switch',
       layout: 'full',
       condition: { field: 'operation', value: 'exa_answer' },
+    },
+    // API Key (common)
+    {
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your Exa API key',
+      password: true,
     },
   ],
   tools: {
