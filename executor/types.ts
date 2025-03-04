@@ -109,15 +109,6 @@ export interface ExecutionResult {
 }
 
 /**
- * Configuration options for workflow execution.
- */
-export interface ExecutionOptions {
-  maxLoopIterations?: number // Maximum iterations for any loop (default: 5)
-  continueOnError?: boolean // Whether to continue execution after errors
-  timeoutMs?: number // Maximum execution time in milliseconds before timeout
-}
-
-/**
  * Interface for a block executor component.
  */
 export interface BlockExecutor {

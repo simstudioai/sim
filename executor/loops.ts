@@ -35,12 +35,15 @@ export class LoopManager {
         continue
       }
 
-      // Check if we need to force iteration due to minimum iterations requirement
+      // Get min iterations for the loop
       const minIterations = loop.minIterations || this.defaultMinIterations
-      const forceIteration = currentIteration < minIterations
 
       // Check if loop should iterate again
-      const shouldIterate = forceIteration || this.shouldIterateLoop(loopId, context)
+      const normalIteration = this.shouldIterateLoop(loopId, context)
+      const forceIteration =
+        currentIteration < minIterations && this.allBlocksExecuted(loop.nodes, context)
+
+      const shouldIterate = normalIteration || forceIteration
 
       if (shouldIterate) {
         // Increment iteration counter
@@ -115,7 +118,7 @@ export class LoopManager {
     const loop = this.loops[loopId]
     if (!loop) return false
 
-    const allBlocksExecuted = loop.nodes.every((nodeId) => context.executedBlocks.has(nodeId))
+    const allBlocksExecuted = this.allBlocksExecuted(loop.nodes, context)
     if (!allBlocksExecuted) return false
 
     const currentIteration = context.loopIterations.get(loopId) || 0
@@ -143,6 +146,17 @@ export class LoopManager {
     }
 
     return false
+  }
+
+  /**
+   * Checks if all blocks in a list have been executed.
+   *
+   * @param nodeIds - IDs of nodes to check
+   * @param context - Current execution context
+   * @returns Whether all blocks have been executed
+   */
+  private allBlocksExecuted(nodeIds: string[], context: ExecutionContext): boolean {
+    return nodeIds.every((nodeId) => context.executedBlocks.has(nodeId))
   }
 
   /**
