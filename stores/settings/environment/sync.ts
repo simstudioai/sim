@@ -22,11 +22,8 @@ export async function fetchEnvironmentVariables(): Promise<void> {
     if (!response.ok) {
       // Handle unauthorized or other errors
       if (response.status === 401) {
-        console.warn('User not authenticated for environment variables')
         return
       }
-
-      console.error('Failed to fetch environment variables:', response.statusText)
       return
     }
 
@@ -44,11 +41,9 @@ export async function fetchEnvironmentVariables(): Promise<void> {
 
       // Update the local store with the fetched variables
       useEnvironmentStore.getState().setVariables(formattedVariables)
-
-      console.log('Environment variables loaded from DB')
     }
   } catch (error) {
-    console.error('Error fetching environment variables:', error)
+    // Error handling is silent
   } finally {
     // Reset the flag after a short delay to allow state to settle
     setTimeout(() => {
@@ -59,12 +54,11 @@ export async function fetchEnvironmentVariables(): Promise<void> {
 
 export const environmentSync = createSingletonSyncManager('environment-sync', () => ({
   endpoint: API_ENDPOINTS.ENVIRONMENT,
-  preparePayload: () => {
-    if (typeof window === 'undefined') return {}
+  preparePayload: async () => {
+    if (typeof window === 'undefined') return { skipSync: true }
 
     // Skip sync if we're currently loading from DB to prevent overwriting DB data
     if (isLoadingFromDB) {
-      console.log('Skipping environment sync while loading from DB')
       return { skipSync: true }
     }
 
@@ -73,10 +67,10 @@ export const environmentSync = createSingletonSyncManager('environment-sync', ()
 
     // Skip sync if there are no variables to sync
     if (Object.keys(variables).length === 0) {
-      console.log('Skipping environment sync - no variables to sync')
       return { skipSync: true }
     }
 
+    // Transform variables to the format expected by the API
     return {
       variables: Object.entries(variables).reduce(
         (acc, [key, value]) => ({
@@ -87,9 +81,7 @@ export const environmentSync = createSingletonSyncManager('environment-sync', ()
       ),
     }
   },
+  method: 'POST',
   syncOnInterval: true,
   syncOnExit: true,
-  onSyncSuccess: (data) => {
-    console.log('Environment variables synced to DB successfully')
-  },
 }))

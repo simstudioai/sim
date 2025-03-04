@@ -50,7 +50,6 @@ export async function initializeSyncManagers(): Promise<boolean> {
     initialized = true
     return true
   } catch (error) {
-    console.error('Error initializing data from DB:', error)
     return false
   } finally {
     initializing = false

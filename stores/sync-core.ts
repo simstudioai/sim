@@ -47,7 +47,6 @@ export async function performSync(config: SyncConfig): Promise<boolean> {
     if (config.onSyncError) {
       config.onSyncError(error)
     }
-    console.error('Sync error:', error)
     return false
   }
 }
@@ -58,12 +57,14 @@ async function sendWithRetry(endpoint: string, payload: any, config: SyncConfig)
     const result = await sendRequest(endpoint, payload, config)
     return result
   } catch (error) {
-    console.warn('Sync failed, retrying once:', error)
     try {
       const retryResult = await sendRequest(endpoint, payload, config)
       return retryResult
     } catch (retryError) {
-      throw retryError
+      if (config.onSyncError) {
+        config.onSyncError(retryError)
+      }
+      return false
     }
   }
 }
