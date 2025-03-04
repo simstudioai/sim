@@ -9,8 +9,27 @@ let initialized = false
 let initializing = false
 let managers: SyncManager[] = []
 
-export async function initializeSyncManagers() {
-  if (typeof window === 'undefined' || initialized || initializing) return
+/**
+ * Initialize sync managers and fetch data from DB
+ * Returns a promise that resolves when initialization is complete
+ */
+export async function initializeSyncManagers(): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+
+  // If already initialized, return immediately
+  if (initialized) return true
+
+  // If currently initializing, wait for it to complete
+  if (initializing) {
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (initialized) {
+          clearInterval(checkInterval)
+          resolve(true)
+        }
+      }, 100)
+    })
+  }
 
   initializing = true
   managers = [workflowSync, environmentSync]
@@ -24,11 +43,20 @@ export async function initializeSyncManagers() {
     ])
 
     initialized = true
+    return true
   } catch (error) {
     console.error('Error initializing data from DB:', error)
+    return false
   } finally {
     initializing = false
   }
+}
+
+/**
+ * Check if the sync system is initialized
+ */
+export function isSyncInitialized(): boolean {
+  return initialized
 }
 
 export function getSyncManagers(): SyncManager[] {

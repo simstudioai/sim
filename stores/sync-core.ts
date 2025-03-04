@@ -36,6 +36,12 @@ export interface SyncOperations {
 export async function performSync(config: SyncConfig): Promise<boolean> {
   try {
     const payload = await Promise.resolve(config.preparePayload())
+
+    // Skip sync if the payload indicates it should be skipped
+    if (payload && payload.skipSync === true) {
+      return true
+    }
+
     return await sendWithRetry(config.endpoint, payload, config)
   } catch (error) {
     if (config.onSyncError) {

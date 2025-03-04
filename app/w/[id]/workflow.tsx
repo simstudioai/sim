@@ -14,6 +14,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { getSyncManagers, initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { NotificationList } from '@/app/w/components/notifications/notifications'
@@ -52,11 +53,19 @@ function WorkflowContent() {
   // Initialize workflow
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedRegistry = localStorage.getItem('workflow-registry')
-      if (savedRegistry) {
-        useWorkflowRegistry.setState({ workflows: JSON.parse(savedRegistry) })
+      // Ensure sync system is initialized before proceeding
+      const initSync = async () => {
+        // Initialize sync system if not already initialized
+        await initializeSyncManagers()
+        setIsInitialized(true)
       }
-      setIsInitialized(true)
+
+      // Check if already initialized
+      if (isSyncInitialized()) {
+        setIsInitialized(true)
+      } else {
+        initSync()
+      }
     }
   }, [])
 

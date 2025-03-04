@@ -36,7 +36,7 @@ async function initializeApplication(): Promise<void> {
     // This is a fallback in case DB sync failed or there's no data in DB
     const registryState = useWorkflowRegistry.getState()
     if (Object.keys(registryState.workflows).length === 0) {
-      // No workflows loaded from DB, try localStorage
+      // No workflows loaded from DB, try localStorage as fallback
       const workflows = loadRegistry()
       if (workflows && Object.keys(workflows).length > 0) {
         console.log('Loading workflows from localStorage as fallback')
@@ -47,6 +47,8 @@ async function initializeApplication(): Promise<void> {
           initializeWorkflowState(activeWorkflowId)
         }
       }
+    } else {
+      console.log('Using workflows loaded from DB, ignoring localStorage')
     }
 
     // 2. Register cleanup

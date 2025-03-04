@@ -9,6 +9,9 @@ import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
 import { BlockState, WorkflowState } from './workflow/types'
 
+// Flag to prevent immediate sync back to DB after loading from DB
+let isLoadingFromDB = false
+
 /**
  * Fetches workflows from the database and updates the local stores
  * This function handles backwards syncing on initialization
@@ -17,6 +20,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
   if (typeof window === 'undefined') return
 
   try {
+    // Set flag to prevent sync back to DB during loading
+    isLoadingFromDB = true
+
     // Call the API endpoint to get workflows from DB
     const response = await fetch(API_ENDPOINTS.WORKFLOW, {
       method: 'GET',
@@ -47,8 +53,18 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     // Process each workflow from the database
     data.forEach((workflow) => {
-      const { id, name, description, color, state, lastSynced, isDeployed, deployedAt, apiKey } =
-        workflow
+      const {
+        id,
+        name,
+        description,
+        color,
+        state,
+        lastSynced,
+        isDeployed,
+        deployedAt,
+        apiKey,
+        createdAt,
+      } = workflow
 
       // 1. Update registry store with workflow metadata
       registryWorkflows[id] = {
@@ -56,7 +72,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         name,
         description: description || '',
         color: color || '#3972F6',
-        lastModified: new Date(lastSynced),
+        // Use createdAt for sorting if available, otherwise fall back to lastSynced
+        lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
       }
 
       // 2. Prepare workflow state data
@@ -123,6 +140,11 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     console.log('Workflows loaded from DB:', Object.keys(registryWorkflows).length)
   } catch (error) {
     console.error('Error fetching workflows from DB:', error)
+  } finally {
+    // Reset the flag after a short delay to allow state to settle
+    setTimeout(() => {
+      isLoadingFromDB = false
+    }, 500)
   }
 }
 
@@ -132,8 +154,23 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
   preparePayload: () => {
     if (typeof window === 'undefined') return {}
 
+    // Skip sync if we're currently loading from DB to prevent overwriting DB data
+    if (isLoadingFromDB) {
+      console.log('Skipping workflow sync while loading from DB')
+      return { skipSync: true }
+    }
+
+    // Get all workflows with values
+    const workflowsData = getAllWorkflowsWithValues()
+
+    // Skip sync if there are no workflows to sync
+    if (Object.keys(workflowsData).length === 0) {
+      console.log('Skipping workflow sync - no workflows to sync')
+      return { skipSync: true }
+    }
+
     return {
-      workflows: getAllWorkflowsWithValues(),
+      workflows: workflowsData,
     }
   },
   method: 'POST',
