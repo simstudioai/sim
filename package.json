@@ -14,7 +14,13 @@
     "db:studio": "drizzle-kit studio",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "cli:build": "npm run build -w @sim/cli",
+    "cli:dev": "npm run build -w @sim/cli && cd packages/@sim/cli && node ./dist/index.js",
+    "cli:publish": "cd packages/@sim/cli && npm publish --access public",
+    "cli:start": "cd packages/@sim/cli && node ./dist/index.js start",
+    "build:standalone": "node scripts/build-standalone.js",
+    "build:cli": "npm run cli:build && npm run build:standalone"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.38.0",
@@ -47,6 +53,7 @@
     "lucide-react": "^0.469.0",
     "next": "^15.2.0",
     "openai": "^4.85.4",
+    "ora": "^8.2.0",
     "postgres": "^3.4.5",
     "prismjs": "^1.29.0",
     "react": "^18.2.0",
@@ -87,5 +94,8 @@
     "*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --write"
     ]
-  }
+  },
+  "workspaces": [
+    "packages/@sim/*"
+  ]
 }

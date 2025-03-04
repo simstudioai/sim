@@ -1,0 +1,54 @@
+{
+  "name": "@sim/cli",
+  "version": "0.1.0",
+  "description": "CLI tool for Sim Studio - easily start, build and test agent workflows",
+  "license": "MIT",
+  "author": "Sim Studio Team",
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "bin": {
+    "sim": "./bin/sim.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node bin/sim.js",
+    "dev": "ts-node src/index.ts",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "sim",
+    "sim-studio",
+    "workflow",
+    "automation",
+    "cli",
+    "agent"
+  ],
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "conf": "^10.2.0",
+    "dotenv": "^16.4.7",
+    "inquirer": "^8.2.6",
+    "ora": "^8.2.0",
+    "tar": "^6.2.1",
+    "update-notifier": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^8.2.10",
+    "@types/node": "^20.11.30",
+    "@types/tar": "^6.1.11",
+    "@types/update-notifier": "^5.1.0",
+    "rimraf": "^5.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

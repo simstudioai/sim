@@ -1,0 +1,16 @@
+{
+  "name": "sim-studio-standalone",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone server for Sim Studio",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

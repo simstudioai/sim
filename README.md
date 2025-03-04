@@ -1,43 +1,65 @@
 # Sim Studio
 
-[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows.
+<div align="center">
+  <img src="https://imgur.com/a/QnSEYrN" alt="Sim Studio Banner" width="600px" />
+  <p><b>Build, optimize, and test agent workflows with a powerful visual interface.</b></p>
+  <p>
+    <a href="https://github.com/simstudioai/sim/stargazers">
+      <img src="https://img.shields.io/github/stars/simstudioai/sim?style=flat-square" alt="Stars" />
+    </a>
+    <a href="https://github.com/simstudioai/sim/network/members">
+      <img src="https://img.shields.io/github/forks/simstudioai/sim?style=flat-square" alt="Forks" />
+    </a>
+    <a href="https://github.com/simstudioai/sim/issues">
+      <img src="https://img.shields.io/github/issues/simstudioai/sim?style=flat-square" alt="Issues" />
+    </a>
+    <a href="https://github.com/simstudioai/sim/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/simstudioai/sim?style=flat-square" alt="License" />
+    </a>
+    <a href="https://discord.gg/rTHJynCD">
+      <img src="https://img.shields.io/discord/1234567890?style=flat-square&label=Discord" alt="Discord" />
+    </a>
+  </p>
+</div>
 
 ## Run
 
 1. Self-host
 2. [Join the Waitlist](https://simstudio.ai) for the cloud-hosted beta
 
-## Quick Start
+## 🚀 Quick Start
 
-The quickest way to get Sim Studio running locally:
+### Try Instantly with npx
 
-1. **Clone the repository**
+Sim Studio now supports a quick start option with zero installation required:
 
 ```bash
-git clone https://github.com/simstudioai/sim.git
+npx sim
+```
+
+This downloads and runs Sim Studio with browser localStorage for data persistence. Visit http://localhost:3000 to start building workflows immediately!
+
+### Docker Setup (For Development)
+
+For a full development environment with database support:
+
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
-```
 
-2. **Start with Docker**
-
-```bash
-docker compose up -d
-```
-
-Or use the convenience script for automatic setup:
-
-```bash
-chmod +x start_simstudio_docker.sh
+# Start the Docker environment
 ./start_simstudio_docker.sh
 ```
 
-This will start Sim Studio at http://localhost:3000 with a local PostgreSQL database.
+### VS Code Dev Container
 
-3. **[Optional] Configure Your Environment**
+For the best development experience:
 
-In `.env`, configure Authentication secrets (required for login functionality) and optionally a Resend API key (for authentication emails).
+1. Install the VS Code Remote - Containers extension
+2. Open the project in VS Code
+3. Click "Reopen in Container" when prompted
+4. Run `sim-start` in the terminal
 
 ## Development Options
 

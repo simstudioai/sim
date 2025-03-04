@@ -16,6 +16,8 @@ Thank you for your interest in contributing to Sim Studio! Our goal is to provid
 - [Local Development Setup](#local-development-setup)
 - [License](#license)
 - [Adding New Blocks and Tools](#adding-new-blocks-and-tools)
+- [Local Storage Mode](#local-storage-mode)
+- [CLI](#cli)
 
 ---
 
@@ -388,6 +390,56 @@ In addition, you will need to update the registries:
 - **Commit Changes:** Update all related components and registries, and describe your changes in your pull request.
 
 Happy coding!
+
+---
+
+## Local Storage Mode
+
+Sim Studio supports a local storage mode that uses the browser's localStorage instead of a database. This is particularly useful for:
+
+- Quick demos and testing
+- Using the `npx sim` CLI
+- Development without setting up a database
+- Creating shareable examples
+
+To enable local storage mode:
+
+1. Set the environment variable: `USE_LOCAL_STORAGE=true`
+2. Start the application: `npm run dev`
+
+All data will be stored in the browser's localStorage. This means:
+
+- Data persists between browser sessions
+- Different browsers (Chrome vs. Firefox) will have separate data stores
+- Database migrations and schema changes won't affect local storage
+
+### Developing the CLI
+
+Sim Studio includes a CLI package that allows users to quickly start the application with `npx sim`. To develop the CLI:
+
+1. Build the CLI: `npm run cli:build`
+2. Test the CLI: `npm run cli:start`
+3. Make changes in the `packages/@sim/cli` directory
+4. Publish new versions: `npm run cli:publish` (requires npm permissions)
+
+The CLI automatically enables local storage mode when running.
+
+### Building the Standalone Version
+
+The `npx sim` command downloads and runs a pre-built standalone version of Sim Studio. To build this standalone version:
+
+1. Run `npm run build:standalone` from the project root
+2. This creates a tarball (`sim-standalone.tar.gz`) containing:
+
+   - A pre-built static export of the Next.js application
+   - A simple Express server to serve the static files
+   - Configuration for localStorage mode
+
+3. To release a new version:
+   - Upload the tarball to a GitHub release
+   - Update the `DOWNLOAD_URL` in `packages/@sim/cli/src/commands/start.ts`
+   - Update the `STANDALONE_VERSION` constant if needed
+   - Publish the CLI package: `npm run cli:publish`
 
 ---
 
