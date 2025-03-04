@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { encryptSecret } from '@/lib/utils'
+import { decryptSecret, encryptSecret } from '@/lib/utils'
 import { EnvironmentVariable } from '@/stores/settings/environment/types'
 import { db } from '@/db'
 import { environment } from '@/db/schema'
@@ -22,14 +22,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { variables } = EnvVarSchema.parse(body)
 
-    // Encrypt each environment variable value
-    const encryptedVariables: Record<string, string> = {}
-    for (const [key, value] of Object.entries(variables)) {
-      const { encrypted } = await encryptSecret(value)
-      encryptedVariables[key] = encrypted
-    }
+    // Encrypt all variables
+    const encryptedVariables = await Object.entries(variables).reduce(
+      async (accPromise, [key, value]) => {
+        const acc = await accPromise
+        const { encrypted } = await encryptSecret(value)
+        return { ...acc, [key]: encrypted }
+      },
+      Promise.resolve({})
+    )
 
-    // Upsert the environment variables
+    // Replace all environment variables for user
     await db
       .insert(environment)
       .values({
@@ -61,12 +64,13 @@ export async function POST(req: NextRequest) {
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 })
+    // Get the session directly in the API route
+    const session = await getSession()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const userId = session.user.id
 
     const result = await db
       .select()
@@ -78,13 +82,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: {} }, { status: 200 })
     }
 
-    // Update the type handling for variables
-    const variables = result[0].variables as Record<string, EnvironmentVariable>
-    const sanitizedVariables = Object.fromEntries(
-      Object.entries(variables).map(([key, value]) => [key, { key, value: '••••••••' }])
-    )
+    // Decrypt the variables for client-side use
+    const encryptedVariables = result[0].variables as Record<string, string>
+    const decryptedVariables: Record<string, EnvironmentVariable> = {}
 
-    return NextResponse.json({ data: sanitizedVariables }, { status: 200 })
+    // Decrypt each variable
+    for (const [key, encryptedValue] of Object.entries(encryptedVariables)) {
+      try {
+        const { decrypted } = await decryptSecret(encryptedValue)
+        decryptedVariables[key] = { key, value: decrypted }
+      } catch (error) {
+        console.error(`Error decrypting variable ${key}:`, error)
+        // If decryption fails, provide a placeholder
+        decryptedVariables[key] = { key, value: '' }
+      }
+    }
+
+    return NextResponse.json({ data: decryptedVariables }, { status: 200 })
   } catch (error: any) {
     console.error('Environment fetch error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })

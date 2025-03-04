@@ -3,12 +3,14 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
-import { WorkflowStoreWithHistory, pushHistory, withHistory } from './middleware'
-import { useWorkflowRegistry } from './registry/store'
-import { useSubBlockStore } from './subblock/store'
+import { WorkflowStoreWithHistory, pushHistory, withHistory } from '../middleware'
+import { saveWorkflowState } from '../persistence'
+import { useWorkflowRegistry } from '../registry/store'
+import { useSubBlockStore } from '../subblock/store'
+import { workflowSync } from '../sync'
+import { mergeSubblockState } from '../utils'
 import { Loop, Position, SubBlockState } from './types'
 import { detectCycle } from './utils'
-import { mergeSubblockState } from './utils'
 
 const initialState = {
   blocks: {},
@@ -78,6 +80,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -92,6 +95,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [...state.edges],
         }))
         get().updateLastSaved()
+
+        // No sync here as this is a frequent operation during dragging
       },
 
       removeBlock: (id: string) => {
@@ -141,6 +146,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove block')
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       addEdge: (edge: Edge) => {
@@ -200,6 +206,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       removeEdge: (edgeId: string) => {
@@ -237,6 +244,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       clear: () => {
@@ -261,11 +269,33 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
         }
         set(newState)
+        workflowSync.sync()
+
         return newState
       },
 
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
+
+        // Save current state to localStorage
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          const currentState = get()
+          saveWorkflowState(activeWorkflowId, {
+            blocks: currentState.blocks,
+            edges: currentState.edges,
+            loops: currentState.loops,
+            history: currentState.history,
+            isDeployed: currentState.isDeployed,
+            deployedAt: currentState.deployedAt,
+            lastSaved: Date.now(),
+          })
+
+          // Note: Scheduling changes are automatically handled by the workflowSync
+          // When the workflow is synced to the database, the sync system checks if
+          // the starter block has scheduling enabled and updates or cancels the
+          // schedule accordingly.
+        }
       },
 
       toggleBlockEnabled: (id: string) => {
@@ -282,6 +312,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       duplicateBlock: (id: string) => {
@@ -348,6 +379,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Duplicate ${block.type} block`)
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       toggleBlockHandles: (id: string) => {
@@ -364,6 +396,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       updateBlockName: (id: string, name: string) => {
@@ -382,6 +415,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       toggleBlockWide: (id: string) => {
@@ -397,6 +431,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           loops: { ...get().loops },
         }))
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       updateBlockHeight: (id: string, height: number) => {
@@ -429,6 +464,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Update loop max iterations')
         get().updateLastSaved()
+        workflowSync.sync()
       },
 
       triggerUpdate: () => {
@@ -447,6 +483,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
+        workflowSync.sync()
       },
     })),
     { name: 'workflow-store' }

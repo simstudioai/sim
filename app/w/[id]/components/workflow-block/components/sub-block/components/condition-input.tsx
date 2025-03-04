@@ -11,7 +11,7 @@ import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-drop
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflow/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface ConditionalBlock {

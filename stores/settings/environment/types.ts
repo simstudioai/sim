@@ -8,10 +8,7 @@ export interface EnvironmentState {
 }
 
 export interface EnvironmentStore extends EnvironmentState {
-  setVariable: (key: string, value: string) => void
-  removeVariable: (key: string) => void
-  clearVariables: () => void
+  setVariables: (variables: Record<string, string>) => void
   getVariable: (key: string) => string | undefined
   getAllVariables: () => Record<string, EnvironmentVariable>
-  syncWithDatabase: () => Promise<void>
 }

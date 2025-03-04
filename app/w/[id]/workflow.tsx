@@ -14,9 +14,9 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { initializeStateLogger } from '@/stores/workflow/logger'
-import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
-import { useWorkflowStore } from '@/stores/workflow/store'
+import { getSyncManagers, initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { NotificationList } from '@/app/w/components/notifications/notifications'
 import { getBlock } from '../../../blocks'
 import { ErrorBoundary } from '../components/error-boundary/error-boundary'
@@ -53,11 +53,19 @@ function WorkflowContent() {
   // Initialize workflow
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedRegistry = localStorage.getItem('workflow-registry')
-      if (savedRegistry) {
-        useWorkflowRegistry.setState({ workflows: JSON.parse(savedRegistry) })
+      // Ensure sync system is initialized before proceeding
+      const initSync = async () => {
+        // Initialize sync system if not already initialized
+        await initializeSyncManagers()
+        setIsInitialized(true)
       }
-      setIsInitialized(true)
+
+      // Check if already initialized
+      if (isSyncInitialized()) {
+        setIsInitialized(true)
+      } else {
+        initSync()
+      }
     }
   }, [])
 
@@ -298,11 +306,6 @@ function WorkflowContent() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeId, removeEdge])
-
-  // Initialize state logging
-  // useEffect(() => {
-  //   initializeStateLogger()
-  // }, [])
 
   if (!isInitialized) return null
 

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { Notification, NotificationType } from '@/stores/notifications/types'
-import { useWorkflowStore } from '@/stores/workflow/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 // Constants
 const NOTIFICATION_TIMEOUT = 4000

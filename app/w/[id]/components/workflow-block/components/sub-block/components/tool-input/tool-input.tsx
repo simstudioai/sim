@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useWorkflowStore } from '@/stores/workflow/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getAllBlocks } from '@/blocks'
 import { getTool } from '@/tools'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'

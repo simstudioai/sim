@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { environmentSync } from './sync'
 import { EnvironmentStore, EnvironmentVariable } from './types'
 
 export const useEnvironmentStore = create<EnvironmentStore>()(
@@ -7,58 +8,25 @@ export const useEnvironmentStore = create<EnvironmentStore>()(
     (set, get) => ({
       variables: {},
 
-      setVariable: (key: string, value: string) => {
-        set((state: EnvironmentStore) => ({
-          variables: {
-            ...state.variables,
-            [key]: { key, value },
-          },
-        }))
-      },
-
-      removeVariable: (key: string) => {
-        set((state: EnvironmentStore) => {
-          const { [key]: _, ...rest } = state.variables
-          return { variables: rest }
+      setVariables: (variables: Record<string, string>) => {
+        set({
+          variables: Object.entries(variables).reduce(
+            (acc, [key, value]) => ({
+              ...acc,
+              [key]: { key, value },
+            }),
+            {}
+          ),
         })
+        environmentSync.sync()
       },
 
-      clearVariables: () => {
-        set({ variables: {} })
-      },
-
-      getVariable: (key: string) => {
+      getVariable: (key: string): string | undefined => {
         return get().variables[key]?.value
       },
 
-      getAllVariables: () => {
+      getAllVariables: (): Record<string, EnvironmentVariable> => {
         return get().variables
-      },
-
-      syncWithDatabase: async () => {
-        const variables = get().variables
-        const variableValues = Object.entries(variables).reduce(
-          (acc, [key, value]) => ({
-            ...acc,
-            [key]: value.value,
-          }),
-          {}
-        )
-
-        try {
-          const response = await fetch('/api/settings/environment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ variables: variableValues }),
-          })
-
-          if (!response.ok) {
-            throw new Error('Failed to sync environment variables')
-          }
-        } catch (error) {
-          console.error('Error syncing environment variables:', error)
-          throw error
-        }
       },
     }),
     {

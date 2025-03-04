@@ -2,7 +2,7 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Play, Trash2 } fr
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflow/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface ActionBarProps {
   blockId: string

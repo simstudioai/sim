@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Settings } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useWorkflowRegistry } from '@/stores/workflow/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 
@@ -15,6 +15,23 @@ export function Sidebar() {
   const { workflows, createWorkflow } = useWorkflowRegistry()
   const router = useRouter()
   const [showSettings, setShowSettings] = useState(false)
+
+  // Sort workflows by lastModified date (which corresponds to createdAt for new workflows)
+  // Newest workflows at the bottom (ascending order by date)
+  const sortedWorkflows = useMemo(() => {
+    return Object.values(workflows).sort((a, b) => {
+      // Ensure we're comparing dates properly by converting to timestamps
+      const dateA =
+        a.lastModified instanceof Date
+          ? a.lastModified.getTime()
+          : new Date(a.lastModified).getTime()
+      const dateB =
+        b.lastModified instanceof Date
+          ? b.lastModified.getTime()
+          : new Date(b.lastModified).getTime()
+      return dateA - dateB // Ascending order (oldest first, newest last)
+    })
+  }, [workflows])
 
   const handleCreateWorkflow = () => {
     const id = createWorkflow()
@@ -50,7 +67,7 @@ export function Sidebar() {
       {/* Scrollable workflows section */}
       <nav className="flex-1 overflow-y-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <div className="flex flex-col items-center gap-4">
-          {Object.values(workflows).map((workflow) => (
+          {sortedWorkflows.map((workflow) => (
             <NavItem key={workflow.id} href={`/w/${workflow.id}`} label={workflow.name}>
               <div
                 className="h-4 w-4 rounded-full"

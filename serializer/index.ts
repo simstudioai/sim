@@ -1,5 +1,5 @@
 import { Edge } from 'reactflow'
-import { BlockState, Loop, SubBlockState } from '@/stores/workflow/types'
+import { BlockState, Loop, SubBlockState } from '@/stores/workflows/workflow/types'
 import { getBlock } from '@/blocks'
 import { SerializedBlock, SerializedConnection, SerializedWorkflow } from './types'
 
