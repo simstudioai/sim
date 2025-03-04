@@ -81,6 +81,7 @@ export const createWorkflowWithLoop = (): SerializedWorkflow => ({
       id: 'loop1',
       nodes: ['block1', 'block2'],
       maxIterations: 5,
+      minIterations: 0,
     },
   },
 })
