@@ -149,8 +149,8 @@ Docker provides a consistent development environment with all dependencies pre-c
    Or use the convenience script which handles environment setup and migrations:
 
    ```bash
-   chmod +x start_simstudio_docker.sh
-   ./start_simstudio_docker.sh
+   chmod +x scripts/start_simstudio_docker.sh
+   ./scripts/start_simstudio_docker.sh
    ```
 
    This will:

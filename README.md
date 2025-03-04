@@ -49,7 +49,7 @@ git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
 # Start the Docker environment
-./start_simstudio_docker.sh
+./scripts/start_simstudio_docker.sh
 ```
 
 ### VS Code Dev Container
@@ -74,8 +74,8 @@ docker compose up -d
 Or use the convenience script for automatic setup:
 
 ```bash
-chmod +x start_simstudio_docker.sh
-./start_simstudio_docker.sh
+chmod +x scripts/start_simstudio_docker.sh
+./scripts/start_simstudio_docker.sh
 ```
 
 ### Option 2: VS Code / Cursor Dev Containers
