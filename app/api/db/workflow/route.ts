@@ -12,7 +12,10 @@ const WorkflowStateSchema = z.object({
   loops: z.record(z.any()),
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
-  deployedAt: z.date().optional(),
+  deployedAt: z
+    .union([z.string(), z.date()])
+    .optional()
+    .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
 })
 
 const WorkflowSchema = z.object({
