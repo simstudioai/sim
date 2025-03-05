@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
-import { MessageSquare, Star, Twitter } from 'lucide-react'
+import { Star } from 'lucide-react'
 import { GithubIcon } from '@/components/icons'
 import HeroWorkflowProvider from './hero-workflow'
 import { useWindowSize } from './use-window-size'
@@ -44,9 +43,36 @@ const DiscordIcon = () => (
   </svg>
 )
 
+// Fetch outside the component to avoid recreating it on each render
+async function fetchGitHubStars() {
+  try {
+    const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
+      next: { revalidate: 3600 }, // Cache for 1 hour
+    })
+    if (response.ok) {
+      const data = await response.json()
+      return data.stargazers_count
+    }
+  } catch (error) {
+    console.error('Error fetching GitHub stars:', error)
+  }
+  return null
+}
+
+const starCountPromise = fetchGitHubStars()
+
 export default function Landing() {
   const { width } = useWindowSize()
   const isMobile = width !== undefined && width < 640
+  const [starCount, setStarCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    starCountPromise.then((count) => {
+      if (count !== null) {
+        setStarCount(count)
+      }
+    })
+  }, [])
 
   return (
     <main className="bg-[#020817] relative overflow-x-hidden">
@@ -83,8 +109,12 @@ export default function Landing() {
             >
               <GithubIcon className="w-[20px] h-[20px]" />
               <div className="flex items-center justify-center gap-1">
-                <span className="text-sm font-medium py-[2px]">14</span>
-                <Star className="w-3.5 h-3.5 fill-white/80 stroke-none group-hover:fill-white" />
+                {starCount !== null && (
+                  <>
+                    <span className="text-sm font-medium py-[2px]">{starCount}</span>
+                    <Star className="w-3.5 h-3.5 fill-white/80 stroke-none group-hover:fill-white" />
+                  </>
+                )}
               </div>
             </a>
           </div>
