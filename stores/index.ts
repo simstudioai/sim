@@ -5,7 +5,7 @@ import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
-import { getSyncManagers, initializeSyncManagers } from './sync-registry'
+import { getSyncManagers, initializeSyncManagers, resetSyncManagers } from './sync-registry'
 import {
   loadRegistry,
   loadSubblockValues,
@@ -146,6 +146,31 @@ function cleanupApplication(): void {
 }
 
 /**
+ * Clear all user data when signing out
+ * This ensures data from one account doesn't persist to another
+ */
+export async function clearUserData(): Promise<void> {
+  if (typeof window === 'undefined') return
+
+  try {
+    // 1. Reset all sync managers to prevent any pending syncs
+    resetSyncManagers()
+
+    // 2. Reset all stores to their initial state
+    resetAllStores()
+
+    // 3. Clear localStorage except for essential app settings
+    const keysToKeep = ['next-favicon', 'theme']
+    const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
+    keysToRemove.forEach((key) => localStorage.removeItem(key))
+
+    console.log('User data cleared successfully')
+  } catch (error) {
+    console.error('Error clearing user data:', error)
+  }
+}
+
+/**
  * Hook to manage application lifecycle
  */
 export function useAppInitialization() {
@@ -156,6 +181,16 @@ export function useAppInitialization() {
     return () => {
       cleanupApplication()
     }
+  }, [])
+}
+
+/**
+ * Hook to reinitialize the application after successful login
+ * Use this in the login success handler or post-login page
+ */
+export function useLoginInitialization() {
+  useEffect(() => {
+    reinitializeAfterLogin()
   }, [])
 }
 
@@ -178,13 +213,6 @@ export {
 
 // Helper function to reset all stores
 export const resetAllStores = () => {
-  if (typeof window !== 'undefined') {
-    // Selectively clear localStorage items
-    const keysToKeep = ['next-favicon']
-    const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
-    keysToRemove.forEach((key) => localStorage.removeItem(key))
-  }
-
   // Reset all stores to initial state
   useWorkflowRegistry.setState({
     workflows: {},
@@ -229,3 +257,23 @@ export const logAllStores = () => {
 
 // Re-export sync managers
 export { workflowSync, environmentSync } from './sync-registry'
+
+/**
+ * Reinitialize the application after login
+ * This ensures we load fresh data from the database for the new user
+ */
+export async function reinitializeAfterLogin(): Promise<void> {
+  if (typeof window === 'undefined') return
+
+  try {
+    // Reset initialization flags to force a fresh load
+    isInitializing = false
+
+    // Reinitialize the application
+    await initializeApplication()
+
+    console.log('Application reinitialized after login')
+  } catch (error) {
+    console.error('Error reinitializing application:', error)
+  }
+}

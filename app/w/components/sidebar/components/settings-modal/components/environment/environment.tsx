@@ -243,7 +243,7 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     <div className="flex flex-col h-full">
       {/* Fixed Header */}
       <div className="px-6 pt-6">
-        <h2 className="text-lg font-medium mb-4">Environment Variables</h2>
+        <h2 className="text-lg font-medium mb-6">Environment Variables</h2>
         <div className={`${GRID_COLS} px-0.5 mb-2`}>
           <Label>Key</Label>
           <Label>Value</Label>

@@ -69,5 +69,21 @@ export function getSyncManagers(): SyncManager[] {
   return managers
 }
 
+/**
+ * Reset all sync managers
+ * This is used during sign-out to ensure clean state for the next user
+ */
+export function resetSyncManagers(): void {
+  // Dispose all existing managers
+  managers.forEach((manager) => manager.dispose())
+
+  // Reset the managers array
+  managers = []
+
+  // Reset initialization flags
+  initialized = false
+  initializing = false
+}
+
 // Export individual sync managers for direct use
 export { workflowSync, environmentSync }

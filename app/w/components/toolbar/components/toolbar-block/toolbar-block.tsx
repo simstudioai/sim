@@ -26,9 +26,9 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
           }`}
         />
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1 mb-[-2px]">
         <h3 className="font-medium leading-none">{config.name}</h3>
-        <p className="text-sm text-muted-foreground">{config.description}</p>
+        <p className="text-sm text-muted-foreground leading-snug">{config.description}</p>
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { Account } from './components/account/account'
 import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
@@ -14,7 +15,7 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-type SettingsSection = 'general' | 'environment'
+type SettingsSection = 'general' | 'environment' | 'account'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -50,6 +51,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </div>
             <div className={cn('h-full', activeSection === 'environment' ? 'block' : 'hidden')}>
               <EnvironmentVariables onOpenChange={onOpenChange} />
+            </div>
+            <div className={cn('h-full', activeSection === 'account' ? 'block' : 'hidden')}>
+              <Account onOpenChange={onOpenChange} />
             </div>
           </div>
         </div>
