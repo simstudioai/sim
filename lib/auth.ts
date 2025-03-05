@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
+import { genericOAuth } from 'better-auth/plugins'
 import { Resend } from 'resend'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
@@ -27,10 +28,20 @@ export const auth = betterAuth({
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
       clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+      scopes: ['user:email', 'repo'],
     },
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      scopes: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+      ],
+    },
+    twitter: {
+      clientId: process.env.TWITTER_CLIENT_ID as string,
+      clientSecret: process.env.TWITTER_CLIENT_SECRET as string,
+      scopes: ['tweet.read', 'users.read'],
     },
   },
   emailAndPassword: {
@@ -89,7 +100,86 @@ export const auth = betterAuth({
       }
     },
   },
-  plugins: [nextCookies()],
+  plugins: [
+    nextCookies(),
+    genericOAuth({
+      config: [
+        {
+          providerId: 'github-repo',
+          clientId: process.env.GITHUB_CLIENT_ID as string,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+          authorizationUrl: 'https://github.com/login/oauth/authorize',
+          tokenUrl: 'https://github.com/login/oauth/access_token',
+          userInfoUrl: 'https://api.github.com/user',
+          scopes: ['user:email', 'repo'],
+        },
+        {
+          providerId: 'github-workflow',
+          clientId: process.env.GITHUB_CLIENT_ID as string,
+          clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+          authorizationUrl: 'https://github.com/login/oauth/authorize',
+          tokenUrl: 'https://github.com/login/oauth/access_token',
+          userInfoUrl: 'https://api.github.com/user',
+          scopes: ['workflow', 'repo'],
+        },
+
+        // Google providers for different purposes
+        {
+          providerId: 'google-email',
+          clientId: process.env.GOOGLE_CLIENT_ID as string,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/gmail.send',
+          ],
+        },
+        {
+          providerId: 'google-calendar',
+          clientId: process.env.GOOGLE_CLIENT_ID as string,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/calendar',
+          ],
+        },
+        {
+          providerId: 'google-drive',
+          clientId: process.env.GOOGLE_CLIENT_ID as string,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/drive',
+          ],
+        },
+
+        // Twitter providers
+        {
+          providerId: 'twitter-read',
+          clientId: process.env.TWITTER_CLIENT_ID as string,
+          clientSecret: process.env.TWITTER_CLIENT_SECRET as string,
+          authorizationUrl: 'https://twitter.com/i/oauth2/authorize',
+          tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+          userInfoUrl: 'https://api.twitter.com/2/users/me',
+          scopes: ['tweet.read', 'users.read'],
+        },
+        {
+          providerId: 'twitter-write',
+          clientId: process.env.TWITTER_CLIENT_ID as string,
+          clientSecret: process.env.TWITTER_CLIENT_SECRET as string,
+          authorizationUrl: 'https://twitter.com/i/oauth2/authorize',
+          tokenUrl: 'https://api.twitter.com/2/oauth2/token',
+          userInfoUrl: 'https://api.twitter.com/2/users/me',
+          scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+        },
+      ],
+    }),
+  ],
   pages: {
     signIn: '/login',
     signUp: '/signup',

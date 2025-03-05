@@ -1,9 +1,16 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+export type OAuthProvider = 'google' | 'github' | 'twitter'
 
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
+}
+
+export interface OAuthConfig {
+  required: boolean // Whether this tool requires OAuth authentication
+  provider: OAuthProvider // The provider that needs to be authorized
+  additionalScopes?: string[] // Additional scopes required for the tool
 }
 
 export interface ToolConfig<P = any, R extends ToolResponse = ToolResponse> {
@@ -24,6 +31,9 @@ export interface ToolConfig<P = any, R extends ToolResponse = ToolResponse> {
       description?: string
     }
   >
+
+  // OAuth configuration for this tool (if it requires authentication)
+  oauth?: OAuthConfig
 
   // Request configuration
   request: {
