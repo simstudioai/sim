@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useReactFlow } from 'reactflow'
 import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
@@ -31,6 +32,9 @@ export function LongInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+
+  // Get ReactFlow instance for zoom control
+  const reactFlowInstance = useReactFlow()
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -113,6 +117,55 @@ export function LongInput({
     }
   }
 
+  // Handle wheel events to control ReactFlow zoom
+  const handleWheel = (e: React.WheelEvent<HTMLTextAreaElement>) => {
+    // Only handle zoom when Ctrl/Cmd key is pressed
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      e.stopPropagation()
+
+      // Get current zoom level and viewport
+      const currentZoom = reactFlowInstance.getZoom()
+      const { x: viewportX, y: viewportY } = reactFlowInstance.getViewport()
+
+      // Calculate zoom factor based on wheel delta
+      // Use a smaller factor for smoother zooming that matches ReactFlow's native behavior
+      const delta = e.deltaY > 0 ? 1 : -1
+      // Using 0.98 instead of 0.95 makes the zoom much slower and more gradual
+      const zoomFactor = Math.pow(0.96, delta)
+
+      // Calculate new zoom level with min/max constraints
+      const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
+
+      // Get the position of the cursor in the page
+      const { x: pointerX, y: pointerY } = reactFlowInstance.screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      })
+
+      // Calculate the new viewport position to keep the cursor position fixed
+      const newViewportX = viewportX + (pointerX * currentZoom - pointerX * newZoom)
+      const newViewportY = viewportY + (pointerY * currentZoom - pointerY * newZoom)
+
+      // Set the new viewport with the calculated position and zoom
+      reactFlowInstance.setViewport(
+        {
+          x: newViewportX,
+          y: newViewportY,
+          zoom: newZoom,
+        },
+        { duration: 0 }
+      )
+
+      return false
+    }
+
+    // For regular scrolling (without Ctrl/Cmd), let the default behavior happen
+    if (overlayRef.current) {
+      overlayRef.current.scrollTop = e.currentTarget.scrollTop
+    }
+  }
+
   return (
     <div className="relative w-full">
       <Textarea
@@ -130,6 +183,7 @@ export function LongInput({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onScroll={handleScroll}
+        onWheel={handleWheel}
         onKeyDown={handleKeyDown}
         onFocus={() => {
           setShowEnvVars(false)
