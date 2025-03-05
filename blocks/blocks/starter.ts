@@ -1,7 +1,14 @@
 import { StartIcon } from '@/components/icons'
+import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
-export const StarterBlock: BlockConfig = {
+interface StarterBlockOutput extends ToolResponse {
+  output: {
+    input: any
+  }
+}
+
+export const StarterBlock: BlockConfig<StarterBlockOutput> = {
   type: 'starter',
   name: 'Starter',
   description: 'Start workflow',

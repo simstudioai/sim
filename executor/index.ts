@@ -217,9 +217,7 @@ export class Executor {
       // Initialize the starter block with the workflow input
       const starterOutput = {
         response: {
-          type: {
-            input: this.workflowInput,
-          },
+          input: this.workflowInput,
         },
       }
 

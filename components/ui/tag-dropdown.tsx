@@ -57,9 +57,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   // Get source block and compute tags
   const { tags } = useMemo(() => {
     // Helper function to get output paths
-    const getOutputPaths = (obj: any, prefix = ''): string[] => {
+    const getOutputPaths = (obj: any, prefix = '', isStarterBlock = false): string[] => {
       if (typeof obj !== 'object' || obj === null) {
         return prefix ? [prefix] : []
+      }
+
+      // Special handling for starter block.
+      // TODO: In the future, we will support response formats and required input types. For now, we just take the input altogether.
+      if (isStarterBlock && prefix === 'response') {
+        return ['response.input']
       }
 
       if ('type' in obj && typeof obj.type === 'string') {
@@ -68,7 +74,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       return Object.entries(obj).flatMap(([key, value]) => {
         const newPrefix = prefix ? `${prefix}.${key}` : key
-        return getOutputPaths(value, newPrefix)
+        return getOutputPaths(value, newPrefix, isStarterBlock)
       })
     }
 
@@ -118,7 +124,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       // Fall back to default outputs if no response format
-      const outputPaths = getOutputPaths(sourceBlock.outputs)
+      const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
       return {
         tags: outputPaths.map((path) => `${normalizedBlockName}.${path}`),
       }
@@ -167,7 +173,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       // Fall back to default outputs if no response format
-      const outputPaths = getOutputPaths(sourceBlock.outputs)
+      const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
       return outputPaths.map((path) => `${normalizedBlockName}.${path}`)
     })
 
