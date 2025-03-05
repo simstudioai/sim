@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import clsx from 'clsx'
 import { Plus, ScrollText, Settings } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -14,6 +15,7 @@ import { SettingsModal } from './components/settings-modal/settings-modal'
 export function Sidebar() {
   const { workflows, createWorkflow } = useWorkflowRegistry()
   const router = useRouter()
+  const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
 
   // Sort workflows by lastModified date (which corresponds to createdAt for new workflows)
@@ -85,7 +87,12 @@ export function Sidebar() {
               variant="ghost"
               size="icon"
               asChild
-              className="flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8"
+              className={clsx(
+                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
+                {
+                  'bg-accent': pathname === '/w/logs',
+                }
+              )}
             >
               <Link href="/w/logs">
                 <ScrollText className="!h-5 !w-5" />
