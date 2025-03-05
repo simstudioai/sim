@@ -1,101 +1,79 @@
 # Sim Studio CLI
 
-The Sim Studio CLI provides a convenient way to run Sim Studio directly from your terminal without needing to set up a database or complex environment.
+A command-line interface for Sim Studio - a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
+
+## Installation
+
+```bash
+npm install -g simstudio
+```
+
+Or run directly with npx:
+
+```bash
+npx simstudio
+```
 
 ## Quick Start
 
+The fastest way to get started is to run:
+
 ```bash
-# Run Sim Studio with default settings
-npx sim
+npx simstudio start
+```
 
-# Start with custom port
-npx sim start -p 8080
+This will download and start a standalone version of Sim Studio, with all data stored in your browser's localStorage. No database or authentication required!
 
-# Get help
-npx sim help
+## Usage
+
+### Start Sim Studio
+
+Start a local instance of Sim Studio:
+
+```bash
+simstudio start
+```
+
+Options:
+
+- `--port <port>` - Specify the port to run on (default: 3000)
+- `--debug` - Run in debug mode
+
+### Help
+
+Get help with available commands:
+
+```bash
+simstudio --help
 ```
 
 ## Features
 
-- **Zero Configuration**: Get started immediately with `npx sim`
-- **Local Storage**: Works entirely in the browser, no database required
-- **Persistence**: Your workflows and data persist between sessions
-- **Familiar Experience**: All the power of Sim Studio in a simplified package
+- **Local Storage Mode**: All your workflows and settings are stored in your browser's localStorage, no database required
+- **Workflow Builder**: Create and edit workflows with a visual editor
+- **Workflow Execution**: Run workflows and see the results in real-time
+- **Environment Variables**: Manage environment variables for your workflows
 
-## Commands
+## How It Works
 
-- `sim` - Start Sim Studio with default settings
-- `sim start` - Start Sim Studio with options
-- `sim version` - Display version information
-- `sim help` - Show help and usage information
+When you run `simstudio start`, the CLI will:
 
-## Options
+1. Check if you're in a Sim Studio project directory
+2. If not, download and extract a standalone version of Sim Studio
+3. Start a local server with the standalone app
+4. Open a browser window to the Sim Studio UI
 
-- `-p, --port <port>` - Specify port (default: 3000)
-- `-d, --debug` - Enable debug mode
-- `-v, --version` - Show version information
-- `-h, --help` - Show help information
+All your data is stored in your browser's localStorage, so you can close the app and come back later without losing your work.
 
-## Local Storage Mode
+## Development
 
-When running Sim Studio via the CLI, all data is stored using the browser's localStorage. This means:
+To contribute to the development of Sim Studio CLI:
 
-- Your workflows persist between browser sessions
-- No database configuration is required
-- Data is stored locally on your device
-- Multiple users can't share the same workflows (single-user mode)
+1. Clone the repository
+2. Install dependencies with `npm install`
+3. Build the CLI with `npm run build`
+4. Link the CLI for local development with `npm link`
 
-## Advanced Usage
+## License
 
-If you need multi-user capabilities or want to store data in a database, consider:
-
-1. Using the Docker setup in the main repository
-2. Setting up a full Sim Studio environment with PostgreSQL
-3. Deploying to Vercel with a database
-
-## For Developers: Building & Publishing the CLI
-
-### Release Checklist
-
-1. ✅ Update the CLI code with your changes
-2. ✅ Bump the version in `package.json`
-3. ✅ Build the standalone version:
-   ```
-   npm run build:cli
-   ```
-4. ✅ Upload the generated `sim-standalone.tar.gz` to GitHub releases
-5. ✅ Update the `DOWNLOAD_URL` constant in `packages/@sim/cli/src/commands/start.ts` to point to the new release URL
-6. ✅ Commit all changes
-7. ✅ Publish to npm:
-   ```
-   npm run cli:publish
-   ```
-
-### About the Standalone Version
-
-The standalone version is a pre-built and bundled version of Sim Studio that can run without a database or complex setup. It includes:
-
-- A pre-built static export of the Next.js application
-- A simple Express server to serve the static files
-- Configuration to use browser localStorage for data persistence
-
-This allows users to quickly try Sim Studio with a simple `npx sim` command without installing anything else.
-
-### Testing the CLI Locally
-
-To test the CLI locally:
-
-```bash
-# Build the CLI
-npm run cli:build
-
-# Run the CLI directly
-npm run cli:start
-
-# Or use the dev script
-npm run cli:dev
-```
-
-## Need Help?
-
-Visit our [documentation](https://github.com/yourusername/sim) or open an issue on GitHub.
+MIT

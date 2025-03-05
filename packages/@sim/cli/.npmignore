@@ -1,0 +1,34 @@
+# Environment variables and secrets
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Development files
+node_modules
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test files
+test
+tests
+__tests__
+coverage
+
+# Build artifacts
+.DS_Store
+.cache
+.next/cache
+
+# Project specific
+.sim-studio-dev 

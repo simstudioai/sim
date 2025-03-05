@@ -10,8 +10,8 @@ const nextConfig: NextConfig = {
     // Enable static image optimization for standalone export
     unoptimized: isStandaloneBuild,
   },
-  // Use 'export' for standalone builds, 'standalone' for regular builds
-  output: isStandaloneBuild ? 'export' : 'standalone',
+  // Always use 'standalone' output to support API routes
+  output: 'standalone',
   // Only include headers when not building for standalone export
   ...(isStandaloneBuild
     ? {}

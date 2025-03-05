@@ -15,12 +15,13 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "cli:build": "npm run build -w @sim/cli",
-    "cli:dev": "npm run build -w @sim/cli && cd packages/@sim/cli && node ./dist/index.js",
+    "cli:build": "npm run build -w packages/@sim/cli",
+    "cli:dev": "npm run build -w packages/@sim/cli && cd packages/@sim/cli && node ./dist/index.js",
     "cli:publish": "cd packages/@sim/cli && npm publish --access public",
     "cli:start": "cd packages/@sim/cli && node ./dist/index.js start",
     "build:standalone": "node scripts/build-standalone.js",
-    "build:cli": "npm run cli:build && npm run build:standalone"
+    "build:cli": "npm run cli:build && npm run build:standalone",
+    "publish:cli": "npm run build:cli && npm run cli:publish"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.38.0",

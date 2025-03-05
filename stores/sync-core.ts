@@ -17,6 +17,9 @@ export interface SyncConfig {
   syncInterval?: number
   onSyncSuccess?: (response: any) => void
   onSyncError?: (error: any) => void
+
+  // Local storage key for standalone mode
+  localStorageKey?: string
 }
 
 export const DEFAULT_SYNC_CONFIG: Partial<SyncConfig> = {
@@ -42,6 +45,38 @@ export async function performSync(config: SyncConfig): Promise<boolean> {
       return true
     }
 
+    // Check if we're in local storage mode
+    const useLocalStorage =
+      typeof window !== 'undefined' &&
+      (window.localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
+        process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
+        process.env.DISABLE_DB_SYNC === 'true')
+
+    if (useLocalStorage && config.localStorageKey) {
+      // In local storage mode, save directly to localStorage
+      try {
+        window.localStorage.setItem(
+          config.localStorageKey,
+          JSON.stringify({
+            data: payload,
+            timestamp: new Date().toISOString(),
+          })
+        )
+
+        if (config.onSyncSuccess) {
+          config.onSyncSuccess({ success: true, message: 'Saved to local storage' })
+        }
+
+        return true
+      } catch (error) {
+        if (config.onSyncError) {
+          config.onSyncError(error)
+        }
+        return false
+      }
+    }
+
+    // If not in local storage mode or no localStorageKey provided, use API
     return await sendWithRetry(config.endpoint, payload, config)
   } catch (error) {
     if (config.onSyncError) {

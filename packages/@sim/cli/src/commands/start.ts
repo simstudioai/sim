@@ -20,7 +20,7 @@ const SIM_HOME_DIR = path.join(os.homedir(), '.sim-studio')
 const SIM_STANDALONE_DIR = path.join(SIM_HOME_DIR, 'standalone')
 const SIM_VERSION_FILE = path.join(SIM_HOME_DIR, 'version.json')
 const DOWNLOAD_URL =
-  'https://github.com/simstudioai/sim/releases/download/v0.1.0/sim-standalone.tar.gz'
+  'https://github.com/simstudioai/sim/releases/latest/download/sim-standalone.tar.gz'
 const STANDALONE_VERSION = '0.1.0'
 
 /**
@@ -44,6 +44,8 @@ export async function start(options: StartOptions) {
       ...process.env,
       PORT: port,
       USE_LOCAL_STORAGE: 'true', // Key environment variable to switch to local storage
+      NEXT_PUBLIC_USE_LOCAL_STORAGE: 'true', // For client-side code
+      DISABLE_DB_SYNC: 'true', // Disable database sync
       NODE_ENV: debug ? 'development' : ('production' as const),
       DEBUG: debug ? '*' : undefined,
     }
@@ -59,11 +61,40 @@ export async function start(options: StartOptions) {
       // Next.js setup directly
       spinner.text = 'Detected Sim Studio project, starting with local configuration...'
 
-      simProcess = spawn('npm', ['run', 'dev'], {
-        env: env as NodeJS.ProcessEnv,
-        stdio: 'inherit',
-        shell: true,
-      })
+      // When running in dev mode, we need to make sure we're not trying to use static export
+      // as it will fail with API routes
+      if (debug) {
+        spinner.text = 'Starting in development mode with local storage...'
+        simProcess = spawn('npm', ['run', 'dev'], {
+          env: env as NodeJS.ProcessEnv,
+          stdio: 'inherit',
+          shell: true,
+        })
+      } else {
+        // In production mode, we'll use the start command which uses the built app
+        spinner.text = 'Starting in production mode with local storage...'
+
+        // Build first if needed
+        if (!fs.existsSync(path.join(process.cwd(), '.next'))) {
+          spinner.text = 'Building Next.js app first...'
+          try {
+            execSync('npm run build', {
+              env: env as NodeJS.ProcessEnv,
+              stdio: 'inherit',
+            })
+          } catch (error) {
+            spinner.fail('Failed to build Next.js app')
+            console.error(chalk.red('Error:'), error instanceof Error ? error.message : error)
+            process.exit(1)
+          }
+        }
+
+        simProcess = spawn('npm', ['run', 'start'], {
+          env: env as NodeJS.ProcessEnv,
+          stdio: 'inherit',
+          shell: true,
+        })
+      }
     } else {
       // Running from outside the project via npx - we'll download and start a standalone version
       spinner.text = 'Setting up standalone Sim Studio...'
@@ -176,7 +207,9 @@ function checkIfInProjectDirectory(): boolean {
         packageJson.name === 'sim' ||
         packageJson.name === 'sim-studio' ||
         (packageJson.dependencies &&
-          (packageJson.dependencies['next'] || packageJson.dependencies['@sim/cli']))
+          (packageJson.dependencies['next'] ||
+            packageJson.dependencies['@sim/cli'] ||
+            packageJson.dependencies['sim-studio-cli']))
       ) {
         return true
       }

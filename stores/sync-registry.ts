@@ -40,6 +40,21 @@ export async function initializeSyncManagers(): Promise<boolean> {
   managers = [workflowSync, environmentSync]
 
   try {
+    // Check if we're in local storage mode
+    const useLocalStorage =
+      typeof window !== 'undefined' &&
+      (window.localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
+        process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
+        process.env.DISABLE_DB_SYNC === 'true')
+
+    if (useLocalStorage) {
+      console.log('Running in local storage mode - skipping DB sync')
+      // In local storage mode, we don't need to fetch from DB
+      // Just load from localStorage directly
+      initialized = true
+      return true
+    }
+
     // Fetch data from DB on initialization to replace local storage
     await Promise.all([
       fetchEnvironmentVariables(),
@@ -50,6 +65,9 @@ export async function initializeSyncManagers(): Promise<boolean> {
     initialized = true
     return true
   } catch (error) {
+    console.error('Error initializing sync managers:', error)
+    // Even if there's an error, mark as initialized so the app can continue
+    initialized = true
     return false
   } finally {
     initializing = false

@@ -22,6 +22,51 @@ export function useWorkflowExecution() {
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
   const persistLogs = async (logs: any[], executionId: string) => {
+    // Check if we're in local storage mode
+    const useLocalStorage =
+      typeof window !== 'undefined' &&
+      (window.localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
+        process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true')
+
+    if (useLocalStorage) {
+      // Store logs in localStorage
+      try {
+        const storageKey = `workflow-logs-${activeWorkflowId}-${executionId}`
+        window.localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            logs,
+            timestamp: new Date().toISOString(),
+            workflowId: activeWorkflowId,
+          })
+        )
+
+        // Also update a list of all execution logs for this workflow
+        const logListKey = `workflow-logs-list-${activeWorkflowId}`
+        const existingLogList = window.localStorage.getItem(logListKey)
+        const logList = existingLogList ? JSON.parse(existingLogList) : []
+        logList.push({
+          executionId,
+          timestamp: new Date().toISOString(),
+        })
+
+        // Keep only the last 20 executions
+        if (logList.length > 20) {
+          const removedLogs = logList.splice(0, logList.length - 20)
+          // Clean up old logs
+          removedLogs.forEach((log: any) => {
+            window.localStorage.removeItem(`workflow-logs-${activeWorkflowId}-${log.executionId}`)
+          })
+        }
+
+        window.localStorage.setItem(logListKey, JSON.stringify(logList))
+      } catch (error) {
+        console.error('Error storing logs in localStorage:', error)
+      }
+      return
+    }
+
+    // Fall back to API if not in local storage mode
     try {
       const response = await fetch(`/api/workflow/${activeWorkflowId}/log`, {
         method: 'POST',
