@@ -51,6 +51,8 @@ if (!isLocalStorage) {
   // Disable prefetch as it is not supported for "Transaction" pool mode
   const client = postgres(connectionString, {
     prepare: false,
+    idle_timeout: 30, // Keep connections alive for 30 seconds when idle
+    connect_timeout: 30, // Timeout after 30 seconds when connecting
   })
   db = drizzle(client)
 } else {
