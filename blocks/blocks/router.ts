@@ -90,6 +90,8 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
   type: 'router',
   name: 'Router',
   description: 'Route workflow',
+  longDescription:
+    'Intelligently direct workflow execution to different paths based on input analysis. Use AI to determine the most appropriate next step in your workflow based on content, intent, or specific criteria.',
   category: 'blocks',
   bgColor: '#28C43F',
   icon: ConnectIcon,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -165,7 +165,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   const handleNameSubmit = () => {
-    const trimmedName = editedName.trim()
+    const trimmedName = editedName.trim().slice(0, 18)
     if (trimmedName && trimmedName !== name) {
       updateBlockName(id, trimmedName)
     }
@@ -230,17 +230,21 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <input
                 type="text"
                 value={editedName}
-                onChange={(e) => setEditedName(e.target.value.slice(0, 40))}
+                onChange={(e) => setEditedName(e.target.value.slice(0, 18))}
                 onBlur={handleNameSubmit}
                 onKeyDown={handleNameKeyDown}
                 autoFocus
-                className="font-medium text-md bg-transparent border-none outline-none p-0 w-[200px]"
-                maxLength={40}
+                className="font-medium text-md bg-transparent border-none outline-none p-0 w-[180px]"
+                maxLength={18}
               />
             ) : (
               <span
-                className="font-medium text-md hover:text-muted-foreground cursor-text"
+                className={cn(
+                  'font-medium text-md hover:text-muted-foreground cursor-text truncate',
+                  !isEnabled ? (isWide ? 'max-w-[200px]' : 'max-w-[100px]') : 'max-w-[180px]'
+                )}
                 onClick={handleNameClick}
+                title={name}
               >
                 {name}
               </span>
@@ -251,6 +255,49 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Badge variant="secondary" className="bg-gray-100 text-gray-500 hover:bg-gray-100">
                 Disabled
               </Badge>
+            )}
+            {config.longDescription && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                    <Info className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[300px] p-4">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium mb-1">Description</p>
+                      <p className="text-sm text-muted-foreground">{config.longDescription}</p>
+                    </div>
+                    {config.outputs && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Output</p>
+                        <div className="text-sm">
+                          {Object.entries(config.outputs).map(([key, value]) => (
+                            <div key={key} className="mb-1">
+                              <span className="text-muted-foreground">{key}</span>{' '}
+                              {typeof value.type === 'object' ? (
+                                <div className="pl-3 mt-1">
+                                  {Object.entries(value.type).map(([typeKey, typeValue]) => (
+                                    <div key={typeKey} className="flex items-start">
+                                      <span className="text-blue-500 font-medium">{typeKey}:</span>
+                                      <span className="text-green-500 ml-1">
+                                        {typeValue as string}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-green-500">{value.type as string}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             )}
             <Tooltip>
               <TooltipTrigger asChild>

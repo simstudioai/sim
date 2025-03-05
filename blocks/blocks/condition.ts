@@ -20,7 +20,8 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   type: 'condition',
   name: 'Condition',
   description: 'Add a condition',
-  longDescription: 'Add a condition to the workflow',
+  longDescription:
+    'Add a condition to the workflow to branch the execution path based on a boolean expression.',
   bgColor: '#FF972F',
   icon: ConditionalIcon,
   category: 'blocks',

@@ -6,6 +6,8 @@ export const CrewAIVisionBlock: BlockConfig<VisionResponse> = {
   type: 'crewai_vision',
   name: 'CrewAI Vision',
   description: 'Analyze images with vision models',
+  longDescription:
+    'Process visual content with customizable prompts to extract insights and information from images.',
   category: 'tools',
   bgColor: '#FF5A50',
   icon: CrewAIIcon,

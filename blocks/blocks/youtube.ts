@@ -6,6 +6,8 @@ export const YouTubeBlock: BlockConfig<YouTubeSearchResponse> = {
   type: 'youtube',
   name: 'YouTube',
   description: 'Search for videos on YouTube',
+  longDescription:
+    'Find relevant videos on YouTube using the YouTube Data API. Search for content with customizable result limits and retrieve structured video metadata for integration into your workflow.',
   category: 'tools',
   bgColor: '#FF0000',
   icon: YouTubeIcon,

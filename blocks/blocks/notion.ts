@@ -6,6 +6,8 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',
   name: 'Notion',
   description: 'Read and write to Notion pages and databases',
+  longDescription:
+    'Integrate with Notion to read content from pages or write new content programmatically. Access and modify your Notion workspace directly from your workflow using the official API.',
   category: 'tools',
   bgColor: '#000000',
   icon: NotionIcon,

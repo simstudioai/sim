@@ -6,6 +6,8 @@ export const SlackBlock: BlockConfig<SlackMessageResponse> = {
   type: 'slack',
   name: 'Slack',
   description: 'Send a message to Slack',
+  longDescription:
+    'Send messages to any Slack channel using OAuth authentication. Integrate automated notifications and alerts into your workflow to keep your team informed.',
   category: 'tools',
   bgColor: '#611f69',
   icon: SlackIcon,

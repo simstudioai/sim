@@ -6,6 +6,8 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   type: 'api',
   name: 'API',
   description: 'Use any API',
+  longDescription:
+    'Connect to any external API with support for all standard HTTP methods and customizable request parameters. Configure headers, query parameters, and request bodies.',
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ApiIcon,

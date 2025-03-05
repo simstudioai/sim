@@ -5,6 +5,8 @@ export const OpenAIBlock: BlockConfig = {
   type: 'openai',
   name: 'OpenAI Embeddings',
   description: 'Generate embeddings from text',
+  longDescription:
+    "Convert text into numerical vector representations using OpenAI's embedding models. Transform text data into embeddings for semantic search, clustering, and other vector-based operations.",
   category: 'tools',
   bgColor: '#10a37f',
   icon: OpenAIIcon,

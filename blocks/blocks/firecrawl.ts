@@ -6,6 +6,8 @@ export const FirecrawlBlock: BlockConfig<ScrapeResponse> = {
   type: 'firecrawl',
   name: 'Firecrawl',
   description: 'Scrape website content',
+  longDescription:
+    'Extract content from any website with advanced web scraping capabilities and content filtering. Retrieve clean, structured data from web pages with options to focus on main content.',
   category: 'tools',
   bgColor: '#181C1E',
   icon: FirecrawlIcon,

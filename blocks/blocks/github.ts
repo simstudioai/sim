@@ -8,6 +8,8 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub',
   description: 'Interact with GitHub repositories and PRs',
+  longDescription:
+    'Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.',
   category: 'tools',
   bgColor: '#181C1E',
   icon: GithubIcon,

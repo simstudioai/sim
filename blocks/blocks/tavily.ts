@@ -8,6 +8,8 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   type: 'tavily',
   name: 'Tavily',
   description: 'Search and extract information using Tavily AI',
+  longDescription:
+    "Access Tavily's AI-powered search engine to find relevant information from across the web. Extract and process content from specific URLs with customizable depth options.",
   category: 'tools',
   bgColor: '#0066FF',
   icon: TavilyIcon,

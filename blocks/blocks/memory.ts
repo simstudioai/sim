@@ -5,6 +5,8 @@ export const MemoryBlock: BlockConfig = {
   type: 'memory',
   name: 'Memory',
   description: 'Add memory store',
+  longDescription:
+    'Create persistent storage for data that needs to be accessed across multiple workflow steps. Store and retrieve information throughout your workflow execution to maintain context and state.',
   bgColor: '#FF65BF',
   icon: BrainIcon,
   category: 'blocks',

@@ -60,6 +60,8 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   type: 'evaluator',
   name: 'Evaluator',
   description: 'Evaluate content',
+  longDescription:
+    'Assess content quality using customizable evaluation metrics and scoring criteria. Create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.',
   category: 'blocks',
   bgColor: '#2FA1FF',
   icon: ChartBarIcon,

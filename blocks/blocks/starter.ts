@@ -5,6 +5,8 @@ export const StarterBlock: BlockConfig = {
   type: 'starter',
   name: 'Starter',
   description: 'Start workflow',
+  longDescription:
+    'Initiate your workflow manually, on a schedule, or via webhook triggers. Configure flexible execution patterns with customizable timing options and webhook security.',
   category: 'blocks',
   bgColor: '#2FB3FF',
   icon: StartIcon,

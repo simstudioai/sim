@@ -17,6 +17,8 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   type: 'exa',
   name: 'Exa',
   description: 'Search with Exa AI',
+  longDescription:
+    "Search the web, retrieve content, find similar links, and answer questions using Exa's powerful AI search capabilities.",
   category: 'tools',
   bgColor: '#1F40ED',
   icon: ExaAIIcon,

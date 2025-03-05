@@ -8,6 +8,8 @@ export const XBlock: BlockConfig<XResponse> = {
   type: 'x',
   name: 'X',
   description: 'Interact with X',
+  longDescription:
+    'Connect with X to post tweets, read content, search for information, and access user profiles. Integrate social media capabilities into your workflow with comprehensive X platform access.',
   category: 'tools',
   bgColor: '#000000', // X's black color
   icon: xIcon,
