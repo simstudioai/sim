@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { NotificationList } from '@/app/w/components/notifications/notifications'
+import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 
 export default function LoginPage() {
   const router = useRouter()

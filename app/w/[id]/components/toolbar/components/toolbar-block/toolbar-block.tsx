@@ -1,4 +1,4 @@
-import type { BlockConfig } from '../../../../../../blocks/types'
+import type { BlockConfig } from '@/blocks/types'
 
 export type ToolbarBlockProps = {
   config: BlockConfig

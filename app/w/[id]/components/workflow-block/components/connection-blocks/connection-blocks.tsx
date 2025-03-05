@@ -1,5 +1,5 @@
 import { Card } from '@/components/ui/card'
-import { ConnectedBlock, useBlockConnections } from '@/app/w/hooks/use-block-connections'
+import { ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 
 interface ConnectionBlocksProps {
   blockId: string

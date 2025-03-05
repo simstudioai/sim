@@ -17,11 +17,11 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { getSyncManagers, initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { NotificationList } from '@/app/w/components/notifications/notifications'
+import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { getBlock } from '../../../blocks'
-import { ErrorBoundary } from '../components/error-boundary/error-boundary'
-import { CustomEdge } from './components/custom-edge/custom-edge'
+import { ErrorBoundary } from './components/error/index'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
+import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import { LoopInput } from './components/workflow-loop/components/loop-input/loop-input'
 import { LoopLabel } from './components/workflow-loop/components/loop-label/loop-label'
 import { createLoopNode, getRelativeLoopPosition } from './components/workflow-loop/workflow-loop'
@@ -32,7 +32,7 @@ const nodeTypes: NodeTypes = {
   loopLabel: LoopLabel,
   loopInput: LoopInput,
 }
-const edgeTypes: EdgeTypes = { custom: CustomEdge }
+const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
 function WorkflowContent() {
   // State
@@ -194,7 +194,7 @@ function WorkflowContent() {
         addEdge({
           ...connection,
           id: crypto.randomUUID(),
-          type: 'custom',
+          type: 'workflowEdge',
         })
       }
     },
@@ -284,7 +284,7 @@ function WorkflowContent() {
   // Transform edges to include selection state
   const edgesWithSelection = edges.map((edge) => ({
     ...edge,
-    type: edge.type || 'custom',
+    type: edge.type || 'workflowEdge',
     data: {
       selectedEdgeId,
       onDelete: (edgeId: string) => {

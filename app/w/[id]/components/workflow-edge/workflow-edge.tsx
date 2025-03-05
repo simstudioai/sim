@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getSmoothStepPath } from 'reactflow'
 
-export const CustomEdge = ({
+export const WorkflowEdge = ({
   id,
   sourceX,
   sourceY,
