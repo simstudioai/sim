@@ -445,12 +445,14 @@ export function ControlBar() {
    */
   const renderRunButton = () => (
     <Button
-      className="gap-2 bg-[#7F2FFF] hover:bg-[#7F2FFF]/90 text-white"
+      className={`gap-2 bg-[#7F2FFF] hover:bg-[#7F2FFF]/90 text-white ${
+        isExecuting ? 'animate-run-glow' : ''
+      }`}
       onClick={handleRunWorkflow}
       disabled={isExecuting}
     >
       <Play fill="white" stroke="white" className="!h-3.5 !w-3.5" />
-      {isExecuting ? 'Running...' : 'Run'}
+      {isExecuting ? 'Running' : 'Run'}
     </Button>
   )
 

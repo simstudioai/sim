@@ -18,7 +18,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   name: 'Exa',
   description: 'Search with Exa AI',
   category: 'tools',
-  bgColor: '#1F41ED',
+  bgColor: '#1F40ED',
   icon: ExaAIIcon,
   subBlocks: [
     // Operation selector

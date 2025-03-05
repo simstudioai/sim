@@ -99,6 +99,14 @@ export default {
             opacity: '0.7',
           },
         },
+        'run-glow': {
+          '0%, 100%': {
+            filter: 'opacity(1)',
+          },
+          '50%': {
+            filter: 'opacity(0.7)',
+          },
+        },
       },
       animation: {
         'slide-down': 'slide-down 0.3s ease-out',
@@ -106,6 +114,7 @@ export default {
         'notification-fade-out': 'notification-fade-out 0.2s ease-out forwards',
         'fade-up': 'fade-up 0.5s ease-out forwards',
         'rocket-pulse': 'rocket-pulse 1.5s ease-in-out infinite',
+        'run-glow': 'run-glow 2s ease-in-out infinite',
       },
     },
   },
