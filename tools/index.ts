@@ -1,3 +1,4 @@
+import { verifyOAuthBeforeExecutionServer } from '@/lib/oauth'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
@@ -289,6 +290,12 @@ export async function executeTool(
     // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
+    }
+
+    // Check OAuth requirements before executing the tool
+    // This will throw an OAuthRequiredError if the tool requires OAuth but the user hasn't authorized it
+    if (tool.oauth?.required && !isBrowser()) {
+      await verifyOAuthBeforeExecutionServer(tool)
     }
 
     // For custom tools, try direct execution in browser first if available
