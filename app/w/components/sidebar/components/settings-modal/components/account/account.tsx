@@ -194,7 +194,7 @@ export function Account({ onOpenChange }: AccountProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="w-[300px] max-h-[350px] overflow-y-auto"
+                className="w-[240px] max-h-[350px] overflow-y-auto"
                 sideOffset={8}
               >
                 {userData.isLoggedIn ? (
@@ -225,7 +225,7 @@ export function Account({ onOpenChange }: AccountProps) {
                       </>
                     )}
                     <DropdownMenuItem
-                      className="flex items-center gap-2 p-3 cursor-pointer text-destructive focus:text-destructive"
+                      className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer text-destructive focus:text-destructive"
                       onClick={handleSignOut}
                     >
                       <LogOut className="h-4 w-4" />
@@ -235,7 +235,7 @@ export function Account({ onOpenChange }: AccountProps) {
                 ) : (
                   <>
                     <DropdownMenuItem
-                      className="flex items-center gap-2 p-3 cursor-pointer"
+                      className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer"
                       onClick={handleSignIn}
                     >
                       <UserPlus className="h-4 w-4" />
