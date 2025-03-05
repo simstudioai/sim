@@ -13,8 +13,8 @@ This guide outlines the steps to release Sim Studio CLI to npm and create a GitH
 ### 1. Prepare the Release
 
 1. Ensure all changes are committed and pushed to the main branch
-2. Update the version number in `packages/@sim/cli/package.json`
-3. Update the `STANDALONE_VERSION` in `packages/@sim/cli/src/commands/start.ts` to match
+2. Update the version number in `packages/@simstudio/cli/package.json`
+3. Update the `STANDALONE_VERSION` in `packages/@simstudio/cli/src/commands/start.ts` to match
 
 ### 2. Run the Release Script
 
@@ -37,7 +37,7 @@ This script will:
 After the script completes, follow the instructions to publish to npm:
 
 ```bash
-cd packages/@sim/cli
+cd packages/@simstudio/cli
 npm publish
 ```
 
@@ -83,6 +83,6 @@ npx simstudio start
 
 After a successful release:
 
-1. Increment the version number in `packages/@sim/cli/package.json` for the next release
-2. Update the `STANDALONE_VERSION` in `packages/@sim/cli/src/commands/start.ts`
+1. Increment the version number in `packages/@simstudio/cli/package.json` for the next release
+2. Update the `STANDALONE_VERSION` in `packages/@simstudio/cli/src/commands/start.ts`
 3. Commit these changes with a message like "Bump version to X.Y.Z"

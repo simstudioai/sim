@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/packages/**/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -19,6 +20,9 @@
 
 # production
 /build
+/dist
+**/dist/
+sim-standalone.tar.gz
 
 # misc
 .DS_Store

@@ -11,10 +11,10 @@ export function help() {
   // Display help text
   console.log(`
 ${chalk.bold('USAGE')}
-  ${chalk.cyan('sim')}                    Start Sim Studio with default settings
-  ${chalk.cyan('sim start')}              Start Sim Studio with options
-  ${chalk.cyan('sim version')}            Display version information
-  ${chalk.cyan('sim help')}               Show this help information
+  ${chalk.cyan('simstudio')}                    Start Sim Studio with default settings
+  ${chalk.cyan('simstudio start')}              Start Sim Studio with options
+  ${chalk.cyan('simstudio version')}            Display version information
+  ${chalk.cyan('simstudio help')}               Show this help information
 
 ${chalk.bold('OPTIONS')}
   ${chalk.cyan('-p, --port <port>')}      Specify port (default: 3000)
@@ -24,13 +24,13 @@ ${chalk.bold('OPTIONS')}
 
 ${chalk.bold('EXAMPLES')}
   ${chalk.gray('# Start with default settings')}
-  ${chalk.cyan('$ sim')}
+  ${chalk.cyan('$ simstudio')}
 
   ${chalk.gray('# Start on a specific port')}
-  ${chalk.cyan('$ sim start --port 8080')}
+  ${chalk.cyan('$ simstudio start --port 8080')}
 
   ${chalk.gray('# Start with debug logging')}
-  ${chalk.cyan('$ sim start --debug')}
+  ${chalk.cyan('$ simstudio start --debug')}
 
 ${chalk.bold('DOCUMENTATION')}
   ${chalk.gray('For more information:')}

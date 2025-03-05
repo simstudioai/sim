@@ -21,7 +21,7 @@ const program = new Command()
 async function main() {
   // Configure the CLI
   program
-    .name('sim')
+    .name('simstudio')
     .description('Sim Studio CLI')
     .version(pkg.version, '-v, --version', 'Output the current version')
     .helpOption('-h, --help', 'Display help for command')

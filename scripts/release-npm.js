@@ -13,7 +13,7 @@ const { execSync } = require('child_process')
 
 // Configuration
 const ROOT_DIR = path.resolve(__dirname, '..')
-const CLI_DIR = path.join(ROOT_DIR, 'packages/@sim/cli')
+const CLI_DIR = path.join(ROOT_DIR, 'packages/@simstudio/cli')
 const STANDALONE_DIR = path.join(CLI_DIR, 'standalone')
 const OUTPUT_TARBALL = path.join(ROOT_DIR, 'sim-standalone.tar.gz')
 

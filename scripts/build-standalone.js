@@ -18,7 +18,7 @@ const crypto = require('crypto')
 
 // Configuration
 const ROOT_DIR = path.resolve(__dirname, '..')
-const STANDALONE_DIR = path.join(ROOT_DIR, 'packages/@sim/cli/standalone')
+const STANDALONE_DIR = path.join(ROOT_DIR, 'packages/@simstudio/cli/standalone')
 const STANDALONE_PACKAGE_JSON = path.join(STANDALONE_DIR, 'package.json')
 const STANDALONE_SERVER_JS = path.join(STANDALONE_DIR, 'server.js')
 const OUTPUT_TARBALL = path.join(ROOT_DIR, 'sim-standalone.tar.gz')

@@ -16,7 +16,7 @@
 Sim Studio now supports a quick start option with zero installation required:
 
 ```bash
-npx sim
+npx simstudio
 ```
 
 This downloads and runs Sim Studio with browser localStorage for data persistence. Visit http://localhost:3000 to start building workflows immediately!

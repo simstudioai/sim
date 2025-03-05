@@ -208,7 +208,7 @@ function checkIfInProjectDirectory(): boolean {
         packageJson.name === 'sim-studio' ||
         (packageJson.dependencies &&
           (packageJson.dependencies['next'] ||
-            packageJson.dependencies['@sim/cli'] ||
+            packageJson.dependencies['@simstudio/cli'] ||
             packageJson.dependencies['sim-studio-cli']))
       ) {
         return true

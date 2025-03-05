@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
-// Check if we're in local storage mode (CLI usage with npx sim)
+// Check if we're in local storage mode (CLI usage with npx simstudio)
 const isLocalStorage = process.env.USE_LOCAL_STORAGE === 'true'
 
 // Create a type for our database client
