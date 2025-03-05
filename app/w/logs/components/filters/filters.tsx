@@ -25,9 +25,8 @@ export function Filters() {
       <FilterSection title="Timeline" defaultOpen={true} content={<Timeline />} />
 
       {/* Additional filter sections */}
-      <FilterSection title="Contains Level" />
-      <FilterSection title="Environment" />
-      <FilterSection title="Route" />
+      <FilterSection title="Level" />
+      <FilterSection title="Workflow" />
     </div>
   )
 }
