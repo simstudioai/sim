@@ -13,6 +13,7 @@ import { JinaBlock } from './blocks/jina'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
 import { PineconeBlock } from './blocks/pinecone'
+import { RedditBlock } from './blocks/reddit'
 import { RouterBlock } from './blocks/router'
 import { SerperBlock } from './blocks/serper'
 import { SlackBlock } from './blocks/slack'
@@ -47,6 +48,7 @@ export {
   PineconeBlock,
   OpenAIBlock,
   ExaBlock,
+  RedditBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -65,6 +67,7 @@ const blocks: Record<string, BlockConfig> = {
   notion: NotionBlock,
   openai: OpenAIBlock,
   pinecone: PineconeBlock,
+  reddit: RedditBlock,
   router: RouterBlock,
   serper: SerperBlock,
   slack: SlackBlock,

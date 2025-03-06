@@ -25,6 +25,7 @@ import { generateEmbeddingsTool as pineconeGenerateEmbeddingsTool } from './pine
 import { searchTextTool as pineconeSearchTextTool } from './pinecone/searchText'
 import { searchVectorTool as pineconeSearchVectorTool } from './pinecone/searchVector'
 import { upsertTextTool as pineconeUpsertTextTool } from './pinecone/upsertText'
+import { hotPostsTool as redditHotPosts } from './reddit/hot'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
 import { slackMessageTool } from './slack/message'
@@ -75,6 +76,7 @@ export const tools: Record<string, ToolConfig> = {
   exa_get_contents: exaGetContents,
   exa_find_similar_links: exaFindSimilarLinks,
   exa_answer: exaAnswer,
+  reddit_hot_posts: redditHotPosts,
 }
 
 // Get a tool by its ID
