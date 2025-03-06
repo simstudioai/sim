@@ -156,7 +156,9 @@ app.prepare().then(() => {
     // Generate a UUID for the new workflow
     const uuid = crypto.randomUUID();
     console.log(\`Redirecting to new workflow: \${uuid}\`);
-    res.redirect(\`/w/\${uuid}\`);
+    
+    // Use 302 redirect to ensure it's not cached and is followed
+    return res.redirect(302, \`/w/\${uuid}\`);
   });
 
   // Handle all other requests with Next.js
@@ -170,6 +172,7 @@ app.prepare().then(() => {
     console.log(\`> Sim Studio standalone server ready on http://localhost:\${port}\`);
     console.log('> Running in local storage mode - all data will be stored in the browser');
     console.log('> Authentication is disabled - anyone can access the app');
+    console.log('> Root path (/) will redirect to a new workflow automatically');
   });
 });
 `

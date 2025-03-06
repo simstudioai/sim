@@ -19,9 +19,9 @@ interface StartOptions {
 const SIM_HOME_DIR = path.join(os.homedir(), '.sim-studio')
 const SIM_STANDALONE_DIR = path.join(SIM_HOME_DIR, 'standalone')
 const SIM_VERSION_FILE = path.join(SIM_HOME_DIR, 'version.json')
+const STANDALONE_VERSION = '0.1.3'
 const DOWNLOAD_URL =
   'https://github.com/simstudioai/sim/releases/latest/download/sim-standalone.tar.gz'
-const STANDALONE_VERSION = '0.1.2'
 
 /**
  * Start command that launches Sim Studio using local storage
@@ -124,7 +124,7 @@ export async function start(options: StartOptions) {
       // Download and extract if needed
       if (needsDownload) {
         try {
-          await downloadStandaloneApp(spinner)
+          await downloadStandaloneApp(spinner, options)
         } catch (error) {
           spinner.fail(
             `Failed to download Sim Studio: ${error instanceof Error ? error.message : String(error)}`
@@ -254,7 +254,7 @@ function checkIfInProjectDirectory(): boolean {
 /**
  * Downloads and extracts the standalone app
  */
-async function downloadStandaloneApp(spinner: SimpleSpinner): Promise<void> {
+async function downloadStandaloneApp(spinner: SimpleSpinner, options: StartOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     // Create temp directory
     const tmpDir = path.join(os.tmpdir(), `sim-download-${Date.now()}`)
@@ -263,10 +263,19 @@ async function downloadStandaloneApp(spinner: SimpleSpinner): Promise<void> {
     const tarballPath = path.join(tmpDir, 'sim-standalone.tar.gz')
     const file = createWriteStream(tarballPath)
 
-    spinner.text = 'Downloading Sim Studio...'
+    spinner.text = 'Downloading Sim Studio standalone package...'
 
     // Function to handle the download
-    const downloadFile = (url: string) => {
+    const downloadFile = (url: string, redirectCount = 0) => {
+      // Prevent infinite redirects
+      if (redirectCount > 5) {
+        spinner.fail('Too many redirects')
+        if (options.debug) {
+          console.error('Redirect chain:', url)
+        }
+        return reject(new Error('Download failed: Too many redirects'))
+      }
+
       https
         .get(url, (response) => {
           // Handle redirects (302, 301, 307, etc.)
@@ -279,18 +288,34 @@ async function downloadStandaloneApp(spinner: SimpleSpinner): Promise<void> {
             // Close the current file stream before following the redirect
             file.close()
 
-            spinner.text = `Following redirect to ${response.headers.location}...`
+            const redirectUrl = response.headers.location.startsWith('http')
+              ? response.headers.location
+              : new URL(response.headers.location, url).toString()
 
-            // Follow the redirect
-            downloadFile(response.headers.location)
+            // Only update spinner text on first redirect, then just show "Following redirects..."
+            if (redirectCount === 0) {
+              spinner.text = 'Following GitHub redirects...'
+            }
+
+            if (options.debug) {
+              console.log(`Redirect ${redirectCount + 1}: ${url} -> ${redirectUrl}`)
+            }
+
+            // Follow the redirect with incremented counter
+            downloadFile(redirectUrl, redirectCount + 1)
             return
           }
 
           if (response.statusCode !== 200) {
             spinner.fail(`Failed to download: ${response.statusCode}`)
+            if (options.debug) {
+              console.error('URL that failed:', url)
+              console.error('Headers:', JSON.stringify(response.headers, null, 2))
+            }
             return reject(new Error(`Download failed with status code: ${response.statusCode}`))
           }
 
+          spinner.text = 'Downloading Sim Studio standalone package...'
           response.pipe(file)
 
           file.on('finish', () => {
