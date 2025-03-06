@@ -1,6 +1,6 @@
 {
   "name": "simstudio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "CLI tool for Sim Studio - easily start, build and test agent workflows",
   "license": "MIT",
   "author": "Sim Studio Team",

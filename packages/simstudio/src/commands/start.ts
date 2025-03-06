@@ -21,7 +21,7 @@ const SIM_STANDALONE_DIR = path.join(SIM_HOME_DIR, 'standalone')
 const SIM_VERSION_FILE = path.join(SIM_HOME_DIR, 'version.json')
 const DOWNLOAD_URL =
   'https://github.com/simstudioai/sim/releases/latest/download/sim-standalone.tar.gz'
-const STANDALONE_VERSION = '0.1.0'
+const STANDALONE_VERSION = '0.1.2'
 
 /**
  * Start command that launches Sim Studio using local storage
