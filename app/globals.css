@@ -103,6 +103,12 @@
   }
 }
 
+/* Dark mode error badge styling */
+.dark .error-badge {
+  background-color: hsl(0, 70%, 20%) !important; /* Darker red background for dark mode */
+  color: hsl(0, 0%, 100%) !important; /* Pure white text for better contrast */
+}
+
 /* Input Overrides */
 /* Chrome, Safari, Edge, Opera */
 input[type='search']::-webkit-search-cancel-button {

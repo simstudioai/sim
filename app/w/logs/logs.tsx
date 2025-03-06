@@ -52,7 +52,7 @@ const formatDate = (dateString: string) => {
 const getLevelBadgeStyles = (level: string) => {
   switch (level.toLowerCase()) {
     case 'error':
-      return 'bg-destructive/20 text-destructive'
+      return 'bg-destructive/20 text-destructive error-badge'
     case 'warn':
       return 'bg-warning/20 text-warning'
     default:
