@@ -11,18 +11,9 @@
 
 ## Quick Start
 
-### Try Instantly With Zero Installation
+There are several ways to get started with Sim Studio:
 
-```bash
-npx simstudio
-```
-
-This instantly runs Sim Studio on your local machine with data stored in your browser's localStorage.
-Visit http://localhost:3000 to start building your workflows right away!
-
-### Development Setup
-
-#### Option 1: Docker Environment (Recommended)
+### Option 1: Docker Environment (Recommended)
 
 ```bash
 # Clone the repository
@@ -35,7 +26,7 @@ docker compose up -d
 ./scripts/start_simstudio_docker.sh
 ```
 
-#### Option 2: [Cursor](https://cursor.sh) / [VS Code](https://code.visualstudio.com) Dev Containers
+### Option 2: [Cursor](https://cursor.sh) / [VS Code](https://code.visualstudio.com) Dev Containers
 
 For the best development experience:
 
@@ -45,7 +36,7 @@ For the best development experience:
 4. Click "Reopen in Container" when prompted
 5. Run `npm run dev` in the terminal
 
-#### Option 3: Manual Setup
+### Option 3: Manual Setup
 
 If you prefer not to use Docker or Dev Containers:
 
