@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Copy, Rocket, Terminal, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, Copy, Rocket, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -21,6 +21,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 // Constants
 const NOTIFICATION_TIMEOUT = 4000
 const FADE_DURATION = 300
+const MAX_MESSAGE_HEIGHT = 300 // Maximum height in pixels before truncation
 
 // Icon mapping for notification types
 const NotificationIcon = {
@@ -356,19 +357,20 @@ function NotificationAlert({
               </AlertTitle>
 
               <AlertDescription className="space-y-4">
-                <p>{message}</p>
+                {/* Message with auto-expanding and max height */}
+                <p className="max-h-[300px] overflow-hidden text-ellipsis">{message}</p>
 
                 {/* Optional sections with copyable content */}
                 {options?.sections?.map((section, index) => (
                   <div key={index} className="space-y-1.5">
                     <div className="text-xs font-medium text-muted-foreground">{section.label}</div>
 
-                    {/* Copyable code block */}
+                    {/* Copyable code block with max height */}
                     <div
                       className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
                       onClick={() => onCopy(id, index, section.content)}
                     >
-                      <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                      <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-[300px]">
                         {section.content}
                       </pre>
 
