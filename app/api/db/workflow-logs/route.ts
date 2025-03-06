@@ -5,6 +5,10 @@ import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workflow, workflowLogs } from '@/db/schema'
 
+// No cache
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // Schema for query parameters
 const QueryParamsSchema = z.object({
   includeWorkflow: z.enum(['true', 'false']).optional().default('false'),

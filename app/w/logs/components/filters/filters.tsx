@@ -1,9 +1,9 @@
 'use client'
 
-import Level from './filter-section/components/level'
-import Timeline from './filter-section/components/timeline'
-import Workflow from './filter-section/components/workflow'
-import FilterSection from './filter-section/filter-section'
+import FilterSection from './components/filter-section'
+import Level from './components/level'
+import Timeline from './components/timeline'
+import Workflow from './components/workflow'
 
 /**
  * Filters component for logs page - includes timeline and other filter options

@@ -13,6 +13,7 @@ interface FilterState {
   timeRange: TimeRange
   level: LogLevel
   workflowId: string | null
+  searchQuery: string
   // Loading state
   loading: boolean
   error: string | null
@@ -21,6 +22,7 @@ interface FilterState {
   setTimeRange: (timeRange: TimeRange) => void
   setLevel: (level: LogLevel) => void
   setWorkflowId: (workflowId: string | null) => void
+  setSearchQuery: (query: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   // Apply filters
@@ -33,6 +35,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   timeRange: 'All time',
   level: 'all',
   workflowId: null,
+  searchQuery: '',
   loading: true,
   error: null,
 
@@ -55,12 +58,17 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     get().applyFilters()
   },
 
+  setSearchQuery: (searchQuery) => {
+    set({ searchQuery })
+    get().applyFilters()
+  },
+
   setLoading: (loading) => set({ loading }),
 
   setError: (error) => set({ error }),
 
   applyFilters: () => {
-    const { logs, timeRange, level, workflowId } = get()
+    const { logs, timeRange, level, workflowId, searchQuery } = get()
 
     let filtered = [...logs]
 
@@ -94,6 +102,16 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     // Apply workflow filter
     if (workflowId) {
       filtered = filtered.filter((log) => log.workflowId === workflowId)
+    }
+
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(
+        (log) =>
+          log.message.toLowerCase().includes(query) ||
+          (log.executionId && log.executionId.toLowerCase().includes(query))
+      )
     }
 
     set({ filteredLogs: filtered })
