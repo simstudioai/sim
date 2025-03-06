@@ -1,40 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { format } from 'date-fns'
-import { AlertCircle, AlertTriangle, ArrowDownUp, Clock, Info, Loader2 } from 'lucide-react'
+import { AlertCircle, Clock, Info, Loader2 } from 'lucide-react'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
-
-// Define types for our logs data
-interface WorkflowLog {
-  id: string
-  workflowId: string
-  executionId: string | null
-  level: string
-  message: string
-  duration: string | null
-  trigger: string | null
-  createdAt: string
-  workflow?: WorkflowData | null
-}
-
-interface WorkflowData {
-  id: string
-  name: string
-  description: string | null
-  color: string
-  state: any
-  // Add other workflow fields as needed
-}
-
-interface LogsResponse {
-  data: WorkflowLog[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
+import { useFilterStore } from './stores/store'
+import { LogsResponse } from './stores/types'
 
 // Helper function to format date
 const formatDate = (dateString: string) => {
@@ -84,7 +56,7 @@ const getLevelBadgeStyles = (level: string) => {
     case 'warn':
       return 'bg-warning/20 text-warning'
     default:
-      return 'bg-[#7F2FFF]/20 text-[#7F2FFF]'
+      return 'bg-secondary text-secondary-foreground'
   }
 }
 
@@ -96,15 +68,7 @@ const getTriggerBadgeStyles = (trigger: string) => {
 }
 
 export default function Logs() {
-  const [logs, setLogs] = useState<WorkflowLog[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    pageSize: 100,
-    totalPages: 0,
-  })
+  const { filteredLogs, logs, loading, error, setLogs, setLoading, setError } = useFilterStore()
 
   // Fetch logs on component mount
   useEffect(() => {
@@ -120,29 +84,21 @@ export default function Logs() {
 
         const data: LogsResponse = await response.json()
 
-        // Log the response to console as requested
+        // Log the response to console
         console.log('Workflow logs response:', data)
 
         setLogs(data.data)
-        setPagination({
-          total: data.total,
-          page: data.page,
-          pageSize: data.pageSize,
-          totalPages: data.totalPages,
-        })
-
         setError(null)
       } catch (err) {
         console.error('Failed to fetch logs:', err)
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
-        setLogs([])
       } finally {
         setLoading(false)
       }
     }
 
     fetchLogs()
-  }, [])
+  }, [setLogs, setLoading, setError])
 
   return (
     <div className="flex flex-col h-[100vh]">
@@ -153,20 +109,22 @@ export default function Logs() {
           {/* Table header - fixed */}
           <div className="border-b bg-background z-10 sticky top-0">
             <div className="grid grid-cols-12 gap-4 px-4 py-3 text-xs font-medium text-muted-foreground">
-              <div className="col-span-2 flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5" />
+              <div className="col-span-2 flex items-center lg:gap-1.5">
                 <span>Time</span>
               </div>
               <div className="col-span-1 flex items-center gap-1.5">
                 <span>Status</span>
               </div>
-              <div className="col-span-2 flex items-center gap-1.5">
+              <div className="col-span-3 md:col-span-2 flex items-center gap-1.5">
                 <span>Workflow</span>
+              </div>
+              <div className="col-span-1 hidden lg:flex items-center gap-1.5">
+                <span>id</span>
               </div>
               <div className="col-span-1 hidden lg:flex items-center gap-1.5">
                 <span>Trigger</span>
               </div>
-              <div className="col-span-6 md:col-span-5 flex items-center gap-1.5">
+              <div className="col-span-5 md:col-span-5 lg:col-span-4 flex items-center gap-1.5">
                 <span>Message</span>
               </div>
               <div className="col-span-1 flex items-center gap-1.5">
@@ -187,14 +145,14 @@ export default function Logs() {
                 <AlertCircle className="h-5 w-5 text-destructive" />
                 <span className="ml-2 text-sm text-destructive">Error: {error}</span>
               </div>
-            ) : logs.length === 0 ? (
+            ) : filteredLogs.length === 0 ? (
               <div className="flex items-center justify-center h-full text-muted-foreground">
                 <Info className="h-5 w-5 mr-2" />
                 <span className="text-sm">No logs found</span>
               </div>
             ) : (
               <div>
-                {logs.map((log) => {
+                {filteredLogs.map((log) => {
                   const formattedDate = formatDate(log.createdAt)
                   return (
                     <div
@@ -226,7 +184,7 @@ export default function Logs() {
                         </div>
 
                         {/* Workflow column */}
-                        <div className="col-span-2 flex items-center">
+                        <div className="col-span-3 md:col-span-2 flex items-center">
                           {log.workflow && (
                             <div
                               className="inline-flex items-center px-2 py-1 text-xs rounded-md truncate max-w-full"
@@ -236,9 +194,16 @@ export default function Logs() {
                               }}
                               title={log.workflow.name}
                             >
-                              {log.workflow.name}
+                              <span className="font-base truncate">{log.workflow.name}</span>
                             </div>
                           )}
+                        </div>
+
+                        {/* ID column - hidden on small screens */}
+                        <div className="col-span-1 hidden lg:flex items-center">
+                          <div className="text-xs font-mono text-muted-foreground">
+                            {log.executionId ? `#${log.executionId.substring(0, 4)}` : '—'}
+                          </div>
                         </div>
 
                         {/* Trigger column - hidden on medium screens and below */}
@@ -247,13 +212,13 @@ export default function Logs() {
                             <div
                               className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${getTriggerBadgeStyles(log.trigger)}`}
                             >
-                              {log.trigger}
+                              <span className="font-medium">{log.trigger}</span>
                             </div>
                           )}
                         </div>
 
-                        {/* Message column - expanded on medium screens when trigger is hidden */}
-                        <div className="col-span-6 md:col-span-5 flex items-center">
+                        {/* Message column - smaller on small screens to give space to status and workflow */}
+                        <div className="col-span-5 md:col-span-5 lg:col-span-4 flex items-center">
                           <div className="text-sm truncate" title={log.message}>
                             {log.message}
                           </div>

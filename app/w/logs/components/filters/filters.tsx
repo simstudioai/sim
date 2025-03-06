@@ -1,17 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import FilterSection from './components/filter-section/filter-section'
-import Timeline from './components/timeline'
+import Level from './filter-section/components/level'
+import Timeline from './filter-section/components/timeline'
+import Workflow from './filter-section/components/workflow'
+import FilterSection from './filter-section/filter-section'
 
 /**
  * Filters component for logs page - includes timeline and other filter options
@@ -24,9 +16,11 @@ export function Filters() {
       {/* Timeline Filter */}
       <FilterSection title="Timeline" defaultOpen={true} content={<Timeline />} />
 
-      {/* Additional filter sections */}
-      <FilterSection title="Level" />
-      <FilterSection title="Workflow" />
+      {/* Level Filter */}
+      <FilterSection title="Level" defaultOpen={true} content={<Level />} />
+
+      {/* Workflow Filter */}
+      <FilterSection title="Workflow" defaultOpen={true} content={<Workflow />} />
     </div>
   )
 }
