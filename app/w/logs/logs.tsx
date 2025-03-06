@@ -91,7 +91,7 @@ const getLevelBadgeStyles = (level: string) => {
 // Helper function to get trigger badge styling
 const getTriggerBadgeStyles = (trigger: string) => {
   return trigger.toLowerCase() === 'manual'
-    ? 'bg-gray-100 text-gray-500'
+    ? 'bg-secondary text-secondary-foreground'
     : 'bg-[#7F2FFF]/20 text-[#7F2FFF]'
 }
 
@@ -163,10 +163,10 @@ export default function Logs() {
               <div className="col-span-2 flex items-center gap-1.5">
                 <span>Workflow</span>
               </div>
-              <div className="col-span-1 flex items-center gap-1.5">
+              <div className="col-span-1 hidden lg:flex items-center gap-1.5">
                 <span>Trigger</span>
               </div>
-              <div className="col-span-5 flex items-center gap-1.5">
+              <div className="col-span-6 md:col-span-5 flex items-center gap-1.5">
                 <span>Message</span>
               </div>
               <div className="col-span-1 flex items-center gap-1.5">
@@ -206,8 +206,8 @@ export default function Logs() {
                         <div className="col-span-2 flex flex-col justify-center">
                           <div className="text-xs font-medium flex items-center">
                             <span>{formattedDate.formatted}</span>
-                            <span className="mx-1.5 text-muted-foreground">•</span>
-                            <span className="text-muted-foreground">
+                            <span className="mx-1.5 text-muted-foreground hidden xl:inline">•</span>
+                            <span className="text-muted-foreground hidden xl:inline">
                               {format(new Date(log.createdAt), 'MMM d, yyyy')}
                             </span>
                           </div>
@@ -241,8 +241,8 @@ export default function Logs() {
                           )}
                         </div>
 
-                        {/* Trigger column */}
-                        <div className="col-span-1 flex items-center">
+                        {/* Trigger column - hidden on medium screens and below */}
+                        <div className="col-span-1 hidden lg:flex items-center">
                           {log.trigger && (
                             <div
                               className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${getTriggerBadgeStyles(log.trigger)}`}
@@ -252,8 +252,8 @@ export default function Logs() {
                           )}
                         </div>
 
-                        {/* Message column */}
-                        <div className="col-span-5 flex items-center">
+                        {/* Message column - expanded on medium screens when trigger is hidden */}
+                        <div className="col-span-6 md:col-span-5 flex items-center">
                           <div className="text-sm truncate" title={log.message}>
                             {log.message}
                           </div>
