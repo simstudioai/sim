@@ -82,6 +82,19 @@ export function ControlBar() {
   useEffect(() => {
     async function checkStatus() {
       if (!activeWorkflowId) return
+
+      // Skip API call in localStorage mode
+      if (
+        typeof window !== 'undefined' &&
+        (localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
+          process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
+          process.env.NEXT_PUBLIC_DISABLE_DB_SYNC === 'true')
+      ) {
+        // For localStorage mode, we already have the deployment status in the workflow store
+        // Nothing more to do as the useWorkflowStore already has this information
+        return
+      }
+
       try {
         const response = await fetch(`/api/workflow/${activeWorkflowId}/status`)
         if (response.ok) {
