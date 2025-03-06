@@ -137,18 +137,24 @@ export default function Logs() {
           <div className="flex-1 overflow-auto">
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                <span className="ml-2 text-sm text-muted-foreground">Loading logs...</span>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Loading logs...</span>
+                </div>
               </div>
             ) : error ? (
               <div className="flex items-center justify-center h-full">
-                <AlertCircle className="h-5 w-5 text-destructive" />
-                <span className="ml-2 text-sm text-destructive">Error: {error}</span>
+                <div className="flex items-center gap-2 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                  <span className="text-sm">Error: {error}</span>
+                </div>
               </div>
             ) : filteredLogs.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <Info className="h-5 w-5 mr-2" />
-                <span className="text-sm">No logs found</span>
+              <div className="flex items-center justify-center h-full">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Info className="h-5 w-5" />
+                  <span className="text-sm">No logs found</span>
+                </div>
               </div>
             ) : (
               <div>
