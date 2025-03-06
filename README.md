@@ -2,7 +2,7 @@
 
 [![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Sim Studio** is a powerful, user-friendly platform that allows developers and agents to build, test, and optimize agentic workflows.
+**Sim Studio** is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
 
 ## Run
 
@@ -11,19 +11,18 @@
 
 ## Quick Start
 
-### Try Instantly with npx
-
-Sim Studio now supports a quick start option with zero installation required:
+### Try Instantly With Zero Installation
 
 ```bash
 npx simstudio
 ```
 
-This downloads and runs Sim Studio with browser localStorage for data persistence. Visit http://localhost:3000 to start building workflows immediately!
+This instantly runs Sim Studio on your local machine with data stored in your browser's localStorage.
+Visit http://localhost:3000 to start building your workflows right away!
 
-### Docker Setup (For Development)
+### Development Setup
 
-For a full development environment with database support:
+#### Option 1: Docker Environment (Recommended)
 
 ```bash
 # Clone the repository
@@ -31,89 +30,62 @@ git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
 # Start the Docker environment
+docker compose up -d
+# Or use the helper script
 ./scripts/start_simstudio_docker.sh
 ```
 
-### VS Code Dev Container
+#### Option 2: [Cursor](https://cursor.sh) / [VS Code](https://code.visualstudio.com) Dev Containers
 
 For the best development experience:
 
-1. Install the VS Code Remote - Containers extension
-2. Open the project in VS Code
-3. Click "Reopen in Container" when prompted
-4. Run `sim-start` in the terminal
+1. Install [Cursor](https://cursor.sh) or [VS Code](https://code.visualstudio.com)
+2. Install the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+3. Open the project in Cursor or VS Code
+4. Click "Reopen in Container" when prompted
+5. Run `npm run dev` in the terminal
 
-## Development Options
+#### Option 3: Manual Setup
 
-### Option 1: Docker (Recommended)
+If you prefer not to use Docker or Dev Containers:
 
-The quickest way to get started with development:
-
-```bash
-docker compose up -d
-```
-
-Or use the convenience script for automatic setup:
+1. **Install Dependencies**
 
 ```bash
-chmod +x scripts/start_simstudio_docker.sh
-./scripts/start_simstudio_docker.sh
-```
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/sim.git
+cd sim
 
-### Option 2: VS Code / Cursor Dev Containers
-
-For a great development experience with VS Code or Cursor:
-
-1. **Install Prerequisites**
-
-   - Visual Studio Code
-   - Docker Desktop
-   - Remote - Containers extension for VS Code
-
-2. **Open in Container**
-
-   - Open the project in VS Code
-   - When prompted, click "Reopen in Container" (or use F1 → "Remote-Containers: Reopen in Container")
-   - Wait for the container to build and initialize
-
-3. **Start Developing**
-   - The container automatically sets up your environment
-   - Type `sim-start` in the terminal to run the development server
-
-This method works with GitHub Codespaces too - just click "Code" → "Codespaces" → "Create codespace on main".
-
-### Option 3: Manual Setup
-
-If you prefer not to use Docker:
-
-1. **Install dependencies**
-
-```bash
+# Install dependencies
 npm install
 ```
 
-2. **Set up environment variables**
+2. **Set Up Environment**
 
-Copy `.env.example` to `.env` and configure:
+```bash
+# Copy .env.example to .env
+cp .env.example .env
 
-- Database connection (PostgreSQL)
-- Authentication secret
-- Email provider (Resend)
+# Configure your .env file with:
+# - Database connection (PostgreSQL)
+# - Authentication settings
+```
 
-3. **Set up the database**
+3. **Set Up Database**
 
 ```bash
 # Push the database schema
 npx drizzle-kit push
 ```
 
-4. **Start the development server**
+4. **Start Development Server**
 
 ```bash
+# Start the development server
 npm run dev
 ```
 
-5. **Open [http://localhost:3000](http://localhost:3000)**
+5. **Open [http://localhost:3000](http://localhost:3000) in your browser**
 
 ## Tech Stack
 

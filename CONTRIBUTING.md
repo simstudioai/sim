@@ -17,7 +17,7 @@ Thank you for your interest in contributing to Sim Studio! Our goal is to provid
 - [License](#license)
 - [Adding New Blocks and Tools](#adding-new-blocks-and-tools)
 - [Local Storage Mode](#local-storage-mode)
-- [CLI](#cli)
+- [Standalone Build](#standalone-build)
 
 ---
 
@@ -398,7 +398,7 @@ Happy coding!
 Sim Studio supports a local storage mode that uses the browser's localStorage instead of a database. This is particularly useful for:
 
 - Quick demos and testing
-- Using the `npx simstudio` CLI
+- Using the `npx simstudio` command
 - Development without setting up a database
 - Creating shareable examples
 
@@ -413,22 +413,11 @@ All data will be stored in the browser's localStorage. This means:
 - Different browsers (Chrome vs. Firefox) will have separate data stores
 - Database migrations and schema changes won't affect local storage
 
-### Developing the CLI
-
-Sim Studio includes a CLI package that allows users to quickly start the application with `npx simstudio`. To develop the CLI:
-
-1. Build the CLI: `npm run cli:build`
-2. Test the CLI: `npm run cli:start`
-3. Make changes in the `packages/@simstudio/cli` directory
-4. Publish new versions: `npm run cli:publish` (requires npm permissions)
-
-The CLI automatically enables local storage mode when running.
-
-### Building the Standalone Version
+### Standalone Build
 
 The `npx simstudio` command downloads and runs a pre-built standalone version of Sim Studio. To build this standalone version:
 
-1. Run `npm run build:standalone` from the project root
+1. Run `node scripts/build-standalone.js` from the project root
 2. This creates a tarball (`sim-standalone.tar.gz`) containing:
 
    - A pre-built static export of the Next.js application
@@ -437,9 +426,9 @@ The `npx simstudio` command downloads and runs a pre-built standalone version of
 
 3. To release a new version:
    - Upload the tarball to a GitHub release
-   - Update the `DOWNLOAD_URL` in `packages/@simstudio/cli/src/commands/start.ts`
+   - Update the `DOWNLOAD_URL` in `packages/simstudio/src/commands/start.ts`
    - Update the `STANDALONE_VERSION` constant if needed
-   - Publish the CLI package: `npm run cli:publish`
+   - Publish the package: `npm run publish-cli`
 
 ---
 
