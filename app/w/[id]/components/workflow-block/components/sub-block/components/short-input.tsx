@@ -217,7 +217,7 @@ export function ShortInput({
             'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
         )}
         placeholder={placeholder ?? ''}
-        type={password ? 'password' : 'text'}
+        type="text"
         value={displayValue}
         onChange={handleChange}
         onFocus={() => {
