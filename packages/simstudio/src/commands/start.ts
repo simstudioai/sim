@@ -19,9 +19,11 @@ interface StartOptions {
 const SIM_HOME_DIR = path.join(os.homedir(), '.sim-studio')
 const SIM_STANDALONE_DIR = path.join(SIM_HOME_DIR, 'standalone')
 const SIM_VERSION_FILE = path.join(SIM_HOME_DIR, 'version.json')
-const STANDALONE_VERSION = '0.1.3'
+const STANDALONE_VERSION = '0.1.4'
 const DOWNLOAD_URL =
   'https://github.com/simstudioai/sim/releases/latest/download/sim-standalone.tar.gz'
+// Add a custom user agent to avoid GitHub API rate limiting
+const USER_AGENT = 'SimStudio-CLI'
 
 /**
  * Start command that launches Sim Studio using local storage
@@ -85,7 +87,7 @@ export async function start(options: StartOptions) {
               stdio: 'inherit',
             })
           } catch (error) {
-            spinner.fail('Failed to build Next.js app')
+            spinner.fail('Build failed')
             console.error(chalk.red('Error:'), error instanceof Error ? error.message : error)
             process.exit(1)
           }
@@ -99,7 +101,7 @@ export async function start(options: StartOptions) {
       }
     } else {
       // Running from outside the project via npx - we'll download and start a standalone version
-      spinner.text = 'Setting up standalone Sim Studio...'
+      spinner.text = 'Setting up Sim Studio...'
 
       // Create the .sim-studio directory if it doesn't exist
       if (!fs.existsSync(SIM_HOME_DIR)) {
@@ -124,11 +126,11 @@ export async function start(options: StartOptions) {
       // Download and extract if needed
       if (needsDownload) {
         try {
+          console.log(`\n${chalk.blue('ℹ')} Downloading Sim Studio...`)
+
           await downloadStandaloneApp(spinner, options)
         } catch (error) {
-          spinner.fail(
-            `Failed to download Sim Studio: ${error instanceof Error ? error.message : String(error)}`
-          )
+          spinner.fail('Download failed')
           console.log(`\n${chalk.yellow('⚠️')} If you're having network issues, you can try:
   1. Check your internet connection
   2. Try again later
@@ -136,18 +138,18 @@ export async function start(options: StartOptions) {
           process.exit(1)
         }
       } else {
-        spinner.text = 'Using cached Sim Studio standalone version...'
+        spinner.text = 'Using cached version...'
       }
 
       // Start the standalone app
-      spinner.text = 'Starting Sim Studio standalone...'
+      spinner.text = 'Starting Sim Studio...'
 
       // Make sure the standalone directory exists
       if (
         !fs.existsSync(SIM_STANDALONE_DIR) ||
         !fs.existsSync(path.join(SIM_STANDALONE_DIR, 'server.js'))
       ) {
-        spinner.fail('Standalone app files are missing. Re-run to download again.')
+        spinner.fail('Setup incomplete')
         // Force a fresh download next time
         if (fs.existsSync(SIM_VERSION_FILE)) {
           fs.unlinkSync(SIM_VERSION_FILE)
@@ -170,13 +172,13 @@ export async function start(options: StartOptions) {
     }
 
     // Successful start
-    spinner.succeed(`Sim Studio is running on ${chalk.cyan(`http://localhost:${port}`)}`)
+    spinner.succeed(`Sim Studio started on ${chalk.cyan(`http://localhost:${port}`)}`)
     console.log(`
-${chalk.green('✓')} Using local storage mode - your data will be stored in the browser
-${chalk.green('✓')} Any changes will be persisted between sessions through localStorage
-${chalk.green('✓')} Authentication is disabled - you have immediate access to all features
-${chalk.yellow('i')} Navigate to ${chalk.cyan(`http://localhost:${port}/w`)} to create a new workflow
-${chalk.yellow('i')} Press ${chalk.bold('Ctrl+C')} to stop the server
+${chalk.green('✓')} Local storage mode enabled
+${chalk.green('✓')} Changes persist between sessions
+${chalk.green('✓')} Authentication disabled
+${chalk.blue('ℹ')} Create a workflow at ${chalk.cyan(`http://localhost:${port}/w`)}
+${chalk.blue('ℹ')} Press ${chalk.bold('Ctrl+C')} to stop the server
 `)
 
     // Auto-open browser to workflow page
@@ -188,18 +190,18 @@ ${chalk.yellow('i')} Press ${chalk.bold('Ctrl+C')} to stop the server
         // Wait a short time for the server to fully start
         setTimeout(() => {
           open(`http://localhost:${port}/w`)
-          console.log(`${chalk.green('✓')} Opened browser to workflow canvas`)
+          console.log(`${chalk.green('✓')} Browser opened to workflow canvas`)
         }, 1000)
       } catch (error) {
         console.log(
-          `${chalk.yellow('i')} Could not automatically open browser. Please navigate to ${chalk.cyan(`http://localhost:${port}/w`)} manually.`
+          `${chalk.blue('ℹ')} Please navigate to ${chalk.cyan(`http://localhost:${port}/w`)} in your browser`
         )
       }
     }
 
     // Handle process termination
     process.on('SIGINT', () => {
-      console.log(`\n${chalk.yellow('⚠️')} Shutting down Sim Studio...`)
+      console.log(`\n${chalk.blue('ℹ')} Shutting down Sim Studio...`)
       simProcess.kill('SIGINT')
       process.exit(0)
     })
@@ -207,7 +209,7 @@ ${chalk.yellow('i')} Press ${chalk.bold('Ctrl+C')} to stop the server
     // Return the process for testing purposes
     return simProcess
   } catch (error) {
-    spinner.fail('Failed to start Sim Studio')
+    spinner.fail('Failed to start')
     console.error(chalk.red('Error:'), error instanceof Error ? error.message : error)
     process.exit(1)
   }
@@ -261,132 +263,239 @@ async function downloadStandaloneApp(spinner: SimpleSpinner, options: StartOptio
     fs.mkdirSync(tmpDir, { recursive: true })
 
     const tarballPath = path.join(tmpDir, 'sim-standalone.tar.gz')
-    const file = createWriteStream(tarballPath)
 
-    spinner.text = 'Downloading Sim Studio standalone package...'
+    // Track retry attempts
+    let retryCount = 0
+    const maxRetries = 3
 
-    // Function to handle the download
-    const downloadFile = (url: string, redirectCount = 0) => {
-      // Prevent infinite redirects
-      if (redirectCount > 5) {
-        spinner.fail('Too many redirects')
-        if (options.debug) {
-          console.error('Redirect chain:', url)
-        }
-        return reject(new Error('Download failed: Too many redirects'))
+    // Function to start a fresh download attempt
+    const startDownload = (url: string) => {
+      // Create a new file stream for each attempt
+      const file = createWriteStream(tarballPath)
+
+      if (retryCount > 0) {
+        spinner.text = `Downloading Sim Studio... (Attempt ${retryCount + 1}/${maxRetries + 1})`
+      } else {
+        spinner.text = 'Downloading Sim Studio...'
       }
 
-      https
-        .get(url, (response) => {
-          // Handle redirects (302, 301, 307, etc.)
-          if (
-            response.statusCode &&
-            response.statusCode >= 300 &&
-            response.statusCode < 400 &&
-            response.headers.location
-          ) {
-            // Close the current file stream before following the redirect
-            file.close()
+      // Function to handle the download
+      downloadFile(url, 0, file)
+    }
 
-            const redirectUrl = response.headers.location.startsWith('http')
-              ? response.headers.location
-              : new URL(response.headers.location, url).toString()
+    // Function to handle the download
+    const downloadFile = (url: string, redirectCount = 0, file: fs.WriteStream) => {
+      // Prevent infinite redirects
+      if (redirectCount > 5) {
+        spinner.fail('Download failed')
+        if (options.debug) {
+          console.error('Redirect chain exceeded maximum depth')
+        }
+        return handleError(new Error('Too many redirects'))
+      }
 
-            // Only update spinner text on first redirect, then just show "Following redirects..."
-            if (redirectCount === 0) {
-              spinner.text = 'Following GitHub redirects...'
+      // Set a timeout for the request (15 seconds)
+      const request = https
+        .get(
+          url,
+          {
+            timeout: 15000,
+            headers: {
+              'User-Agent': USER_AGENT,
+            },
+          },
+          (response) => {
+            // Handle redirects (302, 301, 307, etc.)
+            if (
+              response.statusCode &&
+              response.statusCode >= 300 &&
+              response.statusCode < 400 &&
+              response.headers.location
+            ) {
+              // Close the current file stream before following the redirect
+              file.close()
+
+              const redirectUrl = response.headers.location.startsWith('http')
+                ? response.headers.location
+                : new URL(response.headers.location, url).toString()
+
+              // Only show "Following redirects" on the first redirect
+              if (redirectCount === 0 && !options.debug) {
+                spinner.text = 'Following redirects...'
+              }
+
+              // Only log redirect details in debug mode
+              if (options.debug) {
+                console.log(`Redirect ${redirectCount + 1}: ${url} -> ${redirectUrl}`)
+              }
+
+              // Follow the redirect with incremented counter
+              downloadFile(redirectUrl, redirectCount + 1, createWriteStream(tarballPath))
+              return
             }
 
-            if (options.debug) {
-              console.log(`Redirect ${redirectCount + 1}: ${url} -> ${redirectUrl}`)
+            if (response.statusCode !== 200) {
+              spinner.fail('Download failed')
+              if (options.debug) {
+                console.error(`Server returned status code: ${response.statusCode}`)
+                console.error('URL that failed:', url)
+                console.error('Response headers:', JSON.stringify(response.headers, null, 2))
+              }
+              file.close()
+              return handleError(new Error(`Server returned ${response.statusCode}`))
             }
 
-            // Follow the redirect with incremented counter
-            downloadFile(redirectUrl, redirectCount + 1)
-            return
-          }
+            // Get content length for progress tracking
+            const totalSize = parseInt(response.headers['content-length'] || '0', 10)
+            let downloadedSize = 0
+            let lastProgressUpdate = Date.now()
+            let lastDataReceived = Date.now()
+            const startTime = Date.now()
 
-          if (response.statusCode !== 200) {
-            spinner.fail(`Failed to download: ${response.statusCode}`)
-            if (options.debug) {
-              console.error('URL that failed:', url)
-              console.error('Headers:', JSON.stringify(response.headers, null, 2))
-            }
-            return reject(new Error(`Download failed with status code: ${response.statusCode}`))
-          }
-
-          spinner.text = 'Downloading Sim Studio standalone package...'
-          response.pipe(file)
-
-          file.on('finish', () => {
-            file.close()
-
-            // Clear the standalone directory if it exists
-            if (fs.existsSync(SIM_STANDALONE_DIR)) {
-              fs.rmSync(SIM_STANDALONE_DIR, { recursive: true, force: true })
+            if (totalSize > 0) {
+              spinner.text = `Downloading Sim Studio... (${(totalSize / 1024 / 1024).toFixed(1)} MB)`
+            } else {
+              spinner.text = 'Downloading Sim Studio...'
             }
 
-            // Create the directory
-            fs.mkdirSync(SIM_STANDALONE_DIR, { recursive: true })
+            // Track download progress
+            response.on('data', (chunk) => {
+              downloadedSize += chunk.length
+              lastDataReceived = Date.now()
 
-            spinner.text = 'Extracting Sim Studio...'
+              // Only update the spinner text every 500ms to avoid excessive updates
+              const now = Date.now()
+              if (now - lastProgressUpdate > 500) {
+                lastProgressUpdate = now
+                const elapsedSeconds = (now - startTime) / 1000
+                const downloadSpeed = downloadedSize / elapsedSeconds / 1024 / 1024 // MB/s
 
-            // Dynamically import tar only when needed
-            import('tar')
-              .then(({ extract }) => {
-                // Extract the tarball
-                extract({
-                  file: tarballPath,
-                  cwd: SIM_STANDALONE_DIR,
-                })
-                  .then(() => {
-                    // Clean up
-                    fs.rmSync(tmpDir, { recursive: true, force: true })
+                if (totalSize > 0) {
+                  const percent = Math.round((downloadedSize / totalSize) * 100)
+                  spinner.text = `Downloading Sim Studio... ${percent}% (${(downloadedSize / 1024 / 1024).toFixed(1)}/${(totalSize / 1024 / 1024).toFixed(1)} MB)`
+                } else {
+                  spinner.text = `Downloading Sim Studio... ${(downloadedSize / 1024 / 1024).toFixed(1)} MB downloaded`
+                }
+              }
+            })
 
-                    // Install dependencies if needed
-                    if (fs.existsSync(path.join(SIM_STANDALONE_DIR, 'package.json'))) {
-                      spinner.text = 'Installing dependencies...'
+            // Set up a progress check interval to detect stalled downloads
+            const progressInterval = setInterval(() => {
+              const timeSinceLastData = Date.now() - lastDataReceived
+              if (timeSinceLastData > 10000) {
+                // 10 seconds with no data
+                clearInterval(progressInterval)
+                request.destroy()
+                spinner.fail('Download failed')
+                handleError(new Error('Download stalled - no data received for 10 seconds'))
+              }
+            }, 2000)
 
-                      try {
-                        execSync('npm install --production', {
-                          cwd: SIM_STANDALONE_DIR,
-                          stdio: 'ignore',
-                        })
-                      } catch (error) {
-                        spinner.warn('Error installing dependencies, but trying to continue...')
+            response.pipe(file)
+
+            file.on('finish', () => {
+              clearInterval(progressInterval)
+              file.close()
+
+              // Clear the standalone directory if it exists
+              if (fs.existsSync(SIM_STANDALONE_DIR)) {
+                fs.rmSync(SIM_STANDALONE_DIR, { recursive: true, force: true })
+              }
+
+              // Create the directory
+              fs.mkdirSync(SIM_STANDALONE_DIR, { recursive: true })
+
+              spinner.text = 'Extracting files...'
+
+              // Dynamically import tar only when needed
+              import('tar')
+                .then(({ extract }) => {
+                  // Extract the tarball
+                  extract({
+                    file: tarballPath,
+                    cwd: SIM_STANDALONE_DIR,
+                  })
+                    .then(() => {
+                      // Clean up
+                      fs.rmSync(tmpDir, { recursive: true, force: true })
+
+                      // Install dependencies if needed
+                      if (fs.existsSync(path.join(SIM_STANDALONE_DIR, 'package.json'))) {
+                        spinner.text = 'Installing dependencies...'
+
+                        try {
+                          execSync('npm install --production', {
+                            cwd: SIM_STANDALONE_DIR,
+                            stdio: 'ignore',
+                          })
+                        } catch (error) {
+                          spinner.warn('Error installing dependencies, but trying to continue...')
+                        }
                       }
-                    }
 
-                    // Write version file
-                    fs.writeFileSync(
-                      SIM_VERSION_FILE,
-                      JSON.stringify({
-                        version: STANDALONE_VERSION,
-                        date: new Date().toISOString(),
-                      })
-                    )
+                      // Write version file
+                      fs.writeFileSync(
+                        SIM_VERSION_FILE,
+                        JSON.stringify({
+                          version: STANDALONE_VERSION,
+                          date: new Date().toISOString(),
+                        })
+                      )
 
-                    spinner.succeed('Sim Studio downloaded successfully')
-                    resolve()
-                  })
-                  .catch((err) => {
-                    spinner.fail('Failed to extract Sim Studio')
-                    reject(err)
-                  })
-              })
-              .catch((err) => {
-                spinner.fail('Failed to load tar module')
-                reject(err)
-              })
-          })
-        })
+                      spinner.succeed('Setup complete')
+                      resolve()
+                    })
+                    .catch((err) => {
+                      spinner.fail('Extraction failed')
+                      handleError(err)
+                    })
+                })
+                .catch((err) => {
+                  spinner.fail('Extraction failed')
+                  handleError(err)
+                })
+            })
+
+            file.on('error', (err) => {
+              clearInterval(progressInterval)
+              spinner.fail('File error')
+              handleError(err)
+            })
+          }
+        )
         .on('error', (err) => {
           spinner.fail('Network error')
-          reject(err)
+          handleError(err)
+        })
+        .on('timeout', () => {
+          request.destroy()
+          spinner.fail('Download timed out')
+          handleError(new Error('Download timed out after 15 seconds'))
         })
     }
 
+    // Error handler with retry logic
+    const handleError = (err: Error) => {
+      if (retryCount < maxRetries) {
+        retryCount++
+        spinner.text = `Retrying download (${retryCount}/${maxRetries})...`
+
+        // Use the same URL but with a delay
+        setTimeout(() => startDownload(DOWNLOAD_URL), 1000)
+      } else {
+        // Clean up
+        if (fs.existsSync(tarballPath)) {
+          fs.unlinkSync(tarballPath)
+        }
+        if (fs.existsSync(tmpDir)) {
+          fs.rmSync(tmpDir, { recursive: true, force: true })
+        }
+
+        reject(err)
+      }
+    }
+
     // Start the download process
-    downloadFile(DOWNLOAD_URL)
+    startDownload(DOWNLOAD_URL)
   })
 }
