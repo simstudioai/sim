@@ -12,6 +12,8 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
+import { useOAuthErrorHandler } from '@/lib/oauth'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { getSyncManagers, initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
@@ -49,6 +51,9 @@ function WorkflowContent() {
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
+
+  // Add OAuth error handling
+  const { modalState, handleOAuthError, closeModal } = useOAuthErrorHandler()
 
   // Initialize workflow
   useEffect(() => {
@@ -310,48 +315,61 @@ function WorkflowContent() {
   if (!isInitialized) return null
 
   return (
-    <div className="relative w-full h-[calc(100vh-4rem)]">
-      <NotificationList />
-      <ReactFlow
-        nodes={nodes}
-        edges={edgesWithSelection}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onDrop={onDrop}
-        onDragOver={(e) => e.preventDefault()}
-        fitView
-        minZoom={0.1}
-        maxZoom={1}
-        panOnScroll
-        defaultEdgeOptions={{ type: 'custom' }}
-        proOptions={{ hideAttribution: true }}
-        connectionLineStyle={{
-          stroke: '#94a3b8',
-          strokeWidth: 2,
-          strokeDasharray: '5,5',
-        }}
-        connectionLineType={ConnectionLineType.SmoothStep}
-        onNodeClick={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-        }}
-        onPaneClick={onPaneClick}
-        onEdgeClick={onEdgeClick}
-        elementsSelectable={true}
-        selectNodesOnDrag={false}
-        nodesConnectable={true}
-        nodesDraggable={true}
-        draggable={false}
-        noWheelClassName="allow-scroll"
-        edgesFocusable={true}
-        edgesUpdatable={true}
-      >
-        <Background />
-      </ReactFlow>
-    </div>
+    <>
+      {/* Add the OAuth modal */}
+      {modalState.isOpen && modalState.provider && (
+        <OAuthRequiredModal
+          isOpen={modalState.isOpen}
+          onClose={closeModal}
+          provider={modalState.provider}
+          toolName={modalState.toolName}
+          requiredScopes={modalState.requiredScopes}
+        />
+      )}
+
+      <div className="relative w-full h-[calc(100vh-4rem)]">
+        <NotificationList />
+        <ReactFlow
+          nodes={nodes}
+          edges={edgesWithSelection}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onDrop={onDrop}
+          onDragOver={(e) => e.preventDefault()}
+          fitView
+          minZoom={0.1}
+          maxZoom={1}
+          panOnScroll
+          defaultEdgeOptions={{ type: 'custom' }}
+          proOptions={{ hideAttribution: true }}
+          connectionLineStyle={{
+            stroke: '#94a3b8',
+            strokeWidth: 2,
+            strokeDasharray: '5,5',
+          }}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          onNodeClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+          }}
+          onPaneClick={onPaneClick}
+          onEdgeClick={onEdgeClick}
+          elementsSelectable={true}
+          selectNodesOnDrag={false}
+          nodesConnectable={true}
+          nodesDraggable={true}
+          draggable={false}
+          noWheelClassName="allow-scroll"
+          edgesFocusable={true}
+          edgesUpdatable={true}
+        >
+          <Background />
+        </ReactFlow>
+      </div>
+    </>
   )
 }
 

@@ -1,4 +1,4 @@
-import { verifyOAuthBeforeExecutionServer } from '@/lib/oauth'
+import { OAuthRequiredError } from '@/lib/oauth'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
@@ -275,6 +275,39 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
   }
 }
 
+// Function to check OAuth via API
+async function checkOAuth(tool: any): Promise<void> {
+  // Skip if no OAuth config or not required or if running in browser
+  if (!tool.oauth?.required || isBrowser()) {
+    return
+  }
+
+  try {
+    // Call the API route for OAuth checking
+    const response = await fetch('/api/auth/oauth/check-tool', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tool }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to check OAuth authorization')
+    }
+
+    const data = await response.json()
+
+    // If requires auth but not authorized, throw the OAuth error
+    if (data.requiresAuth && !data.isAuthorized && data.error) {
+      throw new Error(data.error)
+    }
+  } catch (error) {
+    // Re-throw the error to be caught by execution error handlers
+    throw error
+  }
+}
+
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
 export async function executeTool(
   toolId: string,
@@ -293,9 +326,8 @@ export async function executeTool(
     }
 
     // Check OAuth requirements before executing the tool
-    // This will throw an OAuthRequiredError if the tool requires OAuth but the user hasn't authorized it
     if (tool.oauth?.required && !isBrowser()) {
-      await verifyOAuthBeforeExecutionServer(tool)
+      await checkOAuth(tool)
     }
 
     // For custom tools, try direct execution in browser first if available
