@@ -28,7 +28,10 @@ async function main() {
     .on('--help', () => help())
     .action(() => {
       // Default command (no args) runs start with default options
-      start({ port: config.get('port'), debug: config.get('debug') })
+      start({
+        port: config.get('port'),
+        debug: config.get('debug'),
+      })
     })
 
   // Start command
@@ -37,8 +40,13 @@ async function main() {
     .description('Start Sim Studio with local storage')
     .option('-p, --port <port>', 'Port to run on', config.get('port'))
     .option('-d, --debug', 'Enable debug mode', config.get('debug'))
+    .option('--no-open', 'Do not automatically open browser')
     .action((options) => {
-      start(options)
+      start({
+        port: options.port,
+        debug: options.debug,
+        noOpen: !options.open,
+      })
     })
 
   // Version command
