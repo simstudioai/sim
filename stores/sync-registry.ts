@@ -2,6 +2,7 @@
 
 import { environmentSync, fetchEnvironmentVariables } from './settings/environment/sync'
 import { SyncManager } from './sync'
+import { isLocalStorageMode } from './sync-core'
 import { fetchWorkflowsFromDB, workflowSync } from './workflows/sync'
 
 // Initialize managers lazily
@@ -40,14 +41,8 @@ export async function initializeSyncManagers(): Promise<boolean> {
   managers = [workflowSync, environmentSync]
 
   try {
-    // Check if we're in local storage mode
-    const useLocalStorage =
-      typeof window !== 'undefined' &&
-      (window.localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
-        process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
-        process.env.DISABLE_DB_SYNC === 'true')
-
-    if (useLocalStorage) {
+    // Use our centralized function to check for localStorage mode
+    if (isLocalStorageMode()) {
       console.log('Running in local storage mode - skipping DB sync')
       // In local storage mode, we don't need to fetch from DB
       // Just load from localStorage directly

@@ -2,7 +2,13 @@
 
 import { useEffect } from 'react'
 import { SYNC_INTERVALS } from './constants'
-import { DEFAULT_SYNC_CONFIG, SyncConfig, SyncOperations, performSync } from './sync-core'
+import {
+  DEFAULT_SYNC_CONFIG,
+  SyncConfig,
+  SyncOperations,
+  isLocalStorageMode,
+  performSync,
+} from './sync-core'
 
 // Client-side sync manager with lifecycle and registry management
 export interface SyncManager extends SyncOperations {
@@ -128,6 +134,19 @@ export function createSingletonSyncManager(
       id: key,
       config: configFactory(),
       sync: () => {},
+      startIntervalSync: () => {},
+      stopIntervalSync: () => {},
+      dispose: () => {},
+    }
+  }
+
+  // Use our centralized function to check for localStorage mode
+  if (isLocalStorageMode()) {
+    // Return a no-op manager for localStorage mode
+    return {
+      id: key,
+      config: configFactory(),
+      sync: () => console.log(`[LocalStorage Mode] Skipping sync for ${key}`),
       startIntervalSync: () => {},
       stopIntervalSync: () => {},
       dispose: () => {},

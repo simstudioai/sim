@@ -2,6 +2,21 @@
  * Core sync types and utilities for optimistic state synchronization
  */
 
+/**
+ * Simple utility to check if we're in localStorage mode
+ * This is the single source of truth for this check
+ */
+export function isLocalStorageMode(): boolean {
+  if (typeof window === 'undefined') return false
+
+  return (
+    localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
+    process.env.USE_LOCAL_STORAGE === 'true' ||
+    process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
+    process.env.DISABLE_DB_SYNC === 'true'
+  )
+}
+
 // Configuration for a sync operation
 export interface SyncConfig {
   // Required configuration
@@ -17,9 +32,6 @@ export interface SyncConfig {
   syncInterval?: number
   onSyncSuccess?: (response: any) => void
   onSyncError?: (error: any) => void
-
-  // Local storage key for standalone mode
-  localStorageKey?: string
 }
 
 export const DEFAULT_SYNC_CONFIG: Partial<SyncConfig> = {
@@ -38,6 +50,16 @@ export interface SyncOperations {
 // Performs sync operation with automatic retry
 export async function performSync(config: SyncConfig): Promise<boolean> {
   try {
+    // In localStorage mode, just return success immediately - no need to sync to server
+    if (isLocalStorageMode()) {
+      // Still call onSyncSuccess to maintain expected behavior
+      if (config.onSyncSuccess) {
+        config.onSyncSuccess({ success: true, message: 'Skipped sync in localStorage mode' })
+      }
+      return true
+    }
+
+    // Get the payload to sync
     const payload = await Promise.resolve(config.preparePayload())
 
     // Skip sync if the payload indicates it should be skipped
@@ -45,43 +67,13 @@ export async function performSync(config: SyncConfig): Promise<boolean> {
       return true
     }
 
-    // Check if we're in local storage mode
-    const useLocalStorage =
-      typeof window !== 'undefined' &&
-      (window.localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
-        process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
-        process.env.DISABLE_DB_SYNC === 'true')
-
-    if (useLocalStorage && config.localStorageKey) {
-      // In local storage mode, save directly to localStorage
-      try {
-        window.localStorage.setItem(
-          config.localStorageKey,
-          JSON.stringify({
-            data: payload,
-            timestamp: new Date().toISOString(),
-          })
-        )
-
-        if (config.onSyncSuccess) {
-          config.onSyncSuccess({ success: true, message: 'Saved to local storage' })
-        }
-
-        return true
-      } catch (error) {
-        if (config.onSyncError) {
-          config.onSyncError(error)
-        }
-        return false
-      }
-    }
-
-    // If not in local storage mode or no localStorageKey provided, use API
+    // Normal API sync flow
     return await sendWithRetry(config.endpoint, payload, config)
   } catch (error) {
     if (config.onSyncError) {
       config.onSyncError(error)
     }
+    console.error(`Sync error: ${error}`)
     return false
   }
 }
