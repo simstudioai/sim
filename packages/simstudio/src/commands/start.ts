@@ -12,6 +12,7 @@ import { SimpleSpinner, createSpinner } from '../utils/spinner'
 interface StartOptions {
   port: string
   debug: boolean
+  noOpen?: boolean // Add option to not open browser
 }
 
 // Constants for standalone app
@@ -45,6 +46,8 @@ export async function start(options: StartOptions) {
       USE_LOCAL_STORAGE: 'true', // Key environment variable to switch to local storage
       NEXT_PUBLIC_USE_LOCAL_STORAGE: 'true', // For client-side code
       DISABLE_DB_SYNC: 'true', // Disable database sync
+      DISABLE_AUTH: 'true', // Disable authentication
+      NEXT_PUBLIC_DISABLE_AUTH: 'true', // For client-side authentication check
       NODE_ENV: debug ? 'development' : ('production' as const),
       DEBUG: debug ? '*' : undefined,
     }
@@ -171,8 +174,28 @@ export async function start(options: StartOptions) {
     console.log(`
 ${chalk.green('✓')} Using local storage mode - your data will be stored in the browser
 ${chalk.green('✓')} Any changes will be persisted between sessions through localStorage
+${chalk.green('✓')} Authentication is disabled - you have immediate access to all features
+${chalk.yellow('i')} Navigate to ${chalk.cyan(`http://localhost:${port}/w`)} to create a new workflow
 ${chalk.yellow('i')} Press ${chalk.bold('Ctrl+C')} to stop the server
 `)
+
+    // Auto-open browser to workflow page
+    if (!options.noOpen) {
+      try {
+        // Dynamically import open to avoid adding it as a dependency for production builds
+        const open = await import('open').then((m) => m.default)
+
+        // Wait a short time for the server to fully start
+        setTimeout(() => {
+          open(`http://localhost:${port}/w`)
+          console.log(`${chalk.green('✓')} Opened browser to workflow canvas`)
+        }, 1000)
+      } catch (error) {
+        console.log(
+          `${chalk.yellow('i')} Could not automatically open browser. Please navigate to ${chalk.cyan(`http://localhost:${port}/w`)} manually.`
+        )
+      }
+    }
 
     // Handle process termination
     process.on('SIGINT', () => {

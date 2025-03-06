@@ -1,4 +1,4 @@
-# Sim Studio CLI
+# Sim Studio
 
 A command-line interface for Sim Studio - a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
 
@@ -67,7 +67,7 @@ All your data is stored in your browser's localStorage, so you can close the app
 
 ## Development
 
-To contribute to the development of Sim Studio CLI:
+To contribute to the development of Sim Studio:
 
 1. Clone the repository
 2. Install dependencies with `npm install`

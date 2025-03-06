@@ -15,10 +15,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "cli:build": "npm run build -w packages/@simstudio/cli",
-    "cli:dev": "npm run build -w packages/@simstudio/cli && cd packages/@simstudio/cli && node ./dist/index.js",
-    "cli:publish": "cd packages/@simstudio/cli && npm publish --access public",
-    "cli:start": "cd packages/@simstudio/cli && node ./dist/index.js start",
+    "cli:build": "npm run build -w packages/simstudio",
+    "cli:dev": "npm run build -w packages/simstudio && cd packages/simstudio && node ./dist/index.js",
+    "cli:publish": "cd packages/simstudio && npm publish",
+    "cli:start": "cd packages/simstudio && node ./dist/index.js start",
     "build:standalone": "node scripts/build-standalone.js",
     "build:cli": "npm run cli:build && npm run build:standalone",
     "publish:cli": "npm run build:cli && npm run cli:publish"
@@ -99,6 +99,7 @@
     ]
   },
   "workspaces": [
-    "packages/@sim/*"
+    "packages/@sim/*",
+    "packages/simstudio"
   ]
 }

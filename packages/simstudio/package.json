@@ -1,6 +1,6 @@
 {
-  "name": "@simstudio/cli",
-  "version": "0.1.0",
+  "name": "simstudio",
+  "version": "0.1.1",
   "description": "CLI tool for Sim Studio - easily start, build and test agent workflows",
   "license": "MIT",
   "author": "Sim Studio Team",
@@ -12,8 +12,7 @@
   "files": [
     "bin",
     "dist",
-    "README.md",
-    "standalone"
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
@@ -21,7 +20,7 @@
     "dev": "ts-node src/index.ts",
     "clean": "rimraf dist",
     "prepublishOnly": "npm run clean && npm run build && npm run prepare-standalone && echo 'Checking for sensitive files...' && (! find . -name '.env*' -not -path '*/node_modules/*' -not -path '*/standalone/*' | grep -q .)",
-    "prepare-standalone": "node ../../../scripts/build-standalone.js"
+    "prepare-standalone": "node ../../scripts/build-standalone.js"
   },
   "keywords": [
     "sim",
@@ -39,6 +38,7 @@
     "conf": "^10.2.0",
     "dotenv": "^16.4.7",
     "inquirer": "^8.2.6",
+    "open": "^10.1.0",
     "tar": "^6.2.1",
     "update-notifier": "^5.1.0"
   },
@@ -61,8 +61,5 @@
   "bugs": {
     "url": "https://github.com/simstudioai/sim/issues"
   },
-  "homepage": "https://github.com/simstudioai/sim#readme",
-  "publishConfig": {
-    "access": "public"
-  }
+  "homepage": "https://github.com/simstudioai/sim#readme"
 }
