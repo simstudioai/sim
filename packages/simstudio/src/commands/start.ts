@@ -265,78 +265,103 @@ async function downloadStandaloneApp(spinner: SimpleSpinner): Promise<void> {
 
     spinner.text = 'Downloading Sim Studio...'
 
-    // Download the tarball
-    https
-      .get(DOWNLOAD_URL, (response) => {
-        if (response.statusCode !== 200) {
-          spinner.fail(`Failed to download: ${response.statusCode}`)
-          return reject(new Error(`Download failed with status code: ${response.statusCode}`))
-        }
+    // Function to handle the download
+    const downloadFile = (url: string) => {
+      https
+        .get(url, (response) => {
+          // Handle redirects (302, 301, 307, etc.)
+          if (
+            response.statusCode &&
+            response.statusCode >= 300 &&
+            response.statusCode < 400 &&
+            response.headers.location
+          ) {
+            // Close the current file stream before following the redirect
+            file.close()
 
-        response.pipe(file)
+            spinner.text = `Following redirect to ${response.headers.location}...`
 
-        file.on('finish', () => {
-          file.close()
-
-          // Clear the standalone directory if it exists
-          if (fs.existsSync(SIM_STANDALONE_DIR)) {
-            fs.rmSync(SIM_STANDALONE_DIR, { recursive: true, force: true })
+            // Follow the redirect
+            downloadFile(response.headers.location)
+            return
           }
 
-          // Create the directory
-          fs.mkdirSync(SIM_STANDALONE_DIR, { recursive: true })
+          if (response.statusCode !== 200) {
+            spinner.fail(`Failed to download: ${response.statusCode}`)
+            return reject(new Error(`Download failed with status code: ${response.statusCode}`))
+          }
 
-          spinner.text = 'Extracting Sim Studio...'
+          response.pipe(file)
 
-          // Dynamically import tar only when needed
-          import('tar')
-            .then(({ extract }) => {
-              // Extract the tarball
-              extract({
-                file: tarballPath,
-                cwd: SIM_STANDALONE_DIR,
-              })
-                .then(() => {
-                  // Clean up
-                  fs.rmSync(tmpDir, { recursive: true, force: true })
+          file.on('finish', () => {
+            file.close()
 
-                  // Install dependencies if needed
-                  if (fs.existsSync(path.join(SIM_STANDALONE_DIR, 'package.json'))) {
-                    spinner.text = 'Installing dependencies...'
+            // Clear the standalone directory if it exists
+            if (fs.existsSync(SIM_STANDALONE_DIR)) {
+              fs.rmSync(SIM_STANDALONE_DIR, { recursive: true, force: true })
+            }
 
-                    try {
-                      execSync('npm install --production', {
-                        cwd: SIM_STANDALONE_DIR,
-                        stdio: 'ignore',
-                      })
-                    } catch (error) {
-                      spinner.warn('Error installing dependencies, but trying to continue...')
+            // Create the directory
+            fs.mkdirSync(SIM_STANDALONE_DIR, { recursive: true })
+
+            spinner.text = 'Extracting Sim Studio...'
+
+            // Dynamically import tar only when needed
+            import('tar')
+              .then(({ extract }) => {
+                // Extract the tarball
+                extract({
+                  file: tarballPath,
+                  cwd: SIM_STANDALONE_DIR,
+                })
+                  .then(() => {
+                    // Clean up
+                    fs.rmSync(tmpDir, { recursive: true, force: true })
+
+                    // Install dependencies if needed
+                    if (fs.existsSync(path.join(SIM_STANDALONE_DIR, 'package.json'))) {
+                      spinner.text = 'Installing dependencies...'
+
+                      try {
+                        execSync('npm install --production', {
+                          cwd: SIM_STANDALONE_DIR,
+                          stdio: 'ignore',
+                        })
+                      } catch (error) {
+                        spinner.warn('Error installing dependencies, but trying to continue...')
+                      }
                     }
-                  }
 
-                  // Write version file
-                  fs.writeFileSync(
-                    SIM_VERSION_FILE,
-                    JSON.stringify({ version: STANDALONE_VERSION, date: new Date().toISOString() })
-                  )
+                    // Write version file
+                    fs.writeFileSync(
+                      SIM_VERSION_FILE,
+                      JSON.stringify({
+                        version: STANDALONE_VERSION,
+                        date: new Date().toISOString(),
+                      })
+                    )
 
-                  spinner.succeed('Sim Studio downloaded successfully')
-                  resolve()
-                })
-                .catch((err) => {
-                  spinner.fail('Failed to extract Sim Studio')
-                  reject(err)
-                })
-            })
-            .catch((err) => {
-              spinner.fail('Failed to load tar module')
-              reject(err)
-            })
+                    spinner.succeed('Sim Studio downloaded successfully')
+                    resolve()
+                  })
+                  .catch((err) => {
+                    spinner.fail('Failed to extract Sim Studio')
+                    reject(err)
+                  })
+              })
+              .catch((err) => {
+                spinner.fail('Failed to load tar module')
+                reject(err)
+              })
+          })
         })
-      })
-      .on('error', (err) => {
-        spinner.fail('Network error')
-        reject(err)
-      })
+        .on('error', (err) => {
+          spinner.fail('Network error')
+          reject(err)
+        })
+    }
+
+    // Start the download process
+    downloadFile(DOWNLOAD_URL)
   })
 }
