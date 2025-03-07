@@ -55,7 +55,9 @@ export function CredentialSelector({
     if (!open) return
     setIsLoading(true)
     try {
-      const response = await fetch(`/api/auth/oauth/credentials?provider=${provider}`)
+      const providerId = getProviderId()
+
+      const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
@@ -173,11 +175,10 @@ export function CredentialSelector({
 
   // Get provider icon
   const getProviderIcon = (provider: OAuthProvider) => {
-    switch (provider) {
+    const baseProvider = provider.split('-')[0] as OAuthProvider
+    switch (baseProvider) {
       case 'google':
         return <GoogleIcon className="h-4 w-4" />
-      case 'google-email':
-        return <GmailIcon className="h-4 w-4" />
       case 'github':
         return <GithubIcon className="h-4 w-4" />
       case 'twitter':

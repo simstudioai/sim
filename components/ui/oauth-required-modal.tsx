@@ -1,7 +1,13 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { GithubIcon, GmailIcon, GoogleIcon, xIcon as XIcon } from '@/components/icons'
+import {
+  GithubIcon,
+  GmailIcon,
+  GoogleDriveIcon,
+  GoogleIcon,
+  xIcon as XIcon,
+} from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -28,6 +34,7 @@ const PROVIDER_NAMES: Record<OAuthProvider, string> = {
   github: 'GitHub',
   google: 'Google',
   'google-email': 'Gmail',
+  'google-drive': 'Google Drive',
   twitter: 'X (Twitter)',
 }
 
@@ -36,6 +43,7 @@ const PROVIDER_ICONS: Record<OAuthProvider, React.FC<React.SVGProps<SVGSVGElemen
   github: GithubIcon,
   google: GoogleIcon,
   'google-email': GmailIcon,
+  'google-drive': GoogleDriveIcon,
   twitter: XIcon,
 }
 
@@ -44,6 +52,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
   'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
   'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
+  'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',

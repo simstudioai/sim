@@ -1,6 +1,9 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
+import { downloadTool as driveDownloadTool } from './drive/download'
+import { listTool as driveListTool } from './drive/list'
+import { uploadTool as driveUploadTool } from './drive/upload'
 import { answerTool as exaAnswer } from './exa/answer'
 import { findSimilarLinksTool as exaFindSimilarLinks } from './exa/findSimilarLinks'
 import { getContentsTool as exaGetContents } from './exa/getContents'
@@ -77,6 +80,9 @@ export const tools: Record<string, ToolConfig> = {
   exa_find_similar_links: exaFindSimilarLinks,
   exa_answer: exaAnswer,
   reddit_hot_posts: redditHotPosts,
+  google_drive_download: driveDownloadTool,
+  google_drive_list: driveListTool,
+  google_drive_upload: driveUploadTool,
 }
 
 // Get a tool by its ID

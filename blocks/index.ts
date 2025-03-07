@@ -3,6 +3,7 @@ import { AgentBlock } from './blocks/agent'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
 import { CrewAIVisionBlock } from './blocks/crewai'
+import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
 import { FirecrawlBlock } from './blocks/firecrawl'
@@ -49,6 +50,7 @@ export {
   OpenAIBlock,
   ExaBlock,
   RedditBlock,
+  GoogleDriveBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -57,6 +59,7 @@ const blocks: Record<string, BlockConfig> = {
   api: ApiBlock,
   condition: ConditionBlock,
   crewai_vision: CrewAIVisionBlock,
+  google_drive: GoogleDriveBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   firecrawl: FirecrawlBlock,

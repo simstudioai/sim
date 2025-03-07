@@ -1,5 +1,5 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-export type OAuthProvider = 'google' | 'google-email' | 'github' | 'twitter'
+export type OAuthProvider = 'google' | 'google-email' | 'google-drive' | 'github' | 'twitter'
 
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful

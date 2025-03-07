@@ -40,9 +40,7 @@ export async function GET(request: NextRequest) {
     const accounts = await db
       .select()
       .from(account)
-      .where(
-        and(eq(account.userId, session.user.id), like(account.providerId, `${baseProvider}-%`))
-      )
+      .where(and(eq(account.userId, session.user.id), eq(account.providerId, provider)))
 
     // Transform accounts into credentials
     const credentials = await Promise.all(
