@@ -3,7 +3,6 @@ import { and, eq, like } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
-import { OAuthProvider } from '@/tools/types'
 
 /**
  * Disconnect an OAuth provider for the current user

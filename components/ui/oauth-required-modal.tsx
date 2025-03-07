@@ -1,7 +1,7 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import { GithubIcon, GoogleIcon, xIcon as XIcon } from '@/components/icons'
+import { GithubIcon, GmailIcon, GoogleIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { loadFromStorage, saveToStorage } from '@/stores/workflows/persistence'
+import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthProvider } from '@/tools/types'
 
 export interface OAuthRequiredModalProps {
@@ -27,6 +27,7 @@ export interface OAuthRequiredModalProps {
 const PROVIDER_NAMES: Record<OAuthProvider, string> = {
   github: 'GitHub',
   google: 'Google',
+  'google-email': 'Gmail',
   twitter: 'X (Twitter)',
 }
 
@@ -34,6 +35,7 @@ const PROVIDER_NAMES: Record<OAuthProvider, string> = {
 const PROVIDER_ICONS: Record<OAuthProvider, React.FC<React.SVGProps<SVGSVGElement>>> = {
   github: GithubIcon,
   google: GoogleIcon,
+  'google-email': GmailIcon,
   twitter: XIcon,
 }
 

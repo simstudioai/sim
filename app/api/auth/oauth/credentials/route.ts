@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, like } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
+import { parseProvider } from '@/lib/oauth-utils'
 import { db } from '@/db'
 import { account } from '@/db/schema'
 import { OAuthProvider } from '@/tools/types'
@@ -32,11 +33,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Provider is required' }, { status: 400 })
     }
 
+    // Parse the provider to get base provider and feature type
+    const { baseProvider } = parseProvider(provider)
+
     // Get all accounts for this user and provider
     const accounts = await db
       .select()
       .from(account)
-      .where(and(eq(account.userId, session.user.id), like(account.providerId, `${provider}-%`)))
+      .where(
+        and(eq(account.userId, session.user.id), like(account.providerId, `${baseProvider}-%`))
+      )
 
     // Transform accounts into credentials
     const credentials = await Promise.all(
@@ -46,7 +52,7 @@ export async function GET(request: NextRequest) {
 
         // For Google accounts, try to get the email from the ID token
         let name = acc.accountId
-        if (provider === 'google' && acc.idToken) {
+        if (baseProvider === 'google' && acc.idToken) {
           try {
             const decoded = jwtDecode<GoogleIdToken>(acc.idToken)
             if (decoded.email) {

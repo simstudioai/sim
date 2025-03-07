@@ -30,7 +30,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       title: 'Gmail Account',
       type: 'oauth-input',
       layout: 'full',
-      provider: 'google',
+      provider: 'google-email',
       serviceId: 'gmail',
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
@@ -106,10 +106,11 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         }
       },
       params: (params) => {
-        // Add the credential ID to the params
+        // Pass the credential directly from the credential field
+        const { credential, ...rest } = params
         return {
-          ...params,
-          _credentialId: params.credential,
+          ...rest,
+          credential, // Keep the credential parameter
         }
       },
     },

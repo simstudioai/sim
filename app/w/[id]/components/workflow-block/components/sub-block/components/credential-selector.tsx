@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Key, RefreshCw } from 'lucide-react'
-import { GoogleIcon } from '@/components/icons'
+import { GithubIcon, GmailIcon, GoogleIcon, xIcon as TwitterIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -176,6 +176,12 @@ export function CredentialSelector({
     switch (provider) {
       case 'google':
         return <GoogleIcon className="h-4 w-4" />
+      case 'google-email':
+        return <GmailIcon className="h-4 w-4" />
+      case 'github':
+        return <GithubIcon className="h-4 w-4" />
+      case 'twitter':
+        return <TwitterIcon className="h-4 w-4" />
       default:
         return <ExternalLink className="h-4 w-4" />
     }
@@ -186,6 +192,8 @@ export function CredentialSelector({
     switch (provider) {
       case 'google':
         return 'Google'
+      case 'google-email':
+        return 'Gmail'
       case 'github':
         return 'GitHub'
       case 'twitter':

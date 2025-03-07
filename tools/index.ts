@@ -1,4 +1,3 @@
-import { OAuthRequiredError } from '@/lib/oauth'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
@@ -275,58 +274,6 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
   }
 }
 
-// Function to check OAuth via API
-async function checkOAuth(tool: any, params: Record<string, any>): Promise<void> {
-  if (!tool.oauth || !tool.oauth.required) {
-    return // No OAuth required
-  }
-
-  // Check if a credential ID is provided
-  const credentialId = params._credentialId
-
-  try {
-    // Call the API to check if the user is authorized
-    const response = await fetch('/api/auth/oauth/check-tool', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        tool,
-        credentialId, // Pass the credential ID if provided
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to check OAuth authorization')
-    }
-
-    const data = await response.json()
-
-    if (!data.isAuthorized) {
-      // Parse the error to get OAuth details
-      const errorDetails = JSON.parse(data.error || '{}')
-
-      if (errorDetails.type === 'oauth_required') {
-        throw new Error(
-          JSON.stringify({
-            type: 'oauth_required',
-            provider: errorDetails.provider,
-            toolId: errorDetails.toolId,
-            toolName: errorDetails.toolName,
-            requiredScopes: errorDetails.requiredScopes,
-          })
-        )
-      } else {
-        throw new Error('OAuth authorization required')
-      }
-    }
-  } catch (error) {
-    console.error('Error checking OAuth authorization:', error)
-    throw error
-  }
-}
-
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
 export async function executeTool(
   toolId: string,
@@ -342,11 +289,6 @@ export async function executeTool(
     // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
-    }
-
-    // Check OAuth requirements before executing the tool
-    if (tool.oauth?.required && !isBrowser()) {
-      await checkOAuth(tool, params)
     }
 
     // For custom tools, try direct execution in browser first if available
@@ -514,6 +456,28 @@ async function handleProxyRequest(
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
+  }
+
+  // If we have a credential parameter, fetch the access token
+  if (params.credential) {
+    try {
+      const response = await fetch(`${baseUrl}/api/auth/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId: params.credential }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch access token')
+      }
+
+      const data = await response.json()
+      params.accessToken = data.accessToken
+      delete params.credential
+    } catch (error) {
+      console.error('Error fetching access token:', error)
+      throw error
+    }
   }
 
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()

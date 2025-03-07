@@ -13,10 +13,9 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
-import { useOAuthErrorHandler } from '@/lib/oauth'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { getSyncManagers, initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
+import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -53,9 +52,6 @@ function WorkflowContent() {
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
-
-  // Add OAuth error handling
-  const { modalState, handleOAuthError, closeModal } = useOAuthErrorHandler()
 
   // Initialize workflow
   useEffect(() => {
@@ -337,17 +333,6 @@ function WorkflowContent() {
 
   return (
     <>
-      {/* Add the OAuth modal */}
-      {modalState.isOpen && modalState.provider && (
-        <OAuthRequiredModal
-          isOpen={modalState.isOpen}
-          onClose={closeModal}
-          provider={modalState.provider}
-          toolName={modalState.toolName}
-          requiredScopes={modalState.requiredScopes}
-        />
-      )}
-
       <div className="relative w-full h-[calc(100vh-4rem)]">
         <NotificationList />
         <ReactFlow

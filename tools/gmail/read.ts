@@ -9,17 +9,21 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   description: 'Read emails from Gmail',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'google-email',
+    additionalScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+  },
+
   params: {
     accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'OAuth access token for Gmail API',
+      description: 'Access token for Gmail API',
     },
     messageId: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
       description: 'ID of the message to read',
     },
   },

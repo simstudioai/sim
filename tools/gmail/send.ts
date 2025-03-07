@@ -9,17 +9,21 @@ export const gmailSendTool: ToolConfig<GmailSendParams, GmailToolResponse> = {
   description: 'Send emails using Gmail',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'google-email',
+    additionalScopes: ['https://www.googleapis.com/auth/gmail.send'],
+  },
+
   params: {
     accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'OAuth access token for Gmail API',
+      description: 'Access token for Gmail API',
     },
     to: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
       description: 'Recipient email address',
     },
     subject: {
