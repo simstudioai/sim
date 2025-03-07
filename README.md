@@ -32,8 +32,6 @@ docker compose up -d
 
 ### Option 2: Dev Containers
 
-For the best development experience:
-
 1. Open VS Code or your favorite VS Code fork (Cursor, Windsurf, etc.)
 2. Install the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 3. Open the project in your editor
@@ -41,8 +39,6 @@ For the best development experience:
 5. Run `npm run dev` in the terminal
 
 ### Option 3: Manual Setup
-
-If you prefer not to use Docker or Dev Containers:
 
 1. **Install Dependencies**
 
