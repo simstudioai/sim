@@ -25,6 +25,7 @@ export type SubBlockType =
   | 'eval-input' // Evaluation input
   | 'date-input' // Date input
   | 'time-input' // Time input
+  | 'oauth-input' // OAuth credential selector
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'
@@ -95,6 +96,10 @@ export interface SubBlockConfig {
       value: string | number | boolean
     }
   }
+  // OAuth specific properties
+  provider?: string
+  serviceId?: string
+  requiredScopes?: string[]
 }
 
 // Main block definition
@@ -111,6 +116,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     access: string[]
     config?: {
       tool: (params: Record<string, any>) => string
+      params?: (params: Record<string, any>) => Record<string, any>
     }
   }
   inputs: Record<string, ParamConfig>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ExternalLink, RefreshCw } from 'lucide-react'
-import { GithubIcon, GoogleIcon, xIcon as XIcon } from '@/components/icons'
+import { GithubIcon, GoogleDriveIcon, xIcon as XIcon } from '@/components/icons'
 import { GmailIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -61,7 +61,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       description: 'Streamline file organization and document workflows.',
       provider: 'google',
       providerId: 'google-drive',
-      icon: <GoogleIcon className="h-5 w-5" />,
+      icon: <GoogleDriveIcon className="h-5 w-5" />,
       isConnected: false,
       scopes: [],
     },
@@ -276,6 +276,19 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         </p>
       </div>
 
+      {pendingService && (
+        <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-md text-sm flex items-start gap-2">
+          <div className="min-w-4 mt-0.5">
+            <ExternalLink className="h-4 w-4 text-primary" />
+          </div>
+          <p>
+            <span className="font-medium text-primary">Action Required:</span> Please connect your
+            account to enable the requested features. The required service will be highlighted
+            below.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-6">
         {isLoading ? (
           <>
@@ -326,15 +339,6 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           ))
         )}
       </div>
-
-      {pendingService && (
-        <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-          <p>
-            <span className="font-medium">Note:</span> Connect this service to use tools that
-            require this authentication.
-          </p>
-        </div>
-      )}
     </div>
   )
 }

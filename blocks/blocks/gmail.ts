@@ -9,7 +9,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   longDescription:
     'Integrate Gmail functionality to send, read, and search email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
   category: 'tools',
-  bgColor: '#F14537',
+  bgColor: '#E0E0E0',
   icon: GmailIcon,
   subBlocks: [
     // Operation selector
@@ -24,14 +24,19 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
         { label: 'Search Emails', id: 'search_gmail' },
       ],
     },
-    // OAuth Token
+    // Gmail Credentials
     {
-      id: 'accessToken',
-      title: 'Access Token',
-      type: 'short-input',
+      id: 'credential',
+      title: 'Gmail Account',
+      type: 'oauth-input',
       layout: 'full',
-      placeholder: 'Enter Gmail OAuth token',
-      password: true,
+      provider: 'google',
+      serviceId: 'gmail',
+      requiredScopes: [
+        'https://www.googleapis.com/auth/gmail.send',
+        'https://www.googleapis.com/auth/gmail.readonly',
+      ],
+      placeholder: 'Select Gmail account',
     },
     // Send Email Fields
     {
@@ -100,11 +105,18 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
             throw new Error(`Invalid Gmail operation: ${params.operation}`)
         }
       },
+      params: (params) => {
+        // Add the credential ID to the params
+        return {
+          ...params,
+          _credentialId: params.credential,
+        }
+      },
     },
   },
   inputs: {
     operation: { type: 'string', required: true },
-    accessToken: { type: 'string', required: true },
+    credential: { type: 'string', required: true },
     // Send operation inputs
     to: { type: 'string', required: false },
     subject: { type: 'string', required: false },

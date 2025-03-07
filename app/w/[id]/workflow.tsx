@@ -18,6 +18,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { getSyncManagers, initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { getBlock } from '../../../blocks'
@@ -51,6 +52,7 @@ function WorkflowContent() {
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
+  const { setValue: setSubBlockValue } = useSubBlockStore()
 
   // Add OAuth error handling
   const { modalState, handleOAuthError, closeModal } = useOAuthErrorHandler()
@@ -311,6 +313,25 @@ function WorkflowContent() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeId, removeEdge])
+
+  // Handle sub-block value updates from custom events
+  useEffect(() => {
+    const handleSubBlockValueUpdate = (event: CustomEvent) => {
+      const { blockId, subBlockId, value } = event.detail
+      if (blockId && subBlockId) {
+        setSubBlockValue(blockId, subBlockId, value)
+      }
+    }
+
+    window.addEventListener('update-subblock-value', handleSubBlockValueUpdate as EventListener)
+
+    return () => {
+      window.removeEventListener(
+        'update-subblock-value',
+        handleSubBlockValueUpdate as EventListener
+      )
+    }
+  }, [setSubBlockValue])
 
   if (!isInitialized) return null
 

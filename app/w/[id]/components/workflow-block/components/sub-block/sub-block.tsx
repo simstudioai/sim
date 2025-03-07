@@ -7,6 +7,7 @@ import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { LongInput } from './components/long-input'
+import { OAuthInput } from './components/oauth-input'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
 import { Switch } from './components/switch'
@@ -106,6 +107,27 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
       case 'time-input':
         return (
           <TimeInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+        )
+      case 'oauth-input':
+        return (
+          <OAuthInput
+            value={typeof config.value === 'string' ? config.value : ''}
+            onChange={(value) => {
+              // Use the workflow store to update the value
+              const event = new CustomEvent('update-subblock-value', {
+                detail: {
+                  blockId,
+                  subBlockId: config.id,
+                  value,
+                },
+              })
+              window.dispatchEvent(event)
+            }}
+            provider={config.provider as any}
+            requiredScopes={config.requiredScopes || []}
+            label={config.placeholder}
+            serviceId={config.serviceId}
+          />
         )
       default:
         return null
