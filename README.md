@@ -1,17 +1,21 @@
 # Sim Studio
 
-[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white)](https://discord.gg/pQKwMTvNrg) [![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Sim Studio** is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
 
 ## Run
 
-1. Self-host
-2. [Join the Waitlist](https://simstudio.ai) for the cloud-hosted beta
+1. Run on our [cloud-hosted version](https://simstudio.ai)
+2. Self-host
 
-## Quick Start
+## How to Self-Host
 
-There are several ways to get started with Sim Studio:
+Fork this repository by clicking the "Fork" button at the top right of this page.
+
+> **Note:** Ensure you have VS Code or another editor, git, npm, and Docker (if you're not setting up manually) installed on your system.
+
+There are several ways to self-host Sim Studio:
 
 ### Option 1: Docker Environment (Recommended)
 
@@ -26,13 +30,13 @@ docker compose up -d
 ./scripts/start_simstudio_docker.sh
 ```
 
-### Option 2: [Cursor](https://cursor.sh) / [VS Code](https://code.visualstudio.com) Dev Containers
+### Option 2: Dev Containers
 
 For the best development experience:
 
-1. Install [Cursor](https://cursor.sh) or [VS Code](https://code.visualstudio.com)
+1. Open VS Code or your favorite VS Code fork (Cursor, Windsurf, etc.)
 2. Install the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-3. Open the project in Cursor or VS Code
+3. Open the project in your editor
 4. Click "Reopen in Container" when prompted
 5. Run `npm run dev` in the terminal
 
