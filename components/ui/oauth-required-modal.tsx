@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { client } from '@/lib/auth-client'
+import { loadFromStorage, saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthProvider } from '@/tools/types'
 
 export interface OAuthRequiredModalProps {
@@ -19,6 +19,7 @@ export interface OAuthRequiredModalProps {
   provider: OAuthProvider
   toolName: string
   requiredScopes?: string[]
+  serviceId?: string
 }
 
 // Map of provider names to friendly display names
@@ -41,44 +42,87 @@ export function OAuthRequiredModal({
   provider,
   toolName,
   requiredScopes = [],
+  serviceId,
 }: OAuthRequiredModalProps) {
   const providerName = PROVIDER_NAMES[provider] || provider
   const ProviderIcon = PROVIDER_ICONS[provider]
 
-  const handleAuth = async () => {
+  const handleRedirectToSettings = () => {
     try {
-      // Determine the appropriate providerId based on the provider and required scopes
-      let featureType = 'default'
+      // Determine the appropriate providerId and serviceId based on the provider and required scopes
+      let providerId: string
+      let effectiveServiceId = serviceId
 
-      // Simple scope-based feature detection (expand as needed)
-      if (requiredScopes.some((scope) => scope.includes('repo'))) {
-        featureType = 'repo'
-      } else if (requiredScopes.some((scope) => scope.includes('workflow'))) {
-        featureType = 'workflow'
-      } else if (
-        requiredScopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))
-      ) {
-        featureType = 'email'
-      } else if (requiredScopes.some((scope) => scope.includes('calendar'))) {
-        featureType = 'calendar'
-      } else if (requiredScopes.some((scope) => scope.includes('drive'))) {
-        featureType = 'drive'
-      } else if (requiredScopes.some((scope) => scope.includes('write'))) {
-        featureType = 'write'
-      } else if (requiredScopes.some((scope) => scope.includes('read'))) {
-        featureType = 'read'
+      // If no serviceId is provided, determine it based on scopes
+      if (!effectiveServiceId) {
+        if (provider === 'google') {
+          if (requiredScopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))) {
+            effectiveServiceId = 'gmail'
+            providerId = 'google-email'
+          } else if (requiredScopes.some((scope) => scope.includes('drive'))) {
+            effectiveServiceId = 'google-drive'
+            providerId = 'google-drive'
+          } else if (requiredScopes.some((scope) => scope.includes('calendar'))) {
+            effectiveServiceId = 'google-calendar'
+            providerId = 'google-calendar'
+          } else {
+            effectiveServiceId = 'gmail' // Default Google service
+            providerId = 'google-email'
+          }
+        } else if (provider === 'github') {
+          effectiveServiceId = 'github'
+          if (requiredScopes.some((scope) => scope.includes('workflow'))) {
+            providerId = 'github-workflow'
+          } else {
+            providerId = 'github-repo'
+          }
+        } else if (provider === 'twitter') {
+          effectiveServiceId = 'twitter'
+          if (requiredScopes.some((scope) => scope.includes('write'))) {
+            providerId = 'twitter-write'
+          } else {
+            providerId = 'twitter-read'
+          }
+        } else {
+          effectiveServiceId = provider
+          providerId = `${provider}-default`
+        }
+      } else {
+        // Use the provided serviceId to determine the providerId
+        switch (effectiveServiceId) {
+          case 'gmail':
+            providerId = 'google-email'
+            break
+          case 'google-drive':
+            providerId = 'google-drive'
+            break
+          case 'github':
+            providerId = 'github-repo'
+            break
+          case 'twitter':
+            providerId = 'twitter-read'
+            break
+          default:
+            providerId = `${provider}-default`
+        }
       }
 
-      // Construct the providerId based on the provider and feature type
-      const providerId = `${provider}-${featureType}`
+      // Store information about the required connection
+      saveToStorage('pending_service_id', effectiveServiceId)
+      saveToStorage('pending_oauth_scopes', requiredScopes)
+      saveToStorage('pending_oauth_return_url', window.location.href)
+      saveToStorage('pending_oauth_provider_id', providerId)
 
-      // Begin OAuth flow with the appropriate provider
-      await client.signIn.oauth2({
-        providerId,
-        callbackURL: window.location.href, // Return to the current page after auth
+      // Close the modal
+      onClose()
+
+      // Open the settings modal with the credentials tab
+      const event = new CustomEvent('open-settings', {
+        detail: { tab: 'credentials' },
       })
+      window.dispatchEvent(event)
     } catch (error) {
-      console.error('OAuth login error:', error)
+      console.error('Error redirecting to settings:', error)
     }
   }
 
@@ -99,7 +143,9 @@ export function OAuthRequiredModal({
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium">Connect {providerName}</p>
-              <p className="text-sm text-muted-foreground">Authorize access to use this tool</p>
+              <p className="text-sm text-muted-foreground">
+                You need to connect your {providerName} account in settings
+              </p>
             </div>
           </div>
 
@@ -118,8 +164,8 @@ export function OAuthRequiredModal({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" onClick={handleAuth}>
-            Connect {providerName}
+          <Button type="button" onClick={handleRedirectToSettings}>
+            Go to Settings
           </Button>
         </DialogFooter>
       </DialogContent>

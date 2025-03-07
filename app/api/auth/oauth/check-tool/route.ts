@@ -11,10 +11,22 @@ import { OAuthProvider } from '@/tools/types'
 async function hasAuthorizedProvider(
   userId: string,
   provider: OAuthProvider,
-  requiredScopes?: string[]
+  requiredScopes?: string[],
+  credentialId?: string
 ): Promise<boolean> {
   try {
-    // Determine the appropriate provider ID based on scopes
+    // If a specific credential ID is provided, check if it exists and belongs to the user
+    if (credentialId) {
+      const credential = await db
+        .select()
+        .from(account)
+        .where(and(eq(account.id, credentialId), eq(account.userId, userId)))
+        .limit(1)
+
+      return credential.length > 0
+    }
+
+    // Otherwise, determine the appropriate provider ID based on scopes
     let featureType = 'default'
     if (requiredScopes && requiredScopes.length > 0) {
       if (requiredScopes.some((scope) => scope.includes('repo'))) {
@@ -69,8 +81,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the tool from the request body
-    const { tool } = await request.json()
+    // Get the tool and credential ID from the request body
+    const { tool, credentialId } = await request.json()
 
     // Check if the tool requires OAuth
     if (!tool.oauth || !tool.oauth.required) {
@@ -82,7 +94,12 @@ export async function POST(request: NextRequest) {
     const requiredScopes = tool.oauth.additionalScopes || []
 
     // Check if the user has authorized this provider
-    const isAuthorized = await hasAuthorizedProvider(session.user.id, provider, requiredScopes)
+    const isAuthorized = await hasAuthorizedProvider(
+      session.user.id,
+      provider,
+      requiredScopes,
+      credentialId
+    )
 
     // Return the authorization status
     if (isAuthorized) {

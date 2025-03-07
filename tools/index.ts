@@ -276,20 +276,25 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
 }
 
 // Function to check OAuth via API
-async function checkOAuth(tool: any): Promise<void> {
-  // Skip if no OAuth config or not required or if running in browser
-  if (!tool.oauth?.required || isBrowser()) {
-    return
+async function checkOAuth(tool: any, params: Record<string, any>): Promise<void> {
+  if (!tool.oauth || !tool.oauth.required) {
+    return // No OAuth required
   }
 
+  // Check if a credential ID is provided
+  const credentialId = params._credentialId
+
   try {
-    // Call the API route for OAuth checking
+    // Call the API to check if the user is authorized
     const response = await fetch('/api/auth/oauth/check-tool', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ tool }),
+      body: JSON.stringify({
+        tool,
+        credentialId, // Pass the credential ID if provided
+      }),
     })
 
     if (!response.ok) {
@@ -298,12 +303,26 @@ async function checkOAuth(tool: any): Promise<void> {
 
     const data = await response.json()
 
-    // If requires auth but not authorized, throw the OAuth error
-    if (data.requiresAuth && !data.isAuthorized && data.error) {
-      throw new Error(data.error)
+    if (!data.isAuthorized) {
+      // Parse the error to get OAuth details
+      const errorDetails = JSON.parse(data.error || '{}')
+
+      if (errorDetails.type === 'oauth_required') {
+        throw new Error(
+          JSON.stringify({
+            type: 'oauth_required',
+            provider: errorDetails.provider,
+            toolId: errorDetails.toolId,
+            toolName: errorDetails.toolName,
+            requiredScopes: errorDetails.requiredScopes,
+          })
+        )
+      } else {
+        throw new Error('OAuth authorization required')
+      }
     }
   } catch (error) {
-    // Re-throw the error to be caught by execution error handlers
+    console.error('Error checking OAuth authorization:', error)
     throw error
   }
 }
@@ -327,7 +346,7 @@ export async function executeTool(
 
     // Check OAuth requirements before executing the tool
     if (tool.oauth?.required && !isBrowser()) {
-      await checkOAuth(tool)
+      await checkOAuth(tool, params)
     }
 
     // For custom tools, try direct execution in browser first if available

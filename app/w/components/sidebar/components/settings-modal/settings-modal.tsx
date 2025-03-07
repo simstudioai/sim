@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { Account } from './components/account/account'
+import { Credentials } from './components/credentials/credentials'
 import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
@@ -15,10 +16,26 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-type SettingsSection = 'general' | 'environment' | 'account'
+type SettingsSection = 'general' | 'environment' | 'account' | 'credentials'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+
+  // Listen for the custom event to open the settings modal with a specific tab
+  useEffect(() => {
+    const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
+      setActiveSection(event.detail.tab)
+      onOpenChange(true)
+    }
+
+    // Add event listener
+    window.addEventListener('open-settings', handleOpenSettings as EventListener)
+
+    // Clean up
+    return () => {
+      window.removeEventListener('open-settings', handleOpenSettings as EventListener)
+    }
+  }, [onOpenChange])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -54,6 +71,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </div>
             <div className={cn('h-full', activeSection === 'account' ? 'block' : 'hidden')}>
               <Account onOpenChange={onOpenChange} />
+            </div>
+            <div className={cn('h-full', activeSection === 'credentials' ? 'block' : 'hidden')}>
+              <Credentials onOpenChange={onOpenChange} />
             </div>
           </div>
         </div>

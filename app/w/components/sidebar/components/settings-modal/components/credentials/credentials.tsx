@@ -1,0 +1,355 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Check, ExternalLink, RefreshCw } from 'lucide-react'
+import { GithubIcon, GoogleIcon, xIcon as XIcon } from '@/components/icons'
+import { GmailIcon } from '@/components/icons'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { client } from '@/lib/auth-client'
+import { useSession } from '@/lib/auth-client'
+import { cn } from '@/lib/utils'
+import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
+import { OAuthProvider } from '@/tools/types'
+
+interface CredentialsProps {
+  onOpenChange?: (open: boolean) => void
+}
+
+interface ServiceInfo {
+  id: string
+  name: string
+  description: string
+  provider: OAuthProvider
+  providerId: string
+  icon: React.ReactNode
+  isConnected: boolean
+  scopes: string[]
+  lastConnected?: string
+}
+
+export function Credentials({ onOpenChange }: CredentialsProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+
+  const [services, setServices] = useState<ServiceInfo[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isConnecting, setIsConnecting] = useState<string | null>(null)
+  const [pendingService, setPendingService] = useState<string | null>(null)
+  const [pendingScopes, setPendingScopes] = useState<string[]>([])
+  const [authSuccess, setAuthSuccess] = useState(false)
+
+  // Define available services
+  const defineServices = (): ServiceInfo[] => [
+    {
+      id: 'gmail',
+      name: 'Gmail',
+      description: 'Automate email workflows and enhance communication efficiency.',
+      provider: 'google',
+      providerId: 'google-email',
+      icon: <GmailIcon className="h-5 w-5" />,
+      isConnected: false,
+      scopes: [],
+    },
+    {
+      id: 'google-drive',
+      name: 'Google Drive',
+      description: 'Streamline file organization and document workflows.',
+      provider: 'google',
+      providerId: 'google-drive',
+      icon: <GoogleIcon className="h-5 w-5" />,
+      isConnected: false,
+      scopes: [],
+    },
+    {
+      id: 'github',
+      name: 'GitHub',
+      description: 'Access repositories, issues, and other GitHub features.',
+      provider: 'github',
+      providerId: 'github-repo',
+      icon: <GithubIcon className="h-5 w-5" />,
+      isConnected: false,
+      scopes: [],
+    },
+    {
+      id: 'twitter',
+      name: 'X (Twitter)',
+      description: 'Read and post tweets, access user data, and more.',
+      provider: 'twitter',
+      providerId: 'twitter-read',
+      icon: <XIcon className="h-5 w-5" />,
+      isConnected: false,
+      scopes: [],
+    },
+  ]
+
+  // Fetch connection status
+  const fetchServices = async () => {
+    if (!userId) return
+
+    setIsLoading(true)
+    try {
+      // Get the base services
+      const baseServices = defineServices()
+
+      // Call your API to check connections
+      const response = await fetch('/api/auth/oauth/connections')
+      if (response.ok) {
+        const data = await response.json()
+        const connections = data.connections || []
+
+        // Update services with connection status
+        const updatedServices = baseServices.map((service) => {
+          // Find matching connection
+          const connection = connections.find((conn: any) => {
+            if (
+              service.id === 'gmail' &&
+              conn.provider === 'google' &&
+              conn.featureType === 'email'
+            ) {
+              return true
+            }
+            if (
+              service.id === 'google-drive' &&
+              conn.provider === 'google' &&
+              conn.featureType === 'drive'
+            ) {
+              return true
+            }
+            if (service.id === 'github' && conn.provider === 'github') {
+              return true
+            }
+            if (service.id === 'twitter' && conn.provider === 'twitter') {
+              return true
+            }
+            return false
+          })
+
+          if (connection) {
+            return {
+              ...service,
+              isConnected: true,
+              scopes: connection.scopes || [],
+              lastConnected: connection.lastConnected,
+            }
+          }
+
+          return service
+        })
+
+        setServices(updatedServices)
+      } else {
+        // If API fails, set default state
+        setServices(baseServices)
+      }
+    } catch (error) {
+      console.error('Error fetching connections:', error)
+      // Set default state on error
+      setServices(defineServices())
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle OAuth callback
+  useEffect(() => {
+    // Check if this is an OAuth callback
+    const code = searchParams.get('code')
+    const state = searchParams.get('state')
+
+    if (code && state) {
+      // This is an OAuth callback - set success flag
+      setAuthSuccess(true)
+
+      // Refresh connections to show the new connection
+      if (userId) {
+        fetchServices()
+      }
+    }
+  }, [searchParams, userId])
+
+  // Check for pending OAuth connections and return URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    // Check if there's a pending OAuth connection
+    const serviceId = loadFromStorage<string>('pending_service_id')
+    const scopes = loadFromStorage<string[]>('pending_oauth_scopes') || []
+    const returnUrl = loadFromStorage<string>('pending_oauth_return_url')
+
+    if (serviceId) {
+      setPendingService(serviceId)
+      setPendingScopes(scopes)
+
+      // Clear the pending connection after a short delay
+      // This gives the user time to see the highlighted connection
+      setTimeout(() => {
+        removeFromStorage('pending_service_id')
+        removeFromStorage('pending_oauth_scopes')
+      }, 500)
+    }
+
+    // Handle successful authentication return
+    if (authSuccess && returnUrl && onOpenChange) {
+      // Clear the success flag
+      setAuthSuccess(false)
+      removeFromStorage('pending_oauth_return_url')
+
+      // Close the settings modal and return to workflow
+      setTimeout(() => {
+        onOpenChange(false)
+
+        // Navigate back to the workflow if needed
+        if (returnUrl !== window.location.href) {
+          router.push(returnUrl)
+        }
+      }, 1500) // Slightly longer delay to show the connected state
+    }
+  }, [authSuccess, onOpenChange, router])
+
+  // Fetch connection status on component mount
+  useEffect(() => {
+    fetchServices()
+  }, [userId])
+
+  const handleConnect = async (service: ServiceInfo) => {
+    setIsConnecting(service.id)
+    try {
+      // Store the current URL to return to after auth
+      saveToStorage('auth_return_url', window.location.href)
+      saveToStorage('pending_service_id', service.id)
+
+      // Set a flag to indicate we're in the auth flow
+      saveToStorage('auth_in_progress', true)
+
+      // Begin OAuth flow with the appropriate provider
+      await client.signIn.oauth2({
+        providerId: service.providerId,
+        callbackURL: window.location.href, // Return to the current page after auth
+      })
+    } catch (error) {
+      console.error('OAuth login error:', error)
+      setIsConnecting(null)
+    }
+  }
+
+  const handleDisconnect = async (service: ServiceInfo) => {
+    setIsConnecting(service.id)
+    try {
+      // Call your API to disconnect the provider
+      const response = await fetch('/api/auth/oauth/disconnect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: service.provider,
+          providerId: service.providerId,
+        }),
+      })
+
+      if (response.ok) {
+        // Update the local state
+        setServices((prev) =>
+          prev.map((svc) =>
+            svc.id === service.id ? { ...svc, isConnected: false, scopes: [] } : svc
+          )
+        )
+      }
+    } catch (error) {
+      console.error('Error disconnecting provider:', error)
+    } finally {
+      setIsConnecting(null)
+    }
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      <div>
+        <h3 className="text-lg font-medium mb-1">Credentials</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Connect your accounts to use tools that require authentication.
+        </p>
+      </div>
+
+      <div className="space-y-6">
+        {isLoading ? (
+          <>
+            <ConnectionSkeleton />
+            <ConnectionSkeleton />
+            <ConnectionSkeleton />
+            <ConnectionSkeleton />
+          </>
+        ) : (
+          services.map((service) => (
+            <Card
+              key={service.id}
+              className={cn(
+                'p-5 flex items-center justify-between',
+                pendingService === service.id && 'border-primary'
+              )}
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                  {service.icon}
+                </div>
+                <div>
+                  <h4 className="font-medium">{service.name}</h4>
+                  <p className="text-sm text-muted-foreground">{service.description}</p>
+                  {service.isConnected && (
+                    <p className="text-xs flex items-center gap-1 mt-1 text-green-600">
+                      <Check className="h-3 w-3" />
+                      Connected
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                variant={service.isConnected ? 'outline' : 'default'}
+                size="sm"
+                onClick={() =>
+                  service.isConnected ? handleDisconnect(service) : handleConnect(service)
+                }
+                disabled={isConnecting === service.id}
+              >
+                {isConnecting === service.id ? (
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                {service.isConnected ? 'Disconnect' : 'Connect'}
+              </Button>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {pendingService && (
+        <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+          <p>
+            <span className="font-medium">Note:</span> Connect this service to use tools that
+            require this authentication.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ConnectionSkeleton() {
+  return (
+    <Card className="p-5 flex items-center justify-between">
+      <div className="flex items-center gap-4">
+        <Skeleton className="h-10 w-10 rounded-full" />
+        <div>
+          <Skeleton className="h-5 w-32 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+      </div>
+      <Skeleton className="h-9 w-24" />
+    </Card>
+  )
+}
