@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ExternalLink, Plus, RefreshCw } from 'lucide-react'
-import { GithubIcon, GoogleDriveIcon, xIcon as XIcon } from '@/components/icons'
+import { GithubIcon, GoogleDocsIcon, GoogleDriveIcon, xIcon as XIcon } from '@/components/icons'
 import { GmailIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -67,6 +67,16 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       scopes: [],
     },
     {
+      id: 'google-docs',
+      name: 'Google Docs',
+      description: 'Create, read, and edit Google Documents programmatically.',
+      provider: 'google',
+      providerId: 'google-docs',
+      icon: <GoogleDocsIcon className="h-5 w-5" />,
+      isConnected: false,
+      scopes: [],
+    },
+    {
       id: 'github',
       name: 'GitHub',
       description: 'Access repositories, issues, and other GitHub features.',
@@ -118,6 +128,13 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
               service.id === 'google-drive' &&
               conn.provider === 'google' &&
               conn.featureType === 'drive'
+            ) {
+              return true
+            }
+            if (
+              service.id === 'google-docs' &&
+              conn.provider === 'google' &&
+              conn.featureType === 'docs'
             ) {
               return true
             }

@@ -117,6 +117,8 @@ export function CredentialSelector({
         return 'gmail'
       } else if (requiredScopes.some((scope) => scope.includes('drive'))) {
         return 'google-drive'
+      } else if (requiredScopes.some((scope) => scope.includes('docs'))) {
+        return 'google-docs'
       } else if (requiredScopes.some((scope) => scope.includes('calendar'))) {
         return 'google-calendar'
       } else {
@@ -140,6 +142,8 @@ export function CredentialSelector({
         return 'google-email'
       case 'google-drive':
         return 'google-drive'
+      case 'google-docs':
+        return 'google-docs'
       case 'google-calendar':
         return 'google-calendar'
       case 'github':
@@ -197,6 +201,8 @@ export function CredentialSelector({
         return 'Gmail'
       case 'google-drive':
         return 'Google Drive'
+      case 'google-docs':
+        return 'Google Docs'
       case 'github':
         return 'GitHub'
       case 'twitter':

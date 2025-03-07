@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
-import { useOAuthErrorHandler } from '@/lib/oauth'
 import { useConsoleStore } from '@/stores/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -21,9 +20,6 @@ export function useWorkflowExecution() {
   const { getAllVariables } = useEnvironmentStore()
   const { isExecuting, setIsExecuting } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
-
-  // Add OAuth error handler
-  const { handleOAuthError } = useOAuthErrorHandler()
 
   const persistLogs = async (logs: any[], executionId: string) => {
     // Check if we're in local storage mode
@@ -181,35 +177,29 @@ export function useWorkflowExecution() {
     } catch (error: any) {
       console.error('Workflow Execution Error:', error)
 
-      // Check if this is an OAuth error first
-      const isOAuthError = handleOAuthError(error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
-      // If not an OAuth error, handle normally
-      if (!isOAuthError) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      // Set error result and show notification immediately
+      setExecutionResult({
+        success: false,
+        output: { response: {} },
+        error: errorMessage,
+        logs: [],
+      })
+      addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
 
-        // Set error result and show notification immediately
-        setExecutionResult({
-          success: false,
-          output: { response: {} },
-          error: errorMessage,
-          logs: [],
-        })
-        addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
-
-        // Persist error log after notification
-        await persistLogs(
-          [
-            {
-              level: 'error',
-              message: `Manual workflow execution failed: ${errorMessage}`,
-              duration: 'NA',
-              createdAt: new Date().toISOString(),
-            },
-          ],
-          executionId
-        )
-      }
+      // Persist error log after notification
+      await persistLogs(
+        [
+          {
+            level: 'error',
+            message: `Manual workflow execution failed: ${errorMessage}`,
+            duration: 'NA',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        executionId
+      )
     } finally {
       setIsExecuting(false)
     }
@@ -223,7 +213,6 @@ export function useWorkflowExecution() {
     toggleConsole,
     getAllVariables,
     setIsExecuting,
-    handleOAuthError,
   ])
 
   return { isExecuting, executionResult, handleRunWorkflow }

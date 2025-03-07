@@ -157,6 +157,17 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive',
           ],
         },
+        {
+          providerId: 'google-docs',
+          clientId: process.env.GOOGLE_CLIENT_ID as string,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'https://www.googleapis.com/auth/documents',
+          ],
+        },
 
         // Twitter providers
         // {
