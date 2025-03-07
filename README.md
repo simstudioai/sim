@@ -24,11 +24,37 @@ There are several ways to self-host Sim Studio:
 git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
+# Create environment file
+cp .env.example .env
+
 # Start the Docker environment
 docker compose up -d
 # Or use the helper script
 ./scripts/start_simstudio_docker.sh
 ```
+
+After running these commands:
+
+1. **Access the Application**:
+
+   - Open [http://localhost:3000/w/](http://localhost:3000/w/) in your browser
+   - The `/w/` path is where the main workspace interface is located
+
+2. **Useful Docker Commands**:
+
+   ```bash
+   # View application logs
+   docker compose logs -f simstudio
+
+   # Access PostgreSQL database
+   docker compose exec db psql -U postgres -d simstudio
+
+   # Stop the environment
+   docker compose down
+
+   # Rebuild and restart (after code changes)
+   docker compose up -d --build
+   ```
 
 ### Option 2: Dev Containers
 
