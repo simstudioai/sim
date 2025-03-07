@@ -21,6 +21,7 @@ import { SlackBlock } from './blocks/slack'
 import { StarterBlock } from './blocks/starter'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
+import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
@@ -51,6 +52,7 @@ export {
   ExaBlock,
   RedditBlock,
   GoogleDriveBlock,
+  WhatsAppBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -77,6 +79,7 @@ const blocks: Record<string, BlockConfig> = {
   starter: StarterBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
+  whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
 }

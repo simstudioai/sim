@@ -33,20 +33,24 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
     },
     // Webhook configuration
     {
-      id: 'webhookPath',
-      title: 'Webhook Path',
-      type: 'short-input',
+      id: 'webhookProvider',
+      title: 'Webhook Provider',
+      type: 'dropdown',
       layout: 'full',
-      placeholder: 'Enter webhook path (e.g., /my-webhook)',
+      options: [
+        { label: 'Generic', id: 'generic' },
+        { label: 'WhatsApp', id: 'whatsapp' },
+        { label: 'GitHub', id: 'github' },
+        { label: 'Stripe', id: 'stripe' },
+      ],
+      value: () => 'generic',
       condition: { field: 'startWorkflow', value: 'webhook' },
     },
     {
-      id: 'webhookSecret',
-      title: 'Webhook Secret',
-      type: 'short-input',
+      id: 'webhookConfig',
+      title: 'Webhook Configuration',
+      type: 'webhook-config',
       layout: 'full',
-      placeholder: 'Enter a secret key for webhook security',
-      password: true,
       condition: { field: 'startWorkflow', value: 'webhook' },
     },
     // Common schedule fields for all frequency types

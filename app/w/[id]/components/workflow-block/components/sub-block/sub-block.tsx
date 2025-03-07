@@ -14,6 +14,7 @@ import { Switch } from './components/switch'
 import { Table } from './components/table'
 import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
+import { WebhookConfig } from './components/webhook-config'
 
 interface SubBlockProps {
   blockId: string
@@ -58,6 +59,10 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
               options={config.options as string[]}
             />
           </div>
+        )
+      case 'webhook-config':
+        return (
+          <WebhookConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
         )
       case 'slider':
         return (

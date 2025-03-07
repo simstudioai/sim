@@ -1640,7 +1640,7 @@ export function SupabaseIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function WhatsappIcon(props: SVGProps<SVGSVGElement>) {
+export function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}

@@ -1,4 +1,4 @@
-import { boolean, json, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, json, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -121,3 +121,25 @@ export const workflowSchedule = pgTable('workflow_schedule', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const webhook = pgTable(
+  'webhook',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    secret: text('secret'),
+    provider: text('provider'), // e.g., "whatsapp", "github", etc.
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Ensure webhook paths are unique
+      pathIdx: uniqueIndex('path_idx').on(table.path),
+    }
+  }
+)

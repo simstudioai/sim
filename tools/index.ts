@@ -36,6 +36,7 @@ import { extractTool as tavilyExtract } from './tavily/extract'
 import { searchTool as tavilySearch } from './tavily/search'
 import { ToolConfig, ToolResponse } from './types'
 import { executeRequest, formatRequestParams, validateToolRequest } from './utils'
+import { WhatsAppTool } from './whatsapp'
 import { readTool as xRead } from './x/read'
 import { searchTool as xSearch } from './x/search'
 import { userTool as xUser } from './x/user'
@@ -64,6 +65,7 @@ export const tools: Record<string, ToolConfig> = {
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
+  whatsapp: WhatsAppTool,
   x_write: xWrite,
   x_read: xRead,
   x_search: xSearch,

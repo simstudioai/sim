@@ -26,6 +26,7 @@ export type SubBlockType =
   | 'date-input' // Date input
   | 'time-input' // Time input
   | 'oauth-input' // OAuth credential selector
+  | 'webhook-config' // Webhook configuration
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'
