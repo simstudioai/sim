@@ -3,11 +3,11 @@ import { SubBlockConfig } from '../../../../../../../blocks/types'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
+import { CredentialSelector } from './components/credential-selector'
 import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { LongInput } from './components/long-input'
-import { OAuthInput } from './components/oauth-input'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
 import { Switch } from './components/switch'
@@ -110,7 +110,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         )
       case 'oauth-input':
         return (
-          <OAuthInput
+          <CredentialSelector
             value={typeof config.value === 'string' ? config.value : ''}
             onChange={(value) => {
               // Use the workflow store to update the value
@@ -125,7 +125,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             }}
             provider={config.provider as any}
             requiredScopes={config.requiredScopes || []}
-            label={config.placeholder}
+            label={config.placeholder || 'Select a credential'}
             serviceId={config.serviceId}
           />
         )

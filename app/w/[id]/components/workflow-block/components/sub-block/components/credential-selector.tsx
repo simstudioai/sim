@@ -195,6 +195,8 @@ export function CredentialSelector({
         return 'Google'
       case 'google-email':
         return 'Gmail'
+      case 'google-drive':
+        return 'Google Drive'
       case 'github':
         return 'GitHub'
       case 'twitter':
@@ -231,7 +233,7 @@ export function CredentialSelector({
         </PopoverTrigger>
         <PopoverContent className="w-[250px] p-0">
           <Command>
-            <CommandInput placeholder={`Search ${getProviderName(provider)} credentials...`} />
+            <CommandInput placeholder={`Search credentials...`} />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (

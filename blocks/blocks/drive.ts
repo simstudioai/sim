@@ -18,7 +18,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   longDescription:
     'Integrate Google Drive functionality to manage files and folders. Upload new files, download existing ones, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.',
   category: 'tools',
-  bgColor: '#1EA362',
+  bgColor: '#E0E0E0',
   icon: GoogleDriveIcon,
   subBlocks: [
     // Operation selector
