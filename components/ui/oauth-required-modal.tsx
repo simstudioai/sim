@@ -1,5 +1,6 @@
 'use client'
 
+import { Check } from 'lucide-react'
 import { GithubIcon, GoogleIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,6 +37,27 @@ const PROVIDER_ICONS: Record<OAuthProvider, React.FC<React.SVGProps<SVGSVGElemen
   twitter: XIcon,
 }
 
+// Map of OAuth scopes to user-friendly descriptions
+const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
+  'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
+  'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
+  'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
+  'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
+  'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',
+  repo: 'Access your repositories',
+  workflow: 'Manage repository workflows',
+  'user:email': 'Access your email address',
+  'tweet.read': 'Read your tweets',
+  'tweet.write': 'Create tweets on your behalf',
+  'users.read': 'Read your profile information',
+}
+
+// Convert OAuth scope to user-friendly description
+function getScopeDescription(scope: string): string {
+  return SCOPE_DESCRIPTIONS[scope] || scope
+}
+
 export function OAuthRequiredModal({
   isOpen,
   onClose,
@@ -46,6 +68,11 @@ export function OAuthRequiredModal({
 }: OAuthRequiredModalProps) {
   const providerName = PROVIDER_NAMES[provider] || provider
   const ProviderIcon = PROVIDER_ICONS[provider]
+
+  // Filter out userinfo scopes as they're not relevant to show to users
+  const displayScopes = requiredScopes.filter(
+    (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
+  )
 
   const handleRedirectToSettings = () => {
     try {
@@ -149,15 +176,22 @@ export function OAuthRequiredModal({
             </div>
           </div>
 
-          {requiredScopes.length > 0 && (
-            <details className="text-sm text-muted-foreground rounded-md border p-2">
-              <summary className="cursor-pointer font-medium">Permissions requested</summary>
-              <ul className="mt-2 pl-4 list-disc space-y-1">
-                {requiredScopes.map((scope) => (
-                  <li key={scope}>{scope}</li>
+          {displayScopes.length > 0 && (
+            <div className="rounded-md border bg-muted/50">
+              <div className="px-4 py-3 border-b">
+                <h4 className="font-medium text-sm">Permissions requested</h4>
+              </div>
+              <ul className="px-4 py-3 space-y-3">
+                {displayScopes.map((scope) => (
+                  <li key={scope} className="flex items-start gap-2 text-sm">
+                    <div className="mt-1 rounded-full p-0.5 bg-muted">
+                      <Check className="h-3 w-3" />
+                    </div>
+                    <span className="text-muted-foreground">{getScopeDescription(scope)}</span>
+                  </li>
                 ))}
               </ul>
-            </details>
+            </div>
           )}
         </div>
         <DialogFooter className="flex space-x-2 sm:justify-end">
