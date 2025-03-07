@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { workflowId, path, secret, provider } = body
+    const { workflowId, path, provider, providerConfig } = body
 
     // Validate input
     if (!workflowId || !path) {
@@ -64,19 +64,36 @@ export async function POST(request: NextRequest) {
     // Check if a webhook with the same path already exists
     const existingWebhooks = await db.select().from(webhook).where(eq(webhook.path, path)).limit(1)
 
-    if (existingWebhooks.length > 0) {
+    // If a webhook with the same path exists but belongs to a different workflow, return an error
+    if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId !== workflowId) {
       return NextResponse.json({ error: 'Webhook path already exists' }, { status: 409 })
     }
 
-    // Create the webhook
+    // If a webhook with the same path and workflowId exists, update it
+    if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId === workflowId) {
+      const updatedWebhook = await db
+        .update(webhook)
+        .set({
+          provider,
+          providerConfig,
+          isActive: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(webhook.id, existingWebhooks[0].id))
+        .returning()
+
+      return NextResponse.json({ webhook: updatedWebhook[0] }, { status: 200 })
+    }
+
+    // Create a new webhook
     const newWebhook = await db
       .insert(webhook)
       .values({
         id: nanoid(),
         workflowId,
         path,
-        secret,
         provider,
+        providerConfig,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),

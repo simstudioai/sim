@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, Copy, X } from 'lucide-react'
+import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,14 +13,28 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+// Define provider-specific configuration types
+interface WhatsAppConfig {
+  verificationToken: string
+}
+
+interface GitHubConfig {
+  contentType: string
+}
+
+interface StripeConfig {
+  // Any Stripe-specific fields would go here
+}
+
+type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | Record<string, never>
+
 interface WebhookModalProps {
   isOpen: boolean
   onClose: () => void
   webhookPath: string
   webhookProvider: string
-  webhookSecret?: string
   workflowId: string
-  onSave?: (path: string, secret: string) => void
+  onSave?: (path: string, providerConfig: ProviderConfig) => void
 }
 
 export function WebhookModal({
@@ -27,12 +42,15 @@ export function WebhookModal({
   onClose,
   webhookPath,
   webhookProvider,
-  webhookSecret,
   workflowId,
   onSave,
 }: WebhookModalProps) {
   const [copied, setCopied] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Provider-specific configuration state
+  const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
+  const [githubContentType, setGithubContentType] = useState('application/json')
 
   // Format the path to ensure it starts with a slash
   const formattedPath =
@@ -56,12 +74,25 @@ export function WebhookModal({
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const getProviderConfig = (): ProviderConfig => {
+    switch (webhookProvider) {
+      case 'whatsapp':
+        return { verificationToken: whatsappVerificationToken }
+      case 'github':
+        return { contentType: githubContentType }
+      case 'stripe':
+        return {}
+      default:
+        return {}
+    }
+  }
+
   const handleSave = async () => {
     if (onSave) {
       setSaving(true)
       try {
-        // We're keeping the existing path and secret
-        await onSave(webhookPath || formattedPath.substring(1), webhookSecret || '')
+        const providerConfig = getProviderConfig()
+        await onSave(webhookPath || formattedPath.substring(1), providerConfig)
         onClose()
       } catch (error) {
         console.error('Error saving webhook configuration:', error)
@@ -73,50 +104,86 @@ export function WebhookModal({
     }
   }
 
-  // Provider-specific setup instructions
-  const getProviderInstructions = () => {
+  // Get provider icon
+  const getProviderIcon = () => {
+    switch (webhookProvider) {
+      case 'whatsapp':
+        return <WhatsAppIcon className="h-6 w-6 text-green-500" />
+      case 'github':
+        return <GithubIcon className="h-6 w-6" />
+      case 'stripe':
+        return <StripeIcon className="h-6 w-6 text-purple-500" />
+      default:
+        return null
+    }
+  }
+
+  // Provider-specific setup instructions and configuration fields
+  const renderProviderContent = () => {
     switch (webhookProvider) {
       case 'whatsapp':
         return (
-          <div className="space-y-2">
-            <h4 className="font-medium">WhatsApp Setup Instructions</h4>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li>Go to your Meta for Developers dashboard</li>
-              <li>Navigate to your WhatsApp app settings</li>
-              <li>Under "Webhooks", click "Configure"</li>
-              <li>Enter the Webhook URL shown above</li>
-              <li>
-                Enter your verification token (set in environment variables as{' '}
-                <code>WHATSAPP_VERIFY_TOKEN</code>)
-              </li>
-              <li>Subscribe to the "messages" webhook field</li>
-              <li>Save your changes</li>
-            </ol>
-            <p className="text-sm text-muted-foreground mt-2">
-              Note: You'll need to set the WHATSAPP_VERIFY_TOKEN environment variable on your
-              server.
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="whatsapp-verification-token">Verification Token</Label>
+              <Input
+                id="whatsapp-verification-token"
+                value={whatsappVerificationToken}
+                onChange={(e) => setWhatsappVerificationToken(e.target.value)}
+                placeholder="Enter a verification token for WhatsApp"
+                className="flex-1"
+              />
+              <p className="text-xs text-muted-foreground">
+                This token will be used to verify your webhook with WhatsApp.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-medium">Setup Instructions</h4>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                <li>Go to your Meta for Developers dashboard</li>
+                <li>Navigate to your WhatsApp app settings</li>
+                <li>Under "Webhooks", click "Configure"</li>
+                <li>Enter the Webhook URL shown above</li>
+                <li>Enter the verification token you specified above</li>
+                <li>Subscribe to the "messages" webhook field</li>
+                <li>Save your changes</li>
+              </ol>
+            </div>
           </div>
         )
       case 'github':
         return (
-          <div className="space-y-2">
-            <h4 className="font-medium">GitHub Setup Instructions</h4>
-            <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li>Go to your GitHub repository</li>
-              <li>Navigate to Settings {'>'} Webhooks</li>
-              <li>Click "Add webhook"</li>
-              <li>Enter the Webhook URL shown above</li>
-              <li>Set Content type to "application/json"</li>
-              <li>Choose which events you want to trigger the webhook</li>
-              <li>Ensure "Active" is checked and save</li>
-            </ol>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="github-content-type">Content Type</Label>
+              <Input
+                id="github-content-type"
+                value={githubContentType}
+                onChange={(e) => setGithubContentType(e.target.value)}
+                placeholder="application/json"
+                className="flex-1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-medium">Setup Instructions</h4>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                <li>Go to your GitHub repository</li>
+                <li>Navigate to Settings {'>'} Webhooks</li>
+                <li>Click "Add webhook"</li>
+                <li>Enter the Webhook URL shown above</li>
+                <li>Set Content type to "{githubContentType}"</li>
+                <li>Choose which events you want to trigger the webhook</li>
+                <li>Ensure "Active" is checked and save</li>
+              </ol>
+            </div>
           </div>
         )
       case 'stripe':
         return (
           <div className="space-y-2">
-            <h4 className="font-medium">Stripe Setup Instructions</h4>
+            <h4 className="font-medium">Setup Instructions</h4>
             <ol className="list-decimal list-inside space-y-1 text-sm">
               <li>Go to your Stripe Dashboard</li>
               <li>Navigate to Developers {'>'} Webhooks</li>
@@ -140,12 +207,22 @@ export function WebhookModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Webhook Configuration</DialogTitle>
-          <DialogDescription>
-            Use this information to configure your webhook integration
-            {webhookProvider === 'whatsapp' && ' with whatsapp'}.
-          </DialogDescription>
+        <DialogHeader className="flex flex-row items-center gap-2">
+          {getProviderIcon()}
+          <div>
+            <DialogTitle>Webhook Configuration</DialogTitle>
+            <DialogDescription>
+              Configure your{' '}
+              {webhookProvider === 'whatsapp'
+                ? 'WhatsApp'
+                : webhookProvider === 'github'
+                  ? 'GitHub'
+                  : webhookProvider === 'stripe'
+                    ? 'Stripe'
+                    : 'webhook'}{' '}
+              integration
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -165,8 +242,8 @@ export function WebhookModal({
             </div>
           </div>
 
-          {/* Provider-specific instructions */}
-          <div className="space-y-2 pt-2 border-t">{getProviderInstructions()}</div>
+          {/* Provider-specific instructions and configuration */}
+          <div className="space-y-2 pt-2 border-t">{renderProviderContent()}</div>
         </div>
 
         <DialogFooter className="sm:justify-between">

@@ -47,7 +47,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const body = await request.json()
-    const { path, secret, provider, isActive } = body
+    const { path, provider, providerConfig, isActive } = body
 
     // Find the webhook and check ownership
     const webhooks = await db
@@ -76,8 +76,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .update(webhook)
       .set({
         path: path !== undefined ? path : webhooks[0].webhook.path,
-        secret: secret !== undefined ? secret : webhooks[0].webhook.secret,
         provider: provider !== undefined ? provider : webhooks[0].webhook.provider,
+        providerConfig:
+          providerConfig !== undefined ? providerConfig : webhooks[0].webhook.providerConfig,
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
         updatedAt: new Date(),
       })

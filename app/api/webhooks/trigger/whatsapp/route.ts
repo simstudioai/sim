@@ -15,12 +15,31 @@ export async function GET(request: NextRequest) {
   const token = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
-  // Your verification token should be stored securely (e.g., in environment variables)
-  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN
+  if (!mode || !token || !challenge) {
+    return new NextResponse('Missing verification parameters', { status: 400 })
+  }
 
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('WhatsApp webhook verified')
-    return new NextResponse(challenge, { status: 200 })
+  if (mode !== 'subscribe') {
+    return new NextResponse('Invalid mode', { status: 400 })
+  }
+
+  // Find all active WhatsApp webhooks
+  const webhooks = await db
+    .select({
+      webhook: webhook,
+    })
+    .from(webhook)
+    .where(and(eq(webhook.provider, 'whatsapp'), eq(webhook.isActive, true)))
+
+  // Check if any webhook has a matching verification token
+  for (const { webhook: wh } of webhooks) {
+    const providerConfig = (wh.providerConfig as Record<string, any>) || {}
+    const verificationToken = providerConfig.verificationToken
+
+    if (verificationToken && token === verificationToken) {
+      console.log('WhatsApp webhook verified')
+      return new NextResponse(challenge, { status: 200 })
+    }
   }
 
   return new NextResponse('Verification failed', { status: 403 })
@@ -98,6 +117,7 @@ export async function POST(request: NextRequest) {
               data: {
                 provider: 'whatsapp',
                 path: wh.path,
+                providerConfig: wh.providerConfig,
                 payload: body,
               },
             },

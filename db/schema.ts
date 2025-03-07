@@ -130,8 +130,8 @@ export const webhook = pgTable(
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
     path: text('path').notNull(),
-    secret: text('secret'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
+    providerConfig: json('provider_config'), // Store provider-specific configuration
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

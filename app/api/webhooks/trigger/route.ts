@@ -35,13 +35,45 @@ export async function POST(request: NextRequest) {
 
     const { webhook: foundWebhook, workflow: foundWorkflow } = webhooks[0]
 
-    // Verify webhook secret if provided
-    if (foundWebhook.secret) {
+    // Handle provider-specific verification and authentication
+    if (foundWebhook.provider) {
       const authHeader = request.headers.get('authorization')
-      const providedSecret = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
-      if (!providedSecret || providedSecret !== foundWebhook.secret) {
-        return new NextResponse('Unauthorized', { status: 401 })
+      switch (foundWebhook.provider) {
+        case 'whatsapp':
+          // Handle WhatsApp verification
+          if (request.method === 'GET') {
+            const mode = url.searchParams.get('hub.mode')
+            const token = url.searchParams.get('hub.verify_token')
+            const challenge = url.searchParams.get('hub.challenge')
+
+            if (mode === 'subscribe' && token) {
+              if (token === providerConfig.verificationToken) {
+                return new NextResponse(challenge, { status: 200 })
+              } else {
+                return new NextResponse('Verification token mismatch', { status: 403 })
+              }
+            }
+          }
+          break
+
+        case 'github':
+          // GitHub doesn't require verification in this implementation
+          break
+
+        case 'stripe':
+          // Stripe verification would go here if needed
+          break
+
+        default:
+          // For generic webhooks, check for a token if provided in providerConfig
+          if (providerConfig.token) {
+            const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
+            if (!providedToken || providedToken !== providerConfig.token) {
+              return new NextResponse('Unauthorized', { status: 401 })
+            }
+          }
       }
     }
 
@@ -57,6 +89,7 @@ export async function POST(request: NextRequest) {
         data: {
           path,
           provider: foundWebhook.provider,
+          providerConfig: foundWebhook.providerConfig,
           payload: body,
           headers: Object.fromEntries(request.headers.entries()),
           method: request.method,
@@ -78,4 +111,10 @@ export async function POST(request: NextRequest) {
     console.error('Error processing webhook:', error)
     return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
   }
+}
+
+// Add GET method to handle verification for providers like WhatsApp
+export async function GET(request: NextRequest) {
+  // Reuse the same logic for verification
+  return POST(request)
 }

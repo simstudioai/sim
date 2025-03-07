@@ -37,6 +37,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const foundWebhook = webhooks[0].webhook
+    const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
 
     // Create a test payload based on the webhook provider
     let testPayload = {}
@@ -113,8 +114,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       'Content-Type': 'application/json',
     }
 
-    if (foundWebhook.secret) {
-      headers['Authorization'] = `Bearer ${foundWebhook.secret}`
+    // Add provider-specific headers
+    if (foundWebhook.provider === 'whatsapp' && providerConfig.verificationToken) {
+      // For WhatsApp, we don't need to add any headers for the test
+    } else if (foundWebhook.provider === 'github' && providerConfig.contentType) {
+      headers['Content-Type'] = providerConfig.contentType
+    } else if (providerConfig.token) {
+      // For generic webhooks with a token
+      headers['Authorization'] = `Bearer ${providerConfig.token}`
     }
 
     try {
