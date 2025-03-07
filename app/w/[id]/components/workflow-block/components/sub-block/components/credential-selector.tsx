@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Key, RefreshCw } from 'lucide-react'
 import { GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -46,47 +46,65 @@ export function CredentialSelector({
 }: CredentialSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
+  const [selectedId, setSelectedId] = useState(value)
 
   // Fetch available credentials for this provider
-  useEffect(() => {
-    const fetchCredentials = async () => {
-      setIsLoading(true)
-      try {
-        const response = await fetch(`/api/auth/oauth/credentials?provider=${provider}`)
-        if (response.ok) {
-          const data = await response.json()
-          setCredentials(data.credentials)
+  const fetchCredentials = useCallback(async () => {
+    if (!open) return
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/auth/oauth/credentials?provider=${provider}`)
+      if (response.ok) {
+        const data = await response.json()
+        setCredentials(data.credentials)
 
-          // If we have a value but it's not in the credentials, reset it
-          if (value && !data.credentials.some((cred: Credential) => cred.id === value)) {
-            onChange('')
-          }
+        // If we have a value but it's not in the credentials, reset it
+        if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
+          setSelectedId('')
+          onChange('')
+        }
 
-          // If we have no value but have a default credential, select it
-          if (!value && data.credentials.length > 0) {
-            const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-            if (defaultCred) {
-              onChange(defaultCred.id)
-            } else if (data.credentials.length === 1) {
-              // If only one credential, select it
-              onChange(data.credentials[0].id)
-            }
+        // If we have no value but have a default credential, select it
+        if (!selectedId && data.credentials.length > 0) {
+          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
+          if (defaultCred) {
+            setSelectedId(defaultCred.id)
+            onChange(defaultCred.id)
+          } else if (data.credentials.length === 1) {
+            // If only one credential, select it
+            setSelectedId(data.credentials[0].id)
+            onChange(data.credentials[0].id)
           }
         }
-      } catch (error) {
-        console.error('Error fetching credentials:', error)
-      } finally {
-        setIsLoading(false)
       }
+    } catch (error) {
+      console.error('Error fetching credentials:', error)
+    } finally {
+      setIsLoading(false)
     }
+  }, [open, provider, onChange, selectedId])
 
+  // Only fetch credentials when opening the popover
+  useEffect(() => {
     fetchCredentials()
-  }, [provider, onChange, value])
+  }, [open, fetchCredentials])
+
+  // Update local state when external value changes
+  useEffect(() => {
+    setSelectedId(value)
+  }, [value])
 
   // Get the selected credential
-  const selectedCredential = credentials.find((cred) => cred.id === value)
+  const selectedCredential = credentials.find((cred) => cred.id === selectedId)
+
+  // Handle selection
+  const handleSelect = (credentialId: string) => {
+    setSelectedId(credentialId)
+    onChange(credentialId)
+    setOpen(false)
+  }
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -223,16 +241,13 @@ export function CredentialSelector({
                     <CommandItem
                       key={credential.id}
                       value={credential.id}
-                      onSelect={() => {
-                        onChange(credential.id)
-                        setOpen(false)
-                      }}
+                      onSelect={() => handleSelect(credential.id)}
                     >
                       <div className="flex items-center gap-2">
                         {getProviderIcon(credential.provider)}
                         <span>{credential.name}</span>
                       </div>
-                      {credential.id === value && <Check className="ml-auto h-4 w-4" />}
+                      {credential.id === selectedId && <Check className="ml-auto h-4 w-4" />}
                     </CommandItem>
                   ))}
                 </CommandGroup>

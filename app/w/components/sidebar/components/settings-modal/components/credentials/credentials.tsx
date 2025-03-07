@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, ExternalLink, RefreshCw } from 'lucide-react'
+import { Check, ExternalLink, Plus, RefreshCw } from 'lucide-react'
 import { GithubIcon, GoogleDriveIcon, xIcon as XIcon } from '@/components/icons'
 import { GmailIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ interface ServiceInfo {
   isConnected: boolean
   scopes: string[]
   lastConnected?: string
+  accounts?: { id: string; name: string }[]
 }
 
 export function Credentials({ onOpenChange }: CredentialsProps) {
@@ -132,9 +133,10 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           if (connection) {
             return {
               ...service,
-              isConnected: true,
+              isConnected: connection.accounts?.length > 0,
               scopes: connection.scopes || [],
               lastConnected: connection.lastConnected,
+              accounts: connection.accounts || [],
             }
           }
 
@@ -219,17 +221,15 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const handleConnect = async (service: ServiceInfo) => {
     setIsConnecting(service.id)
     try {
-      // Store the current URL to return to after auth
+      // Store information about the required connection
       saveToStorage('auth_return_url', window.location.href)
       saveToStorage('pending_service_id', service.id)
-
-      // Set a flag to indicate we're in the auth flow
-      saveToStorage('auth_in_progress', true)
+      saveToStorage('pending_oauth_provider_id', service.providerId)
 
       // Begin OAuth flow with the appropriate provider
       await client.signIn.oauth2({
         providerId: service.providerId,
-        callbackURL: window.location.href, // Return to the current page after auth
+        callbackURL: window.location.href,
       })
     } catch (error) {
       console.error('OAuth login error:', error)
@@ -237,8 +237,8 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     }
   }
 
-  const handleDisconnect = async (service: ServiceInfo) => {
-    setIsConnecting(service.id)
+  const handleDisconnect = async (service: ServiceInfo, accountId: string) => {
+    setIsConnecting(`${service.id}-${accountId}`)
     try {
       // Call your API to disconnect the provider
       const response = await fetch('/api/auth/oauth/disconnect', {
@@ -249,15 +249,23 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         body: JSON.stringify({
           provider: service.provider,
           providerId: service.providerId,
+          accountId,
         }),
       })
 
       if (response.ok) {
-        // Update the local state
+        // Update the local state by removing the disconnected account
         setServices((prev) =>
-          prev.map((svc) =>
-            svc.id === service.id ? { ...svc, isConnected: false, scopes: [] } : svc
-          )
+          prev.map((svc) => {
+            if (svc.id === service.id) {
+              return {
+                ...svc,
+                accounts: svc.accounts?.filter((acc) => acc.id !== accountId) || [],
+                isConnected: (svc.accounts?.length || 0) > 1,
+              }
+            }
+            return svc
+          })
         )
       }
     } catch (error) {
@@ -289,7 +297,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {isLoading ? (
           <>
             <ConnectionSkeleton />
@@ -302,39 +310,91 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
             <Card
               key={service.id}
               className={cn(
-                'p-5 flex items-center justify-between',
-                pendingService === service.id && 'border-primary'
+                'p-6 transition-all hover:shadow-md',
+                pendingService === service.id && 'border-primary shadow-md'
               )}
             >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                  {service.icon}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted shrink-0">
+                    {service.icon}
+                  </div>
+                  <div className="space-y-1">
+                    <div>
+                      <h4 className="font-medium leading-none">{service.name}</h4>
+                      <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
+                    </div>
+                    {service.accounts && service.accounts.length > 0 && (
+                      <div className="pt-3 space-y-2">
+                        {service.accounts.map((account) => (
+                          <div
+                            key={account.id}
+                            className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center">
+                                <Check className="h-3 w-3 text-green-600" />
+                              </div>
+                              <span className="text-sm font-medium">{account.name}</span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDisconnect(service, account.id)}
+                              disabled={isConnecting === `${service.id}-${account.id}`}
+                              className="h-7 px-2"
+                            >
+                              {isConnecting === `${service.id}-${account.id}` ? (
+                                <RefreshCw className="h-3 w-3 animate-spin" />
+                              ) : (
+                                'Disconnect'
+                              )}
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2"
+                          onClick={() => handleConnect(service)}
+                          disabled={isConnecting === service.id}
+                        >
+                          {isConnecting === service.id ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 animate-spin mr-2" />
+                              Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="h-3 w-3 mr-2" />
+                              Connect Another Account
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium">{service.name}</h4>
-                  <p className="text-sm text-muted-foreground">{service.description}</p>
-                  {service.isConnected && (
-                    <p className="text-xs flex items-center gap-1 mt-1 text-green-600">
-                      <Check className="h-3 w-3" />
-                      Connected
-                    </p>
-                  )}
-                </div>
-              </div>
 
-              <Button
-                variant={service.isConnected ? 'outline' : 'default'}
-                size="sm"
-                onClick={() =>
-                  service.isConnected ? handleDisconnect(service) : handleConnect(service)
-                }
-                disabled={isConnecting === service.id}
-              >
-                {isConnecting === service.id ? (
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
-                {service.isConnected ? 'Disconnect' : 'Connect'}
-              </Button>
+                {!service.accounts?.length && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleConnect(service)}
+                    disabled={isConnecting === service.id}
+                    className="shrink-0"
+                  >
+                    {isConnecting === service.id ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                        Connecting...
+                      </>
+                    ) : (
+                      'Connect'
+                    )}
+                  </Button>
+                )}
+              </div>
             </Card>
           ))
         )}
@@ -345,15 +405,17 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
 function ConnectionSkeleton() {
   return (
-    <Card className="p-5 flex items-center justify-between">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10 rounded-full" />
-        <div>
-          <Skeleton className="h-5 w-32 mb-2" />
-          <Skeleton className="h-4 w-48" />
+    <Card className="p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <Skeleton className="h-12 w-12 rounded-lg" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </div>
         </div>
+        <Skeleton className="h-9 w-24 shrink-0" />
       </div>
-      <Skeleton className="h-9 w-24" />
     </Card>
   )
 }

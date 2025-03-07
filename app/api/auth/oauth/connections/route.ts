@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, like } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
 import { OAuthProvider } from '@/tools/types'
+
+interface GoogleIdToken {
+  email?: string
+  sub?: string
+}
 
 // Valid OAuth providers
 const VALID_PROVIDERS = ['google', 'github', 'twitter']
@@ -32,14 +38,47 @@ export async function GET(request: NextRequest) {
       const [provider, featureType = 'default'] = acc.providerId.split('-')
 
       if (provider && VALID_PROVIDERS.includes(provider)) {
-        connections.push({
-          provider: provider as OAuthProvider,
-          featureType,
-          isConnected: true,
-          scopes: acc.scope ? acc.scope.split(' ') : [],
-          lastConnected: acc.updatedAt.toISOString(),
-          accountId: acc.id,
-        })
+        // Get the account name (try to get email for Google accounts)
+        let name = acc.accountId
+        if (provider === 'google' && acc.idToken) {
+          try {
+            const decoded = jwtDecode<GoogleIdToken>(acc.idToken)
+            if (decoded.email) {
+              name = decoded.email
+            }
+          } catch (error) {
+            console.error('Error decoding ID token:', error)
+          }
+        }
+
+        // Find existing connection for this provider and feature type
+        const existingConnection = connections.find(
+          (conn) => conn.provider === provider && conn.featureType === featureType
+        )
+
+        if (existingConnection) {
+          // Add account to existing connection
+          existingConnection.accounts = existingConnection.accounts || []
+          existingConnection.accounts.push({
+            id: acc.id,
+            name,
+          })
+        } else {
+          // Create new connection
+          connections.push({
+            provider: provider as OAuthProvider,
+            featureType,
+            isConnected: true,
+            scopes: acc.scope ? acc.scope.split(' ') : [],
+            lastConnected: acc.updatedAt.toISOString(),
+            accounts: [
+              {
+                id: acc.id,
+                name,
+              },
+            ],
+          })
+        }
       }
     })
 
