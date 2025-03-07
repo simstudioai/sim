@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, History, Loader2, Play, Rocket, Trash2 } from 'lucide-react'
+import { Bell, History, Loader2, Play, Rocket, ShoppingBag, Store, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -63,6 +63,9 @@ export function ControlBar() {
 
   // Deployment states
   const [isDeploying, setIsDeploying] = useState(false)
+
+  // Publish state
+  const [isPublishing, setIsPublishing] = useState(false)
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -255,6 +258,21 @@ export function ControlBar() {
       addNotification('error', 'Failed to deploy workflow. Please try again.', activeWorkflowId)
     } finally {
       setIsDeploying(false)
+    }
+  }
+
+  /**
+   * Handle publishing workflow to marketplace
+   */
+  const handlePublishWorkflow = async () => {
+    if (!activeWorkflowId) return
+
+    try {
+      console.log('Publishing workflow...')
+    } catch (error) {
+      console.error('Error publishing workflow:', error)
+    } finally {
+      setIsPublishing(false)
     }
   }
 
@@ -461,6 +479,27 @@ export function ControlBar() {
   )
 
   /**
+   * Render publish button
+   */
+  const renderPublishButton = () => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handlePublishWorkflow}
+          disabled={isPublishing}
+          className={cn('hover:text-[#7F2FFF]', isPublishing && 'text-[#7F2FFF]')}
+        >
+          <Store className={cn('h-5 w-5', isPublishing && 'animate-rocket-pulse text-[#7F2FFF]')} />
+          <span className="sr-only">Publish to Marketplace</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{isPublishing ? 'Publishing...' : 'Publish to Marketplace'}</TooltipContent>
+    </Tooltip>
+  )
+
+  /**
    * Render run workflow button
    */
   const renderRunButton = () => (
@@ -501,6 +540,7 @@ export function ControlBar() {
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
+        {renderPublishButton()}
         {renderDeployButton()}
         {renderRunButton()}
       </div>
