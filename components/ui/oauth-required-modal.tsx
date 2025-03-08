@@ -7,6 +7,7 @@ import {
   GoogleDocsIcon,
   GoogleDriveIcon,
   GoogleIcon,
+  GoogleSheetsIcon,
   xIcon as XIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ const PROVIDER_NAMES: Record<OAuthProvider, string> = {
   'google-email': 'Gmail',
   'google-drive': 'Google Drive',
   'google-docs': 'Google Docs',
+  'google-sheets': 'Google Sheets',
   twitter: 'X (Twitter)',
 }
 
@@ -47,6 +49,7 @@ const PROVIDER_ICONS: Record<OAuthProvider, React.FC<React.SVGProps<SVGSVGElemen
   'google-email': GmailIcon,
   'google-drive': GoogleDriveIcon,
   'google-docs': GoogleDocsIcon,
+  'google-sheets': GoogleSheetsIcon,
   twitter: XIcon,
 }
 
@@ -60,6 +63,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',
+  'https://www.googleapis.com/auth/spreadsheets': 'View and manage your Google Sheets',
   repo: 'Access your repositories',
   workflow: 'Manage repository workflows',
   'user:email': 'Access your email address',
@@ -107,6 +111,9 @@ export function OAuthRequiredModal({
           } else if (requiredScopes.some((scope) => scope.includes('docs'))) {
             effectiveServiceId = 'google-docs'
             providerId = 'google-docs'
+          } else if (requiredScopes.some((scope) => scope.includes('sheets'))) {
+            effectiveServiceId = 'google-sheets'
+            providerId = 'google-sheets'
           } else if (requiredScopes.some((scope) => scope.includes('calendar'))) {
             effectiveServiceId = 'google-calendar'
             providerId = 'google-calendar'
@@ -140,6 +147,9 @@ export function OAuthRequiredModal({
             break
           case 'google-drive':
             providerId = 'google-drive'
+            break
+          case 'google-sheets':
+            providerId = 'google-sheets'
             break
           case 'google-docs':
             providerId = 'google-docs'

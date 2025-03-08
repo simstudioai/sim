@@ -4,6 +4,7 @@ export type OAuthProvider =
   | 'google-email'
   | 'google-drive'
   | 'google-docs'
+  | 'google-sheets'
   | 'github'
   | 'twitter'
 

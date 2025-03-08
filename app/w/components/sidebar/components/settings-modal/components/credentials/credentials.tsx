@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ExternalLink, Plus, RefreshCw } from 'lucide-react'
-import { GithubIcon, GoogleDocsIcon, GoogleDriveIcon, xIcon as XIcon } from '@/components/icons'
+import {
+  GithubIcon,
+  GoogleDocsIcon,
+  GoogleDriveIcon,
+  GoogleSheetsIcon,
+  xIcon as XIcon,
+} from '@/components/icons'
 import { GmailIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -77,6 +83,16 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       scopes: [],
     },
     {
+      id: 'google-sheets',
+      name: 'Google Sheets',
+      description: 'Create, read, and edit Google Sheets programmatically.',
+      provider: 'google',
+      providerId: 'google-sheets',
+      icon: <GoogleSheetsIcon className="h-5 w-5" />,
+      isConnected: false,
+      scopes: [],
+    },
+    {
       id: 'github',
       name: 'GitHub',
       description: 'Access repositories, issues, and other GitHub features.',
@@ -135,6 +151,13 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
               service.id === 'google-docs' &&
               conn.provider === 'google' &&
               conn.featureType === 'docs'
+            ) {
+              return true
+            }
+            if (
+              service.id === 'google-sheets' &&
+              conn.provider === 'google' &&
+              conn.featureType === 'sheets'
             ) {
               return true
             }
