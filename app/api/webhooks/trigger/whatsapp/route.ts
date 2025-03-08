@@ -37,7 +37,6 @@ export async function GET(request: NextRequest) {
     const verificationToken = providerConfig.verificationToken
 
     if (verificationToken && token === verificationToken) {
-      console.log('WhatsApp webhook verified')
       return new NextResponse(challenge, { status: 200 })
     }
   }
