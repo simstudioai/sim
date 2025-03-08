@@ -17,6 +17,7 @@ import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
 import { RouterBlock } from './blocks/router'
 import { SerperBlock } from './blocks/serper'
+import { GoogleSheetsBlock } from './blocks/sheets'
 import { SlackBlock } from './blocks/slack'
 import { StarterBlock } from './blocks/starter'
 import { TavilyBlock } from './blocks/tavily'
@@ -53,6 +54,7 @@ export {
   RedditBlock,
   GoogleDriveBlock,
   WhatsAppBlock,
+  GoogleSheetsBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -68,6 +70,7 @@ const blocks: Record<string, BlockConfig> = {
   github: GitHubBlock,
   gmail: GmailBlock,
   google_drive: GoogleDriveBlock,
+  google_sheets: GoogleSheetsBlock,
   jina: JinaBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,

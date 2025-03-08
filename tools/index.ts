@@ -1,9 +1,7 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { visionTool as crewAIVision } from './crewai/vision'
-import { downloadTool as driveDownloadTool } from './drive/download'
-import { listTool as driveListTool } from './drive/list'
-import { uploadTool as driveUploadTool } from './drive/upload'
+import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { answerTool as exaAnswer } from './exa/answer'
 import { findSimilarLinksTool as exaFindSimilarLinks } from './exa/findSimilarLinks'
 import { getContentsTool as exaGetContents } from './exa/getContents'
@@ -14,9 +12,7 @@ import { webcontainerExecuteTool as webcontainerExecute } from './function/webco
 import { commentTool } from './github/comment'
 import { prTool } from './github/pr'
 import { repoInfoTool } from './github/repo'
-import { gmailReadTool } from './gmail/read'
-import { gmailSearchTool } from './gmail/search'
-import { gmailSendTool } from './gmail/send'
+import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
@@ -31,16 +27,14 @@ import { upsertTextTool as pineconeUpsertTextTool } from './pinecone/upsertText'
 import { hotPostsTool as redditHotPosts } from './reddit/hot'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
+import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
 import { extractTool as tavilyExtract } from './tavily/extract'
 import { searchTool as tavilySearch } from './tavily/search'
 import { ToolConfig, ToolResponse } from './types'
 import { executeRequest, formatRequestParams, validateToolRequest } from './utils'
 import { WhatsAppTool } from './whatsapp'
-import { readTool as xRead } from './x/read'
-import { searchTool as xSearch } from './x/search'
-import { userTool as xUser } from './x/user'
-import { writeTool as xWrite } from './x/write'
+import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 
 // Registry of all available tools
@@ -66,10 +60,10 @@ export const tools: Record<string, ToolConfig> = {
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
   whatsapp: WhatsAppTool,
-  x_write: xWrite,
-  x_read: xRead,
-  x_search: xSearch,
-  x_user: xUser,
+  x_write: xWriteTool,
+  x_read: xReadTool,
+  x_search: xSearchTool,
+  x_user: xUserTool,
   pinecone_fetch: pineconeFetchTool,
   pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
   pinecone_search_text: pineconeSearchTextTool,
@@ -85,6 +79,9 @@ export const tools: Record<string, ToolConfig> = {
   google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
+  google_sheets_read: sheetsReadTool,
+  google_sheets_write: sheetsWriteTool,
+  google_sheets_update: sheetsUpdateTool,
 }
 
 // Get a tool by its ID
