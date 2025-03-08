@@ -34,7 +34,10 @@ async function initializeApplication(): Promise<void> {
   isInitializing = true
 
   try {
-    // Initialize sync system first and fetch data from DB
+    // Load environment variables directly from DB
+    await useEnvironmentStore.getState().loadEnvironmentVariables()
+
+    // Initialize sync system for other stores
     await initializeSyncManagers()
 
     // After DB sync, check if we need to load from localStorage
@@ -223,7 +226,7 @@ export const resetAllStores = () => {
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
   useNotificationStore.setState({ notifications: [] })
-  useEnvironmentStore.setState({ variables: {} })
+  useEnvironmentStore.setState({ variables: {}, isLoading: false, error: null })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
@@ -256,7 +259,7 @@ export const logAllStores = () => {
 }
 
 // Re-export sync managers
-export { workflowSync, environmentSync } from './sync-registry'
+export { workflowSync } from './sync-registry'
 
 /**
  * Reinitialize the application after login
