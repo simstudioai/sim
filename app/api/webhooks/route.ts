@@ -15,6 +15,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get query parameters
+    const { searchParams } = new URL(request.url)
+    const workflowId = searchParams.get('workflowId')
+
+    // Create where condition
+    const whereCondition = workflowId
+      ? and(eq(workflow.userId, session.user.id), eq(webhook.workflowId, workflowId))
+      : eq(workflow.userId, session.user.id)
+
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -25,7 +34,7 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(workflow.userId, session.user.id))
+      .where(whereCondition)
 
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
@@ -66,7 +75,10 @@ export async function POST(request: NextRequest) {
 
     // If a webhook with the same path exists but belongs to a different workflow, return an error
     if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId !== workflowId) {
-      return NextResponse.json({ error: 'Webhook path already exists' }, { status: 409 })
+      return NextResponse.json(
+        { error: 'Webhook path already exists. Please use a different path.', code: 'PATH_EXISTS' },
+        { status: 409 }
+      )
     }
 
     // If a webhook with the same path and workflowId exists, update it

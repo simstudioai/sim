@@ -63,12 +63,22 @@ export function WebhookModal({
   const [copied, setCopied] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isTesting, setIsTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ success: boolean; message?: string } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isConfigured = Boolean(webhookId)
 
   // Provider-specific configuration state
   const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
   const [githubContentType, setGithubContentType] = useState('application/json')
+
+  // Generate a random verification token if none exists
+  useEffect(() => {
+    if (webhookProvider === 'whatsapp' && !whatsappVerificationToken) {
+      const randomToken = Math.random().toString(36).substring(2, 10)
+      setWhatsappVerificationToken(randomToken)
+    }
+  }, [webhookProvider, whatsappVerificationToken])
 
   // Load existing configuration values
   useEffect(() => {
@@ -99,14 +109,8 @@ export function WebhookModal({
     }
   }, [webhookId, webhookProvider])
 
-  // Format the path to ensure it starts with a slash for URL display
-  // but will be saved without the slash to match the database
-  const formattedPath =
-    webhookPath && webhookPath.trim() !== ''
-      ? webhookPath.startsWith('/')
-        ? webhookPath
-        : `/${webhookPath}`
-      : `/${workflowId.substring(0, 8)}`
+  // Use the provided path or generate a UUID-based path
+  const formattedPath = webhookPath && webhookPath.trim() !== '' ? webhookPath : crypto.randomUUID()
 
   // Construct the full webhook URL
   const baseUrl =
@@ -114,7 +118,11 @@ export function WebhookModal({
       ? `${window.location.protocol}//${window.location.host}`
       : 'https://your-domain.com'
 
-  const webhookUrl = `${baseUrl}/api/webhooks/trigger${formattedPath}`
+  // Use the dedicated endpoint for WhatsApp, path-based for others
+  const webhookUrl =
+    webhookProvider === 'whatsapp'
+      ? `${baseUrl}/api/webhooks/whatsapp`
+      : `${baseUrl}/api/webhooks/trigger/${formattedPath}`
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text)
@@ -170,6 +178,55 @@ export function WebhookModal({
     }
   }
 
+  // Test the webhook configuration
+  const testWebhook = async () => {
+    if (!webhookId) return
+
+    try {
+      setIsTesting(true)
+      setTestResult(null)
+
+      // Use the provider-specific test endpoint
+      let testEndpoint = `/api/webhooks/test/generic?id=${webhookId}`
+
+      if (webhookProvider === 'whatsapp') {
+        testEndpoint = `/api/webhooks/test/whatsapp?id=${webhookId}`
+      } else if (webhookProvider === 'github') {
+        testEndpoint = `/api/webhooks/test/github?id=${webhookId}`
+      } else if (webhookProvider === 'stripe') {
+        testEndpoint = `/api/webhooks/test/stripe?id=${webhookId}`
+      }
+
+      const response = await fetch(testEndpoint)
+      if (!response.ok) {
+        throw new Error('Failed to test webhook')
+      }
+
+      const data = await response.json()
+
+      // If the test was successful, show a success message
+      if (data.success) {
+        setTestResult({
+          success: true,
+          message: data.message || 'Webhook configuration is valid.',
+        })
+      } else {
+        setTestResult({
+          success: false,
+          message: data.message || data.error || 'Failed to validate webhook configuration',
+        })
+      }
+    } catch (error: any) {
+      console.error('Error testing webhook:', error)
+      setTestResult({
+        success: false,
+        message: error.message || 'An error occurred while testing the webhook',
+      })
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
   // Get provider icon
   const getProviderIcon = () => {
     switch (webhookProvider) {
@@ -192,17 +249,39 @@ export function WebhookModal({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="whatsapp-verification-token">Verification Token</Label>
-              <Input
-                id="whatsapp-verification-token"
-                value={whatsappVerificationToken}
-                onChange={(e) => setWhatsappVerificationToken(e.target.value)}
-                placeholder="Enter a verification token for WhatsApp"
-                className="flex-1"
-              />
+              <div className="flex items-center space-x-2">
+                <Input
+                  id="whatsapp-verification-token"
+                  value={whatsappVerificationToken}
+                  onChange={(e) => setWhatsappVerificationToken(e.target.value)}
+                  placeholder="Enter a verification token for WhatsApp"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => copyToClipboard(whatsappVerificationToken, 'token')}
+                >
+                  {copied === 'token' ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 This token will be used to verify your webhook with WhatsApp.
               </p>
             </div>
+
+            {testResult && (
+              <div
+                className={`p-3 rounded-md ${testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}
+              >
+                <p className="text-sm">{testResult.message}</p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <h4 className="font-medium">Setup Instructions</h4>
@@ -217,7 +296,9 @@ export function WebhookModal({
                 </li>
                 <li className="flex items-start">
                   <span className="text-gray-500 mr-2">3.</span>
-                  <span className="text-sm">Enter the URL above as "Callback URL"</span>
+                  <span className="text-sm">
+                    Enter the URL above as "Callback URL" (exactly as shown)
+                  </span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-gray-500 mr-2">4.</span>
@@ -256,7 +337,7 @@ export function WebhookModal({
               <div className="bg-gray-50 p-3 rounded-md mt-3">
                 <p className="text-sm text-gray-700 flex items-center">
                   <span className="text-gray-400 mr-2">💡</span>
-                  After saving, use "Test" to verify your webhook connection.
+                  After saving, use "Test" to verify your webhook configuration.
                 </p>
               </div>
             </div>
@@ -378,11 +459,19 @@ export function WebhookModal({
                 {webhookProvider === 'whatsapp' && (
                   <Button
                     variant="outline"
-                    onClick={() => window.open(`/webhooks/test/${webhookId}`, '_blank')}
+                    onClick={testWebhook}
+                    disabled={isTesting}
                     className="w-full sm:w-auto"
                     size="sm"
                   >
-                    Test
+                    {isTesting ? (
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      'Test'
+                    )}
                   </Button>
                 )}
               </div>

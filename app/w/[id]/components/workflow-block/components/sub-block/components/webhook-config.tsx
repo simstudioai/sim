@@ -38,10 +38,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   // Get the webhook provider from the block state
   const [webhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
 
-  // Generate a default path based on the workflow ID if none exists
-  const defaultPath = `${workflowId.substring(0, 8)}`
-  // Use the default path if no path is set
+  // Store the webhook path
   const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
+
   // Store provider-specific configuration
   const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
 
@@ -49,13 +48,18 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   useEffect(() => {
     const checkWebhook = async () => {
       try {
-        // Check if there's a webhook for this workflow with this path
-        const pathToCheck = webhookPath || defaultPath
-        const response = await fetch(`/api/webhooks?workflowId=${workflowId}&path=${pathToCheck}`)
+        // Check if there's a webhook for this workflow
+        const response = await fetch(`/api/webhooks?workflowId=${workflowId}`)
         if (response.ok) {
           const data = await response.json()
           if (data.webhooks && data.webhooks.length > 0) {
-            setWebhookId(data.webhooks[0].webhook.id)
+            const webhook = data.webhooks[0].webhook
+            setWebhookId(webhook.id)
+
+            // Update the path in the block state if it's different
+            if (webhook.path && webhook.path !== webhookPath) {
+              setWebhookPath(webhook.path)
+            }
           } else {
             setWebhookId(null)
           }
@@ -66,7 +70,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
     }
 
     checkWebhook()
-  }, [webhookPath, workflowId, defaultPath])
+  }, [webhookPath, workflowId, setWebhookPath])
 
   const handleOpenModal = () => {
     setIsModalOpen(true)
@@ -180,7 +184,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         <WebhookModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
-          webhookPath={webhookPath || defaultPath}
+          webhookPath={webhookPath || ''}
           webhookProvider={webhookProvider || 'generic'}
           workflowId={workflowId}
           onSave={handleSaveWebhook}
