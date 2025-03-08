@@ -64,7 +64,7 @@ export function ControlBar() {
   // Deployment states
   const [isDeploying, setIsDeploying] = useState(false)
 
-  // Publish state
+  // Publish state - keeping this for UI state management
   const [isPublishing, setIsPublishing] = useState(false)
 
   // Get notifications for current workflow

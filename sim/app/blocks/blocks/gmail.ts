@@ -9,7 +9,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   longDescription:
     'Integrate Gmail functionality to send email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
   category: 'tools',
-  bgColor: '#E0E0E0',
+  bgColor: '#3C4043',
   icon: GmailIcon,
   subBlocks: [
     // Operation selector
