@@ -12,11 +12,18 @@ export async function POST(request: NextRequest) {
   try {
     // Get the webhook path from the URL
     const url = new URL(request.url)
-    const path = url.pathname.replace('/api/webhooks/trigger', '')
+    let path = url.pathname.replace('/api/webhooks/trigger', '')
 
-    if (!path || path === '/') {
+    // Remove leading slash if present to match how it's stored in the database
+    if (path.startsWith('/')) {
+      path = path.substring(1)
+    }
+
+    if (!path || path === '') {
       return new NextResponse('Invalid webhook path', { status: 400 })
     }
+
+    console.log('Looking for webhook with path:', path)
 
     // Find the webhook in the database
     const webhooks = await db
@@ -118,11 +125,18 @@ export async function GET(request: NextRequest) {
   try {
     // Get the webhook path from the URL
     const url = new URL(request.url)
-    const path = url.pathname.replace('/api/webhooks/trigger', '')
+    let path = url.pathname.replace('/api/webhooks/trigger', '')
 
-    if (!path || path === '/') {
+    // Remove leading slash if present to match how it's stored in the database
+    if (path.startsWith('/')) {
+      path = path.substring(1)
+    }
+
+    if (!path || path === '') {
       return new NextResponse('Invalid webhook path', { status: 400 })
     }
+
+    console.log('Looking for webhook with path:', path)
 
     // Find the webhook in the database
     const webhooks = await db
@@ -132,10 +146,11 @@ export async function GET(request: NextRequest) {
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.path, path), eq(webhook.isActive, true), eq(workflow.isDeployed, true)))
+      .where(and(eq(webhook.path, path), eq(webhook.isActive, true)))
       .limit(1)
 
     if (webhooks.length === 0) {
+      console.log('Webhook not found for path:', path)
       return new NextResponse('Webhook not found', { status: 404 })
     }
 

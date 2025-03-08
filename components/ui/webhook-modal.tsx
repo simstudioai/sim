@@ -99,7 +99,8 @@ export function WebhookModal({
     }
   }, [webhookId, webhookProvider])
 
-  // Format the path to ensure it starts with a slash
+  // Format the path to ensure it starts with a slash for URL display
+  // but will be saved without the slash to match the database
   const formattedPath =
     webhookPath && webhookPath.trim() !== ''
       ? webhookPath.startsWith('/')
@@ -140,10 +141,12 @@ export function WebhookModal({
       // Call the onSave callback with the path and provider-specific config
       if (onSave) {
         const providerConfig = getProviderConfig()
-        // Use the path without the leading slash
+        // Always save the path without the leading slash to match how it's queried in the API
         const pathToSave = formattedPath.startsWith('/')
           ? formattedPath.substring(1)
           : formattedPath
+
+        console.log('Saving webhook with path:', pathToSave)
         await onSave(pathToSave, providerConfig)
       }
     } catch (error) {

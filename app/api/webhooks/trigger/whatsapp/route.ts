@@ -15,11 +15,15 @@ export async function GET(request: NextRequest) {
   const token = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
+  console.log('WhatsApp verification request:', { mode, token, challenge })
+
   if (!mode || !token || !challenge) {
+    console.log('Missing verification parameters')
     return new NextResponse('Missing verification parameters', { status: 400 })
   }
 
   if (mode !== 'subscribe') {
+    console.log('Invalid mode:', mode)
     return new NextResponse('Invalid mode', { status: 400 })
   }
 
@@ -31,16 +35,26 @@ export async function GET(request: NextRequest) {
     .from(webhook)
     .where(and(eq(webhook.provider, 'whatsapp'), eq(webhook.isActive, true)))
 
+  console.log('Found WhatsApp webhooks:', webhooks.length)
+
   // Check if any webhook has a matching verification token
   for (const { webhook: wh } of webhooks) {
     const providerConfig = (wh.providerConfig as Record<string, any>) || {}
     const verificationToken = providerConfig.verificationToken
 
+    console.log('Checking webhook:', {
+      id: wh.id,
+      path: wh.path,
+      token: verificationToken ? verificationToken.substring(0, 3) + '...' : 'none',
+    })
+
     if (verificationToken && token === verificationToken) {
+      console.log('Verification successful, returning challenge')
       return new NextResponse(challenge, { status: 200 })
     }
   }
 
+  console.log('Verification failed, no matching token found')
   return new NextResponse('Verification failed', { status: 403 })
 }
 
