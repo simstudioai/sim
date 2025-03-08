@@ -287,9 +287,9 @@ export async function GET(req: NextRequest) {
             workflowId: schedule.workflowId,
             executionId,
             level: log.success ? 'info' : 'error',
-            message: `Block ${log.blockName || log.blockId} (${log.blockType}): ${
-              log.error || `Completed successfully`
-            }`,
+            message: log.success
+              ? `Block ${log.blockName || log.blockId} (${log.blockType}): ${JSON.stringify(log.output?.response || {})}`
+              : `Block ${log.blockName || log.blockId} (${log.blockType}): ${log.error || 'Failed'}`,
             duration: log.success ? `${log.durationMs}ms` : 'NA',
             trigger: 'schedule',
             createdAt: new Date(log.endedAt || log.startedAt),
