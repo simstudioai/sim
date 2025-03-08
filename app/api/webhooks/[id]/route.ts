@@ -7,8 +7,10 @@ import { webhook, workflow } from '@/db/schema'
 export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -24,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.id, params.id), eq(workflow.userId, session.user.id)))
+      .where(and(eq(webhook.id, id), eq(workflow.userId, session.user.id)))
       .limit(1)
 
     if (webhooks.length === 0) {
@@ -39,8 +41,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // Update a webhook
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
+
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -60,7 +64,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(webhook.id, params.id))
+      .where(eq(webhook.id, id))
       .limit(1)
 
     if (webhooks.length === 0) {
@@ -82,7 +86,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         isActive: isActive !== undefined ? isActive : webhooks[0].webhook.isActive,
         updatedAt: new Date(),
       })
-      .where(eq(webhook.id, params.id))
+      .where(eq(webhook.id, id))
       .returning()
 
     return NextResponse.json({ webhook: updatedWebhook[0] }, { status: 200 })
@@ -93,8 +97,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 // Delete a webhook
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params
+
     const session = await getSession()
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -111,7 +120,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       })
       .from(webhook)
       .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(eq(webhook.id, params.id))
+      .where(eq(webhook.id, id))
       .limit(1)
 
     if (webhooks.length === 0) {
@@ -123,9 +132,9 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Delete the webhook
-    await db.delete(webhook).where(eq(webhook.id, params.id))
+    await db.delete(webhook).where(eq(webhook.id, id))
 
-    return new NextResponse(null, { status: 204 })
+    return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     console.error('Error deleting webhook:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
