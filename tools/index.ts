@@ -1,40 +1,34 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
-import { answerTool as exaAnswer } from './exa/answer'
-import { findSimilarLinksTool as exaFindSimilarLinks } from './exa/findSimilarLinks'
-import { getContentsTool as exaGetContents } from './exa/getContents'
-import { searchTool as exaSearch } from './exa/search'
+import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { scrapeTool } from './firecrawl/scrape'
-import { functionExecuteTool as functionExecute } from './function/execute'
-import { webcontainerExecuteTool as webcontainerExecute } from './function/webcontainer'
-import { commentTool } from './github/comment'
-import { prTool } from './github/pr'
-import { repoInfoTool } from './github/repo'
+import { functionExecuteTool, webcontainerExecuteTool } from './function'
+import { githubCommentTool, githubPrTool, githubRepoInfoTool } from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
-import { notionReadTool } from './notion/read'
-import { notionWriteTool } from './notion/write'
+import { notionReadTool, notionWriteTool } from './notion'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
-import { fetchTool as pineconeFetchTool } from './pinecone/fetch'
-import { generateEmbeddingsTool as pineconeGenerateEmbeddingsTool } from './pinecone/generate'
-import { searchTextTool as pineconeSearchTextTool } from './pinecone/searchText'
-import { searchVectorTool as pineconeSearchVectorTool } from './pinecone/searchVector'
-import { upsertTextTool as pineconeUpsertTextTool } from './pinecone/upsertText'
-import { hotPostsTool as redditHotPosts } from './reddit/hot'
+import {
+  pineconeFetchTool,
+  pineconeGenerateEmbeddingsTool,
+  pineconeSearchTextTool,
+  pineconeSearchVectorTool,
+  pineconeUpsertTextTool,
+} from './pinecone'
+import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
-import { extractTool as tavilyExtract } from './tavily/extract'
-import { searchTool as tavilySearch } from './tavily/search'
+import { tavilyExtractTool, tavilySearchTool } from './tavily'
 import { ToolConfig, ToolResponse } from './types'
-import { executeRequest, formatRequestParams, validateToolRequest } from './utils'
+import { formatRequestParams, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
-import { sendMessageTool as whatsappSendMessage } from './whatsapp/sendMessage'
+import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 
@@ -44,23 +38,23 @@ export const tools: Record<string, ToolConfig> = {
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,
-  function_execute: functionExecute,
-  webcontainer_execute: webcontainerExecute,
+  function_execute: functionExecuteTool,
+  webcontainer_execute: webcontainerExecuteTool,
   vision_tool: visionTool,
   firecrawl_scrape: scrapeTool,
   jina_readurl: readUrlTool,
   slack_message: slackMessageTool,
-  github_repoinfo: repoInfoTool,
+  github_repoinfo: githubRepoInfoTool,
   serper_search: serperSearch,
-  tavily_search: tavilySearch,
-  tavily_extract: tavilyExtract,
+  tavily_search: tavilySearchTool,
+  tavily_extract: tavilyExtractTool,
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
-  whatsapp_send_message: whatsappSendMessage,
+  whatsapp_send_message: whatsappSendMessageTool,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,
@@ -70,13 +64,13 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
-  github_pr: prTool,
-  github_comment: commentTool,
-  exa_search: exaSearch,
-  exa_get_contents: exaGetContents,
-  exa_find_similar_links: exaFindSimilarLinks,
-  exa_answer: exaAnswer,
-  reddit_hot_posts: redditHotPosts,
+  github_pr: githubPrTool,
+  github_comment: githubCommentTool,
+  exa_search: exaSearchTool,
+  exa_get_contents: exaGetContentsTool,
+  exa_find_similar_links: exaFindSimilarLinksTool,
+  exa_answer: exaAnswerTool,
+  reddit_hot_posts: redditHotPostsTool,
   google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
