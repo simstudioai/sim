@@ -21,26 +21,11 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
   },
   request: {
     url: (params) => {
-      // If range is not provided, use the entire spreadsheet
-      if (!params.range) {
-        const url = new URL(
-          `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values`
-        )
+      // If range is not provided, use a default range for the first sheet, second row to preserve headers
+      const range = params.range || 'Sheet1!A2'
 
-        // Default to USER_ENTERED if not specified
-        const valueInputOption = params.valueInputOption || 'USER_ENTERED'
-        url.searchParams.append('valueInputOption', valueInputOption)
-
-        if (params.includeValuesInResponse) {
-          url.searchParams.append('includeValuesInResponse', 'true')
-        }
-
-        return url.toString()
-      }
-
-      // Otherwise, use the specified range
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(params.range)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified

@@ -27,6 +27,7 @@ export const sendMessageTool: ToolConfig<any, WhatsAppToolResponse> = {
       type: 'string',
       required: true,
       description: 'WhatsApp Business API Access Token',
+      requiredForToolCall: true,
     },
   },
 
