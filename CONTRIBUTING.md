@@ -286,39 +286,85 @@ In addition, you will need to update the registries:
      type: 'new',
      name: 'New Block',
      description: 'Description of the new block',
-     category: 'blocks',
+     longDescription: 'A more detailed description of what this block does and how to use it.',
+     category: 'tools',
      bgColor: '#123456',
      icon: SomeIcon,
-     inputs: {
-       // Define inputs here
-       exampleInput: { type: 'string', required: true },
-     },
-     outputs: {
-       response: {
-         type: {
-           result: 'string',
-         },
+
+     // If this block requires OAuth authentication
+     provider: 'new-service',
+
+     // Define subBlocks for the UI configuration
+     subBlocks: [
+       {
+         id: 'apiKey',
+         title: 'API Key',
+         type: 'short-input',
+         layout: 'full',
+         placeholder: 'Enter your API key',
        },
-     },
+       {
+         id: 'query',
+         title: 'Query',
+         type: 'long-input',
+         layout: 'full',
+         placeholder: 'Enter your search query',
+       },
+       {
+         id: 'model',
+         title: 'Model',
+         type: 'dropdown',
+         layout: 'half',
+         options: ['model-1', 'model-2', 'model-3'],
+       },
+     ],
    }
    ```
 
 4. **Register Your Block:**  
    Import and add your block to the blocks registry (`blocks/index.ts`) in the appropriate index file so it appears in the workflow builder.
 
+   ```typescript:blocks/index.ts
+   import { NewBlock } from './blocks/newBlock'
+
+   export const blocks = [
+     // ... existing blocks
+     NewBlock,
+   ]
+
+   export const blocksByType: Record<string, BlockConfig> = {
+     // ... existing blocks by type
+     new: NewBlock,
+   }
+   ```
+
 5. **Test Your Block:**  
    Ensure that the block displays correctly in the UI and that its functionality works as expected.
 
 ### How to Create a New Tool
 
-1. **Create a New File:**  
-   Create a file for your tool (e.g., `newTool.ts`) in the `/tools` directory.
+1. **Create a New Directory:**  
+   For tools with multiple related functions, create a directory under `/tools` (e.g., `/tools/newService`).
 
-2. **Define the Tool Configuration:**  
+2. **Create Tool Files:**  
+   Create files for your tool functionality (e.g., `read.ts`, `write.ts`) in your tool directory.
+
+3. **Create an Index File:**  
+   Create an `index.ts` file in your tool directory that imports and exports all tools with appropriate prefixes:
+
+   ```typescript:tools/newService/index.ts
+   import { readTool } from './read'
+   import { writeTool } from './write'
+
+   export const newServiceReadTool = readTool
+   export const newServiceWriteTool = writeTool
+   ```
+
+4. **Define the Tool Configuration:**  
    Your tool should export a constant of type `ToolConfig`. For example:
 
-   ```typescript:tools/newTool.ts
-   import { ToolConfig, ToolResponse } from './types'
+   ```typescript:tools/newService/read.ts
+   import { ToolConfig, ToolResponse } from '../types'
 
    interface NewToolParams {
      apiKey: string
@@ -331,13 +377,27 @@ In addition, you will need to update the registries:
      }
    }
 
-   export const newTool: ToolConfig<NewToolParams, NewToolResponse> = {
-     id: 'new_tool',
-     name: 'New Tool',
+   export const readTool: ToolConfig<NewToolParams, NewToolResponse> = {
+     id: 'new_service_read',
+     name: 'New Service Reader',
      description: 'Description for the new tool',
+     version: '1.0.0',
+
+     // OAuth configuration (if applicable)
+     provider: 'new-service', // ID of the OAuth provider
+     additionalScopes: ['https://api.newservice.com/read'], // Required OAuth scopes
+
      params: {
-       apiKey: { type: 'string', required: true },
-       query: { type: 'string', required: true },
+       apiKey: {
+         type: 'string',
+         required: true,
+         description: 'API key for authentication',
+       },
+       query: {
+         type: 'string',
+         required: true,
+         description: 'Query to search for',
+       },
      },
      request: {
        url: 'https://api.example.com/query',
@@ -361,24 +421,21 @@ In addition, you will need to update the registries:
    }
    ```
 
-3. **Register Your Tool:**  
-   Update the tools registry in `/tools/index.ts` to include your new tool. For example, add it to the exported `tools` object:
+5. **Register Your Tool:**  
+   Update the tools registry in `/tools/index.ts` to include your new tool. Import from your tool's index.ts file:
 
    ```typescript:tools/index.ts
-   import { newTool } from './newTool'
+   import { newServiceReadTool, newServiceWriteTool } from './newService'
    // ... other imports
 
    export const tools: Record<string, ToolConfig> = {
      // ... existing tools
-     new_tool: newTool,
-   }
-
-   export function getTool(toolId: string): ToolConfig | undefined {
-     return tools[toolId]
+     new_service_read: newServiceReadTool,
+     new_service_write: newServiceWriteTool,
    }
    ```
 
-4. **Test Your Tool:**  
+6. **Test Your Tool:**  
    Ensure that your tool functions correctly by making test requests and verifying the responses.
 
 ### Guidelines & Best Practices
