@@ -1,8 +1,6 @@
 import { StateCreator } from 'zustand'
-import { saveSubblockValues, saveWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
-import { mergeSubblockState } from './utils'
 import { WorkflowState, WorkflowStore } from './workflow/types'
 
 // Types
@@ -100,22 +98,7 @@ export const withHistory = (
               [activeWorkflowId]: previous.subblockValues,
             },
           })
-
-          // Save to localStorage
-          saveSubblockValues(activeWorkflowId, previous.subblockValues)
         }
-
-        // Save workflow state after undo
-        const currentState = get()
-        saveWorkflowState(activeWorkflowId, {
-          blocks: currentState.blocks,
-          edges: currentState.edges,
-          loops: currentState.loops,
-          history: currentState.history,
-          isDeployed: currentState.isDeployed,
-          deployedAt: currentState.deployedAt,
-          lastSaved: Date.now(),
-        })
       },
 
       // Restore next state from history
@@ -151,22 +134,7 @@ export const withHistory = (
               [activeWorkflowId]: next.subblockValues,
             },
           })
-
-          // Save to localStorage
-          saveSubblockValues(activeWorkflowId, next.subblockValues)
         }
-
-        // Save workflow state after redo
-        const currentState = get()
-        saveWorkflowState(activeWorkflowId, {
-          blocks: currentState.blocks,
-          edges: currentState.edges,
-          loops: currentState.loops,
-          history: currentState.history,
-          isDeployed: currentState.isDeployed,
-          deployedAt: currentState.deployedAt,
-          lastSaved: Date.now(),
-        })
       },
 
       // Reset workflow to empty state
@@ -226,22 +194,7 @@ export const withHistory = (
               [activeWorkflowId]: targetState.subblockValues,
             },
           })
-
-          // Save to localStorage
-          saveSubblockValues(activeWorkflowId, targetState.subblockValues)
         }
-
-        // Save workflow state after revert
-        const currentState = get()
-        saveWorkflowState(activeWorkflowId, {
-          blocks: currentState.blocks,
-          edges: currentState.edges,
-          loops: currentState.loops,
-          history: currentState.history,
-          isDeployed: currentState.isDeployed,
-          deployedAt: currentState.deployedAt,
-          lastSaved: Date.now(),
-        })
       },
     }
   }

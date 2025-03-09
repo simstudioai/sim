@@ -35,9 +35,9 @@ export interface Loop {
 export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
-  lastSaved?: number
   loops: Record<string, Loop>
-  lastUpdate?: number
+  lastSaved?: number
+  update?: number
   isDeployed?: boolean
   deployedAt?: Date
 }

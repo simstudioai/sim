@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { signOut, useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
-import { clearUserData } from '@/stores'
 
 interface AccountProps {
   onOpenChange: (open: boolean) => void
@@ -94,9 +93,6 @@ export function Account({ onOpenChange }: AccountProps) {
     try {
       // Start the sign-out process
       const signOutPromise = signOut()
-
-      // Clear all user data to prevent persistence between accounts
-      await clearUserData()
 
       // Set a short timeout to improve perceived performance
       // while still ensuring auth state starts to clear

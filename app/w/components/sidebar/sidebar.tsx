@@ -13,10 +13,12 @@ import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 
 export function Sidebar() {
-  const { workflows, createWorkflow } = useWorkflowRegistry()
+  const { workflows, createWorkflow, activeWorkflowId, setActiveWorkflow } = useWorkflowRegistry()
   const router = useRouter()
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
 
   // Sort workflows by lastModified date (which corresponds to createdAt for new workflows)
   // Newest workflows at the bottom (ascending order by date)
@@ -35,9 +37,47 @@ export function Sidebar() {
     })
   }, [workflows])
 
-  const handleCreateWorkflow = () => {
-    const id = createWorkflow()
-    router.push(`/w/${id}`)
+  const handleCreateWorkflow = async () => {
+    if (isCreating) {
+      console.log('Already creating a workflow, please wait...')
+      return
+    }
+
+    try {
+      setIsCreating(true)
+      console.log('Creating new workflow...')
+
+      const id = await createWorkflow()
+      console.log('Workflow created with ID:', id)
+      console.log('Navigating to new workflow...')
+
+      router.push(`/w/${id}`)
+    } catch (error) {
+      console.error('Error creating workflow:', error)
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  // Handle workflow navigation with proper state management
+  const handleWorkflowNavigation = async (id: string) => {
+    if (isNavigating || id === activeWorkflowId) {
+      return
+    }
+
+    try {
+      setIsNavigating(true)
+
+      // Set the active workflow first, which will handle saving the current workflow
+      await setActiveWorkflow(id)
+
+      // Then navigate to the new workflow page using shallow routing to avoid full page reload
+      router.push(`/w/${id}`)
+    } catch (error) {
+      console.error('Error navigating to workflow:', error)
+    } finally {
+      setIsNavigating(false)
+    }
   }
 
   return (
@@ -56,7 +96,8 @@ export function Sidebar() {
               variant="ghost"
               size="icon"
               onClick={handleCreateWorkflow}
-              className="h-9 w-9 md:h-8 md:w-8"
+              className={`h-9 w-9 md:h-8 md:w-8 ${isCreating ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={isCreating}
             >
               <Plus className="h-5 w-5" />
               <span className="sr-only">Add Workflow</span>
@@ -70,7 +111,17 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <div className="flex flex-col items-center gap-4">
           {sortedWorkflows.map((workflow) => (
-            <NavItem key={workflow.id} href={`/w/${workflow.id}`} label={workflow.name}>
+            <NavItem
+              key={workflow.id}
+              href="#"
+              onClick={(e) => {
+                e.preventDefault()
+                handleWorkflowNavigation(workflow.id)
+              }}
+              label={workflow.name}
+              isActive={workflow.id === activeWorkflowId}
+              disabled={isNavigating}
+            >
               <div
                 className="h-4 w-4 rounded-full"
                 style={{ backgroundColor: workflow.color || '#3972F6' }}

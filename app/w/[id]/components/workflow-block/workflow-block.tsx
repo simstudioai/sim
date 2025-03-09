@@ -36,7 +36,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const updateNodeInternals = useUpdateNodeInternals()
 
   // Workflow store selectors
-  const lastUpdate = useWorkflowStore((state) => state.lastUpdate)
+  const update = useWorkflowStore((state) => state.update)
   const isEnabled = useWorkflowStore((state) => state.blocks[id]?.enabled ?? true)
   const horizontalHandles = useWorkflowStore(
     (state) => state.blocks[id]?.horizontalHandles ?? false
@@ -102,7 +102,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         cancelAnimationFrame(rafId)
       }
     }
-  }, [id, blockHeight, updateBlockHeight, updateNodeInternals, lastUpdate])
+  }, [id, blockHeight, updateBlockHeight, updateNodeInternals, update])
 
   // SubBlock layout management
   function groupSubBlocks(subBlocks: SubBlockConfig[], blockId: string) {

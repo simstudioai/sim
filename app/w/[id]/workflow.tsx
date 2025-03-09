@@ -15,7 +15,6 @@ import 'reactflow/dist/style.css'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -39,7 +38,7 @@ const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 function WorkflowContent() {
   // State
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   // Hooks
   const params = useParams()
@@ -55,33 +54,19 @@ function WorkflowContent() {
 
   // Initialize workflow
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Ensure sync system is initialized before proceeding
-      const initSync = async () => {
-        // Initialize sync system if not already initialized
-        await initializeSyncManagers()
-        setIsInitialized(true)
-      }
-
-      // Check if already initialized
-      if (isSyncInitialized()) {
-        setIsInitialized(true)
-      } else {
-        initSync()
-      }
-    }
+    setIsLoading(false)
   }, [])
 
   // Init workflow
   useEffect(() => {
-    if (!isInitialized) return
+    if (isLoading) return
 
     const validateAndNavigate = () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.id as string
 
       if (workflowIds.length === 0) {
-        // Create initial workflow using the centralized function
+        // Create initial workflow
         const newId = createWorkflow({ isInitial: true })
         router.replace(`/w/${newId}`)
         return
@@ -96,7 +81,7 @@ function WorkflowContent() {
     }
 
     validateAndNavigate()
-  }, [params.id, workflows, setActiveWorkflow, createWorkflow, router, isInitialized])
+  }, [params.id, workflows, setActiveWorkflow, createWorkflow, router, isLoading])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {
@@ -329,63 +314,61 @@ function WorkflowContent() {
     }
   }, [setSubBlockValue])
 
-  if (!isInitialized) return null
+  if (isLoading) return null
 
   return (
-    <>
-      <div className="relative w-full h-[calc(100vh-4rem)]">
-        <NotificationList />
-        <ReactFlow
-          nodes={nodes}
-          edges={edgesWithSelection}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          onDrop={onDrop}
-          onDragOver={(e) => e.preventDefault()}
-          fitView
-          minZoom={0.1}
-          maxZoom={1}
-          panOnScroll
-          defaultEdgeOptions={{ type: 'custom' }}
-          proOptions={{ hideAttribution: true }}
-          connectionLineStyle={{
-            stroke: '#94a3b8',
-            strokeWidth: 2,
-            strokeDasharray: '5,5',
-          }}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          onNodeClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-          }}
-          onPaneClick={onPaneClick}
-          onEdgeClick={onEdgeClick}
-          elementsSelectable={true}
-          selectNodesOnDrag={false}
-          nodesConnectable={true}
-          nodesDraggable={true}
-          draggable={false}
-          noWheelClassName="allow-scroll"
-          edgesFocusable={true}
-          edgesUpdatable={true}
-        >
-          <Background />
-        </ReactFlow>
-      </div>
-    </>
+    <div className="relative w-full h-[calc(100vh-4rem)]">
+      <NotificationList />
+      <ReactFlow
+        nodes={nodes}
+        edges={edgesWithSelection}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onDrop={onDrop}
+        onDragOver={(e) => e.preventDefault()}
+        fitView
+        minZoom={0.1}
+        maxZoom={1}
+        panOnScroll
+        defaultEdgeOptions={{ type: 'custom' }}
+        proOptions={{ hideAttribution: true }}
+        connectionLineStyle={{
+          stroke: '#94a3b8',
+          strokeWidth: 2,
+          strokeDasharray: '5,5',
+        }}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        onNodeClick={(e) => {
+          e.stopPropagation()
+          e.preventDefault()
+        }}
+        onPaneClick={onPaneClick}
+        onEdgeClick={onEdgeClick}
+        elementsSelectable={true}
+        selectNodesOnDrag={false}
+        nodesConnectable={true}
+        nodesDraggable={true}
+        draggable={false}
+        noWheelClassName="allow-scroll"
+        edgesFocusable={true}
+        edgesUpdatable={true}
+      >
+        <Background />
+      </ReactFlow>
+    </div>
   )
 }
 
 // Workflow wrapper
 export default function Workflow() {
   return (
-    <ReactFlowProvider>
-      <ErrorBoundary>
+    <ErrorBoundary>
+      <ReactFlowProvider>
         <WorkflowContent />
-      </ErrorBoundary>
-    </ReactFlowProvider>
+      </ReactFlowProvider>
+    </ErrorBoundary>
   )
 }

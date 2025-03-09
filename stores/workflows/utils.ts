@@ -1,3 +1,5 @@
+import { Edge } from 'reactflow'
+import { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import { BlockState, SubBlockState } from './workflow/types'
 
@@ -67,4 +69,98 @@ export function mergeSubblockState(
     },
     {} as Record<string, BlockState>
   )
+}
+
+/**
+ * Performs a depth-first search to detect all cycles in the graph
+ * @param edges - List of all edges in the graph
+ * @param startNode - Starting node for cycle detection
+ * @returns Array of all unique cycles found in the graph
+ */
+export function detectCycle(
+  edges: Edge[],
+  startNode: string
+): { hasCycle: boolean; paths: string[][] } {
+  const visited = new Set<string>()
+  const recursionStack = new Set<string>()
+  const allCycles: string[][] = []
+  const currentPath: string[] = []
+
+  function dfs(node: string) {
+    visited.add(node)
+    recursionStack.add(node)
+    currentPath.push(node)
+
+    // Get all neighbors of current node
+    const neighbors = edges.filter((edge) => edge.source === node).map((edge) => edge.target)
+
+    for (const neighbor of neighbors) {
+      if (!recursionStack.has(neighbor)) {
+        if (!visited.has(neighbor)) {
+          dfs(neighbor)
+        }
+      } else {
+        // Found a cycle
+        const cycleStartIndex = currentPath.indexOf(neighbor)
+        if (cycleStartIndex !== -1) {
+          const cycle = currentPath.slice(cycleStartIndex)
+          // Only add cycles with length > 1
+          if (cycle.length > 1) {
+            allCycles.push([...cycle])
+          }
+        }
+      }
+    }
+
+    currentPath.pop()
+    recursionStack.delete(node)
+  }
+
+  dfs(startNode)
+
+  return {
+    hasCycle: allCycles.length > 0,
+    paths: allCycles,
+  }
+}
+
+// Available workflow colors
+export const WORKFLOW_COLORS = ['#3972F6', '#F639DD', '#F6B539', '#8139F6', '#F64439']
+
+// Generates a unique name for a new workflow
+export function generateUniqueName(existingWorkflows: Record<string, WorkflowMetadata>): string {
+  // Extract numbers from existing workflow names using regex
+  const numbers = Object.values(existingWorkflows)
+    .map((w) => {
+      const match = w.name.match(/Workflow (\d+)/)
+      return match ? parseInt(match[1]) : 0
+    })
+    .filter((n) => n > 0)
+
+  if (numbers.length === 0) {
+    return 'Workflow 1'
+  }
+
+  // Find the maximum number and add 1
+  const nextNumber = Math.max(...numbers) + 1
+  return `Workflow ${nextNumber}`
+}
+
+// Determines the next color to use for a new workflow based on the last used color
+export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowMetadata>): string {
+  const workflowArray = Object.values(existingWorkflows)
+
+  if (workflowArray.length === 0) {
+    return WORKFLOW_COLORS[0]
+  }
+
+  const lastWorkflow = workflowArray[workflowArray.length - 1]
+
+  // Find the index of the last used color, defaulting to first color if undefined
+  const lastColorIndex = lastWorkflow?.color ? WORKFLOW_COLORS.indexOf(lastWorkflow.color) : -1
+
+  // Get next color index, wrapping around to 0 if we reach the end
+  const nextColorIndex = (lastColorIndex + 1) % WORKFLOW_COLORS.length
+
+  return WORKFLOW_COLORS[nextColorIndex]
 }

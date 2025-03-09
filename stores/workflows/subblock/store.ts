@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { SubBlockConfig } from '@/blocks/types'
-import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
+
+// Create a localStorage key for the subblock store
+const STORAGE_KEY = 'subblock-store'
 
 interface SubBlockState {
   workflowValues: Record<string, Record<string, Record<string, any>>> // Store values per workflow ID
@@ -13,107 +15,132 @@ interface SubBlockStore extends SubBlockState {
   getValue: (blockId: string, subBlockId: string) => any
   clear: () => void
   initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => void
+  loadSubblockValues: (workflowId: string, blocks: Record<string, any>) => void
 }
 
 export const useSubBlockStore = create<SubBlockStore>()(
   devtools(
     persist(
       (set, get) => ({
+        // Initial state
         workflowValues: {},
 
+        // Set a subblock value for the active workflow
         setValue: (blockId: string, subBlockId: string, value: any) => {
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
           if (!activeWorkflowId) return
 
-          set((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId]: {
-                ...state.workflowValues[activeWorkflowId],
-                [blockId]: {
-                  ...state.workflowValues[activeWorkflowId]?.[blockId],
-                  [subBlockId]: value,
-                },
-              },
-            },
-          }))
+          set((state) => {
+            // Create a deep copy of the current state
+            const newWorkflowValues = { ...state.workflowValues }
 
-          // Persist to localStorage for backup
-          const currentValues = get().workflowValues[activeWorkflowId] || {}
-          saveSubblockValues(activeWorkflowId, currentValues)
-        },
+            // Initialize nested objects if they don't exist
+            if (!newWorkflowValues[activeWorkflowId]) {
+              newWorkflowValues[activeWorkflowId] = {}
+            }
 
-        getValue: (blockId: string, subBlockId: string) => {
-          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!activeWorkflowId) return null
+            if (!newWorkflowValues[activeWorkflowId][blockId]) {
+              newWorkflowValues[activeWorkflowId][blockId] = {}
+            }
 
-          return get().workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId] ?? null
-        },
+            // Set the value
+            newWorkflowValues[activeWorkflowId][blockId][subBlockId] = value
 
-        clear: () => {
-          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!activeWorkflowId) return
-
-          set((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [activeWorkflowId]: {},
-            },
-          }))
-
-          saveSubblockValues(activeWorkflowId, {})
-        },
-
-        initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
-          // First, try to load from localStorage
-          const savedValues = loadSubblockValues(workflowId)
-
-          if (savedValues) {
-            set((state) => ({
-              workflowValues: {
-                ...state.workflowValues,
-                [workflowId]: savedValues,
-              },
-            }))
-            return
-          }
-
-          // If no saved values, initialize from blocks
-          const values: Record<string, Record<string, any>> = {}
-          Object.entries(blocks).forEach(([blockId, block]) => {
-            values[blockId] = {}
-            Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]) => {
-              values[blockId][subBlockId] = (subBlock as SubBlockConfig).value
-            })
+            return { workflowValues: newWorkflowValues }
           })
+        },
 
-          set((state) => ({
-            workflowValues: {
-              ...state.workflowValues,
-              [workflowId]: values,
-            },
-          }))
+        // Get a subblock value for the active workflow
+        getValue: (blockId: string, subBlockId: string) => {
+          const state = get()
+          const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
-          // Save to localStorage
-          saveSubblockValues(workflowId, values)
+          if (!activeWorkflowId) return undefined
+
+          return state.workflowValues[activeWorkflowId]?.[blockId]?.[subBlockId]
+        },
+
+        // Clear all subblock values
+        clear: () => {
+          set({ workflowValues: {} })
+        },
+
+        // Initialize subblock values from a workflow
+        initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
+          if (!workflowId) return
+
+          try {
+            // Extract subblock values from the workflow blocks
+            const subblockValues: Record<string, Record<string, any>> = {}
+
+            // Process each block to extract subblock values
+            Object.entries(blocks).forEach(([blockId, block]) => {
+              if (block.subBlocks) {
+                subblockValues[blockId] = {}
+
+                // Extract values from each subblock
+                Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
+                  if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
+                    subblockValues[blockId][subBlockId] = subBlock.value
+                  }
+                })
+              }
+            })
+
+            set((state) => {
+              // Create a deep copy of the current state
+              const newWorkflowValues = { ...state.workflowValues }
+
+              // Set the values for this workflow
+              newWorkflowValues[workflowId] = subblockValues
+
+              return { workflowValues: newWorkflowValues }
+            })
+          } catch (error) {
+            console.error('Error initializing subblock values:', error)
+          }
+        },
+
+        // Load subblock values from a workflow
+        loadSubblockValues: (workflowId: string, blocks: Record<string, any>) => {
+          if (!workflowId) return
+
+          try {
+            // Extract subblock values from the workflow blocks
+            const subblockValues: Record<string, Record<string, any>> = {}
+
+            // Process each block to extract subblock values
+            Object.entries(blocks).forEach(([blockId, block]) => {
+              if (block.subBlocks) {
+                subblockValues[blockId] = {}
+
+                // Extract values from each subblock
+                Object.entries(block.subBlocks).forEach(([subBlockId, subBlock]: [string, any]) => {
+                  if (subBlock && typeof subBlock === 'object' && 'value' in subBlock) {
+                    subblockValues[blockId][subBlockId] = subBlock.value
+                  }
+                })
+              }
+            })
+
+            set((state) => {
+              // Create a deep copy of the current state
+              const newWorkflowValues = { ...state.workflowValues }
+
+              // Set the values for this workflow
+              newWorkflowValues[workflowId] = subblockValues
+
+              return { workflowValues: newWorkflowValues }
+            })
+          } catch (error) {
+            console.error('Error loading subblock values:', error)
+          }
         },
       }),
       {
-        name: 'subblock-store',
+        name: STORAGE_KEY,
+        // Only persist the workflowValues
         partialize: (state) => ({ workflowValues: state.workflowValues }),
-        // Use default storage
-        storage: {
-          getItem: (name) => {
-            const value = localStorage.getItem(name)
-            return value ? JSON.parse(value) : null
-          },
-          setItem: (name, value) => {
-            localStorage.setItem(name, JSON.stringify(value))
-          },
-          removeItem: (name) => {
-            localStorage.removeItem(name)
-          },
-        },
       }
     ),
     { name: 'subblock-store' }

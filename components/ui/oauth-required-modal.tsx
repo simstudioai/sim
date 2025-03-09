@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { saveToStorage } from '@/stores/workflows/persistence'
+// import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthProvider } from '@/tools/types'
 
 export interface OAuthRequiredModalProps {
@@ -166,10 +166,10 @@ export function OAuthRequiredModal({
       }
 
       // Store information about the required connection
-      saveToStorage('pending_service_id', effectiveServiceId)
-      saveToStorage('pending_oauth_scopes', requiredScopes)
-      saveToStorage('pending_oauth_return_url', window.location.href)
-      saveToStorage('pending_oauth_provider_id', providerId)
+      // saveToStorage('pending_service_id', effectiveServiceId)
+      // saveToStorage('pending_oauth_scopes', requiredScopes)
+      // saveToStorage('pending_oauth_return_url', window.location.href)
+      // saveToStorage('pending_oauth_provider_id', providerId)
 
       // Close the modal
       onClose()

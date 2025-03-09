@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/command'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { saveToStorage } from '@/stores/workflows/persistence'
+// import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthProvider } from '@/tools/types'
 
 interface CredentialSelectorProps {
@@ -171,10 +171,10 @@ export function CredentialSelector({
     const providerId = getProviderId()
 
     // Store information about the required connection
-    saveToStorage('pending_service_id', effectiveServiceId)
-    saveToStorage('pending_oauth_scopes', requiredScopes)
-    saveToStorage('pending_oauth_return_url', window.location.href)
-    saveToStorage('pending_oauth_provider_id', providerId)
+    // saveToStorage('pending_service_id', effectiveServiceId)
+    // saveToStorage('pending_oauth_scopes', requiredScopes)
+    // saveToStorage('pending_oauth_return_url', window.location.href)
+    // saveToStorage('pending_oauth_provider_id', providerId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
