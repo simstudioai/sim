@@ -2,7 +2,6 @@
 import { AgentBlock } from './blocks/agent'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
-import { CrewAIVisionBlock } from './blocks/crewai'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
@@ -23,6 +22,7 @@ import { SlackBlock } from './blocks/slack'
 import { StarterBlock } from './blocks/starter'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
+import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
@@ -33,7 +33,7 @@ export {
   AgentBlock,
   ApiBlock,
   FunctionBlock,
-  CrewAIVisionBlock,
+  VisionBlock,
   FirecrawlBlock,
   GuestyBlock,
   JinaBlock,
@@ -64,7 +64,6 @@ const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
   api: ApiBlock,
   condition: ConditionBlock,
-  crewai_vision: CrewAIVisionBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   firecrawl: FirecrawlBlock,
@@ -85,6 +84,7 @@ const blocks: Record<string, BlockConfig> = {
   starter: StarterBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
+  vision: VisionBlock,
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,

@@ -1,6 +1,5 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { visionTool as crewAIVision } from './crewai/vision'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { answerTool as exaAnswer } from './exa/answer'
 import { findSimilarLinksTool as exaFindSimilarLinks } from './exa/findSimilarLinks'
@@ -34,6 +33,7 @@ import { extractTool as tavilyExtract } from './tavily/extract'
 import { searchTool as tavilySearch } from './tavily/search'
 import { ToolConfig, ToolResponse } from './types'
 import { executeRequest, formatRequestParams, validateToolRequest } from './utils'
+import { visionTool } from './vision/vision'
 import { sendMessageTool as whatsappSendMessage } from './whatsapp/sendMessage'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
@@ -46,7 +46,7 @@ export const tools: Record<string, ToolConfig> = {
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecute,
   webcontainer_execute: webcontainerExecute,
-  crewai_vision: crewAIVision,
+  vision_tool: visionTool,
   firecrawl_scrape: scrapeTool,
   jina_readurl: readUrlTool,
   slack_message: slackMessageTool,

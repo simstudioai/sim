@@ -1,16 +1,16 @@
-import { CrewAIIcon } from '@/components/icons'
-import { VisionResponse } from '@/tools/crewai/vision'
+import { EyeIcon } from '@/components/icons'
+import { VisionResponse } from '@/tools/vision/vision'
 import { BlockConfig } from '../types'
 
-export const CrewAIVisionBlock: BlockConfig<VisionResponse> = {
-  type: 'crewai_vision',
-  name: 'CrewAI Vision',
+export const VisionBlock: BlockConfig<VisionResponse> = {
+  type: 'vision',
+  name: 'Vision',
   description: 'Analyze images with vision models',
   longDescription:
     'Process visual content with customizable prompts to extract insights and information from images.',
   category: 'tools',
-  bgColor: '#FF5A50',
-  icon: CrewAIIcon,
+  bgColor: '#4B8F4B',
+  icon: EyeIcon,
   subBlocks: [
     {
       id: 'imageUrl',
@@ -43,7 +43,7 @@ export const CrewAIVisionBlock: BlockConfig<VisionResponse> = {
     },
   ],
   tools: {
-    access: ['crewai_vision'],
+    access: ['vision_tool'],
   },
   inputs: {
     apiKey: { type: 'string', required: true },
