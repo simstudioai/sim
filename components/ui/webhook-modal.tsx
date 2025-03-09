@@ -23,21 +23,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
-// Define provider-specific configuration types
-interface WhatsAppConfig {
-  verificationToken: string
-}
-
-interface GitHubConfig {
-  contentType: string
-}
-
-interface StripeConfig {
-  // Any Stripe-specific fields would go here
-}
-
-type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | Record<string, never>
+import {
+  ProviderConfig,
+  WEBHOOK_PROVIDERS,
+  WebhookProvider,
+} from '@/app/w/[id]/components/workflow-block/components/sub-block/components/webhook-config'
 
 interface WebhookModalProps {
   isOpen: boolean
@@ -64,6 +54,7 @@ export function WebhookModal({
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
+  const [isLoadingToken, setIsLoadingToken] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message?: string } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isConfigured = Boolean(webhookId)
@@ -72,13 +63,21 @@ export function WebhookModal({
   const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
   const [githubContentType, setGithubContentType] = useState('application/json')
 
+  // Get the current provider configuration
+  const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
+
   // Generate a random verification token if none exists
   useEffect(() => {
-    if (webhookProvider === 'whatsapp' && !whatsappVerificationToken) {
+    if (
+      webhookProvider === 'whatsapp' &&
+      !whatsappVerificationToken &&
+      !webhookId &&
+      !isLoadingToken
+    ) {
       const randomToken = Math.random().toString(36).substring(2, 10)
       setWhatsappVerificationToken(randomToken)
     }
-  }, [webhookProvider, whatsappVerificationToken])
+  }, [webhookProvider, whatsappVerificationToken, webhookId, isLoadingToken])
 
   // Load existing configuration values
   useEffect(() => {
@@ -86,6 +85,7 @@ export function WebhookModal({
       // If we have a webhook ID, try to fetch the existing configuration
       const fetchWebhookConfig = async () => {
         try {
+          setIsLoadingToken(true)
           const response = await fetch(`/api/webhooks/${webhookId}`)
           if (response.ok) {
             const data = await response.json()
@@ -102,10 +102,16 @@ export function WebhookModal({
           }
         } catch (error) {
           console.error('Error fetching webhook config:', error)
+        } finally {
+          setIsLoadingToken(false)
         }
       }
 
       fetchWebhookConfig()
+    } else {
+      // If we don't have a webhook ID, we're creating a new one
+      // Reset the loading state
+      setIsLoadingToken(false)
     }
   }, [webhookId, webhookProvider])
 
@@ -208,7 +214,8 @@ export function WebhookModal({
       if (data.success) {
         setTestResult({
           success: true,
-          message: data.message || 'Webhook configuration is valid.',
+          message:
+            data.message || 'Webhook configuration is valid. You can now use this URL in WhatsApp.',
         })
       } else {
         setTestResult({
@@ -229,16 +236,12 @@ export function WebhookModal({
 
   // Get provider icon
   const getProviderIcon = () => {
-    switch (webhookProvider) {
-      case 'whatsapp':
-        return <WhatsAppIcon className="h-6 w-6 text-green-500" />
-      case 'github':
-        return <GithubIcon className="h-6 w-6" />
-      case 'stripe':
-        return <StripeIcon className="h-6 w-6 text-purple-500" />
-      default:
-        return null
-    }
+    return provider.icon({ className: 'h-5 w-5 text-green-500 dark:text-green-400' })
+  }
+
+  // Get provider-specific title
+  const getProviderTitle = () => {
+    return `${provider.name} Integration`
   }
 
   // Provider-specific setup instructions and configuration fields
@@ -250,18 +253,25 @@ export function WebhookModal({
             <div className="space-y-2">
               <Label htmlFor="whatsapp-verification-token">Verification Token</Label>
               <div className="flex items-center space-x-2">
-                <Input
-                  id="whatsapp-verification-token"
-                  value={whatsappVerificationToken}
-                  onChange={(e) => setWhatsappVerificationToken(e.target.value)}
-                  placeholder="Enter a verification token for WhatsApp"
-                  className="flex-1"
-                />
+                {isLoadingToken ? (
+                  <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <Input
+                    id="whatsapp-verification-token"
+                    value={whatsappVerificationToken}
+                    onChange={(e) => setWhatsappVerificationToken(e.target.value)}
+                    placeholder="Enter a verification token for WhatsApp"
+                    className="flex-1"
+                  />
+                )}
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   onClick={() => copyToClipboard(whatsappVerificationToken, 'token')}
+                  disabled={isLoadingToken}
                 >
                   {copied === 'token' ? (
                     <Check className="h-4 w-4" />
@@ -277,7 +287,11 @@ export function WebhookModal({
 
             {testResult && (
               <div
-                className={`p-3 rounded-md ${testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}
+                className={`p-3 rounded-md ${
+                  testResult.success
+                    ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200 dark:border-green-800'
+                    : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800'
+                }`}
               >
                 <p className="text-sm">{testResult.message}</p>
               </div>
@@ -287,56 +301,58 @@ export function WebhookModal({
               <h4 className="font-medium">Setup Instructions</h4>
               <ol className="space-y-2">
                 <li className="flex items-start">
-                  <span className="text-gray-500 mr-2">1.</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">1.</span>
                   <span className="text-sm">Go to WhatsApp Business Platform dashboard</span>
                 </li>
                 <li className="flex items-start">
-                  <span className="text-gray-500 mr-2">2.</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">2.</span>
                   <span className="text-sm">Navigate to "Configuration" in the sidebar</span>
                 </li>
                 <li className="flex items-start">
-                  <span className="text-gray-500 mr-2">3.</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">3.</span>
                   <span className="text-sm">
                     Enter the URL above as "Callback URL" (exactly as shown)
                   </span>
                 </li>
                 <li className="flex items-start">
-                  <span className="text-gray-500 mr-2">4.</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">4.</span>
                   <span className="text-sm">Enter your token as "Verify token"</span>
                 </li>
                 <li className="flex items-start">
-                  <span className="text-gray-500 mr-2">5.</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">5.</span>
                   <span className="text-sm">
                     Click "Verify and save" and subscribe to "messages"
                   </span>
                 </li>
               </ol>
-              <div className="bg-blue-50 p-3 rounded-md mt-3">
-                <h5 className="text-sm font-medium text-blue-800">Requirements</h5>
+              <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md mt-3 border border-blue-200 dark:border-blue-800">
+                <h5 className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                  Requirements
+                </h5>
                 <ul className="mt-1 space-y-1">
                   <li className="flex items-start">
-                    <span className="text-blue-500 mr-2">•</span>
-                    <span className="text-sm text-blue-700">
+                    <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
                       URL must be publicly accessible with HTTPS
                     </span>
                   </li>
                   <li className="flex items-start">
-                    <span className="text-blue-500 mr-2">•</span>
-                    <span className="text-sm text-blue-700">
+                    <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
                       Self-signed SSL certificates not supported
                     </span>
                   </li>
                   <li className="flex items-start">
-                    <span className="text-blue-500 mr-2">•</span>
-                    <span className="text-sm text-blue-700">
+                    <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
+                    <span className="text-sm text-blue-700 dark:text-blue-300">
                       For local testing, use ngrok to expose your server
                     </span>
                   </li>
                 </ul>
               </div>
-              <div className="bg-gray-50 p-3 rounded-md mt-3">
-                <p className="text-sm text-gray-700 flex items-center">
-                  <span className="text-gray-400 mr-2">💡</span>
+              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
+                  <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
                   After saving, use "Test" to verify your webhook configuration.
                 </p>
               </div>
@@ -348,13 +364,19 @@ export function WebhookModal({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="github-content-type">Content Type</Label>
-              <Input
-                id="github-content-type"
-                value={githubContentType}
-                onChange={(e) => setGithubContentType(e.target.value)}
-                placeholder="application/json"
-                className="flex-1"
-              />
+              {isLoadingToken ? (
+                <div className="h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <Input
+                  id="github-content-type"
+                  value={githubContentType}
+                  onChange={(e) => setGithubContentType(e.target.value)}
+                  placeholder="application/json"
+                  className="flex-1"
+                />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -368,6 +390,13 @@ export function WebhookModal({
                 <li>Choose which events you want to trigger the webhook</li>
                 <li>Ensure "Active" is checked and save</li>
               </ol>
+            </div>
+
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
+                <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
+                After saving, GitHub will send a ping event to verify your webhook.
+              </p>
             </div>
           </div>
         )
@@ -383,6 +412,13 @@ export function WebhookModal({
               <li>Select the events you want to listen for</li>
               <li>Add the endpoint</li>
             </ol>
+
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
+                <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
+                Stripe will send a test event to verify your webhook endpoint.
+              </p>
+            </div>
           </div>
         )
       default:
@@ -390,6 +426,13 @@ export function WebhookModal({
           <div className="space-y-2">
             <h4 className="font-medium">Generic Webhook Setup</h4>
             <p className="text-sm">Use the URL above to send webhook events to this workflow.</p>
+
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
+                <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
+                You can test your webhook by sending a POST request to the URL.
+              </p>
+            </div>
           </div>
         )
     }
@@ -399,32 +442,47 @@ export function WebhookModal({
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="flex flex-row items-start">
-            <div className="mr-3">{getProviderIcon()}</div>
-            <div>
-              <DialogTitle>Webhook Configuration</DialogTitle>
-              <DialogDescription>Configure your WhatsApp integration</DialogDescription>
+          <DialogHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center">
+              <div className="mr-3 flex items-center">{getProviderIcon()}</div>
+              <div>
+                <DialogTitle>{getProviderTitle()}</DialogTitle>
+                <DialogDescription>
+                  {webhookProvider === 'generic'
+                    ? 'Configure your webhook integration'
+                    : `Configure your ${provider.name.toLowerCase()} integration`}
+                </DialogDescription>
+              </div>
             </div>
-            {webhookId && (
-              <Badge
-                variant="outline"
-                className="ml-auto bg-green-50 text-green-700 border-green-200"
-              >
-                Connected
-              </Badge>
-            )}
+            <div className="flex items-center space-x-2">
+              {webhookId && (
+                <Badge
+                  variant="outline"
+                  className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800"
+                >
+                  Connected
+                </Badge>
+              )}
+            </div>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="webhook-url">Webhook URL</Label>
               <div className="flex items-center space-x-2">
-                <Input id="webhook-url" value={webhookUrl} readOnly className="flex-1" />
+                {isLoadingToken ? (
+                  <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <Input id="webhook-url" value={webhookUrl} readOnly className="flex-1" />
+                )}
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   onClick={() => copyToClipboard(webhookUrl, 'url')}
+                  disabled={isLoadingToken}
                 >
                   {copied === 'url' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
@@ -440,7 +498,7 @@ export function WebhookModal({
                 <Button
                   variant="destructive"
                   onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isDeleting}
+                  disabled={isDeleting || isLoadingToken}
                   className="w-full sm:w-auto"
                   size="sm"
                 >
@@ -460,7 +518,7 @@ export function WebhookModal({
                   <Button
                     variant="outline"
                     onClick={testWebhook}
-                    disabled={isTesting}
+                    disabled={isTesting || isLoadingToken}
                     className="w-full sm:w-auto"
                     size="sm"
                   >
@@ -482,7 +540,7 @@ export function WebhookModal({
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isLoadingToken}
                 className="w-full sm:w-auto"
                 size="sm"
               >

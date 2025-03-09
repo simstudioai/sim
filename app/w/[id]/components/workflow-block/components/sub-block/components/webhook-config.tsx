@@ -1,24 +1,85 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
+import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { WebhookModal } from '@/components/ui/webhook-modal'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
+export interface WebhookProvider {
+  id: string
+  name: string
+  icon: (props: { className?: string }) => JSX.Element
+  configFields: {
+    [key: string]: {
+      type: 'string' | 'boolean' | 'select'
+      label: string
+      placeholder?: string
+      options?: string[]
+      defaultValue?: string | boolean
+      description?: string
+    }
+  }
+}
+
 // Define provider-specific configuration types
-interface WhatsAppConfig {
+export interface WhatsAppConfig {
   verificationToken: string
 }
 
-interface GitHubConfig {
+export interface GitHubConfig {
   contentType: string
 }
 
-interface StripeConfig {
+export interface StripeConfig {
   // Any Stripe-specific fields would go here
 }
 
-type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | Record<string, never>
+// Union type for all provider configurations
+export type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | Record<string, never>
+
+// Define available webhook providers
+export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
+  whatsapp: {
+    id: 'whatsapp',
+    name: 'WhatsApp',
+    icon: (props) => <WhatsAppIcon {...props} />,
+    configFields: {
+      verificationToken: {
+        type: 'string',
+        label: 'Verification Token',
+        placeholder: 'Enter a verification token for WhatsApp',
+        description: 'This token will be used to verify your webhook with WhatsApp.',
+      },
+    },
+  },
+  github: {
+    id: 'github',
+    name: 'GitHub',
+    icon: (props) => <GithubIcon {...props} />,
+    configFields: {
+      contentType: {
+        type: 'string',
+        label: 'Content Type',
+        placeholder: 'application/json',
+        defaultValue: 'application/json',
+        description: 'The content type for GitHub webhook payloads.',
+      },
+    },
+  },
+  stripe: {
+    id: 'stripe',
+    name: 'Stripe',
+    icon: (props) => <StripeIcon {...props} />,
+    configFields: {},
+  },
+  generic: {
+    id: 'generic',
+    name: 'Generic',
+    icon: (props) => <CheckCircle2 {...props} />,
+    configFields: {},
+  },
+}
 
 interface WebhookConfigProps {
   blockId: string
@@ -36,13 +97,16 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const workflowId = params.id as string
 
   // Get the webhook provider from the block state
-  const [webhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
+  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
 
   // Store the webhook path
   const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
 
   // Store provider-specific configuration
   const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+
+  // Store the actual provider from the database
+  const [actualProvider, setActualProvider] = useState<string | null>(null)
 
   // Check if webhook exists in the database
   useEffect(() => {
@@ -56,12 +120,21 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
             const webhook = data.webhooks[0].webhook
             setWebhookId(webhook.id)
 
+            // Update the provider in the block state if it's different
+            if (webhook.provider && webhook.provider !== webhookProvider) {
+              setWebhookProvider(webhook.provider)
+            }
+
+            // Store the actual provider from the database
+            setActualProvider(webhook.provider)
+
             // Update the path in the block state if it's different
             if (webhook.path && webhook.path !== webhookPath) {
               setWebhookPath(webhook.path)
             }
           } else {
             setWebhookId(null)
+            setActualProvider(null)
           }
         }
       } catch (error) {
@@ -70,7 +143,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
     }
 
     checkWebhook()
-  }, [webhookPath, workflowId, setWebhookPath])
+  }, [webhookPath, webhookProvider, workflowId, setWebhookPath, setWebhookProvider])
 
   const handleOpenModal = () => {
     setIsModalOpen(true)
@@ -116,6 +189,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       const data = await response.json()
       setWebhookId(data.webhook.id)
 
+      // Update the actual provider after saving
+      setActualProvider(webhookProvider || 'generic')
+
       console.log('Webhook configuration saved successfully')
       return true
     } catch (error: any) {
@@ -143,8 +219,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         throw new Error(errorData.error || 'Failed to delete webhook')
       }
 
-      // Clear the webhook ID
+      // Clear the webhook ID and actual provider
       setWebhookId(null)
+      setActualProvider(null)
 
       console.log('Webhook deleted successfully')
       return true
@@ -157,9 +234,23 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
     }
   }
 
+  // Get provider icon based on the current provider
+  const getProviderIcon = () => {
+    // Only show provider icon if the webhook is connected and the selected provider matches the actual provider
+    if (!webhookId || webhookProvider !== actualProvider) {
+      return null
+    }
+
+    const provider = WEBHOOK_PROVIDERS[webhookProvider || 'generic']
+    return provider.icon({ className: 'h-4 w-4 mr-2 text-green-500 dark:text-green-400' })
+  }
+
+  // Check if the webhook is connected for the selected provider
+  const isWebhookConnected = webhookId && webhookProvider === actualProvider
+
   return (
     <div className="mt-2">
-      {error && <div className="text-sm text-red-500 mb-2">{error}</div>}
+      {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
       <Button
         variant="outline"
         size="sm"
@@ -167,9 +258,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         onClick={handleOpenModal}
         disabled={isConnecting || isSaving || isDeleting}
       >
-        {webhookId ? (
+        {isWebhookConnected ? (
           <>
-            <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />
+            {getProviderIcon()}
             {isSaving ? 'Saving...' : isDeleting ? 'Deleting...' : 'Webhook Connected'}
           </>
         ) : (
