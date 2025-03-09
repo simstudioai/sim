@@ -124,11 +124,7 @@ export function WebhookModal({
       ? `${window.location.protocol}//${window.location.host}`
       : 'https://your-domain.com'
 
-  // Use the dedicated endpoint for WhatsApp, path-based for others
-  const webhookUrl =
-    webhookProvider === 'whatsapp'
-      ? `${baseUrl}/api/webhooks/whatsapp`
-      : `${baseUrl}/api/webhooks/trigger/${formattedPath}`
+  const webhookUrl = `${baseUrl}/api/webhooks/trigger/${formattedPath}`
 
   const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text)
@@ -192,16 +188,8 @@ export function WebhookModal({
       setIsTesting(true)
       setTestResult(null)
 
-      // Use the provider-specific test endpoint
-      let testEndpoint = `/api/webhooks/test/generic?id=${webhookId}`
-
-      if (webhookProvider === 'whatsapp') {
-        testEndpoint = `/api/webhooks/test/whatsapp?id=${webhookId}`
-      } else if (webhookProvider === 'github') {
-        testEndpoint = `/api/webhooks/test/github?id=${webhookId}`
-      } else if (webhookProvider === 'stripe') {
-        testEndpoint = `/api/webhooks/test/stripe?id=${webhookId}`
-      }
+      // Use the consolidated test endpoint
+      const testEndpoint = `/api/webhooks/test?id=${webhookId}`
 
       const response = await fetch(testEndpoint)
       if (!response.ok) {
@@ -214,8 +202,7 @@ export function WebhookModal({
       if (data.success) {
         setTestResult({
           success: true,
-          message:
-            data.message || 'Webhook configuration is valid. You can now use this URL in WhatsApp.',
+          message: data.message || 'Webhook configuration is valid.',
         })
       } else {
         setTestResult({
