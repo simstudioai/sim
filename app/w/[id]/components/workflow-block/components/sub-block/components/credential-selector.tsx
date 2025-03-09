@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Key, RefreshCw } from 'lucide-react'
-import { GithubIcon, GmailIcon, GoogleIcon, xIcon as TwitterIcon } from '@/components/icons'
+import { GithubIcon, GoogleIcon, xIcon as TwitterIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -49,64 +49,7 @@ export function CredentialSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState(value)
-
-  // Fetch available credentials for this provider
-  const fetchCredentials = useCallback(async () => {
-    if (!open) return
-    setIsLoading(true)
-    try {
-      const providerId = getProviderId()
-
-      const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setCredentials(data.credentials)
-
-        // If we have a value but it's not in the credentials, reset it
-        if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
-          setSelectedId('')
-          onChange('')
-        }
-
-        // If we have no value but have a default credential, select it
-        if (!selectedId && data.credentials.length > 0) {
-          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
-          if (defaultCred) {
-            setSelectedId(defaultCred.id)
-            onChange(defaultCred.id)
-          } else if (data.credentials.length === 1) {
-            // If only one credential, select it
-            setSelectedId(data.credentials[0].id)
-            onChange(data.credentials[0].id)
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching credentials:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [open, provider, onChange, selectedId])
-
-  // Only fetch credentials when opening the popover
-  useEffect(() => {
-    fetchCredentials()
-  }, [open, fetchCredentials])
-
-  // Update local state when external value changes
-  useEffect(() => {
-    setSelectedId(value)
-  }, [value])
-
-  // Get the selected credential
-  const selectedCredential = credentials.find((cred) => cred.id === selectedId)
-
-  // Handle selection
-  const handleSelect = (credentialId: string) => {
-    setSelectedId(credentialId)
-    onChange(credentialId)
-    setOpen(false)
-  }
+  const initialFetchRef = useRef(false)
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -163,6 +106,79 @@ export function CredentialSelector({
       default:
         return `${provider}-default`
     }
+  }
+
+  // Fetch available credentials for this provider
+  const fetchCredentials = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const providerId = getProviderId()
+
+      const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setCredentials(data.credentials)
+
+        // If we have a value but it's not in the credentials, reset it
+        if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
+          setSelectedId('')
+          onChange('')
+        }
+
+        // Auto-select logic:
+        // 1. If we already have a valid selection, keep it
+        // 2. If there's a default credential, select it
+        // 3. If there's only one credential, select it
+        if (
+          (!selectedId || !data.credentials.some((cred: Credential) => cred.id === selectedId)) &&
+          data.credentials.length > 0
+        ) {
+          const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
+          if (defaultCred) {
+            setSelectedId(defaultCred.id)
+            onChange(defaultCred.id)
+          } else if (data.credentials.length === 1) {
+            // If only one credential, select it
+            setSelectedId(data.credentials[0].id)
+            onChange(data.credentials[0].id)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching credentials:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [provider, onChange, selectedId])
+
+  // Fetch credentials on initial mount and when dependencies change
+  useEffect(() => {
+    if (!initialFetchRef.current) {
+      fetchCredentials()
+      initialFetchRef.current = true
+    }
+  }, [fetchCredentials])
+
+  // Also fetch credentials when opening the popover
+  useEffect(() => {
+    if (open) {
+      fetchCredentials()
+    }
+  }, [open, fetchCredentials])
+
+  // Update local state when external value changes
+  useEffect(() => {
+    setSelectedId(value)
+  }, [value])
+
+  // Get the selected credential
+  const selectedCredential = credentials.find((cred) => cred.id === selectedId)
+
+  // Handle selection
+  const handleSelect = (credentialId: string) => {
+    setSelectedId(credentialId)
+    onChange(credentialId)
+    setOpen(false)
   }
 
   // Handle adding a new credential
