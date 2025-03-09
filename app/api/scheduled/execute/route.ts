@@ -3,7 +3,7 @@ import { Cron } from 'croner'
 import { eq, lte } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { persistLog } from '@/lib/logging'
+import { persistExecutionError, persistExecutionLogs } from '@/lib/logging'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -280,40 +280,8 @@ export async function GET(req: NextRequest) {
         const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
         const result = await executor.execute(schedule.workflowId)
 
-        // Log each execution step
-        for (const log of result.logs || []) {
-          await persistLog({
-            id: uuidv4(),
-            workflowId: schedule.workflowId,
-            executionId,
-            level: log.success ? 'info' : 'error',
-            message: log.success
-              ? `Block ${log.blockName || log.blockId} (${log.blockType}): ${JSON.stringify(log.output?.response || {})}`
-              : `Block ${log.blockName || log.blockId} (${log.blockType}): ${log.error || 'Failed'}`,
-            duration: log.success ? `${log.durationMs}ms` : 'NA',
-            trigger: 'schedule',
-            createdAt: new Date(log.endedAt || log.startedAt),
-          })
-        }
-
-        // Calculate total duration from successful block logs
-        const totalDuration = (result.logs || [])
-          .filter((log) => log.success)
-          .reduce((sum, log) => sum + log.durationMs, 0)
-
-        // Log the final execution result
-        await persistLog({
-          id: uuidv4(),
-          workflowId: schedule.workflowId,
-          executionId,
-          level: result.success ? 'info' : 'error',
-          message: result.success
-            ? 'Scheduled workflow executed successfully'
-            : `Scheduled workflow execution failed: ${result.error}`,
-          duration: result.success ? `${totalDuration}ms` : 'NA',
-          trigger: 'schedule',
-          createdAt: new Date(),
-        })
+        // Log each execution step and the final result
+        await persistExecutionLogs(schedule.workflowId, executionId, result, 'schedule')
 
         // Only update next_run_at if execution was successful
         if (result.success) {
@@ -348,17 +316,10 @@ export async function GET(req: NextRequest) {
           console.log('Execution failed, scheduled retry at:', nextRetryAt.toISOString())
         }
       } catch (error: any) {
-        console.error('Error executing workflow:', error)
-        await persistLog({
-          id: uuidv4(),
-          workflowId: schedule.workflowId,
-          executionId,
-          level: 'error',
-          message: `Scheduled workflow execution failed: ${error.message || 'Unknown error'}`,
-          duration: 'NA',
-          trigger: 'schedule',
-          createdAt: new Date(),
-        })
+        console.error(`Error executing scheduled workflow ${schedule.workflowId}:`, error)
+
+        // Log the error
+        await persistExecutionError(schedule.workflowId, executionId, error, 'schedule')
 
         // On error, increment next_run_at by a small delay to prevent immediate retries
         const retryDelay = 1 * 60 * 1000 // 1 minute delay

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { persistLog } from '@/lib/logging'
+import { persistExecutionError, persistExecutionLogs } from '@/lib/logging'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { db } from '@/db'
@@ -98,6 +98,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string }> }
 ) {
+  const executionId = uuidv4()
+  let foundWorkflow: any = null
+
   try {
     const path = (await params).path
 
@@ -120,8 +123,8 @@ export async function POST(
       return new NextResponse('Webhook not found', { status: 404 })
     }
 
-    const { webhook: foundWebhook, workflow: foundWorkflow } = webhooks[0]
-    const executionId = uuidv4()
+    const { webhook: foundWebhook, workflow: workflowData } = webhooks[0]
+    foundWorkflow = workflowData
 
     // Handle provider-specific verification and authentication
     if (foundWebhook.provider && foundWebhook.provider !== 'whatsapp') {
@@ -257,26 +260,19 @@ export async function POST(
 
     console.log(`Successfully executed workflow ${foundWorkflow.id}`)
 
-    // Log each execution step
-    for (const log of result.logs || []) {
-      await persistLog({
-        id: uuidv4(),
-        workflowId: foundWorkflow.id,
-        executionId,
-        level: log.success ? 'info' : 'error',
-        message: log.success
-          ? `Block ${log.blockName || log.blockId} (${log.blockType}): ${JSON.stringify(log.output?.response || {})}`
-          : `Block ${log.blockName || log.blockId} (${log.blockType}): ${log.error || 'Failed'}`,
-        duration: log.success ? `${log.durationMs}ms` : 'NA',
-        trigger: 'webhook',
-        createdAt: new Date(log.endedAt || log.startedAt),
-      })
-    }
+    // Log each execution step and the final result
+    await persistExecutionLogs(foundWorkflow.id, executionId, result, 'webhook')
 
     // Return the execution result
     return NextResponse.json(result, { status: 200 })
   } catch (error: any) {
     console.error('Error processing webhook:', error)
+
+    // Log the error if we have a workflow ID
+    if (foundWorkflow?.id) {
+      await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
+    }
+
     return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
   }
 }

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { persistLog } from '@/lib/logging'
+import { persistExecutionError, persistExecutionLogs } from '@/lib/logging'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -116,54 +116,13 @@ async function executeWorkflow(workflow: any, input?: any) {
     const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars, input)
     const result = await executor.execute(workflowId)
 
-    // Log each execution step
-    for (const log of result.logs || []) {
-      await persistLog({
-        id: uuidv4(),
-        workflowId,
-        executionId,
-        level: log.success ? 'info' : 'error',
-        message: log.success
-          ? `Block ${log.blockName || log.blockId} (${log.blockType}): ${JSON.stringify(log.output?.response || {})}`
-          : `Block ${log.blockName || log.blockId} (${log.blockType}): ${log.error || 'Failed'}`,
-        duration: log.success ? `${log.durationMs}ms` : 'NA',
-        trigger: 'api',
-        createdAt: new Date(log.endedAt || log.startedAt),
-      })
-    }
-
-    // Calculate total duration from successful block logs
-    const totalDuration = (result.logs || [])
-      .filter((log) => log.success)
-      .reduce((sum, log) => sum + log.durationMs, 0)
-
-    // Log the final execution result
-    await persistLog({
-      id: uuidv4(),
-      workflowId,
-      executionId,
-      level: result.success ? 'info' : 'error',
-      message: result.success
-        ? 'API workflow executed successfully'
-        : `API workflow execution failed: ${result.error}`,
-      duration: result.success ? `${totalDuration}ms` : 'NA',
-      trigger: 'api',
-      createdAt: new Date(),
-    })
+    // Log each execution step and the final result
+    await persistExecutionLogs(workflowId, executionId, result, 'api')
 
     return result
   } catch (error: any) {
     // Log the error
-    await persistLog({
-      id: uuidv4(),
-      workflowId,
-      executionId,
-      level: 'error',
-      message: `API workflow execution failed: ${error.message}`,
-      duration: 'NA',
-      trigger: 'api',
-      createdAt: new Date(),
-    })
+    await persistExecutionError(workflowId, executionId, error, 'api')
     throw error
   } finally {
     runningExecutions.delete(workflowId)
