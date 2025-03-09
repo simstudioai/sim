@@ -13,6 +13,7 @@ import { commentTool } from './github/comment'
 import { prTool } from './github/pr'
 import { repoInfoTool } from './github/repo'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
+import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
@@ -82,6 +83,8 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_read: sheetsReadTool,
   google_sheets_write: sheetsWriteTool,
   google_sheets_update: sheetsUpdateTool,
+  guesty_reservation: guestyReservationTool,
+  guesty_guest: guestyGuestTool,
 }
 
 // Get a tool by its ID

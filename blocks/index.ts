@@ -10,6 +10,7 @@ import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
+import { GuestyBlock } from './blocks/guesty'
 import { JinaBlock } from './blocks/jina'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -34,6 +35,7 @@ export {
   FunctionBlock,
   CrewAIVisionBlock,
   FirecrawlBlock,
+  GuestyBlock,
   JinaBlock,
   TranslateBlock,
   SlackBlock,
@@ -71,6 +73,7 @@ const blocks: Record<string, BlockConfig> = {
   gmail: GmailBlock,
   google_drive: GoogleDriveBlock,
   google_sheets: GoogleSheetsBlock,
+  guesty: GuestyBlock,
   jina: JinaBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
