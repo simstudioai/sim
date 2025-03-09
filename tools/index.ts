@@ -24,6 +24,7 @@ import { opportunitiesTool as salesforceOpportunities } from './salesforce/oppor
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
+import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
 import { ToolConfig, ToolResponse } from './types'
 import { formatRequestParams, validateToolRequest } from './utils'
@@ -48,6 +49,9 @@ export const tools: Record<string, ToolConfig> = {
   serper_search: serperSearch,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
+  supabase_query: supabaseQueryTool,
+  supabase_insert: supabaseInsertTool,
+  supabase_update: supabaseUpdateTool,
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,

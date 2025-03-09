@@ -7,11 +7,12 @@ import {
   GoogleDriveIcon,
   GoogleIcon,
   GoogleSheetsIcon,
-  xIcon as TwitterIcon,
+  SupabaseIcon,
+  xIcon,
 } from '@/components/icons'
 
 // Define the base OAuth provider type
-export type OAuthProvider = 'google' | 'github' | 'twitter' | string
+export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | string
 export type OAuthService =
   | 'google'
   | 'google-email'
@@ -19,7 +20,8 @@ export type OAuthService =
   | 'google-docs'
   | 'google-sheets'
   | 'github'
-  | 'twitter'
+  | 'x'
+  | 'supabase'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -117,21 +119,37 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'github',
   },
-  twitter: {
-    id: 'twitter',
-    name: 'Twitter',
-    icon: (props) => TwitterIcon(props),
+  x: {
+    id: 'x',
+    name: 'X',
+    icon: (props) => xIcon(props),
     services: {
-      twitter: {
-        id: 'twitter',
-        name: 'Twitter',
-        description: 'Post tweets and interact with the Twitter API.',
-        providerId: 'twitter',
-        icon: (props) => TwitterIcon(props),
-        scopes: ['tweet.read', 'tweet.write', 'users.read'],
+      x: {
+        id: 'x',
+        name: 'X',
+        description: 'Post tweets and interact with the X API.',
+        providerId: 'x',
+        icon: (props) => xIcon(props),
+        scopes: [],
       },
     },
-    defaultService: 'twitter',
+    defaultService: 'x',
+  },
+  supabase: {
+    id: 'supabase',
+    name: 'Supabase',
+    icon: (props) => SupabaseIcon(props),
+    services: {
+      supabase: {
+        id: 'supabase',
+        name: 'Supabase',
+        description: 'Connect to your Supabase projects and manage data.',
+        providerId: 'supabase',
+        icon: (props) => SupabaseIcon(props),
+        scopes: ['database.read', 'database.write', 'projects.read'],
+      },
+    },
+    defaultService: 'supabase',
   },
 }
 
@@ -177,6 +195,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     if (scopes.some((scope) => scope.includes('workflow'))) {
       return 'github-workflow'
     }
+  } else if (provider === 'supabase') {
+    return 'supabase'
   }
 
   return providerConfig.defaultService

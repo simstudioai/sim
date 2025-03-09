@@ -180,6 +180,19 @@ export const auth = betterAuth({
           ],
         },
 
+        // Supabase provider
+        {
+          providerId: 'supabase',
+          clientId: process.env.SUPABASE_CLIENT_ID as string,
+          clientSecret: process.env.SUPABASE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
+          tokenUrl: 'https://api.supabase.com/v1/oauth/token',
+          userInfoUrl: 'https://api.supabase.com/v1/oauth/userinfo',
+          scopes: ['database.read', 'database.write', 'projects.read'],
+          responseType: 'code',
+          pkce: true,
+        },
+
         // Twitter providers
         // {
         //   providerId: 'twitter-read',
