@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, Key, RefreshCw } from 'lucide-react'
-import { GithubIcon, GoogleIcon, xIcon as TwitterIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -14,8 +13,16 @@ import {
 } from '@/components/ui/command'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { client } from '@/lib/auth-client'
+import {
+  Credential,
+  OAUTH_PROVIDERS,
+  OAuthProvider,
+  getProviderIdFromServiceId,
+  getServiceByProviderAndId,
+  getServiceIdFromScopes,
+} from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthProvider } from '@/tools/types'
 
 interface CredentialSelectorProps {
   value: string
@@ -25,14 +32,6 @@ interface CredentialSelectorProps {
   label?: string
   disabled?: boolean
   serviceId?: string
-}
-
-interface Credential {
-  id: string
-  name: string
-  provider: OAuthProvider
-  lastUsed?: string
-  isDefault?: boolean
 }
 
 export function CredentialSelector({
@@ -54,58 +53,13 @@ export function CredentialSelector({
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
-
-    if (provider === 'google') {
-      if (requiredScopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))) {
-        return 'gmail'
-      } else if (requiredScopes.some((scope) => scope.includes('drive'))) {
-        return 'google-drive'
-      } else if (requiredScopes.some((scope) => scope.includes('docs'))) {
-        return 'google-docs'
-      } else if (requiredScopes.some((scope) => scope.includes('sheets'))) {
-        return 'google-sheets'
-      } else if (requiredScopes.some((scope) => scope.includes('calendar'))) {
-        return 'google-calendar'
-      } else {
-        return 'gmail' // Default Google service
-      }
-    } else if (provider === 'github') {
-      return 'github'
-    } else if (provider === 'twitter') {
-      return 'twitter'
-    }
-
-    return provider
+    return getServiceIdFromScopes(provider, requiredScopes)
   }
 
   // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
-
-    switch (effectiveServiceId) {
-      case 'gmail':
-        return 'google-email'
-      case 'google-drive':
-        return 'google-drive'
-      case 'google-sheets':
-        return 'google-sheets'
-      case 'google-docs':
-        return 'google-docs'
-      case 'google-calendar':
-        return 'google-calendar'
-      case 'github':
-        if (requiredScopes.some((scope) => scope.includes('workflow'))) {
-          return 'github-workflow'
-        }
-        return 'github-repo'
-      case 'twitter':
-        if (requiredScopes.some((scope) => scope.includes('write'))) {
-          return 'twitter-write'
-        }
-        return 'twitter-read'
-      default:
-        return `${provider}-default`
-    }
+    return getProviderIdFromServiceId(effectiveServiceId)
   }
 
   // Fetch available credentials for this provider
@@ -187,50 +141,53 @@ export function CredentialSelector({
     const providerId = getProviderId()
 
     // Store information about the required connection
-    saveToStorage('pending_service_id', effectiveServiceId)
-    saveToStorage('pending_oauth_scopes', requiredScopes)
-    saveToStorage('pending_oauth_return_url', window.location.href)
-    saveToStorage('pending_oauth_provider_id', providerId)
+    saveToStorage<string>('pending_service_id', effectiveServiceId)
+    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+    saveToStorage<string>('pending_oauth_return_url', window.location.href)
+    saveToStorage<string>('pending_oauth_provider_id', providerId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
   }
 
-  // Get provider icon
-  const getProviderIcon = (provider: OAuthProvider) => {
-    const baseProvider = provider.split('-')[0] as OAuthProvider
-    switch (baseProvider) {
-      case 'google':
-        return <GoogleIcon className="h-4 w-4" />
-      case 'github':
-        return <GithubIcon className="h-4 w-4" />
-      case 'twitter':
-        return <TwitterIcon className="h-4 w-4" />
-      default:
-        return <ExternalLink className="h-4 w-4" />
+  // Handle direct OAuth flow
+  const handleDirectOAuth = async () => {
+    try {
+      const providerId = getProviderId()
+
+      // Begin OAuth flow with the appropriate provider
+      await client.signIn.oauth2({
+        providerId,
+        callbackURL: window.location.href,
+      })
+    } catch (error) {
+      console.error('OAuth login error:', error)
     }
   }
 
+  // Get provider icon
+  const getProviderIcon = (providerName: OAuthProvider) => {
+    const providerConfig = OAUTH_PROVIDERS[providerName]
+    if (providerConfig) {
+      return providerConfig.icon({ className: 'h-4 w-4' })
+    }
+    return <ExternalLink className="h-4 w-4" />
+  }
+
   // Get provider name
-  const getProviderName = (provider: OAuthProvider) => {
-    switch (provider) {
-      case 'google':
-        return 'Google'
-      case 'google-email':
-        return 'Gmail'
-      case 'google-drive':
-        return 'Google Drive'
-      case 'google-sheets':
-        return 'Google Sheets'
-      case 'google-docs':
-        return 'Google Docs'
-      case 'github':
-        return 'GitHub'
-      case 'twitter':
-        return 'X (Twitter)'
-      default:
-        return provider
+  const getProviderName = (providerName: OAuthProvider) => {
+    const effectiveServiceId = getServiceId()
+    try {
+      const service = getServiceByProviderAndId(providerName, effectiveServiceId)
+      return service.name
+    } catch (error) {
+      // Fallback to provider name if service not found
+      const providerConfig = OAUTH_PROVIDERS[providerName]
+      if (providerConfig) {
+        return providerConfig.name
+      }
+      return providerName
     }
   }
 
@@ -251,7 +208,7 @@ export function CredentialSelector({
                 <span>{selectedCredential.name}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-muted-foreground">
+              <div className="flex items-center gap-2">
                 <Key className="h-4 w-4" />
                 <span>{label}</span>
               </div>
@@ -259,61 +216,65 @@ export function CredentialSelector({
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[250px] p-0">
+        <PopoverContent className="p-0" align="start">
           <Command>
-            <CommandInput placeholder={`Search credentials...`} />
+            <CommandInput placeholder="Search credentials..." />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-6">
+                  <div className="flex items-center justify-center p-4">
                     <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span className="ml-2">Loading credentials...</span>
                   </div>
                 ) : (
-                  <div className="py-6 text-center">
-                    <p className="text-sm text-muted-foreground">No credentials found</p>
+                  <div className="p-4 text-center">
+                    <p className="text-sm">No credentials found.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Connect a new account to continue.
+                    </p>
                   </div>
                 )}
               </CommandEmpty>
               {credentials.length > 0 && (
                 <CommandGroup>
-                  {credentials.map((credential) => (
+                  {credentials.map((cred) => (
                     <CommandItem
-                      key={credential.id}
-                      value={credential.id}
-                      onSelect={() => handleSelect(credential.id)}
+                      key={cred.id}
+                      value={cred.id}
+                      onSelect={() => handleSelect(cred.id)}
                     >
                       <div className="flex items-center gap-2">
-                        {getProviderIcon(credential.provider)}
-                        <span>{credential.name}</span>
+                        {getProviderIcon(cred.provider)}
+                        <span>{cred.name}</span>
                       </div>
-                      {credential.id === selectedId && <Check className="ml-auto h-4 w-4" />}
+                      {cred.id === selectedId && <Check className="ml-auto h-4 w-4" />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
               )}
-              <div className="p-2 border-t">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={handleAddCredential}
-                >
-                  <span>Add New Credential</span>
-                </Button>
-              </div>
+              <CommandGroup>
+                <CommandItem onSelect={handleAddCredential}>
+                  <div className="flex items-center gap-2 text-primary">
+                    <ExternalLink className="h-4 w-4" />
+                    <span>Connect {getProviderName(provider)} account</span>
+                  </div>
+                </CommandItem>
+              </CommandGroup>
             </CommandList>
           </Command>
         </PopoverContent>
       </Popover>
 
-      <OAuthRequiredModal
-        isOpen={showOAuthModal}
-        onClose={() => setShowOAuthModal(false)}
-        provider={provider}
-        toolName={`${getProviderName(provider)} Integration`}
-        requiredScopes={requiredScopes}
-        serviceId={getServiceId()}
-      />
+      {showOAuthModal && (
+        <OAuthRequiredModal
+          isOpen={showOAuthModal}
+          onClose={() => setShowOAuthModal(false)}
+          provider={provider}
+          toolName={getProviderName(provider)}
+          requiredScopes={requiredScopes}
+          serviceId={getServiceId()}
+        />
+      )}
     </>
   )
 }

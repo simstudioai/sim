@@ -1,12 +1,6 @@
+import { OAuthService } from '@/lib/oauth'
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
-export type OAuthProvider =
-  | 'google'
-  | 'google-email'
-  | 'google-drive'
-  | 'google-docs'
-  | 'google-sheets'
-  | 'github'
-  | 'twitter'
 
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
@@ -16,7 +10,7 @@ export interface ToolResponse {
 
 export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
-  provider: OAuthProvider // The provider that needs to be authorized
+  provider: OAuthService // The service that needs to be authorized
   additionalScopes?: string[] // Additional scopes required for the tool
 }
 

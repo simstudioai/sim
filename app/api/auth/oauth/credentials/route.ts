@@ -3,9 +3,9 @@ import { and, eq, like } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
 import { parseProvider } from '@/lib/oauth'
+import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
-import { OAuthProvider } from '@/tools/types'
 
 interface GoogleIdToken {
   email?: string
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     // Get the provider from the query params
     const { searchParams } = new URL(request.url)
-    const provider = searchParams.get('provider') as OAuthProvider | null
+    const provider = searchParams.get('provider') as OAuthService | null
 
     if (!provider) {
       return NextResponse.json({ error: 'Provider is required' }, { status: 400 })

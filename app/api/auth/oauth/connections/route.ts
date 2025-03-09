@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
+import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
-import { OAuthProvider } from '@/tools/types'
 
 interface GoogleIdToken {
   email?: string
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         } else {
           // Create new connection
           connections.push({
-            provider: provider as OAuthProvider,
+            provider: provider as OAuthService,
             featureType,
             isConnected: true,
             scopes: acc.scope ? acc.scope.split(' ') : [],

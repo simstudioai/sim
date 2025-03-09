@@ -1589,8 +1589,8 @@ export function GoogleCalendarIcon(props: SVGProps<SVGSVGElement>) {
       <path
         d="M204 229a25 22 1 1 1 25 27h-9h9a25 22 1 1 1-25 27M270 231l27-19h4v-7V308"
         stroke="#4285f4"
-        stroke-width="15"
-        stroke-linejoin="bevel"
+        strokeWidth="15"
+        strokeLinejoin="bevel"
         fill="none"
       />
     </svg>

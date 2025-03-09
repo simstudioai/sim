@@ -1,15 +1,6 @@
 'use client'
 
 import { Check } from 'lucide-react'
-import {
-  GithubIcon,
-  GmailIcon,
-  GoogleDocsIcon,
-  GoogleDriveIcon,
-  GoogleIcon,
-  GoogleSheetsIcon,
-  xIcon as XIcon,
-} from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -19,8 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { client } from '@/lib/auth-client'
+import {
+  OAUTH_PROVIDERS,
+  OAuthProvider,
+  getProviderIdFromServiceId,
+  getServiceIdFromScopes,
+} from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthProvider } from '@/tools/types'
 
 export interface OAuthRequiredModalProps {
   isOpen: boolean
@@ -29,28 +26,6 @@ export interface OAuthRequiredModalProps {
   toolName: string
   requiredScopes?: string[]
   serviceId?: string
-}
-
-// Map of provider names to friendly display names
-const PROVIDER_NAMES: Record<OAuthProvider, string> = {
-  github: 'GitHub',
-  google: 'Google',
-  'google-email': 'Gmail',
-  'google-drive': 'Google Drive',
-  'google-docs': 'Google Docs',
-  'google-sheets': 'Google Sheets',
-  twitter: 'X (Twitter)',
-}
-
-// Map of provider to icons
-const PROVIDER_ICONS: Record<OAuthProvider, React.FC<React.SVGProps<SVGSVGElement>>> = {
-  github: GithubIcon,
-  google: GoogleIcon,
-  'google-email': GmailIcon,
-  'google-drive': GoogleDriveIcon,
-  'google-docs': GoogleDocsIcon,
-  'google-sheets': GoogleSheetsIcon,
-  twitter: XIcon,
 }
 
 // Map of OAuth scopes to user-friendly descriptions
@@ -85,8 +60,10 @@ export function OAuthRequiredModal({
   requiredScopes = [],
   serviceId,
 }: OAuthRequiredModalProps) {
-  const providerName = PROVIDER_NAMES[provider] || provider
-  const ProviderIcon = PROVIDER_ICONS[provider]
+  // Get provider configuration
+  const providerConfig = OAUTH_PROVIDERS[provider]
+  const providerName = providerConfig?.name || provider
+  const ProviderIcon = providerConfig?.icon || (() => null)
 
   // Filter out userinfo scopes as they're not relevant to show to users
   const displayScopes = requiredScopes.filter(
@@ -95,81 +72,15 @@ export function OAuthRequiredModal({
 
   const handleRedirectToSettings = () => {
     try {
-      // Determine the appropriate providerId and serviceId based on the provider and required scopes
-      let providerId: string
-      let effectiveServiceId = serviceId
-
-      // If no serviceId is provided, determine it based on scopes
-      if (!effectiveServiceId) {
-        if (provider === 'google') {
-          if (requiredScopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))) {
-            effectiveServiceId = 'gmail'
-            providerId = 'google-email'
-          } else if (requiredScopes.some((scope) => scope.includes('drive'))) {
-            effectiveServiceId = 'google-drive'
-            providerId = 'google-drive'
-          } else if (requiredScopes.some((scope) => scope.includes('docs'))) {
-            effectiveServiceId = 'google-docs'
-            providerId = 'google-docs'
-          } else if (requiredScopes.some((scope) => scope.includes('sheets'))) {
-            effectiveServiceId = 'google-sheets'
-            providerId = 'google-sheets'
-          } else if (requiredScopes.some((scope) => scope.includes('calendar'))) {
-            effectiveServiceId = 'google-calendar'
-            providerId = 'google-calendar'
-          } else {
-            effectiveServiceId = 'gmail' // Default Google service
-            providerId = 'google-email'
-          }
-        } else if (provider === 'github') {
-          effectiveServiceId = 'github'
-          if (requiredScopes.some((scope) => scope.includes('workflow'))) {
-            providerId = 'github-workflow'
-          } else {
-            providerId = 'github-repo'
-          }
-        } else if (provider === 'twitter') {
-          effectiveServiceId = 'twitter'
-          if (requiredScopes.some((scope) => scope.includes('write'))) {
-            providerId = 'twitter-write'
-          } else {
-            providerId = 'twitter-read'
-          }
-        } else {
-          effectiveServiceId = provider
-          providerId = `${provider}-default`
-        }
-      } else {
-        // Use the provided serviceId to determine the providerId
-        switch (effectiveServiceId) {
-          case 'gmail':
-            providerId = 'google-email'
-            break
-          case 'google-drive':
-            providerId = 'google-drive'
-            break
-          case 'google-sheets':
-            providerId = 'google-sheets'
-            break
-          case 'google-docs':
-            providerId = 'google-docs'
-            break
-          case 'github':
-            providerId = 'github-repo'
-            break
-          case 'twitter':
-            providerId = 'twitter-read'
-            break
-          default:
-            providerId = `${provider}-default`
-        }
-      }
+      // Determine the appropriate serviceId and providerId
+      const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
+      const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
       // Store information about the required connection
-      saveToStorage('pending_service_id', effectiveServiceId)
-      saveToStorage('pending_oauth_scopes', requiredScopes)
-      saveToStorage('pending_oauth_return_url', window.location.href)
-      saveToStorage('pending_oauth_provider_id', providerId)
+      saveToStorage<string>('pending_service_id', effectiveServiceId)
+      saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+      saveToStorage<string>('pending_oauth_return_url', window.location.href)
+      saveToStorage<string>('pending_oauth_provider_id', providerId)
 
       // Close the modal
       onClose()
@@ -181,6 +92,31 @@ export function OAuthRequiredModal({
       window.dispatchEvent(event)
     } catch (error) {
       console.error('Error redirecting to settings:', error)
+    }
+  }
+
+  const handleConnectDirectly = async () => {
+    try {
+      // Determine the appropriate serviceId and providerId
+      const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
+      const providerId = getProviderIdFromServiceId(effectiveServiceId)
+
+      // Store information about the required connection
+      saveToStorage<string>('pending_service_id', effectiveServiceId)
+      saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+      saveToStorage<string>('pending_oauth_return_url', window.location.href)
+      saveToStorage<string>('pending_oauth_provider_id', providerId)
+
+      // Close the modal
+      onClose()
+
+      // Begin OAuth flow with the appropriate provider
+      await client.signIn.oauth2({
+        providerId,
+        callbackURL: window.location.href,
+      })
+    } catch (error) {
+      console.error('Error initiating OAuth flow:', error)
     }
   }
 
@@ -202,7 +138,7 @@ export function OAuthRequiredModal({
             <div className="flex-1">
               <p className="text-sm font-medium">Connect {providerName}</p>
               <p className="text-sm text-muted-foreground">
-                You need to connect your {providerName} account in settings
+                You need to connect your {providerName} account to continue
               </p>
             </div>
           </div>
@@ -225,11 +161,19 @@ export function OAuthRequiredModal({
             </div>
           )}
         </div>
-        <DialogFooter className="flex space-x-2 sm:justify-end">
-          <Button variant="outline" onClick={onClose}>
+        <DialogFooter className="flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={onClose} className="sm:order-1">
             Cancel
           </Button>
-          <Button type="button" onClick={handleRedirectToSettings}>
+          <Button type="button" onClick={handleConnectDirectly} className="sm:order-3">
+            Connect Now
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleRedirectToSettings}
+            className="sm:order-2"
+          >
             Go to Settings
           </Button>
         </DialogFooter>

@@ -3,36 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, ExternalLink, Plus, RefreshCw } from 'lucide-react'
-import {
-  GithubIcon,
-  GoogleDocsIcon,
-  GoogleDriveIcon,
-  GoogleSheetsIcon,
-  xIcon as XIcon,
-} from '@/components/icons'
-import { GmailIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { client } from '@/lib/auth-client'
-import { useSession } from '@/lib/auth-client'
+import { client, useSession } from '@/lib/auth-client'
+import { OAUTH_PROVIDERS, OAuthServiceConfig } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthProvider } from '@/tools/types'
 
 interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
 }
 
-interface ServiceInfo {
-  id: string
-  name: string
-  description: string
-  provider: OAuthProvider
-  providerId: string
-  icon: React.ReactNode
+interface ServiceInfo extends OAuthServiceConfig {
   isConnected: boolean
-  scopes: string[]
   lastConnected?: string
   accounts?: { id: string; name: string }[]
 }
@@ -50,133 +34,53 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const [pendingScopes, setPendingScopes] = useState<string[]>([])
   const [authSuccess, setAuthSuccess] = useState(false)
 
-  // Define available services
-  const defineServices = (): ServiceInfo[] => [
-    {
-      id: 'gmail',
-      name: 'Gmail',
-      description: 'Automate email workflows and enhance communication efficiency.',
-      provider: 'google',
-      providerId: 'google-email',
-      icon: <GmailIcon className="h-5 w-5" />,
-      isConnected: false,
-      scopes: [],
-    },
-    {
-      id: 'google-drive',
-      name: 'Google Drive',
-      description: 'Streamline file organization and document workflows.',
-      provider: 'google',
-      providerId: 'google-drive',
-      icon: <GoogleDriveIcon className="h-5 w-5" />,
-      isConnected: false,
-      scopes: [],
-    },
-    {
-      id: 'google-docs',
-      name: 'Google Docs',
-      description: 'Create, read, and edit Google Documents programmatically.',
-      provider: 'google',
-      providerId: 'google-docs',
-      icon: <GoogleDocsIcon className="h-5 w-5" />,
-      isConnected: false,
-      scopes: [],
-    },
-    {
-      id: 'google-sheets',
-      name: 'Google Sheets',
-      description: 'Create, read, and edit Google Sheets programmatically.',
-      provider: 'google',
-      providerId: 'google-sheets',
-      icon: <GoogleSheetsIcon className="h-5 w-5" />,
-      isConnected: false,
-      scopes: [],
-    },
-    {
-      id: 'github',
-      name: 'GitHub',
-      description: 'Access repositories, issues, and other GitHub features.',
-      provider: 'github',
-      providerId: 'github-repo',
-      icon: <GithubIcon className="h-5 w-5" />,
-      isConnected: false,
-      scopes: [],
-    },
-    {
-      id: 'twitter',
-      name: 'X (Twitter)',
-      description: 'Read and post tweets, access user data, and more.',
-      provider: 'twitter',
-      providerId: 'twitter-read',
-      icon: <XIcon className="h-5 w-5" />,
-      isConnected: false,
-      scopes: [],
-    },
-  ]
+  // Define available services from our standardized OAuth providers
+  const defineServices = (): ServiceInfo[] => {
+    const servicesList: ServiceInfo[] = []
 
-  // Fetch connection status
+    // Convert our standardized providers to ServiceInfo objects
+    Object.values(OAUTH_PROVIDERS).forEach((provider) => {
+      Object.values(provider.services).forEach((service) => {
+        servicesList.push({
+          ...service,
+          isConnected: false,
+          scopes: service.scopes || [],
+        })
+      })
+    })
+
+    return servicesList
+  }
+
+  // Fetch services and their connection status
   const fetchServices = async () => {
     if (!userId) return
 
     setIsLoading(true)
     try {
-      // Get the base services
-      const baseServices = defineServices()
+      // Start with the base service definitions
+      const serviceDefinitions = defineServices()
 
-      // Call your API to check connections
+      // Fetch all OAuth connections for the user
       const response = await fetch('/api/auth/oauth/connections')
       if (response.ok) {
         const data = await response.json()
         const connections = data.connections || []
 
-        // Update services with connection status
-        const updatedServices = baseServices.map((service) => {
+        // Update services with connection status and account info
+        const updatedServices = serviceDefinitions.map((service) => {
           // Find matching connection
           const connection = connections.find((conn: any) => {
-            if (
-              service.id === 'gmail' &&
-              conn.provider === 'google' &&
-              conn.featureType === 'email'
-            ) {
-              return true
-            }
-            if (
-              service.id === 'google-drive' &&
-              conn.provider === 'google' &&
-              conn.featureType === 'drive'
-            ) {
-              return true
-            }
-            if (
-              service.id === 'google-docs' &&
-              conn.provider === 'google' &&
-              conn.featureType === 'docs'
-            ) {
-              return true
-            }
-            if (
-              service.id === 'google-sheets' &&
-              conn.provider === 'google' &&
-              conn.featureType === 'sheets'
-            ) {
-              return true
-            }
-            if (service.id === 'github' && conn.provider === 'github') {
-              return true
-            }
-            if (service.id === 'twitter' && conn.provider === 'twitter') {
-              return true
-            }
-            return false
+            const [provider, featureType] = conn.provider.split('-')
+            return service.providerId.startsWith(provider)
           })
 
           if (connection) {
             return {
               ...service,
               isConnected: connection.accounts?.length > 0,
-              scopes: connection.scopes || [],
-              lastConnected: connection.lastConnected,
               accounts: connection.accounts || [],
+              lastConnected: connection.lastConnected,
             }
           }
 
@@ -185,24 +89,25 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
         setServices(updatedServices)
       } else {
-        // If API fails, set default state
-        setServices(baseServices)
+        // If there's an error, just use the base definitions
+        setServices(serviceDefinitions)
       }
     } catch (error) {
-      console.error('Error fetching connections:', error)
-      // Set default state on error
+      console.error('Error fetching services:', error)
+      // Use base definitions on error
       setServices(defineServices())
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Handle OAuth callback
+  // Check for OAuth callback
   useEffect(() => {
-    // Check if this is an OAuth callback
     const code = searchParams.get('code')
     const state = searchParams.get('state')
+    const error = searchParams.get('error')
 
+    // Handle OAuth callback
     if (code && state) {
       // This is an OAuth callback - set success flag
       setAuthSuccess(true)
@@ -211,8 +116,14 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       if (userId) {
         fetchServices()
       }
+
+      // Clear the URL parameters
+      router.replace('/w')
+    } else if (error) {
+      console.error('OAuth error:', error)
+      router.replace('/w')
     }
-  }, [searchParams, userId])
+  }, [searchParams, router, userId])
 
   // Check for pending OAuth connections and return URL
   useEffect(() => {
@@ -253,18 +164,23 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     }
   }, [authSuccess, onOpenChange, router])
 
-  // Fetch connection status on component mount
+  // Fetch services on mount
   useEffect(() => {
-    fetchServices()
+    if (userId) {
+      fetchServices()
+    }
   }, [userId])
 
+  // Handle connect button click
   const handleConnect = async (service: ServiceInfo) => {
-    setIsConnecting(service.id)
     try {
-      // Store information about the required connection
-      saveToStorage('auth_return_url', window.location.href)
-      saveToStorage('pending_service_id', service.id)
-      saveToStorage('pending_oauth_provider_id', service.providerId)
+      setIsConnecting(service.id)
+
+      // Store information about the connection
+      saveToStorage<string>('pending_service_id', service.id)
+      saveToStorage<string[]>('pending_oauth_scopes', service.scopes)
+      saveToStorage<string>('pending_oauth_return_url', window.location.href)
+      saveToStorage<string>('pending_oauth_provider_id', service.providerId)
 
       // Begin OAuth flow with the appropriate provider
       await client.signIn.oauth2({
@@ -277,18 +193,18 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     }
   }
 
+  // Handle disconnect button click
   const handleDisconnect = async (service: ServiceInfo, accountId: string) => {
     setIsConnecting(`${service.id}-${accountId}`)
     try {
-      // Call your API to disconnect the provider
+      // Call the API to disconnect the account
       const response = await fetch('/api/auth/oauth/disconnect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          provider: service.provider,
-          providerId: service.providerId,
+          provider: service.providerId.split('-')[0],
           accountId,
         }),
       })
@@ -307,13 +223,34 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
             return svc
           })
         )
+      } else {
+        console.error('Error disconnecting service')
       }
     } catch (error) {
-      console.error('Error disconnecting provider:', error)
+      console.error('Error disconnecting service:', error)
     } finally {
       setIsConnecting(null)
     }
   }
+
+  // Group services by provider
+  const groupedServices = services.reduce(
+    (acc, service) => {
+      // Find the provider for this service
+      const providerKey =
+        Object.keys(OAUTH_PROVIDERS).find((key) =>
+          Object.keys(OAUTH_PROVIDERS[key].services).includes(service.id)
+        ) || 'other'
+
+      if (!acc[providerKey]) {
+        acc[providerKey] = []
+      }
+
+      acc[providerKey].push(service)
+      return acc
+    },
+    {} as Record<string, ServiceInfo[]>
+  )
 
   return (
     <div className="p-6 space-y-6">
@@ -324,6 +261,21 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         </p>
       </div>
 
+      {/* Success message */}
+      {authSuccess && (
+        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Check className="h-5 w-5 text-green-400" />
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium text-green-800">Account connected successfully!</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pending service message */}
       {pendingService && (
         <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-md text-sm flex items-start gap-2">
           <div className="min-w-4 mt-0.5">
@@ -337,112 +289,128 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         </div>
       )}
 
-      <div className="space-y-4">
-        {isLoading ? (
-          <>
-            <ConnectionSkeleton />
-            <ConnectionSkeleton />
-            <ConnectionSkeleton />
-            <ConnectionSkeleton />
-          </>
-        ) : (
-          services.map((service) => (
-            <Card
-              key={service.id}
-              className={cn(
-                'p-6 transition-all hover:shadow-md',
-                pendingService === service.id && 'border-primary shadow-md'
-              )}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted shrink-0">
-                    {service.icon}
-                  </div>
-                  <div className="space-y-1">
-                    <div>
-                      <h4 className="font-medium leading-none">{service.name}</h4>
-                      <p className="text-sm text-muted-foreground mt-1">{service.description}</p>
-                    </div>
-                    {service.accounts && service.accounts.length > 0 && (
-                      <div className="pt-3 space-y-2">
-                        {service.accounts.map((account) => (
-                          <div
-                            key={account.id}
-                            className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center">
-                                <Check className="h-3 w-3 text-green-600" />
-                              </div>
-                              <span className="text-sm font-medium">{account.name}</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDisconnect(service, account.id)}
-                              disabled={isConnecting === `${service.id}-${account.id}`}
-                              className="h-7 px-2"
-                            >
-                              {isConnecting === `${service.id}-${account.id}` ? (
-                                <RefreshCw className="h-3 w-3 animate-spin" />
-                              ) : (
-                                'Disconnect'
-                              )}
-                            </Button>
+      {/* Loading state */}
+      {isLoading ? (
+        <div className="space-y-4">
+          <ConnectionSkeleton />
+          <ConnectionSkeleton />
+          <ConnectionSkeleton />
+          <ConnectionSkeleton />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Group services by provider */}
+          {Object.entries(groupedServices).map(([providerKey, providerServices]) => (
+            <div key={providerKey} className="space-y-4">
+              <h4 className="text-sm font-medium text-muted-foreground">
+                {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
+              </h4>
+              <div className="space-y-4">
+                {providerServices.map((service) => (
+                  <Card
+                    key={service.id}
+                    className={cn(
+                      'p-6 transition-all hover:shadow-md',
+                      pendingService === service.id && 'border-primary shadow-md'
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted shrink-0">
+                          {typeof service.icon === 'function'
+                            ? service.icon({ className: 'h-5 w-5' })
+                            : service.icon}
+                        </div>
+                        <div className="space-y-1">
+                          <div>
+                            <h4 className="font-medium leading-none">{service.name}</h4>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {service.description}
+                            </p>
                           </div>
-                        ))}
+                          {service.accounts && service.accounts.length > 0 && (
+                            <div className="pt-3 space-y-2">
+                              {service.accounts.map((account) => (
+                                <div
+                                  key={account.id}
+                                  className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center">
+                                      <Check className="h-3 w-3 text-green-600" />
+                                    </div>
+                                    <span className="text-sm font-medium">{account.name}</span>
+                                  </div>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDisconnect(service, account.id)}
+                                    disabled={isConnecting === `${service.id}-${account.id}`}
+                                    className="h-7 px-2"
+                                  >
+                                    {isConnecting === `${service.id}-${account.id}` ? (
+                                      <RefreshCw className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      'Disconnect'
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full mt-2"
+                                onClick={() => handleConnect(service)}
+                                disabled={isConnecting === service.id}
+                              >
+                                {isConnecting === service.id ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 animate-spin mr-2" />
+                                    Connecting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-3 w-3 mr-2" />
+                                    Connect Another Account
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {!service.accounts?.length && (
                         <Button
-                          variant="outline"
+                          variant="default"
                           size="sm"
-                          className="w-full mt-2"
                           onClick={() => handleConnect(service)}
                           disabled={isConnecting === service.id}
+                          className="shrink-0"
                         >
                           {isConnecting === service.id ? (
                             <>
-                              <RefreshCw className="h-3 w-3 animate-spin mr-2" />
+                              <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                               Connecting...
                             </>
                           ) : (
-                            <>
-                              <Plus className="h-3 w-3 mr-2" />
-                              Connect Another Account
-                            </>
+                            'Connect'
                           )}
                         </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {!service.accounts?.length && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => handleConnect(service)}
-                    disabled={isConnecting === service.id}
-                    className="shrink-0"
-                  >
-                    {isConnecting === service.id ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                        Connecting...
-                      </>
-                    ) : (
-                      'Connect'
-                    )}
-                  </Button>
-                )}
+                      )}
+                    </div>
+                  </Card>
+                ))}
               </div>
-            </Card>
-          ))
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
+// Loading skeleton for connections
 function ConnectionSkeleton() {
   return (
     <Card className="p-6">
