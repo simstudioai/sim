@@ -75,7 +75,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'Parent Folder ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the parent folder (optional, leave empty for root folder)',
+      placeholder: 'ID of the parent folder (leave empty for root folder)',
       condition: { field: 'operation', value: 'upload' },
     },
     // Download Fields

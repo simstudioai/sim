@@ -57,7 +57,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Range',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Optional: Sheet name and cell range (e.g., Sheet1!A1:D10)',
+      placeholder: 'Sheet name and cell range (e.g., Sheet1!A1:D10)',
     },
     // Write-specific Fields
     {

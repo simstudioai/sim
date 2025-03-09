@@ -96,7 +96,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
       title: 'Summary Query',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Optional: Enter a query to guide the summary generation...',
+      placeholder: 'Enter a query to guide the summary generation...',
       condition: { field: 'operation', value: 'exa_get_contents' },
     },
     // Find Similar Links operation inputs

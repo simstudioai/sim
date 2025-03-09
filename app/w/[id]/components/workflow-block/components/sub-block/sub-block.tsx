@@ -1,4 +1,7 @@
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getBlock } from '@/blocks/index'
 import { SubBlockConfig } from '../../../../../../../blocks/types'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
@@ -25,6 +28,16 @@ interface SubBlockProps {
 export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
+  }
+
+  const isFieldRequired = () => {
+    const blockType = useWorkflowStore.getState().blocks[blockId]?.type
+    if (!blockType) return false
+
+    const blockConfig = getBlock(blockType)
+    if (!blockConfig) return false
+
+    return blockConfig.inputs[config.id]?.required === true
   }
 
   const renderInput = () => {
@@ -139,9 +152,25 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
     }
   }
 
+  const required = isFieldRequired()
+
   return (
     <div className="space-y-1" onMouseDown={handleMouseDown}>
-      {config.type !== 'switch' && <Label>{config.title}</Label>}
+      {config.type !== 'switch' && (
+        <Label>
+          {config.title}
+          {required && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-red-500 ml-1 cursor-help">*</span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>This field is required</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </Label>
+      )}
       {renderInput()}
     </div>
   )

@@ -31,7 +31,7 @@ export const CrewAIVisionBlock: BlockConfig<VisionResponse> = {
       title: 'Prompt',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter prompt for image analysis (optional)',
+      placeholder: 'Enter prompt for image analysis',
     },
     {
       id: 'apiKey',
