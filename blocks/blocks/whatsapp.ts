@@ -51,7 +51,10 @@ export const WhatsAppBlock: BlockConfig<WhatsAppBlockOutput> = {
     },
   ],
   tools: {
-    access: [],
+    access: ['whatsapp_send_message'],
+    config: {
+      tool: () => 'whatsapp_send_message',
+    },
   },
   inputs: {
     phoneNumber: { type: 'string', required: true },

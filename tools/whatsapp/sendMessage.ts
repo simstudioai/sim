@@ -1,7 +1,7 @@
 import { ToolConfig } from '../types'
 import { WhatsAppToolResponse } from './types'
 
-export const WhatsAppTool: ToolConfig<any, WhatsAppToolResponse> = {
+export const sendMessageTool: ToolConfig<any, WhatsAppToolResponse> = {
   id: 'whatsapp',
   name: 'WhatsApp',
   description: 'Send WhatsApp messages',
@@ -31,13 +31,32 @@ export const WhatsAppTool: ToolConfig<any, WhatsAppToolResponse> = {
   },
 
   request: {
-    url: (params) => `https://graph.facebook.com/v18.0/${params.phoneNumberId}/messages`,
+    url: (params) => {
+      if (!params.phoneNumberId) {
+        throw new Error('WhatsApp Phone Number ID is required')
+      }
+      return `https://graph.facebook.com/v22.0/${params.phoneNumberId}/messages`
+    },
     method: 'POST',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
+    headers: (params) => {
+      if (!params.accessToken) {
+        throw new Error('WhatsApp Access Token is required')
+      }
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params) => {
+      // Check if required parameters exist
+      if (!params.phoneNumber) {
+        throw new Error('Phone number is required but was not provided')
+      }
+
+      if (!params.message) {
+        throw new Error('Message content is required but was not provided')
+      }
+
       // Format the phone number (remove + if present)
       const formattedPhoneNumber = params.phoneNumber.startsWith('+')
         ? params.phoneNumber.substring(1)
@@ -59,7 +78,10 @@ export const WhatsAppTool: ToolConfig<any, WhatsAppToolResponse> = {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to send WhatsApp message')
+      const errorMessage =
+        data.error?.message || `Failed to send WhatsApp message (HTTP ${response.status})`
+      console.error('WhatsApp API error:', data)
+      throw new Error(errorMessage)
     }
 
     return {
@@ -73,6 +95,7 @@ export const WhatsAppTool: ToolConfig<any, WhatsAppToolResponse> = {
   },
 
   transformError: (error) => {
-    return error.message || 'Unknown error occurred'
+    console.error('WhatsApp tool error:', error)
+    return `WhatsApp message failed: ${error.message || 'Unknown error occurred'}`
   },
 }

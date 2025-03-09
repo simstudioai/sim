@@ -33,7 +33,7 @@ import { extractTool as tavilyExtract } from './tavily/extract'
 import { searchTool as tavilySearch } from './tavily/search'
 import { ToolConfig, ToolResponse } from './types'
 import { executeRequest, formatRequestParams, validateToolRequest } from './utils'
-import { WhatsAppTool } from './whatsapp'
+import { sendMessageTool as whatsappSendMessage } from './whatsapp/sendMessage'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 
@@ -59,7 +59,7 @@ export const tools: Record<string, ToolConfig> = {
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,
-  whatsapp: WhatsAppTool,
+  whatsapp_send_message: whatsappSendMessage,
   x_write: xWriteTool,
   x_read: xReadTool,
   x_search: xSearchTool,
@@ -89,6 +89,7 @@ export function getTool(toolId: string): ToolConfig | undefined {
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
+  console.log('toolId', toolId)
 
   // Check if it's a custom tool
   if (toolId.startsWith('custom_')) {
@@ -287,6 +288,7 @@ export async function executeTool(
 ): Promise<ToolResponse> {
   try {
     const tool = getTool(toolId)
+    console.log('tool', tool)
 
     // Validate the tool and its parameters
     validateToolRequest(toolId, tool, params)
@@ -366,6 +368,7 @@ async function handleInternalRequest(
       headers: requestParams.headers,
       body: requestParams.body,
     })
+    console.log('response', response)
 
     if (!response.ok) {
       let errorData
