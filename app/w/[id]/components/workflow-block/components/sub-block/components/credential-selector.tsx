@@ -21,6 +21,7 @@ import {
   getProviderIdFromServiceId,
   getServiceByProviderAndId,
   getServiceIdFromScopes,
+  parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 
@@ -168,26 +169,62 @@ export function CredentialSelector({
 
   // Get provider icon
   const getProviderIcon = (providerName: OAuthProvider) => {
-    const providerConfig = OAUTH_PROVIDERS[providerName]
-    if (providerConfig) {
-      return providerConfig.icon({ className: 'h-4 w-4' })
+    const { baseProvider } = parseProvider(providerName)
+    const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
+
+    if (!baseProviderConfig) {
+      return <ExternalLink className="h-4 w-4" />
     }
-    return <ExternalLink className="h-4 w-4" />
+
+    // For compound providers, find the specific service
+    if (providerName.includes('-')) {
+      for (const service of Object.values(baseProviderConfig.services)) {
+        if (service.providerId === providerName) {
+          return service.icon({ className: 'h-4 w-4' })
+        }
+      }
+    }
+
+    // Fallback to base provider icon
+    return baseProviderConfig.icon({ className: 'h-4 w-4' })
   }
 
   // Get provider name
   const getProviderName = (providerName: OAuthProvider) => {
     const effectiveServiceId = getServiceId()
     try {
+      // First try to get the service by provider and service ID
       const service = getServiceByProviderAndId(providerName, effectiveServiceId)
       return service.name
     } catch (error) {
-      // Fallback to provider name if service not found
-      const providerConfig = OAUTH_PROVIDERS[providerName]
-      if (providerConfig) {
-        return providerConfig.name
+      // If that fails, try to get the service by parsing the provider
+      try {
+        const { baseProvider } = parseProvider(providerName)
+        const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
+
+        // For compound providers like 'google-sheets', try to find the specific service
+        if (providerName.includes('-')) {
+          const serviceKey = providerName.split('-')[1] || ''
+          for (const [key, service] of Object.entries(baseProviderConfig?.services || {})) {
+            if (key === serviceKey || key === providerName || service.providerId === providerName) {
+              return service.name
+            }
+          }
+        }
+
+        // Fallback to provider name if service not found
+        if (baseProviderConfig) {
+          return baseProviderConfig.name
+        }
+      } catch (parseError) {
+        // Ignore parse error and continue to final fallback
       }
+
+      // Final fallback: capitalize the provider name
       return providerName
+        .split('-')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ')
     }
   }
 
@@ -209,8 +246,8 @@ export function CredentialSelector({
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Key className="h-4 w-4" />
-                <span>{label}</span>
+                {getProviderIcon(provider)}
+                <span className="text-muted-foreground">{label}</span>
               </div>
             )}
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -228,7 +265,7 @@ export function CredentialSelector({
                   </div>
                 ) : (
                   <div className="p-4 text-center">
-                    <p className="text-sm">No credentials found.</p>
+                    <p className="text-sm font-medium">No credentials found.</p>
                     <p className="text-xs text-muted-foreground">
                       Connect a new account to continue.
                     </p>
@@ -255,7 +292,7 @@ export function CredentialSelector({
               <CommandGroup>
                 <CommandItem onSelect={handleAddCredential}>
                   <div className="flex items-center gap-2 text-primary">
-                    <ExternalLink className="h-4 w-4" />
+                    {getProviderIcon(provider)}
                     <span>Connect {getProviderName(provider)} account</span>
                   </div>
                 </CommandItem>

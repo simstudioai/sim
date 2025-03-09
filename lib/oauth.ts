@@ -39,6 +39,7 @@ export interface OAuthServiceConfig {
   description: string
   providerId: string
   icon: (props: { className?: string }) => ReactNode
+  baseProviderIcon: (props: { className?: string }) => ReactNode
   scopes: string[]
 }
 
@@ -55,6 +56,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Automate email workflows and enhance communication efficiency.',
         providerId: 'google-email',
         icon: (props) => GmailIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
         scopes: [
           'https://www.googleapis.com/auth/gmail.send',
           'https://www.googleapis.com/auth/gmail.readonly',
@@ -66,6 +68,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Streamline file organization and document workflows.',
         providerId: 'google-drive',
         icon: (props) => GoogleDriveIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
         scopes: ['https://www.googleapis.com/auth/drive'],
       },
       'google-docs': {
@@ -74,6 +77,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Create, read, and edit Google Documents programmatically.',
         providerId: 'google-docs',
         icon: (props) => GoogleDocsIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
         scopes: ['https://www.googleapis.com/auth/documents'],
       },
       'google-sheets': {
@@ -82,6 +86,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Manage and analyze data with Google Sheets integration.',
         providerId: 'google-sheets',
         icon: (props) => GoogleSheetsIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       },
       'google-calendar': {
@@ -90,6 +95,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Schedule and manage events with Google Calendar.',
         providerId: 'google-calendar',
         icon: (props) => GoogleCalendarIcon(props),
+        baseProviderIcon: (props) => GoogleIcon(props),
         scopes: ['https://www.googleapis.com/auth/calendar'],
       },
     },
@@ -106,6 +112,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Manage repositories, issues, and pull requests.',
         providerId: 'github-repo',
         icon: (props) => GithubIcon(props),
+        baseProviderIcon: (props) => GithubIcon(props),
         scopes: ['repo', 'user'],
       },
       'github-workflow': {
@@ -114,6 +121,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Trigger and manage GitHub Actions workflows.',
         providerId: 'github-workflow',
         icon: (props) => GithubIcon(props),
+        baseProviderIcon: (props) => GithubIcon(props),
         scopes: ['repo', 'workflow'],
       },
     },
@@ -130,6 +138,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Post tweets and interact with the X API.',
         providerId: 'x',
         icon: (props) => xIcon(props),
+        baseProviderIcon: (props) => xIcon(props),
         scopes: [],
       },
     },
@@ -146,6 +155,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         description: 'Connect to your Supabase projects and manage data.',
         providerId: 'supabase',
         icon: (props) => SupabaseIcon(props),
+        baseProviderIcon: (props) => SupabaseIcon(props),
         scopes: ['database.read', 'database.write', 'projects.read'],
       },
     },

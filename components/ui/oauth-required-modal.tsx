@@ -16,6 +16,7 @@ import {
   OAuthProvider,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
+  parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 
@@ -60,10 +61,25 @@ export function OAuthRequiredModal({
   requiredScopes = [],
   serviceId,
 }: OAuthRequiredModalProps) {
-  // Get provider configuration
-  const providerConfig = OAUTH_PROVIDERS[provider]
-  const providerName = providerConfig?.name || provider
-  const ProviderIcon = providerConfig?.icon || (() => null)
+  // Get provider configuration and service
+  const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
+  const { baseProvider } = parseProvider(provider)
+  const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
+
+  // Default to base provider name and icon
+  let providerName = baseProviderConfig?.name || provider
+  let ProviderIcon = baseProviderConfig?.icon || (() => null)
+
+  // Try to find the specific service
+  if (baseProviderConfig) {
+    for (const service of Object.values(baseProviderConfig.services)) {
+      if (service.id === effectiveServiceId || service.providerId === provider) {
+        providerName = service.name
+        ProviderIcon = service.icon
+        break
+      }
+    }
+  }
 
   // Filter out userinfo scopes as they're not relevant to show to users
   const displayScopes = requiredScopes.filter(
@@ -73,7 +89,6 @@ export function OAuthRequiredModal({
   const handleRedirectToSettings = () => {
     try {
       // Determine the appropriate serviceId and providerId
-      const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
       // Store information about the required connection
@@ -98,7 +113,6 @@ export function OAuthRequiredModal({
   const handleConnectDirectly = async () => {
     try {
       // Determine the appropriate serviceId and providerId
-      const effectiveServiceId = serviceId || getServiceIdFromScopes(provider, requiredScopes)
       const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
       // Store information about the required connection
