@@ -88,10 +88,10 @@ export async function POST(request: NextRequest) {
             clientId = process.env.GITHUB_CLIENT_ID
             clientSecret = process.env.GITHUB_CLIENT_SECRET
             break
-          case 'twitter':
-            tokenEndpoint = 'https://api.twitter.com/2/oauth2/token'
-            clientId = process.env.TWITTER_CLIENT_ID
-            clientSecret = process.env.TWITTER_CLIENT_SECRET
+          case 'x':
+            tokenEndpoint = 'https://api.x.com/2/oauth2/token'
+            clientId = process.env.X_CLIENT_ID
+            clientSecret = process.env.X_CLIENT_SECRET
             break
           default:
             throw new Error(`Unsupported provider: ${provider}`)

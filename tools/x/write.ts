@@ -37,7 +37,7 @@ export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
   },
 
   request: {
-    url: 'https://api.twitter.com/2/tweets',
+    url: 'https://api.x.com/2/tweets',
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

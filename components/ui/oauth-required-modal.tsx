@@ -43,9 +43,10 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   repo: 'Access your repositories',
   workflow: 'Manage repository workflows',
   'user:email': 'Access your email address',
-  'tweet.read': 'Read your tweets',
-  'tweet.write': 'Create tweets on your behalf',
+  'tweet.read': 'Read your tweets and timeline',
+  'tweet.write': 'Post tweets on your behalf',
   'users.read': 'Read your profile information',
+  'offline.access': 'Access your account when you are not using the application',
 }
 
 // Convert OAuth scope to user-friendly description

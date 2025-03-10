@@ -33,7 +33,7 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
         ','
       )
 
-      return `https://api.twitter.com/2/users/by/username/${username}?user.fields=${userFields}`
+      return `https://api.x.com/2/users/by/username/${username}?user.fields=${userFields}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -83,7 +83,7 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
     // Fetch recent tweets if requested
     if (includeRecentTweets && apiKey) {
       const tweetsResponse = await fetch(
-        `https://api.twitter.com/2/users/${user.id}/tweets?max_results=10&tweet.fields=created_at,conversation_id,in_reply_to_user_id,attachments`,
+        `https://api.x.com/2/users/${user.id}/tweets?max_results=10&tweet.fields=created_at,conversation_id,in_reply_to_user_id,attachments`,
         {
           headers: {
             Authorization: `Bearer ${apiKey}`,

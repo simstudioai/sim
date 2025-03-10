@@ -12,7 +12,7 @@ interface GoogleIdToken {
 }
 
 // Valid OAuth providers
-const VALID_PROVIDERS = ['google', 'github', 'twitter']
+const VALID_PROVIDERS = ['google', 'github', 'x']
 
 /**
  * Get all OAuth connections for the current user

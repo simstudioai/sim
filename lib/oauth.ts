@@ -135,11 +135,11 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       x: {
         id: 'x',
         name: 'X',
-        description: 'Post tweets and interact with the X API.',
+        description: 'Read and post tweets on X (formerly Twitter).',
         providerId: 'x',
         icon: (props) => xIcon(props),
         baseProviderIcon: (props) => xIcon(props),
-        scopes: [],
+        scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       },
     },
     defaultService: 'x',
@@ -207,6 +207,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     }
   } else if (provider === 'supabase') {
     return 'supabase'
+  } else if (provider === 'x') {
+    return 'x'
   }
 
   return providerConfig.defaultService

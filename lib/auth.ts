@@ -38,11 +38,6 @@ export const auth = betterAuth({
         'https://www.googleapis.com/auth/userinfo.profile',
       ],
     },
-    // twitter: {
-    //   clientId: process.env.TWITTER_CLIENT_ID as string,
-    //   clientSecret: process.env.TWITTER_CLIENT_SECRET as string,
-    //   scopes: ['tweet.read', 'users.read'],
-    // },
   },
   emailAndPassword: {
     enabled: true,
@@ -193,25 +188,42 @@ export const auth = betterAuth({
           pkce: true,
         },
 
-        // Twitter providers
-        // {
-        //   providerId: 'twitter-read',
-        //   clientId: process.env.TWITTER_CLIENT_ID as string,
-        //   clientSecret: process.env.TWITTER_CLIENT_SECRET as string,
-        //   authorizationUrl: 'https://twitter.com/i/oauth2/authorize',
-        //   tokenUrl: 'https://api.twitter.com/2/oauth2/token',
-        //   userInfoUrl: 'https://api.twitter.com/2/users/me',
-        //   scopes: ['tweet.read', 'users.read'],
-        // },
-        // {
-        //   providerId: 'twitter-write',
-        //   clientId: process.env.TWITTER_CLIENT_ID as string,
-        //   clientSecret: process.env.TWITTER_CLIENT_SECRET as string,
-        //   authorizationUrl: 'https://twitter.com/i/oauth2/authorize',
-        //   tokenUrl: 'https://api.twitter.com/2/oauth2/token',
-        //   userInfoUrl: 'https://api.twitter.com/2/users/me',
-        //   scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
-        // },
+        // X provider
+        {
+          providerId: 'x',
+          clientId: process.env.X_CLIENT_ID as string,
+          clientSecret: process.env.X_CLIENT_SECRET as string,
+          authorizationUrl: 'https://x.com/i/oauth2/authorize',
+          tokenUrl: 'https://api.x.com/2/oauth2/token',
+          userInfoUrl: 'https://api.x.com/2/users/me',
+          scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+          pkce: true,
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
+          getUserInfo: async (tokens) => {
+            const response = await fetch(
+              'https://api.x.com/2/users/me?user.fields=profile_image_url',
+              {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              }
+            )
+
+            const profile = await response.json()
+
+            const now = new Date()
+
+            return {
+              id: profile.data.id,
+              name: profile.data.name,
+              email: profile.data.username || null, // Use username as email
+              image: profile.data.profile_image_url,
+              emailVerified: profile.data.verified || false,
+              createdAt: now,
+              updatedAt: now,
+            }
+          },
+        },
       ],
     }),
   ],
