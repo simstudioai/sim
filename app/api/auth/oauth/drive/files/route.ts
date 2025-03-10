@@ -51,12 +51,22 @@ export async function GET(request: NextRequest) {
 
     // Add mimeType filter if provided
     if (mimeType) {
-      queryParams += `&mimeType='${mimeType}'`
+      // For Google Drive API, we need to use 'q' parameter for mimeType filtering
+      // Instead of using the mimeType parameter directly, we'll add it to the query
+      if (queryParams.includes('q=')) {
+        queryParams += ` and mimeType='${mimeType}'`
+      } else {
+        queryParams += `&q=mimeType='${mimeType}'`
+      }
     }
 
     // Add search query if provided
     if (query) {
-      queryParams += `&q=name contains '${query}'`
+      if (queryParams.includes('q=')) {
+        queryParams += ` and name contains '${query}'`
+      } else {
+        queryParams += `&q=name contains '${query}'`
+      }
     }
 
     // Fetch files from Google Drive
@@ -78,14 +88,14 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-
-    // Filter for Google Sheets files if mimeType is for spreadsheets
     let files = data.files || []
 
     if (mimeType === 'application/vnd.google-apps.spreadsheet') {
       files = files.filter(
         (file: any) => file.mimeType === 'application/vnd.google-apps.spreadsheet'
       )
+    } else if (mimeType === 'application/vnd.google-apps.document') {
+      files = files.filter((file: any) => file.mimeType === 'application/vnd.google-apps.document')
     }
 
     return NextResponse.json({ files }, { status: 200 })

@@ -1,5 +1,6 @@
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { scrapeTool } from './firecrawl/scrape'
@@ -78,6 +79,9 @@ export const tools: Record<string, ToolConfig> = {
   google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
+  google_docs_read: docsReadTool,
+  google_docs_write: docsWriteTool,
+  google_docs_create: docsCreateTool,
   google_sheets_read: sheetsReadTool,
   google_sheets_write: sheetsWriteTool,
   google_sheets_update: sheetsUpdateTool,
@@ -513,6 +517,7 @@ async function handleProxyRequest(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ toolId, params }),
   })
+  console.log('Proxy response:', response)
 
   const result = await response.json()
 

@@ -2,6 +2,7 @@
 import { AgentBlock } from './blocks/agent'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
+import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
@@ -57,6 +58,7 @@ export {
   ExaBlock,
   RedditBlock,
   GoogleDriveBlock,
+  GoogleDocsBlock,
   WhatsAppBlock,
   GoogleSheetsBlock,
 }
@@ -72,6 +74,7 @@ const blocks: Record<string, BlockConfig> = {
   function: FunctionBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
+  google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
