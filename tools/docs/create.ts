@@ -130,23 +130,23 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       throw error
     }
   },
-  transformError: async (error) => {
-    console.error('Google Docs create - Transform error:', error)
-
-    const errorMessage =
-      typeof error === 'object' && error !== null
-        ? error.message || JSON.stringify(error, null, 2)
-        : error.toString() || 'An error occurred while creating Google Docs document'
-
-    return {
-      success: false,
-      output: {
-        metadata: {
-          documentId: '',
-          title: '',
-        },
-      },
-      error: errorMessage,
+  transformError: (error) => {
+    // If it's an Error instance with a message, use that
+    if (error instanceof Error) {
+      return error.message
     }
+
+    // If it's an object with an error or message property
+    if (typeof error === 'object' && error !== null) {
+      if (error.error) {
+        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+      }
+      if (error.message) {
+        return error.message
+      }
+    }
+
+    // Default fallback message
+    return 'An error occurred while creating Google Docs document'
   },
 }

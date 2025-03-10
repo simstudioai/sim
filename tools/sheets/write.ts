@@ -93,6 +93,22 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     return result
   },
   transformError: (error) => {
-    return error.message || 'An error occurred while writing to Google Sheets'
+    // If it's an Error instance with a message, use that
+    if (error instanceof Error) {
+      return error.message
+    }
+
+    // If it's an object with an error or message property
+    if (typeof error === 'object' && error !== null) {
+      if (error.error) {
+        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+      }
+      if (error.message) {
+        return error.message
+      }
+    }
+
+    // Default fallback message
+    return 'An error occurred while writing to Google Sheets'
   },
 }

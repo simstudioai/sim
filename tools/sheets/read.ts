@@ -84,9 +84,22 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     return result
   },
   transformError: (error) => {
-    if (typeof error === 'object' && error !== null) {
-      return JSON.stringify(error) || 'An error occurred while reading from Google Sheets'
+    // If it's an Error instance with a message, use that
+    if (error instanceof Error) {
+      return error.message
     }
-    return error.message || 'An error occurred while reading from Google Sheets'
+
+    // If it's an object with an error or message property
+    if (typeof error === 'object' && error !== null) {
+      if (error.error) {
+        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+      }
+      if (error.message) {
+        return error.message
+      }
+    }
+
+    // Default fallback message
+    return 'An error occurred while reading from Google Sheets'
   },
 }

@@ -116,22 +116,23 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
       throw error
     }
   },
-  transformError: async (error) => {
-    const errorMessage =
-      typeof error === 'object' && error !== null
-        ? error.message || JSON.stringify(error, null, 2)
-        : error.toString() || 'An error occurred while writing to Google Docs'
-
-    return {
-      success: false,
-      output: {
-        updatedContent: false,
-        metadata: {
-          documentId: '',
-          title: '',
-        },
-      },
-      error: errorMessage,
+  transformError: (error) => {
+    // If it's an Error instance with a message, use that
+    if (error instanceof Error) {
+      return error.message
     }
+
+    // If it's an object with an error or message property
+    if (typeof error === 'object' && error !== null) {
+      if (error.error) {
+        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+      }
+      if (error.message) {
+        return error.message
+      }
+    }
+
+    // Default fallback message
+    return 'An error occurred while writing to Google Docs'
   },
 }
