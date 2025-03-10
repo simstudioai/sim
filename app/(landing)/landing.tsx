@@ -81,7 +81,7 @@ export default function Landing() {
             >
               <GithubIcon className="w-[20px] h-[20px]" />
               <div className="flex items-center justify-center gap-1">
-                <span className="text-sm font-medium py-[2px]">15</span>
+                <span className="text-sm font-medium py-[2px]">17</span>
                 <Star className="w-3.5 h-3.5 fill-white/80 stroke-none group-hover:fill-white" />
               </div>
             </a>
@@ -125,6 +125,22 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 py-6 text-white/60">
+        <div className="max-w-6xl mx-auto flex justify-center items-center px-4">
+          <nav className="flex space-x-6 text-sm">
+            <span className="text-white/60">About</span>
+            <a href="/privacy" className="hover:text-white transition-colors duration-200">
+              Privacy
+            </a>
+            <a href="/terms" className="hover:text-white transition-colors duration-200">
+              Terms
+            </a>
+            <span className="text-white/60">Contributors</span>
+          </nav>
+        </div>
+      </footer>
     </main>
   )
 }

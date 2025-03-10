@@ -14,7 +14,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   longDescription:
     'Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services using OAuth authentication.',
   category: 'tools',
-  bgColor: '#3ECF8E',
+  bgColor: '#E0E0E0',
   icon: SupabaseIcon,
   subBlocks: [
     // Operation selector
