@@ -461,8 +461,8 @@ export function ControlBar() {
       className={cn(
         // Base styles
         'gap-2 font-medium',
-        // Brand color with hover states - darker on hover
-        'bg-[#7F2FFF] hover:bg-[#6B28D9]',
+        // Brand color with hover states
+        'bg-[#7F2FFF] hover:bg-[#7028E6]',
         // Hover effect with brand color
         'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
         // Text color and transitions
