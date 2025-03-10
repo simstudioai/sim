@@ -64,7 +64,7 @@ const getLevelBadgeStyles = (level: string) => {
 const getTriggerBadgeStyles = (trigger: string) => {
   return trigger.toLowerCase() === 'manual'
     ? 'bg-secondary text-secondary-foreground'
-    : 'bg-[#7F2FFF]/20 text-[#7F2FFF]'
+    : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
 }
 
 export default function Logs() {
