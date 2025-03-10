@@ -12,7 +12,7 @@ interface FilterState {
   // Filter states
   timeRange: TimeRange
   level: LogLevel
-  workflowId: string | null
+  workflowIds: string[]
   searchQuery: string
   // Loading state
   loading: boolean
@@ -21,7 +21,8 @@ interface FilterState {
   setLogs: (logs: WorkflowLog[]) => void
   setTimeRange: (timeRange: TimeRange) => void
   setLevel: (level: LogLevel) => void
-  setWorkflowId: (workflowId: string | null) => void
+  setWorkflowIds: (workflowIds: string[]) => void
+  toggleWorkflowId: (workflowId: string) => void
   setSearchQuery: (query: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
@@ -34,7 +35,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   filteredLogs: [],
   timeRange: 'All time',
   level: 'all',
-  workflowId: null,
+  workflowIds: [],
   searchQuery: '',
   loading: true,
   error: null,
@@ -53,8 +54,22 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     get().applyFilters()
   },
 
-  setWorkflowId: (workflowId) => {
-    set({ workflowId })
+  setWorkflowIds: (workflowIds) => {
+    set({ workflowIds })
+    get().applyFilters()
+  },
+
+  toggleWorkflowId: (workflowId) => {
+    const currentWorkflowIds = [...get().workflowIds]
+    const index = currentWorkflowIds.indexOf(workflowId)
+
+    if (index === -1) {
+      currentWorkflowIds.push(workflowId)
+    } else {
+      currentWorkflowIds.splice(index, 1)
+    }
+
+    set({ workflowIds: currentWorkflowIds })
     get().applyFilters()
   },
 
@@ -68,7 +83,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   setError: (error) => set({ error }),
 
   applyFilters: () => {
-    const { logs, timeRange, level, workflowId, searchQuery } = get()
+    const { logs, timeRange, level, workflowIds, searchQuery } = get()
 
     let filtered = [...logs]
 
@@ -100,8 +115,8 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     // Apply workflow filter
-    if (workflowId) {
-      filtered = filtered.filter((log) => log.workflowId === workflowId)
+    if (workflowIds.length > 0) {
+      filtered = filtered.filter((log) => workflowIds.includes(log.workflowId))
     }
 
     // Apply search query filter
