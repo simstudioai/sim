@@ -1,52 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { AlertCircle, Clock, Info, Loader2 } from 'lucide-react'
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
+import { Sidebar } from './components/sidebar/sidebar'
 import { useFilterStore } from './stores/store'
-import { LogsResponse } from './stores/types'
-
-// Helper function to format date
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString)
-  return {
-    full: date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }),
-    time: date.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }),
-    formatted: format(date, 'HH:mm:ss'),
-    relative: (() => {
-      const now = new Date()
-      const diffMs = now.getTime() - date.getTime()
-      const diffMins = Math.floor(diffMs / 60000)
-
-      if (diffMins < 1) return 'just now'
-      if (diffMins < 60) return `${diffMins}m ago`
-
-      const diffHours = Math.floor(diffMins / 60)
-      if (diffHours < 24) return `${diffHours}h ago`
-
-      const diffDays = Math.floor(diffHours / 24)
-      if (diffDays === 1) return 'yesterday'
-      if (diffDays < 7) return `${diffDays}d ago`
-
-      return format(date, 'MMM d')
-    })(),
-  }
-}
+import { LogsResponse, WorkflowLog } from './stores/types'
+import { formatDate } from './utils/format-date'
 
 // Helper function to get level badge styling
 const getLevelBadgeStyles = (level: string) => {
@@ -69,6 +31,43 @@ const getTriggerBadgeStyles = (trigger: string) => {
 
 export default function Logs() {
   const { filteredLogs, logs, loading, error, setLogs, setLoading, setError } = useFilterStore()
+  const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
+  // Group logs by executionId to identify the last log in each group
+  const executionGroups = useMemo(() => {
+    const groups: Record<string, WorkflowLog[]> = {}
+
+    // Group logs by executionId
+    filteredLogs.forEach((log) => {
+      if (log.executionId) {
+        if (!groups[log.executionId]) {
+          groups[log.executionId] = []
+        }
+        groups[log.executionId].push(log)
+      }
+    })
+
+    // Sort logs within each group by createdAt
+    Object.keys(groups).forEach((executionId) => {
+      groups[executionId].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      )
+    })
+
+    return groups
+  }, [filteredLogs])
+
+  // Handle log click
+  const handleLogClick = (log: WorkflowLog) => {
+    setSelectedLog(log)
+    setIsSidebarOpen(true)
+  }
+
+  // Close sidebar
+  const handleCloseSidebar = () => {
+    setIsSidebarOpen(false)
+  }
 
   // Fetch logs on component mount
   useEffect(() => {
@@ -160,10 +159,12 @@ export default function Logs() {
               <div>
                 {filteredLogs.map((log) => {
                   const formattedDate = formatDate(log.createdAt)
+
                   return (
                     <div
                       key={log.id}
-                      className="group border-b hover:bg-accent/30 transition-colors"
+                      className={`group border-b hover:bg-accent/30 transition-colors cursor-pointer`}
+                      onClick={() => handleLogClick(log)}
                     >
                       <div className="grid grid-cols-12 gap-4 px-4 py-3">
                         {/* Time column */}
@@ -172,7 +173,11 @@ export default function Logs() {
                             <span>{formattedDate.formatted}</span>
                             <span className="mx-1.5 text-muted-foreground hidden xl:inline">•</span>
                             <span className="text-muted-foreground hidden xl:inline">
-                              {format(new Date(log.createdAt), 'MMM d, yyyy')}
+                              {new Date(log.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5 flex items-center justify-between">
@@ -245,6 +250,9 @@ export default function Logs() {
           </div>
         </div>
       </div>
+
+      {/* Log Sidebar */}
+      <Sidebar log={selectedLog} isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
     </div>
   )
 }
