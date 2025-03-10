@@ -54,7 +54,9 @@ export function HelpForm({ onClose }: HelpFormProps) {
   const [images, setImages] = useState<ImageWithPreview[]>([])
   const [imageError, setImageError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   const {
     register,
@@ -122,9 +124,8 @@ export function HelpForm({ onClose }: HelpFormProps) {
     }
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processFiles = async (files: FileList | File[]) => {
     setImageError(null)
-    const files = e.target.files
 
     if (!files || files.length === 0) return
 
@@ -175,6 +176,41 @@ export function HelpForm({ onClose }: HelpFormProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+    }
+  }
+
+  // Update the existing handleFileChange function to use processFiles
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      await processFiles(e.target.files)
+    }
+  }
+
+  // Handle drag events
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await processFiles(e.dataTransfer.files)
     }
   }
 
@@ -322,7 +358,16 @@ export function HelpForm({ onClose }: HelpFormProps) {
             {/* Image Upload Section */}
             <div className="space-y-2 mt-6">
               <Label>Attach Images (Optional)</Label>
-              <div className="flex items-center gap-4">
+              <div
+                ref={dropZoneRef}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`flex items-center gap-4 ${
+                  isDragging ? 'bg-primary/5 rounded-md p-2' : ''
+                }`}
+              >
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -341,10 +386,13 @@ export function HelpForm({ onClose }: HelpFormProps) {
                   Upload Images
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Max 20MB per image. JPEG, PNG, WebP, GIF accepted.
+                  Drop images here or click to upload. Max 20MB per image.
                 </p>
               </div>
               {imageError && <p className="text-red-500 text-sm mt-1">{imageError}</p>}
+              {isProcessing && (
+                <p className="text-sm text-muted-foreground">Processing images...</p>
+              )}
             </div>
 
             {/* Image Preview Section */}
