@@ -8,7 +8,6 @@ import { db } from '@/db'
 import { environment, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { SerializedWorkflow } from '@/serializer/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -252,10 +251,25 @@ export async function POST(
       }
     }
 
+    // Process the block states to extract values from subBlocks
+    const currentBlockStates = Object.entries(mergedStates).reduce(
+      (acc, [id, block]) => {
+        acc[id] = Object.entries(block.subBlocks).reduce(
+          (subAcc, [key, subBlock]) => {
+            subAcc[key] = subBlock.value
+            return subAcc
+          },
+          {} as Record<string, any>
+        )
+        return acc
+      },
+      {} as Record<string, Record<string, any>>
+    )
+
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
 
-    const executor = new Executor(serializedWorkflow, mergedStates as any, decryptedEnvVars, input)
+    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars, input)
     const result = await executor.execute(foundWorkflow.id)
 
     console.log(`Successfully executed workflow ${foundWorkflow.id}`)
