@@ -36,13 +36,13 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
     // Google Sheets Credentials
     {
       id: 'credential',
-      title: 'Google Sheets Account',
+      title: 'Google Account',
       type: 'oauth-input',
       layout: 'full',
       provider: 'google-sheets',
       serviceId: 'google-sheets',
       requiredScopes: ['https://www.googleapis.com/auth/spreadsheets'],
-      placeholder: 'Select Google Sheets account',
+      placeholder: 'Select Google account',
     },
     // Spreadsheet Selector
     {

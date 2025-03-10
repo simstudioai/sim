@@ -176,56 +176,24 @@ export function CredentialSelector({
       return <ExternalLink className="h-4 w-4" />
     }
 
-    // For compound providers, find the specific service
-    if (providerName.includes('-')) {
-      for (const service of Object.values(baseProviderConfig.services)) {
-        if (service.providerId === providerName) {
-          return service.icon({ className: 'h-4 w-4' })
-        }
-      }
-    }
-
-    // Fallback to base provider icon
+    // Always use the base provider icon for a more consistent UI
     return baseProviderConfig.icon({ className: 'h-4 w-4' })
   }
 
   // Get provider name
   const getProviderName = (providerName: OAuthProvider) => {
-    const effectiveServiceId = getServiceId()
-    try {
-      // First try to get the service by provider and service ID
-      const service = getServiceByProviderAndId(providerName, effectiveServiceId)
-      return service.name
-    } catch (error) {
-      // If that fails, try to get the service by parsing the provider
-      try {
-        const { baseProvider } = parseProvider(providerName)
-        const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
+    const { baseProvider } = parseProvider(providerName)
+    const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
-        // For compound providers like 'google-sheets', try to find the specific service
-        if (providerName.includes('-')) {
-          const serviceKey = providerName.split('-')[1] || ''
-          for (const [key, service] of Object.entries(baseProviderConfig?.services || {})) {
-            if (key === serviceKey || key === providerName || service.providerId === providerName) {
-              return service.name
-            }
-          }
-        }
-
-        // Fallback to provider name if service not found
-        if (baseProviderConfig) {
-          return baseProviderConfig.name
-        }
-      } catch (parseError) {
-        // Ignore parse error and continue to final fallback
-      }
-
-      // Final fallback: capitalize the provider name
-      return providerName
-        .split('-')
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ')
+    if (baseProviderConfig) {
+      return baseProviderConfig.name
     }
+
+    // Fallback: capitalize the provider name
+    return providerName
+      .split('-')
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ')
   }
 
   return (

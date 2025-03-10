@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, Search, X } from 'lucide-react'
-import { GoogleSheetsIcon } from '@/components/icons'
+import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -12,7 +12,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { Input } from '@/components/ui/input'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -313,6 +312,8 @@ export function FileSelector({
 
     if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
       return <GoogleSheetsIcon className={iconSize} />
+    } else if (file.mimeType === 'application/vnd.google-apps.document') {
+      return <GoogleDocsIcon className={iconSize} />
     }
     return <FileIcon className={`${iconSize} text-muted-foreground`} />
   }
