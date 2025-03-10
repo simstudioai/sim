@@ -242,7 +242,7 @@ export function CredentialSelector({
             {selectedCredential ? (
               <div className="flex items-center gap-2">
                 {getProviderIcon(provider)}
-                <span>{selectedCredential.name}</span>
+                <span className="font-normal">{selectedCredential.name}</span>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export function CredentialSelector({
                     >
                       <div className="flex items-center gap-2">
                         {getProviderIcon(cred.provider)}
-                        <span>{cred.name}</span>
+                        <span className="font-normal">{cred.name}</span>
                       </div>
                       {cred.id === selectedId && <Check className="ml-auto h-4 w-4" />}
                     </CommandItem>
