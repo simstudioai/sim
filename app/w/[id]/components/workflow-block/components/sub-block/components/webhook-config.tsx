@@ -192,7 +192,6 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       // Update the actual provider after saving
       setActualProvider(webhookProvider || 'generic')
 
-      console.log('Webhook configuration saved successfully')
       return true
     } catch (error: any) {
       console.error('Error saving webhook:', error)
@@ -223,7 +222,6 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       setWebhookId(null)
       setActualProvider(null)
 
-      console.log('Webhook deleted successfully')
       return true
     } catch (error: any) {
       console.error('Error deleting webhook:', error)

@@ -18,7 +18,6 @@ export async function POST(request: Request) {
 
       // Use executeTool with skipProxy=true to prevent recursive proxy calls
       const result = await executeTool(toolId, params, true)
-      console.log('result', result)
 
       if (!result.success) {
         throw new Error(

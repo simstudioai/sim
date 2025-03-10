@@ -118,7 +118,9 @@ export async function POST(request: NextRequest) {
         })
 
         if (!response.ok) {
-          throw new Error('Failed to refresh token')
+          const errorText = await response.text()
+          console.error('Token refresh failed:', response.status, errorText)
+          throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
         }
 
         const data = await response.json()

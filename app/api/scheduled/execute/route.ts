@@ -152,7 +152,6 @@ const runningExecutions = new Set<string>()
 // Add GET handler for cron job
 export async function GET(req: NextRequest) {
   const now = new Date()
-  console.log('Starting scheduled execution check at:', now.toISOString())
 
   let dueSchedules: (typeof workflowSchedule.$inferSelect)[] = []
 
@@ -165,22 +164,12 @@ export async function GET(req: NextRequest) {
       // Limit to 10 workflows per minute to prevent overload
       .limit(10)
 
-    console.log('Found due schedules:', dueSchedules.length)
-
     for (const schedule of dueSchedules) {
-      console.log('Processing schedule:', {
-        id: schedule.id,
-        workflowId: schedule.workflowId,
-        nextRunAt: schedule.nextRunAt,
-        cronExpression: schedule.cronExpression,
-      })
-
       const executionId = uuidv4()
 
       try {
         // Skip if this workflow is already running
         if (runningExecutions.has(schedule.workflowId)) {
-          console.log(`Skipping workflow ${schedule.workflowId} - already running`)
           continue
         }
 
@@ -298,7 +287,6 @@ export async function GET(req: NextRequest) {
         if (result.success) {
           // Calculate the next run time based on the schedule configuration
           const nextRunAt = calculateNextRunTime(schedule, blocks)
-          console.log('Calculated next run time:', nextRunAt.toISOString())
 
           // Update the schedule with the next run time
           await db
@@ -309,8 +297,6 @@ export async function GET(req: NextRequest) {
               nextRunAt,
             })
             .where(eq(workflowSchedule.id, schedule.id))
-
-          console.log('Updated schedule with new run time')
         } else {
           // If execution failed, increment next_run_at by a small delay to prevent immediate retries
           const retryDelay = 1 * 60 * 1000 // 1 minute delay
@@ -323,8 +309,6 @@ export async function GET(req: NextRequest) {
               nextRunAt: nextRetryAt,
             })
             .where(eq(workflowSchedule.id, schedule.id))
-
-          console.log('Execution failed, scheduled retry at:', nextRetryAt.toISOString())
         }
       } catch (error: any) {
         console.error(`Error executing scheduled workflow ${schedule.workflowId}:`, error)
@@ -343,8 +327,6 @@ export async function GET(req: NextRequest) {
             nextRunAt: nextRetryAt,
           })
           .where(eq(workflowSchedule.id, schedule.id))
-
-        console.log('Execution error, scheduled retry at:', nextRetryAt.toISOString())
       } finally {
         runningExecutions.delete(schedule.workflowId)
       }

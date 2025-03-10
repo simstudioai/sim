@@ -48,12 +48,6 @@ export async function GET(request: NextRequest) {
         // Construct the WhatsApp verification URL
         const whatsappUrl = `${webhookUrl}?hub.mode=subscribe&hub.verify_token=${verificationToken}&hub.challenge=${challenge}`
 
-        console.log('Testing WhatsApp webhook:', {
-          webhookId,
-          url: whatsappUrl,
-          token: verificationToken ? verificationToken.substring(0, 3) + '***' : null,
-        })
-
         // Make a request to the webhook endpoint
         const response = await fetch(whatsappUrl, {
           headers: {
@@ -65,12 +59,6 @@ export async function GET(request: NextRequest) {
         const status = response.status
         const contentType = response.headers.get('content-type')
         const responseText = await response.text()
-
-        console.log('WhatsApp test response:', {
-          status,
-          contentType,
-          responseText,
-        })
 
         // Check if the test was successful
         const success = status === 200 && responseText === challenge

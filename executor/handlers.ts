@@ -535,7 +535,10 @@ export class ApiBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs)
+    const result = await executeTool(block.config.tool, {
+      ...inputs,
+      _context: { workflowId: context.workflowId },
+    })
     if (!result.success) {
       throw new Error(result.error || `API request failed with no error message`)
     }
@@ -563,7 +566,14 @@ export class FunctionBlockHandler implements BlockHandler {
       : inputs.code
 
     // Use the shared helper function
-    const result = await executeCodeWithFallback(codeContent, inputs, inputs.timeout || 5000)
+    const result = await executeCodeWithFallback(
+      codeContent,
+      {
+        ...inputs,
+        _context: { workflowId: context.workflowId },
+      },
+      inputs.timeout || 5000
+    )
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')
@@ -592,7 +602,10 @@ export class GenericBlockHandler implements BlockHandler {
       throw new Error(`Tool not found: ${block.config.tool}`)
     }
 
-    const result = await executeTool(block.config.tool, inputs)
+    const result = await executeTool(block.config.tool, {
+      ...inputs,
+      _context: { workflowId: context.workflowId },
+    })
     if (!result.success) {
       throw new Error(result.error || `Block execution failed with no error message`)
     }

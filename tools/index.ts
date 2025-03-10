@@ -26,7 +26,7 @@ import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
 import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
-import { ToolConfig, ToolResponse } from './types'
+import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
 import { formatRequestParams, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
@@ -90,7 +90,6 @@ export function getTool(toolId: string): ToolConfig | undefined {
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
-  console.log('toolId', toolId)
 
   // Check if it's a custom tool
   if (toolId.startsWith('custom_')) {
@@ -289,7 +288,6 @@ export async function executeTool(
 ): Promise<ToolResponse> {
   try {
     const tool = getTool(toolId)
-    console.log('tool', tool)
 
     // Validate the tool and its parameters
     validateToolRequest(toolId, tool, params)
@@ -369,7 +367,6 @@ async function handleInternalRequest(
       headers: requestParams.headers,
       body: requestParams.body,
     })
-    console.log('response', response)
 
     if (!response.ok) {
       let errorData
@@ -470,14 +467,21 @@ async function handleProxyRequest(
   // If we have a credential parameter, fetch the access token
   if (params.credential) {
     try {
-      // Determine if we're in a browser or server context
       const isServerSide = typeof window === 'undefined'
 
-      // Prepare the token payload - include workflowId for server-side context
-      const tokenPayload =
-        isServerSide && params.workflowId
-          ? { credentialId: params.credential, workflowId: params.workflowId }
-          : { credentialId: params.credential }
+      // Prepare the token payload
+      const tokenPayload: OAuthTokenPayload = {
+        credentialId: params.credential,
+      }
+
+      // Add workflowId if it exists in params or context
+      if (isServerSide) {
+        // Try to get workflowId from params or context
+        const workflowId = params.workflowId || params._context?.workflowId
+        if (workflowId) {
+          tokenPayload.workflowId = workflowId
+        }
+      }
 
       const response = await fetch(`${baseUrl}/api/auth/oauth/token`, {
         method: 'POST',
@@ -486,7 +490,9 @@ async function handleProxyRequest(
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch access token')
+        const errorText = await response.text()
+        console.error('Token fetch failed:', response.status, errorText)
+        throw new Error(`Failed to fetch access token: ${response.status} ${errorText}`)
       }
 
       const data = await response.json()
@@ -494,9 +500,7 @@ async function handleProxyRequest(
 
       // Clean up params we don't need to pass to the actual tool
       delete params.credential
-      if (isServerSide && params.workflowId) {
-        delete params.workflowId
-      }
+      if (params.workflowId) delete params.workflowId
     } catch (error) {
       console.error('Error fetching access token:', error)
       throw error

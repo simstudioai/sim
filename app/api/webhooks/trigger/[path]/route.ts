@@ -275,6 +275,8 @@ export async function POST(
       workflowId: foundWorkflow.id,
     }
 
+    console.log('Executing workflow with workflowId:', foundWorkflow.id)
+
     const executor = new Executor(
       serializedWorkflow,
       currentBlockStates,

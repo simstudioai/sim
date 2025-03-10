@@ -60,3 +60,8 @@ export interface TableRow {
     Value: string
   }
 }
+
+export interface OAuthTokenPayload {
+  credentialId: string
+  workflowId?: string
+}
