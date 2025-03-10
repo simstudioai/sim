@@ -107,7 +107,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     },
   },
   inputs: {
-    systemPrompt: { type: 'string', required: true },
+    systemPrompt: { type: 'string', required: false },
     context: { type: 'string', required: false },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },

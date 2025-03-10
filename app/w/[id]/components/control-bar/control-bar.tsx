@@ -458,13 +458,25 @@ export function ControlBar() {
    */
   const renderRunButton = () => (
     <Button
-      className={`gap-2 bg-[#7F2FFF] hover:bg-[#7F2FFF]/90 text-white ${
-        isExecuting ? 'animate-run-glow' : ''
-      }`}
+      className={cn(
+        // Base styles
+        'gap-2 font-medium',
+        // Brand color with hover states - darker on hover
+        'bg-[#7F2FFF] hover:bg-[#6B28D9]',
+        // Hover effect with brand color
+        'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+        // Text color and transitions
+        'text-white transition-all duration-200',
+        // Running state animation
+        isExecuting &&
+          'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+        // Disabled state
+        'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none'
+      )}
       onClick={handleRunWorkflow}
       disabled={isExecuting}
     >
-      <Play fill="white" stroke="white" className="!h-3.5 !w-3.5" />
+      <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
       {isExecuting ? 'Running' : 'Run'}
     </Button>
   )
