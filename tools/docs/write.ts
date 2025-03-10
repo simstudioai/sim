@@ -47,63 +47,84 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
         throw new Error('Content is required')
       }
 
-      // Create a batch update request to replace all content
-      return {
+      // Following the exact format from the Google Docs API examples
+      // Note: We're not including tabId since it's optional for the main document body
+      const requestBody = {
         requests: [
           {
-            // First, delete all existing content
-            deleteContentRange: {
-              range: {
-                startIndex: 1, // Start after the initial paragraph marker
-                endIndex: 999999, // A large number to ensure all content is deleted
-              },
-            },
-          },
-          {
-            // Then insert the new content
             insertText: {
               location: {
-                index: 1, // Insert after the initial paragraph marker
+                index: 1,
               },
               text: params.content,
             },
           },
         ],
       }
+
+      return requestBody
     },
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to write to Google Docs document: ${errorText}`)
+      let errorText = ''
+      try {
+        const responseClone = response.clone()
+        const responseText = await responseClone.text()
+        errorText = responseText
+      } catch (e) {
+        errorText = 'Unable to read error response'
+      }
+
+      throw new Error(`Failed to write to Google Docs document (${response.status}): ${errorText}`)
     }
 
-    const data = await response.json()
+    try {
+      const responseText = await response.text()
 
-    // Get the document ID from the URL
-    const urlParts = response.url.split('/')
-    const documentId = urlParts[urlParts.length - 2].split(':')[0]
+      // Parse the response if it's not empty
+      let data = {}
+      if (responseText.trim()) {
+        data = JSON.parse(responseText)
+      }
 
-    // Create document metadata
-    const metadata = {
-      documentId,
-      title: 'Updated Document', // We don't get the title back from the batchUpdate endpoint
-      mimeType: 'application/vnd.google-apps.document',
-      url: `https://docs.google.com/document/d/${documentId}/edit`,
-    }
+      // Get the document ID from the URL
+      const urlParts = response.url.split('/')
+      let documentId = ''
+      for (let i = 0; i < urlParts.length; i++) {
+        if (urlParts[i] === 'documents' && i + 1 < urlParts.length) {
+          documentId = urlParts[i + 1].split(':')[0]
+          break
+        }
+      }
 
-    return {
-      success: true,
-      output: {
-        updatedContent: true,
-        metadata,
-      },
+      // Create document metadata
+      const metadata = {
+        documentId,
+        title: 'Updated Document',
+        mimeType: 'application/vnd.google-apps.document',
+        url: `https://docs.google.com/document/d/${documentId}/edit`,
+      }
+
+      return {
+        success: true,
+        output: {
+          updatedContent: true,
+          metadata,
+        },
+      }
+    } catch (error) {
+      throw error
     }
   },
   transformError: (error) => {
     if (typeof error === 'object' && error !== null) {
-      return JSON.stringify(error) || 'An error occurred while writing to Google Docs'
+      if (error.message) {
+        return error.message
+      }
+      return JSON.stringify(error, null, 2) || 'An error occurred while writing to Google Docs'
     }
-    return error.message || 'An error occurred while writing to Google Docs'
+
+    return error.toString() || 'An error occurred while writing to Google Docs'
   },
 }
