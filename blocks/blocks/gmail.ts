@@ -5,7 +5,7 @@ import { BlockConfig } from '../types'
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',
   name: 'Gmail',
-  description: 'Send, read, and search Gmail messages',
+  description: 'Send, read, and search Gmail',
   longDescription:
     'Integrate Gmail functionality to send, read, and search email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
   category: 'tools',

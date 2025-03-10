@@ -10,11 +10,11 @@ interface SupabaseResponse extends ToolResponse {
 export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   type: 'supabase',
   name: 'Supabase',
-  description: 'Connect to and interact with Supabase',
+  description: 'Use Supabase database',
   longDescription:
     'Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services using OAuth authentication.',
   category: 'tools',
-  bgColor: '#E0E0E0',
+  bgColor: '#1C1C1C',
   icon: SupabaseIcon,
   subBlocks: [
     // Operation selector

@@ -9,7 +9,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   longDescription:
     'Process visual content with customizable prompts to extract insights and information from images.',
   category: 'tools',
-  bgColor: '#4B8F4B',
+  bgColor: '#36BBFF',
   icon: EyeIcon,
   subBlocks: [
     {

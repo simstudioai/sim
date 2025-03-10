@@ -14,7 +14,7 @@ type GoogleSheetsResponse =
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',
   name: 'Google Sheets',
-  description: 'Read, write, and update data in Google Sheets',
+  description: 'Read, write, and update data',
   longDescription:
     'Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, and update existing cells using OAuth authentication. Supports various input and output formats for flexible data handling.',
   category: 'tools',

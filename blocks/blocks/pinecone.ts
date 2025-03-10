@@ -6,7 +6,7 @@ import { BlockConfig } from '../types'
 export const PineconeBlock: BlockConfig<PineconeResponse> = {
   type: 'pinecone',
   name: 'Pinecone',
-  description: 'Interact with Pinecone vector database',
+  description: 'Use Pinecone vector database',
   longDescription:
     "Store, search, and retrieve vector embeddings using Pinecone's specialized vector database. Generate embeddings from text and perform semantic similarity searches with customizable filtering options.",
   category: 'tools',

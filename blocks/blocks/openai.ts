@@ -3,8 +3,8 @@ import { BlockConfig } from '../types'
 
 export const OpenAIBlock: BlockConfig = {
   type: 'openai',
-  name: 'OpenAI Embeddings',
-  description: 'Generate embeddings from text',
+  name: 'Embeddings',
+  description: 'Generate Open AI embeddings',
   longDescription:
     "Convert text into numerical vector representations using OpenAI's embedding models. Transform text data into embeddings for semantic search, clustering, and other vector-based operations.",
   category: 'tools',
