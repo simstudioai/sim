@@ -16,13 +16,42 @@ export async function POST(request: Request) {
         throw new Error(`Tool not found: ${toolId}`)
       }
 
-      // Use executeTool with skipProxy=true to prevent recursive proxy calls
-      const result = await executeTool(toolId, params, true)
+      // Use executeTool with skipProxy=true to prevent recursive proxy calls, and skipPostProcess=true to prevent duplicate post-processing
+      const result = await executeTool(toolId, params, true, true)
 
       if (!result.success) {
-        throw new Error(
-          tool.transformError ? tool.transformError(result) : 'Tool returned an error'
-        )
+        if (tool.transformError) {
+          try {
+            const errorResult = tool.transformError(result)
+
+            // Handle both string and Promise return types
+            if (typeof errorResult === 'string') {
+              throw new Error(errorResult)
+            } else {
+              // It's a Promise, await it
+              const transformedError = await errorResult
+              // If it's a string or has an error property, use it
+              if (typeof transformedError === 'string') {
+                throw new Error(transformedError)
+              } else if (
+                transformedError &&
+                typeof transformedError === 'object' &&
+                'error' in transformedError
+              ) {
+                throw new Error(transformedError.error || 'Tool returned an error')
+              }
+              // Fallback
+              throw new Error('Tool returned an error')
+            }
+          } catch (e) {
+            if (e instanceof Error) {
+              throw e
+            }
+            throw new Error('Tool returned an error')
+          }
+        } else {
+          throw new Error('Tool returned an error')
+        }
       }
 
       return NextResponse.json(result)

@@ -77,12 +77,40 @@ export async function executeRequest(
       }
 
       // Use the tool's error transformer or a default message
-      const error = tool.transformError
-        ? tool.transformError(errorContent)
-        : errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
+      if (tool.transformError) {
+        try {
+          const errorResult = tool.transformError(errorContent)
 
-      console.error(`${toolId} error:`, error)
-      throw new Error(error)
+          // Handle both string and Promise return types
+          if (typeof errorResult === 'string') {
+            throw new Error(errorResult)
+          } else {
+            // It's a Promise, await it
+            const transformedError = await errorResult
+            // If it's a string or has an error property, use it
+            if (typeof transformedError === 'string') {
+              throw new Error(transformedError)
+            } else if (
+              transformedError &&
+              typeof transformedError === 'object' &&
+              'error' in transformedError
+            ) {
+              throw new Error(transformedError.error || 'Tool returned an error')
+            }
+            // Fallback
+            throw new Error('Tool returned an error')
+          }
+        } catch (e) {
+          if (e instanceof Error) {
+            throw e
+          }
+          throw new Error(`${toolId} API error: ${externalResponse.statusText}`)
+        }
+      } else {
+        const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
+        console.error(`${toolId} error:`, error)
+        throw new Error(error)
+      }
     }
 
     const transformResponse =

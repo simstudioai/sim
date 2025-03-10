@@ -50,6 +50,44 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       return requestBody
     },
   },
+  postProcess: async (result, params, executeTool) => {
+    // Only add content if it was provided and not already added during creation
+    // The Google Docs API doesn't directly support content in the create request,
+    // so we need to add it separately via the write tool
+    if (result.success && params.content) {
+      console.log('Google Docs create - Post-processing: Adding content to document')
+      const documentId = result.output.metadata.documentId
+
+      if (documentId) {
+        try {
+          const writeParams = {
+            accessToken: params.accessToken,
+            documentId: documentId,
+            content: params.content,
+          }
+          console.log('Content to add:', params.content)
+
+          // Use the write tool to add content
+          const writeResult = await executeTool('google_docs_write', writeParams)
+
+          if (!writeResult.success) {
+            console.warn(
+              'Failed to add content to document, but document was created:',
+              writeResult.error
+            )
+          } else {
+            console.log('Google Docs create - Content added successfully')
+          }
+        } catch (error) {
+          console.warn('Error adding content to document:', error)
+          // Don't fail the overall operation if adding content fails
+        }
+      }
+    }
+
+    // Return the original result regardless of post-processing outcome
+    return result
+  },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       let errorText = ''
@@ -67,7 +105,9 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     try {
       // Get the response data
       const responseText = await response.text()
+
       const data = JSON.parse(responseText)
+
       const documentId = data.documentId
       const title = data.title
 
@@ -86,19 +126,27 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         },
       }
     } catch (error) {
+      console.error('Google Docs create - Error processing response:', error)
       throw error
     }
   },
-  transformError: (error) => {
-    if (typeof error === 'object' && error !== null) {
-      if (error.message) {
-        return error.message
-      }
-      return (
-        JSON.stringify(error, null, 2) || 'An error occurred while creating Google Docs document'
-      )
-    }
+  transformError: async (error) => {
+    console.error('Google Docs create - Transform error:', error)
 
-    return error.toString() || 'An error occurred while creating Google Docs document'
+    const errorMessage =
+      typeof error === 'object' && error !== null
+        ? error.message || JSON.stringify(error, null, 2)
+        : error.toString() || 'An error occurred while creating Google Docs document'
+
+    return {
+      success: false,
+      output: {
+        metadata: {
+          documentId: '',
+          title: '',
+        },
+      },
+      error: errorMessage,
+    }
   },
 }

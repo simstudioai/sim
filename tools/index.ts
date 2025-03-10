@@ -279,7 +279,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
         error: undefined,
       }
     },
-    transformError: (error: any) =>
+    transformError: async (error: any) =>
       `Custom tool execution error: ${error.message || 'Unknown error'}`,
   }
 }
@@ -288,7 +288,8 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
 export async function executeTool(
   toolId: string,
   params: Record<string, any>,
-  skipProxy = false
+  skipProxy = false,
+  skipPostProcess = false
 ): Promise<ToolResponse> {
   try {
     const tool = getTool(toolId)
@@ -313,11 +314,36 @@ export async function executeTool(
     // For internal routes or when skipProxy is true, call the API directly
     if (tool.request.isInternalRoute || skipProxy) {
       const result = await handleInternalRequest(toolId, tool, params)
+
+      // Apply post-processing if available and not skipped
+      if (tool.postProcess && result.success && !skipPostProcess) {
+        try {
+          return await tool.postProcess(result, params, executeTool)
+        } catch (error) {
+          console.error(`Error in post-processing for tool ${toolId}:`, error)
+          // Return original result if post-processing fails
+          return result
+        }
+      }
+
       return result
     }
 
     // For external APIs, use the proxy
-    return await handleProxyRequest(toolId, params)
+    const result = await handleProxyRequest(toolId, params)
+
+    // Apply post-processing if available and not skipped
+    if (tool.postProcess && result.success && !skipPostProcess) {
+      try {
+        return await tool.postProcess(result, params, executeTool)
+      } catch (error) {
+        console.error(`Error in post-processing for tool ${toolId}:`, error)
+        // Return original result if post-processing fails
+        return result
+      }
+    }
+
+    return result
   } catch (error: any) {
     console.error(`Error executing tool ${toolId}:`, error)
 
@@ -396,12 +422,58 @@ async function handleInternalRequest(
       error: undefined,
     }
   } catch (error: any) {
+    console.error(`Error executing internal tool ${toolId}:`, error)
+
     // Use the tool's error transformer if available
     if (tool.transformError) {
-      return {
-        success: false,
-        output: {},
-        error: tool.transformError(error),
+      try {
+        const errorResult = tool.transformError(error)
+
+        // Handle both string and Promise return types
+        if (typeof errorResult === 'string') {
+          return {
+            success: false,
+            output: {},
+            error: errorResult,
+          }
+        } else {
+          // It's a Promise, await it
+          const transformedError = await errorResult
+          // If it's a string or has an error property, use it
+          if (typeof transformedError === 'string') {
+            return {
+              success: false,
+              output: {},
+              error: transformedError,
+            }
+          } else if (transformedError && typeof transformedError === 'object') {
+            // If it's already a ToolResponse, return it directly
+            if ('success' in transformedError) {
+              return transformedError
+            }
+            // If it has an error property, use it
+            if ('error' in transformedError) {
+              return {
+                success: false,
+                output: {},
+                error: transformedError.error,
+              }
+            }
+          }
+          // Fallback
+          return {
+            success: false,
+            output: {},
+            error: 'Unknown error',
+          }
+        }
+      } catch (transformError) {
+        console.error(`Error transforming error for tool ${toolId}:`, transformError)
+        return {
+          success: false,
+          output: {},
+          error: error.message || 'Unknown error',
+        }
       }
     }
 

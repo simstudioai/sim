@@ -70,11 +70,23 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
       },
     }
   },
-  transformError: (error) => {
-    if (typeof error === 'object' && error !== null) {
-      return JSON.stringify(error) || 'An error occurred while reading from Google Docs'
+  transformError: async (error) => {
+    const errorMessage =
+      typeof error === 'object' && error !== null
+        ? error.message || JSON.stringify(error, null, 2)
+        : error.toString() || 'An error occurred while reading Google Docs document'
+
+    return {
+      success: false,
+      output: {
+        content: '',
+        metadata: {
+          documentId: '',
+          title: '',
+        },
+      },
+      error: errorMessage,
     }
-    return error.message || 'An error occurred while reading from Google Docs'
   },
 }
 

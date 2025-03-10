@@ -48,14 +48,13 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
       }
 
       // Following the exact format from the Google Docs API examples
-      // Note: We're not including tabId since it's optional for the main document body
+      // Always insert at the end of the document to avoid duplication
+      // See: https://developers.google.com/docs/api/reference/rest/v1/documents/request#InsertTextRequest
       const requestBody = {
         requests: [
           {
             insertText: {
-              location: {
-                index: 1,
-              },
+              endOfSegmentLocation: {},
               text: params.content,
             },
           },
@@ -117,14 +116,22 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
       throw error
     }
   },
-  transformError: (error) => {
-    if (typeof error === 'object' && error !== null) {
-      if (error.message) {
-        return error.message
-      }
-      return JSON.stringify(error, null, 2) || 'An error occurred while writing to Google Docs'
-    }
+  transformError: async (error) => {
+    const errorMessage =
+      typeof error === 'object' && error !== null
+        ? error.message || JSON.stringify(error, null, 2)
+        : error.toString() || 'An error occurred while writing to Google Docs'
 
-    return error.toString() || 'An error occurred while writing to Google Docs'
+    return {
+      success: false,
+      output: {
+        updatedContent: false,
+        metadata: {
+          documentId: '',
+          title: '',
+        },
+      },
+      error: errorMessage,
+    }
   },
 }

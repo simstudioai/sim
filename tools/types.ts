@@ -14,7 +14,7 @@ export interface OAuthConfig {
   additionalScopes?: string[] // Additional scopes required for the tool
 }
 
-export interface ToolConfig<P = any, R extends ToolResponse = ToolResponse> {
+export interface ToolConfig<P = any, R = any> {
   // Basic tool identification
   id: string
   name: string
@@ -48,9 +48,16 @@ export interface ToolConfig<P = any, R extends ToolResponse = ToolResponse> {
   // Direct execution in browser (optional) - bypasses HTTP request
   directExecution?: (params: P) => Promise<R | undefined>
 
+  // Post-processing (optional) - allows additional processing after the initial request
+  postProcess?: (
+    result: R extends ToolResponse ? R : ToolResponse,
+    params: P,
+    executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>
+  ) => Promise<R extends ToolResponse ? R : ToolResponse>
+
   // Response handling
-  transformResponse: (response: Response) => Promise<R>
-  transformError: (error: any) => string
+  transformResponse?: (response: Response) => Promise<R>
+  transformError?: (error: any) => string | Promise<R>
 }
 
 export interface TableRow {
