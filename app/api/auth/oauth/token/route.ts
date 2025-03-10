@@ -2,33 +2,57 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { account } from '@/db/schema'
+import { account, workflow } from '@/db/schema'
 
 /**
  * Get an access token for a specific credential
+ * Supports both session-based authentication (for client-side requests)
+ * and workflow-based authentication (for server-side requests)
  */
 export async function POST(request: NextRequest) {
   try {
-    // Get the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
-    // Get the credential ID from the request body
-    const { credentialId } = await request.json()
+    // Parse request body
+    const body = await request.json()
+    const { credentialId, workflowId } = body
 
     if (!credentialId) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    }
+
+    // Determine the user ID based on the context
+    let userId: string | undefined
+
+    // If workflowId is provided, this is a server-side request
+    if (workflowId) {
+      // Get the workflow to verify the user ID
+      const workflows = await db
+        .select({ userId: workflow.userId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (!workflows.length) {
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
+
+      userId = workflows[0].userId
+    } else {
+      // This is a client-side request, use the session
+      const session = await getSession()
+
+      // Check if the user is authenticated
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+      }
+
+      userId = session.user.id
     }
 
     // Get the credential from the database
     const credentials = await db
       .select()
       .from(account)
-      .where(and(eq(account.id, credentialId), eq(account.userId, session.user.id)))
+      .where(and(eq(account.id, credentialId), eq(account.userId, userId)))
       .limit(1)
 
     if (!credentials.length) {

@@ -470,10 +470,19 @@ async function handleProxyRequest(
   // If we have a credential parameter, fetch the access token
   if (params.credential) {
     try {
+      // Determine if we're in a browser or server context
+      const isServerSide = typeof window === 'undefined'
+
+      // Prepare the token payload - include workflowId for server-side context
+      const tokenPayload =
+        isServerSide && params.workflowId
+          ? { credentialId: params.credential, workflowId: params.workflowId }
+          : { credentialId: params.credential }
+
       const response = await fetch(`${baseUrl}/api/auth/oauth/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credentialId: params.credential }),
+        body: JSON.stringify(tokenPayload),
       })
 
       if (!response.ok) {
@@ -482,7 +491,12 @@ async function handleProxyRequest(
 
       const data = await response.json()
       params.accessToken = data.accessToken
+
+      // Clean up params we don't need to pass to the actual tool
       delete params.credential
+      if (isServerSide && params.workflowId) {
+        delete params.workflowId
+      }
     } catch (error) {
       console.error('Error fetching access token:', error)
       throw error

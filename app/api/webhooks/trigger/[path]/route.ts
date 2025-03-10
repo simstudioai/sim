@@ -269,7 +269,18 @@ export async function POST(
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
 
-    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars, input)
+    // Add workflowId to the input for OAuth credential resolution
+    const enrichedInput = {
+      ...input,
+      workflowId: foundWorkflow.id,
+    }
+
+    const executor = new Executor(
+      serializedWorkflow,
+      currentBlockStates,
+      decryptedEnvVars,
+      enrichedInput
+    )
     const result = await executor.execute(foundWorkflow.id)
 
     console.log(`Successfully executed workflow ${foundWorkflow.id}`)

@@ -277,7 +277,18 @@ export async function GET(req: NextRequest) {
 
         // Serialize and execute the workflow
         const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-        const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars)
+
+        // Add workflowId to the input for OAuth credential resolution
+        const input = {
+          workflowId: schedule.workflowId,
+        }
+
+        const executor = new Executor(
+          serializedWorkflow,
+          currentBlockStates,
+          decryptedEnvVars,
+          input
+        )
         const result = await executor.execute(schedule.workflowId)
 
         // Log each execution step and the final result
