@@ -81,6 +81,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       title: 'Response Format',
       type: 'code',
       layout: 'full',
+      placeholder: `Enter JSON schema...`,
     },
   ],
   tools: {
@@ -115,63 +116,46 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'json',
       required: false,
       description:
-        'Define the expected response format. If not provided, returns plain text content.',
+        'Define the expected response format using JSON Schema. If not provided, returns plain text content.',
       schema: {
         type: 'object',
         properties: {
-          fields: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                name: {
-                  type: 'string',
-                  description: 'Name of the field',
-                },
-                type: {
-                  type: 'string',
-                  enum: ['string', 'number', 'boolean', 'array', 'object'],
-                  description: 'Type of the field',
-                },
-                isArray: {
-                  type: 'boolean',
-                  description: 'Whether this field contains multiple values',
-                },
-                items: {
-                  type: 'object',
-                  description: 'Schema for array items (required when isArray is true)',
-                  properties: {
-                    type: {
-                      type: 'string',
-                      enum: ['string', 'number', 'boolean', 'object'],
-                    },
-                    properties: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          name: { type: 'string' },
-                          type: {
-                            type: 'string',
-                            enum: ['string', 'number', 'boolean'],
-                          },
-                        },
-                        required: ['name', 'type'],
-                      },
-                    },
-                  },
-                },
-                description: {
-                  type: 'string',
-                  description: 'Description of what this field represents',
-                },
+          name: {
+            type: 'string',
+            description: 'A name for your schema (optional)',
+          },
+          schema: {
+            type: 'object',
+            description: 'The JSON Schema definition',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['object'],
+                description: 'Must be "object" for a valid JSON Schema',
               },
-              required: ['name', 'type'],
-              additionalProperties: false,
+              properties: {
+                type: 'object',
+                description: 'Object containing property definitions',
+              },
+              required: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Array of required property names',
+              },
+              additionalProperties: {
+                type: 'boolean',
+                description: 'Whether additional properties are allowed',
+              },
             },
+            required: ['type', 'properties'],
+          },
+          strict: {
+            type: 'boolean',
+            description: 'Whether to enforce strict schema validation',
+            default: true,
           },
         },
-        required: ['fields'],
+        required: ['schema'],
       },
     },
     temperature: { type: 'number', required: false },

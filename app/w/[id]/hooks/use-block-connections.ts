@@ -14,8 +14,40 @@ export interface ConnectedBlock {
   outputType: string | string[]
   name: string
   responseFormat?: {
-    fields: Field[]
+    // Support both formats
+    fields?: Field[]
+    name?: string
+    schema?: {
+      type: string
+      properties: Record<string, any>
+      required?: string[]
+    }
   }
+}
+
+// Helper function to extract fields from JSON Schema
+function extractFieldsFromSchema(schema: any): Field[] {
+  if (!schema || typeof schema !== 'object') {
+    return []
+  }
+
+  // Handle legacy format with fields array
+  if (Array.isArray(schema.fields)) {
+    return schema.fields
+  }
+
+  // Handle new JSON Schema format
+  const schemaObj = schema.schema || schema
+  if (!schemaObj || !schemaObj.properties || typeof schemaObj.properties !== 'object') {
+    return []
+  }
+
+  // Extract fields from schema properties
+  return Object.entries(schemaObj.properties).map(([name, prop]: [string, any]) => ({
+    name,
+    type: prop.type || 'string',
+    description: prop.description,
+  }))
 }
 
 export function useBlockConnections(blockId: string) {
@@ -43,7 +75,7 @@ export function useBlockConnections(blockId: string) {
         responseFormat =
           typeof responseFormatValue === 'string' && responseFormatValue
             ? JSON.parse(responseFormatValue)
-            : undefined
+            : responseFormatValue // Handle case where it's already an object
       } catch (e) {
         console.error('Failed to parse response format:', e)
         responseFormat = undefined
@@ -55,8 +87,8 @@ export function useBlockConnections(blockId: string) {
         type: 'string',
       }))
 
-      // If we have a valid response format, use its fields as the output types
-      const outputFields = responseFormat?.fields || defaultOutputs
+      // Extract fields from the response format using our helper function
+      const outputFields = responseFormat ? extractFieldsFromSchema(responseFormat) : defaultOutputs
 
       return {
         id: sourceBlock.id,

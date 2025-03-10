@@ -30,6 +30,33 @@ interface TagDropdownProps {
   style?: React.CSSProperties
 }
 
+// Add a helper function to extract fields from JSON Schema
+const extractFieldsFromSchema = (responseFormat: any): Field[] => {
+  if (!responseFormat) return []
+
+  // Handle legacy format with fields array
+  if (Array.isArray(responseFormat.fields)) {
+    return responseFormat.fields
+  }
+
+  // Handle new JSON Schema format
+  const schema = responseFormat.schema || responseFormat
+  if (
+    !schema ||
+    typeof schema !== 'object' ||
+    !('properties' in schema) ||
+    typeof schema.properties !== 'object'
+  ) {
+    return []
+  }
+
+  return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
+    name,
+    type: Array.isArray(prop) ? 'array' : prop.type || 'string',
+    description: prop.description,
+  }))
+}
+
 export const TagDropdown: React.FC<TagDropdownProps> = ({
   visible,
   onSelect,
@@ -109,13 +136,18 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         const responseFormatValue = useSubBlockStore
           .getState()
           .getValue(activeSourceBlockId, 'responseFormat')
-        if (typeof responseFormatValue === 'string' && responseFormatValue) {
-          const responseFormat = JSON.parse(responseFormatValue)
-          if (responseFormat?.fields) {
-            return {
-              tags: responseFormat.fields.map(
-                (field: Field) => `${normalizedBlockName}.${field.name}`
-              ),
+        if (responseFormatValue) {
+          const responseFormat =
+            typeof responseFormatValue === 'string'
+              ? JSON.parse(responseFormatValue)
+              : responseFormatValue
+
+          if (responseFormat) {
+            const fields = extractFieldsFromSchema(responseFormat)
+            if (fields.length > 0) {
+              return {
+                tags: fields.map((field: Field) => `${normalizedBlockName}.${field.name}`),
+              }
             }
           }
         }
@@ -144,12 +176,17 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         const responseFormatValue = useSubBlockStore
           .getState()
           .getValue(edge.source, 'responseFormat')
-        if (typeof responseFormatValue === 'string' && responseFormatValue) {
-          const responseFormat = JSON.parse(responseFormatValue)
-          if (responseFormat?.fields) {
-            return responseFormat.fields.map(
-              (field: Field) => `${normalizedBlockName}.${field.name}`
-            )
+        if (responseFormatValue) {
+          const responseFormat =
+            typeof responseFormatValue === 'string'
+              ? JSON.parse(responseFormatValue)
+              : responseFormatValue
+
+          if (responseFormat) {
+            const fields = extractFieldsFromSchema(responseFormat)
+            if (fields.length > 0) {
+              return fields.map((field: Field) => `${normalizedBlockName}.${field.name}`)
+            }
           }
         }
       } catch (e) {

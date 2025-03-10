@@ -69,7 +69,10 @@ export const googleProvider: ProviderConfig = {
 
     // Add response format for structured output if specified
     if (request.responseFormat) {
-      payload.response_format = { type: 'json_object' }
+      payload.response_format = {
+        type: 'json_schema',
+        schema: request.responseFormat.schema || request.responseFormat,
+      }
     }
 
     // Add tools if provided

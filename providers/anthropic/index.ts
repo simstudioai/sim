@@ -100,19 +100,73 @@ export const anthropicProvider: ProviderConfig = {
 
     // If response format is specified, add strict formatting instructions
     if (request.responseFormat) {
-      systemPrompt = `${systemPrompt}\n\nIMPORTANT RESPONSE FORMAT INSTRUCTIONS:
+      // Get the schema from the response format
+      const schema = request.responseFormat.schema || request.responseFormat
+
+      // Build a system prompt for structured output based on the JSON schema
+      let schemaInstructions = ''
+
+      if (schema && schema.properties) {
+        // Create a template of the expected JSON structure
+        const jsonTemplate = Object.entries(schema.properties).reduce(
+          (acc: Record<string, any>, [key, prop]: [string, any]) => {
+            let exampleValue
+            const propType = prop.type || 'string'
+
+            // Generate appropriate example values based on type
+            switch (propType) {
+              case 'string':
+                exampleValue = '"value"'
+                break
+              case 'number':
+                exampleValue = '0'
+                break
+              case 'boolean':
+                exampleValue = 'true'
+                break
+              case 'array':
+                exampleValue = '[]'
+                break
+              case 'object':
+                exampleValue = '{}'
+                break
+              default:
+                exampleValue = '"value"'
+            }
+
+            acc[key] = exampleValue
+            return acc
+          },
+          {}
+        )
+
+        // Generate field descriptions
+        const fieldDescriptions = Object.entries(schema.properties)
+          .map(([key, prop]: [string, any]) => {
+            const type = prop.type || 'string'
+            const description = prop.description ? `: ${prop.description}` : ''
+            return `${key} (${type})${description}`
+          })
+          .join('\n')
+
+        // Format the JSON template as a string
+        const jsonTemplateStr = JSON.stringify(jsonTemplate, null, 2)
+
+        schemaInstructions = `
+IMPORTANT RESPONSE FORMAT INSTRUCTIONS:
 1. Your response must be EXACTLY in this format, with no additional fields:
-{
-${request.responseFormat.fields.map((field) => `  "${field.name}": ${field.type === 'string' ? '"value"' : field.type === 'array' ? '[]' : field.type === 'object' ? '{}' : field.type === 'number' ? '0' : 'true/false'}`).join(',\n')}
-}
+${jsonTemplateStr}
 
 Field descriptions:
-${request.responseFormat.fields.map((field) => `${field.name} (${field.type})${field.description ? `: ${field.description}` : ''}`).join('\n')}
+${fieldDescriptions}
 
 2. DO NOT include any explanatory text before or after the JSON
 3. DO NOT wrap the response in an array
 4. DO NOT add any fields not specified in the schema
 5. Your response MUST be valid JSON and include all the specified fields with their correct types`
+      }
+
+      systemPrompt = `${systemPrompt}${schemaInstructions}`
     }
 
     // Build the request payload

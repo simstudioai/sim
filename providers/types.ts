@@ -86,11 +86,9 @@ export interface ProviderRequest {
   apiKey: string
   messages?: Message[]
   responseFormat?: {
-    fields: Array<{
-      name: string
-      type: 'string' | 'number' | 'boolean' | 'array' | 'object'
-      description?: string
-    }>
+    name: string
+    schema: any
+    strict?: boolean
   }
   local_execution?: boolean
 }

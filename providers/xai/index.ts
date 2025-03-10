@@ -64,38 +64,9 @@ export const xAIProvider: ProviderConfig = {
       payload.response_format = {
         type: 'json_schema',
         json_schema: {
-          name: 'structured_response',
-          schema: {
-            type: 'object',
-            properties: request.responseFormat.fields.reduce(
-              (acc, field) => ({
-                ...acc,
-                [field.name]: {
-                  type:
-                    field.type === 'array'
-                      ? 'array'
-                      : field.type === 'object'
-                        ? 'object'
-                        : field.type === 'number'
-                          ? 'number'
-                          : field.type === 'boolean'
-                            ? 'boolean'
-                            : 'string',
-                  description: field.description || '',
-                  ...(field.type === 'array' && {
-                    items: { type: 'string' },
-                  }),
-                  ...(field.type === 'object' && {
-                    additionalProperties: true,
-                  }),
-                },
-              }),
-              {}
-            ),
-            required: request.responseFormat.fields.map((f) => f.name),
-            additionalProperties: false,
-          },
-          strict: true,
+          name: request.responseFormat.name || 'structured_response',
+          schema: request.responseFormat.schema || request.responseFormat,
+          strict: request.responseFormat.strict !== false,
         },
       }
 

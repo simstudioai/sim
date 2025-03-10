@@ -44,18 +44,45 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     setIsConnecting(false)
   }
 
+  // Helper function to extract fields from JSON Schema
+  const extractFieldsFromSchema = (connection: ConnectedBlock): ResponseField[] => {
+    // Handle legacy format with fields array
+    if (connection.responseFormat?.fields) {
+      return connection.responseFormat.fields
+    }
+
+    // Handle new JSON Schema format
+    const schema = connection.responseFormat?.schema || connection.responseFormat
+    // Safely check if schema and properties exist
+    if (
+      !schema ||
+      typeof schema !== 'object' ||
+      !('properties' in schema) ||
+      typeof schema.properties !== 'object'
+    ) {
+      return []
+    }
+    return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
+      name,
+      type: Array.isArray(prop) ? 'array' : prop.type || 'string',
+      description: prop.description,
+    }))
+  }
+
   return (
     <div className="absolute -left-[180px] top-0 space-y-2 flex flex-col items-end w-[160px]">
       {incomingConnections.map((connection) => (
         <div key={connection.id} className="space-y-2">
           {Array.isArray(connection.outputType) ? (
+            // Handle array of field names
             connection.outputType.map((fieldName) => {
-              const field = connection.responseFormat?.fields.find(
-                (f: ResponseField) => f.name === fieldName
-              ) || {
+              // Try to find field in response format
+              const fields = extractFieldsFromSchema(connection)
+              const field = fields.find((f) => f.name === fieldName) || {
                 name: fieldName,
                 type: 'string',
               }
+
               return (
                 <Card
                   key={field.name}
@@ -84,7 +111,9 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
                 <span className="font-medium leading-none">
                   {connection.name.replace(/\s+/g, '').toLowerCase()}
                 </span>
-                <span className="text-muted-foreground">.{connection.outputType}</span>
+                <span className="text-muted-foreground">
+                  {typeof connection.outputType === 'string' ? `.${connection.outputType}` : ''}
+                </span>
               </div>
             </Card>
           )}

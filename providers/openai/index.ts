@@ -68,7 +68,15 @@ export const openaiProvider: ProviderConfig = {
 
     // Add response format for structured output if specified
     if (request.responseFormat) {
-      payload.response_format = { type: 'json_object' }
+      // Use OpenAI's JSON schema format
+      payload.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: request.responseFormat.name || 'response_schema',
+          schema: request.responseFormat.schema || request.responseFormat,
+          strict: request.responseFormat.strict !== false,
+        },
+      }
     }
 
     // Add tools if provided
