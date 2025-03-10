@@ -9,7 +9,10 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
   oauth: {
     required: true,
     provider: 'google-sheets',
-    additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    additionalScopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.readonly',
+    ],
   },
   params: {
     accessToken: { type: 'string', required: true },
@@ -18,64 +21,53 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
   },
   request: {
     url: (params) => {
+      // Ensure spreadsheetId is valid
+      const spreadsheetId = params.spreadsheetId?.trim()
+      if (!spreadsheetId) {
+        throw new Error('Spreadsheet ID is required')
+      }
+
       // If no range is provided, get all values from the first sheet
       if (!params.range) {
-        return `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/Sheet1!A1:Z1000`
+        return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1:Z1000`
       }
 
       // Otherwise, get values from the specified range
-      return `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(params.range)}`
+      return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(params.range)}`
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${params.accessToken}`,
-    }),
+    headers: (params) => {
+      // Validate access token
+      if (!params.accessToken) {
+        throw new Error('Access token is required')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+      }
+    },
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to read data from Google Sheets')
+      const errorText = await response.text()
+      throw new Error(`Failed to read Google Sheets data: ${errorText}`)
     }
 
     const data = await response.json()
 
-    // Extract spreadsheet ID from URL
+    // Extract spreadsheet ID from the URL
     const urlParts = response.url.split('/spreadsheets/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
-    // Get metadata separately
-    let metadata
-    try {
-      const metadataResponse = await fetch(
-        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=spreadsheetId,properties,sheets.properties`,
-        {
-          headers: {
-            Authorization: response.headers.get('Authorization') || '',
-          },
-        }
-      )
-
-      if (metadataResponse.ok) {
-        metadata = await metadataResponse.json()
-      } else {
-        console.error('Failed to get metadata, using fallback')
-        metadata = {
-          spreadsheetId,
-          properties: { title: 'Unknown' },
-          sheets: [],
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching metadata:', error)
-      metadata = {
-        spreadsheetId,
-        properties: { title: 'Unknown' },
-        sheets: [],
-      }
+    // Create a simple metadata object with just the ID and URL
+    const metadata = {
+      spreadsheetId,
+      properties: {},
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
     }
 
     // Process the values response
-    return {
+    const result: GoogleSheetsReadResponse = {
       success: true,
       output: {
         data: {
@@ -84,21 +76,17 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
         },
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
-          spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
-          title: metadata.properties?.title,
-          sheets:
-            metadata.sheets?.map((sheet: any) => ({
-              sheetId: sheet.properties.sheetId,
-              title: sheet.properties.title,
-              index: sheet.properties.index,
-              rowCount: sheet.properties.gridProperties?.rowCount,
-              columnCount: sheet.properties.gridProperties?.columnCount,
-            })) || [],
+          spreadsheetUrl: metadata.spreadsheetUrl,
         },
       },
     }
+
+    return result
   },
   transformError: (error) => {
+    if (typeof error === 'object' && error !== null) {
+      return JSON.stringify(error) || 'An error occurred while reading from Google Sheets'
+    }
     return error.message || 'An error occurred while reading from Google Sheets'
   },
 }

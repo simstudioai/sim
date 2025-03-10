@@ -136,7 +136,15 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
         // Use the selected spreadsheet ID or the manually entered one
-        const effectiveSpreadsheetId = spreadsheetId || manualSpreadsheetId
+        // If spreadsheetId is provided, it's from the file selector and contains the file ID
+        // If not, fall back to manually entered ID
+        const effectiveSpreadsheetId = (spreadsheetId || manualSpreadsheetId || '').trim()
+
+        if (!effectiveSpreadsheetId) {
+          throw new Error(
+            'Spreadsheet ID is required. Please select a spreadsheet or enter an ID manually.'
+          )
+        }
 
         return {
           ...rest,

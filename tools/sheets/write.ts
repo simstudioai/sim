@@ -59,26 +59,24 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error?.message || 'Failed to write data to Google Sheets')
+      const errorText = await response.text()
+      throw new Error(`Failed to write data to Google Sheets: ${errorText}`)
     }
 
     const data = await response.json()
 
-    // Get spreadsheet metadata
-    const spreadsheetId = response.url.split('/spreadsheets/')[1].split('/values/')[0]
-    const metadataResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=spreadsheetId,properties,sheets.properties`,
-      {
-        headers: {
-          Authorization: response.headers.get('Authorization') || '',
-        },
-      }
-    )
+    // Extract spreadsheet ID from the URL
+    const urlParts = response.url.split('/spreadsheets/')
+    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
-    const metadata = await metadataResponse.json()
+    // Create a simple metadata object with just the ID and URL
+    const metadata = {
+      spreadsheetId,
+      properties: {},
+      spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+    }
 
-    return {
+    const result = {
       success: true,
       output: {
         updatedRange: data.updatedRange,
@@ -87,18 +85,12 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
         updatedCells: data.updatedCells,
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
-          spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${metadata.spreadsheetId}`,
-          title: metadata.properties?.title,
-          sheets: metadata.sheets?.map((sheet: any) => ({
-            sheetId: sheet.properties.sheetId,
-            title: sheet.properties.title,
-            index: sheet.properties.index,
-            rowCount: sheet.properties.gridProperties?.rowCount,
-            columnCount: sheet.properties.gridProperties?.columnCount,
-          })),
+          spreadsheetUrl: metadata.spreadsheetUrl,
         },
       },
     }
+
+    return result
   },
   transformError: (error) => {
     return error.message || 'An error occurred while writing to Google Sheets'
