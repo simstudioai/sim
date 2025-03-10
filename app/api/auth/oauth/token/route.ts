@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
+import { client } from '@/lib/auth-client'
 import { db } from '@/db'
 import { account, workflow } from '@/db/schema'
 
@@ -150,6 +151,52 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ accessToken: credential.accessToken }, { status: 200 })
   } catch (error) {
     console.error('Error getting access token:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * Get an OAuth token for a given credential ID
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Get the session
+    const session = await getSession()
+
+    // Check if the user is authenticated
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+    }
+
+    // Get the credential ID from the query params
+    const { searchParams } = new URL(request.url)
+    const credentialId = searchParams.get('credentialId')
+
+    if (!credentialId) {
+      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    }
+
+    // Get the credential from the database
+    const credentials = await db
+      .select()
+      .from(account)
+      .where(and(eq(account.id, credentialId), eq(account.userId, session.user.id)))
+      .limit(1)
+
+    if (!credentials.length) {
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    const credential = credentials[0]
+
+    // Check if the access token is valid
+    if (!credential.accessToken) {
+      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
+    }
+
+    return NextResponse.json({ accessToken: credential.accessToken }, { status: 200 })
+  } catch (error) {
+    console.error('Error getting OAuth token:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

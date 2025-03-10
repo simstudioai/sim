@@ -10,6 +10,7 @@ import { CredentialSelector } from './components/credential-selector'
 import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
+import { FileSelectorInput } from './components/file-selector-input'
 import { LongInput } from './components/long-input'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -147,6 +148,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             serviceId={config.serviceId}
           />
         )
+      case 'file-selector':
+        return <FileSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       default:
         return null
     }

@@ -27,6 +27,7 @@ export type SubBlockType =
   | 'time-input' // Time input
   | 'oauth-input' // OAuth credential selector
   | 'webhook-config' // Webhook configuration
+  | 'file-selector' // File selector for Google Drive, etc.
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'
@@ -102,6 +103,8 @@ export interface SubBlockConfig {
   provider?: string
   serviceId?: string
   requiredScopes?: string[]
+  // File selector specific properties
+  mimeType?: string
 }
 
 // Main block definition

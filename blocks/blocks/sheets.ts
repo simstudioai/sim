@@ -44,14 +44,28 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       requiredScopes: ['https://www.googleapis.com/auth/spreadsheets'],
       placeholder: 'Select Google Sheets account',
     },
-    // Common Fields
+    // Spreadsheet Selector
     {
       id: 'spreadsheetId',
-      title: 'Spreadsheet ID',
+      title: 'Select Sheet',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'google-drive',
+      serviceId: 'google-drive',
+      requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+      placeholder: 'Select a spreadsheet',
+    },
+    // Manual Spreadsheet ID (hidden by default)
+    {
+      id: 'manualSpreadsheetId',
+      title: 'Or Enter Spreadsheet ID Manually',
       type: 'short-input',
       layout: 'full',
       placeholder: 'ID of the spreadsheet (from URL)',
+      condition: { field: 'spreadsheetId', value: '' },
     },
+    // Range
     {
       id: 'range',
       title: 'Range',
@@ -116,13 +130,17 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         }
       },
       params: (params) => {
-        const { credential, values, ...rest } = params
+        const { credential, values, spreadsheetId, manualSpreadsheetId, ...rest } = params
 
         // Parse values from JSON string to array if it exists
         const parsedValues = values ? JSON.parse(values as string) : undefined
 
+        // Use the selected spreadsheet ID or the manually entered one
+        const effectiveSpreadsheetId = spreadsheetId || manualSpreadsheetId
+
         return {
           ...rest,
+          spreadsheetId: effectiveSpreadsheetId,
           values: parsedValues,
           credential,
         }
@@ -132,7 +150,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    spreadsheetId: { type: 'string', required: true },
+    spreadsheetId: { type: 'string', required: false },
+    manualSpreadsheetId: { type: 'string', required: false },
     range: { type: 'string', required: false },
     // Write/Update operation inputs
     values: { type: 'string', required: false },
