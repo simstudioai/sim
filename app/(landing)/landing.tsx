@@ -48,9 +48,9 @@ export default function Landing() {
 
   return (
     <main className="bg-[#020817] relative overflow-x-hidden">
-      <nav className="fixed top-1 left-0 right-0 z-10 bg-[#020817]/80 backdrop-blur-sm px-4 py-4">
+      <nav className="fixed top-1 left-0 right-0 z-10 backdrop-blur-sm px-4 py-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="text-xl font-medium text-white">sim studio</div>
+          <div className="text-xl text-white">sim studio</div>
 
           {/* Social media icons */}
           <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
@@ -130,14 +130,12 @@ export default function Landing() {
       <footer className="border-t border-white/10 py-6 text-white/60">
         <div className="max-w-6xl mx-auto flex justify-center items-center px-4">
           <nav className="flex space-x-6 text-sm">
-            <span className="text-white/60">About</span>
             <a href="/privacy" className="hover:text-white transition-colors duration-200">
               Privacy
             </a>
             <a href="/terms" className="hover:text-white transition-colors duration-200">
               Terms
             </a>
-            <span className="text-white/60">Contributors</span>
           </nav>
         </div>
       </footer>
