@@ -2,22 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import imageCompression from 'browser-image-compression'
-import { AlertCircle, CheckCircle2, Image as ImageIcon, Upload, X } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Upload, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -33,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 const formSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   subject: z.string().min(1, 'Subject is required'),
-  message: z.string().min(10, 'Message must be at least 10 characters'),
+  message: z.string().min(1, 'Message is required'),
   type: z.enum(['bug', 'feedback', 'feature_request', 'other'], {
     required_error: 'Please select a request type',
   }),
@@ -51,8 +42,11 @@ interface ImageWithPreview extends File {
   preview: string
 }
 
-export default function HelpForm() {
-  const router = useRouter()
+interface HelpFormProps {
+  onClose: () => void
+}
+
+export function HelpForm({ onClose }: HelpFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
@@ -60,6 +54,7 @@ export default function HelpForm() {
   const [images, setImages] = useState<ImageWithPreview[]>([])
   const [imageError, setImageError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const {
     register,
@@ -73,9 +68,22 @@ export default function HelpForm() {
       email: '',
       subject: '',
       message: '',
-      type: undefined,
+      type: 'bug', // Set default value to 'bug'
     },
+    mode: 'onChange',
   })
+
+  // Set default value for type on component mount
+  useEffect(() => {
+    setValue('type', 'bug')
+  }, [setValue])
+
+  // Scroll to top when success message appears
+  useEffect(() => {
+    if (submitStatus === 'success' && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [submitStatus])
 
   // Clean up object URLs when component unmounts
   useEffect(() => {
@@ -223,41 +231,43 @@ export default function HelpForm() {
   }
 
   return (
-    <div className="container mx-auto max-w-2xl py-10">
-      <Card className="bg-background border-border">
-        <CardHeader>
-          <CardTitle className="text-2xl">Help & Support</CardTitle>
-          <CardDescription>
-            Submit a bug report, feedback, or feature request. Our team will get back to you as soon
-            as possible.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {submitStatus === 'success' && (
-            <Alert className="mb-6 bg-green-50 text-green-800 border-green-200">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertTitle>Success!</AlertTitle>
-              <AlertDescription>
-                Your request has been submitted successfully. We'll get back to you as soon as
-                possible.
-              </AlertDescription>
+    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
+      {/* Scrollable Content */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 px-6 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent"
+      >
+        <div className="py-4">
+          {submitStatus === 'success' ? (
+            <Alert className="mb-6 border-border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900">
+              <div className="flex items-start gap-4 py-1">
+                <div className="flex-shrink-0 mt-[-1.5px]">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="flex-1 space-y-2 mr-4">
+                  <AlertTitle className="flex items-center justify-between -mt-0.5">
+                    <span className="text-green-600 dark:text-green-400 font-medium">Success</span>
+                  </AlertTitle>
+                  <AlertDescription className="text-green-600 dark:text-green-400">
+                    Your request has been submitted successfully. We'll get back to you soon.
+                  </AlertDescription>
+                </div>
+              </div>
             </Alert>
-          )}
-
-          {submitStatus === 'error' && (
-            <Alert className="mb-6 bg-red-50 text-red-800 border-red-200">
-              <AlertCircle className="h-4 w-4 text-red-600" />
+          ) : submitStatus === 'error' ? (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>
-                {errorMessage || 'Failed to submit your request. Please try again.'}
+                {errorMessage || 'There was an error submitting your request. Please try again.'}
               </AlertDescription>
             </Alert>
-          )}
+          ) : null}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="type">Request Type</Label>
-              <Select onValueChange={(value) => setValue('type', value as FormValues['type'])}>
+              <Label htmlFor="type">Request</Label>
+              <Select defaultValue="bug" onValueChange={(value) => setValue('type', value as any)}>
                 <SelectTrigger id="type" className={errors.type ? 'border-red-500' : ''}>
                   <SelectValue placeholder="Select a request type" />
                 </SelectTrigger>
@@ -268,19 +278,18 @@ export default function HelpForm() {
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.type && <p className="text-sm text-red-500">{errors.type.message}</p>}
+              {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type.message}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                type="email"
                 placeholder="your.email@example.com"
-                className={errors.email ? 'border-red-500' : ''}
                 {...register('email')}
+                className={errors.email ? 'border-red-500' : ''}
               />
-              {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
             </div>
 
             <div className="space-y-2">
@@ -288,10 +297,12 @@ export default function HelpForm() {
               <Input
                 id="subject"
                 placeholder="Brief description of your request"
-                className={errors.subject ? 'border-red-500' : ''}
                 {...register('subject')}
+                className={errors.subject ? 'border-red-500' : ''}
               />
-              {errors.subject && <p className="text-sm text-red-500">{errors.subject.message}</p>}
+              {errors.subject && (
+                <p className="text-red-500 text-sm mt-1">{errors.subject.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -299,95 +310,85 @@ export default function HelpForm() {
               <Textarea
                 id="message"
                 placeholder="Please provide details about your request..."
-                className={`min-h-[150px] ${errors.message ? 'border-red-500' : ''}`}
+                rows={5}
                 {...register('message')}
+                className={errors.message ? 'border-red-500' : ''}
               />
-              {errors.message && <p className="text-sm text-red-500">{errors.message.message}</p>}
+              {errors.message && (
+                <p className="text-red-500 text-sm mt-1">{errors.message.message}</p>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="images">Attach Images (Optional)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="images"
-                  type="file"
-                  accept="image/*"
-                  multiple
+            {/* Image Upload Section */}
+            <div className="space-y-2 mt-6">
+              <Label>Attach Images (Optional)</Label>
+              <div className="flex items-center gap-4">
+                <input
                   ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_TYPES.join(',')}
                   onChange={handleFileChange}
                   className="hidden"
-                  disabled={isProcessing}
+                  multiple
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2"
-                  disabled={isProcessing}
+                  className="flex items-center justify-center gap-2"
                 >
-                  {isProcessing ? (
-                    <>
-                      <span className="animate-spin mr-1">⟳</span>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4" />
-                      Upload Images
-                    </>
-                  )}
+                  <Upload className="h-4 w-4" />
+                  Upload Images
                 </Button>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Max 20MB per image. JPEG, PNG, WebP, GIF accepted.
                 </p>
               </div>
-              {imageError && <p className="text-sm text-red-500 mt-1">{imageError}</p>}
+              {imageError && <p className="text-red-500 text-sm mt-1">{imageError}</p>}
+            </div>
 
-              {images.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <Label>Attached Images ({images.length})</Label>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
-                    {images.map((image, index) => (
-                      <div key={index} className="relative group">
-                        <div className="relative aspect-square overflow-hidden rounded-md border bg-muted">
-                          <div className="h-full w-full relative">
-                            <Image
-                              src={image.preview}
-                              alt={image.name}
-                              fill
-                              style={{ objectFit: 'cover' }}
-                              className="rounded-md"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeImage(index)}
-                            className="absolute right-1 top-1 rounded-full bg-foreground/10 p-1 text-white hover:bg-foreground/20 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                          >
-                            <X className="h-4 w-4" />
-                            <span className="sr-only">Remove</span>
-                          </button>
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1 text-xs text-white truncate">
-                            {image.name}
-                          </div>
+            {/* Image Preview Section */}
+            {images.length > 0 && (
+              <div className="space-y-2">
+                <Label>Uploaded Images</Label>
+                <div className="grid grid-cols-2 gap-4">
+                  {images.map((image, index) => (
+                    <div key={index} className="relative border rounded-md overflow-hidden group">
+                      <div className="aspect-video relative">
+                        <Image
+                          src={image.preview}
+                          alt={`Preview ${index + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                        <div
+                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          onClick={() => removeImage(index)}
+                        >
+                          <X className="h-6 w-6 text-white" />
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="p-2 text-xs truncate bg-muted/50">{image.name}</div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={() => router.back()}>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Fixed Footer */}
+      <div className="px-6 pb-6 pt-4 border-t mt-auto">
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button onClick={handleSubmit(onSubmit)} disabled={isSubmitting || isProcessing}>
-            {isSubmitting ? 'Submitting...' : 'Submit Request'}
+          <Button type="submit" disabled={isSubmitting || isProcessing}>
+            {isSubmitting ? 'Submitting...' : 'Submit'}
           </Button>
-        </CardFooter>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </form>
   )
 }

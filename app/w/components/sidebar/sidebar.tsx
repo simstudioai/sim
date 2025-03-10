@@ -9,6 +9,7 @@ import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { HelpModal } from './components/help-modal/help-modal'
 import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 
@@ -17,6 +18,7 @@ export function Sidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
 
   // Sort workflows by lastModified date (which corresponds to createdAt for new workflows)
   // Newest workflows at the bottom (ascending order by date)
@@ -108,18 +110,13 @@ export function Sidebar() {
             <Button
               variant="ghost"
               size="icon"
-              asChild
+              onClick={() => setShowHelp(true)}
               className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-                {
-                  'bg-accent': pathname === '/w/help',
-                }
+                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8'
               )}
             >
-              <Link href="/w/help">
-                <HelpCircle className="!h-5 !w-5" />
-                <span className="sr-only">Help & Support</span>
-              </Link>
+              <HelpCircle className="!h-5 !w-5" />
+              <span className="sr-only">Help & Support</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">Help & Support</TooltipContent>
@@ -142,6 +139,7 @@ export function Sidebar() {
       </nav>
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
+      <HelpModal open={showHelp} onOpenChange={setShowHelp} />
     </aside>
   )
 }
