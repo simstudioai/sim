@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, History, Play, Rocket, Trash2 } from 'lucide-react'
+import { Bell, History, Loader2, Play, Rocket, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -339,9 +339,13 @@ export function ControlBar() {
           size="icon"
           onClick={handleDeploy}
           disabled={isDeploying}
-          className={cn('hover:text-[#7F2FFF]', (isDeployed || isDeploying) && 'text-[#7F2FFF]')}
+          className={cn('hover:text-[#7F2FFF]', isDeployed && 'text-[#7F2FFF]')}
         >
-          <Rocket className={cn('h-5 w-5', isDeploying && 'animate-rocket-pulse text-[#7F2FFF]')} />
+          {isDeploying ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Rocket className="h-5 w-5" />
+          )}
           <span className="sr-only">Deploy API</span>
         </Button>
       </TooltipTrigger>
