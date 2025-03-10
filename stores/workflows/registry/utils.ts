@@ -1,7 +1,15 @@
 import { WorkflowMetadata } from './types'
 
 // Available workflow colors
-export const WORKFLOW_COLORS = ['#3972F6', '#F639DD', '#F6B539', '#8139F6', '#F64439']
+export const WORKFLOW_COLORS = [
+  '#3972F6',
+  '#F639DD',
+  '#F6B539',
+  '#8139F6',
+  '#39B54A',
+  '#39B5AB',
+  '#F66839',
+]
 
 // Generates a unique name for a new workflow
 export function generateUniqueName(existingWorkflows: Record<string, WorkflowMetadata>): string {
