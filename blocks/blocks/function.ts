@@ -22,7 +22,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     access: ['webcontainer_execute'],
   },
   inputs: {
-    code: { type: 'string', required: true },
+    code: { type: 'string', required: false },
     timeout: { type: 'number', required: false },
   },
   outputs: {
