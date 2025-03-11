@@ -338,8 +338,6 @@ async function processWebhook(
           },
         }
       } else {
-        // This might be a different type of notification (e.g., status update)
-        console.log('No messages in WhatsApp payload, might be a status update')
         return new NextResponse('OK', { status: 200 })
       }
     } else {
@@ -448,6 +446,11 @@ async function processWebhook(
       {} as Record<string, Record<string, any>>
     )
 
+    console.log(`[Webhook Debug] Serialized workflow:`, serializedWorkflow)
+    console.log(`[Webhook Debug] Processed block states:`, processedBlockStates)
+    console.log(`[Webhook Debug] Decrypted env vars:`, decryptedEnvVars)
+    console.log(`[Webhook Debug] Enriched input:`, enrichedInput)
+
     const executor = new Executor(
       serializedWorkflow,
       processedBlockStates,
@@ -455,6 +458,7 @@ async function processWebhook(
       enrichedInput
     )
     const result = await executor.execute(foundWorkflow.id)
+    console.log(`[Webhook Debug] Final execution result:`, JSON.stringify(result))
 
     console.log(`Successfully executed workflow ${foundWorkflow.id}`)
 

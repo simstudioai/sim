@@ -303,7 +303,7 @@ export class AgentBlockHandler implements BlockHandler {
         const parsedContent = JSON.parse(response.content)
         console.log(`[AgentBlockHandler Debug] Successfully parsed content:`, parsedContent)
 
-        return {
+        const result = {
           ...parsedContent,
           tokens: response.tokens || {
             prompt: 0,
@@ -317,6 +317,9 @@ export class AgentBlockHandler implements BlockHandler {
               }
             : undefined,
         }
+
+        console.log(`[AgentBlockHandler Debug] Result:`, result)
+        return result
       } catch (error) {
         console.error(`[AgentBlockHandler Error] Failed to parse response content:`, error)
         console.log(`[AgentBlockHandler Debug] Falling back to standard response format`)
