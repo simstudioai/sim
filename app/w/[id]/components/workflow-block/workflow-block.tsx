@@ -128,11 +128,21 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         ? mergedState?.subBlocks[block.condition.and.field]?.value
         : undefined
 
+      // Check if the condition value is an array
+      const isValueMatch = Array.isArray(block.condition.value)
+        ? fieldValue != null &&
+          block.condition.value.includes(fieldValue as string | number | boolean)
+        : fieldValue === block.condition.value
+
       // Check both conditions if 'and' is present
-      return (
-        fieldValue === block.condition.value &&
-        (!block.condition.and || andFieldValue === block.condition.and.value)
-      )
+      const isAndValueMatch =
+        !block.condition.and ||
+        (Array.isArray(block.condition.and.value)
+          ? andFieldValue != null &&
+            block.condition.and.value.includes(andFieldValue as string | number | boolean)
+          : andFieldValue === block.condition.and.value)
+
+      return isValueMatch && isAndValueMatch
     })
 
     visibleSubBlocks.forEach((block) => {

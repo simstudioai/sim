@@ -60,6 +60,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'half',
       min: 0,
       max: 1,
+      condition: {
+        field: 'model',
+        value: ['gpt-4o', 'gemini-2.0-flash'],
+      },
     },
     {
       id: 'apiKey',

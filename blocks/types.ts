@@ -93,10 +93,10 @@ export interface SubBlockConfig {
   value?: (params: Record<string, any>) => string
   condition?: {
     field: string
-    value: string | number | boolean
+    value: string | number | boolean | Array<string | number | boolean>
     and?: {
       field: string
-      value: string | number | boolean
+      value: string | number | boolean | Array<string | number | boolean>
     }
   }
   // OAuth specific properties
