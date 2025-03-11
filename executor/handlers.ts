@@ -106,21 +106,42 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
+    console.log(`[AgentBlockHandler Debug] Executing agent block: ${block.id}`)
+    console.log(`[AgentBlockHandler Debug] Block inputs:`, JSON.stringify(inputs, null, 2))
+
     // Parse response format if provided
     let responseFormat: any = undefined
     if (inputs.responseFormat) {
-      try {
-        responseFormat =
-          typeof inputs.responseFormat === 'string'
-            ? JSON.parse(inputs.responseFormat)
-            : inputs.responseFormat
-      } catch (error: any) {
-        throw new Error(`Invalid response format: ${error.message}`)
+      // Handle empty string case - treat it as no response format
+      if (inputs.responseFormat === '') {
+        console.log(
+          `[AgentBlockHandler Debug] Response format is an empty string, treating as undefined`
+        )
+        responseFormat = undefined
+      } else {
+        try {
+          console.log(
+            `[AgentBlockHandler Debug] Response format before parsing:`,
+            typeof inputs.responseFormat,
+            inputs.responseFormat
+          )
+
+          responseFormat =
+            typeof inputs.responseFormat === 'string'
+              ? JSON.parse(inputs.responseFormat)
+              : inputs.responseFormat
+
+          console.log(`[AgentBlockHandler Debug] Response format after parsing:`, responseFormat)
+        } catch (error: any) {
+          console.error(`[AgentBlockHandler Error] Failed to parse response format:`, error)
+          throw new Error(`Invalid response format: ${error.message}`)
+        }
       }
     }
 
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
+    console.log(`[AgentBlockHandler Debug] Using provider: ${providerId}, model: ${model}`)
 
     // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)
@@ -208,10 +229,27 @@ export class AgentBlockHandler implements BlockHandler {
       responseFormat,
     })
 
-    // Return structured or standard response based on responseFormat
-    return responseFormat
-      ? {
-          ...JSON.parse(response.content),
+    console.log(`[AgentBlockHandler Debug] Provider response:`, {
+      content: response.content,
+      contentType: typeof response.content,
+      contentLength: response.content ? response.content.length : 0,
+      model: response.model,
+      hasTokens: !!response.tokens,
+      hasToolCalls: !!response.toolCalls,
+    })
+
+    // For structured responses, try to parse the content
+    if (responseFormat) {
+      try {
+        console.log(
+          `[AgentBlockHandler Debug] Attempting to parse response content as JSON:`,
+          response.content
+        )
+        const parsedContent = JSON.parse(response.content)
+        console.log(`[AgentBlockHandler Debug] Successfully parsed content:`, parsedContent)
+
+        return {
+          ...parsedContent,
           tokens: response.tokens || {
             prompt: 0,
             completion: 0,
@@ -224,7 +262,12 @@ export class AgentBlockHandler implements BlockHandler {
               }
             : undefined,
         }
-      : {
+      } catch (error) {
+        console.error(`[AgentBlockHandler Error] Failed to parse response content:`, error)
+        console.log(`[AgentBlockHandler Debug] Falling back to standard response format`)
+
+        // Fall back to standard response if parsing fails
+        return {
           response: {
             content: response.content,
             model: response.model,
@@ -239,6 +282,25 @@ export class AgentBlockHandler implements BlockHandler {
             },
           },
         }
+      }
+    }
+
+    // Return standard response if no responseFormat
+    return {
+      response: {
+        content: response.content,
+        model: response.model,
+        tokens: response.tokens || {
+          prompt: 0,
+          completion: 0,
+          total: 0,
+        },
+        toolCalls: {
+          list: response.toolCalls || [],
+          count: response.toolCalls?.length || 0,
+        },
+      },
+    }
   }
 }
 

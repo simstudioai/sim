@@ -111,9 +111,43 @@ async function executeWorkflow(workflow: any, input?: any) {
       }
     }
 
+    // Process the block states to ensure response formats are properly parsed
+    // This is crucial for agent blocks with response format
+    const processedBlockStates = Object.entries(currentBlockStates).reduce(
+      (acc, [blockId, blockState]) => {
+        // Check if this block has a responseFormat that needs to be parsed
+        if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
+          try {
+            console.log(
+              `[API Debug] Block ${blockId} has responseFormat as string:`,
+              blockState.responseFormat
+            )
+            // Attempt to parse the responseFormat if it's a string
+            const parsedResponseFormat = JSON.parse(blockState.responseFormat)
+            console.log(
+              `[API Debug] Successfully parsed responseFormat for block ${blockId}:`,
+              parsedResponseFormat
+            )
+
+            acc[blockId] = {
+              ...blockState,
+              responseFormat: parsedResponseFormat,
+            }
+          } catch (error) {
+            console.warn(`Failed to parse responseFormat for block ${blockId}:`, error)
+            acc[blockId] = blockState
+          }
+        } else {
+          acc[blockId] = blockState
+        }
+        return acc
+      },
+      {} as Record<string, Record<string, any>>
+    )
+
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-    const executor = new Executor(serializedWorkflow, currentBlockStates, decryptedEnvVars, input)
+    const executor = new Executor(serializedWorkflow, processedBlockStates, decryptedEnvVars, input)
     const result = await executor.execute(workflowId)
 
     // Log each execution step and the final result

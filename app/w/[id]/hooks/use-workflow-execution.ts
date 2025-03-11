@@ -120,6 +120,20 @@ export function useWorkflowExecution() {
         useSubBlockStore.getState().workflowValues[activeWorkflowId]
       )
       console.log('Merged Block States for Execution:', currentBlockStates)
+
+      // Debug any responseFormat fields
+      const blockWithResponseFormat = Object.entries(currentBlockStates).find(
+        ([_id, state]) => state.responseFormat
+      )
+      if (blockWithResponseFormat) {
+        console.log(
+          'ResponseFormat found:',
+          blockWithResponseFormat[0],
+          typeof blockWithResponseFormat[1].responseFormat,
+          blockWithResponseFormat[1].responseFormat
+        )
+      }
+
       console.groupEnd()
 
       // Get environment variables
