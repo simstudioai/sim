@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logging'
+import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState, mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
@@ -9,18 +10,15 @@ import { environment, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 
+// Force dynamic rendering for webhook endpoints
 export const dynamic = 'force-dynamic'
-
-// Store for tracking processed message IDs in memory
-// This is a simple in-memory solution that works for a single instance
-// For multi-instance deployments, consider using Redis or another distributed cache
-const processedMessageIds = new Set<string>()
+// Increase the response size limit for webhook payloads
+export const maxDuration = 300 // 5 minutes max execution time for long-running webhooks
 
 /**
  * Consolidated webhook trigger endpoint for all providers
  * Handles both WhatsApp verification and other webhook providers
  */
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
   try {
     const path = (await params).path
@@ -95,6 +93,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   } catch (error: any) {
     console.error('Error processing webhook verification:', error)
     return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
+  } finally {
+    // Ensure Redis connection is properly closed in serverless environment
+    await closeRedisConnection()
   }
 }
 
@@ -111,6 +112,18 @@ export async function POST(
     // Parse the request body
     const body = await request.json().catch(() => ({}))
     console.log(`Webhook POST request received for path: ${path}`)
+
+    // Generate a unique request ID based on the request content
+    const requestHash = await generateRequestHash(path, body)
+
+    // Check if this exact request has been processed before
+    if (await hasProcessedMessage(requestHash)) {
+      console.log(
+        `Duplicate webhook request detected with hash: ${requestHash}. Skipping processing.`
+      )
+      // Return early for duplicate requests to prevent workflow execution
+      return new NextResponse('Duplicate request', { status: 200 })
+    }
 
     // Find the webhook in the database
     const webhooks = await db
@@ -130,7 +143,7 @@ export async function POST(
     const { webhook: foundWebhook, workflow: workflowData } = webhooks[0]
     foundWorkflow = workflowData
 
-    // For WhatsApp, check for duplicate messages before processing
+    // For WhatsApp, also check for duplicate messages using their message ID
     if (foundWebhook.provider === 'whatsapp') {
       const data = body?.entry?.[0]?.changes?.[0]?.value
       const messages = data?.messages || []
@@ -139,26 +152,23 @@ export async function POST(
         const message = messages[0]
         const messageId = message.id
 
-        // Check if we've already processed this message
-        if (messageId && processedMessageIds.has(messageId)) {
+        // Check if we've already processed this message using Redis
+        if (messageId && (await hasProcessedMessage(messageId))) {
           console.log(
             `Duplicate WhatsApp message detected with ID: ${messageId}. Skipping processing.`
           )
-          return new NextResponse('OK - Duplicate message', { status: 200 })
+          // Return early for duplicate messages to prevent workflow execution
+          return new NextResponse('Duplicate message', { status: 200 })
         }
 
-        // Store the message ID to prevent duplicate processing in future requests
+        // Store the message ID in Redis to prevent duplicate processing in future requests
         if (messageId) {
-          processedMessageIds.add(messageId)
-
-          // Clean up old message IDs periodically (keep last ~1000 messages)
-          if (processedMessageIds.size > 1000) {
-            const idsArray = Array.from(processedMessageIds)
-            for (let i = 0; i < idsArray.length - 1000; i++) {
-              processedMessageIds.delete(idsArray[i])
-            }
-          }
+          await markMessageAsProcessed(messageId)
         }
+
+        // Mark this request as processed to prevent duplicates
+        // Use a shorter TTL for request hashes (24 hours) to save Redis memory
+        await markMessageAsProcessed(requestHash, 60 * 60 * 24)
 
         // Process the webhook synchronously - complete the workflow before returning
         const result = await processWebhook(foundWebhook, foundWorkflow, body, request, executionId)
@@ -173,6 +183,9 @@ export async function POST(
       }
     }
 
+    // Mark this request as processed to prevent duplicates
+    await markMessageAsProcessed(requestHash, 60 * 60 * 24)
+
     // For other providers, continue with synchronous processing
     return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId)
   } catch (error: any) {
@@ -184,6 +197,65 @@ export async function POST(
     }
 
     return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
+  } finally {
+    // Ensure Redis connection is properly closed in serverless environment
+    await closeRedisConnection()
+  }
+}
+
+/**
+ * Generate a unique hash for a webhook request based on its path and body
+ * This is used to deduplicate webhook requests
+ */
+async function generateRequestHash(path: string, body: any): Promise<string> {
+  try {
+    // Create a string representation of the request
+    // Remove any timestamp or random fields that would make identical requests look different
+    const normalizedBody = normalizeBody(body)
+    const requestString = `${path}:${JSON.stringify(normalizedBody)}`
+
+    // Use a simple hash function for the request
+    let hash = 0
+    for (let i = 0; i < requestString.length; i++) {
+      const char = requestString.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+
+    return `request:${path}:${hash}`
+  } catch (error) {
+    // If hashing fails, use a UUID as fallback
+    console.error('Error generating request hash:', error)
+    return `request:${path}:${uuidv4()}`
+  }
+}
+
+/**
+ * Normalize webhook body by removing fields that might change between identical requests
+ * This helps with more accurate deduplication
+ */
+function normalizeBody(body: any): any {
+  if (!body || typeof body !== 'object') return body
+
+  // Create a copy to avoid modifying the original
+  const result = Array.isArray(body) ? [...body] : { ...body }
+
+  // Fields to remove (common timestamp/random fields)
+  const fieldsToRemove = ['timestamp', 'random', 'nonce', 'requestId']
+
+  if (Array.isArray(result)) {
+    // Handle arrays
+    return result.map((item) => normalizeBody(item))
+  } else {
+    // Handle objects
+    for (const key in result) {
+      if (fieldsToRemove.includes(key.toLowerCase())) {
+        delete result[key]
+      } else if (typeof result[key] === 'object' && result[key] !== null) {
+        result[key] = normalizeBody(result[key])
+      }
+    }
+    return result
   }
 }
 

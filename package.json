@@ -55,6 +55,7 @@
     "drizzle-orm": "^0.39.3",
     "groq-sdk": "^0.15.0",
     "input-otp": "^1.4.2",
+    "ioredis": "^5.6.0",
     "jwt-decode": "^4.0.0",
     "lodash.debounce": "^4.0.8",
     "lucide-react": "^0.469.0",
