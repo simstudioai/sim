@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useReactFlow } from 'reactflow'
 import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
@@ -45,6 +45,23 @@ export function ShortInput({
   // Use either controlled or uncontrolled value
   const value = propValue !== undefined ? propValue : storeValue
 
+  // Check if this input is API key related
+  const isApiKeyField = useMemo(() => {
+    const normalizedId = config?.id?.replace(/\s+/g, '').toLowerCase() || ''
+    const normalizedTitle = config?.title?.replace(/\s+/g, '').toLowerCase() || ''
+
+    // Check for common API key naming patterns
+    const apiKeyPatterns = ['apikey', 'api_key', 'api-key', 'secretkey', 'secret_key', 'secret-key']
+
+    return apiKeyPatterns.some(
+      (pattern) =>
+        normalizedId === pattern ||
+        normalizedTitle === pattern ||
+        normalizedId.includes(pattern) ||
+        normalizedTitle.includes(pattern)
+    )
+  }, [config?.id, config?.title])
+
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
@@ -60,8 +77,20 @@ export function ShortInput({
 
     // Check for environment variables trigger
     const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)
-    setShowEnvVars(envVarTrigger.show)
-    setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+
+    // For API key fields, always show dropdown when typing (without requiring {{ trigger)
+    if (isApiKeyField && isFocused) {
+      // Only show dropdown if there's text to filter by or the field is empty
+      const shouldShowDropdown = newValue.trim() !== '' || newValue === ''
+      setShowEnvVars(shouldShowDropdown)
+      // Use the entire input value as search term for API key fields,
+      // but if {{ is detected, use the standard search term extraction
+      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : newValue)
+    } else {
+      // Normal behavior for non-API key fields
+      setShowEnvVars(envVarTrigger.show)
+      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+    }
 
     // Check for tag trigger
     const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
@@ -190,6 +219,17 @@ export function ShortInput({
     if (e.key === 'Escape') {
       setShowEnvVars(false)
       setShowTags(false)
+      return
+    }
+
+    // For API key fields, show env vars when clearing with keyboard shortcuts
+    if (
+      isApiKeyField &&
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      inputRef.current?.selectionStart === 0 &&
+      inputRef.current?.selectionEnd === value?.toString().length
+    ) {
+      setTimeout(() => setShowEnvVars(true), 0)
     }
   }
 
@@ -222,11 +262,25 @@ export function ShortInput({
         onChange={handleChange}
         onFocus={() => {
           setIsFocused(true)
-          setShowEnvVars(false)
-          setShowTags(false)
-          setSearchTerm('')
+
+          // If this is an API key field, automatically show env vars dropdown
+          if (isApiKeyField) {
+            setShowEnvVars(true)
+            setSearchTerm('')
+
+            // Set cursor position to the end of the input
+            const inputLength = value?.toString().length ?? 0
+            setCursorPosition(inputLength)
+          } else {
+            setShowEnvVars(false)
+            setShowTags(false)
+            setSearchTerm('')
+          }
         }}
-        onBlur={() => setIsFocused(false)}
+        onBlur={() => {
+          setIsFocused(false)
+          setShowEnvVars(false)
+        }}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onScroll={handleScroll}
