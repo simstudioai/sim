@@ -49,7 +49,11 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorJson = await response.json().catch(() => ({ error: response.statusText }))
+      const errorText =
+        errorJson.error && typeof errorJson.error === 'object'
+          ? errorJson.error.message || JSON.stringify(errorJson.error)
+          : errorJson.error || response.statusText
       throw new Error(`Failed to read Google Sheets data: ${errorText}`)
     }
 
@@ -91,11 +95,29 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
 
     // If it's an object with an error or message property
     if (typeof error === 'object' && error !== null) {
+      // Handle Google API error response format
       if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+        if (typeof error.error === 'string') {
+          return error.error
+        }
+        // Google API often returns error objects with error.error.message
+        if (typeof error.error === 'object' && error.error.message) {
+          return error.error.message
+        }
+        // If error.error is an object but doesn't have a message property
+        return JSON.stringify(error.error)
       }
+
       if (error.message) {
         return error.message
+      }
+
+      // If we have a complex object, stringify it for debugging
+      try {
+        return `Google Sheets API error: ${JSON.stringify(error)}`
+      } catch (e) {
+        // In case the error object can't be stringified (e.g., circular references)
+        return 'Google Sheets API error: Unable to parse error details'
       }
     }
 

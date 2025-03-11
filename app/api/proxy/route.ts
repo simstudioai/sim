@@ -61,7 +61,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     return NextResponse.json({
       success: false,
-      error: error.message || 'Unknown error',
+      error: error instanceof Error ? error.message : String(error),
     })
   }
 }

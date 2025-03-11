@@ -402,11 +402,17 @@ async function handleInternalRequest(
       let errorData
       try {
         errorData = await response.json()
-      } catch (e) {
-        errorData = { error: response.statusText }
+      } catch {
+        throw new Error(response.statusText || `Request failed with status ${response.status}`)
       }
 
-      throw new Error(errorData.error || `Request failed with status ${response.status}`)
+      // Extract error message from nested error objects (common in API responses)
+      const errorMessage =
+        typeof errorData.error === 'object'
+          ? errorData.error.message || JSON.stringify(errorData.error)
+          : errorData.error || `Request failed with status ${response.status}`
+
+      throw new Error(errorMessage)
     }
 
     // Use the tool's response transformer if available

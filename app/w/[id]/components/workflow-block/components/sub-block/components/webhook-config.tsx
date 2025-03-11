@@ -183,7 +183,11 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to save webhook')
+        throw new Error(
+          typeof errorData.error === 'object'
+            ? errorData.error.message || JSON.stringify(errorData.error)
+            : errorData.error || 'Failed to save webhook'
+        )
       }
 
       const data = await response.json()
