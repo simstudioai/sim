@@ -6,7 +6,7 @@ import { db } from '@/db'
 import { account } from '@/db/schema'
 
 /**
- * Get files from Google Drive
+ * Get a single file from Google Drive by ID
  */
 export async function GET(request: NextRequest) {
   try {
@@ -18,14 +18,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get the credential ID from the query params
+    // Get the credential ID and file ID from the query params
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
-    const mimeType = searchParams.get('mimeType')
-    const query = searchParams.get('query') || ''
+    const fileId = searchParams.get('fileId')
 
     if (!credentialId) {
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    }
+
+    if (!fileId) {
+      return NextResponse.json({ error: 'File ID is required' }, { status: 400 })
     }
 
     // Get the credential from the database
@@ -47,33 +50,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
-    // Build the query parameters for Google Drive API
-    let queryParams = 'trashed=false'
-
-    // Add mimeType filter if provided
-    if (mimeType) {
-      // For Google Drive API, we need to use 'q' parameter for mimeType filtering
-      // Instead of using the mimeType parameter directly, we'll add it to the query
-      if (queryParams.includes('q=')) {
-        queryParams += ` and mimeType='${mimeType}'`
-      } else {
-        queryParams += `&q=mimeType='${mimeType}'`
-      }
-    }
-
-    // Add search query if provided
-    if (query) {
-      if (queryParams.includes('q=')) {
-        queryParams += ` and name contains '${query}'`
-      } else {
-        queryParams += `&q=name contains '${query}'`
-      }
-    }
-
-    // Function to fetch files with a given token
-    const fetchFilesWithToken = async (token: string) => {
+    // Function to fetch file with a given token
+    const fetchFileWithToken = async (token: string) => {
       const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?${queryParams}&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners)`,
+        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -84,7 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     // First attempt with current token
-    let response = await fetchFilesWithToken(credential.accessToken)
+    let response = await fetchFileWithToken(credential.accessToken)
 
     // If unauthorized, try to refresh the token
     if (response.status === 401 && credential.refreshToken) {
@@ -109,7 +89,7 @@ export async function GET(request: NextRequest) {
             .where(eq(account.id, credentialId))
 
           // Retry the request with the new token
-          response = await fetchFilesWithToken(refreshedToken)
+          response = await fetchFileWithToken(refreshedToken)
         }
       } catch (refreshError) {
         console.error('Error refreshing token:', refreshError)
@@ -117,28 +97,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Handle response
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
       return NextResponse.json(
-        { error: error.error?.message || 'Failed to fetch files from Google Drive' },
+        { error: error.error?.message || 'Failed to fetch file from Google Drive' },
         { status: response.status }
       )
     }
 
-    const data = await response.json()
-    let files = data.files || []
-
-    if (mimeType === 'application/vnd.google-apps.spreadsheet') {
-      files = files.filter(
-        (file: any) => file.mimeType === 'application/vnd.google-apps.spreadsheet'
-      )
-    } else if (mimeType === 'application/vnd.google-apps.document') {
-      files = files.filter((file: any) => file.mimeType === 'application/vnd.google-apps.document')
-    }
-
-    return NextResponse.json({ files }, { status: 200 })
+    const file = await response.json()
+    return NextResponse.json({ file }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching files from Google Drive:', error)
+    console.error('Error fetching file from Google Drive:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

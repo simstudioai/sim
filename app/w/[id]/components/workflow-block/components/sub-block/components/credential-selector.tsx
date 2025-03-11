@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, Key, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -19,7 +19,6 @@ import {
   OAUTH_PROVIDERS,
   OAuthProvider,
   getProviderIdFromServiceId,
-  getServiceByProviderAndId,
   getServiceIdFromScopes,
   parseProvider,
 } from '@/lib/oauth'

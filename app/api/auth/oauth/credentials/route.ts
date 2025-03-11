@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, like } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
 import { parseProvider } from '@/lib/oauth'

@@ -265,3 +265,78 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
     featureType: 'default',
   }
 }
+
+/**
+ * Refresh an OAuth token
+ * This is a server-side utility function to refresh OAuth tokens
+ * @param providerId The provider ID (e.g., 'google-drive')
+ * @param refreshToken The refresh token to use
+ * @returns The new access token, or null if refresh failed
+ */
+export async function refreshOAuthToken(
+  providerId: string,
+  refreshToken: string
+): Promise<string | null> {
+  try {
+    // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
+    const provider = providerId.split('-')[0]
+
+    // Determine the token endpoint based on the provider
+    let tokenEndpoint: string
+    let clientId: string | undefined
+    let clientSecret: string | undefined
+
+    switch (provider) {
+      case 'google':
+        tokenEndpoint = 'https://oauth2.googleapis.com/token'
+        clientId = process.env.GOOGLE_CLIENT_ID
+        clientSecret = process.env.GOOGLE_CLIENT_SECRET
+        break
+      case 'github':
+        tokenEndpoint = 'https://github.com/login/oauth/access_token'
+        clientId = process.env.GITHUB_CLIENT_ID
+        clientSecret = process.env.GITHUB_CLIENT_SECRET
+        break
+      case 'x':
+        tokenEndpoint = 'https://api.x.com/2/oauth2/token'
+        clientId = process.env.X_CLIENT_ID
+        clientSecret = process.env.X_CLIENT_SECRET
+        break
+      default:
+        throw new Error(`Unsupported provider: ${provider}`)
+    }
+
+    if (!clientId || !clientSecret) {
+      throw new Error(`Missing client credentials for provider: ${provider}`)
+    }
+
+    // Refresh the token
+    const response = await fetch(tokenEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        ...(provider === 'github' && {
+          Accept: 'application/json',
+        }),
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }).toString(),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Token refresh failed:', response.status, errorText)
+      throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
+    }
+
+    const data = await response.json()
+    return data.access_token || null
+  } catch (error) {
+    console.error('Error refreshing token:', error)
+    return null
+  }
+}

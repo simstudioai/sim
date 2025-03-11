@@ -70,6 +70,7 @@ export function FileSelector({
   const [selectedFileId, setSelectedFileId] = useState(value)
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
 
@@ -122,6 +123,42 @@ export function FileSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
+  // Fetch a single file by ID when we have a selectedFileId but no metadata
+  const fetchFileById = useCallback(
+    async (fileId: string) => {
+      if (!selectedCredentialId || !fileId) return null
+
+      setIsLoadingSelectedFile(true)
+      try {
+        // Construct query parameters
+        const queryParams = new URLSearchParams({
+          credentialId: selectedCredentialId,
+          fileId: fileId,
+        })
+
+        const response = await fetch(`/api/auth/oauth/drive/file?${queryParams.toString()}`)
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.file) {
+            setSelectedFile(data.file)
+            onFileInfoChange?.(data.file)
+            return data.file
+          }
+        } else {
+          console.error('Error fetching file by ID:', await response.text())
+        }
+        return null
+      } catch (error) {
+        console.error('Error fetching file by ID:', error)
+        return null
+      } finally {
+        setIsLoadingSelectedFile(false)
+      }
+    },
+    [selectedCredentialId, onFileInfoChange]
+  )
+
   // Fetch files from Google Drive
   const fetchFiles = useCallback(
     async (searchQuery?: string) => {
@@ -155,9 +192,9 @@ export function FileSelector({
               setSelectedFile(fileInfo)
               onFileInfoChange?.(fileInfo)
             } else if (!searchQuery) {
-              // Only reset if this is not a search query
-              setSelectedFile(null)
-              onFileInfoChange?.(null)
+              // Only try to fetch by ID if this is not a search query
+              // and we couldn't find the file in the list
+              fetchFileById(selectedFileId)
             }
           }
         } else {
@@ -171,7 +208,7 @@ export function FileSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, mimeTypeFilter, selectedFileId, onFileInfoChange]
+    [selectedCredentialId, mimeTypeFilter, selectedFileId, onFileInfoChange, fetchFileById]
   )
 
   // Fetch credentials on initial mount
@@ -199,9 +236,19 @@ export function FileSelector({
         const fileInfo = files.find((file) => file.id === value) || null
         setSelectedFile(fileInfo)
         onFileInfoChange?.(fileInfo)
+      } else if (value && selectedCredentialId) {
+        // If we have a value but no files loaded yet, try to fetch the file by ID
+        fetchFileById(value)
       }
     }
-  }, [value, files, onFileInfoChange])
+  }, [value, files, onFileInfoChange, selectedCredentialId, fetchFileById])
+
+  // Try to fetch the file by ID when credentials become available
+  useEffect(() => {
+    if (selectedCredentialId && selectedFileId && !selectedFile) {
+      fetchFileById(selectedFileId)
+    }
+  }, [selectedCredentialId, selectedFileId, selectedFile, fetchFileById])
 
   // Handle file selection
   const handleSelectFile = (file: FileInfo) => {
@@ -334,6 +381,11 @@ export function FileSelector({
                 <div className="flex items-center gap-2 overflow-hidden">
                   {getFileIcon(selectedFile, 'sm')}
                   <span className="font-normal truncate">{selectedFile.name}</span>
+                </div>
+              ) : selectedFileId && (isLoadingSelectedFile || !selectedCredentialId) ? (
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span className="text-muted-foreground">Loading document...</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
