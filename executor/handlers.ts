@@ -109,6 +109,49 @@ export class AgentBlockHandler implements BlockHandler {
     console.log(`[AgentBlockHandler Debug] Executing agent block: ${block.id}`)
     console.log(`[AgentBlockHandler Debug] Block inputs:`, JSON.stringify(inputs, null, 2))
 
+    // Check for null values and try to resolve from environment variables
+    const nullInputs = Object.entries(inputs)
+      .filter(([_, value]) => value === null)
+      .map(([key]) => key)
+
+    if (nullInputs.length > 0) {
+      console.warn(`[AgentBlockHandler Debug] Null inputs detected:`, nullInputs)
+
+      // Check if we can resolve API key from environment variables
+      if (nullInputs.includes('apiKey') && context.environmentVariables) {
+        console.log(
+          `[AgentBlockHandler Debug] Attempting to resolve API key from environment variables`
+        )
+        console.log(
+          `[AgentBlockHandler Debug] Available env vars:`,
+          Object.keys(context.environmentVariables)
+        )
+
+        // Try different possible environment variable names for OpenAI API key
+        const possibleEnvVarNames = ['OPENAI_API_KEY', 'openai_api_key', 'OPENAI_KEY', 'openai_key']
+        for (const envVar of possibleEnvVarNames) {
+          if (context.environmentVariables[envVar]) {
+            console.log(
+              `[AgentBlockHandler Debug] Found API key in environment variable: ${envVar}`
+            )
+            inputs.apiKey = context.environmentVariables[envVar]
+            break
+          }
+        }
+
+        // Check if we successfully resolved the API key
+        if (inputs.apiKey) {
+          console.log(
+            `[AgentBlockHandler Debug] Successfully resolved API key from environment variables`
+          )
+        } else {
+          console.error(
+            `[AgentBlockHandler Debug] Failed to resolve API key from environment variables`
+          )
+        }
+      }
+    }
+
     // Parse response format if provided
     let responseFormat: any = undefined
     if (inputs.responseFormat) {
@@ -213,8 +256,8 @@ export class AgentBlockHandler implements BlockHandler {
         ).filter((t: any): t is NonNullable<typeof t> => t !== null)
       : []
 
-    // Ensure context is properly formatted for the provider
-    const response = await executeProviderRequest(providerId, {
+    // Debug request before sending to provider
+    const providerRequest = {
       model,
       systemPrompt: inputs.systemPrompt,
       context: Array.isArray(inputs.context)
@@ -225,9 +268,21 @@ export class AgentBlockHandler implements BlockHandler {
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
-      apiKey: inputs.apiKey,
+      apiKey: inputs.apiKey || context.environmentVariables?.OPENAI_API_KEY,
       responseFormat,
+    }
+
+    console.log(`[AgentBlockHandler Debug] Provider request details:`, {
+      model: providerRequest.model,
+      hasSystemPrompt: !!providerRequest.systemPrompt,
+      hasContext: !!providerRequest.context,
+      hasTools: !!providerRequest.tools,
+      hasApiKey: !!providerRequest.apiKey,
+      apiKeyFirstChars: providerRequest.apiKey ? providerRequest.apiKey.substring(0, 4) : 'NONE',
     })
+
+    // Ensure context is properly formatted for the provider
+    const response = await executeProviderRequest(providerId, providerRequest)
 
     console.log(`[AgentBlockHandler Debug] Provider response:`, {
       content: response.content,

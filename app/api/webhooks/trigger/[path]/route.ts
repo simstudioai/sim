@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logging'
 import { decryptSecret } from '@/lib/utils'
-import { mergeSubblockState } from '@/stores/workflows/utils'
+import { mergeSubblockState, mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
 import { environment, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -225,8 +225,10 @@ export async function POST(
     const state = foundWorkflow.state as any
     const { blocks, edges, loops } = state
 
-    // Use the same execution flow as in manual executions
-    const mergedStates = mergeSubblockState(blocks)
+    // Use the async version of mergeSubblockState to ensure all values are properly resolved
+    console.log(`[Webhook Debug] Merging subblock states for workflow ${foundWorkflow.id}...`)
+    const mergedStates = await mergeSubblockStateAsync(blocks, foundWorkflow.id)
+    console.log(`[Webhook Debug] Subblock states merged successfully`)
 
     // Retrieve environment variables for this user
     const [userEnv] = await db
@@ -236,19 +238,48 @@ export async function POST(
       .limit(1)
 
     // Create a map of decrypted environment variables
-    const decryptedEnvVars: Record<string, string> = {}
+    let decryptedEnvVars: Record<string, string> = {}
     if (userEnv) {
-      for (const [key, encryptedValue] of Object.entries(
-        userEnv.variables as Record<string, string>
-      )) {
-        try {
-          const { decrypted } = await decryptSecret(encryptedValue)
-          decryptedEnvVars[key] = decrypted
-        } catch (error: any) {
-          console.error(`Failed to decrypt ${key}:`, error)
-          throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
+      const decryptionPromises = Object.entries(userEnv.variables as Record<string, string>).map(
+        async ([key, encryptedValue]) => {
+          try {
+            const { decrypted } = await decryptSecret(encryptedValue)
+            return [key, decrypted] as const
+          } catch (error: any) {
+            console.error(`Failed to decrypt ${key}:`, error)
+            throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
+          }
         }
+      )
+
+      const decryptedEntries = await Promise.all(decryptionPromises)
+      decryptedEnvVars = Object.fromEntries(decryptedEntries)
+    }
+
+    // Log environment variables for debugging (masking sensitive values)
+    console.log('Available environment variables before execution:')
+    Object.keys(decryptedEnvVars).forEach((key) => {
+      const value = decryptedEnvVars[key]
+      // Show full value for OpenAI API key for debugging, mask others
+      if (key === 'OPENAI_API_KEY') {
+        console.log(`  ${key}: ${value} (FULL KEY FOR DEBUGGING)`)
+      } else {
+        // Mask sensitive values like API keys, showing only first and last few characters
+        const maskedValue =
+          key.toLowerCase().includes('key') ||
+          key.toLowerCase().includes('secret') ||
+          key.toLowerCase().includes('token')
+            ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
+            : value
+        console.log(`  ${key}: ${maskedValue}`)
       }
+    })
+
+    // Check specifically for OpenAI API key
+    if (!decryptedEnvVars['OPENAI_API_KEY']) {
+      console.warn('WARNING: OPENAI_API_KEY is missing from environment variables!')
+    } else {
+      console.log('OPENAI_API_KEY is present in environment variables')
     }
 
     // Process the block states to extract values from subBlocks
@@ -265,6 +296,22 @@ export async function POST(
       },
       {} as Record<string, Record<string, any>>
     )
+
+    // Log block states for debugging
+    console.log(`[Webhook Debug] Block states after async merging:`)
+    Object.entries(currentBlockStates).forEach(([blockId, state]) => {
+      // Check for agent blocks specifically
+      if (blocks[blockId]?.type === 'agent') {
+        console.log(`[Webhook Debug] Agent block ${blockId} state:`, JSON.stringify(state, null, 2))
+        // Check for null values
+        const nullKeys = Object.entries(state)
+          .filter(([_, value]) => value === null)
+          .map(([key]) => key)
+        if (nullKeys.length > 0) {
+          console.warn(`[Webhook Debug] Agent block ${blockId} has null values for:`, nullKeys)
+        }
+      }
+    })
 
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
@@ -310,6 +357,17 @@ export async function POST(
       },
       {} as Record<string, Record<string, any>>
     )
+
+    // Remove the timeout and use the already awaited states
+    console.log('[Webhook Debug] Final processed block states before execution:')
+    Object.entries(processedBlockStates).forEach(([blockId, state]) => {
+      if (blocks[blockId]?.type === 'agent') {
+        console.log(
+          `[Webhook Debug] Agent block ${blockId} final state:`,
+          JSON.stringify(state, null, 2)
+        )
+      }
+    })
 
     const executor = new Executor(
       serializedWorkflow,

@@ -11,9 +11,19 @@ export const openaiProvider: ProviderConfig = {
   defaultModel: 'gpt-4o',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+    console.log('Full request:', request)
     if (!request.apiKey) {
+      console.error('OpenAI API key missing in request. Request details:', {
+        hasModel: !!request.model,
+        hasSystemPrompt: !!request.systemPrompt,
+        hasMessages: !!request.messages,
+        hasTools: !!request.tools,
+        requestKeys: Object.keys(request),
+      })
       throw new Error('API key is required for OpenAI')
     }
+
+    console.log('OpenAI API key found in request (first 4 chars):', request.apiKey.substring(0, 4))
 
     const openai = new OpenAI({
       apiKey: request.apiKey,
