@@ -1,8 +1,8 @@
-import { genericOAuthClient } from 'better-auth/client/plugins'
+import { emailOTPClient, genericOAuthClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 
 export const client = createAuthClient({
-  plugins: [genericOAuthClient()],
+  plugins: [genericOAuthClient(), emailOTPClient()],
 })
 export const { useSession } = client
 

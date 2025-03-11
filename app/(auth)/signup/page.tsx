@@ -35,7 +35,10 @@ export default function SignupPage() {
 
     try {
       await client.signUp.email({ email, password, name })
-      router.push('/verify-request')
+
+      // No need to manually send OTP as it's handled by sendVerificationOnSignUp
+      // Redirect directly to the verify page instead of verify-request
+      router.push(`/verify?email=${encodeURIComponent(email)}`)
     } catch (err: any) {
       let errorMessage = 'Failed to create account'
 

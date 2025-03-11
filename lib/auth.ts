@@ -2,7 +2,7 @@ import { headers } from 'next/headers'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
-import { genericOAuth } from 'better-auth/plugins'
+import { emailOTP, genericOAuth } from 'better-auth/plugins'
 import { Resend } from 'resend'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
@@ -42,6 +42,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
+    sendVerificationOnSignUp: false,
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
@@ -62,41 +63,48 @@ export const auth = betterAuth({
       }
     },
   },
-  emailVerification: {
-    sendVerificationEmail: async ({ user, url, token }, request) => {
-      try {
-        if (!user.email) {
-          throw new Error('User email is required')
-        }
-
-        const result = await resend.emails.send({
-          from: 'Sim Studio <onboarding@simstudio.ai>',
-          to: user.email,
-          subject: 'Verify your email',
-          html: `
-            <h2>Welcome to Sim Studio!</h2>
-            <p>Click the link below to verify your email:</p>
-            <a href="${url}">${url}</a>
-            <p>If you didn't create an account, you can safely ignore this email.</p>
-          `,
-        })
-
-        if (!result) {
-          throw new Error('Failed to send verification email')
-        }
-      } catch (error) {
-        console.error('Error sending verification email:', {
-          error,
-          user: user.email,
-          url,
-          token,
-        })
-        throw error
-      }
-    },
-  },
   plugins: [
     nextCookies(),
+    emailOTP({
+      sendVerificationOTP: async (data: {
+        email: string
+        otp: string
+        type: 'sign-in' | 'email-verification' | 'forget-password'
+      }) => {
+        try {
+          if (!data.email) {
+            throw new Error('Email is required')
+          }
+
+          const result = await resend.emails.send({
+            from: 'Sim Studio <onboarding@simstudio.ai>',
+            to: data.email,
+            subject: 'Verify your email',
+            html: `
+              <h2>Welcome to Sim Studio!</h2>
+              <p>Your verification code is:</p>
+              <h1 style="font-size: 32px; letter-spacing: 2px; text-align: center; padding: 16px; background-color: #f8f9fa; border-radius: 4px;">${data.otp}</h1>
+              <p>This code will expire in 15 minutes.</p>
+              <p>If you didn't create an account, you can safely ignore this email.</p>
+            `,
+          })
+
+          if (!result) {
+            throw new Error('Failed to send verification code')
+          }
+        } catch (error) {
+          console.error('Error sending verification code:', {
+            error,
+            email: data.email,
+            otp: data.otp,
+          })
+          throw error
+        }
+      },
+      sendVerificationOnSignUp: true,
+      otpLength: 6, // Explicitly set the OTP length
+      expiresIn: 15 * 60, // 15 minutes in seconds
+    }),
     genericOAuth({
       config: [
         {

@@ -107,6 +107,10 @@ export default {
             filter: 'opacity(0.7)',
           },
         },
+        'caret-blink': {
+          '0%,70%,100%': { opacity: '1' },
+          '20%,50%': { opacity: '0' },
+        },
       },
       animation: {
         'slide-down': 'slide-down 0.3s ease-out',
@@ -115,6 +119,7 @@ export default {
         'fade-up': 'fade-up 0.5s ease-out forwards',
         'rocket-pulse': 'rocket-pulse 1.5s ease-in-out infinite',
         'run-glow': 'run-glow 2s ease-in-out infinite',
+        'caret-blink': 'caret-blink 1.25s ease-out infinite',
       },
     },
   },
