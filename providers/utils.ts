@@ -117,6 +117,13 @@ export function getProviderModels(providerId: ProviderId): string[] {
 }
 
 export function generateStructuredOutputInstructions(responseFormat: any): string {
+  // If using the new JSON Schema format, don't add additional instructions
+  // This is necessary because providers now handle the schema directly
+  if (responseFormat.schema || (responseFormat.type === 'object' && responseFormat.properties)) {
+    return ''
+  }
+
+  // Handle legacy format with fields array
   if (!responseFormat?.fields) return ''
 
   function generateFieldStructure(field: any): string {

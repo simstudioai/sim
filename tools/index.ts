@@ -589,7 +589,6 @@ async function handleProxyRequest(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ toolId, params }),
   })
-  console.log('Proxy response:', response)
 
   const result = await response.json()
 

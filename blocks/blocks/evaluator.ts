@@ -27,34 +27,93 @@ interface EvaluatorResponse extends ToolResponse {
 }
 
 export const generateEvaluatorPrompt = (metrics: Metric[], content: string): string => {
+  // Create a clear metrics description with name, range, and description
   const metricsDescription = metrics
     .map(
-      (metric) => `${metric.name} (${metric.range.min}-${metric.range.max}): ${metric.description}`
+      (metric) =>
+        `"${metric.name}" (${metric.range.min}-${metric.range.max}): ${metric.description}`
     )
     .join('\n')
+
+  // Format the content properly - try to detect and format JSON
+  let formattedContent = content
+  try {
+    // If content looks like JSON (starts with { or [)
+    if (
+      typeof content === 'string' &&
+      (content.trim().startsWith('{') || content.trim().startsWith('['))
+    ) {
+      // Try to parse and pretty-print
+      const parsedContent = JSON.parse(content)
+      formattedContent = JSON.stringify(parsedContent, null, 2)
+    }
+    // If it's already an object (shouldn't happen here but just in case)
+    else if (typeof content === 'object') {
+      formattedContent = JSON.stringify(content, null, 2)
+    }
+  } catch (e) {
+    console.warn('Warning: Content may not be valid JSON, using as-is', e)
+    formattedContent = content
+  }
+
+  // Generate an example of the expected output format
+  const exampleOutput = metrics.reduce(
+    (acc, metric) => {
+      acc[metric.name] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
+      return acc
+    },
+    {} as Record<string, number>
+  )
 
   return `You are an objective evaluation agent. Analyze the content against the provided metrics and provide detailed scoring.
 
 Evaluation Instructions:
+- You MUST evaluate the content against each metric
 - For each metric, provide a numeric score within the specified range
-- Your response must be a valid JSON object with each metric as a number field
+- Your response MUST be a valid JSON object with each metric name as a key and a numeric score as the value
+- Use EXACTLY the metric names provided (case-sensitive, no modifications)
+- Follow the exact schema of the response format provided to you
 - Do not include explanations in the JSON - only numeric scores
-- Under any circumstances, do not include any text before or after the JSON object
+- Do not add any additional fields not specified in the schema
+- Do not include ANY text before or after the JSON object
+
 Metrics to evaluate:
 ${metricsDescription}
 
 Content to evaluate:
-${content}`
+${formattedContent}
+
+Example of expected response format (with different scores):
+${JSON.stringify(exampleOutput, null, 2)}
+
+Remember: Your response MUST be a valid JSON object containing only the metrics as keys with their numeric scores as values. No text explanations.`
 }
 
 // Simplified response format generator that matches the agent block schema structure
-const generateResponseFormat = (metrics: Metric[]) => ({
-  fields: metrics.map((metric) => ({
-    name: metric.name,
-    type: 'number',
-    description: `${metric.description} (Score between ${metric.range.min}-${metric.range.max})`,
-  })),
-})
+const generateResponseFormat = (metrics: Metric[]) => {
+  // Create properties for each metric
+  const properties: Record<string, any> = {}
+
+  // Add each metric as a property
+  metrics.forEach((metric) => {
+    properties[metric.name] = {
+      type: 'number',
+      description: `${metric.description} (Score between ${metric.range.min}-${metric.range.max})`,
+    }
+  })
+
+  // Return a proper JSON Schema format
+  return {
+    name: 'evaluation_response',
+    schema: {
+      type: 'object',
+      properties,
+      required: metrics.map((metric) => metric.name),
+      additionalProperties: false,
+    },
+    strict: true,
+  }
+}
 
 export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   type: 'evaluator',
@@ -102,14 +161,42 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       layout: 'full',
       hidden: true,
       value: (params: Record<string, any>) => {
-        const metrics = params.metrics || []
-        const content = params.content || ''
-        const responseFormat = generateResponseFormat(metrics)
+        try {
+          const metrics = params.metrics || []
 
-        return JSON.stringify({
-          systemPrompt: generateEvaluatorPrompt(metrics, content),
-          responseFormat,
-        })
+          // Process content safely
+          let processedContent = ''
+          if (typeof params.content === 'object') {
+            processedContent = JSON.stringify(params.content, null, 2)
+          } else {
+            processedContent = String(params.content || '')
+          }
+
+          // Generate prompt and response format directly
+          const promptText = generateEvaluatorPrompt(metrics, processedContent)
+          const responseFormatObj = generateResponseFormat(metrics)
+
+          // Create a clean, simple JSON object
+          const result = {
+            systemPrompt: promptText,
+            responseFormat: responseFormatObj,
+          }
+
+          return JSON.stringify(result)
+        } catch (e) {
+          console.error('Error in systemPrompt value function:', e)
+          // Return a minimal valid JSON as fallback
+          return JSON.stringify({
+            systemPrompt: 'Evaluate the content and return a JSON with metric scores.',
+            responseFormat: {
+              schema: {
+                type: 'object',
+                properties: {},
+                additionalProperties: true,
+              },
+            },
+          })
+        }
       },
     },
   ],

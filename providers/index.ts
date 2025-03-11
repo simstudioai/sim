@@ -19,7 +19,12 @@ export async function executeProviderRequest(
     const structuredOutputInstructions = generateStructuredOutputInstructions(
       request.responseFormat
     )
-    request.systemPrompt = `${request.systemPrompt}\n\n${structuredOutputInstructions}`
+
+    // Only add additional instructions if they're not empty
+    if (structuredOutputInstructions.trim()) {
+      request.systemPrompt =
+        `${request.systemPrompt || ''}\n\n${structuredOutputInstructions}`.trim()
+    }
   }
 
   // Execute the request using the provider's implementation
