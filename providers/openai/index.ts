@@ -78,6 +78,15 @@ export const openaiProvider: ProviderConfig = {
 
     // Add response format for structured output if specified
     if (request.responseFormat) {
+      // Log detailed information about the responseFormat
+      console.log(`[OpenAI Provider Debug] Response format details:`, {
+        type: typeof request.responseFormat,
+        isString: typeof request.responseFormat === 'string',
+        hasSchema: request.responseFormat.schema !== undefined,
+        hasName: request.responseFormat.name !== undefined,
+        value: JSON.stringify(request.responseFormat),
+      })
+
       // Use OpenAI's JSON schema format
       payload.response_format = {
         type: 'json_schema',
@@ -87,6 +96,12 @@ export const openaiProvider: ProviderConfig = {
           strict: request.responseFormat.strict !== false,
         },
       }
+
+      // Log the final response_format being sent to OpenAI
+      console.log(
+        `[OpenAI Provider Debug] Final response_format:`,
+        JSON.stringify(payload.response_format)
+      )
     }
 
     // Add tools if provided

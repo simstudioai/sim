@@ -175,6 +175,24 @@ export class AgentBlockHandler implements BlockHandler {
               : inputs.responseFormat
 
           console.log(`[AgentBlockHandler Debug] Response format after parsing:`, responseFormat)
+
+          // Ensure the responseFormat is properly structured
+          if (responseFormat && typeof responseFormat === 'object') {
+            // If it's just a raw schema without the expected wrapper properties,
+            // wrap it properly for the provider
+            if (!responseFormat.schema && !responseFormat.name) {
+              console.log(`[AgentBlockHandler Debug] Wrapping raw schema in proper format`)
+              responseFormat = {
+                name: 'response_schema',
+                schema: responseFormat,
+                strict: true,
+              }
+            }
+            console.log(
+              `[AgentBlockHandler Debug] Final response format structure:`,
+              responseFormat
+            )
+          }
         } catch (error: any) {
           console.error(`[AgentBlockHandler Error] Failed to parse response format:`, error)
           throw new Error(`Invalid response format: ${error.message}`)

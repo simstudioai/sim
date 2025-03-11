@@ -426,14 +426,35 @@ async function processWebhook(
     // Process the block states to ensure response formats are properly parsed
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
+        // Create a copy of the block state to avoid modifying the original
+        const processedState = { ...blockState }
+
         // Check if this block has a responseFormat that needs to be parsed
-        if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
+        if (processedState.responseFormat) {
           try {
-            const parsedResponseFormat = JSON.parse(blockState.responseFormat)
-            acc[blockId] = {
-              ...blockState,
-              responseFormat: parsedResponseFormat,
+            // If responseFormat is a string, parse it
+            if (typeof processedState.responseFormat === 'string') {
+              processedState.responseFormat = JSON.parse(processedState.responseFormat)
             }
+
+            // Ensure the responseFormat is properly structured for OpenAI
+            // This ensures compatibility with the provider's expected format
+            if (
+              processedState.responseFormat &&
+              typeof processedState.responseFormat === 'object'
+            ) {
+              // Make sure it has the required properties
+              if (!processedState.responseFormat.schema && !processedState.responseFormat.name) {
+                // If it's just a raw schema, wrap it properly
+                processedState.responseFormat = {
+                  name: 'response_schema',
+                  schema: processedState.responseFormat,
+                  strict: true,
+                }
+              }
+            }
+
+            acc[blockId] = processedState
           } catch (error) {
             console.warn(`Failed to parse responseFormat for block ${blockId}:`, error)
             acc[blockId] = blockState
