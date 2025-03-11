@@ -11,6 +11,11 @@ import { Serializer } from '@/serializer'
 
 export const dynamic = 'force-dynamic'
 
+// Store for tracking processed message IDs in memory
+// This is a simple in-memory solution that works for a single instance
+// For multi-instance deployments, consider using Redis or another distributed cache
+const processedMessageIds = new Set<string>()
+
 /**
  * Consolidated webhook trigger endpoint for all providers
  * Handles both WhatsApp verification and other webhook providers
@@ -125,6 +130,74 @@ export async function POST(
     const { webhook: foundWebhook, workflow: workflowData } = webhooks[0]
     foundWorkflow = workflowData
 
+    // For WhatsApp, check for duplicate messages before processing
+    if (foundWebhook.provider === 'whatsapp') {
+      const data = body?.entry?.[0]?.changes?.[0]?.value
+      const messages = data?.messages || []
+
+      if (messages.length > 0) {
+        const message = messages[0]
+        const messageId = message.id
+
+        // Check if we've already processed this message
+        if (messageId && processedMessageIds.has(messageId)) {
+          console.log(
+            `Duplicate WhatsApp message detected with ID: ${messageId}. Skipping processing.`
+          )
+          return new NextResponse('OK - Duplicate message', { status: 200 })
+        }
+
+        // Store the message ID to prevent duplicate processing in future requests
+        if (messageId) {
+          processedMessageIds.add(messageId)
+
+          // Clean up old message IDs periodically (keep last ~1000 messages)
+          if (processedMessageIds.size > 1000) {
+            const idsArray = Array.from(processedMessageIds)
+            for (let i = 0; i < idsArray.length - 1000; i++) {
+              processedMessageIds.delete(idsArray[i])
+            }
+          }
+        }
+
+        // Process the webhook synchronously - complete the workflow before returning
+        const result = await processWebhook(foundWebhook, foundWorkflow, body, request, executionId)
+
+        // After workflow execution is complete, return 200 OK
+        console.log(`Workflow execution complete for WhatsApp message ID: ${messageId}`)
+        return result
+      } else {
+        // This might be a different type of notification (e.g., status update)
+        console.log('No messages in WhatsApp payload, might be a status update')
+        return new NextResponse('OK', { status: 200 })
+      }
+    }
+
+    // For other providers, continue with synchronous processing
+    return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId)
+  } catch (error: any) {
+    console.error('Error processing webhook:', error)
+
+    // Log the error if we have a workflow ID
+    if (foundWorkflow?.id) {
+      await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
+    }
+
+    return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
+  }
+}
+
+/**
+ * Process a webhook synchronously
+ */
+async function processWebhook(
+  foundWebhook: any,
+  foundWorkflow: any,
+  body: any,
+  request: NextRequest,
+  executionId: string
+): Promise<NextResponse> {
+  try {
     // Handle provider-specific verification and authentication
     if (foundWebhook.provider && foundWebhook.provider !== 'whatsapp') {
       const authHeader = request.headers.get('authorization')
@@ -167,7 +240,7 @@ export async function POST(
         const text = message.text?.body
 
         console.log(
-          `Received WhatsApp message: ${text ? text.substring(0, 50) : '[no text]'} from ${from}`
+          `Processing WhatsApp message: ${text ? text.substring(0, 50) : '[no text]'} from ${from}`
         )
 
         input = {
@@ -202,7 +275,7 @@ export async function POST(
       input = {
         webhook: {
           data: {
-            path,
+            path: foundWebhook.path,
             provider: foundWebhook.provider,
             providerConfig: foundWebhook.providerConfig,
             payload: body,
@@ -256,32 +329,6 @@ export async function POST(
       decryptedEnvVars = Object.fromEntries(decryptedEntries)
     }
 
-    // Log environment variables for debugging (masking sensitive values)
-    console.log('Available environment variables before execution:')
-    Object.keys(decryptedEnvVars).forEach((key) => {
-      const value = decryptedEnvVars[key]
-      // Show full value for OpenAI API key for debugging, mask others
-      if (key === 'OPENAI_API_KEY') {
-        console.log(`  ${key}: ${value} (FULL KEY FOR DEBUGGING)`)
-      } else {
-        // Mask sensitive values like API keys, showing only first and last few characters
-        const maskedValue =
-          key.toLowerCase().includes('key') ||
-          key.toLowerCase().includes('secret') ||
-          key.toLowerCase().includes('token')
-            ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
-            : value
-        console.log(`  ${key}: ${maskedValue}`)
-      }
-    })
-
-    // Check specifically for OpenAI API key
-    if (!decryptedEnvVars['OPENAI_API_KEY']) {
-      console.warn('WARNING: OPENAI_API_KEY is missing from environment variables!')
-    } else {
-      console.log('OPENAI_API_KEY is present in environment variables')
-    }
-
     // Process the block states to extract values from subBlocks
     const currentBlockStates = Object.entries(mergedStates).reduce(
       (acc, [id, block]) => {
@@ -297,22 +344,6 @@ export async function POST(
       {} as Record<string, Record<string, any>>
     )
 
-    // Log block states for debugging
-    console.log(`[Webhook Debug] Block states after async merging:`)
-    Object.entries(currentBlockStates).forEach(([blockId, state]) => {
-      // Check for agent blocks specifically
-      if (blocks[blockId]?.type === 'agent') {
-        console.log(`[Webhook Debug] Agent block ${blockId} state:`, JSON.stringify(state, null, 2))
-        // Check for null values
-        const nullKeys = Object.entries(state)
-          .filter(([_, value]) => value === null)
-          .map(([key]) => key)
-        if (nullKeys.length > 0) {
-          console.warn(`[Webhook Debug] Agent block ${blockId} has null values for:`, nullKeys)
-        }
-      }
-    })
-
     // Serialize and execute the workflow
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
 
@@ -322,26 +353,13 @@ export async function POST(
       workflowId: foundWorkflow.id,
     }
 
-    console.log('Executing workflow with workflowId:', foundWorkflow.id)
-
     // Process the block states to ensure response formats are properly parsed
-    // This is crucial for agent blocks with response format
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
         // Check if this block has a responseFormat that needs to be parsed
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
           try {
-            console.log(
-              `[Webhook Debug] Block ${blockId} has responseFormat as string:`,
-              blockState.responseFormat
-            )
-            // Attempt to parse the responseFormat if it's a string
             const parsedResponseFormat = JSON.parse(blockState.responseFormat)
-            console.log(
-              `[Webhook Debug] Successfully parsed responseFormat for block ${blockId}:`,
-              parsedResponseFormat
-            )
-
             acc[blockId] = {
               ...blockState,
               responseFormat: parsedResponseFormat,
@@ -358,20 +376,9 @@ export async function POST(
       {} as Record<string, Record<string, any>>
     )
 
-    // Remove the timeout and use the already awaited states
-    console.log('[Webhook Debug] Final processed block states before execution:')
-    Object.entries(processedBlockStates).forEach(([blockId, state]) => {
-      if (blocks[blockId]?.type === 'agent') {
-        console.log(
-          `[Webhook Debug] Agent block ${blockId} final state:`,
-          JSON.stringify(state, null, 2)
-        )
-      }
-    })
-
     const executor = new Executor(
       serializedWorkflow,
-      processedBlockStates, // Use the processed block states
+      processedBlockStates,
       decryptedEnvVars,
       enrichedInput
     )
