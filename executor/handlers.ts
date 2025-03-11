@@ -322,18 +322,20 @@ export class AgentBlockHandler implements BlockHandler {
         console.log(`[AgentBlockHandler Debug] Successfully parsed content:`, parsedContent)
 
         const result = {
-          ...parsedContent,
-          tokens: response.tokens || {
-            prompt: 0,
-            completion: 0,
-            total: 0,
+          response: {
+            ...parsedContent,
+            tokens: response.tokens || {
+              prompt: 0,
+              completion: 0,
+              total: 0,
+            },
+            toolCalls: response.toolCalls
+              ? {
+                  list: response.toolCalls,
+                  count: response.toolCalls.length,
+                }
+              : undefined,
           },
-          toolCalls: response.toolCalls
-            ? {
-                list: response.toolCalls,
-                count: response.toolCalls.length,
-              }
-            : undefined,
         }
 
         console.log(`[AgentBlockHandler Debug] Result:`, result)

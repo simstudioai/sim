@@ -146,7 +146,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const fields = extractFieldsFromSchema(responseFormat)
             if (fields.length > 0) {
               return {
-                tags: fields.map((field: Field) => `${normalizedBlockName}.${field.name}`),
+                tags: fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`),
               }
             }
           }
@@ -185,7 +185,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           if (responseFormat) {
             const fields = extractFieldsFromSchema(responseFormat)
             if (fields.length > 0) {
-              return fields.map((field: Field) => `${normalizedBlockName}.${field.name}`)
+              return fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`)
             }
           }
         }
