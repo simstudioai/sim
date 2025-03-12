@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
 
         <div className="space-y-8 text-white/80">
           <section>
-            <p className="mb-4">Last Updated: March 10, 2025</p>
+            <p className="mb-4">Last Updated: March 12, 2025</p>
             <p>
               This Privacy Policy describes how Sim Studio, Inc ("we", "us", or "our") collects,
               uses, and discloses your information when you use our platform for building, testing,
@@ -38,6 +38,97 @@ export default function PrivacyPolicy() {
               <li>Usage data and analytics</li>
               <li>Communications with us</li>
               <li>Any other information you choose to provide</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4 text-white">Google User Data</h2>
+            <p className="mb-4">
+              Sim Studio provides functionality that allows you to connect to various Google
+              services through our platform. When you choose to use these features, we may access
+              certain Google user data as described below:
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">Gmail Data</h3>
+            <p className="mb-4">When you use our Gmail block functionality, we may access:</p>
+            <ul className="list-disc pl-6 space-y-2 mb-4">
+              <li>Email messages and their contents</li>
+              <li>Email labels and folders</li>
+              <li>Email metadata (such as sender, recipient, date, subject)</li>
+            </ul>
+            <p className="mb-4">
+              This access is used solely to enable the functionality you request within your
+              workflows, such as reading emails from specific folders or sending emails as part of
+              your automated processes.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">Google Drive Data</h3>
+            <p className="mb-4">When you use our Drive block functionality, we may access:</p>
+            <ul className="list-disc pl-6 space-y-2 mb-4">
+              <li>File and folder listings</li>
+              <li>File contents</li>
+              <li>File metadata (such as creation date, modification date, sharing settings)</li>
+            </ul>
+            <p className="mb-4">
+              This access is used solely to enable the functionality you request within your
+              workflows, such as reading from or writing to specific files.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">Google Sheets Data</h3>
+            <p className="mb-4">When you use our Sheets block functionality, we may access:</p>
+            <ul className="list-disc pl-6 space-y-2 mb-4">
+              <li>Spreadsheet contents</li>
+              <li>Sheet names and structure</li>
+              <li>Cell data and formatting</li>
+            </ul>
+            <p className="mb-4">
+              This access is used solely to enable the functionality you request within your
+              workflows, such as reading data from or writing data to specific spreadsheets.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">Data Storage and Retention</h3>
+            <p className="mb-4">
+              <strong>Important:</strong> Sim Studio does not store your Google user data on our
+              servers. All data processing occurs within your browser during workflow execution. We
+              do not retain, store, or use your Google user data for any purpose other than to
+              provide the specific functionality you request.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">AI/ML Training</h3>
+            <p className="mb-4">
+              Sim Studio does not use any Google user data to develop, improve, or train generalized
+              AI and/or ML models. Your data remains private and is only used for the specific
+              purposes you authorize within your workflows.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">Data Protection</h3>
+            <p className="mb-4">
+              We implement appropriate technical and organizational measures to protect your Google
+              user data during processing. Since we do not store your Google user data on our
+              servers, the risk of unauthorized access to this data is minimized.
+            </p>
+
+            <h3 className="text-xl font-semibold mb-2 text-white">Revoking Access</h3>
+            <p className="mb-4">
+              You can revoke Sim Studio's access to your Google user data at any time by:
+            </p>
+            <ul className="list-disc pl-6 space-y-2 mb-4">
+              <li>
+                Within Sim Studio: Going to Settings, Credentials, and disconnecting the service
+              </li>
+              <li>
+                Directly through Google: Visiting{' '}
+                <a
+                  href="https://myaccount.google.com/permissions"
+                  className="text-blue-400 hover:underline"
+                >
+                  Google Account Permissions
+                </a>{' '}
+                and removing Sim Studio from your list of connected applications
+              </li>
+              <li>
+                Contacting us at privacy@simstudio.ai to request assistance with access revocation
+              </li>
             </ul>
           </section>
 
