@@ -1,5 +1,19 @@
+import { supportsTemperature } from './model-capabilities'
 import { ProviderRequest, ProviderResponse } from './types'
-import { generateStructuredOutputInstructions, getProvider } from './utils'
+import { generateStructuredOutputInstructions, getProvider, getProviderFromModel } from './utils'
+
+// Sanitize the request by removing parameters that aren't supported by the model
+function sanitizeRequest(request: ProviderRequest): ProviderRequest {
+  // Create a shallow copy of the request
+  const sanitizedRequest = { ...request }
+
+  // Remove temperature if the model doesn't support it
+  if (sanitizedRequest.model && !supportsTemperature(sanitizedRequest.model)) {
+    delete sanitizedRequest.temperature
+  }
+
+  return sanitizedRequest
+}
 
 export async function executeProviderRequest(
   providerId: string,
@@ -17,25 +31,30 @@ export async function executeProviderRequest(
     throw new Error(`Provider ${providerId} does not implement executeRequest`)
   }
 
+  const sanitizedRequest = sanitizeRequest(request)
+
   // If responseFormat is provided, modify the system prompt to enforce structured output
-  if (request.responseFormat) {
-    // Handle empty string case
-    if (typeof request.responseFormat === 'string' && request.responseFormat === '') {
+  if (sanitizedRequest.responseFormat) {
+    if (
+      typeof sanitizedRequest.responseFormat === 'string' &&
+      sanitizedRequest.responseFormat === ''
+    ) {
       console.log(`[Provider Debug] Response format is an empty string, ignoring it`)
-      request.responseFormat = undefined
+      sanitizedRequest.responseFormat = undefined
     } else {
-      console.log(`[Provider Debug] Response format:`, request.responseFormat)
+      console.log(`[Provider Debug] Response format:`, sanitizedRequest.responseFormat)
 
       const structuredOutputInstructions = generateStructuredOutputInstructions(
-        request.responseFormat
+        sanitizedRequest.responseFormat
       )
 
       console.log(`[Provider Debug] Generated instructions:`, structuredOutputInstructions)
 
       // Only add additional instructions if they're not empty
       if (structuredOutputInstructions.trim()) {
-        const originalPrompt = request.systemPrompt || ''
-        request.systemPrompt = `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
+        const originalPrompt = sanitizedRequest.systemPrompt || ''
+        sanitizedRequest.systemPrompt =
+          `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
 
         console.log(`[Provider Debug] Updated system prompt with instructions`)
       }
@@ -43,7 +62,7 @@ export async function executeProviderRequest(
   }
 
   // Execute the request using the provider's implementation
-  const response = await provider.executeRequest(request)
+  const response = await provider.executeRequest(sanitizedRequest)
 
   console.log(`[Provider Debug] Provider response:`, {
     contentType: typeof response.content,

@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react'
 import { Slider } from '@/components/ui/slider'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
@@ -17,12 +18,32 @@ export function SliderInput({
   subBlockId,
 }: SliderInputProps) {
   const [value, setValue] = useSubBlockValue<number>(blockId, subBlockId)
-  const sliderValue = value ?? defaultValue
+
+  // Clamp the value within bounds while preserving relative position when possible
+  const normalizedValue = useMemo(() => {
+    if (value === null) return defaultValue
+
+    // If value exceeds max, scale it down proportionally
+    if (value > max) {
+      const prevMax = Math.max(max * 2, value) // Assume previous max was at least the current value
+      return (value / prevMax) * max
+    }
+
+    // Otherwise just clamp it
+    return Math.min(Math.max(value, min), max)
+  }, [value, min, max, defaultValue])
+
+  // Update the value if it needs normalization
+  useEffect(() => {
+    if (value !== null && value !== normalizedValue) {
+      setValue(normalizedValue)
+    }
+  }, [normalizedValue, value, setValue])
 
   return (
     <div className="relative pt-2 pb-6">
       <Slider
-        value={[sliderValue]}
+        value={[normalizedValue]}
         min={min}
         max={max}
         step={0.1}
@@ -32,16 +53,16 @@ export function SliderInput({
       <div
         className="absolute text-sm text-muted-foreground"
         style={{
-          left: `clamp(0%, ${((Number(sliderValue) - min) / (max - min)) * 100}%, 100%)`,
+          left: `clamp(0%, ${((normalizedValue - min) / (max - min)) * 100}%, 100%)`,
           transform: `translateX(-${(() => {
-            const percentage = ((Number(sliderValue) - min) / (max - min)) * 100
+            const percentage = ((normalizedValue - min) / (max - min)) * 100
             const bias = -25 * Math.sin((percentage * Math.PI) / 50)
             return percentage === 0 ? 0 : percentage === 100 ? 100 : 50 + bias
           })()}%)`,
           top: '24px',
         }}
       >
-        {Number(sliderValue).toFixed(1)}
+        {Number(normalizedValue).toFixed(1)}
       </div>
     </div>
   )

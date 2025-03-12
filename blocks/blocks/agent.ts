@@ -1,4 +1,5 @@
 import { AgentIcon } from '@/components/icons'
+import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { MODEL_PROVIDERS } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
@@ -59,10 +60,22 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'slider',
       layout: 'half',
       min: 0,
+      max: 2,
+      condition: {
+        field: 'model',
+        value: MODELS_TEMP_RANGE_0_2,
+      },
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
+      min: 0,
       max: 1,
       condition: {
         field: 'model',
-        value: ['gpt-4o', 'gemini-2.0-flash'],
+        value: MODELS_TEMP_RANGE_0_1,
       },
     },
     {
