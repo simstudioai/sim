@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { BlockState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
-import { workflow, workflowSchedule } from '@/db/schema'
+import { workflowSchedule } from '@/db/schema'
+
+const logger = createLogger('ScheduledScheduleAPI')
 
 interface SubBlockValue {
   value: string
@@ -26,14 +29,19 @@ const ScheduleRequestSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     const session = await getSession()
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized schedule update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
     const { workflowId, state } = ScheduleRequestSchema.parse(body)
+
+    logger.info(`[${requestId}] Processing schedule update for workflow ${workflowId}`)
 
     // Find the starter block to check if it's configured for scheduling
     const starterBlock = Object.values(state.blocks).find(
@@ -41,6 +49,7 @@ export async function POST(req: NextRequest) {
     ) as BlockState | undefined
 
     if (!starterBlock) {
+      logger.warn(`[${requestId}] No starter block found in workflow ${workflowId}`)
       return NextResponse.json({ error: 'No starter block found in workflow' }, { status: 400 })
     }
 
@@ -48,6 +57,7 @@ export async function POST(req: NextRequest) {
 
     // If the workflow is not scheduled, delete any existing schedule
     if (startWorkflow !== 'schedule') {
+      logger.info(`[${requestId}] Removing schedule for workflow ${workflowId}`)
       await db.delete(workflowSchedule).where(eq(workflowSchedule.workflowId, workflowId))
 
       return NextResponse.json({ message: 'Schedule removed' })
@@ -55,6 +65,7 @@ export async function POST(req: NextRequest) {
 
     // Get schedule configuration from starter block
     const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
+    logger.debug(`[${requestId}] Schedule type for workflow ${workflowId}: ${scheduleType}`)
 
     // Calculate cron expression based on schedule type
     let cronExpression: string | null = null
@@ -181,6 +192,7 @@ export async function POST(req: NextRequest) {
         break
       }
       default:
+        logger.warn(`[${requestId}] Invalid schedule type: ${scheduleType}`)
         return NextResponse.json({ error: 'Invalid schedule type' }, { status: 400 })
     }
 
@@ -219,13 +231,21 @@ export async function POST(req: NextRequest) {
         set: setValues,
       })
 
+    logger.info(`[${requestId}] Schedule updated for workflow ${workflowId}`, {
+      nextRunAt: shouldUpdateNextRunAt
+        ? nextRunAt?.toISOString()
+        : existingSchedule[0]?.nextRunAt?.toISOString(),
+      cronExpression,
+    })
+
     return NextResponse.json({
       message: 'Schedule updated',
       nextRunAt: shouldUpdateNextRunAt ? nextRunAt : existingSchedule[0]?.nextRunAt,
       cronExpression,
     })
   } catch (error) {
-    console.error('Error updating workflow schedule:', error)
+    logger.error(`[${requestId}] Error updating workflow schedule`, error)
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: 'Invalid request data', details: error.errors },

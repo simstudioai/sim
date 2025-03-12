@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -13,6 +14,8 @@ import { Serializer } from '@/serializer'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
+const logger = createLogger('WorkflowExecuteAPI')
+
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
@@ -22,17 +25,19 @@ const EnvVarsSchema = z.record(z.string())
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
-async function executeWorkflow(workflow: any, input?: any) {
+async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   const workflowId = workflow.id
   const executionId = uuidv4()
 
   // Skip if this workflow is already running
   if (runningExecutions.has(workflowId)) {
+    logger.warn(`[${requestId}] Workflow is already running: ${workflowId}`)
     throw new Error('Workflow is already running')
   }
 
   try {
     runningExecutions.add(workflowId)
+    logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
 
     // Get the workflow state
     const state = workflow.state as WorkflowState
@@ -49,6 +54,7 @@ async function executeWorkflow(workflow: any, input?: any) {
       .limit(1)
 
     if (!userEnv) {
+      logger.error(`[${requestId}] No environment variables found for user: ${workflow.userId}`)
       throw new Error('No environment variables found for this user')
     }
 
@@ -80,7 +86,10 @@ async function executeWorkflow(workflow: any, input?: any) {
                     const { decrypted } = await decryptSecret(encryptedValue)
                     value = (value as string).replace(match, decrypted)
                   } catch (error: any) {
-                    console.error('Error decrypting value:', error)
+                    logger.error(
+                      `[${requestId}] Error decrypting environment variable "${varName}"`,
+                      error
+                    )
                     throw new Error(
                       `Failed to decrypt environment variable "${varName}": ${error.message}`
                     )
@@ -106,35 +115,27 @@ async function executeWorkflow(workflow: any, input?: any) {
         const { decrypted } = await decryptSecret(encryptedValue)
         decryptedEnvVars[key] = decrypted
       } catch (error: any) {
-        console.error(`Failed to decrypt ${key}:`, error)
+        logger.error(`[${requestId}] Failed to decrypt environment variable "${key}"`, error)
         throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
       }
     }
 
     // Process the block states to ensure response formats are properly parsed
-    // This is crucial for agent blocks with response format
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
         // Check if this block has a responseFormat that needs to be parsed
         if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
           try {
-            console.log(
-              `[API Debug] Block ${blockId} has responseFormat as string:`,
-              blockState.responseFormat
-            )
+            logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
             // Attempt to parse the responseFormat if it's a string
             const parsedResponseFormat = JSON.parse(blockState.responseFormat)
-            console.log(
-              `[API Debug] Successfully parsed responseFormat for block ${blockId}:`,
-              parsedResponseFormat
-            )
 
             acc[blockId] = {
               ...blockState,
               responseFormat: parsedResponseFormat,
             }
           } catch (error) {
-            console.warn(`Failed to parse responseFormat for block ${blockId}:`, error)
+            logger.warn(`[${requestId}] Failed to parse responseFormat for block ${blockId}`, error)
             acc[blockId] = blockState
           }
         } else {
@@ -146,15 +147,23 @@ async function executeWorkflow(workflow: any, input?: any) {
     )
 
     // Serialize and execute the workflow
+    logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
+
     const executor = new Executor(serializedWorkflow, processedBlockStates, decryptedEnvVars, input)
     const result = await executor.execute(workflowId)
+
+    logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
+      success: result.success,
+      executionTime: result.metadata?.duration,
+    })
 
     // Log each execution step and the final result
     await persistExecutionLogs(workflowId, executionId, result, 'api')
 
     return result
   } catch (error: any) {
+    logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
     // Log the error
     await persistExecutionError(workflowId, executionId, error, 'api')
     throw error
@@ -164,18 +173,21 @@ async function executeWorkflow(workflow: any, input?: any) {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params
 
   try {
+    logger.debug(`[${requestId}] GET execution request for workflow: ${id}`)
     const validation = await validateWorkflowAccess(request, id)
     if (validation.error) {
+      logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    const result = await executeWorkflow(validation.workflow)
+    const result = await executeWorkflow(validation.workflow, requestId)
     return createSuccessResponse(result)
   } catch (error: any) {
-    console.error('Error executing workflow:', error)
+    logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,
@@ -185,19 +197,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params
 
   try {
+    logger.debug(`[${requestId}] POST execution request for workflow: ${id}`)
     const validation = await validateWorkflowAccess(request, id)
     if (validation.error) {
+      logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
     const body = await request.json().catch(() => ({}))
-    const result = await executeWorkflow(validation.workflow, body)
+    const result = await executeWorkflow(validation.workflow, requestId, body)
     return createSuccessResponse(result)
   } catch (error: any) {
-    console.error('Error executing workflow:', error)
+    logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Script, createContext } from 'vm'
+import { createLogger } from '@/lib/logs/console-logger'
 
 // Explicitly export allowed methods
 export const dynamic = 'force-dynamic' // Disable static optimization
 export const runtime = 'nodejs' // Use Node.js runtime
+
+const logger = createLogger('FunctionExecuteAPI')
 
 /**
  * Resolves environment variables and tags in code
@@ -40,6 +43,7 @@ function resolveCodeVariables(
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
   let stdout = ''
 
@@ -47,6 +51,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     const { code, params = {}, timeout = 3000, envVars = {} } = body
+
+    logger.debug(`[${requestId}] Executing function with params`, {
+      hasParams: Object.keys(params).length > 0,
+      timeout,
+      hasEnvVars: Object.keys(envVars).length > 0,
+    })
 
     // Resolve variables in the code with workflow environment variables
     const resolvedCode = resolveCodeVariables(code, params, envVars)
@@ -68,7 +78,7 @@ export async function POST(req: NextRequest) {
             args
               .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)))
               .join(' ') + '\n'
-          console.error('❌ Code Console Error:', errorMessage.trim())
+          logger.error(`[${requestId}] Code Console Error:`, errorMessage.trim())
           stdout += 'ERROR: ' + errorMessage
         },
       },
@@ -91,6 +101,7 @@ export async function POST(req: NextRequest) {
     })
 
     const executionTime = Date.now() - startTime
+    logger.info(`[${requestId}] Function executed successfully`, { executionTime })
 
     const response = {
       success: true,
@@ -104,6 +115,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(response)
   } catch (error: any) {
     const executionTime = Date.now() - startTime
+    logger.error(`[${requestId}] Function execution failed`, {
+      error: error.message || 'Unknown error',
+      executionTime,
+    })
 
     const errorResponse = {
       success: false,

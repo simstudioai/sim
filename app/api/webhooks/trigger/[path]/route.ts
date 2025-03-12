@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
-import { mergeSubblockState, mergeSubblockStateAsync } from '@/stores/workflows/utils'
+import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
 import { environment, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+
+const logger = createLogger('WebhookTriggerAPI')
 
 // Force dynamic rendering for webhook endpoints
 export const dynamic = 'force-dynamic'
@@ -20,6 +23,8 @@ export const maxDuration = 300 // 5 minutes max execution time for long-running 
  * Handles both WhatsApp verification and other webhook providers
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     const path = (await params).path
     const url = new URL(request.url)
@@ -31,10 +36,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (mode && token && challenge) {
       // This is a WhatsApp verification request
-      console.log('WhatsApp verification request received')
+      logger.info(`[${requestId}] WhatsApp verification request received for path: ${path}`)
 
       if (mode !== 'subscribe') {
-        console.log('Invalid mode:', mode)
+        logger.warn(`[${requestId}] Invalid WhatsApp verification mode: ${mode}`)
         return new NextResponse('Invalid mode', { status: 400 })
       }
 
@@ -50,14 +55,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         const verificationToken = providerConfig.verificationToken
 
         if (!verificationToken) {
-          console.log(`Webhook ${wh.id} has no verification token, skipping`)
+          logger.debug(`[${requestId}] Webhook ${wh.id} has no verification token, skipping`)
           continue
         }
 
         if (token === verificationToken) {
-          console.log(
-            `Verification successful for webhook ${wh.id}, returning challenge: ${challenge}`
-          )
+          logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
           // Return ONLY the challenge as plain text (exactly as WhatsApp expects)
           return new NextResponse(challenge, {
             status: 200,
@@ -68,12 +71,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      console.log('No matching verification token found')
+      logger.warn(`[${requestId}] No matching WhatsApp verification token found`)
       return new NextResponse('Verification failed', { status: 403 })
     }
 
     // For non-WhatsApp verification requests
-    console.log('Looking for webhook with path:', path)
+    logger.debug(`[${requestId}] Looking for webhook with path: ${path}`)
 
     // Find the webhook in the database
     const webhooks = await db
@@ -85,13 +88,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .limit(1)
 
     if (webhooks.length === 0) {
+      logger.warn(`[${requestId}] No active webhook found for path: ${path}`)
       return new NextResponse('Webhook not found', { status: 404 })
     }
 
     // For other providers, just return a 200 OK
+    logger.info(`[${requestId}] Webhook verification successful for path: ${path}`)
     return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
-    console.error('Error processing webhook verification:', error)
+    logger.error(`[${requestId}] Error processing webhook verification`, error)
     return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
   } finally {
     // Ensure Redis connection is properly closed in serverless environment
@@ -103,6 +108,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string }> }
 ) {
+  const requestId = crypto.randomUUID().slice(0, 8)
   const executionId = uuidv4()
   let foundWorkflow: any = null
 
@@ -111,16 +117,14 @@ export async function POST(
 
     // Parse the request body
     const body = await request.json().catch(() => ({}))
-    console.log(`Webhook POST request received for path: ${path}`)
+    logger.info(`[${requestId}] Webhook POST request received for path: ${path}`)
 
     // Generate a unique request ID based on the request content
     const requestHash = await generateRequestHash(path, body)
 
     // Check if this exact request has been processed before
     if (await hasProcessedMessage(requestHash)) {
-      console.log(
-        `Duplicate webhook request detected with hash: ${requestHash}. Skipping processing.`
-      )
+      logger.info(`[${requestId}] Duplicate webhook request detected with hash: ${requestHash}`)
       // Return early for duplicate requests to prevent workflow execution
       return new NextResponse('Duplicate request', { status: 200 })
     }
@@ -137,11 +141,18 @@ export async function POST(
       .limit(1)
 
     if (webhooks.length === 0) {
+      logger.warn(`[${requestId}] No active webhook found for path: ${path}`)
       return new NextResponse('Webhook not found', { status: 404 })
     }
 
     const { webhook: foundWebhook, workflow: workflowData } = webhooks[0]
     foundWorkflow = workflowData
+
+    logger.info(`[${requestId}] Found webhook for path ${path}`, {
+      webhookId: foundWebhook.id,
+      provider: foundWebhook.provider,
+      workflowId: foundWorkflow.id,
+    })
 
     // For WhatsApp, also check for duplicate messages using their message ID
     if (foundWebhook.provider === 'whatsapp') {
@@ -154,9 +165,7 @@ export async function POST(
 
         // Check if we've already processed this message using Redis
         if (messageId && (await hasProcessedMessage(messageId))) {
-          console.log(
-            `Duplicate WhatsApp message detected with ID: ${messageId}. Skipping processing.`
-          )
+          logger.info(`[${requestId}] Duplicate WhatsApp message detected with ID: ${messageId}`)
           // Return early for duplicate messages to prevent workflow execution
           return new NextResponse('Duplicate message', { status: 200 })
         }
@@ -171,14 +180,23 @@ export async function POST(
         await markMessageAsProcessed(requestHash, 60 * 60 * 24)
 
         // Process the webhook synchronously - complete the workflow before returning
-        const result = await processWebhook(foundWebhook, foundWorkflow, body, request, executionId)
+        const result = await processWebhook(
+          foundWebhook,
+          foundWorkflow,
+          body,
+          request,
+          executionId,
+          requestId
+        )
 
         // After workflow execution is complete, return 200 OK
-        console.log(`Workflow execution complete for WhatsApp message ID: ${messageId}`)
+        logger.info(
+          `[${requestId}] Workflow execution complete for WhatsApp message ID: ${messageId}`
+        )
         return result
       } else {
         // This might be a different type of notification (e.g., status update)
-        console.log('No messages in WhatsApp payload, might be a status update')
+        logger.debug(`[${requestId}] No messages in WhatsApp payload, might be a status update`)
         return new NextResponse('OK', { status: 200 })
       }
     }
@@ -187,9 +205,9 @@ export async function POST(
     await markMessageAsProcessed(requestHash, 60 * 60 * 24)
 
     // For other providers, continue with synchronous processing
-    return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId)
+    return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId, requestId)
   } catch (error: any) {
-    console.error('Error processing webhook:', error)
+    logger.error(`[${requestId}] Error processing webhook`, error)
 
     // Log the error if we have a workflow ID
     if (foundWorkflow?.id) {
@@ -225,7 +243,6 @@ async function generateRequestHash(path: string, body: any): Promise<string> {
     return `request:${path}:${hash}`
   } catch (error) {
     // If hashing fails, use a UUID as fallback
-    console.error('Error generating request hash:', error)
     return `request:${path}:${uuidv4()}`
   }
 }
@@ -267,7 +284,8 @@ async function processWebhook(
   foundWorkflow: any,
   body: any,
   request: NextRequest,
-  executionId: string
+  executionId: string,
+  requestId: string
 ): Promise<NextResponse> {
   try {
     // Handle provider-specific verification and authentication
@@ -289,6 +307,7 @@ async function processWebhook(
           if (providerConfig.token) {
             const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
             if (!providedToken || providedToken !== providerConfig.token) {
+              logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
               return new NextResponse('Unauthorized', { status: 401 })
             }
           }
@@ -311,9 +330,12 @@ async function processWebhook(
         const timestamp = message.timestamp
         const text = message.text?.body
 
-        console.log(
-          `Processing WhatsApp message: ${text ? text.substring(0, 50) : '[no text]'} from ${from}`
-        )
+        logger.info(`[${requestId}] Processing WhatsApp message from ${from}`, {
+          messageId,
+          textPreview: text
+            ? `${text.substring(0, 30)}${text.length > 30 ? '...' : ''}`
+            : '[no text]',
+        })
 
         input = {
           whatsapp: {
@@ -358,20 +380,21 @@ async function processWebhook(
 
     // Get the workflow state
     if (!foundWorkflow.state) {
-      console.log(`Workflow ${foundWorkflow.id} has no state, skipping`)
+      logger.error(`[${requestId}] Workflow ${foundWorkflow.id} has no state`)
       return new NextResponse('Workflow state not found', { status: 500 })
     }
 
-    console.log(`Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id}`)
+    logger.info(
+      `[${requestId}] Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id}`
+    )
 
     // Get the workflow state
     const state = foundWorkflow.state as any
     const { blocks, edges, loops } = state
 
     // Use the async version of mergeSubblockState to ensure all values are properly resolved
-    console.log(`[Webhook Debug] Merging subblock states for workflow ${foundWorkflow.id}...`)
+    logger.debug(`[${requestId}] Merging subblock states for workflow ${foundWorkflow.id}`)
     const mergedStates = await mergeSubblockStateAsync(blocks, foundWorkflow.id)
-    console.log(`[Webhook Debug] Subblock states merged successfully`)
 
     // Retrieve environment variables for this user
     const [userEnv] = await db
@@ -389,7 +412,7 @@ async function processWebhook(
             const { decrypted } = await decryptSecret(encryptedValue)
             return [key, decrypted] as const
           } catch (error: any) {
-            console.error(`Failed to decrypt ${key}:`, error)
+            logger.error(`[${requestId}] Failed to decrypt environment variable "${key}"`, error)
             throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
           }
         }
@@ -438,7 +461,6 @@ async function processWebhook(
             }
 
             // Ensure the responseFormat is properly structured for OpenAI
-            // This ensures compatibility with the provider's expected format
             if (
               processedState.responseFormat &&
               typeof processedState.responseFormat === 'object'
@@ -456,7 +478,7 @@ async function processWebhook(
 
             acc[blockId] = processedState
           } catch (error) {
-            console.warn(`Failed to parse responseFormat for block ${blockId}:`, error)
+            logger.warn(`[${requestId}] Failed to parse responseFormat for block ${blockId}`, error)
             acc[blockId] = blockState
           }
         } else {
@@ -467,10 +489,9 @@ async function processWebhook(
       {} as Record<string, Record<string, any>>
     )
 
-    console.log(`[Webhook Debug] Serialized workflow:`, serializedWorkflow)
-    console.log(`[Webhook Debug] Processed block states:`, processedBlockStates)
-    console.log(`[Webhook Debug] Decrypted env vars:`, decryptedEnvVars)
-    console.log(`[Webhook Debug] Enriched input:`, enrichedInput)
+    logger.debug(
+      `[${requestId}] Starting workflow execution with ${Object.keys(processedBlockStates).length} blocks`
+    )
 
     const executor = new Executor(
       serializedWorkflow,
@@ -479,9 +500,11 @@ async function processWebhook(
       enrichedInput
     )
     const result = await executor.execute(foundWorkflow.id)
-    console.log(`[Webhook Debug] Final execution result:`, JSON.stringify(result))
 
-    console.log(`Successfully executed workflow ${foundWorkflow.id}`)
+    logger.info(`[${requestId}] Successfully executed workflow ${foundWorkflow.id}`, {
+      success: result.success,
+      executionTime: result.metadata?.duration,
+    })
 
     // Log each execution step and the final result
     await persistExecutionLogs(foundWorkflow.id, executionId, result, 'webhook')
@@ -489,7 +512,7 @@ async function processWebhook(
     // Return the execution result
     return NextResponse.json(result, { status: 200 })
   } catch (error: any) {
-    console.error('Error processing webhook:', error)
+    logger.error(`[${requestId}] Error processing webhook`, error)
 
     // Log the error if we have a workflow ID
     if (foundWorkflow?.id) {

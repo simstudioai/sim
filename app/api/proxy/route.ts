@@ -1,18 +1,40 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool, getTool } from '@/tools'
 import { validateToolRequest } from '@/tools/utils'
 
+const logger = createLogger('ProxyAPI')
+
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     const { toolId, params } = await request.json()
+
+    logger.debug(`[${requestId}] Proxy request for tool`, {
+      toolId,
+      hasParams: !!params && Object.keys(params).length > 0,
+    })
 
     const tool = getTool(toolId)
 
     // Validate the tool and its parameters
-    validateToolRequest(toolId, tool, params)
+    try {
+      validateToolRequest(toolId, tool, params)
+    } catch (error) {
+      logger.warn(`[${requestId}] Tool validation failed`, {
+        toolId,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return NextResponse.json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
 
     try {
       if (!tool) {
+        logger.error(`[${requestId}] Tool not found`, { toolId })
         throw new Error(`Tool not found: ${toolId}`)
       }
 
@@ -20,6 +42,11 @@ export async function POST(request: Request) {
       const result = await executeTool(toolId, params, true, true)
 
       if (!result.success) {
+        logger.warn(`[${requestId}] Tool execution failed`, {
+          toolId,
+          error: result.error || 'Unknown error',
+        })
+
         if (tool.transformError) {
           try {
             const errorResult = tool.transformError(result)
@@ -54,11 +81,16 @@ export async function POST(request: Request) {
         }
       }
 
+      logger.info(`[${requestId}] Tool executed successfully`, { toolId })
       return NextResponse.json(result)
     } catch (error: any) {
       throw error
     }
   } catch (error: any) {
+    logger.error(`[${requestId}] Proxy request failed`, {
+      error: error instanceof Error ? error.message : String(error),
+    })
+
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : String(error),

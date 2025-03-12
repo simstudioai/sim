@@ -3,6 +3,7 @@ import { Cron } from 'croner'
 import { eq, lte } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
+import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -11,6 +12,8 @@ import { db } from '@/db'
 import { environment, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+
+const logger = createLogger('ScheduledExecuteAPI')
 
 interface SubBlockValue {
   value: string
@@ -151,6 +154,7 @@ const runningExecutions = new Set<string>()
 
 // Add GET handler for cron job
 export async function GET(req: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
   const now = new Date()
 
   let dueSchedules: (typeof workflowSchedule.$inferSelect)[] = []
@@ -164,16 +168,20 @@ export async function GET(req: NextRequest) {
       // Limit to 10 workflows per minute to prevent overload
       .limit(10)
 
+    logger.info(`[${requestId}] Processing ${dueSchedules.length} due scheduled workflows`)
+
     for (const schedule of dueSchedules) {
       const executionId = uuidv4()
 
       try {
         // Skip if this workflow is already running
         if (runningExecutions.has(schedule.workflowId)) {
+          logger.debug(`[${requestId}] Skipping workflow ${schedule.workflowId} - already running`)
           continue
         }
 
         runningExecutions.add(schedule.workflowId)
+        logger.debug(`[${requestId}] Starting execution of workflow ${schedule.workflowId}`)
 
         // Retrieve the workflow record
         const [workflowRecord] = await db
@@ -183,6 +191,7 @@ export async function GET(req: NextRequest) {
           .limit(1)
 
         if (!workflowRecord) {
+          logger.warn(`[${requestId}] Workflow ${schedule.workflowId} not found`)
           runningExecutions.delete(schedule.workflowId)
           continue
         }
@@ -202,6 +211,9 @@ export async function GET(req: NextRequest) {
           .limit(1)
 
         if (!userEnv) {
+          logger.error(
+            `[${requestId}] No environment variables found for user ${workflowRecord.userId}`
+          )
           throw new Error('No environment variables found for this user')
         }
 
@@ -233,7 +245,10 @@ export async function GET(req: NextRequest) {
                         const { decrypted } = await decryptSecret(encryptedValue)
                         value = (value as string).replace(match, decrypted)
                       } catch (error: any) {
-                        console.error('Error decrypting value:', error)
+                        logger.error(
+                          `[${requestId}] Error decrypting value for variable "${varName}"`,
+                          error
+                        )
                         throw new Error(
                           `Failed to decrypt environment variable "${varName}": ${error.message}`
                         )
@@ -259,7 +274,7 @@ export async function GET(req: NextRequest) {
             const { decrypted } = await decryptSecret(encryptedValue)
             decryptedEnvVars[key] = decrypted
           } catch (error: any) {
-            console.error(`Failed to decrypt ${key}:`, error)
+            logger.error(`[${requestId}] Failed to decrypt environment variable "${key}"`, error)
             throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
           }
         }
@@ -279,23 +294,19 @@ export async function GET(req: NextRequest) {
             // Check if this block has a responseFormat that needs to be parsed
             if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
               try {
-                console.log(
-                  `[Schedule Debug] Block ${blockId} has responseFormat as string:`,
-                  blockState.responseFormat
-                )
+                logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
                 // Attempt to parse the responseFormat if it's a string
                 const parsedResponseFormat = JSON.parse(blockState.responseFormat)
-                console.log(
-                  `[Schedule Debug] Successfully parsed responseFormat for block ${blockId}:`,
-                  parsedResponseFormat
-                )
 
                 acc[blockId] = {
                   ...blockState,
                   responseFormat: parsedResponseFormat,
                 }
               } catch (error) {
-                console.warn(`Failed to parse responseFormat for block ${blockId}:`, error)
+                logger.warn(
+                  `[${requestId}] Failed to parse responseFormat for block ${blockId}`,
+                  error
+                )
                 acc[blockId] = blockState
               }
             } else {
@@ -306,6 +317,7 @@ export async function GET(req: NextRequest) {
           {} as Record<string, Record<string, any>>
         )
 
+        logger.info(`[${requestId}] Executing workflow ${schedule.workflowId}`)
         const executor = new Executor(
           serializedWorkflow,
           processedBlockStates, // Use the processed block states
@@ -319,6 +331,7 @@ export async function GET(req: NextRequest) {
 
         // Only update next_run_at if execution was successful
         if (result.success) {
+          logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
           // Calculate the next run time based on the schedule configuration
           const nextRunAt = calculateNextRunTime(schedule, blocks)
 
@@ -331,7 +344,12 @@ export async function GET(req: NextRequest) {
               nextRunAt,
             })
             .where(eq(workflowSchedule.id, schedule.id))
+
+          logger.debug(
+            `[${requestId}] Updated next run time for workflow ${schedule.workflowId} to ${nextRunAt.toISOString()}`
+          )
         } else {
+          logger.warn(`[${requestId}] Workflow ${schedule.workflowId} execution failed`)
           // If execution failed, increment next_run_at by a small delay to prevent immediate retries
           const retryDelay = 1 * 60 * 1000 // 1 minute delay
           const nextRetryAt = new Date(now.getTime() + retryDelay)
@@ -343,9 +361,16 @@ export async function GET(req: NextRequest) {
               nextRunAt: nextRetryAt,
             })
             .where(eq(workflowSchedule.id, schedule.id))
+
+          logger.debug(
+            `[${requestId}] Scheduled retry for workflow ${schedule.workflowId} at ${nextRetryAt.toISOString()}`
+          )
         }
       } catch (error: any) {
-        console.error(`Error executing scheduled workflow ${schedule.workflowId}:`, error)
+        logger.error(
+          `[${requestId}] Error executing scheduled workflow ${schedule.workflowId}`,
+          error
+        )
 
         // Log the error
         await persistExecutionError(schedule.workflowId, executionId, error, 'schedule')
@@ -366,7 +391,7 @@ export async function GET(req: NextRequest) {
       }
     }
   } catch (error: any) {
-    console.error('Error in scheduled execution:', error)
+    logger.error(`[${requestId}] Error in scheduled execution handler`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

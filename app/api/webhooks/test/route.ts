@@ -1,24 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { webhook } from '@/db/schema'
+
+const logger = createLogger('WebhookTestAPI')
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Get the webhook ID and provider from the query parameters
     const { searchParams } = new URL(request.url)
     const webhookId = searchParams.get('id')
 
     if (!webhookId) {
+      logger.warn(`[${requestId}] Missing webhook ID in test request`)
       return NextResponse.json({ success: false, error: 'Webhook ID is required' }, { status: 400 })
     }
+
+    logger.debug(`[${requestId}] Testing webhook with ID: ${webhookId}`)
 
     // Find the webhook in the database
     const webhooks = await db.select().from(webhook).where(eq(webhook.id, webhookId)).limit(1)
 
     if (webhooks.length === 0) {
+      logger.warn(`[${requestId}] Webhook not found: ${webhookId}`)
       return NextResponse.json({ success: false, error: 'Webhook not found' }, { status: 404 })
     }
 
@@ -30,12 +39,19 @@ export async function GET(request: NextRequest) {
     const baseUrl = new URL(request.url).origin
     const webhookUrl = `${baseUrl}/api/webhooks/trigger/${foundWebhook.path}`
 
+    logger.info(`[${requestId}] Testing webhook for provider: ${provider}`, {
+      webhookId,
+      path: foundWebhook.path,
+      isActive: foundWebhook.isActive,
+    })
+
     // Provider-specific test logic
     switch (provider) {
       case 'whatsapp': {
         const verificationToken = providerConfig.verificationToken
 
         if (!verificationToken) {
+          logger.warn(`[${requestId}] WhatsApp webhook missing verification token: ${webhookId}`)
           return NextResponse.json(
             { success: false, error: 'Webhook has no verification token' },
             { status: 400 }
@@ -47,6 +63,11 @@ export async function GET(request: NextRequest) {
 
         // Construct the WhatsApp verification URL
         const whatsappUrl = `${webhookUrl}?hub.mode=subscribe&hub.verify_token=${verificationToken}&hub.challenge=${challenge}`
+
+        logger.debug(`[${requestId}] Testing WhatsApp webhook verification`, {
+          webhookId,
+          challenge,
+        })
 
         // Make a request to the webhook endpoint
         const response = await fetch(whatsappUrl, {
@@ -62,6 +83,16 @@ export async function GET(request: NextRequest) {
 
         // Check if the test was successful
         const success = status === 200 && responseText === challenge
+
+        if (success) {
+          logger.info(`[${requestId}] WhatsApp webhook verification successful: ${webhookId}`)
+        } else {
+          logger.warn(`[${requestId}] WhatsApp webhook verification failed: ${webhookId}`, {
+            status,
+            contentType,
+            responseTextLength: responseText.length,
+          })
+        }
 
         return NextResponse.json({
           success,
@@ -99,6 +130,7 @@ export async function GET(request: NextRequest) {
       case 'github': {
         const contentType = providerConfig.contentType || 'application/json'
 
+        logger.info(`[${requestId}] GitHub webhook test successful: ${webhookId}`)
         return NextResponse.json({
           success: true,
           webhook: {
@@ -118,6 +150,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'stripe': {
+        logger.info(`[${requestId}] Stripe webhook test successful: ${webhookId}`)
         return NextResponse.json({
           success: true,
           webhook: {
@@ -139,6 +172,7 @@ export async function GET(request: NextRequest) {
 
       default: {
         // Generic webhook test
+        logger.info(`[${requestId}] Generic webhook test successful: ${webhookId}`)
         return NextResponse.json({
           success: true,
           webhook: {
@@ -153,7 +187,7 @@ export async function GET(request: NextRequest) {
       }
     }
   } catch (error: any) {
-    console.error('Error testing webhook:', error)
+    logger.error(`[${requestId}] Error testing webhook`, error)
     return NextResponse.json(
       {
         success: false,
