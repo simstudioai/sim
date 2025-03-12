@@ -12,6 +12,18 @@ const nextConfig: NextConfig = {
   },
   // Always use 'standalone' output to support API routes
   output: 'standalone',
+  webpack: (config, { isServer }) => {
+    // Configure webpack to use memory cache instead of filesystem cache
+    // This avoids the serialization of large strings during the build process
+    if (config.cache) {
+      config.cache = {
+        type: 'memory',
+        maxGenerations: 1,
+      }
+    }
+
+    return config
+  },
   // Only include headers when not building for standalone export
   ...(isStandaloneBuild
     ? {}
