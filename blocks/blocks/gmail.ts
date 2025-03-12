@@ -35,6 +35,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       requiredScopes: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/gmail.readonly',
+        'https://www.googleapis.com/auth/gmail.labels',
       ],
       placeholder: 'Select Gmail account',
     },
@@ -63,14 +64,47 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       placeholder: 'Email content',
       condition: { field: 'operation', value: 'send_gmail' },
     },
-    // Read Email Fields
+    // Read Email Fields - Add folder selector
+    {
+      id: 'folder',
+      title: 'Label',
+      type: 'folder-selector',
+      layout: 'full',
+      provider: 'google-email',
+      serviceId: 'gmail',
+      requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+      placeholder: 'Select Gmail label/folder',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    {
+      id: 'unreadOnly',
+      title: 'Unread Only',
+      type: 'switch',
+      layout: 'full',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
+    {
+      id: 'maxResults',
+      title: 'Number of Emails',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
+      condition: { field: 'operation', value: 'read_gmail' },
+    },
     {
       id: 'messageId',
       title: 'Message ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter message ID to read',
-      condition: { field: 'operation', value: 'read_gmail' },
+      placeholder: 'Enter message ID to read (optional)',
+      condition: {
+        field: 'operation',
+        value: 'read_gmail',
+        and: {
+          field: 'folder',
+          value: '',
+        },
+      },
     },
     // Search Fields
     {
@@ -108,6 +142,12 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
       params: (params) => {
         // Pass the credential directly from the credential field
         const { credential, ...rest } = params
+
+        // Set default folder to INBOX if not specified
+        if (rest.operation === 'read_gmail' && !rest.folder) {
+          rest.folder = 'INBOX'
+        }
+
         return {
           ...rest,
           credential, // Keep the credential parameter
@@ -123,7 +163,9 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     subject: { type: 'string', required: false },
     body: { type: 'string', required: false },
     // Read operation inputs
+    folder: { type: 'string', required: false },
     messageId: { type: 'string', required: false },
+    unreadOnly: { type: 'boolean', required: false },
     // Search operation inputs
     query: { type: 'string', required: false },
     maxResults: { type: 'number', required: false },

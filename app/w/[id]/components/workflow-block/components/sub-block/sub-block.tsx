@@ -11,6 +11,7 @@ import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector-input'
+import { FolderSelectorInput } from './components/folder-selector-input'
 import { LongInput } from './components/long-input'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -150,6 +151,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         )
       case 'file-selector':
         return <FileSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+      case 'folder-selector':
+        return <FolderSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       default:
         return null
     }

@@ -28,6 +28,7 @@ export type SubBlockType =
   | 'oauth-input' // OAuth credential selector
   | 'webhook-config' // Webhook configuration
   | 'file-selector' // File selector for Google Drive, etc.
+  | 'folder-selector' // Folder selector for Gmail, etc.
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'

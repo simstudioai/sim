@@ -15,6 +15,9 @@ export interface GmailSendParams extends BaseGmailParams {
 // Read operation parameters
 export interface GmailReadParams extends BaseGmailParams {
   messageId: string
+  folder: string
+  unreadOnly?: boolean
+  maxResults?: number
 }
 
 // Search operation parameters
@@ -37,6 +40,7 @@ interface EmailMetadata extends BaseGmailMetadata {
   from?: string
   to?: string
   subject?: string
+  date?: string
 }
 
 interface SearchMetadata extends BaseGmailMetadata {
