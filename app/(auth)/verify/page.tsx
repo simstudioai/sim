@@ -41,23 +41,27 @@ function VerifyContent() {
   useEffect(() => {
     if (email && !isSendingInitialOtp) {
       setIsSendingInitialOtp(true)
-      // Send verification OTP on initial page load
-      client.emailOtp
-        .sendVerificationOtp({
-          email,
-          type: 'email-verification',
-        })
-        .then(() => {})
-        .catch((error) => {
-          logger.error('Failed to send initial verification code:', error)
-          addNotification?.(
-            'error',
-            'Failed to send verification code. Please use the resend button.',
-            null
-          )
-        })
+
+      // Only send verification OTP if we're coming from login page
+      // Skip this if coming from signup since the OTP is already sent
+      if (!searchParams.get('fromSignup')) {
+        client.emailOtp
+          .sendVerificationOtp({
+            email,
+            type: 'email-verification',
+          })
+          .then(() => {})
+          .catch((error) => {
+            logger.error('Failed to send initial verification code:', error)
+            addNotification?.(
+              'error',
+              'Failed to send verification code. Please use the resend button.',
+              null
+            )
+          })
+      }
     }
-  }, [email, isSendingInitialOtp, addNotification])
+  }, [email, isSendingInitialOtp, addNotification, searchParams])
 
   // Enable the verify button when all 6 digits are entered
   const isOtpComplete = otp.length === 6

@@ -42,28 +42,19 @@ export default function LoginPage() {
       let errorMessage = 'Invalid email or password'
 
       if (err.message?.includes('not verified')) {
-        errorMessage =
-          'Please verify your email before signing in. Would you like to resend the verification code?'
+        // Redirect to verification page directly without asking for confirmation
+        try {
+          // Send a new verification OTP
+          await client.emailOtp.sendVerificationOtp({
+            email,
+            type: 'email-verification',
+          })
 
-        // Offer to send a verification code and redirect to verification page
-        const resendVerification = window.confirm(
-          'Your email is not verified. Would you like to resend the verification code and go to the verification page?'
-        )
-
-        if (resendVerification) {
-          try {
-            // Send a new verification OTP
-            await client.emailOtp.sendVerificationOtp({
-              email,
-              type: 'email-verification',
-            })
-
-            // Redirect to the verify page
-            router.push(`/verify?email=${encodeURIComponent(email)}`)
-            return
-          } catch (verifyErr) {
-            errorMessage = 'Failed to send verification code. Please try again later.'
-          }
+          // Redirect to the verify page
+          router.push(`/verify?email=${encodeURIComponent(email)}`)
+          return
+        } catch (verifyErr) {
+          errorMessage = 'Failed to send verification code. Please try again later.'
         }
       } else if (err.message?.includes('not found')) {
         errorMessage = 'No account found with this email. Please sign up first.'
