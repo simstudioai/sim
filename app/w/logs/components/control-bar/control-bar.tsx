@@ -5,9 +5,12 @@ import { Loader2, Play, RefreshCw, Search, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useDebounce } from '../../hooks/use-debounce'
 import { useFilterStore } from '../../stores/store'
-import { LogsResponse, WorkflowLog } from '../../stores/types'
+import { LogsResponse } from '../../stores/types'
+
+const logger = createLogger('ControlBar')
 
 /**
  * Control bar for logs page - includes search functionality and refresh/live controls
@@ -43,7 +46,7 @@ export function ControlBar() {
       const data: LogsResponse = await response.json()
       return data
     } catch (err) {
-      console.error('Failed to fetch logs:', err)
+      logger.error('Failed to fetch logs:', { err })
       throw err
     }
   }

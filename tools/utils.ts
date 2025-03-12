@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { TableRow } from './types'
 import { ToolConfig, ToolResponse } from './types'
+
+const logger = createLogger('Tools Utils')
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -108,7 +111,7 @@ export async function executeRequest(
         }
       } else {
         const error = errorContent.message || `${toolId} API error: ${externalResponse.statusText}`
-        console.error(`${toolId} error:`, error)
+        logger.error(`${toolId} error:`, { error })
         throw new Error(error)
       }
     }

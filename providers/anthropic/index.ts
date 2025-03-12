@@ -1,6 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('Anthropic Provider')
 
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
@@ -264,7 +267,7 @@ ${fieldDescriptions}
               ],
             })
           } catch (error) {
-            console.error('Error processing tool call:', error)
+            logger.error('Error processing tool call:', { error })
           }
         }
 
@@ -298,7 +301,7 @@ ${fieldDescriptions}
         iterationCount++
       }
     } catch (error) {
-      console.error('Error in Anthropic request:', error)
+      logger.error('Error in Anthropic request:', { error })
       throw error
     }
 
@@ -310,7 +313,7 @@ ${fieldDescriptions}
           content = jsonMatch[0]
         }
       } catch (e) {
-        console.error('Error extracting JSON from response:', e)
+        logger.error('Error extracting JSON from response:', { error: e })
       }
     }
 

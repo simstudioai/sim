@@ -1,9 +1,12 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useEnvironmentStore } from '../settings/environment/store'
 import { useWorkflowStore } from '../workflows/workflow/store'
 import { ChatMessage, ChatStore } from './types'
 import { calculateBlockPosition, getNextBlockNumber } from './utils'
+
+const logger = createLogger('Chat Store')
 
 export const useChatStore = create<ChatStore>()(
   devtools(
@@ -71,8 +74,6 @@ export const useChatStore = create<ChatStore>()(
 
           const data = await response.json()
 
-          console.log('OPENAI RESPONSE', data)
-
           // Handle any actions returned from the API
           if (data.actions) {
             // Process all block additions first to properly calculate positions
@@ -135,7 +136,7 @@ export const useChatStore = create<ChatStore>()(
             }))
           }
         } catch (error) {
-          console.error('Chat error:', error)
+          logger.error('Chat error:', { error })
           set({ error: error instanceof Error ? error.message : 'Unknown error' })
         } finally {
           set({ isProcessing: false })

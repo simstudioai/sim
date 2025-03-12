@@ -33,11 +33,6 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
   },
   directExecution: async (params: SupabaseUpdateParams) => {
     try {
-      // This is a mock implementation
-      console.log(`Updating data in Supabase table ${params.table} in project ${params.projectId}`)
-      console.log('Filter:', params.filter)
-      console.log('Data to update:', params.data)
-
       // Mock response
       const mockData = [{ ...params.data, id: params.filter.value }]
 
@@ -51,7 +46,6 @@ export const updateTool: ToolConfig<SupabaseUpdateParams, SupabaseUpdateResponse
         error: null,
       }
     } catch (error) {
-      console.error('Error updating Supabase data:', error)
       return {
         success: false,
         output: {

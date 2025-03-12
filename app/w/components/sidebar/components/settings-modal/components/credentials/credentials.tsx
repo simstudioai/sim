@@ -7,9 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { client, useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { OAUTH_PROVIDERS, OAuthServiceConfig } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
+
+const logger = createLogger('Credentials')
 
 interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
@@ -93,7 +96,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         setServices(serviceDefinitions)
       }
     } catch (error) {
-      console.error('Error fetching services:', error)
+      logger.error('Error fetching services:', { error })
       // Use base definitions on error
       setServices(defineServices())
     } finally {
@@ -120,7 +123,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       // Clear the URL parameters
       router.replace('/w')
     } else if (error) {
-      console.error('OAuth error:', error)
+      logger.error('OAuth error:', { error })
       router.replace('/w')
     }
   }, [searchParams, router, userId])
@@ -188,7 +191,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         callbackURL: window.location.href,
       })
     } catch (error) {
-      console.error('OAuth login error:', error)
+      logger.error('OAuth login error:', { error })
       setIsConnecting(null)
     }
   }
@@ -224,10 +227,10 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           })
         )
       } else {
-        console.error('Error disconnecting service')
+        logger.error('Error disconnecting service')
       }
     } catch (error) {
-      console.error('Error disconnecting service:', error)
+      logger.error('Error disconnecting service:', { error })
     } finally {
       setIsConnecting(null)
     }

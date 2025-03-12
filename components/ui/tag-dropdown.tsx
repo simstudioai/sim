@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+const logger = createLogger('TagDropdown')
 
 interface Field {
   name: string
@@ -127,7 +130,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             }
           }
         } catch (e) {
-          console.error('Error parsing metrics:', e)
+          logger.error('Error parsing metrics:', { e })
         }
       }
 
@@ -152,7 +155,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           }
         }
       } catch (e) {
-        console.error('Error parsing response format:', e)
+        logger.error('Error parsing response format:', { e })
       }
 
       // Fall back to default outputs if no response format
@@ -190,7 +193,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           }
         }
       } catch (e) {
-        console.error('Error parsing response format:', e)
+        logger.error('Error parsing response format:', { e })
       }
 
       if (sourceBlock.type === 'evaluator') {
@@ -204,7 +207,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             )
           }
         } catch (e) {
-          console.error('Error parsing metrics:', e)
+          logger.error('Error parsing metrics:', { e })
           return []
         }
       }

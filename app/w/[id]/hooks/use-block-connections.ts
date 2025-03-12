@@ -1,6 +1,9 @@
 import { shallow } from 'zustand/shallow'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+const logger = createLogger('useBlockConnections')
 
 interface Field {
   name: string
@@ -77,7 +80,7 @@ export function useBlockConnections(blockId: string) {
             ? JSON.parse(responseFormatValue)
             : responseFormatValue // Handle case where it's already an object
       } catch (e) {
-        console.error('Failed to parse response format:', e)
+        logger.error('Failed to parse response format:', { e })
         responseFormat = undefined
       }
 

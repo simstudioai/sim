@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -30,6 +31,8 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+
+const logger = createLogger('ControlBar')
 
 /**
  * Control bar for managing workflows - handles editing, deletion, deployment,
@@ -106,7 +109,7 @@ export function ControlBar() {
           )
         }
       } catch (error) {
-        console.error('Failed to check deployment status:', error)
+        logger.error('Failed to check deployment status:', { error })
       }
     }
     checkStatus()

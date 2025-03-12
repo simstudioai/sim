@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Copy, Rocket, Terminal, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Copy, Rocket, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -13,15 +13,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { Notification, NotificationType } from '@/stores/notifications/types'
+import { Notification } from '@/stores/notifications/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+const logger = createLogger('Notifications')
 
 // Constants
 const NOTIFICATION_TIMEOUT = 4000
 const FADE_DURATION = 300
-const MAX_MESSAGE_HEIGHT = 300 // Maximum height in pixels before truncation
 
 // Icon mapping for notification types
 const NotificationIcon = {
@@ -213,7 +215,7 @@ function NotificationAlert({
       // Close the dialog
       setIsDeleteDialogOpen(false)
     } catch (error) {
-      console.error('Error deleting API deployment:', error)
+      logger.error('Error deleting API deployment:', { error })
     }
   }
 

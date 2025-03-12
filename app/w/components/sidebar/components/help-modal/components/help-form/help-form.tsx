@@ -19,6 +19,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('HelpForm')
 
 // Define form schema
 const formSchema = z.object({
@@ -119,7 +122,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
         lastModified: new Date().getTime(),
       })
     } catch (error) {
-      console.warn('Image compression failed, using original file:', error)
+      logger.warn('Image compression failed, using original file:', { error })
       return file
     }
   }
@@ -167,7 +170,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
         setImages((prev) => [...prev, ...newImages])
       }
     } catch (error) {
-      console.error('Error processing images:', error)
+      logger.error('Error processing images:', { error })
       setImageError('An error occurred while processing images. Please try again.')
     } finally {
       setIsProcessing(false)
@@ -258,7 +261,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
       images.forEach((image) => URL.revokeObjectURL(image.preview))
       setImages([])
     } catch (error) {
-      console.error('Error submitting help request:', error)
+      logger.error('Error submitting help request:', { error })
       setSubmitStatus('error')
       setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
     } finally {

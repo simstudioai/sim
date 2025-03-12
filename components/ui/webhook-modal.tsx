@@ -23,12 +23,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { createLogger } from '@/lib/logs/console-logger'
 import {
   ProviderConfig,
   WEBHOOK_PROVIDERS,
-  WebhookProvider,
 } from '@/app/w/[id]/components/workflow-block/components/sub-block/components/webhook-config'
 
+const logger = createLogger('WebhookModal')
 interface WebhookModalProps {
   isOpen: boolean
   onClose: () => void
@@ -101,7 +102,7 @@ export function WebhookModal({
             }
           }
         } catch (error) {
-          console.error('Error fetching webhook config:', error)
+          logger.error('Error fetching webhook config:', { error })
         } finally {
           setIsLoadingToken(false)
         }
@@ -156,11 +157,10 @@ export function WebhookModal({
           ? formattedPath.substring(1)
           : formattedPath
 
-        console.log('Saving webhook with path:', pathToSave)
         await onSave(pathToSave, providerConfig)
       }
     } catch (error) {
-      console.error('Error saving webhook:', error)
+      logger.error('Error saving webhook:', { error })
     } finally {
       setIsSaving(false)
     }
@@ -174,7 +174,7 @@ export function WebhookModal({
         setShowDeleteConfirm(false)
       }
     } catch (error) {
-      console.error('Error deleting webhook:', error)
+      logger.error('Error deleting webhook:', { error })
     } finally {
       setIsDeleting(false)
     }
@@ -211,7 +211,7 @@ export function WebhookModal({
         })
       }
     } catch (error: any) {
-      console.error('Error testing webhook:', error)
+      logger.error('Error testing webhook:', { error })
       setTestResult({
         success: false,
         message: error.message || 'An error occurred while testing the webhook',

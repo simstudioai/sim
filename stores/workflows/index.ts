@@ -1,9 +1,12 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
 import { BlockState, WorkflowState } from './workflow/types'
+
+const logger = createLogger('Workflows')
 
 // Get a specific block with its subblock values merged in
 export function getBlockWithValues(blockId: string): BlockState | null {
@@ -42,7 +45,7 @@ export function getAllWorkflowsWithValues() {
       const savedState = loadWorkflowState(id)
       if (!savedState) {
         // Skip workflows with no saved state
-        console.warn(`No saved state found for workflow ${id}`)
+        logger.warn(`No saved state found for workflow ${id}`)
         continue
       }
       workflowState = savedState

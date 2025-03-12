@@ -1,3 +1,4 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
@@ -8,6 +9,8 @@ import { SerializedBlock } from '@/serializer/types'
 import { executeTool, getTool } from '@/tools'
 import { PathTracker } from './path'
 import { ExecutionContext } from './types'
+
+const logger = createLogger('Handlers')
 
 /**
  * Interface for block handlers that execute specific block types.
@@ -60,14 +63,14 @@ async function executeCodeWithFallback(
       const result = await executeCode(code, params, timeout)
 
       if (!result.success) {
-        console.warn(`WebContainer API execution failed: ${result.error}`)
+        logger.warn(`WebContainer API execution failed: ${result.error}`)
         throw new Error(result.error || `WebContainer execution failed with no error message`)
       }
 
       return { success: true, output: result.output }
     } catch (error: any) {
-      console.warn('WebContainer execution failed, falling back to VM:', error)
-      console.error('WebContainer error details:', {
+      logger.warn('WebContainer execution failed, falling back to VM:', error)
+      logger.error('WebContainer error details:', {
         name: error.name,
         message: error.message,
         stack: error.stack,
@@ -106,95 +109,40 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    console.log(`[AgentBlockHandler Debug] Executing agent block: ${block.id}`)
-    console.log(`[AgentBlockHandler Debug] Block inputs:`, JSON.stringify(inputs, null, 2))
+    logger.info(`Executing agent block: ${block.id}`)
 
     // Check for null values and try to resolve from environment variables
     const nullInputs = Object.entries(inputs)
       .filter(([_, value]) => value === null)
       .map(([key]) => key)
 
-    if (nullInputs.length > 0) {
-      console.warn(`[AgentBlockHandler Debug] Null inputs detected:`, nullInputs)
-
-      // Check if we can resolve API key from environment variables
-      if (nullInputs.includes('apiKey') && context.environmentVariables) {
-        console.log(
-          `[AgentBlockHandler Debug] Attempting to resolve API key from environment variables`
-        )
-        console.log(
-          `[AgentBlockHandler Debug] Available env vars:`,
-          Object.keys(context.environmentVariables)
-        )
-
-        // Try different possible environment variable names for OpenAI API key
-        const possibleEnvVarNames = ['OPENAI_API_KEY', 'openai_api_key', 'OPENAI_KEY', 'openai_key']
-        for (const envVar of possibleEnvVarNames) {
-          if (context.environmentVariables[envVar]) {
-            console.log(
-              `[AgentBlockHandler Debug] Found API key in environment variable: ${envVar}`
-            )
-            inputs.apiKey = context.environmentVariables[envVar]
-            break
-          }
-        }
-
-        // Check if we successfully resolved the API key
-        if (inputs.apiKey) {
-          console.log(
-            `[AgentBlockHandler Debug] Successfully resolved API key from environment variables`
-          )
-        } else {
-          console.error(
-            `[AgentBlockHandler Debug] Failed to resolve API key from environment variables`
-          )
-        }
-      }
-    }
-
     // Parse response format if provided
     let responseFormat: any = undefined
     if (inputs.responseFormat) {
       // Handle empty string case - treat it as no response format
       if (inputs.responseFormat === '') {
-        console.log(
-          `[AgentBlockHandler Debug] Response format is an empty string, treating as undefined`
-        )
         responseFormat = undefined
       } else {
         try {
-          console.log(
-            `[AgentBlockHandler Debug] Response format before parsing:`,
-            typeof inputs.responseFormat,
-            inputs.responseFormat
-          )
-
           responseFormat =
             typeof inputs.responseFormat === 'string'
               ? JSON.parse(inputs.responseFormat)
               : inputs.responseFormat
-
-          console.log(`[AgentBlockHandler Debug] Response format after parsing:`, responseFormat)
 
           // Ensure the responseFormat is properly structured
           if (responseFormat && typeof responseFormat === 'object') {
             // If it's just a raw schema without the expected wrapper properties,
             // wrap it properly for the provider
             if (!responseFormat.schema && !responseFormat.name) {
-              console.log(`[AgentBlockHandler Debug] Wrapping raw schema in proper format`)
               responseFormat = {
                 name: 'response_schema',
                 schema: responseFormat,
                 strict: true,
               }
             }
-            console.log(
-              `[AgentBlockHandler Debug] Final response format structure:`,
-              responseFormat
-            )
           }
         } catch (error: any) {
-          console.error(`[AgentBlockHandler Error] Failed to parse response format:`, error)
+          logger.error(`Failed to parse response format:`, { error })
           throw new Error(`Invalid response format: ${error.message}`)
         }
       }
@@ -202,7 +150,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
-    console.log(`[AgentBlockHandler Debug] Using provider: ${providerId}, model: ${model}`)
+    logger.info(`Using provider: ${providerId}, model: ${model}`)
 
     // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)
@@ -243,7 +191,7 @@ export class AgentBlockHandler implements BlockHandler {
 
                         return result.output
                       } catch (error: any) {
-                        console.error(`Error executing custom tool ${toolName}:`, error)
+                        logger.error(`Error executing custom tool ${toolName}:`, error)
                         throw new Error(`Error in ${toolName}: ${error.message}`)
                       }
                     },
@@ -290,36 +238,29 @@ export class AgentBlockHandler implements BlockHandler {
       responseFormat,
     }
 
-    console.log(`[AgentBlockHandler Debug] Provider request details:`, {
+    logger.info(`Provider request prepared`, {
       model: providerRequest.model,
       hasSystemPrompt: !!providerRequest.systemPrompt,
       hasContext: !!providerRequest.context,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
-      apiKeyFirstChars: providerRequest.apiKey ? providerRequest.apiKey.substring(0, 4) : 'NONE',
     })
 
     // Ensure context is properly formatted for the provider
     const response = await executeProviderRequest(providerId, providerRequest)
 
-    console.log(`[AgentBlockHandler Debug] Provider response:`, {
-      content: response.content,
-      contentType: typeof response.content,
+    logger.info(`Provider response received`, {
       contentLength: response.content ? response.content.length : 0,
       model: response.model,
       hasTokens: !!response.tokens,
       hasToolCalls: !!response.toolCalls,
+      toolCallsCount: response.toolCalls?.length || 0,
     })
 
     // For structured responses, try to parse the content
     if (responseFormat) {
       try {
-        console.log(
-          `[AgentBlockHandler Debug] Attempting to parse response content as JSON:`,
-          response.content
-        )
         const parsedContent = JSON.parse(response.content)
-        console.log(`[AgentBlockHandler Debug] Successfully parsed content:`, parsedContent)
 
         const result = {
           response: {
@@ -338,11 +279,10 @@ export class AgentBlockHandler implements BlockHandler {
           },
         }
 
-        console.log(`[AgentBlockHandler Debug] Result:`, result)
         return result
       } catch (error) {
-        console.error(`[AgentBlockHandler Error] Failed to parse response content:`, error)
-        console.log(`[AgentBlockHandler Debug] Falling back to standard response format`)
+        logger.error(`Failed to parse response content:`, { error })
+        logger.info(`Falling back to standard response format`)
 
         // Fall back to standard response if parsing fails
         return {
@@ -561,7 +501,7 @@ export class ConditionBlockHandler implements BlockHandler {
           }
         }
       } catch (error: any) {
-        console.error(`Failed to evaluate condition: ${error.message}`, {
+        logger.error(`Failed to evaluate condition: ${error.message}`, {
           condition,
           error,
         })
@@ -641,7 +581,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         processedContent = String(inputs.content || '')
       }
     } catch (e) {
-      console.error('Error processing content:', e)
+      logger.error('Error processing content:', e)
       processedContent = String(inputs.content || '')
     }
 
@@ -732,12 +672,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
       try {
         parsedContent = JSON.parse(jsonStr)
       } catch (parseError) {
-        console.error('Failed to parse extracted JSON:', parseError)
+        logger.error('Failed to parse extracted JSON:', parseError)
         throw new Error('Invalid JSON in response')
       }
     } catch (error) {
-      console.error('Error parsing evaluator response:', error)
-      console.error('Raw response content:', response.content)
+      logger.error('Error parsing evaluator response:', error)
+      logger.error('Raw response content:', response.content)
 
       // Fallback to empty object
       parsedContent = {}
@@ -770,7 +710,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
             if (matchingKey) {
               metricScores[metricName] = Number(parsedContent[matchingKey])
             } else {
-              console.warn(`Metric "${metricName}" not found in LLM response`)
+              logger.warn(`Metric "${metricName}" not found in LLM response`)
               metricScores[metricName] = 0
             }
           }
@@ -782,7 +722,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
         })
       }
     } catch (e) {
-      console.error('Error extracting metric scores:', e)
+      logger.error('Error extracting metric scores:', e)
     }
 
     // Create result with metrics as direct fields for easy access

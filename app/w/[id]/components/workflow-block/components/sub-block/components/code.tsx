@@ -4,11 +4,13 @@ import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 import Editor from 'react-simple-code-editor'
-import { Button } from '@/components/ui/button'
 import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('Code')
 
 interface CodeProps {
   blockId: string
@@ -148,7 +150,7 @@ export function Code({
         }
       }, 0)
     } catch (error) {
-      console.error('Failed to parse drop data:', error)
+      logger.error('Failed to parse drop data:', { error })
     }
   }
 

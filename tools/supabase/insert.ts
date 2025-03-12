@@ -31,12 +31,6 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   },
   directExecution: async (params: SupabaseInsertParams) => {
     try {
-      // This is a mock implementation
-      console.log(
-        `Inserting data into Supabase table ${params.table} in project ${params.projectId}`
-      )
-      console.log('Data to insert:', params.data)
-
       // Mock response
       const mockData = [{ ...params.data, id: Math.floor(Math.random() * 1000) }]
 
@@ -50,7 +44,6 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
         error: null,
       }
     } catch (error) {
-      console.error('Error inserting into Supabase:', error)
       return {
         success: false,
         output: {

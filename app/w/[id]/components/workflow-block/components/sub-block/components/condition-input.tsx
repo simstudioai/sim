@@ -10,9 +10,12 @@ import { Button } from '@/components/ui/button'
 import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('ConditionInput')
 
 interface ConditionalBlock {
   id: string
@@ -145,7 +148,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         })
       )
     } catch (error) {
-      console.error('Error updating block value:', error, { blockId, newValue })
+      logger.error('Error updating block value:', { error, blockId, newValue })
     }
   }
 
@@ -280,7 +283,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         }
       }, 0)
     } catch (error) {
-      console.error('Failed to parse drop data:', error)
+      logger.error('Failed to parse drop data:', { error })
     }
   }
 

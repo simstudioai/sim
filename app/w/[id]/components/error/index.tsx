@@ -3,6 +3,9 @@
 import { Component, ReactNode, useEffect } from 'react'
 import { BotIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('ErrorBoundary')
 
 // ======== Shared Error UI Component ========
 interface ErrorUIProps {
@@ -81,7 +84,7 @@ interface NextErrorProps {
 export function NextError({ error, reset }: NextErrorProps) {
   useEffect(() => {
     // Optionally log the error to an error reporting service
-    console.error('Workflow error:', error)
+    logger.error('Workflow error:', { error })
   }, [error])
 
   return <ErrorUI onReset={reset} />
@@ -96,7 +99,7 @@ export function NextGlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Global workspace error:', error)
+    logger.error('Global workspace error:', { error })
   }, [error])
 
   return (

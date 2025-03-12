@@ -10,6 +10,9 @@ import {
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('OAuth')
 
 // Define the base OAuth provider type
 export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | string
@@ -329,14 +332,14 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('Token refresh failed:', response.status, errorText)
+      logger.error('Token refresh failed:', { status: response.status, error: errorText })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
 
     const data = await response.json()
     return data.access_token || null
   } catch (error) {
-    console.error('Error refreshing token:', error)
+    logger.error('Error refreshing token:', { error })
     return null
   }
 }

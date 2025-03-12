@@ -2,10 +2,13 @@
  * Centralized persistence layer for workflow stores
  * Handles localStorage interactions and synchronization
  */
+import { createLogger } from '@/lib/logs/console-logger'
 import { STORAGE_KEYS } from '../constants'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
+
+const logger = createLogger('Workflows Persistence')
 
 /**
  * Save data to localStorage with error handling
@@ -15,7 +18,7 @@ export function saveToStorage<T>(key: string, data: T): boolean {
     localStorage.setItem(key, JSON.stringify(data))
     return true
   } catch (error) {
-    console.error(`Failed to save data to ${key}:`, error)
+    logger.error(`Failed to save data to ${key}:`, { error })
     return false
   }
 }
@@ -28,7 +31,7 @@ export function loadFromStorage<T>(key: string): T | null {
     const data = localStorage.getItem(key)
     return data ? JSON.parse(data) : null
   } catch (error) {
-    console.error(`Failed to load data from ${key}:`, error)
+    logger.error(`Failed to load data from ${key}:`, { error })
     return null
   }
 }
@@ -41,7 +44,7 @@ export function removeFromStorage(key: string): boolean {
     localStorage.removeItem(key)
     return true
   } catch (error) {
-    console.error(`Failed to remove data from ${key}:`, error)
+    logger.error(`Failed to remove data from ${key}:`, { error })
     return false
   }
 }

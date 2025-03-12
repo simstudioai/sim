@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS, STORAGE_KEYS } from '../../constants'
 import {
-  loadRegistry,
   loadWorkflowState,
   removeFromStorage,
   saveRegistry,
@@ -14,6 +14,8 @@ import { workflowSync } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
+
+const logger = createLogger('Workflow Registry')
 
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
@@ -89,7 +91,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: parsedState.lastSaved || Date.now(),
           })
 
-          console.log(`Switched to workflow ${id}`)
+          logger.info(`Switched to workflow ${id}`)
         } else {
           // If no saved state, initialize with empty state
           useWorkflowStore.setState({
@@ -117,7 +119,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
           })
 
-          console.warn(`No saved state found for workflow ${id}, initialized with empty state`)
+          logger.warn(`No saved state found for workflow ${id}, initialized with empty state`)
         }
 
         // Update the active workflow ID
@@ -312,7 +314,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               state: { blocks: {} }, // Empty blocks will signal to cancel the schedule
             }),
           }).catch((error) => {
-            console.error(`Error cancelling schedule for deleted workflow ${id}:`, error)
+            logger.error(`Error cancelling schedule for deleted workflow ${id}:`, { error })
           })
 
           // Sync deletion with database

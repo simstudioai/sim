@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/command'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { createLogger } from '@/lib/logs/console-logger'
 import {
   Credential,
   OAUTH_PROVIDERS,
@@ -24,6 +25,8 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
+
+const logger = createLogger('FileSelector')
 
 export interface FileInfo {
   id: string
@@ -117,7 +120,7 @@ export function FileSelector({
         }
       }
     } catch (error) {
-      console.error('Error fetching credentials:', error)
+      logger.error('Error fetching credentials:', { error })
     } finally {
       setIsLoading(false)
     }
@@ -146,11 +149,11 @@ export function FileSelector({
             return data.file
           }
         } else {
-          console.error('Error fetching file by ID:', await response.text())
+          logger.error('Error fetching file by ID:', { error: await response.text() })
         }
         return null
       } catch (error) {
-        console.error('Error fetching file by ID:', error)
+        logger.error('Error fetching file by ID:', { error })
         return null
       } finally {
         setIsLoadingSelectedFile(false)
@@ -198,11 +201,11 @@ export function FileSelector({
             }
           }
         } else {
-          console.error('Error fetching files:', await response.text())
+          logger.error('Error fetching files:', { error: await response.text() })
           setFiles([])
         }
       } catch (error) {
-        console.error('Error fetching files:', error)
+        logger.error('Error fetching files:', { error })
         setFiles([])
       } finally {
         setIsLoading(false)

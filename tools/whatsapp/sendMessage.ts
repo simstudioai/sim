@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { WhatsAppToolResponse } from './types'
+
+const logger = createLogger('WhatsApp Send Message Tool')
 
 export const sendMessageTool: ToolConfig<any, WhatsAppToolResponse> = {
   id: 'whatsapp',
@@ -81,7 +84,7 @@ export const sendMessageTool: ToolConfig<any, WhatsAppToolResponse> = {
     if (!response.ok) {
       const errorMessage =
         data.error?.message || `Failed to send WhatsApp message (HTTP ${response.status})`
-      console.error('WhatsApp API error:', data)
+      logger.error('WhatsApp API error:', data)
       throw new Error(errorMessage)
     }
 
@@ -96,7 +99,7 @@ export const sendMessageTool: ToolConfig<any, WhatsAppToolResponse> = {
   },
 
   transformError: (error) => {
-    console.error('WhatsApp tool error:', error)
+    logger.error('WhatsApp tool error:', { error })
     return `WhatsApp message failed: ${error.message || 'Unknown error occurred'}`
   },
 }

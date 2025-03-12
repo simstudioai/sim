@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { GoogleDocsCreateResponse, GoogleDocsToolParams } from './types'
+
+const logger = createLogger('Google Docs Create Tool')
 
 export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateResponse> = {
   id: 'google_docs_create',
@@ -55,7 +58,6 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     // The Google Docs API doesn't directly support content in the create request,
     // so we need to add it separately via the write tool
     if (result.success && params.content) {
-      console.log('Google Docs create - Post-processing: Adding content to document')
       const documentId = result.output.metadata.documentId
 
       if (documentId) {
@@ -65,21 +67,18 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
             documentId: documentId,
             content: params.content,
           }
-          console.log('Content to add:', params.content)
 
           // Use the write tool to add content
           const writeResult = await executeTool('google_docs_write', writeParams)
 
           if (!writeResult.success) {
-            console.warn(
+            logger.warn(
               'Failed to add content to document, but document was created:',
               writeResult.error
             )
-          } else {
-            console.log('Google Docs create - Content added successfully')
           }
         } catch (error) {
-          console.warn('Error adding content to document:', error)
+          logger.warn('Error adding content to document:', { error })
           // Don't fail the overall operation if adding content fails
         }
       }
@@ -126,7 +125,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         },
       }
     } catch (error) {
-      console.error('Google Docs create - Error processing response:', error)
+      logger.error('Google Docs create - Error processing response:', { error })
       throw error
     }
   },

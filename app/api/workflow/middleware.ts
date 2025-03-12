@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getWorkflowById } from '@/lib/workflows'
+
+const logger = createLogger('WorkflowMiddleware')
 
 export interface ValidationResult {
   error?: { message: string; status: number }
@@ -52,7 +55,7 @@ export async function validateWorkflowAccess(
     }
     return { workflow }
   } catch (error) {
-    console.error('Validation error:', error)
+    logger.error('Validation error:', { error })
     return {
       error: {
         message: 'Internal server error',

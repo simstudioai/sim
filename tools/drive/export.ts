@@ -1,6 +1,9 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { GoogleDriveDownloadResponse } from './types'
 import { GoogleDriveToolParams } from './types'
+
+const logger = createLogger('Google Drive Export Tool')
 
 export const exportTool: ToolConfig<
   GoogleDriveToolParams & { mimeType?: string },
@@ -33,7 +36,7 @@ export const exportTool: ToolConfig<
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const error = await response.json()
-      console.error('Google Drive export error:', {
+      logger.error('Google Drive export error:', {
         status: response.status,
         statusText: response.statusText,
         error,
@@ -54,7 +57,7 @@ export const exportTool: ToolConfig<
 
     if (!metadataResponse.ok) {
       const metadataError = await metadataResponse.json()
-      console.error('Google Drive metadata error:', {
+      logger.error('Google Drive metadata error:', {
         status: metadataResponse.status,
         statusText: metadataResponse.statusText,
         error: metadataError,
@@ -69,7 +72,7 @@ export const exportTool: ToolConfig<
     try {
       content = await response.text()
     } catch (error: any) {
-      console.error('Error reading response content:', {
+      logger.error('Error reading response content:', {
         message: error.message,
         stack: error.stack,
         error: JSON.stringify(error),
@@ -96,7 +99,7 @@ export const exportTool: ToolConfig<
     }
   },
   transformError: (error: any) => {
-    console.error('Export tool error:', {
+    logger.error('Export tool error:', {
       message: error.message,
       stack: error.stack,
       error: JSON.stringify(error, null, 2),

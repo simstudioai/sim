@@ -1,5 +1,8 @@
 import { WebContainer } from '@webcontainer/api'
 import { auth } from '@webcontainer/api'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('WebContainer')
 
 // Singleton instance of WebContainer
 let webcontainerInstance: WebContainer | null = null
@@ -33,7 +36,7 @@ async function initializeAuth() {
       scope: '',
     })
   } catch (error) {
-    console.error('Failed to initialize WebContainer auth:', error)
+    logger.error('Failed to initialize WebContainer auth:', { error })
     throw error
   }
 }
@@ -60,7 +63,7 @@ export async function getWebContainer(): Promise<WebContainer> {
 
   // Check if cross-origin isolation is enabled
   if (!isCrossOriginIsolated()) {
-    console.warn('Cross-Origin Isolation is not enabled. WebContainers require COOP/COEP headers.')
+    logger.warn('Cross-Origin Isolation is not enabled. WebContainers require COOP/COEP headers.')
     throw new Error(
       'WebContainers require cross-origin isolation. Please restart the server for changes to take effect.'
     )
@@ -86,7 +89,7 @@ export async function getWebContainer(): Promise<WebContainer> {
 
       return webcontainerInstance
     } catch (error) {
-      console.error('WebContainer boot error:', error)
+      logger.error('WebContainer boot error:', { error })
       isBooting = false
       bootPromise = null
       throw error
@@ -262,7 +265,7 @@ export async function executeCode(
 
                 // Don't resolve yet - wait for process to exit
               } catch (error) {
-                console.error('Failed to parse result', error)
+                logger.error('Failed to parse result', { error })
                 reject(error)
               }
             }
@@ -286,7 +289,7 @@ export async function executeCode(
       process.stderr.pipeTo(
         new WritableStream({
           write(data) {
-            console.error('WebContainer executeCode - Process error:', data)
+            logger.error('WebContainer executeCode - Process error:', { data })
             stdout += `ERROR: ${data}\n`
           },
         })
@@ -297,7 +300,7 @@ export async function executeCode(
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
         if (!processCompleted) {
-          console.error('WebContainer executeCode - Process timed out after', timeout, 'ms')
+          logger.error('WebContainer executeCode - Process timed out after', timeout, 'ms')
           reject(new Error(`Execution timed out after ${timeout}ms`))
         }
       }, timeout)
@@ -322,7 +325,7 @@ export async function executeCode(
       },
     }
   } catch (error: any) {
-    console.error('WebContainer executeCode - Execution failed:', {
+    logger.error('WebContainer executeCode - Execution failed:', {
       error: error.message,
       name: error.name,
       stack: error.stack,
@@ -334,7 +337,7 @@ export async function executeCode(
       try {
         await process.kill()
       } catch (killError) {
-        console.error('WebContainer executeCode - Failed to kill process:', killError)
+        logger.error('WebContainer executeCode - Failed to kill process:', { killError })
       }
     }
 

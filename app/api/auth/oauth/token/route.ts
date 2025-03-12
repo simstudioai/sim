@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ accessToken: credential.accessToken }, { status: 200 })
   } catch (error) {
-    console.error('Error getting OAuth token:', error)
+    logger.error('Error getting OAuth token:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

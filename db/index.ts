@@ -11,18 +11,13 @@ type DrizzleClient = ReturnType<typeof drizzle>
 const createMockDb = (): DrizzleClient => {
   const mockHandler = {
     get: (target: any, prop: string) => {
-      // Return a function that logs and returns empty results
       if (typeof prop === 'string') {
         return (...args: any[]) => {
-          console.log(`[localStorage Mode] DB operation "${prop}" called with:`, args)
-
-          // Create a chainable mock that always returns itself
           const chainableMock = new Proxy(
             {},
             {
               get: (target, chainProp) => {
                 if (chainProp === 'then') {
-                  // Make it thenable to work with await
                   return (resolve: Function) => resolve([])
                 }
                 return chainableMock

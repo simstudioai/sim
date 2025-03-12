@@ -1,6 +1,9 @@
 import { create } from 'zustand'
+import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '../../constants'
 import { EnvironmentStore, EnvironmentVariable } from './types'
+
+const logger = createLogger('Environment Store')
 
 export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
   variables: {},
@@ -32,7 +35,7 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         })
       }
     } catch (error) {
-      console.error('Error loading environment variables:', error)
+      logger.error('Error loading environment variables:', { error })
       set({
         error: error instanceof Error ? error.message : 'Unknown error',
         isLoading: false,
@@ -80,7 +83,7 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
 
       set({ isLoading: false })
     } catch (error) {
-      console.error('Error saving environment variables:', error)
+      logger.error('Error saving environment variables:', { error })
       set({
         error: error instanceof Error ? error.message : 'Unknown error',
         isLoading: false,

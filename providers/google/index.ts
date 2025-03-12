@@ -1,6 +1,9 @@
 import OpenAI from 'openai'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('Google Provider')
 
 export const googleProvider: ProviderConfig = {
   id: 'google',
@@ -149,7 +152,7 @@ export const googleProvider: ProviderConfig = {
               content: toolResultContent,
             })
           } catch (error) {
-            console.error('Error processing tool call:', error)
+            logger.error('Error processing tool call:', { error })
           }
         }
 
@@ -177,7 +180,7 @@ export const googleProvider: ProviderConfig = {
         iterationCount++
       }
     } catch (error) {
-      console.error('Error in Google Gemini request:', error)
+      logger.error('Error in Google Gemini request:', { error })
       throw error
     }
 

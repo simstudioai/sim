@@ -14,7 +14,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
 
   try {
-    logger.debug(`[${requestId}] Persisting logs for workflow: ${id}`)
     const validation = await validateWorkflowAccess(request, id, false)
     if (validation.error) {
       logger.warn(`[${requestId}] Workflow access validation failed: ${validation.error.message}`)

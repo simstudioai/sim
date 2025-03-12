@@ -1,6 +1,9 @@
 import OpenAI from 'openai'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('OpenAI Provider')
 
 export const openaiProvider: ProviderConfig = {
   id: 'openai',
@@ -11,19 +14,24 @@ export const openaiProvider: ProviderConfig = {
   defaultModel: 'gpt-4o',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
-    console.log('Full request:', request)
+    logger.info('Preparing OpenAI request', {
+      model: request.model || 'gpt-4o',
+      hasSystemPrompt: !!request.systemPrompt,
+      hasMessages: !!request.messages?.length,
+      hasTools: !!request.tools?.length,
+      toolCount: request.tools?.length || 0,
+      hasResponseFormat: !!request.responseFormat,
+    })
+
     if (!request.apiKey) {
-      console.error('OpenAI API key missing in request. Request details:', {
+      logger.error('OpenAI API key missing in request', {
         hasModel: !!request.model,
         hasSystemPrompt: !!request.systemPrompt,
         hasMessages: !!request.messages,
         hasTools: !!request.tools,
-        requestKeys: Object.keys(request),
       })
       throw new Error('API key is required for OpenAI')
     }
-
-    console.log('OpenAI API key found in request (first 4 chars):', request.apiKey.substring(0, 4))
 
     const openai = new OpenAI({
       apiKey: request.apiKey,
@@ -78,15 +86,6 @@ export const openaiProvider: ProviderConfig = {
 
     // Add response format for structured output if specified
     if (request.responseFormat) {
-      // Log detailed information about the responseFormat
-      console.log(`[OpenAI Provider Debug] Response format details:`, {
-        type: typeof request.responseFormat,
-        isString: typeof request.responseFormat === 'string',
-        hasSchema: request.responseFormat.schema !== undefined,
-        hasName: request.responseFormat.name !== undefined,
-        value: JSON.stringify(request.responseFormat),
-      })
-
       // Use OpenAI's JSON schema format
       payload.response_format = {
         type: 'json_schema',
@@ -97,17 +96,14 @@ export const openaiProvider: ProviderConfig = {
         },
       }
 
-      // Log the final response_format being sent to OpenAI
-      console.log(
-        `[OpenAI Provider Debug] Final response_format:`,
-        JSON.stringify(payload.response_format)
-      )
+      logger.info('Added JSON schema response format to request')
     }
 
     // Add tools if provided
     if (tools?.length) {
       payload.tools = tools
       payload.tool_choice = 'auto'
+      logger.info(`Configured ${tools.length} tools for OpenAI request`)
     }
 
     // Make the initial API request
@@ -131,6 +127,10 @@ export const openaiProvider: ProviderConfig = {
         if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
           break
         }
+
+        logger.info(
+          `Processing ${toolCallsInResponse.length} tool calls (iteration ${iterationCount + 1}/${MAX_ITERATIONS})`
+        )
 
         // Process each tool call
         for (const toolCall of toolCallsInResponse) {
@@ -176,7 +176,10 @@ export const openaiProvider: ProviderConfig = {
               content: JSON.stringify(result.output),
             })
           } catch (error) {
-            console.error('Error processing tool call:', error)
+            logger.error('Error processing tool call:', {
+              error,
+              toolName: toolCall?.function?.name,
+            })
           }
         }
 
@@ -204,7 +207,7 @@ export const openaiProvider: ProviderConfig = {
         iterationCount++
       }
     } catch (error) {
-      console.error('Error in OpenAI request:', error)
+      logger.error('Error in OpenAI request:', { error })
       throw error
     }
 

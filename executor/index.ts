@@ -1,3 +1,4 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { useConsoleStore } from '@/stores/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { BlockOutput } from '@/blocks/types'
@@ -16,6 +17,8 @@ import { LoopManager } from './loops'
 import { PathTracker } from './path'
 import { InputResolver } from './resolver'
 import { BlockLog, ExecutionContext, ExecutionResult, NormalizedBlockOutput } from './types'
+
+const logger = createLogger('Executor')
 
 /**
  * Core execution engine that runs workflow blocks in topological order.
@@ -111,7 +114,7 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      console.error('Workflow execution failed:', error)
+      logger.error('Workflow execution failed:', { error })
 
       return {
         success: false,

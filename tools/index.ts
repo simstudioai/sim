@@ -1,3 +1,4 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
@@ -33,6 +34,8 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
+
+const logger = createLogger('Tools')
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -130,7 +133,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
   }
 
   if (!customTool) {
-    console.error(`Custom tool not found: ${identifier}`)
+    logger.error(`Custom tool not found: ${identifier}`)
     return undefined
   }
 
@@ -255,7 +258,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             error: undefined,
           }
         } catch (error: any) {
-          console.warn('WebContainer execution failed, falling back to API:', error.message)
+          logger.warn('WebContainer execution failed, falling back to API:', error.message)
           // Fall back to API route if WebContainer fails
           return undefined
         }
@@ -320,7 +323,7 @@ export async function executeTool(
         try {
           return await tool.postProcess(result, params, executeTool)
         } catch (error) {
-          console.error(`Error in post-processing for tool ${toolId}:`, error)
+          logger.error(`Error in post-processing for tool ${toolId}:`, { error })
           // Return original result if post-processing fails
           return result
         }
@@ -337,7 +340,7 @@ export async function executeTool(
       try {
         return await tool.postProcess(result, params, executeTool)
       } catch (error) {
-        console.error(`Error in post-processing for tool ${toolId}:`, error)
+        logger.error(`Error in post-processing for tool ${toolId}:`, { error })
         // Return original result if post-processing fails
         return result
       }
@@ -345,7 +348,7 @@ export async function executeTool(
 
     return result
   } catch (error: any) {
-    console.error(`Error executing tool ${toolId}:`, error)
+    logger.error(`Error executing tool ${toolId}:`, { error })
 
     // For custom tools, provide more helpful error information
     if (toolId.startsWith('custom_')) {
@@ -353,8 +356,8 @@ export async function executeTool(
       const allTools = useCustomToolsStore.getState().getAllTools()
       const availableTools = allTools.map((t) => ({ id: t.id, title: t.title }))
 
-      console.error('Available custom tools:', availableTools)
-      console.error(`Looking for custom tool with identifier: ${identifier}`)
+      logger.error('Available custom tools:', availableTools)
+      logger.error(`Looking for custom tool with identifier: ${identifier}`)
     }
 
     return {
@@ -428,7 +431,7 @@ async function handleInternalRequest(
       error: undefined,
     }
   } catch (error: any) {
-    console.error(`Error executing internal tool ${toolId}:`, error)
+    logger.error(`Error executing internal tool ${toolId}:`, { error })
 
     // Use the tool's error transformer if available
     if (tool.transformError) {
@@ -474,7 +477,7 @@ async function handleInternalRequest(
           }
         }
       } catch (transformError) {
-        console.error(`Error transforming error for tool ${toolId}:`, transformError)
+        logger.error(`Error transforming error for tool ${toolId}:`, { transformError })
         return {
           success: false,
           output: {},
@@ -573,7 +576,7 @@ async function handleProxyRequest(
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Token fetch failed:', response.status, errorText)
+        logger.error('Token fetch failed:', response.status, errorText)
         throw new Error(`Failed to fetch access token: ${response.status} ${errorText}`)
       }
 
@@ -584,7 +587,7 @@ async function handleProxyRequest(
       delete params.credential
       if (params.workflowId) delete params.workflowId
     } catch (error) {
-      console.error('Error fetching access token:', error)
+      logger.error('Error fetching access token:', { error })
       throw error
     }
   }

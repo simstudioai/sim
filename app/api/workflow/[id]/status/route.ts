@@ -10,7 +10,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params
-    logger.debug(`[${requestId}] Checking status for workflow: ${id}`)
 
     const validation = await validateWorkflowAccess(request, id, false)
     if (validation.error) {

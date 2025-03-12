@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useConsoleStore } from '@/stores/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -11,6 +12,8 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
+
+const logger = createLogger('useWorkflowExecution')
 
 export function useWorkflowExecution() {
   const { blocks, edges, loops } = useWorkflowStore()
@@ -61,7 +64,7 @@ export function useWorkflowExecution() {
 
         window.localStorage.setItem(logListKey, JSON.stringify(logList))
       } catch (error) {
-        console.error('Error storing logs in localStorage:', error)
+        logger.error('Error storing logs in localStorage:', { error })
       }
       return
     }
@@ -80,7 +83,7 @@ export function useWorkflowExecution() {
         throw new Error('Failed to persist logs')
       }
     } catch (error) {
-      console.error('Error persisting logs:', error)
+      logger.error('Error persisting logs:', { error })
     }
   }
 
@@ -111,30 +114,6 @@ export function useWorkflowExecution() {
         },
         {} as Record<string, Record<string, any>>
       )
-
-      // Debug logging
-      console.group('Workflow Execution State')
-      console.log('Block Configurations:', blocks)
-      console.log(
-        'SubBlock Store Values:',
-        useSubBlockStore.getState().workflowValues[activeWorkflowId]
-      )
-      console.log('Merged Block States for Execution:', currentBlockStates)
-
-      // Debug any responseFormat fields
-      const blockWithResponseFormat = Object.entries(currentBlockStates).find(
-        ([_id, state]) => state.responseFormat
-      )
-      if (blockWithResponseFormat) {
-        console.log(
-          'ResponseFormat found:',
-          blockWithResponseFormat[0],
-          typeof blockWithResponseFormat[1].responseFormat,
-          blockWithResponseFormat[1].responseFormat
-        )
-      }
-
-      console.groupEnd()
 
       // Get environment variables
       const envVars = getAllVariables()
@@ -189,7 +168,7 @@ export function useWorkflowExecution() {
       // Persist logs after notification
       await persistLogs(blockLogs, executionId)
     } catch (error: any) {
-      console.error('Workflow Execution Error:', error)
+      logger.error('Workflow Execution Error:', { error })
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 

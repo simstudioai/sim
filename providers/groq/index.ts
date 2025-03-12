@@ -1,6 +1,9 @@
 import { Groq } from 'groq-sdk'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('Groq Provider')
 
 export const groqProvider: ProviderConfig = {
   id: 'groq',
@@ -146,7 +149,7 @@ export const groqProvider: ProviderConfig = {
               content: JSON.stringify(result.output),
             })
           } catch (error) {
-            console.error('Error processing tool call:', error)
+            logger.error('Error processing tool call:', { error })
           }
         }
 
@@ -174,7 +177,7 @@ export const groqProvider: ProviderConfig = {
         iterationCount++
       }
     } catch (error) {
-      console.error('Error in Groq request:', error)
+      logger.error('Error in Groq request:', { error })
       throw error
     }
 

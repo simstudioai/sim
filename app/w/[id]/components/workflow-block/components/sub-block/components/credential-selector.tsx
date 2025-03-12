@@ -14,6 +14,7 @@ import {
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { client } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import {
   Credential,
   OAUTH_PROVIDERS,
@@ -23,6 +24,8 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
+
+const logger = createLogger('CredentialSelector')
 
 interface CredentialSelectorProps {
   value: string
@@ -99,7 +102,7 @@ export function CredentialSelector({
         }
       }
     } catch (error) {
-      console.error('Error fetching credentials:', error)
+      logger.error('Error fetching credentials:', { error })
     } finally {
       setIsLoading(false)
     }
@@ -162,7 +165,7 @@ export function CredentialSelector({
         callbackURL: window.location.href,
       })
     } catch (error) {
-      console.error('OAuth login error:', error)
+      logger.error('OAuth login error:', { error })
     }
   }
 

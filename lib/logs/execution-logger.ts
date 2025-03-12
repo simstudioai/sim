@@ -1,7 +1,10 @@
 import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
+
+const logger = createLogger('ExecutionLogger')
 
 export interface LogEntry {
   id: string
@@ -69,7 +72,7 @@ export async function persistExecutionLogs(
       createdAt: new Date(),
     })
   } catch (error: any) {
-    console.error(`Error persisting execution logs: ${error.message}`, error)
+    logger.error(`Error persisting execution logs: ${error.message}`, { error })
   }
 }
 
@@ -100,7 +103,7 @@ export async function persistExecutionError(
       createdAt: new Date(),
     })
   } catch (logError: any) {
-    console.error(`Error persisting execution error log: ${logError.message}`, logError)
+    logger.error(`Error persisting execution error log: ${logError.message}`, { logError })
   }
 }
 

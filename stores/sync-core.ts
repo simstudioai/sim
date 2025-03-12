@@ -1,3 +1,7 @@
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('Sync Core')
+
 /**
  * Core sync types and utilities for optimistic state synchronization
  */
@@ -73,7 +77,7 @@ export async function performSync(config: SyncConfig): Promise<boolean> {
     if (config.onSyncError) {
       config.onSyncError(error)
     }
-    console.error(`Sync error: ${error}`)
+    logger.error(`Sync error: ${error}`)
     return false
   }
 }

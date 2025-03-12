@@ -1,6 +1,9 @@
 import OpenAI from 'openai'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('XAI Provider')
 
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
@@ -145,7 +148,7 @@ export const xAIProvider: ProviderConfig = {
               content: JSON.stringify(result.output),
             })
           } catch (error) {
-            console.error('Error processing tool call:', error)
+            logger.error('Error processing tool call:', { error })
           }
         }
 
@@ -169,7 +172,7 @@ export const xAIProvider: ProviderConfig = {
         iterationCount++
       }
     } catch (error) {
-      console.error('Error in xAI request:', error)
+      logger.error('Error in xAI request:', { error })
       throw error
     }
 

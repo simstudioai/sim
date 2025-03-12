@@ -4,10 +4,12 @@ import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-drop
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('LongInput')
 
 interface LongInputProps {
   placeholder?: string
@@ -105,7 +107,7 @@ export function LongInput({
         }, 0)
       })
     } catch (error) {
-      console.error('Failed to parse drop data:', error)
+      logger.error('Failed to parse drop data:', { error })
     }
   }
 

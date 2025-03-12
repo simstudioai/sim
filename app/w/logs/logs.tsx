@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { format } from 'date-fns'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
+import { createLogger } from '@/lib/logs/console-logger'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
 import { useFilterStore } from './stores/store'
 import { LogsResponse, WorkflowLog } from './stores/types'
 import { formatDate } from './utils/format-date'
+
+const logger = createLogger('Logs')
 
 // Helper function to get level badge styling
 const getLevelBadgeStyles = (level: string) => {
@@ -84,12 +86,12 @@ export default function Logs() {
         const data: LogsResponse = await response.json()
 
         // Log the response to console
-        console.log('Workflow logs response:', data)
+        logger.info('Workflow logs response:', data)
 
         setLogs(data.data)
         setError(null)
       } catch (err) {
-        console.error('Failed to fetch logs:', err)
+        logger.error('Failed to fetch logs:', { err })
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
       } finally {
         setLoading(false)

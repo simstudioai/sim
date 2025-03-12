@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useChatStore } from './chat/store'
 import { useConsoleStore } from './console/store'
 import { useCustomToolsStore } from './custom-tools/store'
@@ -16,6 +17,8 @@ import {
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
+
+const logger = createLogger('Stores')
 
 // Track initialization state
 let isInitializing = false
@@ -47,7 +50,7 @@ async function initializeApplication(): Promise<void> {
       // No workflows loaded from DB, try localStorage as fallback
       const workflows = loadRegistry()
       if (workflows && Object.keys(workflows).length > 0) {
-        console.log('Loading workflows from localStorage as fallback')
+        logger.info('Loading workflows from localStorage as fallback')
         useWorkflowRegistry.setState({ workflows })
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -56,13 +59,13 @@ async function initializeApplication(): Promise<void> {
         }
       }
     } else {
-      console.log('Using workflows loaded from DB, ignoring localStorage')
+      logger.info('Using workflows loaded from DB, ignoring localStorage')
     }
 
     // 2. Register cleanup
     window.addEventListener('beforeunload', handleBeforeUnload)
   } catch (error) {
-    console.error('Error during application initialization:', error)
+    logger.error('Error during application initialization:', { error })
   } finally {
     isInitializing = false
   }
@@ -72,7 +75,7 @@ function initializeWorkflowState(workflowId: string): void {
   // Load the specific workflow state from localStorage
   const workflowState = loadWorkflowState(workflowId)
   if (!workflowState) {
-    console.warn(`No saved state found for workflow ${workflowId}`)
+    logger.warn(`No saved state found for workflow ${workflowId}`)
     return
   }
 
@@ -94,7 +97,7 @@ function initializeWorkflowState(workflowId: string): void {
     useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks)
   }
 
-  console.log(`Initialized workflow state for ${workflowId}`)
+  logger.info(`Initialized workflow state for ${workflowId}`)
 }
 
 /**
@@ -167,9 +170,9 @@ export async function clearUserData(): Promise<void> {
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
     keysToRemove.forEach((key) => localStorage.removeItem(key))
 
-    console.log('User data cleared successfully')
+    logger.info('User data cleared successfully')
   } catch (error) {
-    console.error('Error clearing user data:', error)
+    logger.error('Error clearing user data:', { error })
   }
 }
 
@@ -247,14 +250,6 @@ export const logAllStores = () => {
     subBlock: useSubBlockStore.getState(),
   }
 
-  console.group('Application State')
-  Object.entries(state).forEach(([storeName, storeState]) => {
-    console.group(storeName)
-    console.log(storeState)
-    console.groupEnd()
-  })
-  console.groupEnd()
-
   return state
 }
 
@@ -275,8 +270,8 @@ export async function reinitializeAfterLogin(): Promise<void> {
     // Reinitialize the application
     await initializeApplication()
 
-    console.log('Application reinitialized after login')
+    logger.info('Application reinitialized after login')
   } catch (error) {
-    console.error('Error reinitializing application:', error)
+    logger.error('Error reinitializing application:', { error })
   }
 }

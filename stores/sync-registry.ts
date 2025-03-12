@@ -1,8 +1,11 @@
 'use client'
 
+import { createLogger } from '@/lib/logs/console-logger'
 import { SyncManager } from './sync'
 import { isLocalStorageMode } from './sync-core'
 import { fetchWorkflowsFromDB, workflowSync } from './workflows/sync'
+
+const logger = createLogger('Sync Registry')
 
 // Initialize managers lazily
 let initialized = false
@@ -42,13 +45,13 @@ export async function initializeSyncManagers(): Promise<boolean> {
       // Remove environment variables fetch
       await fetchWorkflowsFromDB()
     } catch (error) {
-      console.error('Error fetching data from DB:', error)
+      logger.error('Error fetching data from DB:', { error })
     }
 
     initialized = true
     return true
   } catch (error) {
-    console.error('Error initializing sync managers:', error)
+    logger.error('Error initializing sync managers:', { error })
     return false
   } finally {
     initializing = false

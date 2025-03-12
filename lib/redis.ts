@@ -1,4 +1,7 @@
 import Redis from 'ioredis'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('Redis')
 
 // Default to localhost if REDIS_URL is not provided
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
@@ -34,7 +37,7 @@ export function getRedisClient(): Redis | null {
       // Retry strategy with exponential backoff
       retryStrategy: (times) => {
         if (times > 5) {
-          console.warn('Redis connection failed after 5 attempts, using fallback')
+          logger.warn('Redis connection failed after 5 attempts, using fallback')
           return null // Stop retrying
         }
         return Math.min(times * 200, 2000) // Exponential backoff
@@ -43,19 +46,17 @@ export function getRedisClient(): Redis | null {
 
     // Handle connection events
     globalRedisClient.on('error', (err: any) => {
-      console.error('Redis connection error:', err)
+      logger.error('Redis connection error:', { err })
       if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
         globalRedisClient = null
       }
     })
 
-    globalRedisClient.on('connect', () => {
-      console.log('Connected to Redis')
-    })
+    globalRedisClient.on('connect', () => {})
 
     return globalRedisClient
   } catch (error) {
-    console.error('Failed to initialize Redis client:', error)
+    logger.error('Failed to initialize Redis client:', { error })
     return null
   }
 }
@@ -92,7 +93,7 @@ export async function hasProcessedMessage(messageId: string): Promise<boolean> {
       return true
     }
   } catch (error) {
-    console.error('Error checking message ID:', error)
+    logger.error('Error checking message ID:', { error })
     // Fallback to in-memory cache on error
     const cacheEntry = inMemoryCache.get(messageId)
     return !!cacheEntry && (!cacheEntry.expiry || cacheEntry.expiry > Date.now())
@@ -145,7 +146,7 @@ export async function markMessageAsProcessed(
       }
     }
   } catch (error) {
-    console.error('Error marking message as processed:', error)
+    logger.error('Error marking message as processed:', { error })
     // Fallback to in-memory cache on error
     const expiry = expirySeconds ? Date.now() + expirySeconds * 1000 : null
     inMemoryCache.set(messageId, { value: '1', expiry })
@@ -161,7 +162,7 @@ export async function closeRedisConnection(): Promise<void> {
     try {
       await globalRedisClient.quit()
     } catch (error) {
-      console.error('Error closing Redis connection:', error)
+      logger.error('Error closing Redis connection:', { error })
     } finally {
       globalRedisClient = null
     }

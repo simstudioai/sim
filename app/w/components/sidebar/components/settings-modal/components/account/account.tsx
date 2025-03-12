@@ -12,8 +12,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { signOut, useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { clearUserData } from '@/stores'
+
+const logger = createLogger('Account')
 
 interface AccountProps {
   onOpenChange: (open: boolean) => void
@@ -107,7 +110,7 @@ export function Account({ onOpenChange }: AccountProps) {
       // Still wait for the promise to resolve/reject to catch errors
       await signOutPromise
     } catch (error) {
-      console.error('Error signing out:', error)
+      logger.error('Error signing out:', { error })
       // Still navigate even if there's an error
       router.push('/login?fromLogout=true')
     } finally {

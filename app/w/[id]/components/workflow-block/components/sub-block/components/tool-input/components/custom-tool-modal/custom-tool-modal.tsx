@@ -12,9 +12,12 @@ import {
 import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { CodeEditor } from '../code-editor/code-editor'
+
+const logger = createLogger('CustomToolModal')
 
 interface CustomToolModalProps {
   open: boolean
@@ -80,7 +83,7 @@ export function CustomToolModal({
         setIsEditing(true)
         setToolId(initialValues.id)
       } catch (error) {
-        console.error('Error initializing form with initial values:', error)
+        logger.error('Error initializing form with initial values:', { error })
         setSchemaError('Failed to load tool data. Please try again.')
       }
     } else if (open) {
@@ -233,9 +236,7 @@ export function CustomToolModal({
       onSave(customTool)
       handleClose()
     } catch (error) {
-      console.error('Error saving custom tool:', error)
-      setSchemaError('Failed to save custom tool. Please check your inputs and try again.')
-      console.error('Error saving custom tool:', error)
+      logger.error('Error saving custom tool:', { error })
       setSchemaError('Failed to save custom tool. Please check your inputs and try again.')
     }
   }
@@ -278,7 +279,7 @@ export function CustomToolModal({
           setDropdownPosition({ top, left })
         }
       } catch (error) {
-        console.error('Error calculating cursor position:', error)
+        logger.error('Error calculating cursor position:', { error })
       }
 
       // Check if we should show the environment variables dropdown

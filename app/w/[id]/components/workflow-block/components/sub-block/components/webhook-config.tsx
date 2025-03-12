@@ -4,7 +4,10 @@ import { CheckCircle2, ExternalLink } from 'lucide-react'
 import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { WebhookModal } from '@/components/ui/webhook-modal'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('WebhookConfig')
 
 export interface WebhookProvider {
   id: string
@@ -138,7 +141,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           }
         }
       } catch (error) {
-        console.error('Error checking webhook:', error)
+        logger.error('Error checking webhook:', { error })
       }
     }
 
@@ -198,7 +201,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
       return true
     } catch (error: any) {
-      console.error('Error saving webhook:', error)
+      logger.error('Error saving webhook:', { error })
       setError(error.message || 'Failed to save webhook configuration')
       return false
     } finally {
@@ -228,7 +231,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
       return true
     } catch (error: any) {
-      console.error('Error deleting webhook:', error)
+      logger.error('Error deleting webhook:', { error })
       setError(error.message || 'Failed to delete webhook')
       return false
     } finally {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { createLogger } from '@/lib/logs/console-logger'
 import { SYNC_INTERVALS } from './constants'
 import {
   DEFAULT_SYNC_CONFIG,
@@ -9,6 +10,8 @@ import {
   isLocalStorageMode,
   performSync,
 } from './sync-core'
+
+const logger = createLogger('Sync')
 
 // Client-side sync manager with lifecycle and registry management
 export interface SyncManager extends SyncOperations {
@@ -33,7 +36,7 @@ export function createSyncManager(config: SyncConfig): SyncManager {
   // Optimistic sync - fire and forget
   const sync = (): void => {
     performSync(fullConfig).catch((err) => {
-      console.error('Sync failed:', err)
+      logger.error('Sync failed:', { err })
     })
   }
 
@@ -146,7 +149,7 @@ export function createSingletonSyncManager(
     return {
       id: key,
       config: configFactory(),
-      sync: () => console.log(`[LocalStorage Mode] Skipping sync for ${key}`),
+      sync: () => logger.info(`[LocalStorage Mode] Skipping sync for ${key}`),
       startIntervalSync: () => {},
       stopIntervalSync: () => {},
       dispose: () => {},
@@ -168,7 +171,7 @@ export function createSingletonSyncManager(
     config,
     sync: () => {
       performSync(config).catch((err) => {
-        console.error(`Sync failed for ${key}:`, err)
+        logger.error(`Sync failed for ${key}:`, { err })
       })
     },
     startIntervalSync: () => {

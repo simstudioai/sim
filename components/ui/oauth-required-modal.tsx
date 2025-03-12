@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { client } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import {
   OAUTH_PROVIDERS,
   OAuthProvider,
@@ -19,6 +20,8 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
+
+const logger = createLogger('OAuthRequiredModal')
 
 export interface OAuthRequiredModalProps {
   isOpen: boolean
@@ -107,7 +110,7 @@ export function OAuthRequiredModal({
       })
       window.dispatchEvent(event)
     } catch (error) {
-      console.error('Error redirecting to settings:', error)
+      logger.error('Error redirecting to settings:', { error })
     }
   }
 
@@ -131,7 +134,7 @@ export function OAuthRequiredModal({
         callbackURL: window.location.href,
       })
     } catch (error) {
-      console.error('Error initiating OAuth flow:', error)
+      logger.error('Error initiating OAuth flow:', { error })
     }
   }
 

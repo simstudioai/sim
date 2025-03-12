@@ -1,6 +1,9 @@
 import { type ClassValue, clsx } from 'clsx'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
 import { twMerge } from 'tailwind-merge'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('Utils')
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -64,7 +67,7 @@ export async function decryptSecret(encryptedValue: string): Promise<{ decrypted
 
     return { decrypted }
   } catch (error: any) {
-    console.error('Decryption error:', error.message)
+    logger.error('Decryption error:', { error: error.message })
     throw error
   }
 }

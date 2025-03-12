@@ -1,5 +1,6 @@
 'use client'
 
+import { createLogger } from '@/lib/logs/console-logger'
 import { getAllWorkflowsWithValues } from '.'
 import { API_ENDPOINTS } from '../constants'
 import { createSingletonSyncManager } from '../sync'
@@ -7,7 +8,9 @@ import { useWorkflowRegistry } from './registry/store'
 import { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
-import { BlockState, WorkflowState } from './workflow/types'
+import { BlockState } from './workflow/types'
+
+const logger = createLogger('Workflows Sync')
 
 // Flag to prevent immediate sync back to DB after loading from DB
 let isLoadingFromDB = false
@@ -52,7 +55,7 @@ async function updateWorkflowSchedule(workflowId: string, state: any): Promise<v
     })
 
     if (!response.ok) {
-      console.error(
+      logger.error(
         `Failed to ${isScheduleEnabled ? 'update' : 'cancel'} schedule for workflow ${workflowId}:`,
         response.statusText
       )
@@ -64,13 +67,13 @@ async function updateWorkflowSchedule(workflowId: string, state: any): Promise<v
     // Update our tracking of scheduled workflows
     if (isScheduleEnabled) {
       scheduledWorkflows.add(workflowId)
-      console.log(`Schedule updated for workflow ${workflowId}:`, result)
+      logger.info(`Schedule updated for workflow ${workflowId}:`, result)
     } else {
       scheduledWorkflows.delete(workflowId)
-      console.log(`Schedule cancelled for workflow ${workflowId}:`, result)
+      logger.info(`Schedule cancelled for workflow ${workflowId}:`, result)
     }
   } catch (error) {
-    console.error(`Error managing schedule for workflow ${workflowId}:`, error)
+    logger.error(`Error managing schedule for workflow ${workflowId}:`, { error })
   }
 }
 
@@ -92,18 +95,18 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     if (!response.ok) {
       if (response.status === 401) {
-        console.warn('User not authenticated for workflow fetch')
+        logger.warn('User not authenticated for workflow fetch')
         return
       }
 
-      console.error('Failed to fetch workflows:', response.statusText)
+      logger.error('Failed to fetch workflows:', response.statusText)
       return
     }
 
     const { data } = await response.json()
 
     if (!data || !Array.isArray(data) || data.length === 0) {
-      console.log('No workflows found in database')
+      logger.info('No workflows found in database')
       return
     }
 
@@ -204,9 +207,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       }
     }
 
-    console.log('Workflows loaded from DB:', Object.keys(registryWorkflows).length)
+    logger.info('Workflows loaded from DB:', Object.keys(registryWorkflows).length)
   } catch (error) {
-    console.error('Error fetching workflows from DB:', error)
+    logger.error('Error fetching workflows from DB:', { error })
   } finally {
     // Reset the flag after a short delay to allow state to settle
     setTimeout(() => {
@@ -223,7 +226,7 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
 
     // Skip sync if we're currently loading from DB to prevent overwriting DB data
     if (isLoadingFromDB) {
-      console.log('Skipping workflow sync while loading from DB')
+      logger.info('Skipping workflow sync while loading from DB')
       return { skipSync: true }
     }
 
@@ -232,7 +235,7 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
 
     // Skip sync if there are no workflows to sync
     if (Object.keys(workflowsData).length === 0) {
-      console.log('Skipping workflow sync - no workflows to sync')
+      logger.info('Skipping workflow sync - no workflows to sync')
       return { skipSync: true }
     }
 
@@ -244,7 +247,7 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
   syncOnInterval: true,
   syncOnExit: true,
   onSyncSuccess: async (data) => {
-    console.log('Workflows synced to DB successfully')
+    logger.info('Workflows synced to DB successfully')
 
     // After successful sync to DB, update schedules for all workflows
     try {
@@ -273,7 +276,7 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
         }
       }
     } catch (error) {
-      console.error('Error updating workflow schedules:', error)
+      logger.error('Error updating workflow schedules:', { error })
     }
   },
 }))

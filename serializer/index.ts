@@ -1,7 +1,10 @@
 import { Edge } from 'reactflow'
-import { BlockState, Loop, SubBlockState } from '@/stores/workflows/workflow/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import { BlockState, Loop } from '@/stores/workflows/workflow/types'
 import { getBlock } from '@/blocks'
-import { SerializedBlock, SerializedConnection, SerializedWorkflow } from './types'
+import { SerializedBlock, SerializedWorkflow } from './types'
+
+const logger = createLogger('Serializer')
 
 export class Serializer {
   serializeWorkflow(
@@ -48,7 +51,7 @@ export class Serializer {
             : blockConfig.tools.access[0]
         }
       } catch (error) {
-        console.error('Error processing tools in agent block:', error)
+        logger.error('Error processing tools in agent block:', { error })
         // Default to the first tool if we can't process tools
         toolId = blockConfig.tools.access[0]
       }

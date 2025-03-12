@@ -33,9 +33,6 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   },
   directExecution: async (params: SupabaseQueryParams) => {
     try {
-      // This is a mock implementation
-      console.log(`Querying Supabase table ${params.table} in project ${params.projectId}`)
-
       // Mock response
       const mockData = [
         { id: 1, name: 'Item 1', description: 'Description 1' },
@@ -52,7 +49,6 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
         error: null,
       }
     } catch (error) {
-      console.error('Error querying Supabase:', error)
       return {
         success: false,
         output: {

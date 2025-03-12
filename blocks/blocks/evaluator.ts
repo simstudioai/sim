@@ -1,8 +1,11 @@
 import { ChartBarIcon } from '@/components/icons'
+import { createLogger } from '@/lib/logs/console-logger'
 import { ProviderId } from '@/providers/types'
 import { MODEL_PROVIDERS } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig, ParamType } from '../types'
+
+const logger = createLogger('EvaluatorBlock')
 
 interface Metric {
   name: string
@@ -52,7 +55,7 @@ export const generateEvaluatorPrompt = (metrics: Metric[], content: string): str
       formattedContent = JSON.stringify(content, null, 2)
     }
   } catch (e) {
-    console.warn('Warning: Content may not be valid JSON, using as-is', e)
+    logger.warn('Warning: Content may not be valid JSON, using as-is', { e })
     formattedContent = content
   }
 
@@ -184,7 +187,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
 
           return JSON.stringify(result)
         } catch (e) {
-          console.error('Error in systemPrompt value function:', e)
+          logger.error('Error in systemPrompt value function:', { e })
           // Return a minimal valid JSON as fallback
           return JSON.stringify({
             systemPrompt: 'Evaluate the content and return a JSON with metric scores.',

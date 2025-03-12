@@ -1,3 +1,4 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
@@ -7,6 +8,8 @@ import { groqProvider } from './groq'
 import { openaiProvider } from './openai'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
+
+const logger = createLogger('ProviderUtils')
 
 /**
  * Provider configurations with associated model names/patterns
@@ -89,6 +92,7 @@ export function getProviderFromModel(model: string): ProviderId {
     }
   }
 
+  logger.warn(`No provider found for model: ${model}, defaulting to deepseek`)
   return 'deepseek'
 }
 
@@ -161,6 +165,8 @@ export function generateStructuredOutputInstructions(responseFormat: any): strin
     })
     .join('\n')
 
+  logger.info(`Generated structured output instructions for ${responseFormat.fields.length} fields`)
+
   return `
 Please provide your response in the following JSON format:
 {
@@ -201,9 +207,13 @@ export function extractAndParseJSON(content: string): any {
     try {
       return JSON.parse(cleaned)
     } catch (innerError) {
-      console.error('Original content:', content)
-      console.error('Extracted JSON:', jsonStr)
-      console.error('Cleaned JSON:', cleaned)
+      logger.error('Failed to parse JSON response', {
+        contentLength: content.length,
+        extractedLength: jsonStr.length,
+        cleanedLength: cleaned.length,
+        error: innerError instanceof Error ? innerError.message : 'Unknown error',
+      })
+
       throw new Error(
         `Failed to parse JSON after cleanup: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`
       )
@@ -241,6 +251,10 @@ export function getCustomTools(): ProviderToolConfig[] {
   // Get custom tools from the store
   const customTools = useCustomToolsStore.getState().getAllTools()
 
+  if (customTools.length > 0) {
+    logger.info(`Found ${customTools.length} custom tools`)
+  }
+
   // Transform each custom tool into a provider tool config
   return customTools.map(transformCustomTool)
 }
@@ -264,7 +278,10 @@ export function transformBlockTool(
 
   // Get the block definition
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
-  if (!blockDef) return null
+  if (!blockDef) {
+    logger.warn(`Block definition not found for type: ${block.type}`)
+    return null
+  }
 
   // If the block has multiple operations, use the selected one or the first one
   let toolId: string | null = null
@@ -279,7 +296,11 @@ export function transformBlockTool(
           operation: selectedOperation,
         })
       } catch (error) {
-        console.error('Error selecting tool:', error)
+        logger.error('Error selecting tool for block', {
+          blockType: block.type,
+          operation: selectedOperation,
+          error,
+        })
         return null
       }
     } else {
@@ -291,11 +312,17 @@ export function transformBlockTool(
     toolId = blockDef.tools?.access?.[0] || null
   }
 
-  if (!toolId) return null
+  if (!toolId) {
+    logger.warn(`No tool ID found for block: ${block.type}`)
+    return null
+  }
 
   // Get the tool config
   const toolConfig = getTool(toolId)
-  if (!toolConfig) return null
+  if (!toolConfig) {
+    logger.warn(`Tool config not found for ID: ${toolId}`)
+    return null
+  }
 
   // Return formatted tool config
   return {

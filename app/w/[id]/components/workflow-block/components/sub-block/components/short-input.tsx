@@ -4,9 +4,12 @@ import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-drop
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('ShortInput')
 
 interface ShortInputProps {
   placeholder?: string
@@ -210,7 +213,7 @@ export function ShortInput({
         }, 0)
       })
     } catch (error) {
-      console.error('Failed to parse drop data:', error)
+      logger.error('Failed to parse drop data:', { error })
     }
   }
 

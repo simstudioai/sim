@@ -1,6 +1,9 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('Cerebras Provider')
 
 export const cerebrasProvider: ProviderConfig = {
   id: 'cerebras',
@@ -175,7 +178,7 @@ export const cerebrasProvider: ProviderConfig = {
                 content: JSON.stringify(result.output),
               })
             } catch (error) {
-              console.error('Error processing tool call:', error)
+              logger.error('Error processing tool call:', { error })
             }
           }
 
@@ -230,8 +233,7 @@ export const cerebrasProvider: ProviderConfig = {
           }
         }
       } catch (error) {
-        console.error('Error in Cerebras tool processing:', error)
-        // Don't throw here, return what we have so far
+        logger.error('Error in Cerebras tool processing:', { error })
       }
 
       return {
@@ -242,7 +244,7 @@ export const cerebrasProvider: ProviderConfig = {
         toolResults: toolResults.length > 0 ? toolResults : undefined,
       }
     } catch (error) {
-      console.error('Error in Cerebras request:', error)
+      logger.error('Error in Cerebras request:', { error })
       throw error
     }
   },

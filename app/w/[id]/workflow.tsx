@@ -7,13 +7,11 @@ import ReactFlow, {
   ConnectionLineType,
   EdgeTypes,
   NodeTypes,
-  Position,
   ReactFlowProvider,
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
-import { useNotificationStore } from '@/stores/notifications/store'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -27,6 +25,8 @@ import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import { LoopInput } from './components/workflow-loop/components/loop-input/loop-input'
 import { LoopLabel } from './components/workflow-loop/components/loop-label/loop-label'
 import { createLoopNode, getRelativeLoopPosition } from './components/workflow-loop/workflow-loop'
+
+const logger = createLogger('Workflow')
 
 // Define custom node and edge types
 const nodeTypes: NodeTypes = {
@@ -47,7 +47,6 @@ function WorkflowContent() {
   const { project } = useReactFlow()
 
   // Store access
-  const { addNotification } = useNotificationStore()
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
@@ -114,13 +113,13 @@ function WorkflowContent() {
     // Add block nodes
     Object.entries(blocks).forEach(([blockId, block]) => {
       if (!block.type || !block.name) {
-        console.log('Skipping invalid block:', blockId, block)
+        logger.warn(`Skipping invalid block: ${blockId}`, { block })
         return
       }
 
       const blockConfig = getBlock(block.type)
       if (!blockConfig) {
-        console.error(`No configuration found for block type: ${block.type}`)
+        logger.error(`No configuration found for block type: ${block.type}`, { block })
         return
       }
 
@@ -241,7 +240,7 @@ function WorkflowContent() {
 
         const blockConfig = getBlock(data.type)
         if (!blockConfig) {
-          console.error('Invalid block type:', data.type)
+          logger.error('Invalid block type:', { data })
           return
         }
 
@@ -268,7 +267,7 @@ function WorkflowContent() {
           }
         }
       } catch (err) {
-        console.error('Error dropping block:', err)
+        logger.error('Error dropping block:', { err })
       }
     },
     [project, blocks, addBlock, addEdge, findClosestOutput]

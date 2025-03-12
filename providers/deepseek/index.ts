@@ -1,6 +1,9 @@
 import OpenAI from 'openai'
+import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+
+const logger = createLogger('Deepseek Provider')
 
 export const deepseekProvider: ProviderConfig = {
   id: 'deepseek',
@@ -148,7 +151,7 @@ export const deepseekProvider: ProviderConfig = {
               content: JSON.stringify(result.output),
             })
           } catch (error) {
-            console.error('Error processing tool call:', error)
+            logger.error('Error processing tool call:', { error })
           }
         }
 
@@ -179,7 +182,7 @@ export const deepseekProvider: ProviderConfig = {
         iterationCount++
       }
     } catch (error) {
-      console.error('Error in Deepseek request:', error)
+      logger.error('Error in Deepseek request:', { error })
       throw error
     }
 

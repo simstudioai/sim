@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { OpenAI } from 'openai'
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { z } from 'zod'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('ChatAPI')
 
 // Validation schemas
 const MessageSchema = z.object({
@@ -135,6 +138,8 @@ Only use the provided functions and respond naturally to the user's requests.`
 }
 
 export async function POST(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Validate API key
     const apiKey = request.headers.get('X-OpenAI-Key')
@@ -175,7 +180,7 @@ export async function POST(request: Request) {
 
     // Process tool calls if present
     if (message.tool_calls) {
-      console.log(message.tool_calls)
+      logger.debug(`[${requestId}] Tool calls:`, { toolCalls: message.tool_calls })
       const actions = message.tool_calls.map((call) => ({
         name: call.function.name,
         parameters: JSON.parse(call.function.arguments),
@@ -194,7 +199,7 @@ export async function POST(request: Request) {
         "I'm not sure what changes to make to the workflow. Can you please provide more specific instructions?",
     })
   } catch (error) {
-    console.error('Chat API error:', error)
+    logger.error(`[${requestId}] Chat API error:`, { error })
 
     // Handle specific error types
     if (error instanceof z.ZodError) {
