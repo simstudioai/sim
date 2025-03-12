@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/db'
 import { workflowLogs } from '@/db/schema'
-import { BlockLog, ExecutionResult as ExecutorResult } from '@/executor/types'
+import { ExecutionResult as ExecutorResult } from '@/executor/types'
 
 export interface LogEntry {
   id: string
