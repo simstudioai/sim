@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { PanelLeftClose, Terminal } from 'lucide-react'
+import { PanelLeftClose, PanelRightClose, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -111,7 +111,7 @@ export function Console() {
               onClick={toggleConsole}
               className="absolute left-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
             >
-              <PanelLeftClose className="h-5 w-5" />
+              <PanelRightClose className="h-5 w-5" />
               <span className="sr-only">Close Console</span>
             </button>
           </TooltipTrigger>

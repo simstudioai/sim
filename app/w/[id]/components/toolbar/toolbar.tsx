@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PanelRight, PanelRightClose, Search } from 'lucide-react'
+import { PanelLeftClose, PanelRight, PanelRightClose, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -87,7 +87,7 @@ export function Toolbar() {
                 onClick={() => setIsCollapsed(true)}
                 className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
               >
-                <PanelRightClose className="h-5 w-5" />
+                <PanelLeftClose className="h-5 w-5" />
                 <span className="sr-only">Close Toolbar</span>
               </button>
             </TooltipTrigger>
