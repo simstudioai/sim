@@ -13,7 +13,10 @@ import {
 } from '@/components/ui/card'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { client } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
+
+const logger = createLogger('VerifyPage')
 
 // Extract the content into a separate component
 function VerifyContent() {
@@ -46,7 +49,7 @@ function VerifyContent() {
         })
         .then(() => {})
         .catch((error) => {
-          console.error('Failed to send initial verification code:', error)
+          logger.error('Failed to send initial verification code:', error)
           addNotification?.(
             'error',
             'Failed to send verification code. Please use the resend button.',

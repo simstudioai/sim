@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
-import { persistLog } from '@/lib/logging'
+import { persistLog } from '@/lib/logs/execution-logger'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 

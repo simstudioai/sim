@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { refreshOAuthToken } from '@/lib/oauth'
 import { db } from '@/db'
 import { account, workflow } from '@/db/schema'
+
+const logger = createLogger('OAuthTokenAPI')
 
 /**
  * Get an access token for a specific credential
@@ -11,12 +14,15 @@ import { account, workflow } from '@/db/schema'
  * and workflow-based authentication (for server-side requests)
  */
 export async function POST(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Parse request body
     const body = await request.json()
     const { credentialId, workflowId } = body
 
     if (!credentialId) {
+      logger.warn(`[${requestId}] Credential ID is required`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
@@ -33,6 +39,7 @@ export async function POST(request: NextRequest) {
         .limit(1)
 
       if (!workflows.length) {
+        logger.warn(`[${requestId}] Workflow not found`)
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
@@ -43,6 +50,7 @@ export async function POST(request: NextRequest) {
 
       // Check if the user is authenticated
       if (!session?.user?.id) {
+        logger.warn(`[${requestId}] Unauthenticated token request rejected`)
         return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
       }
 
@@ -57,6 +65,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
 
     if (!credentials.length) {
+      logger.warn(`[${requestId}] Credential not found`)
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
@@ -87,16 +96,18 @@ export async function POST(request: NextRequest) {
           })
           .where(eq(account.id, credentialId))
 
+        logger.info(`[${requestId}] Successfully refreshed access token`)
         return NextResponse.json({ accessToken: refreshedToken }, { status: 200 })
       } catch (error) {
-        console.error('Error refreshing token:', error)
+        logger.error(`[${requestId}] Error refreshing token`, error)
         return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 500 })
       }
     }
 
+    logger.info(`[${requestId}] Access token is valid`)
     return NextResponse.json({ accessToken: credential.accessToken }, { status: 200 })
   } catch (error) {
-    console.error('Error getting access token:', error)
+    logger.error(`[${requestId}] Error getting access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

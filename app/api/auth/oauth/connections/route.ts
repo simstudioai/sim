@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+
+const logger = createLogger('OAuthConnectionsAPI')
 
 interface GoogleIdToken {
   email?: string
@@ -18,12 +21,15 @@ const VALID_PROVIDERS = ['google', 'github', 'x']
  * Get all OAuth connections for the current user
  */
 export async function GET(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Get the session
     const session = await getSession()
 
     // Check if the user is authenticated
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthenticated request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
@@ -47,7 +53,7 @@ export async function GET(request: NextRequest) {
               name = decoded.email
             }
           } catch (error) {
-            console.error('Error decoding ID token:', error)
+            logger.warn(`[${requestId}] Error decoding Google ID token`, { accountId: acc.id })
           }
         }
 
@@ -84,7 +90,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ connections }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching OAuth connections:', error)
+    logger.error(`[${requestId}] Error fetching OAuth connections`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

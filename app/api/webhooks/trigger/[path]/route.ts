@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
-import { persistExecutionError, persistExecutionLogs } from '@/lib/logging'
+import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState, mergeSubblockStateAsync } from '@/stores/workflows/utils'

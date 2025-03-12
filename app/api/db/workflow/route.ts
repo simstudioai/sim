@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
+
+const logger = createLogger('WorkflowAPI')
 
 // Schema for workflow data
 const WorkflowStateSchema = z.object({
@@ -31,10 +34,13 @@ const SyncPayloadSchema = z.object({
 })
 
 export async function GET(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Get the session directly in the API route
     const session = await getSession()
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized workflow access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -46,96 +52,110 @@ export async function GET(request: Request) {
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })
   } catch (error: any) {
-    console.error('Workflow fetch error:', error)
+    logger.error(`[${requestId}] Workflow fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     const session = await getSession()
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized workflow sync attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
-    const { workflows: clientWorkflows } = SyncPayloadSchema.parse(body)
 
-    // Get all workflows for the user from the database
-    const dbWorkflows = await db.select().from(workflow).where(eq(workflow.userId, session.user.id))
+    try {
+      const { workflows: clientWorkflows } = SyncPayloadSchema.parse(body)
 
-    const now = new Date()
-    const operations: Promise<any>[] = []
+      // Get all workflows for the user from the database
+      const dbWorkflows = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.userId, session.user.id))
 
-    // Create a map of DB workflows for easier lookup
-    const dbWorkflowMap = new Map(dbWorkflows.map((w) => [w.id, w]))
-    const processedIds = new Set<string>()
+      const now = new Date()
+      const operations: Promise<any>[] = []
 
-    // Process client workflows
-    for (const [id, clientWorkflow] of Object.entries(clientWorkflows)) {
-      processedIds.add(id)
-      const dbWorkflow = dbWorkflowMap.get(id)
+      // Create a map of DB workflows for easier lookup
+      const dbWorkflowMap = new Map(dbWorkflows.map((w) => [w.id, w]))
+      const processedIds = new Set<string>()
 
-      if (!dbWorkflow) {
-        // New workflow - create
-        operations.push(
-          db.insert(workflow).values({
-            id: clientWorkflow.id,
-            userId: session.user.id,
-            name: clientWorkflow.name,
-            description: clientWorkflow.description,
-            color: clientWorkflow.color,
-            state: clientWorkflow.state,
-            lastSynced: now,
-            createdAt: now,
-            updatedAt: now,
-          })
-        )
-      } else {
-        // Existing workflow - update if needed
-        const needsUpdate =
-          JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
-          dbWorkflow.name !== clientWorkflow.name ||
-          dbWorkflow.description !== clientWorkflow.description ||
-          dbWorkflow.color !== clientWorkflow.color
+      // Process client workflows
+      for (const [id, clientWorkflow] of Object.entries(clientWorkflows)) {
+        processedIds.add(id)
+        const dbWorkflow = dbWorkflowMap.get(id)
 
-        if (needsUpdate) {
+        if (!dbWorkflow) {
+          // New workflow - create
           operations.push(
-            db
-              .update(workflow)
-              .set({
-                name: clientWorkflow.name,
-                description: clientWorkflow.description,
-                color: clientWorkflow.color,
-                state: clientWorkflow.state,
-                lastSynced: now,
-                updatedAt: now,
-              })
-              .where(eq(workflow.id, id))
+            db.insert(workflow).values({
+              id: clientWorkflow.id,
+              userId: session.user.id,
+              name: clientWorkflow.name,
+              description: clientWorkflow.description,
+              color: clientWorkflow.color,
+              state: clientWorkflow.state,
+              lastSynced: now,
+              createdAt: now,
+              updatedAt: now,
+            })
           )
+        } else {
+          // Existing workflow - update if needed
+          const needsUpdate =
+            JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
+            dbWorkflow.name !== clientWorkflow.name ||
+            dbWorkflow.description !== clientWorkflow.description ||
+            dbWorkflow.color !== clientWorkflow.color
+
+          if (needsUpdate) {
+            operations.push(
+              db
+                .update(workflow)
+                .set({
+                  name: clientWorkflow.name,
+                  description: clientWorkflow.description,
+                  color: clientWorkflow.color,
+                  state: clientWorkflow.state,
+                  lastSynced: now,
+                  updatedAt: now,
+                })
+                .where(eq(workflow.id, id))
+            )
+          }
         }
       }
-    }
 
-    // Handle deletions - workflows in DB but not in client
-    for (const dbWorkflow of dbWorkflows) {
-      if (!processedIds.has(dbWorkflow.id)) {
-        operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
+      // Handle deletions - workflows in DB but not in client
+      for (const dbWorkflow of dbWorkflows) {
+        if (!processedIds.has(dbWorkflow.id)) {
+          operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
+        }
       }
+
+      // Execute all operations in parallel
+      await Promise.all(operations)
+
+      return NextResponse.json({ success: true })
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid workflow data`, {
+          errors: validationError.errors,
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: validationError.errors },
+          { status: 400 }
+        )
+      }
+      throw validationError
     }
-
-    // Execute all operations in parallel
-    await Promise.all(operations)
-
-    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Workflow sync error:', error)
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
+    logger.error(`[${requestId}] Workflow sync error`, error)
     return NextResponse.json({ error: 'Workflow sync failed' }, { status: 500 })
   }
 }

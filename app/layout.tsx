@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from 'next'
+import { createLogger } from '@/lib/logs/console-logger'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
+
+const logger = createLogger('RootLayout')
 
 // Add browser extension attributes that we want to ignore
 const BROWSER_EXTENSION_ATTRIBUTES = [
@@ -24,14 +27,12 @@ if (typeof window !== 'undefined') {
       )
 
       if (!isExtensionError) {
-        // Log non-extension hydration errors with more detail
-        console.group('Hydration Error')
-        console.log('Error Details:', args)
-        console.log(
-          'Component Stack:',
-          args.find((arg) => typeof arg === 'string' && arg.includes('component stack'))
-        )
-        console.groupEnd()
+        logger.error('Hydration Error', {
+          details: args,
+          componentStack: args.find(
+            (arg) => typeof arg === 'string' && arg.includes('component stack')
+          ),
+        })
       }
     }
     originalError.apply(console, args)

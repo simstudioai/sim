@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { decryptSecret, encryptSecret } from '@/lib/utils'
 import { EnvironmentVariable } from '@/stores/settings/environment/types'
 import { db } from '@/db'
 import { environment } from '@/db/schema'
+
+const logger = createLogger('EnvironmentAPI')
 
 // Schema for environment variable updates
 const EnvVarSchema = z.object({
@@ -13,60 +16,74 @@ const EnvVarSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     const session = await getSession()
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized environment variables update attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
-    const { variables } = EnvVarSchema.parse(body)
 
-    // Encrypt all variables
-    const encryptedVariables = await Object.entries(variables).reduce(
-      async (accPromise, [key, value]) => {
-        const acc = await accPromise
-        const { encrypted } = await encryptSecret(value)
-        return { ...acc, [key]: encrypted }
-      },
-      Promise.resolve({})
-    )
+    try {
+      const { variables } = EnvVarSchema.parse(body)
 
-    // Replace all environment variables for user
-    await db
-      .insert(environment)
-      .values({
-        id: crypto.randomUUID(),
-        userId: session.user.id,
-        variables: encryptedVariables,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [environment.userId],
-        set: {
+      // Encrypt all variables
+      const encryptedVariables = await Object.entries(variables).reduce(
+        async (accPromise, [key, value]) => {
+          const acc = await accPromise
+          const { encrypted } = await encryptSecret(value)
+          return { ...acc, [key]: encrypted }
+        },
+        Promise.resolve({})
+      )
+
+      // Replace all environment variables for user
+      await db
+        .insert(environment)
+        .values({
+          id: crypto.randomUUID(),
+          userId: session.user.id,
           variables: encryptedVariables,
           updatedAt: new Date(),
-        },
-      })
+        })
+        .onConflictDoUpdate({
+          target: [environment.userId],
+          set: {
+            variables: encryptedVariables,
+            updatedAt: new Date(),
+          },
+        })
 
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Error updating environment variables:', error)
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: true })
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid environment variables data`, {
+          errors: validationError.errors,
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: validationError.errors },
+          { status: 400 }
+        )
+      }
+      throw validationError
     }
+  } catch (error) {
+    logger.error(`[${requestId}] Error updating environment variables`, error)
     return NextResponse.json({ error: 'Failed to update environment variables' }, { status: 500 })
   }
 }
 
 export async function GET(request: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Get the session directly in the API route
     const session = await getSession()
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized environment variables access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -92,7 +109,7 @@ export async function GET(request: Request) {
         const { decrypted } = await decryptSecret(encryptedValue)
         decryptedVariables[key] = { key, value: decrypted }
       } catch (error) {
-        console.error(`Error decrypting variable ${key}:`, error)
+        logger.error(`[${requestId}] Error decrypting variable ${key}`, error)
         // If decryption fails, provide a placeholder
         decryptedVariables[key] = { key, value: '' }
       }
@@ -100,7 +117,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ data: decryptedVariables }, { status: 200 })
   } catch (error: any) {
-    console.error('Environment fetch error:', error)
+    logger.error(`[${requestId}] Environment fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

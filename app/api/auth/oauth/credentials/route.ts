@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
 import { parseProvider } from '@/lib/oauth'
 import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+
+const logger = createLogger('OAuthCredentialsAPI')
 
 interface GoogleIdToken {
   email?: string
@@ -16,12 +19,15 @@ interface GoogleIdToken {
  * Get credentials for a specific provider
  */
 export async function GET(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   try {
     // Get the session
     const session = await getSession()
 
     // Check if the user is authenticated
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
@@ -30,6 +36,7 @@ export async function GET(request: NextRequest) {
     const provider = searchParams.get('provider') as OAuthService | null
 
     if (!provider) {
+      logger.warn(`[${requestId}] Missing provider parameter`)
       return NextResponse.json({ error: 'Provider is required' }, { status: 400 })
     }
 
@@ -57,7 +64,7 @@ export async function GET(request: NextRequest) {
               name = decoded.email
             }
           } catch (error) {
-            console.error('Error decoding ID token:', error)
+            logger.warn(`[${requestId}] Error decoding Google ID token`, { accountId: acc.id })
           }
         }
 
@@ -73,7 +80,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ credentials }, { status: 200 })
   } catch (error) {
-    console.error('Error fetching credentials:', error)
+    logger.error(`[${requestId}] Error fetching OAuth credentials`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
