@@ -25,7 +25,7 @@ git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
 # Create environment file
-cp .env.example .env
+cp sim/.env.example sim/.env
 
 # Start the Docker environment
 docker compose up -d
@@ -62,7 +62,8 @@ After running these commands:
 2. Install the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 3. Open the project in your editor
 4. Click "Reopen in Container" when prompted
-5. Run `npm run dev` in the terminal
+5. The environment will automatically be set up in the `sim` directory
+6. Run `npm run dev` in the terminal or use the `sim-start` alias
 
 ### Option 3: Manual Setup
 
@@ -71,7 +72,7 @@ After running these commands:
 ```bash
 # Clone the repository
 git clone https://github.com/YOUR_USERNAME/sim.git
-cd sim
+cd sim/sim
 
 # Install dependencies
 npm install

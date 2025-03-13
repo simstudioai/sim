@@ -2,12 +2,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+# Copy package files from sim directory
+COPY sim/package.json sim/package-lock.json ./
 RUN npm ci
 
-# Copy everything else (for build)
-COPY . .
+# Copy sim directory contents
+COPY sim/ ./
 
 EXPOSE 3000
 

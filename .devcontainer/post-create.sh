@@ -5,9 +5,12 @@ set -e
 
 echo "🔧 Setting up Sim Studio development environment..."
 
+# Change to the sim directory
+cd /workspace/sim
+
 # Setup .bashrc
 echo "📄 Setting up .bashrc with aliases..."
-cp .devcontainer/.bashrc ~/.bashrc
+cp /workspace/.devcontainer/.bashrc ~/.bashrc
 # Add to .profile to ensure .bashrc is sourced in non-interactive shells
 echo 'if [ -f ~/.bashrc ]; then . ~/.bashrc; fi' >> ~/.profile
 
@@ -55,13 +58,13 @@ echo "Waiting for database to be ready..."
 cat << EOF >> ~/.bashrc
 
 # Additional Sim Studio Development Aliases
-alias migrate="npx drizzle-kit push"
-alias generate="npx drizzle-kit generate"
-alias dev="npm run dev"
-alias build="npm run build"
-alias start="npm run start"
-alias lint="npm run lint"
-alias test="npm run test"
+alias migrate="cd /workspace/sim && npx drizzle-kit push"
+alias generate="cd /workspace/sim && npx drizzle-kit generate"
+alias dev="cd /workspace/sim && npm run dev"
+alias build="cd /workspace/sim && npm run build"
+alias start="cd /workspace/sim && npm run start"
+alias lint="cd /workspace/sim && npm run lint"
+alias test="cd /workspace/sim && npm run test"
 EOF
 
 # Source the .bashrc to make aliases available immediately

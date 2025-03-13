@@ -15,6 +15,7 @@ services:
     depends_on:
       - db
     network_mode: service:db
+    working_dir: /workspace/sim
 
   db:
     image: postgres:14

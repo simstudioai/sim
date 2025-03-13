@@ -3,7 +3,7 @@
 Thank you for your interest in contributing to Sim Studio! Our goal is to provide developers with a powerful, user-friendly platform for building, testing, and optimizing agentic workflows. We welcome contributions in all forms—from bug fixes and design improvements to brand-new features.
 
 > **Project Overview:**  
-> Sim Studio is built with Next.js (app router), ReactFlow, Zustand, Shadcn, and Tailwind CSS. Please ensure your contributions follow our best practices for clarity, maintainability, and consistency.
+> Sim Studio is a monorepo containing the main application (`sim/`) and documentation (`docs/`). The main application is built with Next.js (app router), ReactFlow, Zustand, Shadcn, and Tailwind CSS. Please ensure your contributions follow our best practices for clarity, maintainability, and consistency.
 
 ---
 
@@ -189,6 +189,8 @@ Dev Containers provide a consistent and easy-to-use development environment:
    - Open the project in VS Code
    - When prompted, click "Reopen in Container" (or press F1 and select "Remote-Containers: Reopen in Container")
    - Wait for the container to build and initialize
+   - The development environment will be set up in the `sim/` directory
+
 3. **Start Developing:**
 
    - All dependencies and configurations are automatically set up
@@ -206,7 +208,7 @@ If you prefer not to use Docker or Dev Containers:
 1. **Clone the Repository:**
    ```bash
    git clone https://github.com/<your-username>/sim.git
-   cd sim
+   cd sim/sim
    ```
 2. **Install Dependencies:**
 
@@ -251,26 +253,26 @@ Sim Studio is built in a modular fashion where blocks and tools extend the platf
 
 ### Where to Add Your Code
 
-- **Blocks:** Create your new block file under the `/blocks/blocks` directory.
-- **Tools:** Create your new tool file under the `/tools` directory.
+- **Blocks:** Create your new block file under the `/sim/blocks/blocks` directory.
+- **Tools:** Create your new tool file under the `/sim/tools` directory.
 
 In addition, you will need to update the registries:
 
-- **Block Registry:** Update the blocks index (usually `/blocks/index.ts`) to include your new block.
-- **Tool Registry:** Update the tools registry (`/tools/index.ts`) to add your new tool.
+- **Block Registry:** Update the blocks index (usually `/sim/blocks/index.ts`) to include your new block.
+- **Tool Registry:** Update the tools registry (`/sim/tools/index.ts`) to add your new tool.
 
 ### How to Create a New Block
 
 1. **Create a New File:**  
-   Create a file for your block (e.g., `newBlock.ts`) in the `/blocks/blocks` directory.
+   Create a file for your block (e.g., `newBlock.ts`) in the `/sim/blocks/blocks` directory.
 
 2. **Create a New Icon:**
-   Create a new icon for your block in the `/components/icons.tsx` file.
+   Create a new icon for your block in the `/sim/components/icons.tsx` file.
 
 3. **Define the Block Configuration:**  
    Your block should export a constant of type `BlockConfig`. For example:
 
-   ```typescript:blocks/blocks/newBlock.ts
+   ```typescript:/sim/blocks/blocks/newBlock.ts
    import { SomeIcon } from '@/components/icons'
    import { BlockConfig } from '../types'
 
@@ -322,9 +324,9 @@ In addition, you will need to update the registries:
    ```
 
 4. **Register Your Block:**  
-   Import and add your block to the blocks registry (`blocks/index.ts`) in the appropriate index file so it appears in the workflow builder.
+   Import and add your block to the blocks registry (`/sim/blocks/index.ts`) in the appropriate index file so it appears in the workflow builder.
 
-   ```typescript:blocks/index.ts
+   ```typescript:/sim/blocks/index.ts
    import { NewBlock } from './blocks/newBlock'
 
    export const blocks = [
@@ -344,7 +346,7 @@ In addition, you will need to update the registries:
 ### How to Create a New Tool
 
 1. **Create a New Directory:**  
-   For tools with multiple related functions, create a directory under `/tools` (e.g., `/tools/newService`).
+   For tools with multiple related functions, create a directory under `/sim/tools` (e.g., `/sim/tools/newService`).
 
 2. **Create Tool Files:**  
    Create files for your tool functionality (e.g., `read.ts`, `write.ts`) in your tool directory.
@@ -352,7 +354,7 @@ In addition, you will need to update the registries:
 3. **Create an Index File:**  
    Create an `index.ts` file in your tool directory that imports and exports all tools with appropriate prefixes:
 
-   ```typescript:tools/newService/index.ts
+   ```typescript:/sim/tools/newService/index.ts
    import { readTool } from './read'
    import { writeTool } from './write'
 
@@ -363,7 +365,7 @@ In addition, you will need to update the registries:
 4. **Define the Tool Configuration:**  
    Your tool should export a constant of type `ToolConfig`. For example:
 
-   ```typescript:tools/newService/read.ts
+   ```typescript:/sim/tools/newService/read.ts
    import { ToolConfig, ToolResponse } from '../types'
 
    interface NewToolParams {
@@ -422,9 +424,9 @@ In addition, you will need to update the registries:
    ```
 
 5. **Register Your Tool:**  
-   Update the tools registry in `/tools/index.ts` to include your new tool. Import from your tool's index.ts file:
+   Update the tools registry in `/sim/tools/index.ts` to include your new tool. Import from your tool's index.ts file:
 
-   ```typescript:tools/index.ts
+   ```typescript:/sim/tools/index.ts
    import { newServiceReadTool, newServiceWriteTool } from './newService'
    // ... other imports
 

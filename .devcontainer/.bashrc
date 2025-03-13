@@ -18,11 +18,14 @@ alias pgc="PGPASSWORD=postgres psql -h db -U postgres -d postgres"
 alias check-db="PGPASSWORD=postgres psql -h db -U postgres -c '\l'"
 
 # Sim Studio specific aliases
-alias logs="tail -f logs/*.log 2>/dev/null || echo 'No log files found'"
-alias sim-start="npm run dev"
-alias sim-migrate="npx drizzle-kit push"
-alias sim-generate="npx drizzle-kit generate"
-alias sim-rebuild="npm run build && npm start"
+alias logs="cd /workspace/sim && tail -f logs/*.log 2>/dev/null || echo 'No log files found'"
+alias sim-start="cd /workspace/sim && npm run dev"
+alias sim-migrate="cd /workspace/sim && npx drizzle-kit push"
+alias sim-generate="cd /workspace/sim && npx drizzle-kit generate"
+alias sim-rebuild="cd /workspace/sim && npm run build && npm start"
+
+# Default to sim directory
+cd /workspace/sim 2>/dev/null || true
 
 # Welcome message - only show once per session
 if [ -z "$SIM_WELCOME_SHOWN" ]; then
