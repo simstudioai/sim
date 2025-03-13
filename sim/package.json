@@ -52,7 +52,6 @@
     "croner": "^9.0.0",
     "date-fns": "^3.6.0",
     "drizzle-orm": "^0.39.3",
-    "fumadocs-ui": "^15.0.16",
     "groq-sdk": "^0.15.0",
     "input-otp": "^1.4.2",
     "ioredis": "^5.6.0",

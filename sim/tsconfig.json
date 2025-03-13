@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "lib": ["es2020", "dom"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"],
+      "@/components/*": ["./app/components/*"],
+      "@/lib/*": ["./app/lib/*"],
+      "@/stores/*": ["./app/stores/*"],
+      "@/stores": ["./app/stores"],
+      "@/hooks/*": ["./app/hooks/*"],
+      "@/blocks/*": ["./app/blocks/*"],
+      "@/blocks": ["./app/blocks"],
+      "@/providers/*": ["./app/providers/*"],
+      "@/providers": ["./app/providers"],
+      "@/utils/*": ["./app/utils/*"],
+      "@/tools": ["./app/tools"],
+      "@/tools/*": ["./app/tools/*"],
+      "@/types/*": ["./app/types/*"],
+      "@/workflows/*": ["./app/workflows/*"],
+      "@/serializer": ["./app/serializer"],
+      "@/serializer/*": ["./app/serializer/*"],
+      "@/db": ["./app/db"],
+      "@/db/*": ["./app/db/*"],
+      "@/executor": ["./app/executor"],
+      "@/executor/*": ["./app/executor/*"],
+      // "@/hooks": ["./app/hooks"],
+      // "@/hooks/*": ["./app/hooks/*"],
+      // "@/middleware": ["./app/middleware"],
+      // "@/middleware/*": ["./app/middleware/*"],
+    },
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../next-env.d.ts"],
+  "exclude": ["node_modules"]
+}
