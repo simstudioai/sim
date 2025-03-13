@@ -6,13 +6,6 @@ labels: ['✨ feature']
 assignees: ''
 ---
 
-### Is your proposal related to a problem?
-
-<!--
-  Provide a clear and concise description of what the problem is.
-  For example, "I'm always frustrated when..."
--->
-
 ### Describe the solution you'd like
 
 <!--
@@ -22,7 +15,7 @@ assignees: ''
 ### Describe alternatives you've considered
 
 <!--
-  Let us know about other solutions you've tried or researched.
+  Let us know about other solutions you've considered, tried or researched.
 -->
 
 ### Additional context

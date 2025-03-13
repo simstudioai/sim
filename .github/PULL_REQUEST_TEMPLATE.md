@@ -1,12 +1,8 @@
 ## What does this PR do?
 
-<!-- Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context. List any dependencies that are required for this change. -->
-
 - Fixes #XXXX (GitHub issue number)
 
-<!-- Please provide a loom video for visual changes to speed up reviews
- Loom Video: https://www.loom.com/
--->
+<!-- Please include a summary of the change and which issue is fixed. Please also include relevant motivation and context. List any dependencies that are required for this change. -->
 
 ## Mandatory Tasks (DO NOT REMOVE)
 
