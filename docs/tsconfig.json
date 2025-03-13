@@ -25,6 +25,13 @@
       }
     ]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "content/docs/execution/index.mdx",
+    "content/docs/connections/index.mdx"
+  ],
   "exclude": ["node_modules"]
 }

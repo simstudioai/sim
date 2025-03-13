@@ -6,7 +6,9 @@ description: Build, test, and optimize your agentic workflows
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Steps, Step } from 'fumadocs-ui/components/steps'
 import { Callout } from 'fumadocs-ui/components/callout'
+import { Files, Folder, File } from 'fumadocs-ui/components/files'
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { AgentIcon, ApiIcon, ConditionalIcon, CodeIcon, ChartBarIcon, ConnectIcon, GmailIcon, PerplexityIcon, NotionIcon, ExaAIIcon, FirecrawlIcon, SlackIcon } from '@/components/icons'
 
 Sim Studio is a powerful, user-friendly platform for building, testing, and optimizing your agentic workflows. This documentation will help you understand how to use the various components of Sim Studio to create sophisticated agent-based applications.
 
@@ -14,24 +16,35 @@ Sim Studio is a powerful, user-friendly platform for building, testing, and opti
   This guide will walk you through the essential concepts and help you get started building your first workflow.
 </Callout>
 
-## Core Concepts
+## Core Components
 
-Sim Studio is built around two fundamental concepts:
+Sim Studio is built around two primary components:
 
-<Cards>
-  <Card 
-    title="Blocks" 
-    href="/docs/blocks"
-    description="The building blocks of your workflows - Agent, Router, Evaluator, Condition, Function, and API blocks that can be connected together."
-    icon="🧩"
-  />
-  <Card 
-    title="Tools" 
-    href="/docs/tools"
-    description="Specialized functionality that can be used standalone or integrated within blocks to extend capabilities."
-    icon="🔧"
-  />
-</Cards>
+### Blocks
+
+Blocks are the fundamental building elements of your workflows. Each block serves a specific purpose:
+
+<Files>
+  <File name="Agent Block" icon={<AgentIcon className="w-4 h-4" />} annotation="Create AI agents using any LLM provider" />
+  <File name="API Block" icon={<ApiIcon className="w-4 h-4" />} annotation="Connect to external services and APIs" />
+  <File name="Condition Block" icon={<ConditionalIcon className="w-4 h-4" />} annotation="Add conditional branching to your workflows" />
+  <File name="Function Block" icon={<CodeIcon className="w-4 h-4" />} annotation="Execute custom JavaScript/TypeScript code" />
+  <File name="Evaluator Block" icon={<ChartBarIcon className="w-4 h-4" />} annotation="Assess responses against defined criteria" />
+  <File name="Router Block" icon={<ConnectIcon className="w-4 h-4" />} annotation="Direct workflow execution based on input analysis" />
+</Files>
+
+### Tools
+
+Tools extend the capabilities of agents. They provide additional functionality for agents by enabling you to interface with your favorite data sources and take action (e.g posting on X, sending an email)
+
+<Files>
+  <File name="Gmail Tool" icon={<GmailIcon className="w-4 h-4" />} />
+  <File name="Firecrawl Tool" icon={<FirecrawlIcon className="w-4 h-4" />} />
+  <File name="Perplexity Tool" icon={<PerplexityIcon className="w-4 h-4" />} />
+  <File name="Notion Tool" icon={<NotionIcon className="w-4 h-4" />} />
+  <File name="Exa AI Tool" icon={<ExaAIIcon className="w-4 h-4" />} />
+  <File name="Slack Tool" icon={<SlackIcon className="w-4 h-4" />} />
+</Files>
 
 ## Getting Started
 
@@ -52,56 +65,3 @@ Sim Studio is built around two fundamental concepts:
     Run your workflow with test inputs to verify its behavior.
   </Step>
 </Steps>
-
-## Explore Blocks
-
-<Tabs items={['Agent Blocks', 'Logic Blocks', 'Integration Blocks']}>
-  <Tab>
-    <Cards>
-      <Card 
-        title="Agent" 
-        href="/docs/blocks/agent"
-        description="Create AI agents that can process inputs and generate outputs based on instructions."
-        icon="🤖"
-      />
-      <Card 
-        title="Evaluator Block" 
-        href="/docs/blocks/evaluator"
-        description="Evaluate agent responses against specific criteria."
-        icon="📊"
-      />
-    </Cards>
-  </Tab>
-  <Tab>
-    <Cards>
-      <Card 
-        title="Router Block" 
-        href="/docs/blocks/router"
-        description="Route workflow execution based on specific conditions."
-        icon="🔄"
-      />
-      <Card 
-        title="Condition Block" 
-        href="/docs/blocks/condition"
-        description="Create conditional logic to control workflow execution paths."
-        icon="🔀"
-      />
-    </Cards>
-  </Tab>
-  <Tab>
-    <Cards>
-      <Card 
-        title="Function Block" 
-        href="/docs/blocks/function"
-        description="Execute custom JavaScript/TypeScript functions."
-        icon="⚙️"
-      />
-      <Card 
-        title="API Block" 
-        href="/docs/blocks/api"
-        description="Make API calls to external services."
-        icon="🔌"
-      />
-    </Cards>
-  </Tab>
-</Tabs>
