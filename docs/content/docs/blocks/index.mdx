@@ -1,0 +1,131 @@
+---
+title: Blocks
+description: Building blocks for your agentic workflows
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+
+Blocks are the fundamental building components of Sim Studio workflows. Each block has a specific purpose and can be connected to other blocks to create sophisticated workflows.
+
+## What is a Block?
+
+A block is a reusable, configurable component that performs a specific function within your workflow. Blocks have inputs and outputs that allow them to communicate with other blocks. They can process data, make decisions, interact with external systems, or perform computations.
+
+## Primary Block Types
+
+Sim Studio provides six powerful block types that form the foundation of any workflow. Each block is designed to handle specific aspects of your agentic applications, from AI-powered reasoning to conditional logic and external integrations.
+
+<Tabs items={['Grid View', 'Card View']}>
+  <Tab>
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 my-6">
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <h3 className="font-medium text-lg mb-2">Agent</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Create powerful AI agents using any LLM provider
+        </div>
+      </div>
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <h3 className="font-medium text-lg mb-2">API</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Connect to external services through HTTP requests
+        </div>
+      </div>
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <h3 className="font-medium text-lg mb-2">Condition</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Branch workflow execution based on boolean expressions
+        </div>
+      </div>
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <h3 className="font-medium text-lg mb-2">Function</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Execute custom JavaScript or TypeScript code
+        </div>
+      </div>
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <h3 className="font-medium text-lg mb-2">Evaluator</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Assess content quality using customizable metrics
+        </div>
+      </div>
+      <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <h3 className="font-medium text-lg mb-2">Router</h3>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Intelligently direct workflow execution
+        </div>
+      </div>
+    </div>
+  </Tab>
+  <Tab>
+    <Cards>
+      <Card
+        title="Agent"
+        href="/docs/blocks/agent"
+        description="Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations."
+        icon="🤖"
+      />
+      <Card
+        title="API"
+        href="/docs/blocks/api"
+        description="Connect to any external API with support for all standard HTTP methods and customizable request parameters."
+        icon="🔌"
+      />
+      <Card
+        title="Condition"
+        href="/docs/blocks/condition"
+        description="Add a condition to the workflow to branch the execution path based on a boolean expression."
+        icon="🔀"
+      />
+      <Card
+        title="Function"
+        href="/docs/blocks/function"
+        description="Execute custom JavaScript or TypeScript code within your workflow to transform data or implement complex logic."
+        icon="⚙️"
+      />
+      <Card
+        title="Evaluator"
+        href="/docs/blocks/evaluator"
+        description="Assess content quality using customizable evaluation metrics and scoring criteria."
+        icon="📊"
+      />
+      <Card
+        title="Router"
+        href="/docs/blocks/router"
+        description="Intelligently direct workflow execution to different paths based on input analysis."
+        icon="🔄"
+      />
+    </Cards>
+  </Tab>
+</Tabs>
+
+## Block Connections
+
+Blocks can be connected to form a directed graph representing your workflow. Each connection represents the flow of data from one block to another:
+
+<Steps>
+  <Step>
+    <strong>Outputs to Inputs</strong>: A block's outputs can be connected to another block's inputs.
+  </Step>
+  <Step>
+    <strong>Multiple Connections</strong>: A block can have multiple incoming and outgoing connections.
+  </Step>
+  <Step>
+    <strong>Conditional Flows</strong>: Some blocks (like Router and Condition) can have multiple output paths based on conditions.
+  </Step>
+</Steps>
+
+## Block Configuration
+
+Each block type has its own configuration options allowing you to customize its behavior.
+
+### Common Configuration Options
+
+- **Input/output definitions**: Define how data flows in and out of the block
+- **Processing instructions**: Configure how the block processes its inputs
+- **API keys or authentication details**: Provide necessary credentials for external services
+- **Retry policies**: Configure how the block handles failures
+- **Error handling behavior**: Define how errors are managed and reported
+
+See the specific documentation for each block type to learn about its configuration options. 

@@ -1,0 +1,126 @@
+---
+title: Function
+description: Execute custom JavaScript or TypeScript code within your workflow
+---
+
+# Function Block
+
+The Function block allows you to execute custom JavaScript or TypeScript code within your workflow. This enables you to implement complex logic, transform data, or create custom functionality that extends beyond the capabilities of other blocks.
+
+## Overview
+
+The Function block brings the full power of JavaScript/TypeScript to your workflows, allowing for:
+
+- Custom data transformation and manipulation
+- Complex conditional logic
+- Mathematical calculations and algorithms
+- Integration with external libraries
+- Creation of reusable utility functions
+
+## How It Works
+
+The Function block:
+
+1. Takes your custom JavaScript/TypeScript code
+2. Executes it in a secure, isolated environment
+3. Processes any inputs provided from previous blocks
+4. Returns the result for use in subsequent blocks
+
+## Configuration Options
+
+### Code Editor
+
+A full-featured code editor where you can write your JavaScript/TypeScript code. The editor supports:
+
+- Syntax highlighting
+- Code completion
+- Error checking
+- Multiple lines of code
+
+### Inputs
+
+Your function can access inputs from previous blocks through an `input` object. For example:
+
+```javascript
+// Access data from a previous block
+const customerName = input.customerData.name;
+const orderTotal = input.orderData.total;
+
+// Process the data
+const discount = orderTotal > 100 ? 0.1 : 0;
+const finalPrice = orderTotal * (1 - discount);
+
+// Return the result
+return {
+  customerName,
+  originalTotal: orderTotal,
+  discount: discount * 100 + '%',
+  finalPrice
+};
+```
+
+## Safety and Limitations
+
+For security and performance reasons, function execution has certain limitations:
+
+- **Execution Time**: Functions have a maximum execution time to prevent infinite loops
+- **Memory Usage**: Memory is limited to prevent excessive resource usage
+- **Network Access**: Network calls are restricted to prevent unauthorized access
+- **Available APIs**: Only a subset of browser APIs are available
+
+## Inputs and Outputs
+
+### Inputs
+
+- **Code**: Your JavaScript/TypeScript code to execute
+- **Input Data**: Values from previous blocks that can be accessed in your code
+
+### Outputs
+
+- **Result**: The value returned by your function
+- **Standard Output**: Any console output from your function
+- **Execution Time**: The time taken to execute your function (in milliseconds)
+
+## Example Usage
+
+Here's an example of a Function block that processes customer data and calculates a loyalty score:
+
+```javascript
+// Example Function Block Code
+// Process customer data and calculate loyalty score
+
+// Access input from previous blocks
+const { purchaseHistory, accountAge, supportTickets } = input;
+
+// Calculate metrics
+const totalSpent = purchaseHistory.reduce((sum, purchase) => sum + purchase.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+// Calculate loyalty score (0-100)
+const spendScore = Math.min(totalSpent / 1000 * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+// Return results
+return {
+  customer: input.name,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? "Platinum" : loyaltyScore >= 60 ? "Gold" : loyaltyScore >= 40 ? "Silver" : "Bronze",
+  metrics: {
+    spendScore,
+    frequencyScore,
+    supportScore
+  }
+};
+```
+
+## Best Practices
+
+- **Keep functions focused**: Write functions that do one thing well
+- **Handle errors gracefully**: Use try/catch blocks to handle potential errors
+- **Document your code**: Add comments to explain complex logic
+- **Test edge cases**: Ensure your code handles unusual inputs correctly
+- **Optimize for performance**: Be mindful of computational complexity for large datasets

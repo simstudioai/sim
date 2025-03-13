@@ -1,0 +1,87 @@
+---
+title: Introduction
+description: A powerful platform for building, testing, and optimizing agentic workflows
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Files, Folder, File } from 'fumadocs-ui/components/files'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim Studio is a powerful platform for building, testing, and optimizing agentic workflows. It provides developers with intuitive tools to design sophisticated agent-based applications through a visual interface. Whether you're prototyping a simple AI assistant or building complex multi-agent systems, Sim Studio offers the flexibility and performance needed for modern AI applications.
+
+## Why Sim Studio?
+
+<Callout>
+  Building agentic applications has traditionally required extensive coding and integration work. Developers often find themselves spending more time on infrastructure and plumbing rather than focusing on the core AI logic. Sim Studio changes this by providing a comprehensive visual workflow editor that handles the complexity while keeping you in control of what matters.
+</Callout>
+
+## Features
+
+Sim Studio provides a wide range of features designed to accelerate your development process:
+
+<Cards>
+  <Card
+    title="Visual Workflow Editor"
+    description="Build complex workflows using a drag-and-drop interface with real-time previews"
+    icon="📊"
+  />
+  <Card
+    title="Modular Building Blocks"
+    description="Compose workflows using pre-built blocks for agents, APIs, functions, and more"
+    icon="🧩"
+  />
+  <Card
+    title="Multiple LLM Support"
+    description="Connect to various LLM providers and models with built-in optimization"
+    icon="🤖"
+  />
+  <Card
+    title="Testing & Debugging"
+    description="Test workflows with simulated inputs and debug with detailed execution logs"
+    icon="🔍"
+  />
+  <Card
+    title="Conditional Logic"
+    description="Create sophisticated decision trees using conditional branching and routing"
+    icon="🔀"
+  />
+  <Card
+    title="API Integrations"
+    description="Connect to external services with customizable API blocks and tools"
+    icon="🔌"
+  />
+</Cards>
+
+## Core Components
+
+Sim Studio is built around two primary components:
+
+### Blocks
+
+Blocks are the fundamental building elements of your workflows. Each block serves a specific purpose:
+
+<Files>
+  <Folder name="Blocks" defaultOpen>
+    <File name="Agent Block" annotation="Create AI agents using any LLM provider" />
+    <File name="API Block" annotation="Connect to external services and APIs" />
+    <File name="Condition Block" annotation="Add conditional branching to your workflows" />
+    <File name="Function Block" annotation="Execute custom JavaScript/TypeScript code" />
+    <File name="Evaluator Block" annotation="Assess responses against defined criteria" />
+    <File name="Router Block" annotation="Direct workflow execution based on input analysis" />
+  </Folder>
+</Files>
+
+### Tools
+
+Tools extend the capabilities of blocks by providing specialized functionality:
+
+<Files>
+  <Folder name="Tools" defaultOpen>
+    <File name="Data Transformation" annotation="Process and transform data between blocks" />
+    <File name="Configuration Management" annotation="Handle environment variables and secrets" />
+    <File name="Testing Suite" annotation="Validate workflow behavior with test scenarios" />
+    <File name="Logging & Monitoring" annotation="Track execution and performance metrics" />
+  </Folder>
+</Files>
+
+Ready to get started? Check out our [Getting Started](/docs/getting-started) guide or explore our [Blocks](/docs/blocks) and [Tools](/docs/tools) in more detail. 

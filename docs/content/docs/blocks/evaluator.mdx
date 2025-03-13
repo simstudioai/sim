@@ -1,0 +1,116 @@
+---
+title: Evaluator
+description: Assess content quality using customizable evaluation metrics
+---
+
+# Evaluator Block
+
+The Evaluator block allows you to assess content quality using customizable evaluation metrics and scoring criteria. It enables you to create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.
+
+## Overview
+
+The Evaluator block utilizes LLMs to objectively evaluate content based on custom metrics you define. This is especially useful for:
+
+- Assessing the quality of AI-generated content
+- Evaluating responses against specific criteria
+- Creating scoring frameworks for different types of content
+- Building objective feedback loops in your workflows
+
+## Configuration Options
+
+### Evaluation Metrics
+
+Define custom metrics to evaluate content against. Each metric includes:
+
+- **Name**: A short identifier for the metric
+- **Description**: A detailed explanation of what the metric measures
+- **Range**: The numeric range for scoring (e.g., 1-5, 0-10)
+
+Example metrics:
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity (1-5): How clear and understandable is the content?
+Relevance (1-5): How relevant is the content to the original query?
+```
+
+### Content
+
+The content to be evaluated. This can be:
+
+- Directly provided in the block configuration
+- Connected from another block's output (typically an Agent block)
+- Dynamically generated during workflow execution
+
+### Model Selection
+
+Choose an LLM provider to perform the evaluation:
+
+- OpenAI (GPT-3.5, GPT-4)
+- Anthropic (Claude)
+- Google (Gemini)
+- Mistral AI
+- And more
+
+The chosen model should have strong reasoning capabilities to provide accurate evaluations.
+
+### API Key
+
+Your API key for the selected LLM provider. This is securely stored and used for authentication.
+
+## How It Works
+
+1. The Evaluator block takes the provided content and your custom metrics
+2. It generates a specialized prompt that instructs the LLM to evaluate the content
+3. The prompt includes clear guidelines on how to score each metric
+4. The LLM evaluates the content and returns numeric scores for each metric
+5. The Evaluator block formats these scores as structured output for use in your workflow
+
+## Inputs and Outputs
+
+### Inputs
+
+- **Content**: The text or structured data to evaluate
+- **Metrics**: Custom evaluation criteria with scoring ranges
+- **Model Settings**: LLM provider and parameters
+
+### Outputs
+
+- **Content**: A summary of the evaluation
+- **Model**: The model used for evaluation
+- **Tokens**: Usage statistics
+- **Metric Scores**: Numeric scores for each defined metric
+
+## Example Usage
+
+Here's an example of how an Evaluator block might be configured for assessing customer service responses:
+
+```yaml
+# Example Evaluator Configuration
+metrics:
+  - name: Empathy
+    description: How well does the response acknowledge and address the customer's emotional state?
+    range: 
+      min: 1
+      max: 5
+  - name: Solution
+    description: How effectively does the response solve the customer's problem?
+    range:
+      min: 1
+      max: 5
+  - name: Clarity
+    description: How clear and easy to understand is the response?
+    range:
+      min: 1
+      max: 5
+
+model: Anthropic/claude-3-opus
+```
+
+## Best Practices
+
+- **Use specific metric descriptions**: Clearly define what each metric measures to get more accurate evaluations
+- **Choose appropriate ranges**: Select scoring ranges that provide enough granularity without being overly complex
+- **Connect with Agent blocks**: Use Evaluator blocks to assess Agent block outputs and create feedback loops
+- **Use consistent metrics**: For comparative analysis, maintain consistent metrics across similar evaluations
+- **Combine multiple metrics**: Use several metrics to get a comprehensive evaluation 

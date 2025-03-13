@@ -1,0 +1,179 @@
+---
+title: Condition
+description: Branch workflow execution based on boolean expressions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Files, Folder, File } from 'fumadocs-ui/components/files'
+
+The Condition block allows you to branch your workflow execution path based on boolean expressions. It evaluates conditions and routes the workflow accordingly, enabling you to create dynamic, responsive workflows with different execution paths.
+
+<Callout>
+  Condition blocks enable deterministic decision-making without requiring an LLM, making them ideal for straightforward branching logic.
+</Callout>
+
+## Overview
+
+The Condition block serves as a decision point in your workflow, enabling:
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+    <h3 className="font-medium text-lg mb-2">Branching Logic</h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Create different execution paths based on specific conditions
+    </p>
+  </div>
+  
+  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+    <h3 className="font-medium text-lg mb-2">Rule-Based Routing</h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Route workflows deterministically without needing an LLM
+    </p>
+  </div>
+  
+  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+    <h3 className="font-medium text-lg mb-2">Data-Driven Decisions</h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Create workflow paths based on structured data values
+    </p>
+  </div>
+  
+  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+    <h3 className="font-medium text-lg mb-2">If-Then-Else Logic</h3>
+    <p className="text-sm text-gray-600 dark:text-gray-400">
+      Implement conditional programming paradigms in your workflows
+    </p>
+  </div>
+</div>
+
+## How It Works
+
+The Condition block:
+
+<Steps>
+  <Step>
+    <strong>Evaluate Expression</strong>: Evaluates a boolean expression or condition
+  </Step>
+  <Step>
+    <strong>Determine Result</strong>: Determines whether the condition evaluates to true or false
+  </Step>
+  <Step>
+    <strong>Route Workflow</strong>: Routes the workflow to the appropriate path based on the result
+  </Step>
+  <Step>
+    <strong>Provide Context</strong>: Provides context about the decision made
+  </Step>
+</Steps>
+
+## Configuration Options
+
+### Conditions
+
+Define one or more conditions that will be evaluated. Each condition includes:
+
+- **Expression**: A JavaScript/TypeScript expression that evaluates to true or false
+- **Path**: The destination block to route to if the condition is true
+- **Description**: Optional explanation of what the condition checks
+
+You can create multiple conditions that are evaluated in order, with the first matching condition determining the execution path.
+
+### Condition Expression Format
+
+Conditions use JavaScript syntax and can reference input values from previous blocks.
+
+<Tabs items={['Score Threshold', 'Text Analysis', 'Multiple Conditions']}>
+  <Tab>
+    ```javascript
+    // Check if a score is above a threshold
+    input.score > 75
+    ```
+  </Tab>
+  <Tab>
+    ```javascript
+    // Check if a text contains specific keywords
+    input.text.includes('urgent') || input.text.includes('emergency')
+    ```
+  </Tab>
+  <Tab>
+    ```javascript
+    // Check multiple conditions
+    input.age >= 18 && input.country === 'US'
+    ```
+  </Tab>
+</Tabs>
+
+## Inputs and Outputs
+
+<Tabs items={['Inputs', 'Outputs']}>
+  <Tab>
+    <ul className="list-disc pl-6 space-y-2">
+      <li><strong>Variables</strong>: Values from previous blocks that can be referenced in conditions</li>
+      <li><strong>Conditions</strong>: Boolean expressions to evaluate</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <ul className="list-disc pl-6 space-y-2">
+      <li><strong>Content</strong>: A description of the evaluation result</li>
+      <li><strong>Condition Result</strong>: The boolean result of the condition evaluation</li>
+      <li><strong>Selected Path</strong>: Details of the chosen routing destination</li>
+      <li><strong>Selected Condition ID</strong>: Identifier of the condition that was matched</li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Example Usage
+
+Here's an example of how a Condition block might be used in a customer satisfaction workflow:
+
+```yaml
+# Example Condition Configuration
+conditions:
+  - id: "high_satisfaction"
+    expression: "input.satisfactionScore >= 8"
+    description: "Customer is highly satisfied"
+    path: "positive_feedback_block"
+    
+  - id: "medium_satisfaction"
+    expression: "input.satisfactionScore >= 5"
+    description: "Customer is moderately satisfied"
+    path: "neutral_feedback_block"
+    
+  - id: "default"
+    expression: "true"
+    description: "Customer is not satisfied"
+    path: "improvement_feedback_block"
+```
+
+## Key Points from the Documentation
+
+According to the [Fumadocs Files component documentation](https://fumadocs.vercel.app/docs/ui/components/files):
+
+1. The `File` component requires a `name` prop (string)
+2. The `File` component can optionally have an `icon` prop (ReactNode)
+3. The components must be used in the correct hierarchy: `<Files>` wrapping `<Folder>` and/or `<File>` components
+
+Make sure you're following this structure in your MDX files to avoid errors with the Files component.
+
+## Best Practices
+
+### Order conditions correctly
+
+Conditions are evaluated in order, so place more specific conditions before general ones. This ensures that more specific logic takes precedence over general fallbacks.
+
+### Include a default condition
+
+Add a catch-all condition (e.g., `true`) as the last condition to handle cases when no other conditions match. This prevents workflow execution from getting stuck.
+
+### Keep expressions simple
+
+Use clear, straightforward boolean expressions for better readability. Complex expressions can be difficult to debug and maintain.
+
+### Document your conditions
+
+Add descriptions to explain the purpose of each condition. This helps other team members understand the logic and makes maintenance easier.
+
+### Test edge cases
+
+Ensure your conditions handle boundary values correctly. Test with values at the edges of your condition ranges to verify correct behavior.

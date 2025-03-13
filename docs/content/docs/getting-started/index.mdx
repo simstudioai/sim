@@ -1,0 +1,107 @@
+---
+title: Getting Started
+description: Build, test, and optimize your agentic workflows
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+
+Sim Studio is a powerful, user-friendly platform for building, testing, and optimizing your agentic workflows. This documentation will help you understand how to use the various components of Sim Studio to create sophisticated agent-based applications.
+
+<Callout type="info">
+  This guide will walk you through the essential concepts and help you get started building your first workflow.
+</Callout>
+
+## Core Concepts
+
+Sim Studio is built around two fundamental concepts:
+
+<Cards>
+  <Card 
+    title="Blocks" 
+    href="/docs/blocks"
+    description="The building blocks of your workflows - Agent, Router, Evaluator, Condition, Function, and API blocks that can be connected together."
+    icon="🧩"
+  />
+  <Card 
+    title="Tools" 
+    href="/docs/tools"
+    description="Specialized functionality that can be used standalone or integrated within blocks to extend capabilities."
+    icon="🔧"
+  />
+</Cards>
+
+## Getting Started
+
+<Steps>
+  <Step title="Create a new workflow">
+    Start by creating a new workflow in the Sim Studio dashboard.
+  </Step>
+  <Step title="Add your first block">
+    Drag and drop a block from the sidebar onto the canvas.
+  </Step>
+  <Step title="Configure the block">
+    Set up the block's parameters and inputs according to your needs.
+  </Step>
+  <Step title="Connect blocks">
+    Create connections between blocks to define the flow of data and execution.
+  </Step>
+  <Step title="Test your workflow">
+    Run your workflow with test inputs to verify its behavior.
+  </Step>
+</Steps>
+
+## Explore Blocks
+
+<Tabs items={['Agent Blocks', 'Logic Blocks', 'Integration Blocks']}>
+  <Tab>
+    <Cards>
+      <Card 
+        title="Agent" 
+        href="/docs/blocks/agent"
+        description="Create AI agents that can process inputs and generate outputs based on instructions."
+        icon="🤖"
+      />
+      <Card 
+        title="Evaluator Block" 
+        href="/docs/blocks/evaluator"
+        description="Evaluate agent responses against specific criteria."
+        icon="📊"
+      />
+    </Cards>
+  </Tab>
+  <Tab>
+    <Cards>
+      <Card 
+        title="Router Block" 
+        href="/docs/blocks/router"
+        description="Route workflow execution based on specific conditions."
+        icon="🔄"
+      />
+      <Card 
+        title="Condition Block" 
+        href="/docs/blocks/condition"
+        description="Create conditional logic to control workflow execution paths."
+        icon="🔀"
+      />
+    </Cards>
+  </Tab>
+  <Tab>
+    <Cards>
+      <Card 
+        title="Function Block" 
+        href="/docs/blocks/function"
+        description="Execute custom JavaScript/TypeScript functions."
+        icon="⚙️"
+      />
+      <Card 
+        title="API Block" 
+        href="/docs/blocks/api"
+        description="Make API calls to external services."
+        icon="🔌"
+      />
+    </Cards>
+  </Tab>
+</Tabs>

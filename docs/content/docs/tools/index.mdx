@@ -1,0 +1,59 @@
+---
+title: Tools
+description: Specialized functionality to extend your workflow capabilities
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+import { Files, Folder, File } from 'fumadocs-ui/components/files'
+
+Tools in Sim Studio provide specialized functionality that can be used standalone or integrated within blocks to extend capabilities.
+
+## Available Tools
+
+Sim Studio offers a variety of tools to enhance your workflows:
+
+<Files>
+  <Folder name="Tools" defaultOpen>
+    <File name="Data Transformation" annotation="Process and transform data between blocks" />
+    <File name="Configuration Management" annotation="Handle environment variables and secrets" />
+    <File name="Testing Suite" annotation="Validate workflow behavior with test scenarios" />
+    <File name="Logging & Monitoring" annotation="Track execution and performance metrics" />
+  </Folder>
+</Files>
+
+## Using Tools
+
+Tools can be integrated with blocks to provide additional functionality. For example, you can use data transformation tools with Function blocks to process data, or logging tools to track the execution of your workflow.
+
+<Callout type="info">
+  Tools are constantly being added and improved. Check back regularly for new capabilities.
+</Callout>
+
+## Tool Categories
+
+<Accordions>
+  <Accordion title="Data Processing Tools">
+    Tools for transforming, validating, and manipulating data as it flows through your workflow.
+    
+    - **Data Validators**: Ensure data meets specific criteria before processing
+    - **Formatters**: Convert data between different formats (JSON, XML, CSV)
+    - **Transformers**: Apply complex transformations to structured data
+  </Accordion>
+  
+  <Accordion title="Integration Tools">
+    Tools for connecting to external services and systems.
+    
+    - **API Connectors**: Pre-built connectors for popular services
+    - **Database Tools**: Tools for querying and manipulating databases
+    - **File System Tools**: Tools for reading and writing files
+  </Accordion>
+  
+  <Accordion title="Utility Tools">
+    General-purpose tools for common tasks.
+    
+    - **Text Processing**: Tools for working with text data
+    - **Math & Statistics**: Tools for numerical calculations
+    - **Date & Time**: Tools for working with temporal data
+  </Accordion>
+</Accordions>
