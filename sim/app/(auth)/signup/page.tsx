@@ -65,7 +65,7 @@ export default function SignupPage() {
 
   async function signUpWithGithub() {
     try {
-      await client.signIn.social({ provider: 'github' })
+      await client.signIn.social({ provider: 'github', callbackURL: '/w' })
     } catch (err: any) {
       let errorMessage = 'Failed to sign up with GitHub'
 
@@ -85,7 +85,7 @@ export default function SignupPage() {
 
   async function signUpWithGoogle() {
     try {
-      await client.signIn.social({ provider: 'google' })
+      await client.signIn.social({ provider: 'google', callbackURL: '/w' })
     } catch (err: any) {
       let errorMessage = 'Failed to sign up with Google'
 

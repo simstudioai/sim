@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionCookie } from 'better-auth'
 
 export async function middleware(request: NextRequest) {
   // Check if the path is exactly /w
@@ -12,8 +11,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Existing auth check for protected routes
-  const sessionCookie = getSessionCookie(request)
+  const cookieHeader = request.headers.get("cookie");
+  const cookies = cookieHeader?.split("; ").reduce((acc, cookie) => {
+    const [key, value] = cookie.split("=");
+    acc.set(key, value);
+    return acc;
+  }, new Map());
+
+  const sessionCookie =
+    cookies?.get("better-auth.session_token") ||
+    cookies?.get("__Secure-better-auth.session_token");
+    
   if (!sessionCookie) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
