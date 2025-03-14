@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionCookie } from 'better-auth'
 
 export async function middleware(request: NextRequest) {
-  // Check if the path is exactly /w
-  if (request.nextUrl.pathname === '/w') {
+   // Check if the path is exactly /w
+   if (request.nextUrl.pathname === '/w') {
     return NextResponse.redirect(new URL('/w/1', request.url))
   }
 
@@ -12,8 +11,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  const cookieHeader = request.headers.get("cookie");
+  const cookies = cookieHeader?.split("; ").reduce((acc, cookie) => {
+    const [key, value] = cookie.split("=");
+    acc.set(key, value);
+    return acc;
+  }, new Map());
+
+  const sessionCookie =
+    cookies?.get("better-auth.session_token") ||
+    cookies?.get("__Secure-better-auth.session_token");
+
   // Existing auth check for protected routes
-  const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
     return NextResponse.redirect(new URL('/login', request.url))
   }

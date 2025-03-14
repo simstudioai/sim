@@ -505,7 +505,7 @@ export function FileSelector({
                   </CommandGroup>
                 )}
 
-                {/* Add another account option */}
+                {/* Add another account option
                 {credentials.length > 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
@@ -514,7 +514,7 @@ export function FileSelector({
                       </div>
                     </CommandItem>
                   </CommandGroup>
-                )}
+                )} */}
               </CommandList>
             </Command>
           </PopoverContent>

@@ -128,8 +128,12 @@ export function OAuthRequiredModal({
       // Close the modal
       onClose()
 
-      // Begin OAuth flow with the appropriate provider
-      await client.signIn.oauth2({
+      logger.info('Linking OAuth2:', {
+        providerId,
+        requiredScopes,
+      })
+    
+      await client.oauth2.link({
         providerId,
         callbackURL: window.location.href,
       })

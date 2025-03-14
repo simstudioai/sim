@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/command'
 import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   Credential,
@@ -106,7 +105,7 @@ export function CredentialSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, onChange, selectedId])
+  }, [provider, onChange, selectedId, getProviderId])
 
   // Fetch credentials on initial mount and when dependencies change
   useEffect(() => {
@@ -152,21 +151,6 @@ export function CredentialSelector({
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
-  }
-
-  // Handle direct OAuth flow
-  const handleDirectOAuth = async () => {
-    try {
-      const providerId = getProviderId()
-
-      // Begin OAuth flow with the appropriate provider
-      await client.signIn.oauth2({
-        providerId,
-        callbackURL: window.location.href,
-      })
-    } catch (error) {
-      logger.error('OAuth login error:', { error })
-    }
   }
 
   // Get provider icon

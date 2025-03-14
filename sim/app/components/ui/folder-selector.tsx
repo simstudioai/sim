@@ -412,7 +412,7 @@ export function FolderSelector({
                 )}
 
                 {/* Add another account option */}
-                {credentials.length > 0 && (
+                {/* {credentials.length > 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
                       <div className="flex items-center gap-2 text-primary">
@@ -420,7 +420,7 @@ export function FolderSelector({
                       </div>
                     </CommandItem>
                   </CommandGroup>
-                )}
+                )} */}
               </CommandList>
             </Command>
           </PopoverContent>

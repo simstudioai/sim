@@ -72,12 +72,13 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
         // Update services with connection status and account info
         const updatedServices = serviceDefinitions.map((service) => {
-          // Find matching connection
+          // Find matching connection - now we can do an exact match on providerId
           const connection = connections.find((conn: any) => {
-            const [provider, featureType] = conn.provider.split('-')
-            return service.providerId.startsWith(provider)
-          })
+            // Exact match on providerId is the most reliable
+            return conn.provider === service.providerId;
+          });
 
+          // If we found an exact match, use it
           if (connection) {
             return {
               ...service,
@@ -87,7 +88,31 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
             }
           }
 
-          return service
+          // If no exact match, check if any connection has all the required scopes
+          const connectionWithScopes = connections.find((conn: any) => {
+            // Only consider connections from the same base provider
+            if (!conn.baseProvider || !service.providerId.startsWith(conn.baseProvider)) {
+              return false;
+            }
+            
+            // Check if all required scopes for this service are included in the connection
+            if (conn.scopes && service.scopes) {
+              return service.scopes.every(scope => conn.scopes.includes(scope));
+            }
+            
+            return false;
+          });
+
+          if (connectionWithScopes) {
+            return {
+              ...service,
+              isConnected: connectionWithScopes.accounts?.length > 0,
+              accounts: connectionWithScopes.accounts || [],
+              lastConnected: connectionWithScopes.lastConnected,
+            }
+          }
+
+          return service;
         })
 
         setServices(updatedServices)
@@ -184,14 +209,19 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       saveToStorage<string[]>('pending_oauth_scopes', service.scopes)
       saveToStorage<string>('pending_oauth_return_url', window.location.href)
       saveToStorage<string>('pending_oauth_provider_id', service.providerId)
+      
+      logger.info('Connecting service:', {
+        serviceId: service.id,
+        providerId: service.providerId,
+        scopes: service.scopes,
+      })
 
-      // Begin OAuth flow with the appropriate provider
-      await client.signIn.oauth2({
+      await client.oauth2.link({
         providerId: service.providerId,
         callbackURL: window.location.href,
       })
     } catch (error) {
-      logger.error('OAuth login error:', { error })
+      logger.error('OAuth connection error:', { error })
       setIsConnecting(null)
     }
   }
@@ -359,7 +389,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                                   </Button>
                                 </div>
                               ))}
-                              <Button
+                              {/* <Button
                                 variant="outline"
                                 size="sm"
                                 className="w-full mt-2"
@@ -377,7 +407,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                                     Connect Another Account
                                   </>
                                 )}
-                              </Button>
+                              </Button> */}
                             </div>
                           )}
                         </div>

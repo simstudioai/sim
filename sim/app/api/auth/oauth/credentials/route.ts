@@ -6,13 +6,14 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { parseProvider } from '@/lib/oauth'
 import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
-import { account } from '@/db/schema'
+import { account, user } from '@/db/schema'
 
 const logger = createLogger('OAuthCredentialsAPI')
 
 interface GoogleIdToken {
   email?: string
   sub?: string
+  name?: string
 }
 
 /**
@@ -55,22 +56,53 @@ export async function GET(request: NextRequest) {
         // Extract the feature type from providerId (e.g., 'google-default' -> 'default')
         const [_, featureType = 'default'] = acc.providerId.split('-')
 
-        // For Google accounts, try to get the email from the ID token
-        let name = acc.accountId
-        if (baseProvider === 'google' && acc.idToken) {
+        // Try multiple methods to get a user-friendly display name
+        let displayName = ''
+        
+        // Method 1: Try to extract email from ID token (works for Google, etc.)
+        if (acc.idToken) {
           try {
             const decoded = jwtDecode<GoogleIdToken>(acc.idToken)
             if (decoded.email) {
-              name = decoded.email
+              displayName = decoded.email
+            } else if (decoded.name) {
+              displayName = decoded.name
             }
           } catch (error) {
-            logger.warn(`[${requestId}] Error decoding Google ID token`, { accountId: acc.id })
+            logger.warn(`[${requestId}] Error decoding ID token`, { accountId: acc.id })
           }
+        }
+        
+        // Method 2: For GitHub, the accountId might be the username
+        if (!displayName && baseProvider === 'github') {
+          displayName = `${acc.accountId} (GitHub)`
+        }
+        
+        // Method 3: Try to get the user's email from our database
+        if (!displayName) {
+          try {
+            const userRecord = await db
+              .select({ email: user.email })
+              .from(user)
+              .where(eq(user.id, acc.userId))
+              .limit(1)
+            
+            if (userRecord.length > 0) {
+              displayName = userRecord[0].email
+            }
+          } catch (error) {
+            logger.warn(`[${requestId}] Error fetching user email`, { userId: acc.userId })
+          }
+        }
+        
+        // Fallback: Use accountId with provider type as context
+        if (!displayName) {
+          displayName = `${acc.accountId} (${baseProvider})`
         }
 
         return {
           id: acc.id,
-          name,
+          name: displayName,
           provider,
           lastUsed: acc.updatedAt.toISOString(),
           isDefault: featureType === 'default',

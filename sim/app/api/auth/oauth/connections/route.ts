@@ -5,13 +5,14 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
-import { account } from '@/db/schema'
+import { account, user } from '@/db/schema'
 
 const logger = createLogger('OAuthConnectionsAPI')
 
 interface GoogleIdToken {
   email?: string
   sub?: string
+  name?: string
 }
 
 // Valid OAuth providers
@@ -36,30 +37,61 @@ export async function GET(request: NextRequest) {
     // Get all accounts for this user
     const accounts = await db.select().from(account).where(eq(account.userId, session.user.id))
 
+    // Get the user's email for fallback
+    const userRecord = await db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .limit(1)
+    
+    const userEmail = userRecord.length > 0 ? userRecord[0].email : null
+
     // Process accounts to determine connections
     const connections: any[] = []
 
-    accounts.forEach((acc) => {
+    for (const acc of accounts) {
       // Extract the base provider and feature type from providerId (e.g., 'google-email' -> 'google', 'email')
       const [provider, featureType = 'default'] = acc.providerId.split('-')
 
       if (provider && VALID_PROVIDERS.includes(provider)) {
-        // Get the account name (try to get email for Google accounts)
-        let name = acc.accountId
-        if (provider === 'google' && acc.idToken) {
+        // Try multiple methods to get a user-friendly display name
+        let displayName = ''
+        
+        // Method 1: Try to extract email from ID token (works for Google, etc.)
+        if (acc.idToken) {
           try {
             const decoded = jwtDecode<GoogleIdToken>(acc.idToken)
             if (decoded.email) {
-              name = decoded.email
+              displayName = decoded.email
+            } else if (decoded.name) {
+              displayName = decoded.name
             }
           } catch (error) {
-            logger.warn(`[${requestId}] Error decoding Google ID token`, { accountId: acc.id })
+            logger.warn(`[${requestId}] Error decoding ID token`, { accountId: acc.id })
           }
         }
+        
+        // Method 2: For GitHub, the accountId might be the username
+        if (!displayName && provider === 'github') {
+          displayName = `${acc.accountId} (GitHub)`
+        }
+        
+        // Method 3: Use the user's email from our database
+        if (!displayName && userEmail) {
+          displayName = userEmail
+        }
+        
+        // Fallback: Use accountId with provider type as context
+        if (!displayName) {
+          displayName = `${acc.accountId} (${provider})`
+        }
 
-        // Find existing connection for this provider and feature type
+        // Create a unique connection key that includes the full provider ID
+        const connectionKey = acc.providerId
+
+        // Find existing connection for this specific provider ID
         const existingConnection = connections.find(
-          (conn) => conn.provider === provider && conn.featureType === featureType
+          (conn) => conn.provider === connectionKey
         )
 
         if (existingConnection) {
@@ -67,12 +99,13 @@ export async function GET(request: NextRequest) {
           existingConnection.accounts = existingConnection.accounts || []
           existingConnection.accounts.push({
             id: acc.id,
-            name,
+            name: displayName,
           })
         } else {
           // Create new connection
           connections.push({
-            provider: provider as OAuthService,
+            provider: connectionKey,
+            baseProvider: provider,
             featureType,
             isConnected: true,
             scopes: acc.scope ? acc.scope.split(' ') : [],
@@ -80,13 +113,13 @@ export async function GET(request: NextRequest) {
             accounts: [
               {
                 id: acc.id,
-                name,
+                name: displayName,
               },
             ],
           })
         }
       }
-    })
+    }
 
     return NextResponse.json({ connections }, { status: 200 })
   } catch (error) {

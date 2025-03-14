@@ -27,6 +27,13 @@ export const auth = betterAuth({
       maxAge: 5 * 60, // Cache duration (5 minutes)
     },
   },
+  account: {
+    accountLinking: {
+      enabled: true,
+      allowDifferentEmails: true,
+      trustedProviders: ["google", "github", "email-password"],
+    },
+  },
   socialProviders: {
     github: {
       clientId: process.env.GITHUB_CLIENT_ID as string,
@@ -120,6 +127,7 @@ export const auth = betterAuth({
           tokenUrl: 'https://github.com/login/oauth/access_token',
           userInfoUrl: 'https://api.github.com/user',
           scopes: ['user:email', 'repo'],
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-repo`,
         },
         {
           providerId: 'github-workflow',
@@ -131,6 +139,7 @@ export const auth = betterAuth({
           userInfoUrl: 'https://api.github.com/user',
           scopes: ['workflow', 'repo'],
           prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-workflow`,
         },
 
         // Google providers for different purposes
@@ -148,6 +157,7 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/gmail.labels',
           ],
           prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-email`,
         },
         {
           providerId: 'google-calendar',
@@ -161,6 +171,7 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/calendar',
           ],
           prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-calendar`,
         },
         {
           providerId: 'google-drive',
@@ -175,6 +186,7 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-drive`,
         },
         {
           providerId: 'google-docs',
@@ -189,6 +201,7 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-docs`,
         },
         {
           providerId: 'google-sheets',
@@ -203,6 +216,7 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-sheets`,
         },
 
         // Supabase provider
@@ -217,6 +231,7 @@ export const auth = betterAuth({
           scopes: ['database.read', 'database.write', 'projects.read'],
           responseType: 'code',
           pkce: true,
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/supabase`,
         },
 
         // X provider
