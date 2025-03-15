@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
-import { CopyButton } from '../copy-button'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 
 interface LogSidebarProps {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Copy, Rocket, Terminal, X } from 'lucide-react'
+import { Rocket, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { CopyButton } from '@/components/ui/copy-button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -91,7 +92,6 @@ export function NotificationList() {
 
   // Local state
   const [fadingNotifications, setFadingNotifications] = useState<Set<string>>(new Set())
-  const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
 
   // Filter to only show visible notifications
   const visibleNotifications = notifications.filter((n) => n.isVisible)
@@ -127,24 +127,6 @@ export function NotificationList() {
     return () => timers.forEach(clearTimeout)
   }, [notifications, hideNotification])
 
-  /**
-   * Handles copying section content to clipboard
-   * @param id - Notification ID
-   * @param sectionIndex - Index of the section being copied
-   * @param content - Text content to copy
-   */
-  const handleCopy = async (id: string, sectionIndex: number, content: string) => {
-    await navigator.clipboard.writeText(content)
-
-    // Show "Copied!" indicator
-    setCopiedMap((prev) => ({ ...prev, [`${id}-${sectionIndex}`]: true }))
-
-    // Reset after 2 seconds
-    setTimeout(() => {
-      setCopiedMap((prev) => ({ ...prev, [`${id}-${sectionIndex}`]: false }))
-    }, 2000)
-  }
-
   // Early return if no notifications to show
   if (visibleNotifications.length === 0) return null
 
@@ -161,9 +143,7 @@ export function NotificationList() {
           key={notification.id}
           notification={notification}
           isFading={fadingNotifications.has(notification.id)}
-          copiedMap={copiedMap}
           onHide={hideNotification}
-          onCopy={handleCopy}
         />
       ))}
     </div>
@@ -176,18 +156,10 @@ export function NotificationList() {
 interface NotificationAlertProps {
   notification: Notification
   isFading: boolean
-  copiedMap: Record<string, boolean>
   onHide: (id: string) => void
-  onCopy: (id: string, sectionIndex: number, content: string) => void
 }
 
-function NotificationAlert({
-  notification,
-  isFading,
-  copiedMap,
-  onHide,
-  onCopy,
-}: NotificationAlertProps) {
+function NotificationAlert({ notification, isFading, onHide }: NotificationAlertProps) {
   const { id, type, message, options, workflowId } = notification
   const Icon = NotificationIcon[type]
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -251,21 +223,11 @@ function NotificationAlert({
                     <div className="text-xs font-medium text-muted-foreground">{section.label}</div>
 
                     {/* Copyable code block */}
-                    <div
-                      className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
-                      onClick={() => onCopy(id, index, section.content)}
-                    >
+                    <div className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors">
                       <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
                         {section.content}
                       </pre>
-
-                      {/* Copy indicator */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                        <div className="text-xs text-muted-foreground bg-background/100 px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                          {copiedMap[`${id}-${index}`] ? 'Copied!' : 'Click to copy'}
-                        </div>
-                        <Copy className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity bg-muted/100" />
-                      </div>
+                      <CopyButton text={section.content} />
                     </div>
                   </div>
                 ))}
@@ -368,21 +330,11 @@ function NotificationAlert({
                     <div className="text-xs font-medium text-muted-foreground">{section.label}</div>
 
                     {/* Copyable code block with max height */}
-                    <div
-                      className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors cursor-pointer"
-                      onClick={() => onCopy(id, index, section.content)}
-                    >
+                    <div className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors">
                       <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-[300px]">
                         {section.content}
                       </pre>
-
-                      {/* Copy indicator */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                        <div className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
-                          {copiedMap[`${id}-${index}`] ? 'Copied!' : 'Click to copy'}
-                        </div>
-                        <Copy className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
+                      <CopyButton text={section.content} />
                     </div>
                   </div>
                 ))}
