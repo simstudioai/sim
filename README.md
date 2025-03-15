@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="sim/public/sim.png" alt="Sim Studio Logo" width="500"/>
+</p>
+
 # Sim Studio
 
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white)](https://discord.gg/pQKwMTvNrg) [![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -11,7 +15,9 @@
 
 ## How to Self-Host
 
-Fork this repository by clicking the "Fork" button at the top right of this page.
+### Step 1: Fork the Repository
+
+**Important:** Start by forking this repository by clicking the "Fork" button at the top right of this page. This creates your own copy of the repository under your GitHub account.
 
 > **Note:** Ensure you have VS Code or another editor, git, npm, and Docker (if you're not setting up manually) installed on your system.
 
@@ -20,7 +26,7 @@ There are several ways to self-host Sim Studio:
 ### Option 1: Docker Environment (Recommended)
 
 ```bash
-# Clone the repository
+# Clone your forked repository
 git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
@@ -29,8 +35,6 @@ cp sim/.env.example sim/.env
 
 # Start the Docker environment
 docker compose up -d
-# Or use the helper script
-./scripts/start_simstudio_docker.sh
 ```
 
 After running these commands:

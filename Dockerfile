@@ -1,15 +1,15 @@
 FROM node:20-alpine
 
+# Set working directory
 WORKDIR /app
 
-# Copy package files from sim directory
-COPY sim/package.json sim/package-lock.json ./
-RUN npm ci
-
-# Copy sim directory contents
+# Copy the entire sim directory
 COPY sim/ ./
+
+# Install dependencies
+RUN npm install
 
 EXPOSE 3000
 
 # Default to development mode
-CMD ["npm", "run", "dev"] 
+CMD ["npm", "run", "dev"]
