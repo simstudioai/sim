@@ -1,2 +1,0 @@
-# Exclude CLI package from Vercel builds
-packages/@simstudio/cli/
