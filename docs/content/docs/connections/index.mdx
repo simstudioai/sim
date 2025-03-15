@@ -3,10 +3,8 @@ title: Connections
 description: Connect your blocks to one another.
 ---
 
+import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
-import { Files, Folder, File } from 'fumadocs-ui/components/files'
 import { ConnectIcon } from '@/components/icons'
 
 Connections are the pathways that allow data to flow between blocks in your workflow. They define how information is passed from one block to another, enabling you to create sophisticated, multi-step processes.
@@ -15,180 +13,37 @@ Connections are the pathways that allow data to flow between blocks in your work
   Properly configured connections are essential for creating effective workflows. They determine how data moves through your system and how blocks interact with each other.
 </Callout>
 
-## How Connections Work
-
-When you connect two blocks in Sim Studio, you're establishing a data flow relationship:
-
-<Steps>
-  <Step>
-    <strong>Create Connection</strong>: Draw a connection line between an output port of one block and an input port of another block
-  </Step>
-  <Step>
-    <strong>Connection Tag</strong>: A connection tag appears, representing the data that can flow between the blocks
-  </Step>
-  <Step>
-    <strong>Use Connection Data</strong>: Reference data from the source block in the destination block using connection tags
-  </Step>
-  <Step>
-    <strong>Data Transformation</strong>: Optionally transform or filter the data as it passes between blocks
-  </Step>
-</Steps>
-
-![Connections in action](public/connections.gif)
-
-## Connection Tags
-
-Connection tags are visual representations of the data available from connected blocks. They provide an easy way to reference outputs from previous blocks in your workflow.
-
-### Using Connection Tags
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
-  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-    <h3 className="font-medium text-lg mb-2">Drag and Drop</h3>
-    <p className="text-sm text-gray-600 dark:text-gray-400">
-      Click on a connection tag and drag it into input fields of destination blocks. A dropdown will appear showing available values.
-    </p>
-  </div>
-  
-  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-    <h3 className="font-medium text-lg mb-2">Angle Bracket Syntax</h3>
-    <p className="text-sm text-gray-600 dark:text-gray-400">
-      Type <code>&lt;&gt;</code> in input fields to see a dropdown of available connection values from previous blocks.
-    </p>
-  </div>
+<div>
+  <video 
+    autoPlay 
+    loop 
+    muted 
+    playsInline
+    className="w-full"
+    src="/connections.mp4"
+  >
+  </video>
 </div>
-
-## Connection Data Structure
-
-When you connect blocks, the output data structure from the source block determines what values are available in the destination block:
-
-<Tabs items={['Agent Block Output', 'API Block Output', 'Function Block Output']}>
-  <Tab>
-    ```json
-    {
-      "content": "The generated text response",
-      "model": "gpt-4",
-      "tokens": {
-        "prompt": 120,
-        "completion": 85,
-        "total": 205
-      },
-      "toolCalls": [...]
-    }
-    ```
-  </Tab>
-  <Tab>
-    ```json
-    {
-      "status": 200,
-      "body": { ... },
-      "headers": { ... },
-      "error": null
-    }
-    ```
-  </Tab>
-  <Tab>
-    ```json
-    {
-      "result": "Function return value",
-      "stdout": "Console output",
-      "executionTime": 45
-    }
-    ```
-  </Tab>
-</Tabs>
-
-## Accessing Nested Data
-
-You can access nested properties from connected blocks using dot notation:
-
-<Files>
-  <File name="Simple Property" annotation="<block.content>" />
-  <File name="Nested Property" annotation="<block.tokens.total>" />
-  <File name="Array Element" annotation="<block.items[0].name>" />
-  <File name="Complex Path" annotation="<block.data.users[2].profile.email>" />
-</Files>
-
-## Dynamic References
-
-Connection references are evaluated at runtime, allowing for dynamic data flow through your workflow:
-
-```javascript
-// In a Function block, you can access connected data
-const userName = input.userBlock.name;
-const orderTotal = input.apiBlock.body.order.total;
-
-// Process the data
-const discount = orderTotal > 100 ? 0.1 : 0;
-const finalPrice = orderTotal * (1 - discount);
-
-// Return the result
-return {
-  userName,
-  originalTotal: orderTotal,
-  discount: discount * 100 + '%',
-  finalPrice
-};
-```
 
 ## Connection Types
 
-Sim Studio supports different types of connections based on the blocks being connected:
+Sim Studio supports different types of connections that enable various workflow patterns:
 
-<div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
-  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-    <h3 className="font-medium text-lg mb-2">Data Connections</h3>
-    <p className="text-sm text-gray-600 dark:text-gray-400">
-      Pass data between blocks for processing or transformation
-    </p>
-  </div>
-  
-  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-    <h3 className="font-medium text-lg mb-2">Control Connections</h3>
-    <p className="text-sm text-gray-600 dark:text-gray-400">
-      Determine execution flow based on conditions or routing decisions
-    </p>
-  </div>
-  
-  <div className="border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-    <h3 className="font-medium text-lg mb-2">Feedback Connections</h3>
-    <p className="text-sm text-gray-600 dark:text-gray-400">
-      Create loops by connecting later blocks back to earlier ones
-    </p>
-  </div>
-</div>
-
-## Best Practices
-
-### Organize Your Connections
-
-Keep your workflow clean and understandable by organizing connections logically:
-
-- Minimize crossing connections when possible
-- Group related blocks together
-- Use consistent flow direction (typically left-to-right or top-to-bottom)
-
-### Validate Data Flow
-
-Ensure that the data being passed between blocks is compatible:
-
-- Check that required fields are available in the source block
-- Verify data types match expectations
-- Use Function blocks to transform data when necessary
-
-### Document Connection Purpose
-
-Add comments or descriptions to clarify the purpose of connections, especially in complex workflows:
-
-- What data is being passed
-- Why this connection exists
-- Any transformations or conditions applied to the data
-
-### Test Connection References
-
-Verify that connection references work as expected:
-
-- Test with different input values
-- Check edge cases (empty values, large datasets)
-- Ensure error handling for missing or invalid data
+<Cards>
+  <Card title="Connection Basics" href="/docs/connections/basics">
+    Learn how connections work and how to create them in your workflows
+  </Card>
+  <Card title="Connection Tags" href="/docs/connections/tags">
+    Understand how to use connection tags to reference data between blocks
+  </Card>
+  <Card title="Data Structure" href="/docs/connections/data-structure">
+    Explore the output data structures of different block types
+  </Card>
+  <Card title="Accessing Data" href="/docs/connections/accessing-data">
+    Learn techniques for accessing and manipulating connected data
+  </Card>
+  <Card title="Best Practices" href="/docs/connections/best-practices">
+    Follow recommended patterns for effective connection management
+  </Card>
+</Cards>
 

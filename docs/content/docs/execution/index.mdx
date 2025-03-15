@@ -1,6 +1,6 @@
 ---
 title: Execution
-description: Sim Studio provides a powerful execution engine that brings your workflows to life. Understanding how execution works will help you design more effective workflows and troubleshoot any issues that arise..
+description: Understand how workflows are executed in Sim Studio
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
@@ -9,6 +9,53 @@ import { Step, Steps } from 'fumadocs-ui/components/steps'
 import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { AgentIcon, ApiIcon, ConditionalIcon, CodeIcon, ChartBarIcon, ConnectIcon, GmailIcon, PerplexityIcon, NotionIcon, ExaAIIcon, FirecrawlIcon, SlackIcon } from '@/components/icons'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+# Workflow Execution
+
+Sim Studio provides a powerful execution engine that brings your workflows to life. Understanding how execution works will help you design more effective workflows and troubleshoot any issues that arise.
+
+<div>
+  <video 
+    autoPlay 
+    loop 
+    muted 
+    playsInline
+    className="w-full"
+    src="/loops.mp4"
+  >
+  </video>
+</div>
+
+<Callout type="info">
+  The execution engine handles everything from block execution order to data flow, error handling, and loop management. It ensures your workflows run efficiently and predictably.
+</Callout>
+
+## Execution Documentation
+
+<Cards>
+  <Card title="Execution Basics" href="/docs/execution/basics">
+    Learn about the fundamental execution flow, block types, and how data flows through your workflow
+  </Card>
+  
+  <Card title="Loops" href="/docs/execution/loops">
+    Master the powerful loop functionality to create iterative processes and feedback mechanisms
+  </Card>
+  
+  <Card title="Advanced Features" href="/docs/execution/advanced">
+    Discover advanced capabilities like error handling, environment variables, and performance optimization
+  </Card>
+</Cards>
+
+## Key Execution Concepts
+
+- **Topological Execution** - Blocks are executed in dependency order, ensuring data flows correctly
+- **Path Tracking** - The system tracks active execution paths based on routing decisions
+- **Loop Management** - Sophisticated loop handling allows for iterative processing with safeguards
+- **Real-time Monitoring** - Watch your workflow execute with detailed logs and visual indicators
+- **Error Handling** - Robust error management keeps your workflows resilient
+
+Whether you're building simple automations or complex AI workflows, understanding execution is key to creating effective solutions in Sim Studio.
 
 ## Execution Flow
 

@@ -1,0 +1,173 @@
+---
+title: Execution Basics
+description: Understanding the fundamental execution flow in Sim Studio
+---
+
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Files, Folder, File } from 'fumadocs-ui/components/files'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { AgentIcon, ApiIcon, ConditionalIcon, CodeIcon, ChartBarIcon, ConnectIcon } from '@/components/icons'
+
+# Execution Basics
+
+When you run a workflow in Sim Studio, the execution engine follows a systematic process to ensure blocks are executed in the correct order and data flows properly between them.
+
+## Execution Flow
+
+The execution of a workflow follows these key steps:
+
+<Steps>
+  <Step>
+    ### Validation
+    Before execution begins, the workflow is validated to ensure it has:
+    - An enabled starter block with no incoming connections
+    - Properly connected blocks with valid configurations
+    - No circular dependencies (except in intentional loops)
+    - Valid input and output types between connected blocks
+  </Step>
+  
+  <Step>
+    ### Initialization
+    The execution context is created, which includes:
+    - Environment variables for the workflow
+    - Input values from the starter block
+    - Initial state for all blocks
+    - Execution path tracking
+    - Loop iteration counters
+  </Step>
+  
+  <Step>
+    ### Block Execution
+    Blocks are executed in topological order (based on dependencies):
+    - The system identifies which blocks can be executed next
+    - Inputs for each block are resolved from previous block outputs
+    - Each block is executed by its specialized handler
+    - Outputs are stored in the execution context
+  </Step>
+  
+  <Step>
+    ### Path Determination
+    As execution progresses, the system determines which paths to follow:
+    - Router and conditional blocks make decisions about execution paths
+    - Only blocks on active paths are executed
+    - The path tracker maintains the current execution state
+  </Step>
+  
+  <Step>
+    ### Result Collection
+    After all blocks have executed:
+    - Final outputs are collected
+    - Execution logs are compiled
+    - Performance metrics are calculated
+    - Results are presented in the UI
+  </Step>
+</Steps>
+
+## Block Types and Execution
+
+Different block types have different execution behaviors:
+
+<Tabs items={['Orchestration Blocks', 'Processing Blocks', 'Integration Blocks']}>
+  <Tab>
+    <Card>
+      Orchestration blocks control the flow of execution through your workflow.
+      
+      <Files>
+        <File name="Starter Block" icon={<ConnectIcon className="w-4 h-4" />} annotation="Initiates workflow execution and provides initial input values. Every workflow must have exactly one starter block." />
+        <File name="Router Block" icon={<ConnectIcon className="w-4 h-4" />} annotation="Directs execution along specific paths based on dynamic decisions. Uses an AI model to select one of multiple possible paths." />
+        <File name="Condition Block" icon={<ConditionalIcon className="w-4 h-4" />} annotation="Executes different paths based on conditional logic. Evaluates JavaScript expressions to determine which path to follow." />
+      </Files>
+    </Card>
+  </Tab>
+  
+  <Tab>
+    <Card>
+      Processing blocks transform data and generate new outputs.
+      
+      <Files>
+        <File name="Agent Block" icon={<AgentIcon className="w-4 h-4" />} annotation="Interacts with AI models to generate content. Executes prompts against various LLM providers." />
+        <File name="Function Block" icon={<CodeIcon className="w-4 h-4" />} annotation="Executes custom JavaScript/TypeScript code. Runs in a secure sandbox environment with access to connected block outputs." />
+        <File name="Evaluator Block" icon={<ChartBarIcon className="w-4 h-4" />} annotation="Assesses outputs against defined criteria. Uses AI to evaluate content based on custom metrics." />
+      </Files>
+    </Card>
+  </Tab>
+  
+  <Tab>
+    <Card>
+      Integration blocks connect with external systems.
+      
+      <Files>
+        <File name="API Block" icon={<ApiIcon className="w-4 h-4" />} annotation="Makes HTTP requests to external services. Configurable with headers, body, and authentication." />
+        <File name="Tool Blocks" icon={<CodeIcon className="w-4 h-4" />} annotation="Specialized blocks for specific services (Gmail, Slack, GitHub, etc.). Each has its own execution logic for the specific service." />
+      </Files>
+    </Card>
+  </Tab>
+</Tabs>
+
+## Execution Methods
+
+Sim Studio offers multiple ways to trigger workflow execution:
+
+### Manual Execution
+
+Run workflows on-demand through the Sim Studio interface by clicking the "Run" button. This is perfect for:
+- Testing during development
+- One-off tasks
+- Workflows that need human supervision
+
+### Scheduled Execution
+
+Configure workflows to run automatically on a specified schedule:
+- Set up recurring executions using cron expressions
+- Define start times and frequency
+- Configure timezone settings
+- Set minimum and maximum execution intervals
+
+### API Endpoints
+
+Each workflow can be exposed as an API endpoint:
+- Get a unique URL for your workflow
+- Configure authentication requirements
+- Send custom inputs via POST requests
+- Receive execution results as JSON responses
+
+### Webhooks
+
+Configure workflows to execute in response to external events:
+- Set up webhook triggers from third-party services
+- Process incoming webhook data as workflow input
+- Configure webhook security settings
+- Support for specialized webhooks (GitHub, Stripe, etc.)
+
+<Callout type="info">
+  The execution method you choose depends on your workflow's purpose. Manual execution is great for development, while scheduled execution, API endpoints, and webhooks are better for production use cases.
+</Callout>
+
+## Execution Context
+
+Each workflow execution maintains a detailed context that includes:
+
+- **Block States**: Outputs and execution status of each block
+- **Execution Path**: The active path through the workflow
+- **Routing Decisions**: Records of which paths were selected
+- **Environment Variables**: Configuration values for the workflow
+- **Execution Logs**: Detailed records of each step in the execution
+
+This context is maintained throughout the execution and is used to:
+- Resolve inputs for blocks
+- Determine which blocks to execute next
+- Track the progress of execution
+- Provide debugging information
+- Store intermediate results
+
+## Real-Time Execution Monitoring
+
+As your workflow executes, you can monitor its progress in real-time:
+
+- **Active Block Highlighting**: The currently executing block is highlighted
+- **Live Logs**: Execution logs appear in real-time in the logs panel
+- **Block States**: Visual indicators show each block's execution state
+- **Performance Metrics**: Timing information for each block's execution
+
+These monitoring features help you understand how your workflow is executing and identify any issues that arise. 

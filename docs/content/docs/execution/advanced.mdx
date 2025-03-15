@@ -1,0 +1,289 @@
+---
+title: Advanced Execution Features
+description: Master advanced execution capabilities in Sim Studio
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
+
+# Advanced Execution Features
+
+Sim Studio provides several advanced features that give you more control over workflow execution, error handling, and performance optimization.
+
+## Error Handling
+
+The execution engine includes built-in error handling mechanisms to make your workflows more robust:
+
+### Block-Level Error Handling
+
+Errors in one block don't necessarily stop the entire workflow execution:
+
+```javascript
+// Example of error handling in a Function block
+try {
+  // Potentially risky operation
+  const result = JSON.parse(input.apiBlock.data);
+  return { success: true, data: result };
+} catch (error) {
+  // Handle the error gracefully
+  console.error("Failed to parse JSON:", error.message);
+  return { 
+    success: false, 
+    error: error.message,
+    fallbackData: { status: "error", message: "Could not process data" }
+  };
+}
+```
+
+### Error Logging
+
+Comprehensive error information is captured in the execution logs:
+
+- **Error Messages**: Clear descriptions of what went wrong
+- **Stack Traces**: Detailed information about where errors occurred
+- **Context Data**: The inputs that led to the error
+- **Timestamps**: When the error occurred
+
+<Callout type="info">
+  Error logs are invaluable for debugging workflows. Always check the logs first when troubleshooting execution issues.
+</Callout>
+
+### Fallback Mechanisms
+
+For certain operations, the system provides automatic fallbacks:
+
+- **Function Execution**: WebContainer execution first, then VM execution if needed
+- **API Requests**: Automatic retries for transient network errors
+- **Model Calls**: Fallback to alternative models if primary model is unavailable
+
+### Recovery Options
+
+Configure blocks to handle failures gracefully:
+
+- **Retry Logic**: Automatically retry failed operations
+- **Default Values**: Provide fallback values when operations fail
+- **Alternative Paths**: Use conditional blocks to create error handling paths
+- **Graceful Degradation**: Continue execution with partial results
+
+## Environment Variables
+
+Environment variables provide a secure way to store and access configuration values:
+
+### Types of Environment Variables
+
+<Tabs items={['API Keys', 'Configuration Values', 'Secrets']}>
+  <Tab>
+    Store API credentials securely:
+    
+    ```
+    OPENAI_API_KEY=sk-...
+    ANTHROPIC_API_KEY=sk-...
+    GOOGLE_API_KEY=AIza...
+    ```
+    
+    These are automatically available to blocks that need them, without hardcoding sensitive values in your workflow.
+  </Tab>
+  
+  <Tab>
+    Manage environment-specific configuration:
+    
+    ```
+    MAX_RETRIES=3
+    DEFAULT_MODEL=gpt-4o
+    LOG_LEVEL=info
+    BASE_URL=https://api.example.com
+    ```
+    
+    These values can be referenced in blocks to control behavior without modifying the workflow itself.
+  </Tab>
+  
+  <Tab>
+    Store sensitive information securely:
+    
+    ```
+    DATABASE_PASSWORD=...
+    JWT_SECRET=...
+    ENCRYPTION_KEY=...
+    ```
+    
+    These values are encrypted at rest and only decrypted during execution, providing an extra layer of security.
+  </Tab>
+</Tabs>
+
+### Using Environment Variables
+
+Environment variables can be accessed in different ways depending on the block type:
+
+```javascript
+// In Function blocks
+const apiKey = process.env.MY_API_KEY;
+const maxRetries = parseInt(process.env.MAX_RETRIES || "3");
+
+// In API blocks (via connection tags)
+// URL: https://api.example.com?key=<env.MY_API_KEY>
+
+// In Agent blocks (via connection tags)
+// System prompt: Use the model <env.DEFAULT_MODEL> for this task.
+```
+
+<Callout type="warning">
+  Never hardcode sensitive information like API keys directly in your workflows. Always use environment variables instead.
+</Callout>
+
+## Real-Time Monitoring
+
+Sim Studio provides powerful real-time monitoring capabilities:
+
+<Accordions>
+  <Accordion title="Active Block Indicator">
+    The currently executing block is highlighted in the workflow editor, making it easy to follow the execution flow in real-time. This visual indicator helps you understand exactly where in your workflow the execution is currently happening.
+  </Accordion>
+  
+  <Accordion title="Live Logs Panel">
+    Execution logs appear in real-time in the logs panel on the right side. These logs include detailed information about each block's execution, including inputs, outputs, execution time, and any errors that occur. You can use these logs to debug your workflow and understand how data flows between blocks.
+  </Accordion>
+  
+  <Accordion title="Block States">
+    Each block's state (pending, executing, completed, or error) is visually indicated in the workflow editor. This helps you quickly identify which blocks have executed successfully and which may have encountered issues.
+  </Accordion>
+  
+  <Accordion title="Performance Metrics">
+    Detailed timing information shows how long each block takes to execute, helping you identify performance bottlenecks in your workflow. The execution engine tracks start time, end time, and total duration for both individual blocks and the entire workflow.
+  </Accordion>
+</Accordions>
+
+## Performance Optimization
+
+Optimize your workflows for better performance:
+
+### Block Optimization
+
+- **Break Down Complex Blocks**: Split complex operations into multiple simpler blocks
+- **Minimize External Calls**: Batch API requests where possible
+- **Cache Results**: Use Memory blocks to store and reuse results
+- **Optimize Function Code**: Write efficient JavaScript/TypeScript code
+
+### Data Flow Optimization
+
+- **Filter Data Early**: Process only the data you need as early as possible
+- **Minimize Data Transfer**: Pass only necessary fields between blocks
+- **Use Appropriate Data Structures**: Choose efficient data structures for your use case
+- **Avoid Redundant Computations**: Don't recalculate values that haven't changed
+
+### Execution Configuration
+
+- **Set Appropriate Timeouts**: Configure timeouts based on expected execution time
+- **Limit Parallel Executions**: Control how many workflows can run simultaneously
+- **Schedule During Off-Peak Hours**: Run resource-intensive workflows when system load is lower
+- **Monitor Resource Usage**: Keep an eye on memory and CPU usage
+
+<Callout type="info">
+  Performance optimization is especially important for workflows that run frequently or process large amounts of data.
+</Callout>
+
+## Advanced Execution Context
+
+The execution context maintains detailed information about the workflow execution:
+
+```javascript
+// Example of execution context structure (simplified)
+{
+  // Block states indexed by block ID
+  blockStates: {
+    "block-1": { output: { content: "..." }, status: "completed" },
+    "block-2": { output: { data: { ... } }, status: "completed" },
+    "block-3": { status: "pending" }
+  },
+  
+  // Active execution path
+  activeExecutionPath: Set(["block-1", "block-2", "block-5"]),
+  
+  // Routing decisions
+  decisions: {
+    router: Map(["router-1" => "block-5"]),
+    condition: Map(["condition-1" => "condition-true"])
+  },
+  
+  // Loop iterations
+  loopIterations: Map(["loop-1" => 2]),
+  
+  // Environment variables
+  env: { "API_KEY": "...", "MAX_RETRIES": "3" },
+  
+  // Execution logs
+  logs: [
+    { blockId: "block-1", timestamp: "...", status: "completed", duration: 120 },
+    { blockId: "block-2", timestamp: "...", status: "completed", duration: 85 }
+  ]
+}
+```
+
+This context is used internally by the execution engine but understanding its structure can help you debug complex workflows.
+
+## Debugging Techniques
+
+Advanced techniques for debugging workflow execution:
+
+### Console Logging
+
+Add strategic console.log statements in Function blocks:
+
+```javascript
+console.log("Input to processData:", JSON.stringify(input, null, 2));
+console.log("Processing step 1 complete:", intermediateResult);
+console.log("Final result:", finalResult);
+```
+
+### State Inspection
+
+Use Function blocks to inspect the current state:
+
+```javascript
+function debugState() {
+  // Log all inputs
+  console.log("All inputs:", input);
+  
+  // Return a debug object with relevant information
+  return {
+    debug: true,
+    inputSummary: {
+      hasUserData: !!input.userBlock,
+      apiStatus: input.apiBlock?.status,
+      itemCount: input.dataBlock?.items?.length || 0
+    },
+    timestamp: new Date().toISOString()
+  };
+}
+```
+
+### Execution Tracing
+
+Enable detailed execution tracing for complex workflows:
+
+1. Add a Memory block to accumulate trace information
+2. Add trace logging in key Function blocks
+3. Review the trace after execution to understand the flow
+
+### Performance Profiling
+
+Identify performance bottlenecks:
+
+```javascript
+function profileOperation() {
+  const start = performance.now();
+  
+  // Perform the operation
+  const result = performExpensiveOperation();
+  
+  const end = performance.now();
+  console.log(`Operation took ${end - start}ms`);
+  
+  return {
+    result,
+    executionTime: end - start
+  };
+}
+```
+
+By mastering these advanced execution features, you can create more robust, efficient, and sophisticated workflows in Sim Studio. 
