@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { GithubIcon } from 'lucide-react'
 import { source } from '@/lib/source'
+import { AgentIcon } from '@/components/icons'
 
 const GitHubLink = () => (
   <div className="fixed bottom-4 left-4 z-50">
@@ -23,7 +24,12 @@ export default function Layout({ children }: { children: ReactNode }) {
       <DocsLayout
         tree={source.pageTree}
         nav={{
-          title: 'Sim Studio',
+          title: (
+            <div className="flex items-center gap-2">
+              <AgentIcon className="h-4 w-4" />
+              Sim Studio
+            </div>
+          ),
         }}
       >
         {children}
