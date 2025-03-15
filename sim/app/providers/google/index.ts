@@ -126,6 +126,10 @@ export const googleProvider: ProviderConfig = {
             toolCalls.push({
               name: toolName,
               arguments: toolArgs,
+              startTime: result.timing?.startTime,
+              endTime: result.timing?.endTime,
+              duration: result.timing?.duration,
+              result: result.output,
             })
 
             // Add the tool call and result to messages

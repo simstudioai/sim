@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
+import { CopyButton } from '../copy-button'
+import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 
 interface LogSidebarProps {
   log: WorkflowLog | null
@@ -55,7 +57,8 @@ const formatSingleJsonContent = (content: string): JSX.Element => {
       return (
         <div>
           {messagePart && <div className="mb-2 font-medium text-sm break-words">{messagePart}</div>}
-          <div className="bg-secondary/50 p-3 rounded-md">
+          <div className="bg-secondary/50 p-3 rounded-md relative group">
+            <CopyButton text={JSON.stringify(jsonData, null, 2)} />
             <pre className="text-xs whitespace-pre-wrap break-all max-w-full overflow-hidden">
               <code>{JSON.stringify(jsonData, null, 2)}</code>
             </pre>
@@ -77,7 +80,8 @@ const formatSingleJsonContent = (content: string): JSX.Element => {
               try {
                 const parsedJson = JSON.parse(jsonStr)
                 return (
-                  <div key={idx} className="bg-secondary/50 p-3 rounded-md mt-2">
+                  <div key={idx} className="bg-secondary/50 p-3 rounded-md mt-2 relative group">
+                    <CopyButton text={JSON.stringify(parsedJson, null, 2)} />
                     <pre className="text-xs whitespace-pre-wrap break-all max-w-full overflow-hidden">
                       <code>{JSON.stringify(parsedJson, null, 2)}</code>
                     </pre>
@@ -85,7 +89,8 @@ const formatSingleJsonContent = (content: string): JSX.Element => {
                 )
               } catch {
                 return (
-                  <div key={idx} className="mt-2 text-sm break-words">
+                  <div key={idx} className="mt-2 text-sm break-words relative group">
+                    <CopyButton text={jsonStr} />
                     {jsonStr}
                   </div>
                 )
@@ -99,7 +104,12 @@ const formatSingleJsonContent = (content: string): JSX.Element => {
     // If all parsing fails, return the original content
   }
 
-  return <div className="text-sm break-words">{content}</div>
+  return (
+    <div className="text-sm break-words relative group">
+      <CopyButton text={content} />
+      {content}
+    </div>
+  )
 }
 
 export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
@@ -187,7 +197,10 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
               {/* Timestamp */}
               <div>
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Timestamp</h3>
-                <p className="text-sm">{formatDate(log.createdAt).full}</p>
+                <p className="text-sm relative group">
+                  <CopyButton text={formatDate(log.createdAt).full} />
+                  {formatDate(log.createdAt).full}
+                </p>
               </div>
 
               {/* Workflow */}
@@ -195,12 +208,13 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Workflow</h3>
                   <div
-                    className="inline-flex items-center px-2 py-1 text-xs rounded-md"
+                    className="inline-flex items-center px-2 py-1 text-xs rounded-md relative group"
                     style={{
                       backgroundColor: `${log.workflow.color}20`,
                       color: log.workflow.color,
                     }}
                   >
+                    <CopyButton text={log.workflow.name} />
                     {log.workflow.name}
                   </div>
                 </div>
@@ -210,21 +224,30 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
               {log.executionId && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Execution ID</h3>
-                  <p className="text-sm font-mono break-all">{log.executionId}</p>
+                  <p className="text-sm font-mono break-all relative group">
+                    <CopyButton text={log.executionId} />
+                    {log.executionId}
+                  </p>
                 </div>
               )}
 
               {/* Level */}
               <div>
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Level</h3>
-                <p className="text-sm capitalize">{log.level}</p>
+                <p className="text-sm capitalize relative group">
+                  <CopyButton text={log.level} />
+                  {log.level}
+                </p>
               </div>
 
               {/* Trigger */}
               {log.trigger && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Trigger</h3>
-                  <p className="text-sm capitalize">{log.trigger}</p>
+                  <p className="text-sm capitalize relative group">
+                    <CopyButton text={log.trigger} />
+                    {log.trigger}
+                  </p>
                 </div>
               )}
 
@@ -232,7 +255,18 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
               {log.duration && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Duration</h3>
-                  <p className="text-sm">{log.duration}</p>
+                  <p className="text-sm relative group">
+                    <CopyButton text={log.duration} />
+                    {log.duration}
+                  </p>
+                </div>
+              )}
+
+              {/* Tool Calls (if available) */}
+              {log.metadata?.toolCalls && log.metadata.toolCalls.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Tool Calls</h3>
+                  <ToolCallsDisplay metadata={log.metadata} />
                 </div>
               )}
 

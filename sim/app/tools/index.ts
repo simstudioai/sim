@@ -294,6 +294,10 @@ export async function executeTool(
   skipProxy = false,
   skipPostProcess = false
 ): Promise<ToolResponse> {
+  // Capture start time for precise timing
+  const startTime = new Date()
+  const startTimeISO = startTime.toISOString()
+
   try {
     const tool = getTool(toolId)
 
@@ -309,7 +313,18 @@ export async function executeTool(
     if (toolId.startsWith('custom_') && tool.directExecution) {
       const directResult = await tool.directExecution(params)
       if (directResult) {
-        return directResult
+        // Add timing data to the result
+        const endTime = new Date()
+        const endTimeISO = endTime.toISOString()
+        const duration = endTime.getTime() - startTime.getTime()
+        return {
+          ...directResult,
+          timing: {
+            startTime: startTimeISO,
+            endTime: endTimeISO,
+            duration,
+          },
+        }
       }
       // If directExecution returns undefined, fall back to API route
     }
@@ -321,15 +336,50 @@ export async function executeTool(
       // Apply post-processing if available and not skipped
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          return await tool.postProcess(result, params, executeTool)
+          const postProcessResult = await tool.postProcess(result, params, executeTool)
+
+          // Add timing data to the post-processed result
+          const endTime = new Date()
+          const endTimeISO = endTime.toISOString()
+          const duration = endTime.getTime() - startTime.getTime()
+          return {
+            ...postProcessResult,
+            timing: {
+              startTime: startTimeISO,
+              endTime: endTimeISO,
+              duration,
+            },
+          }
         } catch (error) {
           logger.error(`Error in post-processing for tool ${toolId}:`, { error })
           // Return original result if post-processing fails
-          return result
+          // Still include timing data
+          const endTime = new Date()
+          const endTimeISO = endTime.toISOString()
+          const duration = endTime.getTime() - startTime.getTime()
+          return {
+            ...result,
+            timing: {
+              startTime: startTimeISO,
+              endTime: endTimeISO,
+              duration,
+            },
+          }
         }
       }
 
-      return result
+      // Add timing data to the result
+      const endTime = new Date()
+      const endTimeISO = endTime.toISOString()
+      const duration = endTime.getTime() - startTime.getTime()
+      return {
+        ...result,
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
     }
 
     // For external APIs, use the proxy
@@ -338,15 +388,49 @@ export async function executeTool(
     // Apply post-processing if available and not skipped
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        return await tool.postProcess(result, params, executeTool)
+        const postProcessResult = await tool.postProcess(result, params, executeTool)
+
+        // Add timing data to the post-processed result
+        const endTime = new Date()
+        const endTimeISO = endTime.toISOString()
+        const duration = endTime.getTime() - startTime.getTime()
+        return {
+          ...postProcessResult,
+          timing: {
+            startTime: startTimeISO,
+            endTime: endTimeISO,
+            duration,
+          },
+        }
       } catch (error) {
         logger.error(`Error in post-processing for tool ${toolId}:`, { error })
-        // Return original result if post-processing fails
-        return result
+        // Return original result if post-processing fails, but include timing data
+        const endTime = new Date()
+        const endTimeISO = endTime.toISOString()
+        const duration = endTime.getTime() - startTime.getTime()
+        return {
+          ...result,
+          timing: {
+            startTime: startTimeISO,
+            endTime: endTimeISO,
+            duration,
+          },
+        }
       }
     }
 
-    return result
+    // Add timing data to the result
+    const endTime = new Date()
+    const endTimeISO = endTime.toISOString()
+    const duration = endTime.getTime() - startTime.getTime()
+    return {
+      ...result,
+      timing: {
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        duration,
+      },
+    }
   } catch (error: any) {
     logger.error(`Error executing tool ${toolId}:`, { error })
 
@@ -360,10 +444,19 @@ export async function executeTool(
       logger.error(`Looking for custom tool with identifier: ${identifier}`)
     }
 
+    // Add timing data even for errors
+    const endTime = new Date()
+    const endTimeISO = endTime.toISOString()
+    const duration = endTime.getTime() - startTime.getTime()
     return {
       success: false,
       output: {},
       error: error.message || 'Unknown error',
+      timing: {
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        duration,
+      },
     }
   }
 }

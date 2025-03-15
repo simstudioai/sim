@@ -31,6 +31,12 @@ export interface ProviderConfig {
 export interface FunctionCallResponse {
   name: string
   arguments: Record<string, any>
+  startTime?: string
+  endTime?: string
+  duration?: number
+  result?: Record<string, any>
+  output?: Record<string, any>
+  input?: Record<string, any>
 }
 
 export interface ProviderResponse {

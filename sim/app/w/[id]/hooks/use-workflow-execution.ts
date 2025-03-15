@@ -24,59 +24,17 @@ export function useWorkflowExecution() {
   const { isExecuting, setIsExecuting } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
-  const persistLogs = async (logs: any[], executionId: string) => {
-    // Check if we're in local storage mode
-    const useLocalStorage =
-      typeof window !== 'undefined' &&
-      (window.localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
-        process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true')
-
-    if (useLocalStorage) {
-      // Store logs in localStorage
-      try {
-        const storageKey = `workflow-logs-${activeWorkflowId}-${executionId}`
-        window.localStorage.setItem(
-          storageKey,
-          JSON.stringify({
-            logs,
-            timestamp: new Date().toISOString(),
-            workflowId: activeWorkflowId,
-          })
-        )
-
-        // Also update a list of all execution logs for this workflow
-        const logListKey = `workflow-logs-list-${activeWorkflowId}`
-        const existingLogList = window.localStorage.getItem(logListKey)
-        const logList = existingLogList ? JSON.parse(existingLogList) : []
-        logList.push({
-          executionId,
-          timestamp: new Date().toISOString(),
-        })
-
-        // Keep only the last 20 executions
-        if (logList.length > 20) {
-          const removedLogs = logList.splice(0, logList.length - 20)
-          // Clean up old logs
-          removedLogs.forEach((log: any) => {
-            window.localStorage.removeItem(`workflow-logs-${activeWorkflowId}-${log.executionId}`)
-          })
-        }
-
-        window.localStorage.setItem(logListKey, JSON.stringify(logList))
-      } catch (error) {
-        logger.error('Error storing logs in localStorage:', { error })
-      }
-      return
-    }
-
-    // Fall back to API if not in local storage mode
+  const persistLogs = async (executionId: string, result: ExecutionResult) => {
     try {
       const response = await fetch(`/api/workflow/${activeWorkflowId}/log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ logs, executionId }),
+        body: JSON.stringify({
+          executionId,
+          result,
+        }),
       })
 
       if (!response.ok) {
@@ -140,59 +98,26 @@ export function useWorkflowExecution() {
         activeWorkflowId
       )
 
-      // Prepare logs for persistence (moved after notification)
-      const blockLogs = (result.logs || []).map((log) => ({
-        level: log.success ? 'info' : 'error',
-        message: log.success
-          ? `Block ${log.blockName || log.blockId} (${log.blockType}): ${JSON.stringify(log.output?.response || {})}`
-          : `Block ${log.blockName || log.blockId} (${log.blockType}): ${log.error || 'Failed'}`,
-        duration: log.success ? `${log.durationMs}ms` : 'NA',
-        createdAt: new Date(log.endedAt || log.startedAt).toISOString(),
-      }))
-
-      // Calculate total duration from successful block logs
-      const totalDuration = (result.logs || [])
-        .filter((log) => log.success)
-        .reduce((sum, log) => sum + log.durationMs, 0)
-
-      // Add final execution result log
-      blockLogs.push({
-        level: result.success ? 'info' : 'error',
-        message: result.success
-          ? 'Manual workflow executed successfully'
-          : `Manual workflow execution failed: ${result.error}`,
-        duration: result.success ? `${totalDuration}ms` : 'NA',
-        createdAt: new Date().toISOString(),
-      })
-
-      // Persist logs after notification
-      await persistLogs(blockLogs, executionId)
+      // Send the entire execution result to our API to be processed server-side
+      await persistLogs(executionId, result)
     } catch (error: any) {
       logger.error('Workflow Execution Error:', { error })
 
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
       // Set error result and show notification immediately
-      setExecutionResult({
+      const errorResult = {
         success: false,
         output: { response: {} },
         error: errorMessage,
         logs: [],
-      })
+      }
+
+      setExecutionResult(errorResult)
       addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
 
-      // Persist error log after notification
-      await persistLogs(
-        [
-          {
-            level: 'error',
-            message: `Manual workflow execution failed: ${errorMessage}`,
-            duration: 'NA',
-            createdAt: new Date().toISOString(),
-          },
-        ],
-        executionId
-      )
+      // Also send the error result to the API
+      await persistLogs(executionId, errorResult)
     } finally {
       setIsExecuting(false)
     }

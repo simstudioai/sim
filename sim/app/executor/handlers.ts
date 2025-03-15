@@ -272,7 +272,15 @@ export class AgentBlockHandler implements BlockHandler {
             },
             toolCalls: response.toolCalls
               ? {
-                  list: response.toolCalls,
+                  list: response.toolCalls.map((tc) => ({
+                    ...tc,
+                    // Preserve timing information if available
+                    startTime: tc.startTime,
+                    endTime: tc.endTime,
+                    duration: tc.duration,
+                    input: tc.arguments || tc.input,
+                    output: tc.result || tc.output,
+                  })),
                   count: response.toolCalls.length,
                 }
               : undefined,
@@ -295,7 +303,17 @@ export class AgentBlockHandler implements BlockHandler {
               total: 0,
             },
             toolCalls: {
-              list: response.toolCalls || [],
+              list: response.toolCalls
+                ? response.toolCalls.map((tc) => ({
+                    ...tc,
+                    // Preserve timing information if available
+                    startTime: tc.startTime,
+                    endTime: tc.endTime,
+                    duration: tc.duration,
+                    input: tc.arguments || tc.input,
+                    output: tc.result || tc.output,
+                  }))
+                : [],
               count: response.toolCalls?.length || 0,
             },
           },
@@ -314,7 +332,17 @@ export class AgentBlockHandler implements BlockHandler {
           total: 0,
         },
         toolCalls: {
-          list: response.toolCalls || [],
+          list: response.toolCalls
+            ? response.toolCalls.map((tc) => ({
+                ...tc,
+                // Preserve timing information if available
+                startTime: tc.startTime,
+                endTime: tc.endTime,
+                duration: tc.duration,
+                input: tc.arguments || tc.input,
+                output: tc.result || tc.output,
+              }))
+            : [],
           count: response.toolCalls?.length || 0,
         },
       },

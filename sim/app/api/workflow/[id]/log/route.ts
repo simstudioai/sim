@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistLog } from '@/lib/logs/execution-logger'
+import { persistExecutionLogs, persistLog } from '@/lib/logs/execution-logger'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -21,8 +21,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const body = await request.json()
-    const { logs, executionId } = body
+    const { logs, executionId, result } = body
 
+    // If result is provided, use persistExecutionLogs for full tool call extraction
+    if (result) {
+      logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {
+        executionId,
+        success: result.success,
+      })
+
+      // Use persistExecutionLogs which handles tool call extraction
+      await persistExecutionLogs(id, executionId, result, 'manual')
+
+      return createSuccessResponse({ message: 'Execution logs persisted successfully' })
+    }
+
+    // Fall back to the original log format if 'result' isn't provided
     if (!logs || !Array.isArray(logs) || logs.length === 0) {
       logger.warn(`[${requestId}] No logs provided for workflow: ${id}`)
       return createErrorResponse('No logs provided', 400)
@@ -32,7 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       executionId,
     })
 
-    // Persist each log
+    // Persist each log using the original method
     for (const log of logs) {
       await persistLog({
         id: uuidv4(),
@@ -41,8 +55,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         level: log.level,
         message: log.message,
         duration: log.duration,
-        trigger: 'manual',
+        trigger: log.trigger || 'manual',
         createdAt: new Date(log.createdAt || new Date()),
+        metadata: log.metadata,
       })
     }
 

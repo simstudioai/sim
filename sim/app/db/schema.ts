@@ -86,6 +86,7 @@ export const workflowLogs = pgTable('workflow_logs', {
   duration: text('duration'), // Store as text to allow 'NA' for errors
   trigger: text('trigger'), // e.g. "api", "schedule", "manual"
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  metadata: json('metadata'), // Optional JSON field for storing additional context like tool calls
 })
 
 export const environment = pgTable('environment', {

@@ -125,6 +125,10 @@ export const xAIProvider: ProviderConfig = {
             toolCalls.push({
               name: toolName,
               arguments: toolArgs,
+              startTime: result.timing?.startTime,
+              endTime: result.timing?.endTime,
+              duration: result.timing?.duration,
+              result: result.output,
             })
 
             currentMessages.push({

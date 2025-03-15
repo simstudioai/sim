@@ -7,6 +7,8 @@ const logger = createLogger('ProxyAPI')
 
 export async function POST(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = new Date()
+  const startTimeISO = startTime.toISOString()
 
   try {
     const { toolId, params } = await request.json()
@@ -26,9 +28,18 @@ export async function POST(request: Request) {
         toolId,
         error: error instanceof Error ? error.message : String(error),
       })
+
+      // Add timing information even to error responses
+      const endTime = new Date()
+      const endTimeISO = endTime.toISOString()
+      const duration = endTime.getTime() - startTime.getTime()
+
       return NextResponse.json({
         success: false,
         error: error instanceof Error ? error.message : String(error),
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        duration,
       })
     }
 
@@ -81,8 +92,32 @@ export async function POST(request: Request) {
         }
       }
 
-      logger.info(`[${requestId}] Tool executed successfully`, { toolId })
-      return NextResponse.json(result)
+      const endTime = new Date()
+      const endTimeISO = endTime.toISOString()
+      const duration = endTime.getTime() - startTime.getTime()
+
+      // Add explicit timing information directly to the response
+      // This will ensure it's passed to the agent block
+      const responseWithTimingData = {
+        ...result,
+        // Add timing data both at root level and in nested timing object
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        duration,
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
+
+      logger.info(`[${requestId}] Tool executed successfully`, {
+        toolId,
+        duration,
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+      })
+      return NextResponse.json(responseWithTimingData)
     } catch (error: any) {
       throw error
     }
@@ -91,9 +126,17 @@ export async function POST(request: Request) {
       error: error instanceof Error ? error.message : String(error),
     })
 
+    // Add timing information even to error responses
+    const endTime = new Date()
+    const endTimeISO = endTime.toISOString()
+    const duration = endTime.getTime() - startTime.getTime()
+
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : String(error),
+      startTime: startTimeISO,
+      endTime: endTimeISO,
+      duration,
     })
   }
 }
