@@ -75,8 +75,8 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           // Find matching connection - now we can do an exact match on providerId
           const connection = connections.find((conn: any) => {
             // Exact match on providerId is the most reliable
-            return conn.provider === service.providerId;
-          });
+            return conn.provider === service.providerId
+          })
 
           // If we found an exact match, use it
           if (connection) {
@@ -92,16 +92,16 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           const connectionWithScopes = connections.find((conn: any) => {
             // Only consider connections from the same base provider
             if (!conn.baseProvider || !service.providerId.startsWith(conn.baseProvider)) {
-              return false;
+              return false
             }
-            
+
             // Check if all required scopes for this service are included in the connection
             if (conn.scopes && service.scopes) {
-              return service.scopes.every(scope => conn.scopes.includes(scope));
+              return service.scopes.every((scope) => conn.scopes.includes(scope))
             }
-            
-            return false;
-          });
+
+            return false
+          })
 
           if (connectionWithScopes) {
             return {
@@ -112,7 +112,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
             }
           }
 
-          return service;
+          return service
         })
 
         setServices(updatedServices)
@@ -209,7 +209,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       saveToStorage<string[]>('pending_oauth_scopes', service.scopes)
       saveToStorage<string>('pending_oauth_return_url', window.location.href)
       saveToStorage<string>('pending_oauth_provider_id', service.providerId)
-      
+
       logger.info('Connecting service:', {
         serviceId: service.id,
         providerId: service.providerId,

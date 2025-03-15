@@ -29,7 +29,7 @@
       "@/db": ["./app/db"],
       "@/db/*": ["./app/db/*"],
       "@/executor": ["./app/executor"],
-      "@/executor/*": ["./app/executor/*"],
+      "@/executor/*": ["./app/executor/*"]
     },
     "allowJs": true,
     "noEmit": true,

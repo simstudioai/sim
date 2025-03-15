@@ -132,7 +132,7 @@ export function OAuthRequiredModal({
         providerId,
         requiredScopes,
       })
-    
+
       await client.oauth2.link({
         providerId,
         callbackURL: window.location.href,

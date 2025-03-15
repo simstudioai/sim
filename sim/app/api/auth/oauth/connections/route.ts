@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1)
-    
+
     const userEmail = userRecord.length > 0 ? userRecord[0].email : null
 
     // Process accounts to determine connections
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       if (provider && VALID_PROVIDERS.includes(provider)) {
         // Try multiple methods to get a user-friendly display name
         let displayName = ''
-        
+
         // Method 1: Try to extract email from ID token (works for Google, etc.)
         if (acc.idToken) {
           try {
@@ -70,17 +70,17 @@ export async function GET(request: NextRequest) {
             logger.warn(`[${requestId}] Error decoding ID token`, { accountId: acc.id })
           }
         }
-        
+
         // Method 2: For GitHub, the accountId might be the username
         if (!displayName && provider === 'github') {
           displayName = `${acc.accountId} (GitHub)`
         }
-        
+
         // Method 3: Use the user's email from our database
         if (!displayName && userEmail) {
           displayName = userEmail
         }
-        
+
         // Fallback: Use accountId with provider type as context
         if (!displayName) {
           displayName = `${acc.accountId} (${provider})`
@@ -90,9 +90,7 @@ export async function GET(request: NextRequest) {
         const connectionKey = acc.providerId
 
         // Find existing connection for this specific provider ID
-        const existingConnection = connections.find(
-          (conn) => conn.provider === connectionKey
-        )
+        const existingConnection = connections.find((conn) => conn.provider === connectionKey)
 
         if (existingConnection) {
           // Add account to existing connection

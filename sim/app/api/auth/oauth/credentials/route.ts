@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
         // Try multiple methods to get a user-friendly display name
         let displayName = ''
-        
+
         // Method 1: Try to extract email from ID token (works for Google, etc.)
         if (acc.idToken) {
           try {
@@ -72,12 +72,12 @@ export async function GET(request: NextRequest) {
             logger.warn(`[${requestId}] Error decoding ID token`, { accountId: acc.id })
           }
         }
-        
+
         // Method 2: For GitHub, the accountId might be the username
         if (!displayName && baseProvider === 'github') {
           displayName = `${acc.accountId} (GitHub)`
         }
-        
+
         // Method 3: Try to get the user's email from our database
         if (!displayName) {
           try {
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
               .from(user)
               .where(eq(user.id, acc.userId))
               .limit(1)
-            
+
             if (userRecord.length > 0) {
               displayName = userRecord[0].email
             }
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
             logger.warn(`[${requestId}] Error fetching user email`, { userId: acc.userId })
           }
         }
-        
+
         // Fallback: Use accountId with provider type as context
         if (!displayName) {
           displayName = `${acc.accountId} (${baseProvider})`

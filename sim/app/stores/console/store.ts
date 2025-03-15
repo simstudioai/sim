@@ -20,10 +20,14 @@ const redactApiKeys = (obj: any): any => {
   }
 
   const result: Record<string, any> = {}
-  
+
   for (const [key, value] of Object.entries(obj)) {
     // Check if the key is 'apiKey' (case insensitive)
-    if (key.toLowerCase() === 'apikey' || key.toLowerCase() === 'api_key' || key.toLowerCase() === 'access_token') {
+    if (
+      key.toLowerCase() === 'apikey' ||
+      key.toLowerCase() === 'api_key' ||
+      key.toLowerCase() === 'access_token'
+    ) {
       result[key] = '***REDACTED***'
     } else if (typeof value === 'object' && value !== null) {
       result[key] = redactApiKeys(value)
@@ -31,7 +35,7 @@ const redactApiKeys = (obj: any): any => {
       result[key] = value
     }
   }
-  
+
   return result
 }
 
@@ -46,12 +50,12 @@ export const useConsoleStore = create<ConsoleStore>()(
           set((state) => {
             // Create a new entry with redacted API keys
             const redactedEntry = { ...entry }
-            
+
             // If the entry has output and it's an object, redact API keys
             if (redactedEntry.output && typeof redactedEntry.output === 'object') {
               redactedEntry.output = redactApiKeys(redactedEntry.output)
             }
-            
+
             const newEntry: ConsoleEntry = {
               ...redactedEntry,
               id: crypto.randomUUID(),
