@@ -62,7 +62,7 @@ export const generateEvaluatorPrompt = (metrics: Metric[], content: string): str
   // Generate an example of the expected output format
   const exampleOutput = metrics.reduce(
     (acc, metric) => {
-      acc[metric.name] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
+      acc[metric.name.toLowerCase()] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
       return acc
     },
     {} as Record<string, number>
@@ -74,7 +74,7 @@ Evaluation Instructions:
 - You MUST evaluate the content against each metric
 - For each metric, provide a numeric score within the specified range
 - Your response MUST be a valid JSON object with each metric name as a key and a numeric score as the value
-- Use EXACTLY the metric names provided (case-sensitive, no modifications)
+- IMPORTANT: Use lowercase versions of the metric names as keys in your JSON response
 - Follow the exact schema of the response format provided to you
 - Do not include explanations in the JSON - only numeric scores
 - Do not add any additional fields not specified in the schema
@@ -89,7 +89,7 @@ ${formattedContent}
 Example of expected response format (with different scores):
 ${JSON.stringify(exampleOutput, null, 2)}
 
-Remember: Your response MUST be a valid JSON object containing only the metrics as keys with their numeric scores as values. No text explanations.`
+Remember: Your response MUST be a valid JSON object containing only the lowercase metric names as keys with their numeric scores as values. No text explanations.`
 }
 
 // Simplified response format generator that matches the agent block schema structure
@@ -99,7 +99,7 @@ const generateResponseFormat = (metrics: Metric[]) => {
 
   // Add each metric as a property
   metrics.forEach((metric) => {
-    properties[metric.name] = {
+    properties[metric.name.toLowerCase()] = {
       type: 'number',
       description: `${metric.description} (Score between ${metric.range.min}-${metric.range.max})`,
     }
@@ -111,7 +111,7 @@ const generateResponseFormat = (metrics: Metric[]) => {
     schema: {
       type: 'object',
       properties,
-      required: metrics.map((metric) => metric.name),
+      required: metrics.map((metric) => metric.name.toLowerCase()),
       additionalProperties: false,
     },
     strict: true,

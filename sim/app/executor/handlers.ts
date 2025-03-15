@@ -693,14 +693,15 @@ export class EvaluatorBlockHandler implements BlockHandler {
       if (Object.keys(parsedContent).length > 0) {
         metrics.forEach((metric: { name: string }) => {
           const metricName = metric.name
+          const lowerCaseMetricName = metricName.toLowerCase()
 
           // Try multiple possible ways the metric might be represented
           if (parsedContent[metricName] !== undefined) {
-            metricScores[metricName] = Number(parsedContent[metricName])
+            metricScores[lowerCaseMetricName] = Number(parsedContent[metricName])
           } else if (parsedContent[metricName.toLowerCase()] !== undefined) {
-            metricScores[metricName] = Number(parsedContent[metricName.toLowerCase()])
+            metricScores[lowerCaseMetricName] = Number(parsedContent[metricName.toLowerCase()])
           } else if (parsedContent[metricName.toUpperCase()] !== undefined) {
-            metricScores[metricName] = Number(parsedContent[metricName.toUpperCase()])
+            metricScores[lowerCaseMetricName] = Number(parsedContent[metricName.toUpperCase()])
           } else {
             // Last resort - try to find any key that might contain this metric name
             const matchingKey = Object.keys(parsedContent).find((key) =>
@@ -708,17 +709,17 @@ export class EvaluatorBlockHandler implements BlockHandler {
             )
 
             if (matchingKey) {
-              metricScores[metricName] = Number(parsedContent[matchingKey])
+              metricScores[lowerCaseMetricName] = Number(parsedContent[matchingKey])
             } else {
               logger.warn(`Metric "${metricName}" not found in LLM response`)
-              metricScores[metricName] = 0
+              metricScores[lowerCaseMetricName] = 0
             }
           }
         })
       } else {
         // If we couldn't parse any content, set all metrics to 0
         metrics.forEach((metric: { name: string }) => {
-          metricScores[metric.name] = 0
+          metricScores[metric.name.toLowerCase()] = 0
         })
       }
     } catch (e) {
