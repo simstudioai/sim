@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
@@ -14,6 +15,10 @@ interface LogSidebarProps {
   log: WorkflowLog | null
   isOpen: boolean
   onClose: () => void
+  onNavigateNext?: () => void
+  onNavigatePrev?: () => void
+  hasNext?: boolean
+  hasPrev?: boolean
 }
 
 /**
@@ -113,14 +118,38 @@ const formatSingleJsonContent = (content: string): JSX.Element => {
   )
 }
 
-export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
+export function Sidebar({
+  log,
+  isOpen,
+  onClose,
+  onNavigateNext,
+  onNavigatePrev,
+  hasNext = false,
+  hasPrev = false,
+}: LogSidebarProps) {
   const [width, setWidth] = useState(400) // Default width from the original styles
   const [isDragging, setIsDragging] = useState(false)
+  const [currentLogId, setCurrentLogId] = useState<string | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  // Update currentLogId when log changes
+  useEffect(() => {
+    if (log?.id) {
+      setCurrentLogId(log.id)
+    }
+  }, [log?.id])
 
   const formattedContent = useMemo(() => {
     if (!log) return null
     return formatJsonContent(log.message)
   }, [log])
+
+  // Reset scroll position when log changes
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = 0
+    }
+  }, [log?.id])
 
   // Determine if this is a workflow execution log
   const isWorkflowExecutionLog = useMemo(() => {
@@ -173,11 +202,31 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
       if (e.key === 'Escape' && isOpen) {
         onClose()
       }
+
+      // Add keyboard shortcuts for navigation
+      if (isOpen) {
+        // Up arrow key for previous log
+        if (e.key === 'ArrowUp' && hasPrev && onNavigatePrev) {
+          e.preventDefault()
+          handleNavigate(onNavigatePrev)
+        }
+
+        // Down arrow key for next log
+        if (e.key === 'ArrowDown' && hasNext && onNavigateNext) {
+          e.preventDefault()
+          handleNavigate(onNavigateNext)
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, hasPrev, hasNext, onNavigatePrev, onNavigateNext])
+
+  // Handle navigation
+  const handleNavigate = (navigateFunction: () => void) => {
+    navigateFunction()
+  }
 
   return (
     <div
@@ -195,19 +244,57 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h2 className="text-base font-medium">Log Details</h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center space-x-1">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 p-0"
+                      onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
+                      disabled={!hasPrev}
+                      aria-label="Previous log"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Previous log (↑)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 p-0"
+                      onClick={() => hasNext && handleNavigate(onNavigateNext!)}
+                      disabled={!hasNext}
+                      aria-label="Next log"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Next log (↓)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 p-0"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Content */}
-          <ScrollArea className="h-[calc(100vh-64px-49px)]">
+          <ScrollArea className="h-[calc(100vh-64px-49px)]" ref={scrollAreaRef}>
             {' '}
             {/* Adjust for header height */}
             <div className="p-4 space-y-4">

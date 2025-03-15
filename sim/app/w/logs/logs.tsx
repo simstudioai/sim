@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ControlBar } from './components/control-bar/control-bar'
@@ -31,10 +31,25 @@ const getTriggerBadgeStyles = (trigger: string) => {
     : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
 }
 
+// Add a new CSS class for the selected row animation
+const selectedRowAnimation = `
+  @keyframes borderPulse {
+    0% { border-left-color: hsl(var(--primary) / 0.3); }
+    50% { border-left-color: hsl(var(--primary) / 0.7); }
+    100% { border-left-color: hsl(var(--primary) / 0.5); }
+  }
+  .selected-row {
+    animation: borderPulse 1s ease-in-out;
+    border-left-color: hsl(var(--primary) / 0.5);
+  }
+`
+
 export default function Logs() {
   const { filteredLogs, logs, loading, error, setLogs, setLoading, setError } = useFilterStore()
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
+  const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
 
   // Group logs by executionId to identify the last log in each group
   const executionGroups = useMemo(() => {
@@ -63,13 +78,44 @@ export default function Logs() {
   // Handle log click
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
+    // Find the index of the clicked log in the filtered logs array
+    const index = filteredLogs.findIndex((l) => l.id === log.id)
+    setSelectedLogIndex(index)
     setIsSidebarOpen(true)
+  }
+
+  // Navigate to the next log
+  const handleNavigateNext = () => {
+    if (selectedLogIndex < filteredLogs.length - 1) {
+      const nextIndex = selectedLogIndex + 1
+      setSelectedLogIndex(nextIndex)
+      setSelectedLog(filteredLogs[nextIndex])
+    }
+  }
+
+  // Navigate to the previous log
+  const handleNavigatePrev = () => {
+    if (selectedLogIndex > 0) {
+      const prevIndex = selectedLogIndex - 1
+      setSelectedLogIndex(prevIndex)
+      setSelectedLog(filteredLogs[prevIndex])
+    }
   }
 
   // Close sidebar
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false)
   }
+
+  // Scroll selected log into view when it changes
+  useEffect(() => {
+    if (selectedRowRef.current) {
+      selectedRowRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    }
+  }, [selectedLogIndex])
 
   // Fetch logs on component mount
   useEffect(() => {
@@ -101,8 +147,63 @@ export default function Logs() {
     fetchLogs()
   }, [setLogs, setLoading, setError])
 
+  // Add keyboard navigation for the logs table
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle keyboard navigation if we have logs and a log is selected
+      if (filteredLogs.length === 0) return
+
+      // If no log is selected yet, select the first one on arrow key press
+      if (selectedLogIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault()
+        setSelectedLogIndex(0)
+        setSelectedLog(filteredLogs[0])
+        return
+      }
+
+      // Up arrow key for previous log
+      if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey && selectedLogIndex > 0) {
+        e.preventDefault()
+        handleNavigatePrev()
+      }
+
+      // Down arrow key for next log
+      if (
+        e.key === 'ArrowDown' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        selectedLogIndex < filteredLogs.length - 1
+      ) {
+        e.preventDefault()
+        handleNavigateNext()
+      }
+
+      // Enter key to open/close sidebar
+      if (e.key === 'Enter' && selectedLog) {
+        e.preventDefault()
+        setIsSidebarOpen(!isSidebarOpen)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    filteredLogs,
+    selectedLogIndex,
+    isSidebarOpen,
+    selectedLog,
+    handleNavigateNext,
+    handleNavigatePrev,
+    setIsSidebarOpen,
+  ])
+
   return (
     <div className="flex flex-col h-[100vh]">
+      {/* Add the animation styles */}
+      <style jsx global>
+        {selectedRowAnimation}
+      </style>
+
       <ControlBar />
       <div className="flex flex-1 overflow-hidden">
         <Filters />
@@ -186,17 +287,25 @@ export default function Logs() {
                   <tbody>
                     {filteredLogs.map((log) => {
                       const formattedDate = formatDate(log.createdAt)
+                      const isSelected = selectedLog?.id === log.id
 
                       return (
                         <tr
                           key={log.id}
-                          className="border-b hover:bg-accent/30 transition-colors cursor-pointer"
+                          ref={isSelected ? selectedRowRef : null}
+                          className={`border-b transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-accent/40 hover:bg-accent/50 border-l-2 selected-row'
+                              : 'hover:bg-accent/30'
+                          }`}
                           onClick={() => handleLogClick(log)}
                         >
                           {/* Time column */}
                           <td className="px-4 py-3">
                             <div className="flex flex-col justify-center">
-                              <div className="text-xs font-medium flex items-center">
+                              <div
+                                className={`text-xs font-medium flex items-center ${isSelected ? 'text-foreground' : ''}`}
+                              >
                                 <span>{formattedDate.formatted}</span>
                                 <span className="mx-1.5 text-muted-foreground hidden xl:inline">
                                   •
@@ -260,14 +369,19 @@ export default function Logs() {
 
                           {/* Message column */}
                           <td className="px-4 py-3">
-                            <div className="text-sm truncate" title={log.message}>
+                            <div
+                              className={`text-sm truncate ${isSelected ? 'text-foreground' : ''}`}
+                              title={log.message}
+                            >
                               {log.message}
                             </div>
                           </td>
 
                           {/* Duration column */}
                           <td className="px-4 py-3">
-                            <div className="text-xs text-muted-foreground">
+                            <div
+                              className={`text-xs ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}
+                            >
                               {log.duration || '—'}
                             </div>
                           </td>
@@ -283,7 +397,15 @@ export default function Logs() {
       </div>
 
       {/* Log Sidebar */}
-      <Sidebar log={selectedLog} isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
+      <Sidebar
+        log={selectedLog}
+        isOpen={isSidebarOpen}
+        onClose={handleCloseSidebar}
+        onNavigateNext={handleNavigateNext}
+        onNavigatePrev={handleNavigatePrev}
+        hasNext={selectedLogIndex < filteredLogs.length - 1}
+        hasPrev={selectedLogIndex > 0}
+      />
     </div>
   )
 }
