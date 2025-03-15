@@ -22,6 +22,20 @@ export interface ToolCallMetadata {
   toolCalls?: ToolCall[]
 }
 
+export interface TraceSpan {
+  id: string
+  name: string
+  type: string
+  duration: number // in milliseconds
+  startTime: string
+  endTime: string
+  children?: TraceSpan[]
+  toolCalls?: ToolCall[]
+  status?: 'success' | 'error'
+  tokens?: number
+  relativeStartMs?: number // Time in ms from the start of the parent span
+}
+
 export interface WorkflowLog {
   id: string
   workflowId: string
@@ -32,7 +46,10 @@ export interface WorkflowLog {
   trigger: string | null
   createdAt: string
   workflow?: WorkflowData | null
-  metadata?: ToolCallMetadata | Record<string, any> // Add metadata for tool calls
+  metadata?: ToolCallMetadata & {
+    traceSpans?: TraceSpan[]
+    totalDuration?: number
+  }
 }
 
 export interface LogsResponse {

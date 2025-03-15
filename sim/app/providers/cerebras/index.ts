@@ -1,7 +1,7 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('Cerebras Provider')
 
@@ -16,6 +16,10 @@ export const cerebrasProvider: ProviderConfig = {
     if (!request.apiKey) {
       throw new Error('API key is required for Cerebras')
     }
+
+    // Start execution timer for the entire provider execution
+    const providerStartTime = Date.now()
+    const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
       const client = new Cerebras({
@@ -83,7 +87,9 @@ export const cerebrasProvider: ProviderConfig = {
       }
 
       // Make the initial API request
+      const initialCallTime = Date.now()
       let currentResponse = (await client.chat.completions.create(payload)) as CerebrasResponse
+      const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
       let tokens = {
@@ -96,6 +102,21 @@ export const cerebrasProvider: ProviderConfig = {
       let currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+      // Track time spent in model vs tools
+      let modelTime = firstResponseTime
+      let toolsTime = 0
+
+      // Track each model and tool call segment with timestamps
+      const timeSegments: TimeSegment[] = [
+        {
+          type: 'model',
+          name: 'Initial response',
+          startTime: initialCallTime,
+          endTime: initialCallTime + firstResponseTime,
+          duration: firstResponseTime,
+        },
+      ]
 
       // Keep track of processed tool calls to avoid duplicates
       const processedToolCallIds = new Set()
@@ -114,6 +135,9 @@ export const cerebrasProvider: ProviderConfig = {
             }
             break
           }
+
+          // Track time for tool calls in this batch
+          const toolsStartTime = Date.now()
 
           // Process each tool call
           let processedAnyToolCall = false
@@ -145,18 +169,30 @@ export const cerebrasProvider: ProviderConfig = {
               if (!tool) continue
 
               // Execute the tool
+              const toolCallStartTime = Date.now()
               const mergedArgs = { ...tool.params, ...toolArgs }
               const result = await executeTool(toolName, mergedArgs)
+              const toolCallEndTime = Date.now()
+              const toolCallDuration = toolCallEndTime - toolCallStartTime
 
               if (!result.success) continue
+
+              // Add to time segments
+              timeSegments.push({
+                type: 'tool',
+                name: toolName,
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallDuration,
+              })
 
               toolResults.push(result.output)
               toolCalls.push({
                 name: toolName,
                 arguments: toolArgs,
-                startTime: result.timing?.startTime,
-                endTime: result.timing?.endTime,
-                duration: result.timing?.duration,
+                startTime: new Date(toolCallStartTime).toISOString(),
+                endTime: new Date(toolCallEndTime).toISOString(),
+                duration: toolCallDuration,
                 result: result.output,
               })
 
@@ -186,8 +222,15 @@ export const cerebrasProvider: ProviderConfig = {
             }
           }
 
+          // Calculate tool call time for this iteration
+          const thisToolsTime = Date.now() - toolsStartTime
+          toolsTime += thisToolsTime
+
           // After processing tool calls, get a final response
           if (processedAnyToolCall || hasRepeatedToolCalls) {
+            // Time the next model call
+            const nextModelStartTime = Date.now()
+
             // Make the final request
             const finalPayload = {
               ...payload,
@@ -198,6 +241,21 @@ export const cerebrasProvider: ProviderConfig = {
             const finalResponse = (await client.chat.completions.create(
               finalPayload
             )) as CerebrasResponse
+
+            const nextModelEndTime = Date.now()
+            const thisModelTime = nextModelEndTime - nextModelStartTime
+
+            // Add to time segments
+            timeSegments.push({
+              type: 'model',
+              name: `Final response`,
+              startTime: nextModelStartTime,
+              endTime: nextModelEndTime,
+              duration: thisModelTime,
+            })
+
+            // Add to model time
+            modelTime += thisModelTime
 
             if (finalResponse.choices[0]?.message?.content) {
               content = finalResponse.choices[0].message.content
@@ -221,10 +279,28 @@ export const cerebrasProvider: ProviderConfig = {
               messages: currentMessages,
             }
 
+            // Time the next model call
+            const nextModelStartTime = Date.now()
+
             // Make the next request
             currentResponse = (await client.chat.completions.create(
               nextPayload
             )) as CerebrasResponse
+
+            const nextModelEndTime = Date.now()
+            const thisModelTime = nextModelEndTime - nextModelStartTime
+
+            // Add to time segments
+            timeSegments.push({
+              type: 'model',
+              name: `Model response (iteration ${iterationCount + 1})`,
+              startTime: nextModelStartTime,
+              endTime: nextModelEndTime,
+              duration: thisModelTime,
+            })
+
+            // Add to model time
+            modelTime += thisModelTime
 
             // Update token counts
             if (currentResponse.usage) {
@@ -240,16 +316,46 @@ export const cerebrasProvider: ProviderConfig = {
         logger.error('Error in Cerebras tool processing:', { error })
       }
 
+      // Calculate overall timing
+      const providerEndTime = Date.now()
+      const providerEndTimeISO = new Date(providerEndTime).toISOString()
+      const totalDuration = providerEndTime - providerStartTime
+
       return {
         content,
         model: request.model,
         tokens,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
+        timing: {
+          startTime: providerStartTimeISO,
+          endTime: providerEndTimeISO,
+          duration: totalDuration,
+          modelTime: modelTime,
+          toolsTime: toolsTime,
+          firstResponseTime: firstResponseTime,
+          iterations: iterationCount + 1,
+          timeSegments: timeSegments,
+        },
       }
     } catch (error) {
-      logger.error('Error in Cerebras request:', { error })
-      throw error
+      // Include timing information even for errors
+      const providerEndTime = Date.now()
+      const providerEndTimeISO = new Date(providerEndTime).toISOString()
+      const totalDuration = providerEndTime - providerStartTime
+
+      logger.error('Error in Cerebras request:', { error, duration: totalDuration })
+
+      // Create a new error with timing information
+      const enhancedError = new Error(error instanceof Error ? error.message : String(error))
+      // @ts-ignore - Adding timing property to the error
+      enhancedError.timing = {
+        startTime: providerStartTimeISO,
+        endTime: providerEndTimeISO,
+        duration: totalDuration,
+      }
+
+      throw enhancedError
     }
   },
 }

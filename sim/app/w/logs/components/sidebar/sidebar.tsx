@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
+import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
 
 interface LogSidebarProps {
   log: WorkflowLog | null
@@ -119,6 +120,22 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
   const formattedContent = useMemo(() => {
     if (!log) return null
     return formatJsonContent(log.message)
+  }, [log])
+
+  // Determine if this is a workflow execution log
+  const isWorkflowExecutionLog = useMemo(() => {
+    if (!log) return false
+    // Check if message contains "workflow executed" or similar phrases
+    return (
+      log.message.toLowerCase().includes('workflow executed') ||
+      log.message.toLowerCase().includes('execution completed') ||
+      (log.trigger === 'manual' && log.duration)
+    )
+  }, [log])
+
+  // Helper to determine if we have trace spans to display
+  const hasTraceSpans = useMemo(() => {
+    return !!(log?.metadata?.traceSpans && log.metadata.traceSpans.length > 0)
   }, [log])
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -259,6 +276,17 @@ export function Sidebar({ log, isOpen, onClose }: LogSidebarProps) {
                     <CopyButton text={log.duration} />
                     {log.duration}
                   </p>
+                </div>
+              )}
+
+              {/* Trace Spans (if available and this is a workflow execution log) */}
+              {isWorkflowExecutionLog && log.metadata?.traceSpans && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Trace Spans</h3>
+                  <TraceSpansDisplay
+                    traceSpans={log.metadata.traceSpans}
+                    totalDuration={log.metadata.totalDuration}
+                  />
                 </div>
               )}
 

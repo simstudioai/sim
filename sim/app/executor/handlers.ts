@@ -257,7 +257,7 @@ export class AgentBlockHandler implements BlockHandler {
       toolCallsCount: response.toolCalls?.length || 0,
     })
 
-    // For structured responses, try to parse the content
+    // If structured responses, try to parse the content
     if (responseFormat) {
       try {
         const parsedContent = JSON.parse(response.content)
@@ -284,6 +284,7 @@ export class AgentBlockHandler implements BlockHandler {
                   count: response.toolCalls.length,
                 }
               : undefined,
+            providerTiming: response.timing || undefined,
           },
         }
 
@@ -316,6 +317,7 @@ export class AgentBlockHandler implements BlockHandler {
                 : [],
               count: response.toolCalls?.length || 0,
             },
+            providerTiming: response.timing || undefined,
           },
         }
       }
@@ -345,6 +347,7 @@ export class AgentBlockHandler implements BlockHandler {
             : [],
           count: response.toolCalls?.length || 0,
         },
+        providerTiming: response.timing || undefined,
       },
     }
   }

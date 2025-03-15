@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse } from '../types'
+import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('Anthropic Provider')
 
@@ -186,153 +186,251 @@ ${fieldDescriptions}
       payload.tools = tools
     }
 
-    // Make the initial API request
-    let currentResponse = await anthropic.messages.create(payload)
-    let content = ''
-
-    // Extract text content from the message
-    if (Array.isArray(currentResponse.content)) {
-      content = currentResponse.content
-        .filter((item) => item.type === 'text')
-        .map((item) => item.text)
-        .join('\n')
-    }
-
-    let tokens = {
-      prompt: currentResponse.usage?.input_tokens || 0,
-      completion: currentResponse.usage?.output_tokens || 0,
-      total:
-        (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
-    }
-
-    let toolCalls = []
-    let toolResults = []
-    let currentMessages = [...messages]
-    let iterationCount = 0
-    const MAX_ITERATIONS = 10 // Prevent infinite loops
+    // Start execution timer for the entire provider execution
+    const providerStartTime = Date.now()
+    const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      while (iterationCount < MAX_ITERATIONS) {
-        // Check for tool calls
-        const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
-        if (!toolUses || toolUses.length === 0) {
-          break
-        }
+      // Make the initial API request
+      const initialCallTime = Date.now()
+      let currentResponse = await anthropic.messages.create(payload)
+      const firstResponseTime = Date.now() - initialCallTime
 
-        // Process each tool call
-        for (const toolUse of toolUses) {
-          try {
-            const toolName = toolUse.name
-            const toolArgs = toolUse.input as Record<string, any>
+      let content = ''
 
-            // Get the tool from the tools registry
-            const tool = request.tools?.find((t) => t.id === toolName)
-            if (!tool) continue
-
-            // Execute the tool
-            const mergedArgs = { ...tool.params, ...toolArgs }
-            const result = await executeTool(toolName, mergedArgs)
-
-            if (!result.success) continue
-
-            toolResults.push(result.output)
-            toolCalls.push({
-              name: toolName,
-              arguments: toolArgs,
-              startTime: result.timing?.startTime,
-              endTime: result.timing?.endTime,
-              duration: result.timing?.duration,
-              result: result.output,
-            })
-
-            // Add the tool call and result to messages
-            const toolUseId = generateToolUseId(toolName)
-
-            currentMessages.push({
-              role: 'assistant',
-              content: [
-                {
-                  type: 'tool_use',
-                  id: toolUseId,
-                  name: toolName,
-                  input: toolArgs,
-                } as any,
-              ],
-            })
-
-            currentMessages.push({
-              role: 'user',
-              content: [
-                {
-                  type: 'tool_result',
-                  tool_use_id: toolUseId,
-                  content: JSON.stringify(result.output),
-                } as any,
-              ],
-            })
-          } catch (error) {
-            logger.error('Error processing tool call:', { error })
-          }
-        }
-
-        // Make the next request with updated messages
-        const nextPayload = {
-          ...payload,
-          messages: currentMessages,
-        }
-
-        // Make the next request
-        currentResponse = await anthropic.messages.create(nextPayload)
-
-        // Update content if we have a text response
-        const textContent = currentResponse.content
+      // Extract text content from the message
+      if (Array.isArray(currentResponse.content)) {
+        content = currentResponse.content
           .filter((item) => item.type === 'text')
           .map((item) => item.text)
           .join('\n')
+      }
 
-        if (textContent) {
-          content = textContent
+      let tokens = {
+        prompt: currentResponse.usage?.input_tokens || 0,
+        completion: currentResponse.usage?.output_tokens || 0,
+        total:
+          (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
+      }
+
+      let toolCalls = []
+      let toolResults = []
+      let currentMessages = [...messages]
+      let iterationCount = 0
+      const MAX_ITERATIONS = 10 // Prevent infinite loops
+
+      // Track time spent in model vs tools
+      let modelTime = firstResponseTime
+      let toolsTime = 0
+
+      // Track each model and tool call segment with timestamps
+      const timeSegments: TimeSegment[] = [
+        {
+          type: 'model',
+          name: 'Initial response',
+          startTime: initialCallTime,
+          endTime: initialCallTime + firstResponseTime,
+          duration: firstResponseTime,
+        },
+      ]
+
+      try {
+        while (iterationCount < MAX_ITERATIONS) {
+          // Check for tool calls
+          const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
+          if (!toolUses || toolUses.length === 0) {
+            break
+          }
+
+          // Track time for tool calls in this batch
+          const toolsStartTime = Date.now()
+
+          // Process each tool call
+          for (const toolUse of toolUses) {
+            try {
+              const toolName = toolUse.name
+              const toolArgs = toolUse.input as Record<string, any>
+
+              // Get the tool from the tools registry
+              const tool = request.tools?.find((t) => t.id === toolName)
+              if (!tool) continue
+
+              // Execute the tool
+              const toolCallStartTime = Date.now()
+              const mergedArgs = { ...tool.params, ...toolArgs }
+              const result = await executeTool(toolName, mergedArgs)
+              const toolCallEndTime = Date.now()
+              const toolCallDuration = toolCallEndTime - toolCallStartTime
+
+              if (!result.success) continue
+
+              // Add to time segments
+              timeSegments.push({
+                type: 'tool',
+                name: toolName,
+                startTime: toolCallStartTime,
+                endTime: toolCallEndTime,
+                duration: toolCallDuration,
+              })
+
+              toolResults.push(result.output)
+              toolCalls.push({
+                name: toolName,
+                arguments: toolArgs,
+                startTime: new Date(toolCallStartTime).toISOString(),
+                endTime: new Date(toolCallEndTime).toISOString(),
+                duration: toolCallDuration,
+                result: result.output,
+              })
+
+              // Add the tool call and result to messages
+              const toolUseId = generateToolUseId(toolName)
+
+              currentMessages.push({
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'tool_use',
+                    id: toolUseId,
+                    name: toolName,
+                    input: toolArgs,
+                  } as any,
+                ],
+              })
+
+              currentMessages.push({
+                role: 'user',
+                content: [
+                  {
+                    type: 'tool_result',
+                    tool_use_id: toolUseId,
+                    content: JSON.stringify(result.output),
+                  } as any,
+                ],
+              })
+            } catch (error) {
+              logger.error('Error processing tool call:', { error })
+            }
+          }
+
+          // Calculate tool call time for this iteration
+          const thisToolsTime = Date.now() - toolsStartTime
+          toolsTime += thisToolsTime
+
+          // Make the next request with updated messages
+          const nextPayload = {
+            ...payload,
+            messages: currentMessages,
+          }
+
+          // Time the next model call
+          const nextModelStartTime = Date.now()
+
+          // Make the next request
+          currentResponse = await anthropic.messages.create(nextPayload)
+
+          const nextModelEndTime = Date.now()
+          const thisModelTime = nextModelEndTime - nextModelStartTime
+
+          // Add to time segments
+          timeSegments.push({
+            type: 'model',
+            name: `Model response (iteration ${iterationCount + 1})`,
+            startTime: nextModelStartTime,
+            endTime: nextModelEndTime,
+            duration: thisModelTime,
+          })
+
+          // Add to model time
+          modelTime += thisModelTime
+
+          // Update content if we have a text response
+          const textContent = currentResponse.content
+            .filter((item) => item.type === 'text')
+            .map((item) => item.text)
+            .join('\n')
+
+          if (textContent) {
+            content = textContent
+          }
+
+          // Update token counts
+          if (currentResponse.usage) {
+            tokens.prompt += currentResponse.usage.input_tokens || 0
+            tokens.completion += currentResponse.usage.output_tokens || 0
+            tokens.total +=
+              (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+          }
+
+          iterationCount++
         }
+      } catch (error) {
+        logger.error('Error in Anthropic request:', { error })
+        throw error
+      }
 
-        // Update token counts
-        if (currentResponse.usage) {
-          tokens.prompt += currentResponse.usage.input_tokens || 0
-          tokens.completion += currentResponse.usage.output_tokens || 0
-          tokens.total +=
-            (currentResponse.usage.input_tokens || 0) + (currentResponse.usage.output_tokens || 0)
+      // If the content looks like it contains JSON, extract just the JSON part
+      if (content.includes('{') && content.includes('}')) {
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*\}/m)
+          if (jsonMatch) {
+            content = jsonMatch[0]
+          }
+        } catch (e) {
+          logger.error('Error extracting JSON from response:', { error: e })
         }
+      }
 
-        iterationCount++
+      // Calculate overall timing
+      const providerEndTime = Date.now()
+      const providerEndTimeISO = new Date(providerEndTime).toISOString()
+      const totalDuration = providerEndTime - providerStartTime
+
+      return {
+        content,
+        model: request.model || 'claude-3-7-sonnet-20250219',
+        tokens,
+        toolCalls:
+          toolCalls.length > 0
+            ? toolCalls.map((tc) => ({
+                name: tc.name,
+                arguments: tc.arguments as Record<string, any>,
+                startTime: tc.startTime,
+                endTime: tc.endTime,
+                duration: tc.duration,
+                result: tc.result,
+              }))
+            : undefined,
+        toolResults: toolResults.length > 0 ? toolResults : undefined,
+        timing: {
+          startTime: providerStartTimeISO,
+          endTime: providerEndTimeISO,
+          duration: totalDuration,
+          modelTime: modelTime,
+          toolsTime: toolsTime,
+          firstResponseTime: firstResponseTime,
+          iterations: iterationCount + 1,
+          timeSegments: timeSegments,
+        },
       }
     } catch (error) {
-      logger.error('Error in Anthropic request:', { error })
-      throw error
-    }
+      // Include timing information even for errors
+      const providerEndTime = Date.now()
+      const providerEndTimeISO = new Date(providerEndTime).toISOString()
+      const totalDuration = providerEndTime - providerStartTime
 
-    // If the content looks like it contains JSON, extract just the JSON part
-    if (content.includes('{') && content.includes('}')) {
-      try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/m)
-        if (jsonMatch) {
-          content = jsonMatch[0]
-        }
-      } catch (e) {
-        logger.error('Error extracting JSON from response:', { error: e })
+      logger.error('Error in Anthropic request:', { error, duration: totalDuration })
+
+      // Create a new error with timing information
+      const enhancedError = new Error(error instanceof Error ? error.message : String(error))
+      // @ts-ignore - Adding timing property to the error
+      enhancedError.timing = {
+        startTime: providerStartTimeISO,
+        endTime: providerEndTimeISO,
+        duration: totalDuration,
       }
-    }
 
-    return {
-      content,
-      model: request.model || 'claude-3-7-sonnet-20250219',
-      tokens,
-      toolCalls:
-        toolCalls.length > 0
-          ? toolCalls.map((tc) => ({
-              name: tc.name,
-              arguments: tc.arguments as Record<string, any>,
-            }))
-          : undefined,
-      toolResults: toolResults.length > 0 ? toolResults : undefined,
+      throw enhancedError
     }
   },
 }

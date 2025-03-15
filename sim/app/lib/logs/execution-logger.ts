@@ -403,6 +403,10 @@ export async function persistExecutionLogs(
       duration: result.success ? `${totalDuration}ms` : 'NA',
       trigger: triggerType,
       createdAt: new Date(),
+      metadata: {
+        traceSpans: (result as any).traceSpans || [],
+        totalDuration: (result as any).totalDuration || totalDuration,
+      },
     })
   } catch (error: any) {
     logger.error(`Error persisting execution logs: ${error.message}`, { error })

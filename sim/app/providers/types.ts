@@ -39,6 +39,14 @@ export interface FunctionCallResponse {
   input?: Record<string, any>
 }
 
+export interface TimeSegment {
+  type: 'model' | 'tool'
+  name: string
+  startTime: number
+  endTime: number
+  duration: number
+}
+
 export interface ProviderResponse {
   content: string
   model: string
@@ -49,6 +57,16 @@ export interface ProviderResponse {
   }
   toolCalls?: FunctionCallResponse[]
   toolResults?: any[]
+  timing?: {
+    startTime: string // ISO timestamp when provider execution started
+    endTime: string // ISO timestamp when provider execution completed
+    duration: number // Total duration in milliseconds
+    modelTime?: number // Time spent in model generation (excluding tool calls)
+    toolsTime?: number // Time spent in tool calls
+    firstResponseTime?: number // Time to first token/response
+    iterations?: number // Number of model calls for tool use
+    timeSegments?: TimeSegment[] // Detailed timeline of all operations
+  }
 }
 
 export interface ProviderToolConfig {
