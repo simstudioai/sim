@@ -87,14 +87,31 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'ID of the file to download (find in file URL or by listing files)',
       condition: { field: 'operation', value: 'download' },
     },
-    // List Fields
+    // List Fields - Folder Selector
+    {
+      id: 'folderSelector',
+      title: 'Select Folder',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'google-drive',
+      serviceId: 'google-drive',
+      requiredScopes: [],
+      mimeType: 'application/vnd.google-apps.folder',
+      placeholder: 'Select a folder',
+      condition: { field: 'operation', value: 'list' },
+    },
+    // Manual Folder ID input (shown only when no folder is selected)
     {
       id: 'folderId',
-      title: 'Folder ID',
+      title: 'Or Enter Folder ID Manually',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the folder to list (optional, leave empty for root folder)',
-      condition: { field: 'operation', value: 'list' },
+      placeholder: 'ID of the folder to list (leave empty for root folder)',
+      condition: {
+        field: 'operation',
+        value: 'list',
+        and: { field: 'folderSelector', value: '' },
+      },
     },
     {
       id: 'query',
@@ -129,11 +146,19 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
+        const { credential, folderSelector, folderId, ...rest } = params
+
         // Convert pageSize to number if it exists
         const pageSize = rest.pageSize ? parseInt(rest.pageSize as string, 10) : undefined
+
+        // Use the selected folder ID or the manually entered one
+        // If folderSelector is provided, it's from the file selector and contains the folder ID
+        // If not, fall back to manually entered ID
+        const effectiveFolderId = (folderSelector || folderId || '').trim()
+
         return {
           ...rest,
+          folderId: effectiveFolderId,
           pageSize,
           credential,
         }
@@ -150,6 +175,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     // Download operation inputs
     fileId: { type: 'string', required: false },
     // List operation inputs
+    folderSelector: { type: 'string', required: false },
     folderId: { type: 'string', required: false },
     query: { type: 'string', required: false },
     pageSize: { type: 'number', required: false },

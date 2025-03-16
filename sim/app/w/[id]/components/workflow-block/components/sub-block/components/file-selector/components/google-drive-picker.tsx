@@ -224,7 +224,9 @@ export function GoogleDrivePicker({
 
       const viewIdForMimeType = () => {
         // Return appropriate view based on mime type filter
-        if (mimeTypeFilter?.includes('spreadsheet')) {
+        if (mimeTypeFilter?.includes('folder')) {
+          return 'FOLDERS'
+        } else if (mimeTypeFilter?.includes('spreadsheet')) {
           return 'SPREADSHEETS'
         } else if (mimeTypeFilter?.includes('document')) {
           return 'DOCUMENTS'
@@ -241,6 +243,8 @@ export function GoogleDrivePicker({
         showUploadFolders: true,
         supportDrives: true,
         multiselect: false,
+        // Enable folder selection when mimeType is folder
+        setSelectFolderEnabled: mimeTypeFilter?.includes('folder') ? true : false,
         callbackFunction: (data) => {
           if (data.action === 'picked') {
             const file = data.docs[0]
