@@ -6,12 +6,12 @@ import { SubBlockConfig } from '@/blocks/types'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
-import { CredentialSelector } from './components/credential-selector'
+import { CredentialSelector } from './components/credential-selector/credential-selector'
 import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
-import { FileSelectorInput } from './components/file-selector-input'
-import { FolderSelectorInput } from './components/folder-selector-input'
+import { FileSelectorInput } from './components/file-selector/file-selector-input'
+import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -19,7 +19,7 @@ import { Switch } from './components/switch'
 import { Table } from './components/table'
 import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
-import { WebhookConfig } from './components/webhook-config'
+import { WebhookConfig } from './components/webhook/webhook-config'
 
 interface SubBlockProps {
   blockId: string
@@ -75,10 +75,6 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             />
           </div>
         )
-      case 'webhook-config':
-        return (
-          <WebhookConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
-        )
       case 'slider':
         return (
           <SliderInput
@@ -127,6 +123,10 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
       case 'time-input':
         return (
           <TimeInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+        )
+      case 'webhook-config':
+        return (
+          <WebhookConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
         )
       case 'oauth-input':
         return (

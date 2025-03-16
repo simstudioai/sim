@@ -52,7 +52,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       layout: 'full',
       provider: 'google-drive',
       serviceId: 'google-drive',
-      requiredScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+      requiredScopes: [],
       mimeType: 'application/vnd.google-apps.spreadsheet',
       placeholder: 'Select a spreadsheet',
     },

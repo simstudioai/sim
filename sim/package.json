@@ -65,6 +65,7 @@
     "react": "^18.2.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",
+    "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.54.2",
     "react-simple-code-editor": "^0.14.1",
     "reactflow": "^11.11.4",

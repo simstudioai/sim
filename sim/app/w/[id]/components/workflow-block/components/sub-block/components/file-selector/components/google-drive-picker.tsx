@@ -1,18 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, X } from 'lucide-react'
+import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import { OAuthRequiredModal } from '@/components/ui/oauth-required-modal'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
@@ -25,8 +24,9 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
+import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
-const logger = createLogger('FileSelector')
+const logger = createLogger('GoogleDrivePicker')
 
 export interface FileInfo {
   id: string
@@ -41,7 +41,7 @@ export interface FileInfo {
   owners?: { displayName: string; emailAddress: string }[]
 }
 
-interface FileSelectorProps {
+interface GoogleDrivePickerProps {
   value: string
   onChange: (value: string, fileInfo?: FileInfo) => void
   provider: OAuthProvider
@@ -52,9 +52,11 @@ interface FileSelectorProps {
   mimeTypeFilter?: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: FileInfo | null) => void
+  clientId: string
+  apiKey: string
 }
 
-export function FileSelector({
+export function GoogleDrivePicker({
   value,
   onChange,
   provider,
@@ -65,10 +67,11 @@ export function FileSelector({
   mimeTypeFilter,
   showPreview = true,
   onFileInfoChange,
-}: FileSelectorProps) {
+  clientId,
+  apiKey,
+}: GoogleDrivePickerProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [files, setFiles] = useState<FileInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
   const [selectedFileId, setSelectedFileId] = useState(value)
   const [selectedFile, setSelectedFile] = useState<FileInfo | null>(null)
@@ -76,6 +79,7 @@ export function FileSelector({
   const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
+  const [openPicker, authResponse] = useDrivePicker()
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -162,58 +166,6 @@ export function FileSelector({
     [selectedCredentialId, onFileInfoChange]
   )
 
-  // Fetch files from Google Drive
-  const fetchFiles = useCallback(
-    async (searchQuery?: string) => {
-      if (!selectedCredentialId) return
-
-      setIsLoading(true)
-      try {
-        // Construct query parameters
-        const queryParams = new URLSearchParams({
-          credentialId: selectedCredentialId,
-        })
-
-        if (mimeTypeFilter) {
-          queryParams.append('mimeType', mimeTypeFilter)
-        }
-
-        if (searchQuery) {
-          queryParams.append('query', searchQuery)
-        }
-
-        const response = await fetch(`/api/auth/oauth/drive/files?${queryParams.toString()}`)
-
-        if (response.ok) {
-          const data = await response.json()
-          setFiles(data.files || [])
-
-          // If we have a selected file ID, find the file info
-          if (selectedFileId) {
-            const fileInfo = data.files.find((file: FileInfo) => file.id === selectedFileId)
-            if (fileInfo) {
-              setSelectedFile(fileInfo)
-              onFileInfoChange?.(fileInfo)
-            } else if (!searchQuery) {
-              // Only try to fetch by ID if this is not a search query
-              // and we couldn't find the file in the list
-              fetchFileById(selectedFileId)
-            }
-          }
-        } else {
-          logger.error('Error fetching files:', { error: await response.text() })
-          setFiles([])
-        }
-      } catch (error) {
-        logger.error('Error fetching files:', { error })
-        setFiles([])
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [selectedCredentialId, mimeTypeFilter, selectedFileId, onFileInfoChange, fetchFileById]
-  )
-
   // Fetch credentials on initial mount
   useEffect(() => {
     if (!initialFetchRef.current) {
@@ -222,44 +174,101 @@ export function FileSelector({
     }
   }, [fetchCredentials])
 
-  // Fetch files when credential is selected
-  useEffect(() => {
-    if (selectedCredentialId) {
-      fetchFiles()
-    }
-  }, [selectedCredentialId, fetchFiles])
-
   // Update selected file when value changes externally
   useEffect(() => {
     if (value !== selectedFileId) {
       setSelectedFileId(value)
 
-      // Find file info if we have files loaded
-      if (files.length > 0) {
-        const fileInfo = files.find((file) => file.id === value) || null
-        setSelectedFile(fileInfo)
-        onFileInfoChange?.(fileInfo)
-      } else if (value && selectedCredentialId) {
-        // If we have a value but no files loaded yet, try to fetch the file by ID
+      // If we have a value but no file info, try to fetch it
+      if (value && selectedCredentialId && !selectedFile) {
         fetchFileById(value)
       }
     }
-  }, [value, files, onFileInfoChange, selectedCredentialId, fetchFileById])
+  }, [value, selectedCredentialId, selectedFile, fetchFileById])
 
-  // Try to fetch the file by ID when credentials become available
-  useEffect(() => {
-    if (selectedCredentialId && selectedFileId && !selectedFile) {
-      fetchFileById(selectedFileId)
+  // Fetch the access token for the selected credential
+  const fetchAccessToken = async (): Promise<string | null> => {
+    if (!selectedCredentialId) {
+      logger.error('No credential ID selected for Google Drive Picker')
+      return null
     }
-  }, [selectedCredentialId, selectedFileId, selectedFile, fetchFileById])
 
-  // Handle file selection
-  const handleSelectFile = (file: FileInfo) => {
-    setSelectedFileId(file.id)
-    setSelectedFile(file)
-    onChange(file.id, file)
-    onFileInfoChange?.(file)
-    setOpen(false)
+    setIsLoading(true)
+    try {
+      const response = await fetch(`/api/auth/oauth/token?credentialId=${selectedCredentialId}`)
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch access token: ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.accessToken || null
+    } catch (error) {
+      logger.error('Error fetching access token:', { error })
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Handle opening the Google Drive Picker
+  const handleOpenPicker = async () => {
+    try {
+      // First, get the access token for the selected credential
+      const accessToken = await fetchAccessToken()
+
+      if (!accessToken) {
+        logger.error('Failed to get access token for Google Drive Picker')
+        return
+      }
+
+      const viewIdForMimeType = () => {
+        // Return appropriate view based on mime type filter
+        if (mimeTypeFilter?.includes('spreadsheet')) {
+          return 'SPREADSHEETS'
+        } else if (mimeTypeFilter?.includes('document')) {
+          return 'DOCUMENTS'
+        }
+        return 'DOCS' // Default view
+      }
+
+      openPicker({
+        clientId,
+        developerKey: apiKey,
+        viewId: viewIdForMimeType(),
+        token: accessToken, // Use the fetched access token
+        showUploadView: true,
+        showUploadFolders: true,
+        supportDrives: true,
+        multiselect: false,
+        callbackFunction: (data) => {
+          if (data.action === 'picked') {
+            const file = data.docs[0]
+            if (file) {
+              const fileInfo: FileInfo = {
+                id: file.id,
+                name: file.name,
+                mimeType: file.mimeType,
+                iconLink: file.iconUrl,
+                webViewLink: file.url,
+                // thumbnailLink is not directly available from the picker
+                thumbnailLink: file.iconUrl, // Use iconUrl as fallback
+                modifiedTime: file.lastEditedUtc
+                  ? new Date(file.lastEditedUtc).toISOString()
+                  : undefined,
+              }
+
+              setSelectedFileId(file.id)
+              setSelectedFile(fileInfo)
+              onChange(file.id, fileInfo)
+              onFileInfoChange?.(fileInfo)
+            }
+          }
+        },
+      })
+    } catch (error) {
+      logger.error('Error opening Google Drive Picker:', { error })
+    }
   }
 
   // Handle adding a new credential
@@ -276,6 +285,14 @@ export function FileSelector({
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
+  }
+
+  // Clear selection
+  const handleClearSelection = () => {
+    setSelectedFileId('')
+    setSelectedFile(null)
+    onChange('', undefined)
+    onFileInfoChange?.(null)
   }
 
   // Get provider icon
@@ -336,23 +353,6 @@ export function FileSelector({
         .split('-')
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ')
-    }
-  }
-
-  // Clear selection
-  const handleClearSelection = () => {
-    setSelectedFileId('')
-    setSelectedFile(null)
-    onChange('', undefined)
-    onFileInfoChange?.(null)
-  }
-
-  // Handle search
-  const handleSearch = (value: string) => {
-    if (value.length > 2) {
-      fetchFiles(value)
-    } else if (value.length === 0) {
-      fetchFiles()
     }
   }
 
@@ -424,13 +424,12 @@ export function FileSelector({
             )}
 
             <Command>
-              <CommandInput placeholder="Search files..." onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
                     <div className="flex items-center justify-center p-4">
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="ml-2">Loading files...</span>
+                      <span className="ml-2">Loading...</span>
                     </div>
                   ) : credentials.length === 0 ? (
                     <div className="p-4 text-center">
@@ -441,9 +440,9 @@ export function FileSelector({
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No files found.</p>
+                      <p className="text-sm font-medium">Ready to select files.</p>
                       <p className="text-xs text-muted-foreground">
-                        Try a different search or account.
+                        Click the button below to open the file picker.
                       </p>
                     </div>
                   )}
@@ -471,25 +470,20 @@ export function FileSelector({
                   </CommandGroup>
                 )}
 
-                {/* Files list */}
-                {files.length > 0 && (
+                {/* Open picker button - only show if we have credentials */}
+                {credentials.length > 0 && selectedCredentialId && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                      Files
-                    </div>
-                    {files.map((file) => (
-                      <CommandItem
-                        key={file.id}
-                        value={`file-${file.id}-${file.name}`}
-                        onSelect={() => handleSelectFile(file)}
+                    <div className="p-2">
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          setOpen(false)
+                          handleOpenPicker()
+                        }}
                       >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          {getFileIcon(file, 'sm')}
-                          <span className="font-normal truncate">{file.name}</span>
-                        </div>
-                        {file.id === selectedFileId && <Check className="ml-auto h-4 w-4" />}
-                      </CommandItem>
-                    ))}
+                        Open Google Drive Picker
+                      </Button>
+                    </div>
                   </CommandGroup>
                 )}
 
@@ -504,17 +498,6 @@ export function FileSelector({
                     </CommandItem>
                   </CommandGroup>
                 )}
-
-                {/* Add another account option
-                {credentials.length > 0 && (
-                  <CommandGroup>
-                    <CommandItem onSelect={handleAddCredential}>
-                      <div className="flex items-center gap-2 text-primary">
-                        <span>Connect Another Account</span>
-                      </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )} */}
               </CommandList>
             </Command>
           </PopoverContent>

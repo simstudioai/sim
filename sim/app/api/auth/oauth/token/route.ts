@@ -113,15 +113,18 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get an OAuth token for a given credential ID
+ * Get the access token for a specific credential
  */
 export async function GET(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8) // Short request ID for correlation
+
   try {
     // Get the session
     const session = await getSession()
 
     // Check if the user is authenticated
     if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthenticated request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
@@ -130,30 +133,72 @@ export async function GET(request: NextRequest) {
     const credentialId = searchParams.get('credentialId')
 
     if (!credentialId) {
+      logger.warn(`[${requestId}] Missing credential ID`)
       return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
     // Get the credential from the database
-    const credentials = await db
-      .select()
-      .from(account)
-      .where(and(eq(account.id, credentialId), eq(account.userId, session.user.id)))
-      .limit(1)
+    const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
+      logger.warn(`[${requestId}] Credential not found`, { credentialId })
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
     const credential = credentials[0]
 
+    // Check if the credential belongs to the user
+    if (credential.userId !== session.user.id) {
+      logger.warn(`[${requestId}] Unauthorized credential access attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+
     // Check if the access token is valid
     if (!credential.accessToken) {
+      logger.warn(`[${requestId}] No access token available for credential`)
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
-    return NextResponse.json({ accessToken: credential.accessToken }, { status: 200 })
+    // Check if the token is expired and refresh if needed
+    const now = new Date()
+    const tokenExpiry = credential.accessTokenExpiresAt
+    let accessToken = credential.accessToken
+
+    if (tokenExpiry && tokenExpiry < now && credential.refreshToken) {
+      logger.info(`[${requestId}] Access token expired, attempting to refresh`)
+
+      try {
+        // Refresh the token using the centralized utility
+        const refreshedToken = await refreshOAuthToken(
+          credential.providerId,
+          credential.refreshToken
+        )
+
+        if (refreshedToken) {
+          logger.info(`[${requestId}] Token refreshed successfully`)
+
+          // Update the token in the database
+          await db
+            .update(account)
+            .set({
+              accessToken: refreshedToken,
+              accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
+              updatedAt: new Date(),
+            })
+            .where(eq(account.id, credentialId))
+
+          accessToken = refreshedToken
+        }
+      } catch (refreshError) {
+        logger.error(`[${requestId}] Error refreshing token`, refreshError)
+        return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+      }
+    }
+
+    // Return the access token
+    return NextResponse.json({ accessToken }, { status: 200 })
   } catch (error) {
-    logger.error('Error getting OAuth token:', { error })
+    logger.error(`[${requestId}] Error fetching access token`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

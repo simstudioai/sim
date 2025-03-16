@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { FileInfo, FileSelector } from '@/components/ui/file-selector'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
+import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -31,8 +31,11 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
     setValue(blockId, subBlock.id, fileId)
   }
 
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || ''
+
   return (
-    <FileSelector
+    <GoogleDrivePicker
       value={selectedFileId}
       onChange={handleFileChange}
       provider={subBlock.provider || 'google-drive'}
@@ -43,6 +46,8 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
       mimeTypeFilter={subBlock.mimeType}
       showPreview={true}
       onFileInfoChange={setFileInfo}
+      clientId={clientId}
+      apiKey={apiKey}
     />
   )
 }

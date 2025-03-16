@@ -24,12 +24,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createLogger } from '@/lib/logs/console-logger'
-import {
-  ProviderConfig,
-  WEBHOOK_PROVIDERS,
-} from '@/app/w/[id]/components/workflow-block/components/sub-block/components/webhook-config'
+import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
 
 const logger = createLogger('WebhookModal')
+
 interface WebhookModalProps {
   isOpen: boolean
   onClose: () => void

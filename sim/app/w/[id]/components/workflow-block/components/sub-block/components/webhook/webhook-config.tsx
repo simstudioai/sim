@@ -3,9 +3,9 @@ import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
 import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { WebhookModal } from '@/components/ui/webhook-modal'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { WebhookModal } from './components/webhook-modal'
 
 const logger = createLogger('WebhookConfig')
 
