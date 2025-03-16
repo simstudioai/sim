@@ -117,8 +117,8 @@ We follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0
 
 _Examples:_
 
-- `feat(auth): add social login integration`
-- `fix(ui): correct misaligned button on homepage`
+- `feat[auth]: add social login integration`
+- `fix[ui]: correct misaligned button on homepage`
 - `docs: update installation instructions`
 
 Using clear and consistent commit messages makes it easier for everyone to understand the project history and aids in automating changelog generation.
