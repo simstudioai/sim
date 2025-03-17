@@ -82,7 +82,10 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
               role: 'user',
               content: [
                 { type: 'text', text: prompt },
-                { type: 'image', source: { type: 'url', url: params.imageUrl } },
+                {
+                  type: 'image',
+                  source: { type: 'url', url: params.imageUrl },
+                },
               ],
             },
           ],

@@ -33,7 +33,11 @@ export default function LoginPage() {
     const password = formData.get('password') as string
 
     try {
-      const result = await client.signIn.email({ email, password, callbackURL: '/w' })
+      const result = await client.signIn.email({
+        email,
+        password,
+        callbackURL: '/w',
+      })
 
       if (!result || result.error) {
         throw new Error(result?.error?.message || 'Authentication failed')

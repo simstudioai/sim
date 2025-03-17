@@ -16,11 +16,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   Credential,
-  OAUTH_PROVIDERS,
-  OAuthProvider,
   getProviderIdFromServiceId,
   getServiceByProviderAndId,
   getServiceIdFromScopes,
+  OAUTH_PROVIDERS,
+  OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
@@ -153,7 +153,9 @@ export function GoogleDrivePicker({
             return data.file
           }
         } else {
-          logger.error('Error fetching file by ID:', { error: await response.text() })
+          logger.error('Error fetching file by ID:', {
+            error: await response.text(),
+          })
         }
         return null
       } catch (error) {

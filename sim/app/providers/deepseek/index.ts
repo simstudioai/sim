@@ -277,7 +277,10 @@ export const deepseekProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Deepseek request:', { error, duration: totalDuration })
+      logger.error('Error in Deepseek request:', {
+        error,
+        duration: totalDuration,
+      })
 
       // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))

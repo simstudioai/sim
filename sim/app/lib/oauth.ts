@@ -342,7 +342,10 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error('Token refresh failed:', { status: response.status, error: errorText })
+      logger.error('Token refresh failed:', {
+        status: response.status,
+        error: errorText,
+      })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
 

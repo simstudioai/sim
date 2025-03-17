@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Script, createContext } from 'vm'
+import { createContext, Script } from 'vm'
 import { createLogger } from '@/lib/logs/console-logger'
 
 // Explicitly export allowed methods
@@ -101,7 +101,9 @@ export async function POST(req: NextRequest) {
     })
 
     const executionTime = Date.now() - startTime
-    logger.info(`[${requestId}] Function executed successfully`, { executionTime })
+    logger.info(`[${requestId}] Function executed successfully`, {
+      executionTime,
+    })
 
     const response = {
       success: true,

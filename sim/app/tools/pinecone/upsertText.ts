@@ -20,7 +20,11 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
       requiredForToolCall: true,
       description: 'Full Pinecone index host URL',
     },
-    namespace: { type: 'string', required: true, description: 'Namespace to upsert records into' },
+    namespace: {
+      type: 'string',
+      required: true,
+      description: 'Namespace to upsert records into',
+    },
     records: {
       type: 'array',
       required: true,

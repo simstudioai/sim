@@ -69,7 +69,9 @@ export async function GET(request: NextRequest) {
               displayName = decoded.name
             }
           } catch (error) {
-            logger.warn(`[${requestId}] Error decoding ID token`, { accountId: acc.id })
+            logger.warn(`[${requestId}] Error decoding ID token`, {
+              accountId: acc.id,
+            })
           }
         }
 
@@ -91,7 +93,9 @@ export async function GET(request: NextRequest) {
               displayName = userRecord[0].email
             }
           } catch (error) {
-            logger.warn(`[${requestId}] Error fetching user email`, { userId: acc.userId })
+            logger.warn(`[${requestId}] Error fetching user email`, {
+              userId: acc.userId,
+            })
           }
         }
 

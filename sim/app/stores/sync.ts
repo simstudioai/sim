@@ -5,10 +5,10 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { SYNC_INTERVALS } from './constants'
 import {
   DEFAULT_SYNC_CONFIG,
-  SyncConfig,
-  SyncOperations,
   isLocalStorageMode,
   performSync,
+  SyncConfig,
+  SyncOperations,
 } from './sync-core'
 
 const logger = createLogger('Sync')

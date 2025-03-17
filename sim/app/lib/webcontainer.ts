@@ -337,7 +337,9 @@ export async function executeCode(
       try {
         await process.kill()
       } catch (killError) {
-        logger.error('WebContainer executeCode - Failed to kill process:', { killError })
+        logger.error('WebContainer executeCode - Failed to kill process:', {
+          killError,
+        })
       }
     }
 

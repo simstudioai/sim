@@ -137,7 +137,9 @@ export function FolderSelector({
             return data.label
           }
         } else {
-          logger.error('Error fetching folder by ID:', { error: await response.text() })
+          logger.error('Error fetching folder by ID:', {
+            error: await response.text(),
+          })
         }
         return null
       } catch (error) {
@@ -187,7 +189,9 @@ export function FolderSelector({
             }
           }
         } else {
-          logger.error('Error fetching folders:', { error: await response.text() })
+          logger.error('Error fetching folders:', {
+            error: await response.text(),
+          })
           setFolders([])
         }
       } catch (error) {

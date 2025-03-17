@@ -14,7 +14,11 @@ const logger = createLogger('Auth')
 // In that case, we don't want to send emails and just log them
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
-  : { emails: { send: async (...args: any[]) => logger.info('Email sent:', args) } }
+  : {
+      emails: {
+        send: async (...args: any[]) => logger.info('Email sent:', args),
+      },
+    }
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {

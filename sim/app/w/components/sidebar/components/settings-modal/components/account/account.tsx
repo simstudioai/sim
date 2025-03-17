@@ -127,7 +127,10 @@ export function Account({ onOpenChange }: AccountProps) {
         <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted animate-pulse">
           <div
             className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_infinite]"
-            style={{ transform: 'translateX(-100%)', animation: 'shimmer 1.5s infinite' }}
+            style={{
+              transform: 'translateX(-100%)',
+              animation: 'shimmer 1.5s infinite',
+            }}
           ></div>
         </div>
         <div className="flex flex-col gap-2">

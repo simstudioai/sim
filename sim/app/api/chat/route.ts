@@ -180,7 +180,9 @@ export async function POST(request: Request) {
 
     // Process tool calls if present
     if (message.tool_calls) {
-      logger.debug(`[${requestId}] Tool calls:`, { toolCalls: message.tool_calls })
+      logger.debug(`[${requestId}] Tool calls:`, {
+        toolCalls: message.tool_calls,
+      })
       const actions = message.tool_calls.map((call) => ({
         name: call.function.name,
         parameters: JSON.parse(call.function.arguments),

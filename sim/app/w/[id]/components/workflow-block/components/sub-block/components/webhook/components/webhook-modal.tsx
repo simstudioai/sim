@@ -54,7 +54,10 @@ export function WebhookModal({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isLoadingToken, setIsLoadingToken] = useState(false)
-  const [testResult, setTestResult] = useState<{ success: boolean; message?: string } | null>(null)
+  const [testResult, setTestResult] = useState<{
+    success: boolean
+    message?: string
+  } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isConfigured = Boolean(webhookId)
 
@@ -221,7 +224,9 @@ export function WebhookModal({
 
   // Get provider icon
   const getProviderIcon = () => {
-    return provider.icon({ className: 'h-5 w-5 text-green-500 dark:text-green-400' })
+    return provider.icon({
+      className: 'h-5 w-5 text-green-500 dark:text-green-400',
+    })
   }
 
   // Get provider-specific title

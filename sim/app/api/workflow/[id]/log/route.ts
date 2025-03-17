@@ -33,7 +33,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Use persistExecutionLogs which handles tool call extraction
       await persistExecutionLogs(id, executionId, result, 'manual')
 
-      return createSuccessResponse({ message: 'Execution logs persisted successfully' })
+      return createSuccessResponse({
+        message: 'Execution logs persisted successfully',
+      })
     }
 
     // Fall back to the original log format if 'result' isn't provided

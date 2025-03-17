@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { SQL, and, eq, gte, lte, or, sql } from 'drizzle-orm'
+import { and, eq, gte, lte, or, SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -166,7 +166,10 @@ export async function GET(request: NextRequest) {
           errors: validationError.errors,
         })
         return NextResponse.json(
-          { error: 'Invalid request parameters', details: validationError.errors },
+          {
+            error: 'Invalid request parameters',
+            details: validationError.errors,
+          },
           { status: 400 }
         )
       }

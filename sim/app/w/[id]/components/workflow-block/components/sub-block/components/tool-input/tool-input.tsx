@@ -374,7 +374,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 ])
                               } else {
                                 setValue([
-                                  ...selectedTools.map((tool) => ({ ...tool, isExpanded: false })),
+                                  ...selectedTools.map((tool) => ({
+                                    ...tool,
+                                    isExpanded: false,
+                                  })),
                                   newTool,
                                 ])
                               }

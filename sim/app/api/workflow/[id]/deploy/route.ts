@@ -74,7 +74,11 @@ export async function DELETE(
       .where(eq(workflow.id, id))
 
     logger.info(`[${requestId}] Workflow undeployed successfully: ${id}`)
-    return createSuccessResponse({ isDeployed: false, deployedAt: null, apiKey: null })
+    return createSuccessResponse({
+      isDeployed: false,
+      deployedAt: null,
+      apiKey: null,
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error undeploying workflow: ${id}`, error)
     return createErrorResponse(error.message || 'Failed to undeploy workflow', 500)

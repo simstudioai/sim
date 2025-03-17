@@ -137,7 +137,9 @@ export const useChatStore = create<ChatStore>()(
           }
         } catch (error) {
           logger.error('Chat error:', { error })
-          set({ error: error instanceof Error ? error.message : 'Unknown error' })
+          set({
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
         } finally {
           set({ isProcessing: false })
         }

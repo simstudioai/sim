@@ -247,7 +247,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
     }
 
     const provider = WEBHOOK_PROVIDERS[webhookProvider || 'generic']
-    return provider.icon({ className: 'h-4 w-4 mr-2 text-green-500 dark:text-green-400' })
+    return provider.icon({
+      className: 'h-4 w-4 mr-2 text-green-500 dark:text-green-400',
+    })
   }
 
   // Check if the webhook is connected for the selected provider

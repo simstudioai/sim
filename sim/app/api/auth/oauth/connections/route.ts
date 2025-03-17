@@ -67,7 +67,9 @@ export async function GET(request: NextRequest) {
               displayName = decoded.name
             }
           } catch (error) {
-            logger.warn(`[${requestId}] Error decoding ID token`, { accountId: acc.id })
+            logger.warn(`[${requestId}] Error decoding ID token`, {
+              accountId: acc.id,
+            })
           }
         }
 

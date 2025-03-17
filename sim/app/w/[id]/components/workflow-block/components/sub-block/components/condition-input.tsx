@@ -7,8 +7,8 @@ import 'prismjs/themes/prism.css'
 import Editor from 'react-simple-code-editor'
 import { Handle, Position, useUpdateNodeInternals } from 'reactflow'
 import { Button } from '@/components/ui/button'
-import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
-import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
+import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
@@ -43,7 +43,9 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
-  const [visualLineHeights, setVisualLineHeights] = useState<{ [key: string]: number[] }>({})
+  const [visualLineHeights, setVisualLineHeights] = useState<{
+    [key: string]: number[]
+  }>({})
   const updateNodeInternals = useUpdateNodeInternals()
   const removeEdge = useWorkflowStore((state) => state.removeEdge)
   const edges = useWorkflowStore((state) => state.edges)
@@ -602,7 +604,11 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                       setConditionalBlocks((blocks) =>
                         blocks.map((b) =>
                           b.id === block.id
-                            ? { ...b, showTags: false, activeSourceBlockId: null }
+                            ? {
+                                ...b,
+                                showTags: false,
+                                activeSourceBlockId: null,
+                              }
                             : b
                         )
                       )

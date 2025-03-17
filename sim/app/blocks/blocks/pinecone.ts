@@ -36,7 +36,10 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       options: [
         { label: 'multilingual-e5-large', id: 'multilingual-e5-large' },
         { label: 'llama-text-embed-v2', id: 'llama-text-embed-v2' },
-        { label: 'pinecone-sparse-english-v0', id: 'pinecone-sparse-english-v0' },
+        {
+          label: 'pinecone-sparse-english-v0',
+          id: 'pinecone-sparse-english-v0',
+        },
       ],
       condition: { field: 'operation', value: 'generate' },
     },

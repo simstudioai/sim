@@ -489,7 +489,11 @@ export class Executor {
           content: '',
           model: '',
           tokens: { prompt: 0, completion: 0, total: 0 },
-          selectedPath: output?.selectedPath || { blockId: '', blockType: '', blockTitle: '' },
+          selectedPath: output?.selectedPath || {
+            blockId: '',
+            blockType: '',
+            blockTitle: '',
+          },
         },
       }
     }
@@ -513,7 +517,11 @@ export class Executor {
       return {
         response: {
           conditionResult: output?.conditionResult || false,
-          selectedPath: output?.selectedPath || { blockId: '', blockType: '', blockTitle: '' },
+          selectedPath: output?.selectedPath || {
+            blockId: '',
+            blockType: '',
+            blockTitle: '',
+          },
           selectedConditionId: output?.selectedConditionId || '',
         },
       }

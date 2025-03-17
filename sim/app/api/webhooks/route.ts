@@ -104,7 +104,10 @@ export async function POST(request: NextRequest) {
         requestedWorkflowId: workflowId,
       })
       return NextResponse.json(
-        { error: 'Webhook path already exists. Please use a different path.', code: 'PATH_EXISTS' },
+        {
+          error: 'Webhook path already exists. Please use a different path.',
+          code: 'PATH_EXISTS',
+        },
         { status: 409 }
       )
     }

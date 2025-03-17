@@ -15,10 +15,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   Credential,
-  OAUTH_PROVIDERS,
-  OAuthProvider,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
+  OAUTH_PROVIDERS,
+  OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'

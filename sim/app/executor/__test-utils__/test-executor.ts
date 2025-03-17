@@ -25,7 +25,9 @@ export class TestExecutor extends Executor {
       // Return a successful result
       return {
         success: true,
-        output: { response: { result: 'Test execution completed' } } as NormalizedBlockOutput,
+        output: {
+          response: { result: 'Test execution completed' },
+        } as NormalizedBlockOutput,
         logs: [],
         metadata: {
           duration: 100,

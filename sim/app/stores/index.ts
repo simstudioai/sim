@@ -52,7 +52,7 @@ async function initializeApplication(): Promise<void> {
     // This is a fallback in case DB sync failed or there's no data in DB
     const registryState = useWorkflowRegistry.getState()
     const hasDbWorkflows = Object.keys(registryState.workflows).length > 0
-    
+
     if (!hasDbWorkflows) {
       // No workflows loaded from DB, try localStorage as fallback
       const workflows = loadRegistry()
@@ -65,11 +65,11 @@ async function initializeApplication(): Promise<void> {
           initializeWorkflowState(activeWorkflowId)
         }
       } else if (isNewLoginSession) {
-        // Critical safeguard: For new login sessions with no DB workflows 
+        // Critical safeguard: For new login sessions with no DB workflows
         // and no localStorage, we disable sync temporarily to prevent data loss
         logger.info('New login session with no workflows - preventing initial sync')
         const syncManagers = getSyncManagers()
-        syncManagers.forEach(manager => manager.stopIntervalSync())
+        syncManagers.forEach((manager) => manager.stopIntervalSync())
       }
     } else {
       logger.info('Using workflows loaded from DB, ignoring localStorage')
@@ -242,7 +242,11 @@ export const resetAllStores = () => {
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
   useNotificationStore.setState({ notifications: [] })
-  useEnvironmentStore.setState({ variables: {}, isLoading: false, error: null })
+  useEnvironmentStore.setState({
+    variables: {},
+    isLoading: false,
+    error: null,
+  })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
@@ -279,13 +283,13 @@ export async function reinitializeAfterLogin(): Promise<void> {
   try {
     // Reset sync managers to prevent any active syncs during reinitialization
     resetSyncManagers()
-    
+
     // Clean existing state to avoid stale data
     resetAllStores()
-    
+
     // Mark as a new login session
     sessionStorage.removeItem('app_initialized')
-    
+
     // Reset initialization flags to force a fresh load
     isInitializing = false
 

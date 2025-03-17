@@ -58,7 +58,10 @@ export async function performSync(config: SyncConfig): Promise<boolean> {
     if (isLocalStorageMode()) {
       // Still call onSyncSuccess to maintain expected behavior
       if (config.onSyncSuccess) {
-        config.onSyncSuccess({ success: true, message: 'Skipped sync in localStorage mode' })
+        config.onSyncSuccess({
+          success: true,
+          message: 'Skipped sync in localStorage mode',
+        })
       }
       return true
     }

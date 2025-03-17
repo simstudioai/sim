@@ -121,7 +121,9 @@ export async function GET(request: NextRequest) {
         fileId,
       })
       return NextResponse.json(
-        { error: error.error?.message || 'Failed to fetch file from Google Drive' },
+        {
+          error: error.error?.message || 'Failed to fetch file from Google Drive',
+        },
         { status: response.status }
       )
     }

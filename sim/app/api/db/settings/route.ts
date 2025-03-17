@@ -83,7 +83,9 @@ export async function GET(request: Request) {
       )
     }
 
-    const generalSettings = result[0].general as { isAutoConnectEnabled: boolean }
+    const generalSettings = result[0].general as {
+      isAutoConnectEnabled: boolean
+    }
     return NextResponse.json(
       {
         data: {

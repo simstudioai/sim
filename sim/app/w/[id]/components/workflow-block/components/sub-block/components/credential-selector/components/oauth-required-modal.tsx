@@ -13,10 +13,10 @@ import {
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
-  OAUTH_PROVIDERS,
-  OAuthProvider,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
+  OAUTH_PROVIDERS,
+  OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'

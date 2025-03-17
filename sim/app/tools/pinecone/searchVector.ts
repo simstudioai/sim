@@ -20,10 +20,26 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
       requiredForToolCall: true,
       description: 'Full Pinecone index host URL',
     },
-    namespace: { type: 'string', required: false, description: 'Namespace to search in' },
-    vector: { type: 'array', required: true, description: 'Vector to search for' },
-    topK: { type: 'number', required: false, description: 'Number of results to return' },
-    filter: { type: 'object', required: false, description: 'Filter to apply to the search' },
+    namespace: {
+      type: 'string',
+      required: false,
+      description: 'Namespace to search in',
+    },
+    vector: {
+      type: 'array',
+      required: true,
+      description: 'Vector to search for',
+    },
+    topK: {
+      type: 'number',
+      required: false,
+      description: 'Number of results to return',
+    },
+    filter: {
+      type: 'object',
+      required: false,
+      description: 'Filter to apply to the search',
+    },
     includeValues: {
       type: 'boolean',
       required: false,

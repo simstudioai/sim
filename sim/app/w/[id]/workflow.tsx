@@ -134,7 +134,9 @@ function WorkflowContent() {
 
       const blockConfig = getBlock(block.type)
       if (!blockConfig) {
-        logger.error(`No configuration found for block type: ${block.type}`, { block })
+        logger.error(`No configuration found for block type: ${block.type}`, {
+          block,
+        })
         return
       }
 

@@ -97,7 +97,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Error processing webhook verification`, error)
-    return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
+    return new NextResponse(`Internal Server Error: ${error.message}`, {
+      status: 500,
+    })
   } finally {
     // Ensure Redis connection is properly closed in serverless environment
     await closeRedisConnection()
@@ -214,7 +216,9 @@ export async function POST(
       await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
     }
 
-    return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
+    return new NextResponse(`Internal Server Error: ${error.message}`, {
+      status: 500,
+    })
   } finally {
     // Ensure Redis connection is properly closed in serverless environment
     await closeRedisConnection()
@@ -519,6 +523,8 @@ async function processWebhook(
       await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
     }
 
-    return new NextResponse(`Internal Server Error: ${error.message}`, { status: 500 })
+    return new NextResponse(`Internal Server Error: ${error.message}`, {
+      status: 500,
+    })
   }
 }

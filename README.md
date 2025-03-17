@@ -2,14 +2,13 @@
   <img src="sim/public/sim.png" alt="Sim Studio Logo" width="500"/>
 </p>
 
-# Sim Studio
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white)](https://discord.gg/pQKwMTvNrg) 
-[![Twitter](https://img.shields.io/twitter/follow/simstudio?style=social)](https://x.com/simstudioai) 
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/simstudioai/sim/pulls)
-[![support](https://img.shields.io/badge/support-contact%20author-purple.svg)](https://github.com/simstudioai/sim/issues)
-
+<p align="center">
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://discord.gg/pQKwMTvNrg"><img src="https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://x.com/simstudioai"><img src="https://img.shields.io/twitter/follow/simstudio?style=social" alt="Twitter"></a>
+  <a href="https://github.com/simstudioai/sim/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
+  <a href="https://github.com/simstudioai/sim/issues"><img src="https://img.shields.io/badge/support-contact%20author-purple.svg" alt="support"></a>
+</p>
 
 **Sim Studio** is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
 

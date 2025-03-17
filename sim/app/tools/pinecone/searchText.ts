@@ -20,12 +20,36 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       requiredForToolCall: true,
       description: 'Full Pinecone index host URL',
     },
-    namespace: { type: 'string', required: false, description: 'Namespace to search in' },
-    searchQuery: { type: 'string', required: true, description: 'Text to search for' },
-    topK: { type: 'string', required: false, description: 'Number of results to return' },
-    fields: { type: 'array', required: false, description: 'Fields to return in the results' },
-    filter: { type: 'object', required: false, description: 'Filter to apply to the search' },
-    rerank: { type: 'object', required: false, description: 'Reranking parameters' },
+    namespace: {
+      type: 'string',
+      required: false,
+      description: 'Namespace to search in',
+    },
+    searchQuery: {
+      type: 'string',
+      required: true,
+      description: 'Text to search for',
+    },
+    topK: {
+      type: 'string',
+      required: false,
+      description: 'Number of results to return',
+    },
+    fields: {
+      type: 'array',
+      required: false,
+      description: 'Fields to return in the results',
+    },
+    filter: {
+      type: 'object',
+      required: false,
+      description: 'Filter to apply to the search',
+    },
+    rerank: {
+      type: 'object',
+      required: false,
+      description: 'Reranking parameters',
+    },
   },
 
   request: {

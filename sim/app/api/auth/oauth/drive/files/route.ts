@@ -57,7 +57,9 @@ export async function GET(request: NextRequest) {
 
     // Check if the access token is valid
     if (!credential.accessToken) {
-      logger.warn(`[${requestId}] No access token available for credential`, { credentialId })
+      logger.warn(`[${requestId}] No access token available for credential`, {
+        credentialId,
+      })
       return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
@@ -140,7 +142,9 @@ export async function GET(request: NextRequest) {
         error: error.error?.message || 'Failed to fetch files from Google Drive',
       })
       return NextResponse.json(
-        { error: error.error?.message || 'Failed to fetch files from Google Drive' },
+        {
+          error: error.error?.message || 'Failed to fetch files from Google Drive',
+        },
         { status: response.status }
       )
     }

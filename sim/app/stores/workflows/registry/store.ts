@@ -338,7 +338,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 history: history || {
                   past: [],
                   present: {
-                    state: { blocks, edges, loops, isDeployed: isDeployed || false, deployedAt },
+                    state: {
+                      blocks,
+                      edges,
+                      loops,
+                      isDeployed: isDeployed || false,
+                      deployedAt,
+                    },
                     timestamp: Date.now(),
                     action: 'Initial state',
                     subblockValues: {},

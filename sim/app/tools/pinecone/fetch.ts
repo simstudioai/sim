@@ -26,7 +26,11 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
       requiredForToolCall: true,
       description: 'Array of vector IDs to fetch',
     },
-    namespace: { type: 'string', required: false, description: 'Namespace to fetch vectors from' },
+    namespace: {
+      type: 'string',
+      required: false,
+      description: 'Namespace to fetch vectors from',
+    },
   },
 
   request: {

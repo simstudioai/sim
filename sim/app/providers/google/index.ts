@@ -275,7 +275,10 @@ export const googleProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Google Gemini request:', { error, duration: totalDuration })
+      logger.error('Error in Google Gemini request:', {
+        error,
+        duration: totalDuration,
+      })
 
       // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))

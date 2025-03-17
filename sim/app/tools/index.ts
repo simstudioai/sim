@@ -351,7 +351,9 @@ export async function executeTool(
             },
           }
         } catch (error) {
-          logger.error(`Error in post-processing for tool ${toolId}:`, { error })
+          logger.error(`Error in post-processing for tool ${toolId}:`, {
+            error,
+          })
           // Return original result if post-processing fails
           // Still include timing data
           const endTime = new Date()
@@ -438,7 +440,10 @@ export async function executeTool(
     if (toolId.startsWith('custom_')) {
       const identifier = toolId.replace('custom_', '')
       const allTools = useCustomToolsStore.getState().getAllTools()
-      const availableTools = allTools.map((t) => ({ id: t.id, title: t.title }))
+      const availableTools = allTools.map((t) => ({
+        id: t.id,
+        title: t.title,
+      }))
 
       logger.error('Available custom tools:', availableTools)
       logger.error(`Looking for custom tool with identifier: ${identifier}`)
@@ -570,7 +575,9 @@ async function handleInternalRequest(
           }
         }
       } catch (transformError) {
-        logger.error(`Error transforming error for tool ${toolId}:`, { transformError })
+        logger.error(`Error transforming error for tool ${toolId}:`, {
+          transformError,
+        })
         return {
           success: false,
           output: {},
@@ -592,7 +599,11 @@ async function handleInternalRequest(
  */
 function validateClientSideParams(
   params: Record<string, any>,
-  schema: { type: string; properties: Record<string, any>; required?: string[] }
+  schema: {
+    type: string
+    properties: Record<string, any>
+    required?: string[]
+  }
 ) {
   if (!schema || schema.type !== 'object') {
     throw new Error('Invalid schema format')

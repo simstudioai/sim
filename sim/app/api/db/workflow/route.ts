@@ -79,14 +79,19 @@ export async function POST(req: NextRequest) {
           .select()
           .from(workflow)
           .where(eq(workflow.userId, session.user.id))
-        
+
         // If user has existing workflows, but client sends empty, reject the sync
         if (existingWorkflows.length > 0) {
-          logger.warn(`[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has ${existingWorkflows.length} workflows`)
-          return NextResponse.json({ 
-            error: 'Sync rejected to prevent data loss', 
-            message: 'Client sent empty workflows, but user has existing workflows in database'
-          }, { status: 409 })
+          logger.warn(
+            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has ${existingWorkflows.length} workflows`
+          )
+          return NextResponse.json(
+            {
+              error: 'Sync rejected to prevent data loss',
+              message: 'Client sent empty workflows, but user has existing workflows in database',
+            },
+            { status: 409 }
+          )
         }
       }
 

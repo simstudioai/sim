@@ -16,7 +16,11 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
 
   params: {
     apiKey: { type: 'string', required: true, description: 'OpenAI API key' },
-    input: { type: 'string', required: true, description: 'Text to generate embeddings for' },
+    input: {
+      type: 'string',
+      required: true,
+      description: 'Text to generate embeddings for',
+    },
     model: {
       type: 'string',
       required: false,
@@ -29,7 +33,11 @@ export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
       description: 'The format to return the embeddings in',
       default: 'float',
     },
-    user: { type: 'string', required: false, description: 'A unique identifier for the end-user' },
+    user: {
+      type: 'string',
+      required: false,
+      description: 'A unique identifier for the end-user',
+    },
   },
 
   request: {

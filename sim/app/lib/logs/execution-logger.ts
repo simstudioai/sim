@@ -76,7 +76,9 @@ export async function persistExecutionLogs(
 
         // Case 1: Direct toolCalls array
         if (Array.isArray(log.output.toolCalls)) {
-          logger.debug('Found direct toolCalls array', { count: log.output.toolCalls.length })
+          logger.debug('Found direct toolCalls array', {
+            count: log.output.toolCalls.length,
+          })
 
           // Log raw timing data for debugging
           log.output.toolCalls.forEach((tc: any, idx: number) => {
@@ -172,7 +174,9 @@ export async function persistExecutionLogs(
             ? log.output.response.toolCalls
             : log.output.response.toolCalls.list || []
 
-          logger.debug('Found toolCalls in response', { count: toolCalls.length })
+          logger.debug('Found toolCalls in response', {
+            count: toolCalls.length,
+          })
 
           // Log raw timing data for debugging
           toolCalls.forEach((tc: any, idx: number) => {
@@ -409,7 +413,9 @@ export async function persistExecutionLogs(
       },
     })
   } catch (error: any) {
-    logger.error(`Error persisting execution logs: ${error.message}`, { error })
+    logger.error(`Error persisting execution logs: ${error.message}`, {
+      error,
+    })
   }
 }
 
@@ -440,7 +446,9 @@ export async function persistExecutionError(
       createdAt: new Date(),
     })
   } catch (logError: any) {
-    logger.error(`Error persisting execution error log: ${logError.message}`, { logError })
+    logger.error(`Error persisting execution error log: ${logError.message}`, {
+      logError,
+    })
   }
 }
 

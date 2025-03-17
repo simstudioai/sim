@@ -125,7 +125,9 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         },
       }
     } catch (error) {
-      logger.error('Google Docs create - Error processing response:', { error })
+      logger.error('Google Docs create - Error processing response:', {
+        error,
+      })
       throw error
     }
   },

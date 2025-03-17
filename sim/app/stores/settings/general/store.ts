@@ -23,7 +23,9 @@ export const useGeneralStore = create<GeneralStore>()(
         isDebugModeEnabled: false,
         theme: 'system',
         toggleAutoConnect: () =>
-          set((state) => ({ isAutoConnectEnabled: !state.isAutoConnectEnabled })),
+          set((state) => ({
+            isAutoConnectEnabled: !state.isAutoConnectEnabled,
+          })),
         toggleDebugMode: () => set((state) => ({ isDebugModeEnabled: !state.isDebugModeEnabled })),
         setTheme: (theme: 'system' | 'light' | 'dark') => set({ theme }),
       }),

@@ -28,14 +28,14 @@ const scheduledWorkflows = new Set<string>()
  */
 export function isActivelyLoadingFromDB(): boolean {
   if (!loadingFromDBToken) return false
-  
+
   // Safety check: ensure loading doesn't block syncs indefinitely
   const elapsedTime = Date.now() - loadingFromDBStartTime
   if (elapsedTime > LOADING_TIMEOUT) {
     loadingFromDBToken = null
     return false
   }
-  
+
   return true
 }
 
@@ -94,7 +94,9 @@ async function updateWorkflowSchedule(workflowId: string, state: any): Promise<v
       logger.info(`Schedule cancelled for workflow ${workflowId}:`, result)
     }
   } catch (error) {
-    logger.error(`Error managing schedule for workflow ${workflowId}:`, { error })
+    logger.error(`Error managing schedule for workflow ${workflowId}:`, {
+      error,
+    })
   }
 }
 
@@ -238,12 +240,12 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     setTimeout(() => {
       isLoadingFromDB = false
       loadingFromDBToken = null
-      
+
       // Verify if registry has workflows as a final check
       const registryWorkflows = useWorkflowRegistry.getState().workflows
       const workflowCount = Object.keys(registryWorkflows).length
       logger.info(`DB loading complete. Workflows in registry: ${workflowCount}`)
-      
+
       // Trigger one final sync to ensure consistency
       if (workflowCount > 0) {
         // Small delay for state to fully settle before allowing syncs
@@ -275,10 +277,12 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
       // Safety check: if registry has workflows but we're sending empty data, something is wrong
       const registryWorkflows = useWorkflowRegistry.getState().workflows
       if (Object.keys(registryWorkflows).length > 0) {
-        logger.warn('Potential data loss prevented: Registry has workflows but sync payload is empty')
+        logger.warn(
+          'Potential data loss prevented: Registry has workflows but sync payload is empty'
+        )
         return { skipSync: true }
       }
-      
+
       logger.info('Skipping workflow sync - no workflows to sync')
       return { skipSync: true }
     }
