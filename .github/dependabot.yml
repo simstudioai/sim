@@ -1,0 +1,39 @@
+version: 2
+updates:
+  # Update npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/sim"  # Location of package.json
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5  # Start conservative to manage review load
+    labels:
+      - "dependencies"
+    # Group related dependencies to reduce PR volume
+    groups:
+      development-tools:
+        patterns:
+          - "*eslint*"
+          - "*prettier*"
+          - "*test*"
+      ui-components:
+        patterns:
+          - "@shadcn/*"
+          - "tailwind*"
+      react-ecosystem:
+        patterns:
+          - "react*"
+          - "next*"
+    # Auto-merge configuration should be at this level
+    target-branch: "main"
+    versioning-strategy: auto
+    pull-request-branch-name:
+      separator: "-"
+    
+  # Also check for GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "github-actions" 
