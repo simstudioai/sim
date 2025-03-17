@@ -61,7 +61,7 @@ export interface ToolConfig<P = any, R = any> {
   ) => Promise<R extends ToolResponse ? R : ToolResponse>
 
   // Response handling
-  transformResponse?: (response: Response) => Promise<R>
+  transformResponse?: (response: Response, params?: P) => Promise<R>
   transformError?: (error: any) => string | Promise<R>
 }
 

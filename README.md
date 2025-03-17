@@ -10,7 +10,9 @@
   <a href="https://github.com/simstudioai/sim/issues"><img src="https://img.shields.io/badge/support-contact%20author-purple.svg" alt="support"></a>
 </p>
 
-**Sim Studio** is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
+<p align="center">
+  <strong>Sim Studio</strong> is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
+</p>
 
 ## Run
 
@@ -23,7 +25,7 @@
 
 **Important:** Start by forking this repository by clicking the "Fork" button at the top right of this page. This creates your own copy of the repository under your GitHub account.
 
-> **Note:** Ensure you have VS Code or another editor, git, npm, and Docker (if you're not setting up manually) installed on your system.
+> **Note:** Ensure you have an editor, git, npm, and Docker (if you're not setting up manually) installed on your system.
 
 There are several ways to self-host Sim Studio:
 
@@ -117,10 +119,11 @@ npm run dev
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
-- **Authentication**: [Better Auth](https://better-auth.com) with GitHub OAuth
+- **Authentication**: [Better Auth](https://better-auth.com)
 - **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
 - **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
 - **Flow Editor**: [ReactFlow](https://reactflow.dev/)
+- **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
 
 ## Contributing
 
