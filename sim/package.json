@@ -2,6 +2,7 @@
   "name": "sim",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -96,6 +97,7 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.7.3",
+    "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.8"
   },
   "lint-staged": {

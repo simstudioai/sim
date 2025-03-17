@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import path from 'path'
+import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
@@ -16,18 +16,35 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname),
-      '@/lib': path.resolve(__dirname, './app/lib'),
-      '@/stores': path.resolve(__dirname, './app/stores'),
-      '@/components': path.resolve(__dirname, './app/components'),
-      '@/app': path.resolve(__dirname, './app'),
-      '@/api': path.resolve(__dirname, './app/api'),
-      '@/executor': path.resolve(__dirname, './app/executor'),
-      '@/providers': path.resolve(__dirname, './app/providers'),
-      '@/tools': path.resolve(__dirname, './app/tools'),
-      '@/blocks': path.resolve(__dirname, './app/blocks'),
-      '@/serializer': path.resolve(__dirname, './app/serializer'),
-    },
+    alias: [
+      {
+        find: '@/lib/logs/console-logger',
+        replacement: path.resolve(__dirname, 'app/lib/logs/console-logger.ts'),
+      },
+      {
+        find: '@/stores/console/store',
+        replacement: path.resolve(__dirname, 'app/stores/console/store.ts'),
+      },
+      {
+        find: '@/stores/execution/store',
+        replacement: path.resolve(__dirname, 'app/stores/execution/store.ts'),
+      },
+      { find: '@/blocks/types', replacement: path.resolve(__dirname, 'app/blocks/types.ts') },
+      {
+        find: '@/serializer/types',
+        replacement: path.resolve(__dirname, 'app/serializer/types.ts'),
+      },
+      { find: '@/lib', replacement: path.resolve(__dirname, 'app/lib') },
+      { find: '@/stores', replacement: path.resolve(__dirname, 'app/stores') },
+      { find: '@/components', replacement: path.resolve(__dirname, 'app/components') },
+      { find: '@/app', replacement: path.resolve(__dirname, 'app') },
+      { find: '@/api', replacement: path.resolve(__dirname, 'app/api') },
+      { find: '@/executor', replacement: path.resolve(__dirname, 'app/executor') },
+      { find: '@/providers', replacement: path.resolve(__dirname, 'app/providers') },
+      { find: '@/tools', replacement: path.resolve(__dirname, 'app/tools') },
+      { find: '@/blocks', replacement: path.resolve(__dirname, 'app/blocks') },
+      { find: '@/serializer', replacement: path.resolve(__dirname, 'app/serializer') },
+      { find: '@', replacement: path.resolve(__dirname) },
+    ],
   },
 })
