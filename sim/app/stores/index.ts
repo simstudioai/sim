@@ -40,13 +40,20 @@ async function initializeApplication(): Promise<void> {
     // Load environment variables directly from DB
     await useEnvironmentStore.getState().loadEnvironmentVariables()
 
+    // Set a flag in sessionStorage to detect new login sessions
+    // This helps identify fresh logins in private browsers
+    const isNewLoginSession = !sessionStorage.getItem('app_initialized')
+    sessionStorage.setItem('app_initialized', 'true')
+
     // Initialize sync system for other stores
     await initializeSyncManagers()
 
     // After DB sync, check if we need to load from localStorage
     // This is a fallback in case DB sync failed or there's no data in DB
     const registryState = useWorkflowRegistry.getState()
-    if (Object.keys(registryState.workflows).length === 0) {
+    const hasDbWorkflows = Object.keys(registryState.workflows).length > 0
+    
+    if (!hasDbWorkflows) {
       // No workflows loaded from DB, try localStorage as fallback
       const workflows = loadRegistry()
       if (workflows && Object.keys(workflows).length > 0) {
@@ -57,6 +64,12 @@ async function initializeApplication(): Promise<void> {
         if (activeWorkflowId) {
           initializeWorkflowState(activeWorkflowId)
         }
+      } else if (isNewLoginSession) {
+        // Critical safeguard: For new login sessions with no DB workflows 
+        // and no localStorage, we disable sync temporarily to prevent data loss
+        logger.info('New login session with no workflows - preventing initial sync')
+        const syncManagers = getSyncManagers()
+        syncManagers.forEach(manager => manager.stopIntervalSync())
       }
     } else {
       logger.info('Using workflows loaded from DB, ignoring localStorage')
@@ -264,6 +277,15 @@ export async function reinitializeAfterLogin(): Promise<void> {
   if (typeof window === 'undefined') return
 
   try {
+    // Reset sync managers to prevent any active syncs during reinitialization
+    resetSyncManagers()
+    
+    // Clean existing state to avoid stale data
+    resetAllStores()
+    
+    // Mark as a new login session
+    sessionStorage.removeItem('app_initialized')
+    
     // Reset initialization flags to force a fresh load
     isInitializing = false
 

@@ -467,7 +467,7 @@ export function ControlBar() {
     <Button
       className={cn(
         // Base styles
-        'gap-2 font-medium',
+        'gap-2 ml-1 font-medium',
         // Brand color with hover states
         'bg-[#7F2FFF] hover:bg-[#7028E6]',
         // Hover effect with brand color
@@ -497,7 +497,7 @@ export function ControlBar() {
       <div className="flex-1" />
 
       {/* Right Section - Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}

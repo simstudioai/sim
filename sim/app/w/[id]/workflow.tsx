@@ -75,7 +75,7 @@ function WorkflowContent() {
   useEffect(() => {
     if (!isInitialized) return
 
-    const validateAndNavigate = () => {
+    const validateAndNavigate = async () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.id as string
 
@@ -88,6 +88,21 @@ function WorkflowContent() {
 
       if (!workflows[currentId]) {
         router.replace(`/w/${workflowIds[0]}`)
+        return
+      }
+
+      // Import the isActivelyLoadingFromDB function to check sync status
+      const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
+
+      // Wait for any active DB loading to complete before switching workflows
+      if (isActivelyLoadingFromDB()) {
+        logger.info('Waiting for DB loading to complete before switching workflow')
+        const checkInterval = setInterval(() => {
+          if (!isActivelyLoadingFromDB()) {
+            clearInterval(checkInterval)
+            setActiveWorkflow(currentId)
+          }
+        }, 100)
         return
       }
 

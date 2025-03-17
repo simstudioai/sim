@@ -37,9 +37,23 @@ export function Sidebar() {
     })
   }, [workflows])
 
-  const handleCreateWorkflow = () => {
-    const id = createWorkflow()
-    router.push(`/w/${id}`)
+  // Create workflow
+  const handleCreateWorkflow = async () => {
+    try {
+      // Import the isActivelyLoadingFromDB function to check sync status
+      const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
+
+      // Prevent creating workflows during active DB operations
+      if (isActivelyLoadingFromDB()) {
+        console.log('Please wait, syncing in progress...')
+        return
+      }
+
+      const id = createWorkflow()
+      router.push(`/w/${id}`)
+    } catch (error) {
+      console.error('Error creating workflow:', error)
+    }
   }
 
   return (

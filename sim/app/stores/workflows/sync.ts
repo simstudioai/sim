@@ -14,9 +14,30 @@ const logger = createLogger('Workflows Sync')
 
 // Flag to prevent immediate sync back to DB after loading from DB
 let isLoadingFromDB = false
+let loadingFromDBToken: string | null = null
+let loadingFromDBStartTime = 0
+const LOADING_TIMEOUT = 3000 // 3 seconds maximum loading time
 
 // Track workflows that had scheduling enabled in previous syncs
 const scheduledWorkflows = new Set<string>()
+
+/**
+ * Checks if the system is currently in the process of loading data from the database
+ * Includes safety timeout to prevent permanent blocking of syncs
+ * @returns true if loading is active, false otherwise
+ */
+export function isActivelyLoadingFromDB(): boolean {
+  if (!loadingFromDBToken) return false
+  
+  // Safety check: ensure loading doesn't block syncs indefinitely
+  const elapsedTime = Date.now() - loadingFromDBStartTime
+  if (elapsedTime > LOADING_TIMEOUT) {
+    loadingFromDBToken = null
+    return false
+  }
+  
+  return true
+}
 
 /**
  * Checks if a workflow has scheduling enabled
@@ -87,6 +108,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
   try {
     // Set flag to prevent sync back to DB during loading
     isLoadingFromDB = true
+    loadingFromDBToken = 'loading'
+    loadingFromDBStartTime = Date.now()
 
     // Call the API endpoint to get workflows from DB
     const response = await fetch(API_ENDPOINTS.WORKFLOW, {
@@ -214,7 +237,21 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     // Reset the flag after a short delay to allow state to settle
     setTimeout(() => {
       isLoadingFromDB = false
-    }, 500)
+      loadingFromDBToken = null
+      
+      // Verify if registry has workflows as a final check
+      const registryWorkflows = useWorkflowRegistry.getState().workflows
+      const workflowCount = Object.keys(registryWorkflows).length
+      logger.info(`DB loading complete. Workflows in registry: ${workflowCount}`)
+      
+      // Trigger one final sync to ensure consistency
+      if (workflowCount > 0) {
+        // Small delay for state to fully settle before allowing syncs
+        setTimeout(() => {
+          workflowSync.sync()
+        }, 500)
+      }
+    }, 1000) // Increased to 1 second for more reliable state settling
   }
 }
 
@@ -225,7 +262,7 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
     if (typeof window === 'undefined') return {}
 
     // Skip sync if we're currently loading from DB to prevent overwriting DB data
-    if (isLoadingFromDB) {
+    if (isActivelyLoadingFromDB()) {
       logger.info('Skipping workflow sync while loading from DB')
       return { skipSync: true }
     }
@@ -235,6 +272,13 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
 
     // Skip sync if there are no workflows to sync
     if (Object.keys(workflowsData).length === 0) {
+      // Safety check: if registry has workflows but we're sending empty data, something is wrong
+      const registryWorkflows = useWorkflowRegistry.getState().workflows
+      if (Object.keys(registryWorkflows).length > 0) {
+        logger.warn('Potential data loss prevented: Registry has workflows but sync payload is empty')
+        return { skipSync: true }
+      }
+      
       logger.info('Skipping workflow sync - no workflows to sync')
       return { skipSync: true }
     }
