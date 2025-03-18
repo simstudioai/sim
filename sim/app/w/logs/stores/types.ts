@@ -52,10 +52,31 @@ export interface WorkflowLog {
   }
 }
 
-export interface LogsResponse {
-  data: WorkflowLog[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
+type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
+type LogLevel = 'error' | 'info' | 'all'
+
+export interface FilterState {
+  // Original logs from API
+  logs: WorkflowLog[]
+  // Filtered logs to display
+  filteredLogs: WorkflowLog[]
+  // Filter states
+  timeRange: TimeRange
+  level: LogLevel
+  workflowIds: string[]
+  searchQuery: string
+  // Loading state
+  loading: boolean
+  error: string | null
+  // Actions
+  setLogs: (logs: WorkflowLog[]) => void
+  setTimeRange: (timeRange: TimeRange) => void
+  setLevel: (level: LogLevel) => void
+  setWorkflowIds: (workflowIds: string[]) => void
+  toggleWorkflowId: (workflowId: string) => void
+  setSearchQuery: (query: string) => void
+  setLoading: (loading: boolean) => void
+  setError: (error: string | null) => void
+  // Apply filters
+  applyFilters: () => void
 }

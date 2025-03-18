@@ -1,34 +1,5 @@
 import { create } from 'zustand'
-import { WorkflowLog } from './types'
-
-export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
-export type LogLevel = 'error' | 'info' | 'all'
-
-interface FilterState {
-  // Original logs from API
-  logs: WorkflowLog[]
-  // Filtered logs to display
-  filteredLogs: WorkflowLog[]
-  // Filter states
-  timeRange: TimeRange
-  level: LogLevel
-  workflowIds: string[]
-  searchQuery: string
-  // Loading state
-  loading: boolean
-  error: string | null
-  // Actions
-  setLogs: (logs: WorkflowLog[]) => void
-  setTimeRange: (timeRange: TimeRange) => void
-  setLevel: (level: LogLevel) => void
-  setWorkflowIds: (workflowIds: string[]) => void
-  toggleWorkflowId: (workflowId: string) => void
-  setSearchQuery: (query: string) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  // Apply filters
-  applyFilters: () => void
-}
+import { FilterState } from './types'
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
