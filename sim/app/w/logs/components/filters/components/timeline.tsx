@@ -6,7 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { TimeRange, useFilterStore } from '@/app/w/logs/stores/store'
+import { useFilterStore } from '@/app/w/logs/stores/store'
+import { TimeRange } from '@/app/w/logs/stores/types'
 
 export default function Timeline() {
   const { timeRange, setTimeRange } = useFilterStore()

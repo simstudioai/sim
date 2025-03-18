@@ -52,8 +52,16 @@ export interface WorkflowLog {
   }
 }
 
-type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
-type LogLevel = 'error' | 'info' | 'all'
+export interface LogsResponse {
+  data: WorkflowLog[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
+export type LogLevel = 'error' | 'info' | 'all'
 
 export interface FilterState {
   // Original logs from API
