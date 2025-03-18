@@ -17,7 +17,10 @@ const resend =
     ? new Resend(process.env.RESEND_API_KEY)
     : {
         emails: {
-          send: async (...args: any[]) => logger.info('Email sent:', args),
+          send: async (...args: any[]) => {
+            logger.info('Email would have been sent in production. Details:', args)
+            return { id: 'local-dev-mode' }
+          },
         },
       }
 
@@ -91,6 +94,17 @@ export const auth = betterAuth({
             throw new Error('Email is required')
           }
 
+          // In development with no RESEND_API_KEY, log verification code
+          if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.trim() === '') {
+            logger.info('🔑 VERIFICATION CODE FOR LOGIN/SIGNUP', {
+              email: data.email,
+              otp: data.otp,
+              type: data.type,
+            })
+            return
+          }
+
+          // In production, send an actual email
           const result = await resend.emails.send({
             from: 'Sim Studio <onboarding@simstudio.ai>',
             to: data.email,
@@ -111,7 +125,6 @@ export const auth = betterAuth({
           logger.error('Error sending verification code:', {
             error,
             email: data.email,
-            otp: data.otp,
           })
           throw error
         }
