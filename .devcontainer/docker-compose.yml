@@ -9,26 +9,34 @@ services:
       - ..:/workspace:cached
     command: sleep infinity
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-http://db:5432}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-your-anon-key}
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - POSTGRES_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - BETTER_AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
     depends_on:
-      - db
-    network_mode: service:db
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
     working_dir: /workspace/sim
 
   db:
-    image: postgres:14
+    image: postgres:16
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
     environment:
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_USER: postgres
-      POSTGRES_DB: postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=simstudio
     ports:
       - "5432:5432"
-      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres-data: 

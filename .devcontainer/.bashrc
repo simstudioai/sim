@@ -14,7 +14,7 @@ alias ..="cd .."
 alias ...="cd ../.."
 
 # Database aliases
-alias pgc="PGPASSWORD=postgres psql -h db -U postgres -d postgres"
+alias pgc="PGPASSWORD=postgres psql -h db -U postgres -d simstudio"
 alias check-db="PGPASSWORD=postgres psql -h db -U postgres -c '\l'"
 
 # Sim Studio specific aliases

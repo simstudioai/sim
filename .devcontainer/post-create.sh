@@ -29,11 +29,14 @@ npm install || {
 # Set up environment variables if .env doesn't exist
 if [ ! -f ".env" ]; then
   echo "📄 Creating .env file from template..."
-  cp .env.example .env 2>/dev/null || echo "DATABASE_URL=postgresql://postgres:postgres@db:5432/postgres" > .env
+  cp .env.example .env 2>/dev/null || echo "DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio" > .env
 fi
 
-# Run database migrations
-echo "🗃️ Running database migrations..."
+# Generate schema and run database migrations
+echo "🗃️ Running database schema generation and migrations..."
+echo "Generating schema..."
+npx drizzle-kit generate
+
 echo "Waiting for database to be ready..."
 # Try to connect to the database, but don't fail the script if it doesn't work
 (
@@ -41,7 +44,7 @@ echo "Waiting for database to be ready..."
   while [ $timeout -gt 0 ]; do
     if PGPASSWORD=postgres psql -h db -U postgres -c '\q' 2>/dev/null; then
       echo "Database is ready!"
-      npx drizzle-kit push
+      DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio npx drizzle-kit push
       break
     fi
     echo "Database is unavailable - sleeping (${timeout}s remaining)"
@@ -58,7 +61,7 @@ echo "Waiting for database to be ready..."
 cat << EOF >> ~/.bashrc
 
 # Additional Sim Studio Development Aliases
-alias migrate="cd /workspace/sim && npx drizzle-kit push"
+alias migrate="cd /workspace/sim && DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio npx drizzle-kit push"
 alias generate="cd /workspace/sim && npx drizzle-kit generate"
 alias dev="cd /workspace/sim && npm run dev"
 alias build="cd /workspace/sim && npm run build"

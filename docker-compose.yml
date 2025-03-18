@@ -18,11 +18,11 @@ services:
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
     depends_on:
-      - db
-    command: npm run dev
+      db:
+        condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:16
     restart: always
     ports:
       - "5432:5432"

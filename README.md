@@ -36,7 +36,7 @@ There are several ways to self-host Sim Studio:
 git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
-# Create environment file
+# Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
 cp sim/.env.example sim/.env
 
 # Start the Docker environment
