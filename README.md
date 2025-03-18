@@ -94,10 +94,15 @@ npm install
 # Copy .env.example to .env
 cp .env.example .env
 
-# Configure your .env file with:
+# Configure your .env file with the required environment variables:
 # - Database connection (PostgreSQL)
-# - Authentication settings
+# - Authentication settings (Better-Auth Secret)
 ```
+
+⚠️ **Important Notes:**
+- If `RESEND_API_KEY` is not set, verification codes for login/signup will be logged to the console.
+- You can use these logged codes for testing authentication locally.
+- For production environments, you should set up a proper email provider.
 
 3. **Set Up Database**
 
