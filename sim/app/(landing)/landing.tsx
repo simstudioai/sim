@@ -81,7 +81,7 @@ export default function Landing() {
             >
               <GithubIcon className="w-[20px] h-[20px]" />
               <div className="flex items-center justify-center gap-1">
-                <span className="text-sm font-medium py-[2px]">18</span>
+                <span className="text-sm font-medium py-[2px]">29</span>
                 <Star className="w-3.5 h-3.5 fill-white/80 stroke-none group-hover:fill-white" />
               </div>
             </a>
