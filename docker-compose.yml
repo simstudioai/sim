@@ -17,6 +17,7 @@ services:
       - POSTGRES_URL=postgresql://postgres:postgres@db:5432/simstudio
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - NEXT_PUBLIC_DISABLE_AUTH=true
     depends_on:
       - db
     command: npm run dev
