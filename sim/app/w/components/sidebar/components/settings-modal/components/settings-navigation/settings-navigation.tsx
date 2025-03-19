@@ -1,9 +1,11 @@
-import { Key, KeyRound, Settings, UserCircle } from 'lucide-react'
+import { Key, KeyRound, KeySquare, Settings, UserCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SettingsNavigationProps {
   activeSection: string
-  onSectionChange: (section: 'general' | 'environment' | 'account' | 'credentials') => void
+  onSectionChange: (
+    section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys'
+  ) => void
 }
 
 const navigationItems = [
@@ -26,6 +28,11 @@ const navigationItems = [
     id: 'credentials',
     label: 'Credentials',
     icon: Key,
+  },
+  {
+    id: 'apikeys',
+    label: 'API Keys',
+    icon: KeySquare,
   },
 ] as const
 

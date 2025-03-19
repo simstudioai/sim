@@ -1,5 +1,4 @@
 import { ConditionalIcon } from '@/components/icons'
-import { CodeExecutionOutput } from '@/tools/function/execute'
 import { BlockConfig } from '../types'
 
 interface ConditionBlockOutput {
@@ -35,9 +34,7 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   tools: {
     access: ['function_execute'],
   },
-  inputs: {
-    code: { type: 'string', required: true },
-  },
+  inputs: {},
   outputs: {
     response: {
       type: {

@@ -145,3 +145,16 @@ export const webhook = pgTable(
     }
   }
 )
+
+export const apiKey = pgTable('api_key', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  key: text('key').notNull().unique(),
+  lastUsed: timestamp('last_used'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at'),
+})
