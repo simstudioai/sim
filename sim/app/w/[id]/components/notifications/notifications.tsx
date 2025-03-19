@@ -322,7 +322,9 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
 
               <AlertDescription className="space-y-4">
                 {/* Message with auto-expanding and max height */}
-                <p className="max-h-[300px] overflow-hidden text-ellipsis">{message}</p>
+                <p className="max-h-[300px] overflow-hidden break-words break-all whitespace-normal">
+                  {message}
+                </p>
 
                 {/* Optional sections with copyable content */}
                 {options?.sections?.map((section, index) => (

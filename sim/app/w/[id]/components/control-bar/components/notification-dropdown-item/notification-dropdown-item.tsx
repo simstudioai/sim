@@ -64,7 +64,9 @@ export function NotificationDropdownItem({
           </span>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>
-        <p className="text-sm text-foreground">{message}</p>
+        <p className="text-sm text-foreground break-words break-all whitespace-normal">
+          {message.length > 100 ? `${message.slice(0, 60)}...` : message}
+        </p>
       </div>
     </DropdownMenuItem>
   )
