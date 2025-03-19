@@ -3,9 +3,7 @@ import { Resend } from 'resend'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const resend = process.env.RESEND_API_KEY 
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 const logger = createLogger('HelpAPI')
 
 // Define schema for validation
@@ -24,7 +22,10 @@ export async function POST(req: NextRequest) {
     if (!resend) {
       logger.error(`[${requestId}] RESEND_API_KEY not configured`)
       return NextResponse.json(
-        { error: 'Email service not configured. Please set RESEND_API_KEY in environment variables.' },
+        {
+          error:
+            'Email service not configured. Please set RESEND_API_KEY in environment variables.',
+        },
         { status: 500 }
       )
     }
@@ -151,7 +152,7 @@ The Sim Studio Team
         { status: 500 }
       )
     }
-    
+
     logger.error(`[${requestId}] Error processing help request`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
