@@ -1,4 +1,4 @@
-import { boolean, json, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, json, pgTable, text, timestamp, uniqueIndex, integer } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -157,4 +157,51 @@ export const apiKey = pgTable('api_key', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at'),
+})
+
+// Marketplace tables
+export const marketplace = pgTable('marketplace', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  state: json('state').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  authorId: text('author_id')
+    .notNull()
+    .references(() => user.id),
+  authorName: text('author_name').notNull(),
+  stars: integer('stars').notNull().default(0),
+  executions: integer('executions').notNull().default(0),
+  category: text('category'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// For tracking individual stars
+export const marketplaceStar = pgTable('marketplace_star', {
+  id: text('id').primaryKey(),
+  marketplaceId: text('marketplace_id')
+    .notNull()
+    .references(() => marketplace.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => {
+  return {
+    userMarketplaceIdx: uniqueIndex('user_marketplace_idx').on(table.userId, table.marketplaceId),
+  }
+})
+
+// For tracking executions
+export const marketplaceExecution = pgTable('marketplace_execution', {
+  id: text('id').primaryKey(),
+  marketplaceId: text('marketplace_id')
+    .notNull()
+    .references(() => marketplace.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .references(() => user.id), // Optional, for anonymous executions
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
