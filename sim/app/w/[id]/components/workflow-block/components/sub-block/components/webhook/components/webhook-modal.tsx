@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { Check, Copy, Loader2, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
@@ -57,6 +58,14 @@ export function WebhookModal({
   const [testResult, setTestResult] = useState<{
     success: boolean
     message?: string
+    test?: {
+      curlCommand?: string
+      status?: number
+      contentType?: string
+      responseText?: string
+      headers?: Record<string, string>
+      samplePayload?: Record<string, any>
+    }
   } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -263,7 +272,9 @@ export function WebhookModal({
           ? formattedPath.substring(1)
           : formattedPath
 
+        await new Promise((resolve) => setTimeout(resolve, 100))
         await onSave(pathToSave, providerConfig)
+        await new Promise((resolve) => setTimeout(resolve, 100))
 
         // Update original values to match current values after successful save
         setOriginalValues({
@@ -332,11 +343,15 @@ export function WebhookModal({
 
       const data = await response.json()
 
+      // Add a slight delay before showing the result for smoother animation
+      await new Promise((resolve) => setTimeout(resolve, 300))
+
       // If the test was successful, show a success message
       if (data.success) {
         setTestResult({
           success: true,
           message: data.message || 'Webhook configuration is valid.',
+          test: data.test,
         })
       } else {
         setTestResult({
@@ -409,7 +424,10 @@ export function WebhookModal({
             </div>
 
             {testResult && (
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
                 className={`p-3 rounded-md ${
                   testResult.success
                     ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200 dark:border-green-800'
@@ -417,7 +435,7 @@ export function WebhookModal({
                 }`}
               >
                 <p className="text-sm">{testResult.message}</p>
-              </div>
+              </motion.div>
             )}
 
             <div className="space-y-2">
@@ -544,6 +562,167 @@ export function WebhookModal({
             </div>
           </div>
         )
+      case 'generic':
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 mb-3">
+              <div className="flex items-center h-3.5 space-x-2">
+                <Checkbox
+                  id="require-auth"
+                  checked={requireAuth}
+                  onCheckedChange={(checked) => setRequireAuth(checked as boolean)}
+                />
+                <Label htmlFor="require-auth" className="text-sm font-medium cursor-pointer">
+                  Require Authentication
+                </Label>
+              </div>
+            </div>
+
+            {requireAuth && (
+              <div className="space-y-4 ml-5 border-l-2 pl-4 border-gray-200 dark:border-gray-700">
+                <div className="space-y-2">
+                  <Label htmlFor="auth-token">Authentication Token</Label>
+                  <div className="flex items-center space-x-2">
+                    {isLoadingToken ? (
+                      <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <Input
+                        id="auth-token"
+                        value={generalToken}
+                        onChange={(e) => setGeneralToken(e.target.value)}
+                        placeholder="Enter an auth token"
+                        className="flex-1"
+                      />
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyToClipboard(generalToken, 'general-token')}
+                      disabled={isLoadingToken}
+                    >
+                      {copied === 'general-token' ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This token will be used to authenticate requests to your webhook (via Bearer
+                    token).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="header-name">Secret Header Name (Optional)</Label>
+                  <Input
+                    id="header-name"
+                    value={secretHeaderName}
+                    onChange={(e) => setSecretHeaderName(e.target.value)}
+                    placeholder="X-Secret-Key"
+                    className="flex-1"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Custom HTTP header name for passing the authentication token instead of using
+                    Bearer authentication.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="allowed-ips">Allowed IP Addresses (Optional)</Label>
+              <Input
+                id="allowed-ips"
+                value={allowedIps}
+                onChange={(e) => setAllowedIps(e.target.value)}
+                placeholder="192.168.1.1, 10.0.0.1"
+                className="flex-1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated list of IP addresses that are allowed to access this webhook.
+              </p>
+            </div>
+
+            {testResult && testResult.success && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="p-3 rounded-md bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200 dark:border-green-800"
+              >
+                <p className="text-sm">{testResult.message}</p>
+              </motion.div>
+            )}
+
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
+              <h4 className="font-medium text-sm mb-2">Setup Instructions</h4>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                <li>Copy the Webhook URL above</li>
+                <li>Configure your service to send HTTP POST requests to this URL</li>
+                {requireAuth && (
+                  <>
+                    <li>
+                      {secretHeaderName
+                        ? `Add the "${secretHeaderName}" header with your token to all requests`
+                        : 'Add an "Authorization: Bearer YOUR_TOKEN" header to all requests'}
+                    </li>
+                  </>
+                )}
+              </ol>
+
+              <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
+                  <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
+                  The webhook will receive all HTTP POST requests and pass the data to your
+                  workflow.
+                </p>
+              </div>
+            </div>
+
+            {testResult && testResult.success && testResult.test?.curlCommand && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className="mt-3 bg-black/10 dark:bg-white/10 p-2 rounded text-xs font-mono overflow-x-auto relative group"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-2 h-6 w-6 opacity-70 hover:opacity-100"
+                  onClick={() =>
+                    copyToClipboard(testResult.test?.curlCommand || '', 'curl-command')
+                  }
+                >
+                  {copied === 'curl-command' ? (
+                    <Check className="h-3 w-3" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+                <pre className="whitespace-pre-wrap break-all pr-8">
+                  {testResult.test.curlCommand}
+                </pre>
+              </motion.div>
+            )}
+
+            {testResult && !testResult.success && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="p-3 rounded-md bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800"
+              >
+                <p className="text-sm">{testResult.message}</p>
+              </motion.div>
+            )}
+          </div>
+        )
       default:
         return (
           <div className="space-y-4">
@@ -659,7 +838,10 @@ export function WebhookModal({
             </div>
 
             {testResult && (
-              <div
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
                 className={`p-3 rounded-md ${
                   testResult.success
                     ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200 dark:border-green-800'
@@ -667,7 +849,7 @@ export function WebhookModal({
                 }`}
               >
                 <p className="text-sm">{testResult.message}</p>
-              </div>
+              </motion.div>
             )}
           </div>
         )
@@ -729,53 +911,58 @@ export function WebhookModal({
           </div>
 
           <DialogFooter className="flex justify-between mt-6 sticky bottom-0 py-3 bg-background border-t z-10">
-            {webhookId && (
-              <div className="flex flex-row gap-2">
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isDeleting || isLoadingToken}
-                  size="sm"
-                >
-                  {isDeleting ? (
-                    <>
-                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                      Deleting...
-                    </>
-                  ) : (
-                    <>
-                      <Trash2 className="mr-2 h-3 w-3" />
-                      Delete
-                    </>
-                  )}
-                </Button>
-                {webhookProvider === 'whatsapp' && (
+            <div>
+              {webhookId && (
+                <div className="flex space-x-3">
                   <Button
-                    variant="outline"
-                    onClick={testWebhook}
-                    disabled={isTesting || isLoadingToken}
-                    size="sm"
+                    variant="destructive"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    disabled={isDeleting || isLoadingToken}
                   >
-                    {isTesting ? (
+                    {isDeleting ? (
                       <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                        Testing...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Deleting...
                       </>
                     ) : (
-                      'Test'
+                      <>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </>
                     )}
                   </Button>
-                )}
-              </div>
-            )}
-            <div className="flex flex-row gap-2">
+                  {(webhookProvider === 'whatsapp' || webhookProvider === 'generic') && (
+                    <Button
+                      variant="outline"
+                      onClick={testWebhook}
+                      disabled={isTesting || isLoadingToken}
+                    >
+                      {isTesting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Testing...
+                        </>
+                      ) : (
+                        'Test'
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="flex space-x-3">
               <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isSaving || isLoadingToken}>
+              <Button
+                variant="default"
+                onClick={handleSave}
+                disabled={isSaving || isLoadingToken}
+                className="bg-primary"
+              >
                 {isSaving ? (
                   <>
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
                   </>
                 ) : (
