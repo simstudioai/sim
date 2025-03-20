@@ -234,7 +234,7 @@ export class AgentBlockHandler implements BlockHandler {
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
-      apiKey: inputs.apiKey || context.environmentVariables?.OPENAI_API_KEY,
+      apiKey: inputs.apiKey,
       responseFormat,
     }
 

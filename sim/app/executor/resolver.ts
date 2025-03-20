@@ -62,8 +62,13 @@ export class InputResolver {
         // Resolve block references
         let resolvedValue = this.resolveBlockReferences(value, context, block)
 
+        // Check if this is an API key field
+        const isApiKey = key.toLowerCase().includes('apikey') || 
+                        key.toLowerCase().includes('secret') || 
+                        key.toLowerCase().includes('token')
+        
         // Resolve environment variables
-        resolvedValue = this.resolveEnvVariables(resolvedValue)
+        resolvedValue = this.resolveEnvVariables(resolvedValue, isApiKey)
 
         // Convert JSON strings to objects if possible
         try {
@@ -240,39 +245,88 @@ export class InputResolver {
   }
 
   /**
+   * Determines if a string contains a properly formatted environment variable reference.
+   * Valid references are either:
+   * 1. A standalone env var (entire string is just {{ENV_VAR}})
+   * 2. An explicit env var with clear boundaries (usually within a URL or similar)
+   * 
+   * @param value - The string to check
+   * @returns Whether this contains a properly formatted env var reference
+   */
+  private containsProperEnvVarReference(value: string): boolean {
+    if (!value || typeof value !== 'string') return false
+    
+    // Case 1: String is just a single environment variable
+    if (value.trim().match(/^\{\{[^{}]+\}\}$/)) {
+      return true
+    }
+    
+    // Case 2: Check for environment variables in specific contexts
+    // For example, in URLs, bearer tokens, etc.
+    const properContextPatterns = [
+      // Auth header patterns
+      /Bearer\s+\{\{[^{}]+\}\}/i,
+      /Authorization:\s+Bearer\s+\{\{[^{}]+\}\}/i,
+      /Authorization:\s+\{\{[^{}]+\}\}/i,
+      
+      // API key in URL patterns
+      /[?&]api[_-]?key=\{\{[^{}]+\}\}/i,
+      /[?&]key=\{\{[^{}]+\}\}/i,
+      /[?&]token=\{\{[^{}]+\}\}/i,
+      
+      // API key in header patterns
+      /X-API-Key:\s+\{\{[^{}]+\}\}/i,
+      /api[_-]?key:\s+\{\{[^{}]+\}\}/i
+    ]
+    
+    return properContextPatterns.some(pattern => pattern.test(value))
+  }
+
+  /**
    * Resolves environment variables in any value ({{ENV_VAR}}).
+   * Only processes environment variables in apiKey fields or when explicitly needed.
    *
    * @param value - Value that may contain environment variable references
+   * @param isApiKey - Whether this is an API key field (requires special env var handling)
    * @returns Value with environment variables resolved
    * @throws Error if referenced environment variable is not found
    */
-  resolveEnvVariables(value: any): any {
+  resolveEnvVariables(value: any, isApiKey: boolean = false): any {
     if (typeof value === 'string') {
-      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
-      if (envMatches) {
-        let resolvedValue = value
-        for (const match of envMatches) {
-          const envKey = match.slice(2, -2)
-          const envValue = this.environmentVariables[envKey]
+      // Only process environment variables if:
+      // 1. This is an API key field
+      // 2. String is a complete environment variable reference ({{ENV_VAR}})
+      // 3. String contains environment variable references in proper contexts (auth headers, URLs)
+      const isExplicitEnvVar = value.trim().startsWith('{{') && value.trim().endsWith('}}')
+      const hasProperEnvVarReferences = this.containsProperEnvVarReference(value)
+      
+      if (isApiKey || isExplicitEnvVar || hasProperEnvVarReferences) {
+        const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+        if (envMatches) {
+          let resolvedValue = value
+          for (const match of envMatches) {
+            const envKey = match.slice(2, -2)
+            const envValue = this.environmentVariables[envKey]
 
-          if (envValue === undefined) {
-            throw new Error(`Environment variable "${envKey}" was not found.`)
+            if (envValue === undefined) {
+              throw new Error(`Environment variable "${envKey}" was not found.`)
+            }
+
+            resolvedValue = resolvedValue.replace(match, envValue)
           }
-
-          resolvedValue = resolvedValue.replace(match, envValue)
+          return resolvedValue
         }
-        return resolvedValue
       }
       return value
     }
 
     if (Array.isArray(value)) {
-      return value.map((item) => this.resolveEnvVariables(item))
+      return value.map((item) => this.resolveEnvVariables(item, isApiKey))
     }
 
     if (value && typeof value === 'object') {
       return Object.entries(value).reduce(
-        (acc, [k, v]) => ({ ...acc, [k]: this.resolveEnvVariables(v) }),
+        (acc, [k, v]) => ({ ...acc, [k]: this.resolveEnvVariables(v, k.toLowerCase() === 'apikey') }),
         {}
       )
     }
@@ -303,8 +357,12 @@ export class InputResolver {
     if (typeof value === 'string') {
       // First resolve block references
       const resolvedReferences = this.resolveBlockReferences(value, context, currentBlock)
-      // Then resolve environment variables
-      return this.resolveEnvVariables(resolvedReferences)
+      
+      // Check if this is an API key field
+      const isApiKey = this.isApiKeyField(currentBlock, value)
+      
+      // Then resolve environment variables with the API key flag
+      return this.resolveEnvVariables(resolvedReferences, isApiKey)
     }
 
     // Handle arrays
@@ -316,6 +374,7 @@ export class InputResolver {
     if (typeof value === 'object') {
       const result: Record<string, any> = {}
       for (const [k, v] of Object.entries(value)) {
+        const isApiKey = k.toLowerCase() === 'apikey'
         result[k] = this.resolveNestedStructure(v, context, currentBlock)
       }
       return result
@@ -323,6 +382,38 @@ export class InputResolver {
 
     // Return primitives as is
     return value
+  }
+
+  /**
+   * Determines if a given field in a block is an API key field.
+   * 
+   * @param block - Block containing the field
+   * @param value - Value to check
+   * @returns Whether this appears to be an API key field
+   */
+  private isApiKeyField(block: SerializedBlock, value: string): boolean {
+    // Check if the block is an API or agent block (which typically have API keys)
+    const blockType = block.metadata?.id
+    if (blockType !== 'api' && blockType !== 'agent') {
+      return false
+    }
+    
+    // Look for the value in the block params
+    for (const [key, paramValue] of Object.entries(block.config.params)) {
+      if (paramValue === value) {
+        // Check if key name suggests it's an API key
+        const normalizedKey = key.toLowerCase().replace(/[_\-\s]/g, '')
+        return (
+          normalizedKey === 'apikey' || 
+          normalizedKey.includes('apikey') || 
+          normalizedKey.includes('secretkey') ||
+          normalizedKey.includes('accesskey') ||
+          normalizedKey.includes('token')
+        )
+      }
+    }
+    
+    return false
   }
 
   /**
