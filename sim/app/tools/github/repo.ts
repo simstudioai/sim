@@ -1,23 +1,7 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { BaseGitHubParams, RepoInfoResponse } from './types'
 
-export interface RepoInfoParams {
-  owner: string
-  repo: string
-  apiKey?: string
-}
-
-export interface RepoInfoResponse extends ToolResponse {
-  output: {
-    name: string
-    description: string
-    stars: number
-    forks: number
-    openIssues: number
-    language: string
-  }
-}
-
-export const repoInfoTool: ToolConfig<RepoInfoParams, RepoInfoResponse> = {
+export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   id: 'github_repoinfo',
   name: 'GitHub Repository Info',
   description:
@@ -37,37 +21,50 @@ export const repoInfoTool: ToolConfig<RepoInfoParams, RepoInfoResponse> = {
     },
     apiKey: {
       type: 'string',
+      required: true,
       requiredForToolCall: true,
       description: 'GitHub Personal Access Token',
     },
   },
 
   request: {
-    url: (params: RepoInfoParams) => `https://api.github.com/repos/${params.owner}/${params.repo}`,
+    url: (params) => `https://api.github.com/repos/${params.owner}/${params.repo}`,
     method: 'GET',
-    headers: (params: RepoInfoParams) => ({
+    headers: (params) => ({
       Accept: 'application/vnd.github+json',
-      Authorization: params.apiKey ? `Bearer ${params.apiKey}` : '',
+      Authorization: `Bearer ${params.apiKey}`,
       'X-GitHub-Api-Version': '2022-11-28',
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response) => {
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.statusText}`)
     }
 
     const data = await response.json()
 
+    // Create a human-readable content string
+    const content = `Repository: ${data.name}
+Description: ${data.description || 'No description'}
+Language: ${data.language || 'Not specified'}
+Stars: ${data.stargazers_count}
+Forks: ${data.forks_count}
+Open Issues: ${data.open_issues_count}
+URL: ${data.html_url}`
+
     return {
       success: true,
       output: {
-        name: data.name,
-        description: data.description || '',
-        stars: data.stargazers_count,
-        forks: data.forks_count,
-        openIssues: data.open_issues_count,
-        language: data.language || 'Not specified',
+        content,
+        metadata: {
+          name: data.name,
+          description: data.description || '',
+          stars: data.stargazers_count,
+          forks: data.forks_count,
+          openIssues: data.open_issues_count,
+          language: data.language || 'Not specified',
+        },
       },
     }
   },

@@ -54,28 +54,35 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
     )
     const files = await filesResponse.json()
 
+    // Create a human-readable content string
+    const content = `PR #${pr.number}: "${pr.title}" (${pr.state}) - Created: ${pr.created_at}, Updated: ${pr.updated_at}
+Description: ${pr.body || 'No description'}
+Files changed: ${files.length}
+URL: ${pr.html_url}`
+
     return {
       success: true,
       output: {
-        number: pr.number,
-        title: pr.title,
-        body: pr.body || '',
-        state: pr.state,
-        html_url: pr.html_url,
-        diff_url: pr.diff_url,
-        created_at: pr.created_at,
-        updated_at: pr.updated_at,
-        diff,
-        files: files.map((file: any) => ({
-          filename: file.filename,
-          additions: file.additions,
-          deletions: file.deletions,
-          changes: file.changes,
-          patch: file.patch,
-          blob_url: file.blob_url,
-          raw_url: file.raw_url,
-          status: file.status,
-        })),
+        content,
+        metadata: {
+          number: pr.number,
+          title: pr.title,
+          state: pr.state,
+          html_url: pr.html_url,
+          diff_url: pr.diff_url,
+          created_at: pr.created_at,
+          updated_at: pr.updated_at,
+          files: files.map((file: any) => ({
+            filename: file.filename,
+            additions: file.additions,
+            deletions: file.deletions,
+            changes: file.changes,
+            patch: file.patch,
+            blob_url: file.blob_url,
+            raw_url: file.raw_url,
+            status: file.status,
+          })),
+        },
       },
     }
   },
