@@ -1,8 +1,8 @@
 import { GithubIcon } from '@/components/icons'
-import { CreateCommentResponse, PullRequestResponse } from '@/tools/github/types'
+import { CreateCommentResponse, LatestCommitResponse, PullRequestResponse, RepoInfoResponse } from '@/tools/github/types'
 import { BlockConfig } from '../types'
 
-type GitHubResponse = PullRequestResponse | CreateCommentResponse
+type GitHubResponse = PullRequestResponse | CreateCommentResponse | LatestCommitResponse | RepoInfoResponse
 
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
@@ -23,6 +23,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
         { label: 'Get PR details', id: 'github_pr' },
         { label: 'Create PR comment', id: 'github_comment' },
         { label: 'Get repository info', id: 'github_repoinfo' },
+        { label: 'Get latest commit', id: 'github_latest_commit' },
       ],
       value: () => 'github_pr',
     },
@@ -63,6 +64,14 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       layout: 'half',
       placeholder: 'e.g., 123',
       condition: { field: 'operation', value: 'github_comment' },
+    },
+    {
+      id: 'branch',
+      title: 'Branch Name',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'e.g., main (leave empty for default)',
+      condition: { field: 'operation', value: 'github_latest_commit' },
     },
     {
       id: 'apiKey',
@@ -115,7 +124,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     },
   ],
   tools: {
-    access: ['github_pr', 'github_comment', 'github_repoinfo'],
+    access: ['github_pr', 'github_comment', 'github_repoinfo', 'github_latest_commit'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -124,6 +133,9 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
           case 'github_comment':
             return 'github_comment'
           case 'github_repoinfo':
+            return 'github_repoinfo'
+          case 'github_latest_commit':
+            return 'github_latest_commit'
           default:
             return 'github_repoinfo'
         }
@@ -142,26 +154,14 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     line: { type: 'number', required: false },
     side: { type: 'string', required: false },
     commitId: { type: 'string', required: false },
+    branch: { type: 'string', required: false },
   },
   outputs: {
     response: {
       type: {
-        body: 'string',
-        html_url: 'string',
-        created_at: 'string',
-        updated_at: 'string',
-        number: 'number',
-        title: 'string',
-        state: 'string',
-        diff_url: 'string',
-        files: 'any',
-        comments: 'any',
-        id: 'number',
-        path: 'any',
-        line: 'any',
-        side: 'any',
-        commit_id: 'any',
-      },
-    },
+        content: 'string',
+        metadata: 'json'
+      }
+    }
   },
 }

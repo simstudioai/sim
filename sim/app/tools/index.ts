@@ -6,7 +6,7 @@ import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool, webcontainerExecuteTool } from './function'
-import { githubCommentTool, githubPrTool, githubRepoInfoTool } from './github'
+import { githubCommentTool, githubLatestCommitTool, githubPrTool, githubRepoInfoTool } from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
@@ -51,6 +51,7 @@ export const tools: Record<string, ToolConfig> = {
   jina_readurl: readUrlTool,
   slack_message: slackMessageTool,
   github_repoinfo: githubRepoInfoTool,
+  github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearch,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,

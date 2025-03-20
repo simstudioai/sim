@@ -127,6 +127,13 @@
       "when": 1742342896119,
       "tag": "0017_curious_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1742441034244,
+      "tag": "0018_sleepy_champions",
+      "breakpoints": true
     }
   ]
 }

@@ -100,18 +100,24 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
 
   transformResponse: async (response) => {
     const data = await response.json()
+    
+    // Create a human-readable content string
+    const content = `Comment created: "${data.body}"`
+    
     return {
       success: true,
       output: {
-        id: data.id,
-        body: data.body,
-        path: data.path,
-        line: data.line || data.position,
-        side: data.side,
-        commit_id: data.commit_id,
-        created_at: data.created_at,
-        updated_at: data.updated_at,
-        html_url: data.html_url,
+        content,
+        metadata: {
+          id: data.id,
+          html_url: data.html_url,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          path: data.path,
+          line: data.line || data.position,
+          side: data.side,
+          commit_id: data.commit_id,
+        },
       },
     }
   },
