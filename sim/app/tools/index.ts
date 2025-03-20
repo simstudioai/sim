@@ -14,6 +14,7 @@ import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
 import { notionReadTool, notionWriteTool } from './notion'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
+import { perplexityChatTool } from './perplexity'
 import {
   pineconeFetchTool,
   pineconeGenerateEmbeddingsTool,
@@ -90,6 +91,7 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_update: sheetsUpdateTool,
   guesty_reservation: guestyReservationTool,
   guesty_guest: guestyGuestTool,
+  perplexity_chat: perplexityChatTool,
 }
 
 // Get a tool by its ID

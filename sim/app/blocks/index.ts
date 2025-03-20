@@ -14,6 +14,7 @@ import { GuestyBlock } from './blocks/guesty'
 import { JinaBlock } from './blocks/jina'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
+import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
 import { RouterBlock } from './blocks/router'
@@ -61,6 +62,7 @@ export {
   GoogleDocsBlock,
   WhatsAppBlock,
   GoogleSheetsBlock,
+  PerplexityBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -81,6 +83,7 @@ const blocks: Record<string, BlockConfig> = {
   jina: JinaBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
+  perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   reddit: RedditBlock,
   router: RouterBlock,
