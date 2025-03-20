@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Copy, Loader2, Trash2, X } from 'lucide-react'
-import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
+import { Check, Copy, Loader2, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,6 +12,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -34,8 +34,8 @@ interface WebhookModalProps {
   webhookPath: string
   webhookProvider: string
   workflowId: string
-  onSave?: (path: string, providerConfig: ProviderConfig) => void
-  onDelete?: () => void
+  onSave?: (path: string, providerConfig: ProviderConfig) => Promise<boolean>
+  onDelete?: () => Promise<boolean>
   webhookId?: string
 }
 
@@ -59,11 +59,29 @@ export function WebhookModal({
     message?: string
   } | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
   const isConfigured = Boolean(webhookId)
 
   // Provider-specific configuration state
   const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
   const [githubContentType, setGithubContentType] = useState('application/json')
+
+  // General webhook configuration state
+  const [generalToken, setGeneralToken] = useState('')
+  const [secretHeaderName, setSecretHeaderName] = useState('')
+  const [requireAuth, setRequireAuth] = useState(false)
+  const [allowedIps, setAllowedIps] = useState('')
+
+  // Original values to track changes
+  const [originalValues, setOriginalValues] = useState({
+    whatsappVerificationToken: '',
+    githubContentType: 'application/json',
+    generalToken: '',
+    secretHeaderName: '',
+    requireAuth: false,
+    allowedIps: '',
+  })
 
   // Get the current provider configuration
   const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
@@ -78,8 +96,29 @@ export function WebhookModal({
     ) {
       const randomToken = Math.random().toString(36).substring(2, 10)
       setWhatsappVerificationToken(randomToken)
+      setOriginalValues((prev) => ({ ...prev, whatsappVerificationToken: randomToken }))
     }
-  }, [webhookProvider, whatsappVerificationToken, webhookId, isLoadingToken])
+
+    // Generate a random token for general webhook if none exists and auth is required
+    if (
+      webhookProvider === 'generic' &&
+      !generalToken &&
+      !webhookId &&
+      !isLoadingToken &&
+      requireAuth
+    ) {
+      const randomToken = crypto.randomUUID()
+      setGeneralToken(randomToken)
+      setOriginalValues((prev) => ({ ...prev, generalToken: randomToken }))
+    }
+  }, [
+    webhookProvider,
+    whatsappVerificationToken,
+    generalToken,
+    webhookId,
+    isLoadingToken,
+    requireAuth,
+  ])
 
   // Load existing configuration values
   useEffect(() => {
@@ -96,9 +135,34 @@ export function WebhookModal({
 
               // Check provider type and set appropriate state
               if (webhookProvider === 'whatsapp' && 'verificationToken' in config) {
-                setWhatsappVerificationToken(config.verificationToken)
+                const token = config.verificationToken || ''
+                setWhatsappVerificationToken(token)
+                setOriginalValues((prev) => ({ ...prev, whatsappVerificationToken: token }))
               } else if (webhookProvider === 'github' && 'contentType' in config) {
-                setGithubContentType(config.contentType)
+                const contentType = config.contentType || 'application/json'
+                setGithubContentType(contentType)
+                setOriginalValues((prev) => ({ ...prev, githubContentType: contentType }))
+              } else if (webhookProvider === 'generic') {
+                // Set general webhook configuration
+                const token = config.token || ''
+                const headerName = config.secretHeaderName || ''
+                const auth = !!config.requireAuth
+                const ips = Array.isArray(config.allowedIps)
+                  ? config.allowedIps.join(', ')
+                  : config.allowedIps || ''
+
+                setGeneralToken(token)
+                setSecretHeaderName(headerName)
+                setRequireAuth(auth)
+                setAllowedIps(ips)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  generalToken: token,
+                  secretHeaderName: headerName,
+                  requireAuth: auth,
+                  allowedIps: ips,
+                }))
               }
             }
           }
@@ -116,6 +180,32 @@ export function WebhookModal({
       setIsLoadingToken(false)
     }
   }, [webhookId, webhookProvider])
+
+  // Check for unsaved changes
+  useEffect(() => {
+    // Compare current values with original values
+    if (webhookProvider === 'whatsapp') {
+      setHasUnsavedChanges(whatsappVerificationToken !== originalValues.whatsappVerificationToken)
+    } else if (webhookProvider === 'github') {
+      setHasUnsavedChanges(githubContentType !== originalValues.githubContentType)
+    } else if (webhookProvider === 'generic') {
+      setHasUnsavedChanges(
+        generalToken !== originalValues.generalToken ||
+          secretHeaderName !== originalValues.secretHeaderName ||
+          requireAuth !== originalValues.requireAuth ||
+          allowedIps !== originalValues.allowedIps
+      )
+    }
+  }, [
+    webhookProvider,
+    whatsappVerificationToken,
+    githubContentType,
+    generalToken,
+    secretHeaderName,
+    requireAuth,
+    allowedIps,
+    originalValues,
+  ])
 
   // Use the provided path or generate a UUID-based path
   const formattedPath = webhookPath && webhookPath.trim() !== '' ? webhookPath : crypto.randomUUID()
@@ -142,6 +232,21 @@ export function WebhookModal({
         return { contentType: githubContentType }
       case 'stripe':
         return {}
+      case 'generic':
+        // Parse the allowed IPs into an array
+        const parsedIps = allowedIps
+          ? allowedIps
+              .split(',')
+              .map((ip) => ip.trim())
+              .filter((ip) => ip)
+          : []
+
+        return {
+          token: generalToken || undefined,
+          secretHeaderName: secretHeaderName || undefined,
+          requireAuth,
+          allowedIps: parsedIps.length > 0 ? parsedIps : undefined,
+        }
       default:
         return {}
     }
@@ -159,6 +264,17 @@ export function WebhookModal({
           : formattedPath
 
         await onSave(pathToSave, providerConfig)
+
+        // Update original values to match current values after successful save
+        setOriginalValues({
+          whatsappVerificationToken,
+          githubContentType,
+          generalToken,
+          secretHeaderName,
+          requireAuth,
+          allowedIps,
+        })
+        setHasUnsavedChanges(false)
       }
     } catch (error) {
       logger.error('Error saving webhook:', { error })
@@ -179,6 +295,23 @@ export function WebhookModal({
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      setShowUnsavedChangesConfirm(true)
+    } else {
+      onClose()
+    }
+  }
+
+  const handleCancelClose = () => {
+    setShowUnsavedChangesConfirm(false)
+  }
+
+  const handleConfirmClose = () => {
+    setShowUnsavedChangesConfirm(false)
+    onClose()
   }
 
   // Test the webhook configuration
@@ -413,16 +546,129 @@ export function WebhookModal({
         )
       default:
         return (
-          <div className="space-y-2">
-            <h4 className="font-medium">Generic Webhook Setup</h4>
-            <p className="text-sm">Use the URL above to send webhook events to this workflow.</p>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="require-auth"
+                checked={requireAuth}
+                onCheckedChange={(checked) => setRequireAuth(checked === true)}
+                className="h-3.5 w-3.5"
+              />
+              <div>
+                <Label htmlFor="require-auth" className="text-sm font-medium cursor-pointer">
+                  Require Authentication
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enable authentication to secure your webhook endpoint.
+                </p>
+              </div>
+            </div>
 
-            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
-              <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
-                <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
-                You can test your webhook by sending a POST request to the URL.
+            {requireAuth && (
+              <div className="space-y-4 pl-5 ml-1 border-l border-gray-200 dark:border-gray-700">
+                <div className="space-y-2">
+                  <Label htmlFor="auth-token">Authentication Token</Label>
+                  <div className="flex items-center space-x-2">
+                    {isLoadingToken ? (
+                      <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <Input
+                        id="auth-token"
+                        value={generalToken}
+                        onChange={(e) => setGeneralToken(e.target.value)}
+                        placeholder="Enter an authentication token"
+                        className="flex-1"
+                      />
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyToClipboard(generalToken, 'general-token')}
+                      disabled={isLoadingToken}
+                    >
+                      {copied === 'general-token' ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This token will be used to authenticate requests to your webhook (via Bearer
+                    token).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="header-name">Secret Header Name (Optional)</Label>
+                  <Input
+                    id="header-name"
+                    value={secretHeaderName}
+                    onChange={(e) => setSecretHeaderName(e.target.value)}
+                    placeholder="X-Secret-Key"
+                    className="flex-1"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Custom HTTP header name for passing the authentication token instead of using
+                    Bearer authentication.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="allowed-ips">Allowed IP Addresses (Optional)</Label>
+              <Input
+                id="allowed-ips"
+                value={allowedIps}
+                onChange={(e) => setAllowedIps(e.target.value)}
+                placeholder="192.168.1.1, 10.0.0.1"
+                className="flex-1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated list of IP addresses that are allowed to access this webhook.
               </p>
             </div>
+
+            <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
+              <h4 className="font-medium text-sm mb-2">Setup Instructions</h4>
+              <ol className="list-decimal list-inside space-y-1 text-sm">
+                <li>Copy the Webhook URL above</li>
+                <li>Configure your service to send HTTP POST requests to this URL</li>
+                {requireAuth && (
+                  <>
+                    <li>
+                      {secretHeaderName
+                        ? `Add the "${secretHeaderName}" header with your token to all requests`
+                        : 'Add an "Authorization: Bearer YOUR_TOKEN" header to all requests'}
+                    </li>
+                  </>
+                )}
+              </ol>
+
+              <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
+                  <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
+                  The webhook will receive all HTTP POST requests and pass the data to your
+                  workflow.
+                </p>
+              </div>
+            </div>
+
+            {testResult && (
+              <div
+                className={`p-3 rounded-md ${
+                  testResult.success
+                    ? 'bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 border border-green-200 dark:border-green-800'
+                    : 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800'
+                }`}
+              >
+                <p className="text-sm">{testResult.message}</p>
+              </div>
+            )}
           </div>
         )
     }
@@ -430,7 +676,7 @@ export function WebhookModal({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center">
@@ -482,14 +728,13 @@ export function WebhookModal({
             {renderProviderContent()}
           </div>
 
-          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-y-0 space-y-2 gap-2 mt-4">
+          <DialogFooter className="flex justify-between mt-6 sticky bottom-0 py-3 bg-background border-t z-10">
             {webhookId && (
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto sm:mr-auto">
+              <div className="flex flex-row gap-2">
                 <Button
                   variant="destructive"
                   onClick={() => setShowDeleteConfirm(true)}
                   disabled={isDeleting || isLoadingToken}
-                  className="w-full sm:w-auto"
                   size="sm"
                 >
                   {isDeleting ? (
@@ -509,7 +754,6 @@ export function WebhookModal({
                     variant="outline"
                     onClick={testWebhook}
                     disabled={isTesting || isLoadingToken}
-                    className="w-full sm:w-auto"
                     size="sm"
                   >
                     {isTesting ? (
@@ -524,16 +768,11 @@ export function WebhookModal({
                 )}
               </div>
             )}
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-              <Button variant="outline" onClick={onClose} className="w-full sm:w-auto" size="sm">
+            <div className="flex flex-row gap-2">
+              <Button variant="outline" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving || isLoadingToken}
-                className="w-full sm:w-auto"
-                size="sm"
-              >
+              <Button onClick={handleSave} disabled={isSaving || isLoadingToken}>
                 {isSaving ? (
                   <>
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
@@ -560,6 +799,23 @@ export function WebhookModal({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
               {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showUnsavedChangesConfirm} onOpenChange={setShowUnsavedChangesConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to close without saving?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelClose}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmClose} className="bg-red-600 hover:bg-red-700">
+              Discard changes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

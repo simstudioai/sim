@@ -13,9 +13,7 @@ import { Serializer } from '@/serializer'
 
 const logger = createLogger('WebhookTriggerAPI')
 
-// Force dynamic rendering for webhook endpoints
 export const dynamic = 'force-dynamic'
-// Increase the response size limit for webhook payloads
 export const maxDuration = 300 // 5 minutes max execution time for long-running webhooks
 
 /**
@@ -306,8 +304,58 @@ async function processWebhook(
           // Stripe verification would go here if needed
           break
 
+        case 'generic':
+          // Enhanced general webhook authentication
+          if (providerConfig.requireAuth) {
+            let isAuthenticated = false
+
+            // Check for token in Authorization header (Bearer token)
+            if (providerConfig.token) {
+              const providedToken = authHeader?.startsWith('Bearer ')
+                ? authHeader.substring(7)
+                : null
+              if (providedToken === providerConfig.token) {
+                isAuthenticated = true
+              }
+
+              // Check for token in custom header if specified
+              if (!isAuthenticated && providerConfig.secretHeaderName) {
+                const customHeaderValue = request.headers.get(providerConfig.secretHeaderName)
+                if (customHeaderValue === providerConfig.token) {
+                  isAuthenticated = true
+                }
+              }
+
+              // Return 401 if authentication failed
+              if (!isAuthenticated) {
+                logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
+                return new NextResponse('Unauthorized', { status: 401 })
+              }
+            }
+          }
+
+          // IP restriction check
+          if (
+            providerConfig.allowedIps &&
+            Array.isArray(providerConfig.allowedIps) &&
+            providerConfig.allowedIps.length > 0
+          ) {
+            const clientIp =
+              request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+              request.headers.get('x-real-ip') ||
+              'unknown'
+
+            if (clientIp === 'unknown' || !providerConfig.allowedIps.includes(clientIp)) {
+              logger.warn(
+                `[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`
+              )
+              return new NextResponse('Forbidden - IP not allowed', { status: 403 })
+            }
+          }
+          break
+
         default:
-          // For generic webhooks, check for a token if provided in providerConfig
+          // For other generic webhooks, check for a token if provided in providerConfig
           if (providerConfig.token) {
             const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
             if (!providedToken || providedToken !== providerConfig.token) {
