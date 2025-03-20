@@ -159,7 +159,6 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-// Marketplace tables
 export const marketplace = pgTable('marketplace', {
   id: text('id').primaryKey(),
   workflowId: text('workflow_id')
@@ -179,7 +178,6 @@ export const marketplace = pgTable('marketplace', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-// For tracking individual stars
 export const marketplaceStar = pgTable('marketplace_star', {
   id: text('id').primaryKey(),
   marketplaceId: text('marketplace_id')
@@ -195,7 +193,6 @@ export const marketplaceStar = pgTable('marketplace_star', {
   }
 })
 
-// For tracking executions
 export const marketplaceExecution = pgTable('marketplace_execution', {
   id: text('id').primaryKey(),
   marketplaceId: text('marketplace_id')

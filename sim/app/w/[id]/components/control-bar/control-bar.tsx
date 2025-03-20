@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, History, Loader2, Play, Rocket, ShoppingBag, Store, Trash2 } from 'lucide-react'
+import { Bell, History, Loader2, Play, Rocket, Store, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
+import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 
 const logger = createLogger('ControlBar')
@@ -64,8 +65,8 @@ export function ControlBar() {
   // Deployment states
   const [isDeploying, setIsDeploying] = useState(false)
 
-  // Publish state - keeping this for UI state management
-  const [isPublishing, setIsPublishing] = useState(false)
+  // Marketplace modal state
+  const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -262,18 +263,11 @@ export function ControlBar() {
   }
 
   /**
-   * Handle publishing workflow to marketplace
+   * Handle opening marketplace modal
    */
-  const handlePublishWorkflow = async () => {
+  const handlePublishWorkflow = () => {
     if (!activeWorkflowId) return
-
-    try {
-      console.log('Publishing workflow...')
-    } catch (error) {
-      console.error('Error publishing workflow:', error)
-    } finally {
-      setIsPublishing(false)
-    }
+    setIsMarketplaceModalOpen(true)
   }
 
   /**
@@ -488,14 +482,13 @@ export function ControlBar() {
           variant="ghost"
           size="icon"
           onClick={handlePublishWorkflow}
-          disabled={isPublishing}
-          className={cn('hover:text-[#7F2FFF]', isPublishing && 'text-[#7F2FFF]')}
+          className="hover:text-[#7F2FFF]"
         >
-          <Store className={cn('h-5 w-5', isPublishing && 'animate-rocket-pulse text-[#7F2FFF]')} />
+          <Store className="h-5 w-5" />
           <span className="sr-only">Publish to Marketplace</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{isPublishing ? 'Publishing...' : 'Publish to Marketplace'}</TooltipContent>
+      <TooltipContent>Publish to Marketplace</TooltipContent>
     </Tooltip>
   )
 
@@ -543,6 +536,9 @@ export function ControlBar() {
         {renderPublishButton()}
         {renderDeployButton()}
         {renderRunButton()}
+
+        {/* Add the marketplace modal */}
+        <MarketplaceModal open={isMarketplaceModalOpen} onOpenChange={setIsMarketplaceModalOpen} />
       </div>
     </div>
   )
