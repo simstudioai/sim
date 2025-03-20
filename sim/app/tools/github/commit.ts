@@ -46,7 +46,7 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     if (!response.ok) {
       throw new Error(`GitHub API error: ${response.statusText}`)
     }
@@ -55,6 +55,48 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     
     // Create a human-readable content string
     const content = `Latest commit: "${data.commit.message}" by ${data.commit.author.name} on ${data.commit.author.date}. SHA: ${data.sha}`
+
+    // Initialize files array and add file information
+    const files = data.files || []
+    const fileDetailsWithContent = []
+
+    // Fetch raw content for each file if includeFileContent is true
+    if (files.length > 0) {
+      for (const file of files) {
+        const fileDetail = {
+          filename: file.filename,
+          additions: file.additions,
+          deletions: file.deletions,
+          changes: file.changes,
+          status: file.status,
+          raw_url: file.raw_url,
+          blob_url: file.blob_url,
+          patch: file.patch,
+          content: undefined as string | undefined,
+        }
+
+        // Only try to fetch content for files that are not too large and not deleted
+        if (file.status !== 'removed' && file.raw_url) {
+          try {
+            // Fetch the raw file content
+            const contentResponse = await fetch(file.raw_url, {
+              headers: {
+                Authorization: `Bearer ${params?.apiKey}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+              },
+            })
+
+            if (contentResponse.ok) {
+              fileDetail.content = await contentResponse.text()
+            }
+          } catch (error) {
+            console.error(`Failed to fetch content for ${file.filename}:`, error)
+          }
+        }
+
+        fileDetailsWithContent.push(fileDetail)
+      }
+    }
 
     return {
       success: true,
@@ -81,6 +123,7 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
             deletions: data.stats.deletions,
             total: data.stats.total,
           } : undefined,
+          files: fileDetailsWithContent.length > 0 ? fileDetailsWithContent : undefined,
         },
       },
     }

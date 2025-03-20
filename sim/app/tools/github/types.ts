@@ -97,6 +97,17 @@ interface CommitMetadata {
     deletions: number
     total: number
   }
+  files?: Array<{
+    filename: string
+    additions: number
+    deletions: number
+    changes: number
+    status: string
+    raw_url: string
+    blob_url: string
+    patch?: string
+    content?: string
+  }>
 }
 
 interface RepoMetadata {
