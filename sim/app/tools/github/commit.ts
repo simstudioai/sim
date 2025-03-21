@@ -21,7 +21,7 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     branch: {
       type: 'string',
       required: false,
-      description: 'Branch name (defaults to the repository\'s default branch)',
+      description: "Branch name (defaults to the repository's default branch)",
     },
     apiKey: {
       type: 'string',
@@ -34,9 +34,7 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
   request: {
     url: (params) => {
       const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}`
-      return params.branch 
-        ? `${baseUrl}/commits/${params.branch}`
-        : `${baseUrl}/commits/HEAD`
+      return params.branch ? `${baseUrl}/commits/${params.branch}` : `${baseUrl}/commits/HEAD`
     },
     method: 'GET',
     headers: (params) => ({
@@ -52,7 +50,7 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     }
 
     const data = await response.json()
-    
+
     // Create a human-readable content string
     const content = `Latest commit: "${data.commit.message}" by ${data.commit.author.name} on ${data.commit.author.date}. SHA: ${data.sha}`
 
@@ -118,11 +116,13 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
             avatar_url: data.committer?.avatar_url || '',
             html_url: data.committer?.html_url || '',
           },
-          stats: data.stats ? {
-            additions: data.stats.additions,
-            deletions: data.stats.deletions,
-            total: data.stats.total,
-          } : undefined,
+          stats: data.stats
+            ? {
+                additions: data.stats.additions,
+                deletions: data.stats.deletions,
+                total: data.stats.total,
+              }
+            : undefined,
           files: fileDetailsWithContent.length > 0 ? fileDetailsWithContent : undefined,
         },
       },
@@ -141,4 +141,4 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
     }
     return 'Failed to fetch commit information'
   },
-} 
+}
