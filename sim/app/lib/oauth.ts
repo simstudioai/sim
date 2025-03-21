@@ -85,10 +85,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-docs',
         icon: (props) => GoogleDocsIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: [
-          'https://www.googleapis.com/auth/documents',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
       },
       'google-sheets': {
         id: 'google-sheets',
