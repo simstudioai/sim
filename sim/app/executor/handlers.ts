@@ -285,6 +285,7 @@ export class AgentBlockHandler implements BlockHandler {
                 }
               : undefined,
             providerTiming: response.timing || undefined,
+            cost: response.cost || undefined,
           },
         }
 
@@ -318,6 +319,7 @@ export class AgentBlockHandler implements BlockHandler {
               count: response.toolCalls?.length || 0,
             },
             providerTiming: response.timing || undefined,
+            cost: response.cost || undefined,
           },
         }
       }
@@ -348,6 +350,7 @@ export class AgentBlockHandler implements BlockHandler {
           count: response.toolCalls?.length || 0,
         },
         providerTiming: response.timing || undefined,
+        cost: response.cost || undefined,
       },
     }
   }
@@ -804,14 +807,14 @@ export class ApiBlockHandler implements BlockHandler {
       if (!inputs.url.match(/^https?:\/\//i)) {
         throw new Error(
           `Invalid URL: "${inputs.url}" - URL must include protocol (try "https://${inputs.url}")`
-        );
+        )
       }
-      
+
       // Detect other common URL issues
       try {
-        new URL(inputs.url);
+        new URL(inputs.url)
       } catch (e: any) {
-        throw new Error(`Invalid URL format: "${inputs.url}" - ${e.message}`);
+        throw new Error(`Invalid URL format: "${inputs.url}" - ${e.message}`)
       }
     }
 
@@ -822,40 +825,43 @@ export class ApiBlockHandler implements BlockHandler {
       })
 
       if (!result.success) {
-        const errorDetails = [];
-        
+        const errorDetails = []
+
         // Add request details to error message
-        if (inputs.url) errorDetails.push(`URL: ${inputs.url}`);
-        if (inputs.method) errorDetails.push(`Method: ${inputs.method}`);
-        
+        if (inputs.url) errorDetails.push(`URL: ${inputs.url}`)
+        if (inputs.method) errorDetails.push(`Method: ${inputs.method}`)
+
         // Add response details
-        if (result.error) errorDetails.push(`Error: ${result.error}`);
-        if (result.output?.status) errorDetails.push(`Status: ${result.output.status}`);
-        if (result.output?.statusText) errorDetails.push(`Status text: ${result.output.statusText}`);
-        
+        if (result.error) errorDetails.push(`Error: ${result.error}`)
+        if (result.output?.status) errorDetails.push(`Status: ${result.output.status}`)
+        if (result.output?.statusText) errorDetails.push(`Status text: ${result.output.statusText}`)
+
         // Add specific suggestions for common error codes
-        let suggestion = '';
+        let suggestion = ''
         if (result.output?.status === 403) {
-          suggestion = ' - This may be due to CORS restrictions or authorization issues';
+          suggestion = ' - This may be due to CORS restrictions or authorization issues'
         } else if (result.output?.status === 404) {
-          suggestion = ' - The requested resource was not found';
+          suggestion = ' - The requested resource was not found'
         } else if (result.output?.status === 429) {
-          suggestion = ' - Too many requests, you may need to implement rate limiting';
+          suggestion = ' - Too many requests, you may need to implement rate limiting'
         } else if (result.output?.status >= 500) {
-          suggestion = ' - Server error, the target server is experiencing issues';
+          suggestion = ' - Server error, the target server is experiencing issues'
         } else if (result.error && result.error.includes('CORS')) {
-          suggestion = ' - CORS policy prevented the request, try using a proxy or server-side request';
+          suggestion =
+            ' - CORS policy prevented the request, try using a proxy or server-side request'
         } else if (result.error && result.error.includes('Failed to fetch')) {
-          suggestion = ' - Network error, check if the URL is accessible and if you have internet connectivity';
+          suggestion =
+            ' - Network error, check if the URL is accessible and if you have internet connectivity'
         }
-        
-        const errorMessage = errorDetails.length > 0 
-          ? `HTTP Request failed: ${errorDetails.join(' | ')}${suggestion}` 
-          : `API request to ${tool.name || block.config.tool} failed with no error message`;
-        
+
+        const errorMessage =
+          errorDetails.length > 0
+            ? `HTTP Request failed: ${errorDetails.join(' | ')}${suggestion}`
+            : `API request to ${tool.name || block.config.tool} failed with no error message`
+
         // Create a detailed error object with formatted message
-        const error = new Error(errorMessage);
-        
+        const error = new Error(errorMessage)
+
         // Add additional properties for debugging
         Object.assign(error, {
           toolId: block.config.tool,
@@ -868,47 +874,47 @@ export class ApiBlockHandler implements BlockHandler {
             url: inputs.url,
             method: inputs.method || 'GET',
           },
-          timestamp: new Date().toISOString()
-        });
-        
-        throw error;
+          timestamp: new Date().toISOString(),
+        })
+
+        throw error
       }
 
       return { response: result.output }
     } catch (error: any) {
       // Ensure we have a meaningful error message
-      if (!error.message || error.message === "undefined (undefined)") {
+      if (!error.message || error.message === 'undefined (undefined)') {
         // Construct a detailed error message with available information
-        let errorMessage = `API request to ${tool.name || block.config.tool} failed`;
-        
+        let errorMessage = `API request to ${tool.name || block.config.tool} failed`
+
         // Add details if available
-        if (inputs.url) errorMessage += `: ${inputs.url}`;
-        if (error.status) errorMessage += ` (Status: ${error.status})`;
-        if (error.statusText) errorMessage += ` - ${error.statusText}`;
-        
+        if (inputs.url) errorMessage += `: ${inputs.url}`
+        if (error.status) errorMessage += ` (Status: ${error.status})`
+        if (error.statusText) errorMessage += ` - ${error.statusText}`
+
         // If we still have no details, give a generic but helpful message
         if (errorMessage === `API request to ${tool.name || block.config.tool} failed`) {
-          errorMessage += ` - ${block.metadata?.name || 'Unknown error'}`;
+          errorMessage += ` - ${block.metadata?.name || 'Unknown error'}`
         }
-        
-        error.message = errorMessage;
+
+        error.message = errorMessage
       }
-      
+
       // Add additional context to the error
       if (typeof error === 'object' && error !== null) {
-        if (!error.toolId) error.toolId = block.config.tool;
-        if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block';
-        
+        if (!error.toolId) error.toolId = block.config.tool
+        if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block'
+
         // Add request details if missing
         if (inputs && !error.request) {
           error.request = {
             url: inputs.url,
-            method: inputs.method || 'GET'
-          };
+            method: inputs.method || 'GET',
+          }
         }
       }
-      
-      throw error;
+
+      throw error
     }
   }
 }
@@ -973,18 +979,19 @@ export class GenericBlockHandler implements BlockHandler {
         ...inputs,
         _context: { workflowId: context.workflowId },
       })
-      
+
       if (!result.success) {
-        const errorDetails = [];
-        if (result.error) errorDetails.push(result.error);
-        
-        const errorMessage = errorDetails.length > 0 
-          ? errorDetails.join(' - ') 
-          : `Block execution of ${tool.name || block.config.tool} failed with no error message`;
-        
+        const errorDetails = []
+        if (result.error) errorDetails.push(result.error)
+
+        const errorMessage =
+          errorDetails.length > 0
+            ? errorDetails.join(' - ')
+            : `Block execution of ${tool.name || block.config.tool} failed with no error message`
+
         // Create a detailed error object with formatted message
-        const error = new Error(errorMessage);
-        
+        const error = new Error(errorMessage)
+
         // Add additional properties for debugging
         Object.assign(error, {
           toolId: block.config.tool,
@@ -992,39 +999,39 @@ export class GenericBlockHandler implements BlockHandler {
           blockId: block.id,
           blockName: block.metadata?.name || 'Unnamed Block',
           output: result.output || {},
-          timestamp: new Date().toISOString()
-        });
-        
-        throw error;
+          timestamp: new Date().toISOString(),
+        })
+
+        throw error
       }
 
       return { response: result.output }
     } catch (error: any) {
       // Ensure we have a meaningful error message
-      if (!error.message || error.message === "undefined (undefined)") {
+      if (!error.message || error.message === 'undefined (undefined)') {
         // Construct a detailed error message with available information
-        let errorMessage = `Block execution of ${tool.name || block.config.tool} failed`;
-        
+        let errorMessage = `Block execution of ${tool.name || block.config.tool} failed`
+
         // Add block name if available
         if (block.metadata?.name) {
-          errorMessage += `: ${block.metadata.name}`;
+          errorMessage += `: ${block.metadata.name}`
         }
-        
+
         // Add status code if available
         if (error.status) {
-          errorMessage += ` (Status: ${error.status})`;
+          errorMessage += ` (Status: ${error.status})`
         }
-        
-        error.message = errorMessage;
+
+        error.message = errorMessage
       }
-      
+
       // Add additional context to the error
       if (typeof error === 'object' && error !== null) {
-        if (!error.toolId) error.toolId = block.config.tool;
-        if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block';
+        if (!error.toolId) error.toolId = block.config.tool
+        if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block'
       }
-      
-      throw error;
+
+      throw error
     }
   }
 }

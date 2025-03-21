@@ -25,7 +25,7 @@ URL: https://github.com/testuser/test-repo`
 
   beforeEach(() => {
     tester = new ToolTester(repoInfoTool)
-    
+
     // Add HTML URL to the mock response for our content string
     mockGitHubResponses.repoInfo.html_url = 'https://github.com/testuser/test-repo'
   })
@@ -177,7 +177,7 @@ URL: https://github.com/testuser/test-repo`
 
       // Mock the transformError function to return the specific error message we're testing for
       const originalTransformError = repoInfoTool.transformError
-      repoInfoTool.transformError = () => 
+      repoInfoTool.transformError = () =>
         'Repository not found. Please check the owner and repository name.'
 
       // Execute the tool
@@ -203,8 +203,7 @@ URL: https://github.com/testuser/test-repo`
 
       // Mock the transformError function to return the specific error message we're testing for
       const originalTransformError = repoInfoTool.transformError
-      repoInfoTool.transformError = () => 
-        'Authentication failed. Please check your GitHub token.'
+      repoInfoTool.transformError = () => 'Authentication failed. Please check your GitHub token.'
 
       // Execute the tool
       const result = await tester.execute({
