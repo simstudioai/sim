@@ -170,6 +170,60 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      case 'generic': {
+        // Get the general webhook configuration
+        const token = providerConfig.token
+        const secretHeaderName = providerConfig.secretHeaderName
+        const requireAuth = providerConfig.requireAuth
+        const allowedIps = providerConfig.allowedIps
+
+        // Generate sample curl command for testing
+        let curlCommand = `curl -X POST "${webhookUrl}" -H "Content-Type: application/json"`
+
+        // Add auth headers to the curl command if required
+        if (requireAuth && token) {
+          if (secretHeaderName) {
+            curlCommand += ` -H "${secretHeaderName}: ${token}"`
+          } else {
+            curlCommand += ` -H "Authorization: Bearer ${token}"`
+          }
+        }
+
+        // Add a sample payload
+        curlCommand += ` -d '{"event":"test_event","timestamp":"${new Date().toISOString()}"}'`
+
+        logger.info(`[${requestId}] General webhook test successful: ${webhookId}`)
+        return NextResponse.json({
+          success: true,
+          webhook: {
+            id: foundWebhook.id,
+            url: webhookUrl,
+            isActive: foundWebhook.isActive,
+          },
+          message:
+            'General webhook configuration is valid. Use the URL and authentication details as needed.',
+          details: {
+            requireAuth: requireAuth || false,
+            hasToken: !!token,
+            hasCustomHeader: !!secretHeaderName,
+            customHeaderName: secretHeaderName,
+            hasIpRestrictions: Array.isArray(allowedIps) && allowedIps.length > 0,
+          },
+          test: {
+            curlCommand,
+            headers: requireAuth
+              ? secretHeaderName
+                ? { [secretHeaderName]: token }
+                : { Authorization: `Bearer ${token}` }
+              : {},
+            samplePayload: {
+              event: 'test_event',
+              timestamp: new Date().toISOString(),
+            },
+          },
+        })
+      }
+
       default: {
         // Generic webhook test
         logger.info(`[${requestId}] Generic webhook test successful: ${webhookId}`)
