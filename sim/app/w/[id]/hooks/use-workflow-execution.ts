@@ -352,16 +352,20 @@ export function useWorkflowExecution() {
 
       // Properly extract error message ensuring it's never undefined
       let errorMessage = 'Unknown error'
-      
+
       if (error instanceof Error) {
         errorMessage = error.message || `Error: ${String(error)}`
       } else if (typeof error === 'string') {
         errorMessage = error
       } else if (error && typeof error === 'object') {
         // Fix the "undefined (undefined)" pattern specifically
-        if (error.message === 'undefined (undefined)' || 
-            (error.error && typeof error.error === 'object' && error.error.message === 'undefined (undefined)')) {
-          errorMessage = 'API request failed - no specific error details available';
+        if (
+          error.message === 'undefined (undefined)' ||
+          (error.error &&
+            typeof error.error === 'object' &&
+            error.error.message === 'undefined (undefined)')
+        ) {
+          errorMessage = 'API request failed - no specific error details available'
         }
         // Try to extract error details from potential API or execution errors
         else if (error.message) {
@@ -382,7 +386,7 @@ export function useWorkflowExecution() {
 
       // Ensure errorMessage is never "undefined (undefined)"
       if (errorMessage === 'undefined (undefined)') {
-        errorMessage = 'API request failed - no specific error details available';
+        errorMessage = 'API request failed - no specific error details available'
       }
 
       // Set error result and show notification immediately
@@ -394,26 +398,26 @@ export function useWorkflowExecution() {
       }
 
       setExecutionResult(errorResult)
-      
+
       // Create a more user-friendly notification message
-      let notificationMessage = `Workflow execution failed`;
-      
+      let notificationMessage = `Workflow execution failed`
+
       // Add URL for HTTP errors
       if (error && error.request && error.request.url) {
         // Don't show empty URL errors
         if (error.request.url && error.request.url.trim() !== '') {
-          notificationMessage += `: Request to ${error.request.url} failed`;
-          
+          notificationMessage += `: Request to ${error.request.url} failed`
+
           // Add status if available
           if (error.status) {
-            notificationMessage += ` (Status: ${error.status})`;
+            notificationMessage += ` (Status: ${error.status})`
           }
         }
       } else {
         // Regular errors
-        notificationMessage += `: ${errorMessage}`;
+        notificationMessage += `: ${errorMessage}`
       }
-      
+
       addNotification('error', notificationMessage, activeWorkflowId)
 
       // Also send the error result to the API

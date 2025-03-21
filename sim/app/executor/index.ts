@@ -442,7 +442,9 @@ export class Executor {
       return output
     } catch (error: any) {
       blockLog.success = false
-      blockLog.error = error.message || `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`
+      blockLog.error =
+        error.message ||
+        `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
@@ -450,7 +452,9 @@ export class Executor {
       context.blockLogs.push(blockLog)
       addConsole({
         output: {},
-        error: error.message || `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
+        error:
+          error.message ||
+          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
         durationMs: blockLog.durationMs,
         startedAt: blockLog.startedAt,
         endedAt: blockLog.endedAt,
@@ -461,21 +465,21 @@ export class Executor {
       })
 
       // Create a proper error message that is never undefined
-      let errorMessage = error.message;
-      
+      let errorMessage = error.message
+
       // Handle the specific "undefined (undefined)" case
-      if (!errorMessage || errorMessage === "undefined (undefined)") {
-        errorMessage = `Error executing ${block.metadata?.id || 'unknown'} block: ${block.metadata?.name || 'Unnamed Block'}`;
-        
+      if (!errorMessage || errorMessage === 'undefined (undefined)') {
+        errorMessage = `Error executing ${block.metadata?.id || 'unknown'} block: ${block.metadata?.name || 'Unnamed Block'}`
+
         // Try to get more details if possible
         if (error && typeof error === 'object') {
-          if (error.code) errorMessage += ` (code: ${error.code})`;
-          if (error.status) errorMessage += ` (status: ${error.status})`;
-          if (error.type) errorMessage += ` (type: ${error.type})`;
+          if (error.code) errorMessage += ` (code: ${error.code})`
+          if (error.status) errorMessage += ` (status: ${error.status})`
+          if (error.type) errorMessage += ` (type: ${error.type})`
         }
       }
-      
-      throw new Error(errorMessage);
+
+      throw new Error(errorMessage)
     }
   }
 
@@ -609,114 +613,114 @@ export class Executor {
   /**
    * Extracts a meaningful error message from any error object structure.
    * Handles nested error objects, undefined messages, and various error formats.
-   * 
+   *
    * @param error - The error object to extract a message from
    * @returns A meaningful error message string
    */
   private extractErrorMessage(error: any): string {
-    if (!error) return 'Unknown error occurred';
-    
+    if (!error) return 'Unknown error occurred'
+
     // Handle Error instances
     if (error instanceof Error) {
-      return error.message || `Error: ${String(error)}`;
+      return error.message || `Error: ${String(error)}`
     }
-    
+
     // Handle string errors
     if (typeof error === 'string') {
-      return error;
+      return error
     }
-    
+
     // Handle object errors with nested structure
     if (typeof error === 'object') {
       // Case: { error: { message: "msg" } }
       if (error.error && typeof error.error === 'object' && error.error.message) {
-        return error.error.message;
+        return error.error.message
       }
-      
+
       // Case: { error: "msg" }
       if (error.error && typeof error.error === 'string') {
-        return error.error;
+        return error.error
       }
-      
+
       // Case: { message: "msg" }
       if (error.message) {
-        return error.message;
+        return error.message
       }
-      
+
       // Add specific handling for HTTP errors
       if (error.status || error.request) {
-        let message = 'API request failed';
-        
+        let message = 'API request failed'
+
         // Add URL information if available
         if (error.request && error.request.url) {
-          message += `: ${error.request.url}`;
+          message += `: ${error.request.url}`
         }
-        
+
         // Add status code if available
         if (error.status) {
-          message += ` (Status: ${error.status})`;
+          message += ` (Status: ${error.status})`
         }
-        
-        return message;
+
+        return message
       }
-      
+
       // Last resort: try to stringify the object
       try {
-        return `Error details: ${JSON.stringify(error)}`;
+        return `Error details: ${JSON.stringify(error)}`
       } catch {
-        return 'Error occurred but details could not be displayed';
+        return 'Error occurred but details could not be displayed'
       }
     }
-    
-    return 'Unknown error occurred';
+
+    return 'Unknown error occurred'
   }
-  
+
   /**
    * Sanitizes an error object for logging purposes.
    * Ensures the error is in a format that won't cause "undefined" to appear in logs.
-   * 
+   *
    * @param error - The error object to sanitize
    * @returns A sanitized version of the error for logging
    */
   private sanitizeError(error: any): any {
-    if (!error) return { message: 'No error details available' };
-    
+    if (!error) return { message: 'No error details available' }
+
     // Handle Error instances
     if (error instanceof Error) {
       return {
         message: error.message || 'Error without message',
-        stack: error.stack
-      };
+        stack: error.stack,
+      }
     }
-    
+
     // Handle string errors
     if (typeof error === 'string') {
-      return { message: error };
+      return { message: error }
     }
-    
+
     // Handle object errors with nested structure
     if (typeof error === 'object') {
       // If error has a nested error object with undefined message, fix it
       if (error.error && typeof error.error === 'object') {
         if (!error.error.message) {
-          error.error.message = 'No specific error message provided';
+          error.error.message = 'No specific error message provided'
         }
       }
-      
+
       // If no message property exists at root level, add one
       if (!error.message) {
         if (error.error && typeof error.error === 'string') {
-          error.message = error.error;
+          error.message = error.error
         } else if (error.status) {
-          error.message = `API request failed with status ${error.status}`;
+          error.message = `API request failed with status ${error.status}`
         } else {
-          error.message = 'Error occurred during workflow execution';
+          error.message = 'Error occurred during workflow execution'
         }
       }
-      
-      return error;
+
+      return error
     }
-    
-    return { message: `Unexpected error type: ${typeof error}` };
+
+    return { message: `Unexpected error type: ${typeof error}` }
   }
 }

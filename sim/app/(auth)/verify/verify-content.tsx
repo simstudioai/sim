@@ -20,7 +20,13 @@ interface VerifyContentProps {
   isProduction: boolean
 }
 
-function VerificationForm({ hasResendKey, isProduction }: { hasResendKey: boolean, isProduction: boolean }) {
+function VerificationForm({
+  hasResendKey,
+  isProduction,
+}: {
+  hasResendKey: boolean
+  isProduction: boolean
+}) {
   const {
     otp,
     email,
@@ -31,7 +37,7 @@ function VerificationForm({ hasResendKey, isProduction }: { hasResendKey: boolea
     isOtpComplete,
     verifyCode,
     resendCode,
-    handleOtpChange
+    handleOtpChange,
   } = useVerification({ hasResendKey, isProduction })
 
   return (
@@ -124,9 +130,7 @@ function VerificationFormFallback() {
   return (
     <CardHeader>
       <CardTitle>Loading verification...</CardTitle>
-      <CardDescription>
-        Please wait while we load your verification details...
-      </CardDescription>
+      <CardDescription>Please wait while we load your verification details...</CardDescription>
     </CardHeader>
   )
 }

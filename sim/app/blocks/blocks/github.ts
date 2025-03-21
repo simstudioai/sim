@@ -1,8 +1,17 @@
 import { GithubIcon } from '@/components/icons'
-import { CreateCommentResponse, LatestCommitResponse, PullRequestResponse, RepoInfoResponse } from '@/tools/github/types'
+import {
+  CreateCommentResponse,
+  LatestCommitResponse,
+  PullRequestResponse,
+  RepoInfoResponse,
+} from '@/tools/github/types'
 import { BlockConfig } from '../types'
 
-type GitHubResponse = PullRequestResponse | CreateCommentResponse | LatestCommitResponse | RepoInfoResponse
+type GitHubResponse =
+  | PullRequestResponse
+  | CreateCommentResponse
+  | LatestCommitResponse
+  | RepoInfoResponse
 
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
@@ -160,8 +169,8 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     response: {
       type: {
         content: 'string',
-        metadata: 'json'
-      }
-    }
+        metadata: 'json',
+      },
+    },
   },
 }

@@ -155,7 +155,7 @@ URL: https://github.com/testuser/testrepo/pull/42`
 
       // Check the result
       expect(result.success).toBe(true)
-      
+
       // Verify content is present and correct
       expect(result.output.content).toBe(expectedContent)
 

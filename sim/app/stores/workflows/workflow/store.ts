@@ -426,7 +426,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
           const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
           const updatedWorkflowValues = { ...workflowValues }
-          
+
           // Loop through blocks
           Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
             if (blockId === id) return // Skip the block being renamed
@@ -438,7 +438,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
               // Use a recursive function to handle all object types
-              updatedWorkflowValues[blockId][subBlockId] = updateReferences(value, regex, `<${newBlockName}.`)
+              updatedWorkflowValues[blockId][subBlockId] = updateReferences(
+                value,
+                regex,
+                `<${newBlockName}.`
+              )
 
               // Helper function to recursively update references in any data structure
               function updateReferences(value: any, regex: RegExp, replacement: string): any {
@@ -446,12 +450,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 if (typeof value === 'string') {
                   return regex.test(value) ? value.replace(regex, replacement) : value
                 }
-                
+
                 // Handle arrays
                 if (Array.isArray(value)) {
-                  return value.map(item => updateReferences(item, regex, replacement))
+                  return value.map((item) => updateReferences(item, regex, replacement))
                 }
-                
+
                 // Handle objects
                 if (value !== null && typeof value === 'object') {
                   const result = { ...value }
@@ -460,7 +464,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   }
                   return result
                 }
-                
+
                 // Return unchanged for other types
                 return value
               }

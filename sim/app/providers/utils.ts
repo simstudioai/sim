@@ -6,6 +6,7 @@ import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
 import { groqProvider } from './groq'
 import { openaiProvider } from './openai'
+import { getModelPricing } from './pricing'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
 
@@ -347,5 +348,69 @@ export function transformBlockTool(
         .filter(([_, config]: [string, any]) => config.required)
         .map(([key]) => key),
     },
+  }
+}
+
+/**
+ * Calculate cost for token usage based on model pricing
+ *
+ * @param model The model name
+ * @param promptTokens Number of prompt tokens used
+ * @param completionTokens Number of completion tokens used
+ * @param useCachedInput Whether to use cached input pricing (default: false)
+ * @returns Cost calculation results with input, output and total costs
+ */
+export function calculateCost(
+  model: string,
+  promptTokens: number = 0,
+  completionTokens: number = 0,
+  useCachedInput: boolean = false
+) {
+  const pricing = getModelPricing(model)
+
+  // Calculate costs in USD
+  // Convert from "per million tokens" to "per token" by dividing by 1,000,000
+  const inputCost =
+    promptTokens *
+    (useCachedInput && pricing.cachedInput
+      ? pricing.cachedInput / 1_000_000
+      : pricing.input / 1_000_000)
+
+  const outputCost = completionTokens * (pricing.output / 1_000_000)
+  const totalCost = inputCost + outputCost
+
+  return {
+    input: parseFloat(inputCost.toFixed(6)),
+    output: parseFloat(outputCost.toFixed(6)),
+    total: parseFloat(totalCost.toFixed(6)),
+    pricing,
+  }
+}
+
+/**
+ * Format cost as a currency string
+ *
+ * @param cost Cost in USD
+ * @returns Formatted cost string
+ */
+export function formatCost(cost: number): string {
+  if (cost === undefined || cost === null) return '—'
+
+  if (cost >= 1) {
+    // For costs >= $1, show two decimal places
+    return `$${cost.toFixed(2)}`
+  } else if (cost >= 0.01) {
+    // For costs between 1¢ and $1, show three decimal places
+    return `$${cost.toFixed(3)}`
+  } else if (cost >= 0.001) {
+    // For costs between 0.1¢ and 1¢, show four decimal places
+    return `$${cost.toFixed(4)}`
+  } else if (cost > 0) {
+    // For very small costs, still show as fixed decimal instead of scientific notation
+    // Find the first non-zero digit and show a few more places
+    const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
+    return `$${cost.toFixed(places)}`
+  } else {
+    return '$0'
   }
 }

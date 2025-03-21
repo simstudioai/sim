@@ -21,6 +21,23 @@ export interface LogEntry {
 // Define types for tool call tracking
 export interface ToolCallMetadata {
   toolCalls?: ToolCall[]
+  cost?: {
+    model?: string
+    input?: number
+    output?: number
+    total?: number
+    tokens?: {
+      prompt?: number
+      completion?: number
+      total?: number
+    }
+    pricing?: {
+      input: number
+      output: number
+      cachedInput?: number
+      updatedAt: string
+    }
+  }
 }
 
 export interface ToolCall {
@@ -52,6 +69,16 @@ export async function persistExecutionLogs(
   triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
 ) {
   try {
+    // Track accumulated cost data across all agent blocks
+    let totalCost = 0
+    let totalInputCost = 0
+    let totalOutputCost = 0
+    let totalPromptTokens = 0
+    let totalCompletionTokens = 0
+    let totalTokens = 0
+    let modelCounts: Record<string, number> = {}
+    let primaryModel = ''
+
     // Log each execution step
     for (const log of result.logs || []) {
       // Check for agent block and tool calls
@@ -68,7 +95,64 @@ export async function persistExecutionLogs(
           hasResponse: !!log.output.response,
         })
 
-        // Extract tool calls from different possible structures
+        // Extract tool calls and other metadata
+        if (log.output.response) {
+          const response = log.output.response
+
+          // Process tool calls
+          if (response.toolCalls && response.toolCalls.list) {
+            metadata = {
+              toolCalls: response.toolCalls.list.map((tc: any) => ({
+                name: tc.name,
+                duration: tc.duration || 0,
+                startTime: tc.startTime || new Date().toISOString(),
+                endTime: tc.endTime || new Date().toISOString(),
+                status: tc.error ? 'error' : 'success',
+                input: tc.input || tc.arguments,
+                output: tc.output || tc.result,
+                error: tc.error,
+              })),
+            }
+          }
+
+          // Add cost information if available
+          if (response.cost) {
+            if (!metadata) metadata = {}
+            metadata.cost = {
+              model: response.model,
+              input: response.cost.input,
+              output: response.cost.output,
+              total: response.cost.total,
+              tokens: response.tokens,
+              pricing: response.cost.pricing,
+            }
+
+            // Accumulate costs for workflow-level summary
+            if (response.cost.total) {
+              totalCost += response.cost.total
+              totalInputCost += response.cost.input || 0
+              totalOutputCost += response.cost.output || 0
+
+              // Track tokens
+              if (response.tokens) {
+                totalPromptTokens += response.tokens.prompt || 0
+                totalCompletionTokens += response.tokens.completion || 0
+                totalTokens += response.tokens.total || 0
+              }
+
+              // Track model usage
+              if (response.model) {
+                modelCounts[response.model] = (modelCounts[response.model] || 0) + 1
+                // Set the most frequently used model as primary
+                if (!primaryModel || modelCounts[response.model] > modelCounts[primaryModel]) {
+                  primaryModel = response.model
+                }
+              }
+            }
+          }
+        }
+
+        // Extract timing info - try various formats that providers might use
         const blockStartTime = log.startedAt
         const blockEndTime = log.endedAt || new Date().toISOString()
         const blockDuration = log.durationMs || 0
@@ -397,6 +481,47 @@ export async function persistExecutionLogs(
     const successMessage = getTriggerSuccessMessage(triggerType)
     const errorPrefix = getTriggerErrorPrefix(triggerType)
 
+    // Create workflow-level metadata with aggregated cost information
+    const workflowMetadata: any = {
+      traceSpans: (result as any).traceSpans || [],
+      totalDuration: (result as any).totalDuration || totalDuration,
+    }
+
+    // Add accumulated cost data to workflow-level log
+    if (totalCost > 0) {
+      workflowMetadata.cost = {
+        model: primaryModel,
+        input: totalInputCost,
+        output: totalOutputCost,
+        total: totalCost,
+        tokens: {
+          prompt: totalPromptTokens,
+          completion: totalCompletionTokens,
+          total: totalTokens,
+        },
+      }
+
+      // Include pricing info if we have a model
+      if (primaryModel && result.logs && result.logs.length > 0) {
+        // Find the first agent log with pricing info
+        for (const log of result.logs) {
+          if (log.output?.response?.cost?.pricing) {
+            workflowMetadata.cost.pricing = log.output.response.cost.pricing
+            break
+          }
+        }
+      }
+
+      logger.info(`Workflow execution total cost: ${totalCost}`, {
+        workflowId,
+        executionId,
+        totalCost,
+        inputCost: totalInputCost,
+        outputCost: totalOutputCost,
+        models: Object.keys(modelCounts),
+      })
+    }
+
     // Log the final execution result
     await persistLog({
       id: uuidv4(),
@@ -407,10 +532,7 @@ export async function persistExecutionLogs(
       duration: result.success ? `${totalDuration}ms` : 'NA',
       trigger: triggerType,
       createdAt: new Date(),
-      metadata: {
-        traceSpans: (result as any).traceSpans || [],
-        totalDuration: (result as any).totalDuration || totalDuration,
-      },
+      metadata: workflowMetadata,
     })
   } catch (error: any) {
     logger.error(`Error persisting execution logs: ${error.message}`, {
