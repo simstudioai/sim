@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
+import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
 import { StripeConfig } from './providers/stripe-config'
@@ -57,15 +58,17 @@ export function WebhookModal({
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
   const isConfigured = Boolean(webhookId)
 
-  // Provider-specific configuration state
-  const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
-  const [githubContentType, setGithubContentType] = useState('application/json')
-
-  // General webhook configuration state
+  // Generic webhook state
   const [generalToken, setGeneralToken] = useState('')
   const [secretHeaderName, setSecretHeaderName] = useState('')
   const [requireAuth, setRequireAuth] = useState(false)
   const [allowedIps, setAllowedIps] = useState('')
+
+  // Provider-specific state
+  const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
+  const [githubContentType, setGithubContentType] = useState('application/json')
+  const [discordWebhookName, setDiscordWebhookName] = useState('')
+  const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
 
   // Original values to track changes
   const [originalValues, setOriginalValues] = useState({
@@ -75,6 +78,8 @@ export function WebhookModal({
     secretHeaderName: '',
     requireAuth: false,
     allowedIps: '',
+    discordWebhookName: '',
+    discordAvatarUrl: '',
   })
 
   // Get the current provider configuration
@@ -136,6 +141,18 @@ export function WebhookModal({
                 const contentType = config.contentType || 'application/json'
                 setGithubContentType(contentType)
                 setOriginalValues((prev) => ({ ...prev, githubContentType: contentType }))
+              } else if (webhookProvider === 'discord') {
+                const webhookName = config.webhookName || ''
+                const avatarUrl = config.avatarUrl || ''
+
+                setDiscordWebhookName(webhookName)
+                setDiscordAvatarUrl(avatarUrl)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  discordWebhookName: webhookName,
+                  discordAvatarUrl: avatarUrl,
+                }))
               } else if (webhookProvider === 'generic') {
                 // Set general webhook configuration
                 const token = config.token || ''
@@ -177,23 +194,26 @@ export function WebhookModal({
 
   // Check for unsaved changes
   useEffect(() => {
-    // Compare current values with original values
-    if (webhookProvider === 'whatsapp') {
-      setHasUnsavedChanges(whatsappVerificationToken !== originalValues.whatsappVerificationToken)
-    } else if (webhookProvider === 'github') {
-      setHasUnsavedChanges(githubContentType !== originalValues.githubContentType)
-    } else if (webhookProvider === 'generic') {
-      setHasUnsavedChanges(
-        generalToken !== originalValues.generalToken ||
+    const hasChanges =
+      (webhookProvider === 'whatsapp' &&
+        whatsappVerificationToken !== originalValues.whatsappVerificationToken) ||
+      (webhookProvider === 'github' && githubContentType !== originalValues.githubContentType) ||
+      (webhookProvider === 'discord' &&
+        (discordWebhookName !== originalValues.discordWebhookName ||
+          discordAvatarUrl !== originalValues.discordAvatarUrl)) ||
+      (webhookProvider === 'generic' &&
+        (generalToken !== originalValues.generalToken ||
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
-          allowedIps !== originalValues.allowedIps
-      )
-    }
+          allowedIps !== originalValues.allowedIps))
+
+    setHasUnsavedChanges(hasChanges)
   }, [
     webhookProvider,
     whatsappVerificationToken,
     githubContentType,
+    discordWebhookName,
+    discordAvatarUrl,
     generalToken,
     secretHeaderName,
     requireAuth,
@@ -224,6 +244,11 @@ export function WebhookModal({
         return { verificationToken: whatsappVerificationToken }
       case 'github':
         return { contentType: githubContentType }
+      case 'discord':
+        return {
+          webhookName: discordWebhookName || undefined,
+          avatarUrl: discordAvatarUrl || undefined,
+        }
       case 'stripe':
         return {}
       case 'generic':
@@ -269,6 +294,8 @@ export function WebhookModal({
           secretHeaderName,
           requireAuth,
           allowedIps,
+          discordWebhookName,
+          discordAvatarUrl,
         })
         setHasUnsavedChanges(false)
       }
@@ -378,6 +405,20 @@ export function WebhookModal({
             setWebhookSecret={setGeneralToken}
             sslVerification={requireAuth ? 'enabled' : 'disabled'}
             setSslVerification={(value) => setRequireAuth(value === 'enabled')}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
+          />
+        )
+      case 'discord':
+        return (
+          <DiscordConfig
+            webhookName={discordWebhookName}
+            setWebhookName={setDiscordWebhookName}
+            avatarUrl={discordAvatarUrl}
+            setAvatarUrl={setDiscordAvatarUrl}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}
