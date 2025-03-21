@@ -40,8 +40,8 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
       options: [
         { label: 'Generic', id: 'generic' },
         { label: 'WhatsApp', id: 'whatsapp' },
-        { label: 'GitHub', id: 'github' },
-        { label: 'Stripe', id: 'stripe' },
+        // { label: 'GitHub', id: 'github' },
+        // { label: 'Stripe', id: 'stripe' },
       ],
       value: () => 'generic',
       condition: { field: 'startWorkflow', value: 'webhook' },
