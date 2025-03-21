@@ -452,14 +452,66 @@ export async function executeTool(
       logger.error(`Looking for custom tool with identifier: ${identifier}`)
     }
 
+    // Process the error to ensure we have a useful message
+    let errorMessage = 'Unknown error occurred';
+    let errorDetails = {};
+    
+    if (error instanceof Error) {
+      errorMessage = error.message || `Error executing tool ${toolId}`;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    } else if (error && typeof error === 'object') {
+      // Handle API response errors
+      if (error.response) {
+        const response = error.response;
+        errorMessage = `API Error: ${response.statusText || response.status || 'Unknown status'}`;
+        
+        // Try to extract more details from the response
+        if (response.data) {
+          if (typeof response.data === 'string') {
+            errorMessage = `${errorMessage} - ${response.data}`;
+          } else if (response.data.message) {
+            errorMessage = `${errorMessage} - ${response.data.message}`;
+          } else if (response.data.error) {
+            errorMessage = `${errorMessage} - ${typeof response.data.error === 'string' ? 
+              response.data.error : JSON.stringify(response.data.error)}`;
+          }
+        }
+        
+        // Include useful debugging information
+        errorDetails = {
+          status: response.status,
+          statusText: response.statusText,
+          data: response.data
+        };
+      } 
+      // Handle fetch or other network errors
+      else if (error.message) {
+        // Don't pass along "undefined (undefined)" messages
+        if (error.message === "undefined (undefined)") {
+          errorMessage = `Error executing tool ${toolId}`;
+          // Add status if available
+          if (error.status) {
+            errorMessage += ` (Status: ${error.status})`;
+          }
+        } else {
+          errorMessage = error.message;
+        }
+        
+        if (error.cause) {
+          errorMessage = `${errorMessage} (${error.cause})`;
+        }
+      }
+    }
+
     // Add timing data even for errors
     const endTime = new Date()
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
     return {
       success: false,
-      output: {},
-      error: error.message || 'Unknown error',
+      output: errorDetails,
+      error: errorMessage,
       timing: {
         startTime: startTimeISO,
         endTime: endTimeISO,
@@ -700,21 +752,66 @@ async function handleProxyRequest(
   }
 
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
-  const response = await fetch(proxyUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ toolId, params }),
-  })
+  try {
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ toolId, params }),
+    });
 
-  const result = await response.json()
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `HTTP error ${response.status}: ${response.statusText}`;
+      let errorDetails = { status: response.status, statusText: response.statusText };
+      
+      try {
+        // Try to parse as JSON for more details
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error) {
+          errorMessage = typeof errorJson.error === 'string' ? 
+            errorJson.error : 
+            `API Error: ${response.status} ${response.statusText}`;
+        }
+        errorDetails = { ...errorDetails, ...errorJson };
+      } catch {
+        // If not JSON, use the raw text
+        if (errorText && errorText !== "undefined (undefined)") {
+          errorMessage = `${errorMessage} - ${errorText}`;
+        }
+      }
+      
+      return {
+        success: false,
+        output: errorDetails,
+        error: errorMessage,
+      };
+    }
 
-  if (!result.success) {
+    const result = await response.json();
+
+    if (!result.success) {
+      return {
+        success: false,
+        output: result.output || {},
+        error: result.error || `API request to ${toolId} failed with no error message`,
+      };
+    }
+
+    return result;
+  } catch (error: any) {
+    // Handle network or other fetch errors
+    logger.error(`Error in proxy request for tool ${toolId}:`, { error });
+    
+    let errorMessage = error instanceof Error ? 
+      error.message : 
+      typeof error === 'string' ? 
+        error : 
+        `Unknown error in API request to ${toolId}`;
+    
     return {
       success: false,
-      output: {},
-      error: result.error,
-    }
+      output: { originalError: error },
+      error: errorMessage,
+    };
   }
-
-  return result
 }

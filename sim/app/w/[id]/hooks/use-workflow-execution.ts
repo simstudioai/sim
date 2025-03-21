@@ -348,9 +348,42 @@ export function useWorkflowExecution() {
       // Send the entire execution result to our API to be processed server-side
       await persistLogs(executionId, result)
     } catch (error: any) {
-      logger.error('Workflow Execution Error:', { error })
+      logger.error('Workflow Execution Error:', error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      // Properly extract error message ensuring it's never undefined
+      let errorMessage = 'Unknown error'
+      
+      if (error instanceof Error) {
+        errorMessage = error.message || `Error: ${String(error)}`
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object') {
+        // Fix the "undefined (undefined)" pattern specifically
+        if (error.message === 'undefined (undefined)' || 
+            (error.error && typeof error.error === 'object' && error.error.message === 'undefined (undefined)')) {
+          errorMessage = 'API request failed - no specific error details available';
+        }
+        // Try to extract error details from potential API or execution errors
+        else if (error.message) {
+          errorMessage = error.message
+        } else if (error.error && typeof error.error === 'string') {
+          errorMessage = error.error
+        } else if (error.error && typeof error.error === 'object' && error.error.message) {
+          errorMessage = error.error.message
+        } else {
+          // Last resort: stringify the whole object
+          try {
+            errorMessage = `Error details: ${JSON.stringify(error)}`
+          } catch {
+            errorMessage = 'Error occurred but details could not be displayed'
+          }
+        }
+      }
+
+      // Ensure errorMessage is never "undefined (undefined)"
+      if (errorMessage === 'undefined (undefined)') {
+        errorMessage = 'API request failed - no specific error details available';
+      }
 
       // Set error result and show notification immediately
       const errorResult = {
@@ -361,7 +394,27 @@ export function useWorkflowExecution() {
       }
 
       setExecutionResult(errorResult)
-      addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
+      
+      // Create a more user-friendly notification message
+      let notificationMessage = `Workflow execution failed`;
+      
+      // Add URL for HTTP errors
+      if (error && error.request && error.request.url) {
+        // Don't show empty URL errors
+        if (error.request.url && error.request.url.trim() !== '') {
+          notificationMessage += `: Request to ${error.request.url} failed`;
+          
+          // Add status if available
+          if (error.status) {
+            notificationMessage += ` (Status: ${error.status})`;
+          }
+        }
+      } else {
+        // Regular errors
+        notificationMessage += `: ${errorMessage}`;
+      }
+      
+      addNotification('error', notificationMessage, activeWorkflowId)
 
       // Also send the error result to the API
       await persistLogs(executionId, errorResult)
