@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
+import { DiscordIcon, GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -34,6 +34,11 @@ export interface GitHubConfig {
   contentType: string
 }
 
+export interface DiscordConfig {
+  webhookName?: string
+  avatarUrl?: string
+}
+
 export interface StripeConfig {
   // Any Stripe-specific fields would go here
 }
@@ -49,6 +54,7 @@ export interface GeneralWebhookConfig {
 export type ProviderConfig =
   | WhatsAppConfig
   | GitHubConfig
+  | DiscordConfig
   | StripeConfig
   | GeneralWebhookConfig
   | Record<string, never>
@@ -79,6 +85,25 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         placeholder: 'application/json',
         defaultValue: 'application/json',
         description: 'The content type for GitHub webhook payloads.',
+      },
+    },
+  },
+  discord: {
+    id: 'discord',
+    name: 'Discord',
+    icon: (props) => <DiscordIcon {...props} />,
+    configFields: {
+      webhookName: {
+        type: 'string',
+        label: 'Webhook Name',
+        placeholder: 'Enter a name for the webhook',
+        description: 'Custom name that will appear as the message sender in Discord.',
+      },
+      avatarUrl: {
+        type: 'string',
+        label: 'Avatar URL',
+        placeholder: 'https://example.com/avatar.png',
+        description: 'URL to an image that will be used as the webhook avatar.',
       },
     },
   },
