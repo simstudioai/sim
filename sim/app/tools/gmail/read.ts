@@ -13,7 +13,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
     required: true,
     provider: 'google-email',
     additionalScopes: [
-      'https://www.googleapis.com/auth/gmail.readonly',
+      // 'https://www.googleapis.com/auth/gmail.readonly',
       'https://www.googleapis.com/auth/gmail.labels',
     ],
   },

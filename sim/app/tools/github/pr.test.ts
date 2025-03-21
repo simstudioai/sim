@@ -59,45 +59,52 @@ index 1234567..abcdefg 100644
     },
   ]
 
+  // Expected content for the PR
+  const expectedContent = `PR #42: "Test PR Title" (open) - Created: 2023-01-01T00:00:00Z, Updated: 2023-01-02T00:00:00Z
+Description: Test PR description with details
+Files changed: 1
+URL: https://github.com/testuser/testrepo/pull/42`
+
   let originalTransformResponse: any
 
   beforeEach(() => {
     tester = new ToolTester(prTool)
 
-    // Use a much simpler approach by directly mocking the transformResponse
-    originalTransformResponse = tester.tool.transformResponse
-    tester.tool.transformResponse = async () => {
+    // Mock the internal transformResponse method to avoid actual API calls
+    originalTransformResponse = prTool.transformResponse
+    prTool.transformResponse = async () => {
       return {
         success: true,
         output: {
-          number: 42,
-          title: 'Test PR Title',
-          body: 'Test PR description with details',
-          state: 'open',
-          html_url: 'https://github.com/testuser/testrepo/pull/42',
-          diff_url: 'https://github.com/testuser/testrepo/pull/42.diff',
-          created_at: '2023-01-01T00:00:00Z',
-          updated_at: '2023-01-02T00:00:00Z',
-          diff: mockPRDiff,
-          files: mockPRFiles.map((file) => ({
-            filename: file.filename,
-            additions: file.additions,
-            deletions: file.deletions,
-            changes: file.changes,
-            patch: file.patch,
-            blob_url: file.blob_url,
-            raw_url: file.raw_url,
-            status: file.status,
-          })),
+          content: expectedContent,
+          metadata: {
+            number: 42,
+            title: 'Test PR Title',
+            state: 'open',
+            html_url: 'https://github.com/testuser/testrepo/pull/42',
+            diff_url: 'https://github.com/testuser/testrepo/pull/42.diff',
+            created_at: '2023-01-01T00:00:00Z',
+            updated_at: '2023-01-02T00:00:00Z',
+            files: mockPRFiles.map((file) => ({
+              filename: file.filename,
+              additions: file.additions,
+              deletions: file.deletions,
+              changes: file.changes,
+              patch: file.patch,
+              blob_url: file.blob_url,
+              raw_url: file.raw_url,
+              status: file.status,
+            })),
+          },
         },
       }
     }
   })
 
   afterEach(() => {
-    // Restore the original transformResponse
+    // Restore the original transformResponse if it exists
     if (originalTransformResponse) {
-      tester.tool.transformResponse = originalTransformResponse
+      prTool.transformResponse = originalTransformResponse
     }
     tester.cleanup()
     vi.resetAllMocks()
@@ -148,21 +155,21 @@ index 1234567..abcdefg 100644
 
       // Check the result
       expect(result.success).toBe(true)
+      
+      // Verify content is present and correct
+      expect(result.output.content).toBe(expectedContent)
 
-      // Verify PR basic info
-      expect(result.output.number).toBe(42)
-      expect(result.output.title).toBe('Test PR Title')
-      expect(result.output.state).toBe('open')
-
-      // Verify diff was fetched
-      expect(result.output.diff).toBe(mockPRDiff)
+      // Verify PR basic info in metadata
+      expect(result.output.metadata.number).toBe(42)
+      expect(result.output.metadata.title).toBe('Test PR Title')
+      expect(result.output.metadata.state).toBe('open')
 
       // Verify files were fetched and transformed
-      expect(result.output.files).toHaveLength(1)
-      expect(result.output.files?.[0].filename).toBe('file.txt')
-      expect(result.output.files?.[0].additions).toBe(2)
-      expect(result.output.files?.[0].deletions).toBe(1)
-      expect(result.output.files?.[0].status).toBe('modified')
+      expect(result.output.metadata.files).toHaveLength(1)
+      expect(result.output.metadata.files?.[0].filename).toBe('file.txt')
+      expect(result.output.metadata.files?.[0].additions).toBe(2)
+      expect(result.output.metadata.files?.[0].deletions).toBe(1)
+      expect(result.output.metadata.files?.[0].status).toBe('modified')
     })
   })
 
