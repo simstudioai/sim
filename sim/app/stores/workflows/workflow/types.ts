@@ -40,6 +40,7 @@ export interface WorkflowState {
   lastUpdate?: number
   isDeployed?: boolean
   deployedAt?: Date
+  isPublished?: boolean
 }
 
 export interface WorkflowActions {
@@ -60,6 +61,7 @@ export interface WorkflowActions {
   updateLoopMinIterations: (loopId: string, minIterations: number) => void
   triggerUpdate: () => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
+  setPublishStatus: (isPublished: boolean) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

@@ -45,8 +45,15 @@ export function ControlBar() {
   // Store hooks
   const { notifications, getWorkflowNotifications, addNotification, showNotification } =
     useNotificationStore()
-  const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
-    useWorkflowStore()
+  const {
+    history,
+    revertToHistoryState,
+    lastSaved,
+    isDeployed,
+    isPublished,
+    setDeploymentStatus,
+    setPublishStatus,
+  } = useWorkflowStore()
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
 
@@ -62,8 +69,9 @@ export function ControlBar() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
-  // Deployment states
+  // Status states
   const [isDeploying, setIsDeploying] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
@@ -84,8 +92,7 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
-  // TODO: Put this in sync-manager
-  // Check deployment status on mount or when activeWorkflowId changes
+  // Check deployment and publication status on mount or when activeWorkflowId changes
   useEffect(() => {
     async function checkStatus() {
       if (!activeWorkflowId) return
@@ -97,7 +104,7 @@ export function ControlBar() {
           process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
           process.env.NEXT_PUBLIC_DISABLE_DB_SYNC === 'true')
       ) {
-        // For localStorage mode, we already have the deployment status in the workflow store
+        // For localStorage mode, we already have the status in the workflow store
         // Nothing more to do as the useWorkflowStore already has this information
         return
       }
@@ -106,18 +113,19 @@ export function ControlBar() {
         const response = await fetch(`/api/workflow/${activeWorkflowId}/status`)
         if (response.ok) {
           const data = await response.json()
-          // Update the store with the deployment status from the API
+          // Update the store with the status from the API
           setDeploymentStatus(
             data.isDeployed,
             data.deployedAt ? new Date(data.deployedAt) : undefined
           )
+          setPublishStatus(data.isPublished)
         }
       } catch (error) {
-        logger.error('Failed to check deployment status:', { error })
+        logger.error('Failed to check workflow status:', { error })
       }
     }
     checkStatus()
-  }, [activeWorkflowId, setDeploymentStatus])
+  }, [activeWorkflowId, setDeploymentStatus, setPublishStatus])
 
   /**
    * Workflow name handlers
@@ -263,10 +271,18 @@ export function ControlBar() {
   }
 
   /**
-   * Handle opening marketplace modal
+   * Handle opening marketplace modal or showing published status
    */
-  const handlePublishWorkflow = () => {
+  const handlePublishWorkflow = async () => {
     if (!activeWorkflowId) return
+
+    // If already published, show marketplace modal with info instead of notifications
+    if (isPublished) {
+      setIsMarketplaceModalOpen(true)
+      return
+    }
+
+    // If not published, open the modal to start the publishing process
     setIsMarketplaceModalOpen(true)
   }
 
@@ -482,13 +498,24 @@ export function ControlBar() {
           variant="ghost"
           size="icon"
           onClick={handlePublishWorkflow}
-          className="hover:text-[#7F2FFF]"
+          disabled={isPublishing}
+          className={cn('hover:text-[#7F2FFF]', isPublished && 'text-[#7F2FFF]')}
         >
-          <Store className="h-5 w-5" />
+          {isPublishing ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Store className="h-5 w-5" />
+          )}
           <span className="sr-only">Publish to Marketplace</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Publish to Marketplace</TooltipContent>
+      <TooltipContent>
+        {isPublishing
+          ? 'Publishing...'
+          : isPublished
+            ? 'Published to Marketplace'
+            : 'Publish to Marketplace'}
+      </TooltipContent>
     </Tooltip>
   )
 

@@ -134,6 +134,20 @@
       "when": 1742441034244,
       "tag": "0018_sleepy_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1742550910792,
+      "tag": "0019_even_lorna_dane",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1742552444912,
+      "tag": "0020_clear_skreet",
+      "breakpoints": true
     }
   ]
 }

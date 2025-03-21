@@ -6,7 +6,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { marketplace, user, workflow } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { getWorkflowWithValues } from '@/stores/workflows'
 
 // Create a logger for this module
 const logger = createLogger('MarketplacePublishAPI')
@@ -22,6 +21,7 @@ const PublishRequestSchema = z.object({
   description: z.string().min(10).max(500).optional(),
   category: z.string().min(1).optional(),
   authorName: z.string().min(2).max(50).optional(),
+  workflowState: z.record(z.any()).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     try {
       // Parse request body
       const body = await request.json()
-      const { workflowId, name, description, category, authorName } = PublishRequestSchema.parse(body)
+      const { workflowId, name, description, category, authorName, workflowState } = PublishRequestSchema.parse(body)
 
       // Check if the workflow belongs to the user
       const userWorkflow = await db
@@ -66,11 +66,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'User data not found' }, { status: 500 })
       }
 
-      // Get the complete workflow state
-      const workflowData = getWorkflowWithValues(workflowId)
-      if (!workflowData) {
-        logger.error(`[${requestId}] Could not retrieve workflow state for ID: ${workflowId}`)
-        return NextResponse.json({ error: 'Failed to retrieve workflow state' }, { status: 500 })
+      // Verify we have the workflow state
+      if (!workflowState) {
+        logger.error(`[${requestId}] No workflow state provided for ID: ${workflowId}`)
+        return NextResponse.json({ error: 'Workflow state is required' }, { status: 400 })
       }
 
       // Check if this workflow is already published
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
       const marketplaceEntry = {
         id: marketplaceId,
         workflowId,
-        state: workflowData.state,
+        state: workflowState,
         name: name || userWorkflow[0].name,
         description: description || userWorkflow[0].description || '',
         authorId: userId,
@@ -111,7 +110,7 @@ export async function POST(request: NextRequest) {
             ...marketplaceEntry,
             createdAt: new Date(),
             stars: 0,
-            executions: 0,
+            views: 0,
           })
           .returning()
       }

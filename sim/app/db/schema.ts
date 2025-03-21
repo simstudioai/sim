@@ -65,6 +65,7 @@ export const workflow = pgTable('workflow', {
   isDeployed: boolean('is_deployed').notNull().default(false),
   deployedAt: timestamp('deployed_at'),
   apiKey: text('api_key'),
+  isPublished: boolean('is_published').notNull().default(false),
   collaborators: json('collaborators').notNull().default('[]'),
 })
 
@@ -172,7 +173,7 @@ export const marketplace = pgTable('marketplace', {
     .references(() => user.id),
   authorName: text('author_name').notNull(),
   stars: integer('stars').notNull().default(0),
-  executions: integer('executions').notNull().default(0),
+  views: integer('views').notNull().default(0),
   category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -191,14 +192,4 @@ export const marketplaceStar = pgTable('marketplace_star', {
   return {
     userMarketplaceIdx: uniqueIndex('user_marketplace_idx').on(table.userId, table.marketplaceId),
   }
-})
-
-export const marketplaceExecution = pgTable('marketplace_execution', {
-  id: text('id').primaryKey(),
-  marketplaceId: text('marketplace_id')
-    .notNull()
-    .references(() => marketplace.id, { onDelete: 'cascade' }),
-  userId: text('user_id')
-    .references(() => user.id), // Optional, for anonymous executions
-  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
