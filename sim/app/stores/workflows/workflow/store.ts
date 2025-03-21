@@ -437,22 +437,32 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               const newBlockName = name.replace(/\s+/g, '').toLowerCase()
               const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
-              if (typeof value === 'string') {
-                // Look for references to the old block name
-                if (regex.test(value)) {
-                  // Update the reference to use the new block name
-                  updatedWorkflowValues[blockId][subBlockId] = value.replace(regex, `<${newBlockName}.`)
+              // Use a recursive function to handle all object types
+              updatedWorkflowValues[blockId][subBlockId] = updateReferences(value, regex, `<${newBlockName}.`)
+
+              // Helper function to recursively update references in any data structure
+              function updateReferences(value: any, regex: RegExp, replacement: string): any {
+                // Handle string values
+                if (typeof value === 'string') {
+                  return regex.test(value) ? value.replace(regex, replacement) : value
                 }
-              }
-              else if (Array.isArray(value)) {
-                for (const obj of value) {
-                  if (regex.test(obj.cells.Key)) {
-                    obj.cells.Key = obj.cells.Key.replace(regex, `<${newBlockName}.`)
-                  }
-                  if (regex.test(obj.cells.Value)) {
-                    obj.cells.Value = obj.cells.Value.replace(regex, `<${newBlockName}.`)
-                  }
+                
+                // Handle arrays
+                if (Array.isArray(value)) {
+                  return value.map(item => updateReferences(item, regex, replacement))
                 }
+                
+                // Handle objects
+                if (value !== null && typeof value === 'object') {
+                  const result = { ...value }
+                  for (const key in result) {
+                    result[key] = updateReferences(result[key], regex, replacement)
+                  }
+                  return result
+                }
+                
+                // Return unchanged for other types
+                return value
               }
             })
           })
