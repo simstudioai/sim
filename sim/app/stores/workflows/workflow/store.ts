@@ -402,16 +402,78 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateBlockName: (id: string, name: string) => {
+        const oldBlock = get().blocks[id]
+        if (!oldBlock) return
+
+        // Create a new state with the updated block name
         const newState = {
           blocks: {
             ...get().blocks,
             [id]: {
-              ...get().blocks[id],
+              ...oldBlock,
               name,
             },
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+        }
+
+        // Update references in subblock store
+        const subBlockStore = useSubBlockStore.getState()
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          // Get the workflow values for the active workflow
+          // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
+          const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
+          const updatedWorkflowValues = { ...workflowValues }
+          
+          // Loop through blocks
+          Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
+            if (blockId === id) return // Skip the block being renamed
+
+            // Loop through subblocks and update references
+            Object.entries(blockValues).forEach(([subBlockId, value]) => {
+              const oldBlockName = oldBlock.name.replace(/\s+/g, '').toLowerCase()
+              const newBlockName = name.replace(/\s+/g, '').toLowerCase()
+              const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
+
+              // Use a recursive function to handle all object types
+              updatedWorkflowValues[blockId][subBlockId] = updateReferences(value, regex, `<${newBlockName}.`)
+
+              // Helper function to recursively update references in any data structure
+              function updateReferences(value: any, regex: RegExp, replacement: string): any {
+                // Handle string values
+                if (typeof value === 'string') {
+                  return regex.test(value) ? value.replace(regex, replacement) : value
+                }
+                
+                // Handle arrays
+                if (Array.isArray(value)) {
+                  return value.map(item => updateReferences(item, regex, replacement))
+                }
+                
+                // Handle objects
+                if (value !== null && typeof value === 'object') {
+                  const result = { ...value }
+                  for (const key in result) {
+                    result[key] = updateReferences(result[key], regex, replacement)
+                  }
+                  return result
+                }
+                
+                // Return unchanged for other types
+                return value
+              }
+            })
+          })
+
+          // Update the subblock store with the new values
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...subBlockStore.workflowValues,
+              [activeWorkflowId]: updatedWorkflowValues,
+            },
+          })
         }
 
         set(newState)
