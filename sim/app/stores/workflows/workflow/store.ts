@@ -402,16 +402,68 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateBlockName: (id: string, name: string) => {
+        const oldBlock = get().blocks[id]
+        if (!oldBlock) return
+
+        // Create a new state with the updated block name
         const newState = {
           blocks: {
             ...get().blocks,
             [id]: {
-              ...get().blocks[id],
+              ...oldBlock,
               name,
             },
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+        }
+
+        // Update references in subblock store
+        const subBlockStore = useSubBlockStore.getState()
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          // Get the workflow values for the active workflow
+          // workflowValues: {[block_id]:{[subblock_id]:[subblock_value]}}
+          const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
+          const updatedWorkflowValues = { ...workflowValues }
+          
+          // Loop through blocks
+          Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
+            if (blockId === id) return // Skip the block being renamed
+
+            // Loop through subblocks and update references
+            Object.entries(blockValues).forEach(([subBlockId, value]) => {
+              const oldBlockName = oldBlock.name.replace(/\s+/g, '').toLowerCase()
+              const newBlockName = name.replace(/\s+/g, '').toLowerCase()
+              const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
+
+              if (typeof value === 'string') {
+                // Look for references to the old block name
+                if (regex.test(value)) {
+                  // Update the reference to use the new block name
+                  updatedWorkflowValues[blockId][subBlockId] = value.replace(regex, `<${newBlockName}.`)
+                }
+              }
+              else if (Array.isArray(value)) {
+                for (const obj of value) {
+                  if (regex.test(obj.cells.Key)) {
+                    obj.cells.Key = obj.cells.Key.replace(regex, `<${newBlockName}.`)
+                  }
+                  if (regex.test(obj.cells.Value)) {
+                    obj.cells.Value = obj.cells.Value.replace(regex, `<${newBlockName}.`)
+                  }
+                }
+              }
+            })
+          })
+
+          // Update the subblock store with the new values
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...subBlockStore.workflowValues,
+              [activeWorkflowId]: updatedWorkflowValues,
+            },
+          })
         }
 
         set(newState)
