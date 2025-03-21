@@ -1,15 +1,19 @@
 version: 2
 updates:
   - package-ecosystem: "npm"
-    directory: "/sim" 
+    directory: "/sim"
     schedule:
       interval: "weekly"
+      day: "monday"  # Start the week with fresh updates
+      time: "09:00"  # Server timezone
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
       - "security"
+      - "sim-package"
     commit-message:
       prefix: "fix"
+      prefix-development: "chore"
       include: "scope"
     groups:
       development-tools:
@@ -17,23 +21,77 @@ updates:
           - "*eslint*"
           - "*prettier*"
           - "*test*"
+          - "*jest*"
+          - "*babel*"
+        update-types:
+          - "minor"
+          - "patch"
       ui-components:
         patterns:
           - "@shadcn/*"
           - "tailwind*"
+          - "*ui*"
+          - "@radix-ui/*"
       react-ecosystem:
         patterns:
           - "react*"
           - "next*"
+          - "@types/react*"
     target-branch: "main"
     versioning-strategy: auto
     pull-request-branch-name:
       separator: "-"
     
+  # Documentation site dependencies (/docs)
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"  # Stagger updates to avoid too many PRs at once
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "documentation"
+    commit-message:
+      prefix: "docs"
+      include: "scope"
+    groups:
+      documentation-deps:
+        patterns:
+          - "*"
+    
+  # Root-level dependencies (if any)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "root-package"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    
+  # GitHub Actions workflows
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
     labels:
       - "dependencies"
-      - "github-actions" 
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+    
+  # Docker containers (if applicable)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "docker"
