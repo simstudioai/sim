@@ -7,6 +7,21 @@ export type ProviderId =
   | 'cerebras'
   | 'groq'
 
+/**
+ * Model pricing information per million tokens
+ */
+export interface ModelPricing {
+  input: number // Cost per million tokens for input
+  cachedInput?: number // Cost per million tokens for cached input (optional)
+  output: number // Cost per million tokens for output
+  updatedAt: string // ISO timestamp when pricing was last updated
+}
+
+/**
+ * Map of model IDs to their pricing information
+ */
+export type ModelPricingMap = Record<string, ModelPricing>
+
 export interface TokenInfo {
   prompt?: number
   completion?: number
@@ -66,6 +81,12 @@ export interface ProviderResponse {
     firstResponseTime?: number // Time to first token/response
     iterations?: number // Number of model calls for tool use
     timeSegments?: TimeSegment[] // Detailed timeline of all operations
+  }
+  cost?: {
+    input: number // Cost in USD for input tokens
+    output: number // Cost in USD for output tokens
+    total: number // Total cost in USD
+    pricing: ModelPricing // The pricing used for calculation
   }
 }
 

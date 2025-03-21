@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
+import { formatCost } from '@/providers/utils'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
 
@@ -127,7 +129,7 @@ export function Sidebar({
   hasNext = false,
   hasPrev = false,
 }: LogSidebarProps) {
-  const [width, setWidth] = useState(400) // Default width from the original styles
+  const [width, setWidth] = useState(500) // Default width from the original styles
   const [isDragging, setIsDragging] = useState(false)
   const [currentLogId, setCurrentLogId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -167,9 +169,19 @@ export function Sidebar({
     return !!(log?.metadata?.traceSpans && log.metadata.traceSpans.length > 0)
   }, [log])
 
+  // Helper to determine if we have cost information to display
+  const hasCostInfo = useMemo(() => {
+    return !!(log?.metadata?.cost && (log.metadata.cost.input || log.metadata.cost.output))
+  }, [log])
+
+  const isWorkflowWithCost = useMemo(() => {
+    return isWorkflowExecutionLog && hasCostInfo
+  }, [isWorkflowExecutionLog, hasCostInfo])
+
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true)
     e.preventDefault()
+    e.stopPropagation()
   }
 
   useEffect(() => {
@@ -382,6 +394,54 @@ export function Sidebar({
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Tool Calls</h3>
                   <ToolCallsDisplay metadata={log.metadata} />
+                </div>
+              )}
+
+              {/* Cost Information (if available) */}
+              {hasCostInfo && log.metadata?.cost && (
+                <div>
+                  <h3 className="text-xs font-medium text-muted-foreground mb-1">
+                    {isWorkflowWithCost ? 'Total Model Cost' : 'Model Cost'}
+                  </h3>
+                  <div
+                    className={`space-y-1 text-sm ${isWorkflowWithCost ? 'border rounded-md p-3 bg-muted/10' : ''}`}
+                  >
+                    {log.metadata.cost.model && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Model:</span>
+                        <span>{log.metadata.cost.model}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Input:</span>
+                      <span>{formatCost(log.metadata.cost.input || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Output:</span>
+                      <span>{formatCost(log.metadata.cost.output || 0)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className="text-muted-foreground">Total:</span>
+                      <span className={isWorkflowWithCost ? 'text-primary font-bold' : ''}>
+                        {formatCost(log.metadata.cost.total || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Tokens:</span>
+                      <span>
+                        {log.metadata.cost.tokens?.prompt || 0} in /{' '}
+                        {log.metadata.cost.tokens?.completion || 0} out
+                      </span>
+                    </div>
+
+                    {isWorkflowWithCost && (
+                      <div className="border-t mt-2 pt-2 text-xs text-muted-foreground">
+                        <p>
+                          This is the total cost for all agent blocks in this workflow execution.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

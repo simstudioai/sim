@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { supportsTemperature } from './model-capabilities'
 import { ProviderRequest, ProviderResponse } from './types'
-import { generateStructuredOutputInstructions, getProvider } from './utils'
+import { calculateCost, generateStructuredOutputInstructions, getProvider } from './utils'
 
 const logger = createLogger('Providers')
 
@@ -73,6 +73,14 @@ export async function executeProviderRequest(
     hasToolCalls: !!response.toolCalls,
     toolCallsCount: response.toolCalls?.length || 0,
   })
+
+  // Calculate cost based on token usage if tokens are available
+  if (response.tokens) {
+    const { prompt: promptTokens = 0, completion: completionTokens = 0 } = response.tokens
+    const useCachedInput = !!request.context && request.context.length > 0
+
+    response.cost = calculateCost(response.model, promptTokens, completionTokens, useCachedInput)
+  }
 
   return response
 }
