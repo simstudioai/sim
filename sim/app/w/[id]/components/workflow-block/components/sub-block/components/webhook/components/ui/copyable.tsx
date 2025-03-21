@@ -33,7 +33,7 @@ export function CopyableField({
   return (
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 pr-1">
         {isLoading ? (
           <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -54,6 +54,7 @@ export function CopyableField({
           size="icon"
           onClick={() => copyToClipboard(value, copyType)}
           disabled={isLoading || !value}
+          className="ml-1"
         >
           {copied === copyType ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         </Button>

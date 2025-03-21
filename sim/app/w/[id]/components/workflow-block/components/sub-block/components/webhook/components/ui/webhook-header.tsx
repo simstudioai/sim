@@ -13,7 +13,8 @@ export function WebhookDialogHeader({ webhookProvider, webhookId }: WebhookDialo
   // Get provider icon
   const getProviderIcon = () => {
     return provider.icon({
-      className: 'h-5 w-5 text-green-500 dark:text-green-400',
+      className:
+        webhookProvider === 'github' ? 'h-5 w-5' : 'h-5 w-5 text-green-500 dark:text-green-400',
     })
   }
 

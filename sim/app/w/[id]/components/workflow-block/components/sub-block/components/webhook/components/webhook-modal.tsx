@@ -374,10 +374,15 @@ export function WebhookModal({
           <GithubConfig
             contentType={githubContentType}
             setContentType={setGithubContentType}
+            webhookSecret={generalToken}
+            setWebhookSecret={setGeneralToken}
+            sslVerification={requireAuth ? 'enabled' : 'disabled'}
+            setSslVerification={(value) => setRequireAuth(value === 'enabled')}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}
             copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
           />
         )
       case 'stripe':
@@ -414,10 +419,10 @@ export function WebhookModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[675px] max-h-[90vh] overflow-hidden flex flex-col">
           <WebhookDialogHeader webhookProvider={webhookProvider} webhookId={webhookId} />
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 px-2 overflow-y-auto flex-grow pb-6">
             <WebhookUrlField
               webhookUrl={webhookUrl}
               isLoadingToken={isLoadingToken}
