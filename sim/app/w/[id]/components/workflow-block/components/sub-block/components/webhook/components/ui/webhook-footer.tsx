@@ -31,7 +31,7 @@ export function WebhookDialogFooter({
     webhookId && (webhookProvider === 'whatsapp' || webhookProvider === 'generic') && onTest
 
   return (
-    <DialogFooter className="flex justify-between mt-6 sticky bottom-0 py-3 bg-background border-t z-10">
+    <DialogFooter className="flex justify-between sticky bottom-0 py-3 bg-background border-t z-10 mt-auto w-full">
       <div>
         {webhookId && (
           <div className="flex space-x-3">
