@@ -245,7 +245,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       // Add a marketplace notification with detailed information
       addNotification(
         'marketplace',
-        'Workflow successfully published to marketplace',
+        `"${data.name}" successfully published to marketplace`,
         activeWorkflowId
       )
 
@@ -283,7 +283,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       // Add a notification
       addNotification(
         'marketplace',
-        'Workflow successfully unpublished from marketplace',
+        `"${marketplaceInfo?.name || 'Workflow'}" successfully unpublished from marketplace`,
         activeWorkflowId
       )
 

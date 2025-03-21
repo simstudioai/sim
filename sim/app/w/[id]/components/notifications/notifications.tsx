@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Rocket, Terminal, X } from 'lucide-react'
+import { Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -31,6 +31,7 @@ const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
   api: Rocket,
+  marketplace: Store,
 }
 
 // Color schemes for different notification types
@@ -40,6 +41,8 @@ const NotificationColors = {
   console:
     'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
   api: 'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
+  marketplace:
+    'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
 }
 
 // API deployment status styling
@@ -132,7 +135,7 @@ export function NotificationList() {
 
   return (
     <div
-      className="absolute left-1/2 z-50 space-y-2 max-w-md w-full"
+      className="absolute left-1/2 z-50 space-y-2 max-w-lg w-full"
       style={{
         top: '30px',
         transform: 'translateX(-50%)',
@@ -289,7 +292,7 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
             )}
           </div>
         ) : (
-          // Original layout for error and console notifications
+          // Original layout for error, console and marketplace notifications
           <div className="flex items-start gap-4 py-1">
             {/* Icon with proper vertical alignment */}
             <div className="flex-shrink-0 mt-0.5">
@@ -297,6 +300,7 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
                 className={cn('h-4 w-4', {
                   '!text-red-500 mt-[-3px]': type === 'error',
                   'text-foreground mt-[-3px]': type === 'console',
+                  'mt-[-4.5px] text-foreground ': type === 'marketplace',
                 })}
               />
             </div>
@@ -304,7 +308,9 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
             {/* Content area with right margin for balance */}
             <div className="flex-1 space-y-2 mr-4">
               <AlertTitle className="flex items-center justify-between -mt-0.5">
-                <span>{type === 'error' ? 'Error' : 'Console'}</span>
+                <span>
+                  {type === 'error' ? 'Error' : type === 'marketplace' ? 'Marketplace' : 'Console'}
+                </span>
 
                 {/* Close button for persistent notifications */}
                 {options?.isPersistent && (
