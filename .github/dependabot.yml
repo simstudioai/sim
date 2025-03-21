@@ -1,14 +1,16 @@
 version: 2
 updates:
-  # Update npm dependencies
   - package-ecosystem: "npm"
-    directory: "/sim"  # Location of package.json
+    directory: "/sim" 
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5  # Start conservative to manage review load
+    open-pull-requests-limit: 10
     labels:
       - "dependencies"
-    # Group related dependencies to reduce PR volume
+      - "security"
+    commit-message:
+      prefix: "fix"
+      include: "scope"
     groups:
       development-tools:
         patterns:
@@ -23,13 +25,11 @@ updates:
         patterns:
           - "react*"
           - "next*"
-    # Auto-merge configuration should be at this level
     target-branch: "main"
     versioning-strategy: auto
     pull-request-branch-name:
       separator: "-"
     
-  # Also check for GitHub Actions updates
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
