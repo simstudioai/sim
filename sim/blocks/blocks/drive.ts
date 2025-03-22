@@ -89,7 +89,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     },
     // List Fields - Folder Selector
     {
-      id: 'folderSelector',
+      id: 'folderId',
       title: 'Select Folder',
       type: 'file-selector',
       layout: 'full',
@@ -110,7 +110,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       condition: {
         field: 'operation',
         value: 'list',
-        and: { field: 'folderSelector', value: '' },
+        and: { field: 'folderId', value: '' },
       },
     },
     {
@@ -146,21 +146,13 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         }
       },
       params: (params) => {
-        const { credential, folderSelector, folderId, ...rest } = params
-
-        // Convert pageSize to number if it exists
-        const pageSize = rest.pageSize ? parseInt(rest.pageSize as string, 10) : undefined
-
-        // Use the selected folder ID or the manually entered one
-        // If folderSelector is provided, it's from the file selector and contains the folder ID
-        // If not, fall back to manually entered ID
-        const effectiveFolderId = (folderSelector || folderId || '').trim()
+        const { credential, folderId, ...rest } = params
 
         return {
+          accessToken: credential,
+          folderId: folderId?.trim() || '',
+          pageSize: rest.pageSize ? parseInt(rest.pageSize as string, 10) : undefined,
           ...rest,
-          folderId: effectiveFolderId,
-          pageSize,
-          credential,
         }
       },
     },
@@ -175,7 +167,6 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     // Download operation inputs
     fileId: { type: 'string', required: false },
     // List operation inputs
-    folderSelector: { type: 'string', required: false },
     folderId: { type: 'string', required: false },
     query: { type: 'string', required: false },
     pageSize: { type: 'number', required: false },
