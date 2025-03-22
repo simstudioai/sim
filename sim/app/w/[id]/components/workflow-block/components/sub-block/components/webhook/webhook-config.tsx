@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
+import { GithubIcon, StripeIcon, WhatsAppIcon, SlackIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -38,8 +38,12 @@ export interface StripeConfig {
   // Any Stripe-specific fields would go here
 }
 
+export interface SlackConfig {
+  signingSecret: string
+}
+
 // Union type for all provider configurations
-export type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | Record<string, never>
+export type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | SlackConfig | Record<string, never>
 
 // Define available webhook providers
 export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
@@ -81,6 +85,19 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
     name: 'Generic',
     icon: (props) => <CheckCircle2 {...props} />,
     configFields: {},
+  },
+  slack: {
+    id: 'slack',
+    name: 'Slack',
+    icon: (props) => <SlackIcon {...props} />,
+    configFields: {
+      signingSecret: {
+        type: 'string', 
+        label: 'Signing Secret',
+        placeholder: 'Enter your Slack app signing secret',
+        description: 'The signing secret from your Slack app to validate request authenticity.',
+      },
+    },
   },
 }
 
