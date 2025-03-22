@@ -261,7 +261,7 @@ When working on email templates, you can preview them using a local email previe
 
 ## License
 
-This project is licensed under the MIT License. By contributing, you agree that your contributions will be licensed under the MIT License as well.
+This project is licensed under the Apache License 2.0. By contributing, you agree that your contributions will be licensed under the Apache License 2.0 as well.
 
 ---
 
