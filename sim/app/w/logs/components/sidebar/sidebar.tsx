@@ -27,95 +27,34 @@ interface LogSidebarProps {
  * Formats JSON content for display, handling multiple JSON objects separated by '--'
  */
 const formatJsonContent = (content: string): React.ReactNode => {
-  // Check if the content has multiple parts separated by '--'
-  const parts = content.split(/\s*--\s*/g).filter((part) => part.trim().length > 0)
+  // Look for a pattern like "Block Agent 1 (agent):" to separate system comment from content
+  const blockPattern = /^(Block .+?\(.+?\):)\s*/
+  const match = content.match(blockPattern)
 
-  if (parts.length > 1) {
-    // Handle multiple parts
+  if (match) {
+    const systemComment = match[1]
+    const actualContent = content.substring(match[0].length).trim()
+
     return (
-      <div className="space-y-4">
-        {parts.map((part, index) => (
-          <div key={index} className="border-b pb-4 last:border-b-0 last:pb-0">
-            {formatSingleJsonContent(part)}
-          </div>
-        ))}
+      <div className="w-full">
+        <div className="text-sm font-medium mb-2 text-muted-foreground">{systemComment}</div>
+        <div className="bg-secondary/30 p-3 rounded-md relative group">
+          <CopyButton text={actualContent} />
+          <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
+            {actualContent}
+          </pre>
+        </div>
       </div>
     )
   }
 
-  // Handle single part
-  return formatSingleJsonContent(content)
-}
-
-/**
- * Formats a single JSON content part
- */
-const formatSingleJsonContent = (content: string): React.ReactNode => {
-  try {
-    // Try to parse the content as JSON
-    const jsonStart = content.indexOf('{')
-    if (jsonStart === -1) return <div className="text-sm break-words">{content}</div>
-
-    const messagePart = content.substring(0, jsonStart).trim()
-    const jsonPart = content.substring(jsonStart)
-
-    try {
-      const jsonData = JSON.parse(jsonPart)
-
-      return (
-        <div>
-          {messagePart && <div className="mb-2 font-medium text-sm break-words">{messagePart}</div>}
-          <div className="bg-secondary/50 p-3 rounded-md relative group">
-            <CopyButton text={JSON.stringify(jsonData, null, 2)} />
-            <pre className="text-xs whitespace-pre-wrap break-all max-w-full overflow-hidden">
-              <code>{JSON.stringify(jsonData, null, 2)}</code>
-            </pre>
-          </div>
-        </div>
-      )
-    } catch (e) {
-      // If JSON parsing fails, try to find and format any valid JSON objects in the content
-      const jsonRegex = /{[^{}]*({[^{}]*})*[^{}]*}/g
-      const jsonMatches = content.match(jsonRegex)
-
-      if (jsonMatches && jsonMatches.length > 0) {
-        return (
-          <div>
-            {messagePart && (
-              <div className="mb-2 font-medium text-sm break-words">{messagePart}</div>
-            )}
-            {jsonMatches.map((jsonStr, idx) => {
-              try {
-                const parsedJson = JSON.parse(jsonStr)
-                return (
-                  <div key={idx} className="bg-secondary/50 p-3 rounded-md mt-2 relative group">
-                    <CopyButton text={JSON.stringify(parsedJson, null, 2)} />
-                    <pre className="text-xs whitespace-pre-wrap break-all max-w-full overflow-hidden">
-                      <code>{JSON.stringify(parsedJson, null, 2)}</code>
-                    </pre>
-                  </div>
-                )
-              } catch {
-                return (
-                  <div key={idx} className="mt-2 text-sm break-words relative group">
-                    <CopyButton text={jsonStr} />
-                    {jsonStr}
-                  </div>
-                )
-              }
-            })}
-          </div>
-        )
-      }
-    }
-  } catch (e) {
-    // If all parsing fails, return the original content
-  }
-
+  // If no system comment pattern found, show the whole content
   return (
-    <div className="text-sm break-words relative group">
+    <div className="bg-secondary/30 p-3 rounded-md relative group w-full">
       <CopyButton text={content} />
-      {content}
+      <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
+        {content}
+      </pre>
     </div>
   )
 }
@@ -129,15 +68,22 @@ export function Sidebar({
   hasNext = false,
   hasPrev = false,
 }: LogSidebarProps) {
-  const [width, setWidth] = useState(500) // Default width from the original styles
+  const MIN_WIDTH = 400
+  const DEFAULT_WIDTH = 500
+  const EXPANDED_WIDTH = 650
+
+  const [width, setWidth] = useState(DEFAULT_WIDTH) // Start with default width
   const [isDragging, setIsDragging] = useState(false)
   const [currentLogId, setCurrentLogId] = useState<string | null>(null)
+  const [isTraceExpanded, setIsTraceExpanded] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
   // Update currentLogId when log changes
   useEffect(() => {
     if (log?.id) {
       setCurrentLogId(log.id)
+      // Reset trace expanded state when log changes
+      setIsTraceExpanded(false)
     }
   }, [log?.id])
 
@@ -178,6 +124,24 @@ export function Sidebar({
     return isWorkflowExecutionLog && hasCostInfo
   }, [isWorkflowExecutionLog, hasCostInfo])
 
+  // Handle trace span expansion state
+  const handleTraceSpanToggle = (expanded: boolean) => {
+    setIsTraceExpanded(expanded)
+
+    // If a trace span is expanded, increase the sidebar width only if it's currently below the expanded width
+    if (expanded) {
+      // Only expand if current width is less than expanded width
+      if (width < EXPANDED_WIDTH) {
+        setWidth(EXPANDED_WIDTH)
+      }
+    } else {
+      // If all trace spans are collapsed, revert to default width only if we're at expanded width
+      if (width === EXPANDED_WIDTH) {
+        setWidth(DEFAULT_WIDTH)
+      }
+    }
+  }
+
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true)
     e.preventDefault()
@@ -188,8 +152,9 @@ export function Sidebar({
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
         const newWidth = window.innerWidth - e.clientX
-        // Maintain minimum and maximum widths
-        setWidth(Math.max(400, Math.min(newWidth, window.innerWidth * 0.8)))
+        // Maintain minimum width and respect expansion state
+        const minWidthToUse = isTraceExpanded ? Math.max(MIN_WIDTH, EXPANDED_WIDTH) : MIN_WIDTH
+        setWidth(Math.max(minWidthToUse, Math.min(newWidth, window.innerWidth * 0.8)))
       }
     }
 
@@ -206,7 +171,7 @@ export function Sidebar({
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDragging])
+  }, [isDragging, isTraceExpanded, MIN_WIDTH, EXPANDED_WIDTH, width])
 
   // Handle escape key to close the sidebar
   useEffect(() => {
@@ -242,10 +207,10 @@ export function Sidebar({
 
   return (
     <div
-      className={`fixed inset-y-0 right-0 bg-background border-l shadow-lg transform transition-transform duration-200 ease-in-out z-50 ${
+      className={`fixed inset-y-0 right-0 bg-background border-l transform ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}
-      style={{ top: '64px', width: `${width}px` }}
+      } ${isDragging ? '' : 'transition-all duration-300 ease-in-out'} z-50 flex flex-col`}
+      style={{ top: '64px', width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
     >
       <div
         className="absolute left-[-4px] top-0 bottom-0 w-4 cursor-ew-resize hover:bg-accent/50 z-50"
@@ -254,7 +219,7 @@ export function Sidebar({
       {log && (
         <>
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b">
+          <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
             <h2 className="text-base font-medium">Log Details</h2>
             <div className="flex items-center space-x-1">
               <TooltipProvider>
@@ -306,17 +271,15 @@ export function Sidebar({
           </div>
 
           {/* Content */}
-          <ScrollArea className="h-[calc(100vh-64px-49px)]" ref={scrollAreaRef}>
-            {' '}
-            {/* Adjust for header height */}
-            <div className="p-4 space-y-4">
+          <ScrollArea className="h-[calc(100vh-64px-49px)] w-full" ref={scrollAreaRef}>
+            <div className="p-4 space-y-4 w-full overflow-hidden pr-6">
               {/* Timestamp */}
               <div>
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Timestamp</h3>
-                <p className="text-sm relative group">
+                <div className="text-sm relative group">
                   <CopyButton text={formatDate(log.createdAt).full} />
                   {formatDate(log.createdAt).full}
-                </p>
+                </div>
               </div>
 
               {/* Workflow */}
@@ -324,14 +287,21 @@ export function Sidebar({
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Workflow</h3>
                   <div
-                    className="inline-flex items-center px-2 py-1 text-xs rounded-md relative group"
+                    className="text-sm relative group"
                     style={{
-                      backgroundColor: `${log.workflow.color}20`,
                       color: log.workflow.color,
                     }}
                   >
                     <CopyButton text={log.workflow.name} />
-                    {log.workflow.name}
+                    <div
+                      className="inline-flex items-center px-2 py-1 text-xs rounded-md"
+                      style={{
+                        backgroundColor: `${log.workflow.color}20`,
+                        color: log.workflow.color,
+                      }}
+                    >
+                      {log.workflow.name}
+                    </div>
                   </div>
                 </div>
               )}
@@ -340,30 +310,30 @@ export function Sidebar({
               {log.executionId && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Execution ID</h3>
-                  <p className="text-sm font-mono break-all relative group">
+                  <div className="text-sm font-mono break-all relative group">
                     <CopyButton text={log.executionId} />
                     {log.executionId}
-                  </p>
+                  </div>
                 </div>
               )}
 
               {/* Level */}
               <div>
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Level</h3>
-                <p className="text-sm capitalize relative group">
+                <div className="text-sm capitalize relative group">
                   <CopyButton text={log.level} />
                   {log.level}
-                </p>
+                </div>
               </div>
 
               {/* Trigger */}
               {log.trigger && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Trigger</h3>
-                  <p className="text-sm capitalize relative group">
+                  <div className="text-sm capitalize relative group">
                     <CopyButton text={log.trigger} />
                     {log.trigger}
-                  </p>
+                  </div>
                 </div>
               )}
 
@@ -371,71 +341,82 @@ export function Sidebar({
               {log.duration && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Duration</h3>
-                  <p className="text-sm relative group">
+                  <div className="text-sm relative group">
                     <CopyButton text={log.duration} />
                     {log.duration}
-                  </p>
+                  </div>
                 </div>
               )}
 
+              {/* Message Content - MOVED ABOVE the Trace Spans and Cost */}
+              <div className="pb-2 w-full">
+                <h3 className="text-xs font-medium text-muted-foreground mb-1">Message</h3>
+                <div className="w-full">{formattedContent}</div>
+              </div>
+
               {/* Trace Spans (if available and this is a workflow execution log) */}
               {isWorkflowExecutionLog && log.metadata?.traceSpans && (
-                <div>
+                <div className="w-full">
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Trace Spans</h3>
-                  <TraceSpansDisplay
-                    traceSpans={log.metadata.traceSpans}
-                    totalDuration={log.metadata.totalDuration}
-                  />
+                  <div className="w-full overflow-x-hidden">
+                    <TraceSpansDisplay
+                      traceSpans={log.metadata.traceSpans}
+                      totalDuration={log.metadata.totalDuration}
+                      onExpansionChange={handleTraceSpanToggle}
+                    />
+                  </div>
                 </div>
               )}
 
               {/* Tool Calls (if available) */}
               {log.metadata?.toolCalls && log.metadata.toolCalls.length > 0 && (
-                <div>
+                <div className="w-full">
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">Tool Calls</h3>
-                  <ToolCallsDisplay metadata={log.metadata} />
+                  <div className="w-full overflow-x-hidden bg-secondary/30 p-3 rounded-md">
+                    <ToolCallsDisplay metadata={log.metadata} />
+                  </div>
                 </div>
               )}
 
-              {/* Cost Information (if available) */}
+              {/* Cost Information (moved to bottom) */}
               {hasCostInfo && log.metadata?.cost && (
                 <div>
                   <h3 className="text-xs font-medium text-muted-foreground mb-1">
                     {isWorkflowWithCost ? 'Total Model Cost' : 'Model Cost'}
                   </h3>
-                  <div
-                    className={`space-y-1 text-sm ${isWorkflowWithCost ? 'border rounded-md p-3 bg-muted/10' : ''}`}
-                  >
-                    {log.metadata.cost.model && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Model:</span>
-                        <span>{log.metadata.cost.model}</span>
+                  <div className="rounded-md border overflow-hidden">
+                    <div className="p-3 space-y-2">
+                      {log.metadata.cost.model && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Model:</span>
+                          <span className="text-sm">{log.metadata.cost.model}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Input:</span>
+                        <span className="text-sm">{formatCost(log.metadata.cost.input || 0)}</span>
                       </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Input:</span>
-                      <span>{formatCost(log.metadata.cost.input || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Output:</span>
-                      <span>{formatCost(log.metadata.cost.output || 0)}</span>
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span className="text-muted-foreground">Total:</span>
-                      <span className={isWorkflowWithCost ? 'text-primary font-bold' : ''}>
-                        {formatCost(log.metadata.cost.total || 0)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Tokens:</span>
-                      <span>
-                        {log.metadata.cost.tokens?.prompt || 0} in /{' '}
-                        {log.metadata.cost.tokens?.completion || 0} out
-                      </span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Output:</span>
+                        <span className="text-sm">{formatCost(log.metadata.cost.output || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t pt-2 mt-1">
+                        <span className="text-sm text-muted-foreground">Total:</span>
+                        <span className="text-sm text-foreground">
+                          {formatCost(log.metadata.cost.total || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Tokens:</span>
+                        <span className="text-xs text-muted-foreground">
+                          {log.metadata.cost.tokens?.prompt || 0} in /{' '}
+                          {log.metadata.cost.tokens?.completion || 0} out
+                        </span>
+                      </div>
                     </div>
 
                     {isWorkflowWithCost && (
-                      <div className="border-t mt-2 pt-2 text-xs text-muted-foreground">
+                      <div className="border-t bg-muted p-3 text-xs text-muted-foreground">
                         <p>
                           This is the total cost for all agent blocks in this workflow execution.
                         </p>
@@ -444,12 +425,6 @@ export function Sidebar({
                   </div>
                 </div>
               )}
-
-              {/* Message Content */}
-              <div className="pb-2">
-                <h3 className="text-xs font-medium text-muted-foreground mb-1">Message</h3>
-                <div>{formattedContent}</div>
-              </div>
             </div>
           </ScrollArea>
         </>
