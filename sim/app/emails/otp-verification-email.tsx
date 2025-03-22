@@ -12,8 +12,9 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { XIcon } from 'lucide-react'
+import { DiscordIcon } from '@/components/icons'
 import { baseStyles } from './base-styles'
-import { DiscordIcon, XIcon } from './email-icons'
 
 interface OTPVerificationEmailProps {
   otp: string
@@ -47,13 +48,17 @@ export const OTPVerificationEmail = ({
       <Body style={baseStyles.main}>
         <Preview>{getSubjectByType(type)}</Preview>
         <Container style={baseStyles.container}>
-          <Section style={baseStyles.header}>
+          <Section style={{ ...baseStyles.header, textAlign: 'center' }}>
             <Img
               src={`${baseUrl}/sim.png`}
               width="120"
               height="40"
               alt="Sim Studio"
-              style={{ display: 'block', objectFit: 'contain' }}
+              style={{
+                display: 'block',
+                objectFit: 'contain',
+                margin: '0 auto',
+              }}
             />
           </Section>
           <Section style={baseStyles.sectionsBorders}>

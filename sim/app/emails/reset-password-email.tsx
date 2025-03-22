@@ -39,13 +39,17 @@ export const ResetPasswordEmail = ({
       <Body style={baseStyles.main}>
         <Preview>Reset your Sim Studio password</Preview>
         <Container style={baseStyles.container}>
-          <Section style={baseStyles.header}>
+          <Section style={{ ...baseStyles.header, textAlign: 'center' }}>
             <Img
               src={`${baseUrl}/sim.png`}
               width="120"
               height="40"
               alt="Sim Studio"
-              style={{ display: 'block', objectFit: 'contain' }}
+              style={{
+                display: 'block',
+                objectFit: 'contain',
+                margin: '0 auto',
+              }}
             />
           </Section>
           <Section style={baseStyles.sectionsBorders}>
