@@ -5,6 +5,11 @@ import { nextCookies } from 'better-auth/next-js'
 import { emailOTP, genericOAuth } from 'better-auth/plugins'
 import { Resend } from 'resend'
 import { createLogger } from '@/lib/logs/console-logger'
+import {
+  getEmailSubject,
+  renderOTPEmail,
+  renderPasswordResetEmail,
+} from '@/app/emails/render-email'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
@@ -72,16 +77,15 @@ export const auth = betterAuth({
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
+      const username = user.name || ''
+
+      const html = await renderPasswordResetEmail(username, url)
+
       const result = await resend.emails.send({
         from: 'Sim Studio <team@simstudio.ai>',
         to: user.email,
-        subject: 'Reset your password',
-        html: `
-          <h2>Reset Your Password</h2>
-          <p>Click the link below to reset your password:</p>
-          <a href="${url}">${url}</a>
-          <p>If you didn't request this, you can safely ignore this email.</p>
-        `,
+        subject: getEmailSubject('reset-password'),
+        html,
       })
 
       if (!result) {
@@ -112,18 +116,14 @@ export const auth = betterAuth({
             return
           }
 
+          const html = await renderOTPEmail(data.otp, data.email, data.type)
+
           // In production, send an actual email
           const result = await resend.emails.send({
             from: 'Sim Studio <onboarding@simstudio.ai>',
             to: data.email,
-            subject: 'Verify your email',
-            html: `
-              <h2>Welcome to Sim Studio!</h2>
-              <p>Your verification code is:</p>
-              <h1 style="font-size: 32px; letter-spacing: 2px; text-align: center; padding: 16px; background-color: #f8f9fa; border-radius: 4px;">${data.otp}</h1>
-              <p>This code will expire in 15 minutes.</p>
-              <p>If you didn't create an account, you can safely ignore this email.</p>
-            `,
+            subject: getEmailSubject(data.type),
+            html,
           })
 
           if (!result) {

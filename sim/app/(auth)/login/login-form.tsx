@@ -12,12 +12,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { RequestResetForm } from '@/app/(auth)/components/reset-password-form'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
+
+const logger = createLogger('LoginForm')
 
 export default function LoginPage({
   githubAvailable,
@@ -32,6 +37,15 @@ export default function LoginPage({
   const [isLoading, setIsLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
+
+  // Forgot password states
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [isSubmittingReset, setIsSubmittingReset] = useState(false)
+  const [resetStatus, setResetStatus] = useState<{
+    type: 'success' | 'error' | null
+    message: string
+  }>({ type: null, message: '' })
 
   useEffect(() => {
     setMounted(true)
@@ -95,6 +109,55 @@ export default function LoginPage({
     }
   }
 
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      setResetStatus({
+        type: 'error',
+        message: 'Please enter your email address',
+      })
+      return
+    }
+
+    try {
+      setIsSubmittingReset(true)
+      setResetStatus({ type: null, message: '' })
+
+      const response = await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: forgotPasswordEmail,
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to request password reset')
+      }
+
+      setResetStatus({
+        type: 'success',
+        message: 'Password reset link sent to your email',
+      })
+
+      setTimeout(() => {
+        setForgotPasswordOpen(false)
+        setResetStatus({ type: null, message: '' })
+      }, 2000)
+    } catch (error) {
+      logger.error('Error requesting password reset:', { error })
+      setResetStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to request password reset',
+      })
+    } finally {
+      setIsSubmittingReset(false)
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
       {mounted && <NotificationList />}
@@ -134,7 +197,20 @@ export default function LoginPage({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const emailInput = document.getElementById('email') as HTMLInputElement
+                          setForgotPasswordEmail(emailInput?.value || '')
+                          setForgotPasswordOpen(true)
+                        }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                     <Input
                       id="password"
                       name="password"
@@ -160,6 +236,24 @@ export default function LoginPage({
           </CardFooter>
         </Card>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <RequestResetForm
+            email={forgotPasswordEmail}
+            onEmailChange={setForgotPasswordEmail}
+            onSubmit={handleForgotPassword}
+            isSubmitting={isSubmittingReset}
+            statusType={resetStatus.type}
+            statusMessage={resetStatus.message}
+            className="py-4"
+          />
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }
