@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Lock } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -67,7 +67,7 @@ export function RequestResetForm({
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting ? (
             <>
-              <Lock className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Sending...
             </>
           ) : (
@@ -103,27 +103,18 @@ export function SetNewPasswordForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Clear previous validation messages
-    setValidationMessage('')
-
-    // Validation
-    if (!token) {
-      setValidationMessage(
-        'Invalid or missing reset token. Please request a new password reset link.'
-      )
-      return
-    }
-
+    // Simple validation
     if (password.length < 8) {
-      setValidationMessage('Password must be at least 8 characters long.')
+      setValidationMessage('Password must be at least 8 characters long')
       return
     }
 
     if (password !== confirmPassword) {
-      setValidationMessage('Passwords do not match.')
+      setValidationMessage('Passwords do not match')
       return
     }
 
+    setValidationMessage('')
     onSubmit(password)
   }
 
@@ -181,7 +172,7 @@ export function SetNewPasswordForm({
         <Button disabled={isSubmitting || !token} type="submit" className="w-full">
           {isSubmitting ? (
             <>
-              <Lock className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Resetting...
             </>
           ) : (
