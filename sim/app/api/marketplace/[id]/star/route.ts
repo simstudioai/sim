@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/app/db'
-import * as schema from '@/app/db/schema'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflow/utils'
 
 const logger = createLogger('MarketplaceStarAPI')

@@ -219,7 +219,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         return
       }
 
-      const response = await fetch('/api/marketplace', {
+      const response = await fetch('/api/marketplace/publish', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

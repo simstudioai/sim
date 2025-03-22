@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/app/db'
-import * as schema from '@/app/db/schema'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
 import { validateWorkflowAccess } from '@/app/api/workflow/middleware'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflow/utils'
 
