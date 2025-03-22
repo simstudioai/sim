@@ -77,7 +77,7 @@ export const auth = betterAuth({
     throwOnMissingCredentials: true,
     throwOnInvalidCredentials: true,
     sendResetPassword: async ({ user, url, token }, request) => {
-      const username = user.name || user.email.split('@')[0]
+      const username = user.name || ''
 
       const html = await renderPasswordResetEmail(username, url)
 

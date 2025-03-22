@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Email is required' }, { status: 400 })
     }
 
-    // Send password reset email using better-auth
     await auth.api.forgetPassword({
       body: {
         email,

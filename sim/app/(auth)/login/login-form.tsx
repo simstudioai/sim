@@ -122,7 +122,6 @@ export default function LoginPage({
       setIsSubmittingReset(true)
       setResetStatus({ type: null, message: '' })
 
-      // Call the better-auth forgetPassword function through our API
       const response = await fetch('/api/auth/forget-password', {
         method: 'POST',
         headers: {

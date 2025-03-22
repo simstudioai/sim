@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -16,7 +16,7 @@ import { SetNewPasswordForm } from '../components/reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
@@ -45,7 +45,6 @@ export default function ResetPasswordPage() {
       setIsSubmitting(true)
       setStatusMessage({ type: null, text: '' })
 
-      // Call better-auth reset password endpoint
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
         headers: {
@@ -62,16 +61,15 @@ export default function ResetPasswordPage() {
         throw new Error(errorData.message || 'Failed to reset password')
       }
 
-      // If successful, show success message and redirect after a delay
       setStatusMessage({
         type: 'success',
         text: 'Password reset successful! Redirecting to login...',
       })
 
-      // Redirect to login page after 2 seconds
+      // Redirect to login page after 1.5 seconds
       setTimeout(() => {
         router.push('/login?resetSuccess=true')
-      }, 2000)
+      }, 1500)
     } catch (error) {
       logger.error('Error resetting password:', { error })
       setStatusMessage({
@@ -111,5 +109,15 @@ export default function ResetPasswordPage() {
         </Card>
       </div>
     </main>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}
+    >
+      <ResetPasswordContent />
+    </Suspense>
   )
 }

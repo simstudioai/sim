@@ -13,8 +13,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: 'Token and new password are required' }, { status: 400 })
     }
 
-    // Call resetPassword with the token and new password
-    // This calls the endpoint from better-auth
     await auth.api.resetPassword({
       body: {
         newPassword,
