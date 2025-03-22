@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -39,6 +39,24 @@ function VerificationForm({
     resendCode,
     handleOtpChange,
   } = useVerification({ hasResendKey, isProduction })
+
+  const [countdown, setCountdown] = useState(0)
+  const [isResendDisabled, setIsResendDisabled] = useState(false)
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000)
+      return () => clearTimeout(timer)
+    } else if (countdown === 0 && isResendDisabled) {
+      setIsResendDisabled(false)
+    }
+  }, [countdown, isResendDisabled])
+
+  const handleResend = () => {
+    resendCode()
+    setIsResendDisabled(true)
+    setCountdown(30)
+  }
 
   return (
     <>
@@ -111,13 +129,19 @@ function VerificationForm({
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
             Didn't receive a code?{' '}
-            <button
-              className="text-primary hover:underline font-medium"
-              onClick={resendCode}
-              disabled={isLoading}
-            >
-              Resend
-            </button>
+            {countdown > 0 ? (
+              <span className="text-muted-foreground">
+                Resend in <span className="font-medium text-primary">{countdown}s</span>
+              </span>
+            ) : (
+              <button
+                className="text-primary hover:underline font-medium"
+                onClick={handleResend}
+                disabled={isLoading || isResendDisabled}
+              >
+                Resend
+              </button>
+            )}
           </p>
         </CardFooter>
       )}

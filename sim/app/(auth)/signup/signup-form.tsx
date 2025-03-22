@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -19,6 +20,23 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 
+const PASSWORD_VALIDATIONS = {
+  minLength: { regex: /.{8,}/, message: 'Password must be at least 8 characters long.' },
+  uppercase: {
+    regex: /(?=.*?[A-Z])/,
+    message: 'Password must include at least one uppercase letter.',
+  },
+  lowercase: {
+    regex: /(?=.*?[a-z])/,
+    message: 'Password must include at least one lowercase letter.',
+  },
+  number: { regex: /(?=.*?[0-9])/, message: 'Password must include at least one number.' },
+  special: {
+    regex: /(?=.*?[#?!@$%^&*-])/,
+    message: 'Password must include at least one special character.',
+  },
+}
+
 export default function SignupPage({
   githubAvailable,
   googleAvailable,
@@ -30,12 +48,52 @@ export default function SignupPage({
 }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
+  const [showPassword, setShowPassword] = useState(false)
+  const [password, setPassword] = useState('')
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+  const [showValidationError, setShowValidationError] = useState(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Validate password and return array of error messages
+  const validatePassword = (passwordValue: string): string[] => {
+    const errors: string[] = []
+
+    // Check each validation criteria
+    if (!PASSWORD_VALIDATIONS.minLength.regex.test(passwordValue)) {
+      errors.push(PASSWORD_VALIDATIONS.minLength.message)
+    }
+
+    if (!PASSWORD_VALIDATIONS.uppercase.regex.test(passwordValue)) {
+      errors.push(PASSWORD_VALIDATIONS.uppercase.message)
+    }
+
+    if (!PASSWORD_VALIDATIONS.lowercase.regex.test(passwordValue)) {
+      errors.push(PASSWORD_VALIDATIONS.lowercase.message)
+    }
+
+    if (!PASSWORD_VALIDATIONS.number.regex.test(passwordValue)) {
+      errors.push(PASSWORD_VALIDATIONS.number.message)
+    }
+
+    if (!PASSWORD_VALIDATIONS.special.regex.test(passwordValue)) {
+      errors.push(PASSWORD_VALIDATIONS.special.message)
+    }
+
+    return errors
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value
+    setPassword(newPassword)
+
+    // Silently validate but don't show errors
+    validatePassword(newPassword)
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -43,41 +101,80 @@ export default function SignupPage({
 
     const formData = new FormData(e.currentTarget)
     const email = formData.get('email') as string
-    const password = formData.get('password') as string
+    const passwordValue = formData.get('password') as string
     const name = formData.get('name') as string
 
+    // Validate password on submit
+    const errors = validatePassword(passwordValue)
+    setPasswordErrors(errors)
+
+    // Only show validation errors if there are any
+    setShowValidationError(errors.length > 0)
+
     try {
-      // Validate password length before attempting signup
-      if (password.length < 8) {
-        addNotification('error', 'Password must be at least 8 characters long', null)
+      if (errors.length > 0) {
+        // Show first error as notification
+        addNotification('error', errors[0], null)
         setIsLoading(false)
         return
       }
 
-      await client.signUp.email({ email, password, name })
+      const response = await client.signUp.email(
+        {
+          email,
+          password: passwordValue,
+          name,
+        },
+        {
+          onError: (ctx) => {
+            console.error('Signup error:', ctx.error)
+            let errorMessage = 'Failed to create account'
 
-      // Pass fromSignup=true to indicate we're coming from signup
-      router.push(`/verify?email=${encodeURIComponent(email)}&fromSignup=true`)
-    } catch (err: any) {
-      let errorMessage = 'Failed to create account'
+            // Handle all possible error cases from Better Auth
+            if (ctx.error.status === 422 || ctx.error.message?.includes('already exists')) {
+              errorMessage = 'An account with this email already exists. Please sign in instead.'
+            } else if (
+              ctx.error.message?.includes('BAD_REQUEST') ||
+              ctx.error.message?.includes('Email and password sign up is not enabled')
+            ) {
+              errorMessage = 'Email signup is currently disabled.'
+            } else if (ctx.error.message?.includes('INVALID_EMAIL')) {
+              errorMessage = 'Please enter a valid email address.'
+            } else if (ctx.error.message?.includes('PASSWORD_TOO_SHORT')) {
+              errorMessage = 'Password must be at least 8 characters long.'
+            } else if (ctx.error.message?.includes('PASSWORD_TOO_LONG')) {
+              errorMessage = 'Password must be less than 128 characters.'
+            } else if (ctx.error.message?.includes('USER_ALREADY_EXISTS')) {
+              errorMessage = 'An account with this email already exists. Please sign in instead.'
+            } else if (ctx.error.message?.includes('FAILED_TO_CREATE_USER')) {
+              errorMessage = 'Failed to create account. Please try again later.'
+            } else if (ctx.error.message?.includes('FAILED_TO_CREATE_SESSION')) {
+              errorMessage = 'Failed to create session. Please try again later.'
+            } else if (ctx.error.message?.includes('rate limit')) {
+              errorMessage = 'Too many signup attempts. Please try again later.'
+            } else if (ctx.error.message?.includes('network')) {
+              errorMessage = 'Network error. Please check your connection and try again.'
+            } else if (ctx.error.message?.includes('invalid name')) {
+              errorMessage = 'Please enter a valid name.'
+            }
 
-      if (err.message?.includes('Password is too short')) {
-        errorMessage = 'Password must be at least 8 characters long'
-      } else if (err.message?.includes('existing email')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
-      } else if (err.message?.includes('invalid email')) {
-        errorMessage = 'Please enter a valid email address'
-      } else if (err.message?.includes('password too long')) {
-        errorMessage = 'Password must be less than 128 characters'
-      } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many signup attempts. Please try again later.'
-      } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (err.message?.includes('invalid name')) {
-        errorMessage = 'Please enter a valid name'
+            addNotification('error', errorMessage, null)
+          },
+        }
+      )
+
+      if (!response || response.error) {
+        setIsLoading(false)
+        return
       }
 
-      addNotification('error', errorMessage, null)
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('verificationEmail', email)
+      }
+
+      router.push(`/verify?fromSignup=true`)
+    } catch (err: any) {
+      console.error('Uncaught signup error:', err)
     } finally {
       setIsLoading(false)
     }
@@ -85,7 +182,8 @@ export default function SignupPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
-      {mounted && <NotificationList />}
+      {/* Ensure NotificationList is always rendered */}
+      <NotificationList />
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
         <Card className="w-full">
@@ -127,7 +225,34 @@ export default function SignupPage({
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" name="password" type="password" required />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={handlePasswordChange}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        onClick={() => setShowPassword(!showPassword)}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
+                    {showValidationError && passwordErrors.length > 0 && (
+                      <div className="text-sm text-red-500 mt-1">
+                        <p>Password must:</p>
+                        <ul className="list-disc pl-5 mt-1">
+                          {passwordErrors.map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Creating account...' : 'Create account'}
