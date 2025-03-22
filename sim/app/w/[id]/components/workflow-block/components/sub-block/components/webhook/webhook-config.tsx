@@ -12,7 +12,7 @@ const logger = createLogger('WebhookConfig')
 export interface WebhookProvider {
   id: string
   name: string
-  icon: (props: { className?: string }) => JSX.Element
+  icon: (props: { className?: string }) => React.ReactNode
   configFields: {
     [key: string]: {
       type: 'string' | 'boolean' | 'select'

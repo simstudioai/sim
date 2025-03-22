@@ -75,7 +75,7 @@ function TraceSpanItem({
   isLast,
   parentStartTime,
   workflowStartTime,
-}: TraceSpanItemProps): JSX.Element {
+}: TraceSpanItemProps): React.ReactNode {
   const [expanded, setExpanded] = useState(false) // Collapsed by default
   const hasChildren = span.children && span.children.length > 0
   const hasToolCalls = span.toolCalls && span.toolCalls.length > 0

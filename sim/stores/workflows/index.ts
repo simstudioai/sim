@@ -8,6 +8,61 @@ import { BlockState, WorkflowState } from './workflow/types'
 
 const logger = createLogger('Workflows')
 
+// Get a workflow with its state merged in by ID
+export function getWorkflowWithValues(workflowId: string) {
+  const { workflows } = useWorkflowRegistry.getState()
+  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+  const currentState = useWorkflowStore.getState()
+  
+  if (!workflows[workflowId]) {
+    logger.warn(`Workflow ${workflowId} not found`)
+    return null
+  }
+  
+  const metadata = workflows[workflowId]
+  
+  // Load the specific state for this workflow
+  let workflowState: WorkflowState
+  
+  if (workflowId === activeWorkflowId) {
+    // For the active workflow, use the current state from the store
+    workflowState = {
+      blocks: currentState.blocks,
+      edges: currentState.edges,
+      loops: currentState.loops,
+      isDeployed: currentState.isDeployed,
+      deployedAt: currentState.deployedAt,
+      lastSaved: currentState.lastSaved,
+    }
+  } else {
+    // For other workflows, load their state from localStorage
+    const savedState = loadWorkflowState(workflowId)
+    if (!savedState) {
+      logger.warn(`No saved state found for workflow ${workflowId}`)
+      return null
+    }
+    workflowState = savedState
+  }
+  
+  // Merge the subblock values for this specific workflow
+  const mergedBlocks = mergeSubblockState(workflowState.blocks, workflowId)
+  
+  return {
+    id: workflowId,
+    name: metadata.name,
+    description: metadata.description,
+    color: metadata.color || '#3972F6',
+    state: {
+      blocks: mergedBlocks,
+      edges: workflowState.edges,
+      loops: workflowState.loops,
+      lastSaved: workflowState.lastSaved,
+      isDeployed: workflowState.isDeployed,
+      deployedAt: workflowState.deployedAt,
+    },
+  }
+}
+
 // Get a specific block with its subblock values merged in
 export function getBlockWithValues(blockId: string): BlockState | null {
   const workflowState = useWorkflowStore.getState()
