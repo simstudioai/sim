@@ -26,13 +26,19 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
         'files(id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents),nextPageToken'
       )
 
+      // Build the query conditions
+      const conditions = ['trashed = false'] // Always exclude trashed files
       if (params.folderId) {
-        url.searchParams.append('q', `'${params.folderId}' in parents`)
+        conditions.push(`'${params.folderId}' in parents`)
       }
+
+      // Combine all conditions with AND
+      url.searchParams.append('q', conditions.join(' and '))
+
       if (params.query) {
         const existingQ = url.searchParams.get('q')
         const queryPart = `name contains '${params.query}'`
-        url.searchParams.set('q', existingQ ? `${existingQ} and ${queryPart}` : queryPart)
+        url.searchParams.set('q', `${existingQ} and ${queryPart}`)
       }
       if (params.pageSize) {
         url.searchParams.append('pageSize', params.pageSize.toString())
