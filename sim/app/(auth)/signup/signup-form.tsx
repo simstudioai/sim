@@ -210,8 +210,8 @@ export default function SignupPage({
               <form onSubmit={onSubmit}>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" name="name" type="text" required />
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input id="name" name="name" type="text" placeholder="Alan Turing" required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
@@ -231,6 +231,7 @@ export default function SignupPage({
                         name="password"
                         type={showPassword ? 'text' : 'password'}
                         required
+                        placeholder="Enter your password"
                         value={password}
                         onChange={handlePasswordChange}
                       />
