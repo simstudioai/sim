@@ -19,11 +19,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.info(`[${requestId}] Retrieved status for workflow: ${id}`, {
       isDeployed: validation.workflow.isDeployed,
+      isPublished: validation.workflow.isPublished,
     })
 
     return createSuccessResponse({
       isDeployed: validation.workflow.isDeployed,
       deployedAt: validation.workflow.deployedAt,
+      isPublished: validation.workflow.isPublished,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error getting status for workflow: ${(await params).id}`, error)

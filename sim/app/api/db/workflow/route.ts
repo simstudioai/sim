@@ -19,6 +19,7 @@ const WorkflowStateSchema = z.object({
     .union([z.string(), z.date()])
     .optional()
     .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
+  isPublished: z.boolean().optional(),
 })
 
 const WorkflowSchema = z.object({

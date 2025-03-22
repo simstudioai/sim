@@ -1,4 +1,4 @@
-import { boolean, json, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { boolean, json, pgTable, text, timestamp, uniqueIndex, integer } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -65,6 +65,7 @@ export const workflow = pgTable('workflow', {
   isDeployed: boolean('is_deployed').notNull().default(false),
   deployedAt: timestamp('deployed_at'),
   apiKey: text('api_key'),
+  isPublished: boolean('is_published').notNull().default(false),
   collaborators: json('collaborators').notNull().default('[]'),
 })
 
@@ -157,4 +158,38 @@ export const apiKey = pgTable('api_key', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at'),
+})
+
+export const marketplace = pgTable('marketplace', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  state: json('state').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  authorId: text('author_id')
+    .notNull()
+    .references(() => user.id),
+  authorName: text('author_name').notNull(),
+  stars: integer('stars').notNull().default(0),
+  views: integer('views').notNull().default(0),
+  category: text('category'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const marketplaceStar = pgTable('marketplace_star', {
+  id: text('id').primaryKey(),
+  marketplaceId: text('marketplace_id')
+    .notNull()
+    .references(() => marketplace.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => {
+  return {
+    userMarketplaceIdx: uniqueIndex('user_marketplace_idx').on(table.userId, table.marketplaceId),
+  }
 })

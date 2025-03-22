@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { apiKey } from '@/app/db/schema'
+import { apiKey } from '@/db/schema'
 import { db } from '@/db'
 
 const logger = createLogger('ApiKeysRoute')

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useDebounce } from '../../hooks/use-debounce'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '../../stores/store'
 import { LogsResponse } from '../../stores/types'
 

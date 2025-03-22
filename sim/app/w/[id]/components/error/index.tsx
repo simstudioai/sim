@@ -33,14 +33,6 @@ export function ErrorUI({
         </div>
         <h3 className="text-lg font-semibold">{title}</h3>
         <p className="text-muted-foreground">{message}</p>
-        {onReset && (
-          <button
-            onClick={onReset}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-md hover:bg-blue-600"
-          >
-            Try again
-          </button>
-        )}
       </Card>
     </div>
   )

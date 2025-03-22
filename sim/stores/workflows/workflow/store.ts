@@ -19,10 +19,11 @@ const initialState = {
   lastSaved: undefined,
   isDeployed: false,
   deployedAt: undefined,
+  isPublished: false,
   history: {
     past: [],
     present: {
-      state: { blocks: {}, edges: [], loops: {}, isDeployed: false },
+      state: { blocks: {}, edges: [], loops: {}, isDeployed: false, isPublished: false },
       timestamp: Date.now(),
       action: 'Initial state',
       subblockValues: {},
@@ -261,6 +262,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 blocks: {},
                 edges: [],
                 loops: {},
+                isDeployed: false,
+                isPublished: false,
               },
               timestamp: Date.now(),
               action: 'Initial state',
@@ -269,6 +272,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             future: [],
           },
           lastSaved: Date.now(),
+          isDeployed: false,
+          isPublished: false,
         }
         set(newState)
         workflowSync.sync()
@@ -290,6 +295,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
+            isPublished: currentState.isPublished,
             lastSaved: Date.now(),
           })
 
@@ -568,6 +574,17 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           ...get(),
           isDeployed,
           deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+        }
+
+        set(newState)
+        get().updateLastSaved()
+        workflowSync.sync()
+      },
+
+      setPublishStatus: (isPublished: boolean) => {
+        const newState = {
+          ...get(),
+          isPublished,
         }
 
         set(newState)

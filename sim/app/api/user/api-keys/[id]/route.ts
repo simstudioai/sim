@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { apiKey } from '@/app/db/schema'
+import { apiKey } from '@/db/schema'
 import { db } from '@/db'
 
 const logger = createLogger('ApiKeyRoute')
