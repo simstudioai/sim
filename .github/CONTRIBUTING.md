@@ -239,6 +239,24 @@ If you prefer not to use Docker or Dev Containers:
 
 6. **Make Your Changes and Test Locally.**
 
+### Email Template Development
+
+When working on email templates, you can preview them using a local email preview server:
+
+1. **Run the Email Preview Server:**
+   ```bash
+   npm run email:dev
+   ```
+
+2. **Access the Preview:**
+   - Open `http://localhost:3000` in your browser
+   - You'll see a list of all email templates
+   - Click on any template to view and test it with various parameters
+
+3. **Templates Location:**
+   - Email templates are located in `sim/app/emails/`
+   - After making changes to templates, they will automatically update in the preview
+
 ---
 
 ## License

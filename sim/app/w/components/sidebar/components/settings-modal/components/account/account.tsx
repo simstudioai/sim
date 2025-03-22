@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, Plus, User, UserPlus } from 'lucide-react'
+import { ChevronDown, Lock, LogOut, User, UserPlus } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,7 @@ import {
 import { signOut, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { RequestResetForm } from '@/app/(auth)/components/reset-password-form'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('Account')
@@ -50,6 +52,15 @@ export function Account({ onOpenChange }: AccountProps) {
   const { data: session, isPending, error } = useSession()
   const [isLoadingUserData, setIsLoadingUserData] = useState(false)
 
+  // Reset password states
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false)
+  const [resetPasswordEmail, setResetPasswordEmail] = useState('')
+  const [isSubmittingResetPassword, setIsSubmittingResetPassword] = useState(false)
+  const [resetPasswordStatus, setResetPasswordStatus] = useState<{
+    type: 'success' | 'error' | null
+    message: string
+  }>({ type: null, message: '' })
+
   // Mock accounts for the multi-account UI
   const [accounts, setAccounts] = useState<AccountData[]>([])
   const [open, setOpen] = useState(false)
@@ -73,6 +84,9 @@ export function Account({ onOpenChange }: AccountProps) {
             isActive: true,
           },
         ])
+
+        // Pre-fill the reset password email with the current user's email
+        setResetPasswordEmail(session.user.email)
       } else if (!isPending) {
         // User is not logged in
         setUserData({
@@ -115,6 +129,56 @@ export function Account({ onOpenChange }: AccountProps) {
       router.push('/login?fromLogout=true')
     } finally {
       setOpen(false)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordEmail) {
+      setResetPasswordStatus({
+        type: 'error',
+        message: 'Please enter your email address',
+      })
+      return
+    }
+
+    try {
+      setIsSubmittingResetPassword(true)
+      setResetPasswordStatus({ type: null, message: '' })
+
+      const response = await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: resetPasswordEmail,
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to request password reset')
+      }
+
+      setResetPasswordStatus({
+        type: 'success',
+        message: 'Password reset link sent to your email',
+      })
+
+      // Close dialog after successful submission with a small delay for user to see success message
+      setTimeout(() => {
+        setResetPasswordDialogOpen(false)
+        setResetPasswordStatus({ type: null, message: '' })
+      }, 2000)
+    } catch (error) {
+      logger.error('Error requesting password reset:', { error })
+      setResetPasswordStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to request password reset',
+      })
+    } finally {
+      setIsSubmittingResetPassword(false)
     }
   }
 
@@ -182,10 +246,10 @@ export function Account({ onOpenChange }: AccountProps) {
                       )}
                     </div>
                     <div className="flex flex-col gap-1 mb-[-2px]">
-                      <h3 className="font-medium leading-none truncate max-w-[160px]">
+                      <h3 className="font-medium leading-none truncate max-w-[200px]">
                         {userData.isLoggedIn ? activeAccount?.name : 'Sign in'}
                       </h3>
-                      <p className="text-sm text-muted-foreground truncate max-w-[160px]">
+                      <p className="text-sm text-muted-foreground truncate max-w-[200px]">
                         {userData.isLoggedIn ? activeAccount?.email : 'Click to sign in'}
                       </p>
                     </div>
@@ -200,7 +264,7 @@ export function Account({ onOpenChange }: AccountProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="start"
-                className="w-[240px] max-h-[350px] overflow-y-auto"
+                className="w-[280px] max-h-[350px] overflow-y-auto"
                 sideOffset={8}
               >
                 {userData.isLoggedIn ? (
@@ -231,6 +295,17 @@ export function Account({ onOpenChange }: AccountProps) {
                       </>
                     )}
                     <DropdownMenuItem
+                      className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer"
+                      onClick={() => {
+                        setResetPasswordDialogOpen(true)
+                        setOpen(false)
+                      }}
+                    >
+                      <Lock className="h-4 w-4" />
+                      <span>Reset Password</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
                       className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer text-destructive focus:text-destructive"
                       onClick={handleSignOut}
                     >
@@ -254,6 +329,24 @@ export function Account({ onOpenChange }: AccountProps) {
           )}
         </div>
       </div>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <RequestResetForm
+            email={resetPasswordEmail}
+            onEmailChange={setResetPasswordEmail}
+            onSubmit={handleResetPassword}
+            isSubmitting={isSubmittingResetPassword}
+            statusType={resetPasswordStatus.type}
+            statusMessage={resetPasswordStatus.message}
+            className="py-4"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
