@@ -26,9 +26,18 @@ const getLevelBadgeStyles = (level: string) => {
 
 // Helper function to get trigger badge styling
 const getTriggerBadgeStyles = (trigger: string) => {
-  return trigger.toLowerCase() === 'manual'
-    ? 'bg-secondary text-secondary-foreground'
-    : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+  switch (trigger.toLowerCase()) {
+    case 'manual':
+      return 'bg-secondary text-secondary-foreground'
+    case 'api':
+      return 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+    case 'webhook':
+      return 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+    case 'schedule':
+      return 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
+    default:
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400'
+  }
 }
 
 // Add a new CSS class for the selected row animation
