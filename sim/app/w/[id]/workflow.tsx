@@ -71,6 +71,62 @@ function WorkflowContent() {
     }
   }, [])
 
+  // Listen for toolbar block click events
+  useEffect(() => {
+    const handleAddBlockFromToolbar = (event: CustomEvent) => {
+      const { type } = event.detail
+
+      if (!type) return
+      if (type === 'connectionBlock') return
+
+      const blockConfig = getBlock(type)
+      if (!blockConfig) {
+        logger.error('Invalid block type:', { type })
+        return
+      }
+
+      // Calculate the center position of the viewport
+      const centerPosition = project({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      })
+
+      // Create a new block with a unique ID
+      const id = crypto.randomUUID()
+      const name = `${blockConfig.name} ${
+        Object.values(blocks).filter((b) => b.type === type).length + 1
+      }`
+
+      // Add the block to the workflow
+      addBlock(id, type, name, centerPosition)
+
+      // Auto-connect logic
+      const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+      if (isAutoConnectEnabled && type !== 'starter') {
+        const closestBlockId = findClosestOutput(centerPosition)
+        if (closestBlockId) {
+          addEdge({
+            id: crypto.randomUUID(),
+            source: closestBlockId,
+            target: id,
+            sourceHandle: 'source',
+            targetHandle: 'target',
+            type: 'custom',
+          })
+        }
+      }
+    }
+
+    window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
+
+    return () => {
+      window.removeEventListener(
+        'add-block-from-toolbar',
+        handleAddBlockFromToolbar as EventListener
+      )
+    }
+  }, [project, blocks, addBlock, addEdge])
+
   // Init workflow
   useEffect(() => {
     if (!isInitialized) return
