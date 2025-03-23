@@ -110,7 +110,7 @@ export function ControlBar() {
       }
 
       try {
-        const response = await fetch(`/api/workflow/${activeWorkflowId}/status`)
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
         if (response.ok) {
           const data = await response.json()
           // Update the store with the status from the API
@@ -198,11 +198,11 @@ export function ControlBar() {
       try {
         setIsDeploying(true)
 
-        const response = await fetch(`/api/workflow/${activeWorkflowId}/deploy/info`)
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy/info`)
         if (!response.ok) throw new Error('Failed to fetch deployment info')
 
         const { apiKey } = await response.json()
-        const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflow/${activeWorkflowId}/execute`
+        const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${activeWorkflowId}/execute`
 
         // Create a new notification with the deployment info
         addNotification('api', 'Workflow deployment information', activeWorkflowId, {
@@ -234,14 +234,14 @@ export function ControlBar() {
     try {
       setIsDeploying(true)
 
-      const response = await fetch(`/api/workflow/${activeWorkflowId}/deploy`, {
+      const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`, {
         method: 'POST',
       })
 
       if (!response.ok) throw new Error('Failed to deploy workflow')
 
       const { apiKey, isDeployed: newDeployStatus, deployedAt } = await response.json()
-      const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflow/${activeWorkflowId}/execute`
+      const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${activeWorkflowId}/execute`
 
       // Update the store with the deployment status
       setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)

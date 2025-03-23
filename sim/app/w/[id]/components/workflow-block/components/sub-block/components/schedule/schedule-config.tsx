@@ -46,7 +46,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       setIsLoading(true)
       try {
         // Check if there's a schedule for this workflow
-        const response = await fetch(`/api/scheduled?workflowId=${workflowId}`)
+        const response = await fetch(`/api/schedules?workflowId=${workflowId}`)
         if (response.ok) {
           const data = await response.json()
           if (data.schedule) {
@@ -115,7 +115,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
     setIsSaving(true)
     try {
       // Send the complete workflow state to be saved/updated
-      const response = await fetch(`/api/scheduled/schedule`, {
+      const response = await fetch(`/api/schedules/schedule`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -151,7 +151,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
 
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/scheduled/${scheduleId}`, {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
         method: 'DELETE',
       })
 
