@@ -4,12 +4,12 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import { emailOTP, genericOAuth } from 'better-auth/plugins'
 import { Resend } from 'resend'
-import { createLogger } from '@/lib/logs/console-logger'
 import {
   getEmailSubject,
   renderOTPEmail,
   renderPasswordResetEmail,
-} from '@/app/(auth)/components/emails/render-email'
+} from '@/components/emails/render-email'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 

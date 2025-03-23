@@ -13,7 +13,6 @@ import {
   Text,
 } from '@react-email/components'
 import { baseStyles } from './base-styles'
-import { DiscordIcon, XIcon } from './email-icons'
 
 interface ResetPasswordEmailProps {
   username?: string
@@ -39,15 +38,19 @@ export const ResetPasswordEmail = ({
       <Body style={baseStyles.main}>
         <Preview>Reset your Sim Studio password</Preview>
         <Container style={baseStyles.container}>
-          <Section style={{ ...baseStyles.header, textAlign: 'center' }}>
+          <Section
+            style={{
+              ...baseStyles.header,
+              textAlign: 'center',
+              padding: '30px',
+            }}
+          >
             <Img
               src={`${baseUrl}/sim.png`}
-              width="120"
-              height="40"
+              width="114"
               alt="Sim Studio"
               style={{
-                display: 'block',
-                objectFit: 'contain',
+                display: 'inline-block',
                 margin: '0 auto',
               }}
             />
@@ -86,23 +89,46 @@ export const ResetPasswordEmail = ({
         </Container>
 
         <Section style={baseStyles.footer}>
-          <Row style={{ marginBottom: '10px' }}>
-            <Column align="center">
-              <Link
-                href="https://x.com/simstudioai"
-                style={{ textDecoration: 'none', margin: '0 8px' }}
-              >
-                <XIcon />
+          <Row>
+            <Column align="right" style={{ width: '50%', paddingRight: '8px' }}>
+              <Link href="https://x.com/simstudioai" style={{ textDecoration: 'none' }}>
+                <Img
+                  src={`${baseUrl}/x-icon.png`}
+                  width="20"
+                  height="20"
+                  alt="X"
+                  style={{
+                    display: 'block',
+                    marginLeft: 'auto',
+                    filter: 'grayscale(100%)',
+                    opacity: 0.7,
+                  }}
+                />
               </Link>
-              <Link
-                href="https://discord.gg/crdsGfGk"
-                style={{ textDecoration: 'none', margin: '0 8px' }}
-              >
-                <DiscordIcon />
+            </Column>
+            <Column align="left" style={{ width: '50%', paddingLeft: '8px' }}>
+              <Link href="https://discord.gg/crdsGfGk" style={{ textDecoration: 'none' }}>
+                <Img
+                  src={`${baseUrl}/discord-icon.png`}
+                  width="24"
+                  height="24"
+                  alt="Discord"
+                  style={{
+                    display: 'block',
+                    filter: 'grayscale(100%)',
+                    opacity: 0.9,
+                  }}
+                />
               </Link>
             </Column>
           </Row>
-          <Text style={baseStyles.footerText}>
+          <Text
+            style={{
+              ...baseStyles.footerText,
+              textAlign: 'center',
+              color: '#706a7b',
+            }}
+          >
             © {new Date().getFullYear()} Sim Studio, All Rights Reserved
             <br />
             If you have any questions, please contact us at support@simstudio.ai
