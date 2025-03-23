@@ -28,7 +28,10 @@ interface UseVerificationReturn {
   handleOtpChange: (value: string) => void
 }
 
-export function useVerification({ hasResendKey, isProduction }: UseVerificationParams): UseVerificationReturn {
+export function useVerification({
+  hasResendKey,
+  isProduction,
+}: UseVerificationParams): UseVerificationReturn {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { addNotification } = useNotificationStore()
@@ -172,6 +175,6 @@ export function useVerification({ hasResendKey, isProduction }: UseVerificationP
     isProduction,
     verifyCode,
     resendCode,
-    handleOtpChange
+    handleOtpChange,
   }
-} 
+}

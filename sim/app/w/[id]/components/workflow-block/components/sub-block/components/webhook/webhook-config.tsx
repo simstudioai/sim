@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { GithubIcon, StripeIcon, WhatsAppIcon, SlackIcon } from '@/components/icons'
+import { DiscordIcon, GithubIcon, StripeIcon, WhatsAppIcon, SlackIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -12,7 +12,7 @@ const logger = createLogger('WebhookConfig')
 export interface WebhookProvider {
   id: string
   name: string
-  icon: (props: { className?: string }) => JSX.Element
+  icon: (props: { className?: string }) => React.ReactNode
   configFields: {
     [key: string]: {
       type: 'string' | 'boolean' | 'select'
@@ -34,8 +34,20 @@ export interface GitHubConfig {
   contentType: string
 }
 
+export interface DiscordConfig {
+  webhookName?: string
+  avatarUrl?: string
+}
+
 export interface StripeConfig {
   // Any Stripe-specific fields would go here
+}
+
+export interface GeneralWebhookConfig {
+  token?: string
+  secretHeaderName?: string
+  requireAuth?: boolean
+  allowedIps?: string[]
 }
 
 export interface SlackConfig {
@@ -43,7 +55,14 @@ export interface SlackConfig {
 }
 
 // Union type for all provider configurations
-export type ProviderConfig = WhatsAppConfig | GitHubConfig | StripeConfig | SlackConfig | Record<string, never>
+export type ProviderConfig =
+  | WhatsAppConfig
+  | GitHubConfig
+  | DiscordConfig
+  | StripeConfig
+  | GeneralWebhookConfig
+  | SlackConfig
+  | Record<string, never>
 
 // Define available webhook providers
 export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
@@ -74,6 +93,25 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
       },
     },
   },
+  discord: {
+    id: 'discord',
+    name: 'Discord',
+    icon: (props) => <DiscordIcon {...props} />,
+    configFields: {
+      webhookName: {
+        type: 'string',
+        label: 'Webhook Name',
+        placeholder: 'Enter a name for the webhook',
+        description: 'Custom name that will appear as the message sender in Discord.',
+      },
+      avatarUrl: {
+        type: 'string',
+        label: 'Avatar URL',
+        placeholder: 'https://example.com/avatar.png',
+        description: 'URL to an image that will be used as the webhook avatar.',
+      },
+    },
+  },
   stripe: {
     id: 'stripe',
     name: 'Stripe',
@@ -82,9 +120,35 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
   },
   generic: {
     id: 'generic',
-    name: 'Generic',
+    name: 'General',
     icon: (props) => <CheckCircle2 {...props} />,
-    configFields: {},
+    configFields: {
+      token: {
+        type: 'string',
+        label: 'Authentication Token',
+        placeholder: 'Enter an auth token (optional)',
+        description:
+          'This token will be used to authenticate webhook requests via Bearer token authentication.',
+      },
+      secretHeaderName: {
+        type: 'string',
+        label: 'Secret Header Name',
+        placeholder: 'X-Secret-Key',
+        description: 'Custom HTTP header name for authentication (optional).',
+      },
+      requireAuth: {
+        type: 'boolean',
+        label: 'Require Authentication',
+        defaultValue: false,
+        description: 'Require authentication for all webhook requests.',
+      },
+      allowedIps: {
+        type: 'string',
+        label: 'Allowed IP Addresses',
+        placeholder: '10.0.0.1, 192.168.1.1',
+        description: 'Comma-separated list of allowed IP addresses (optional).',
+      },
+    },
   },
   slack: {
     id: 'slack',
@@ -227,7 +291,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   }
 
   const handleDeleteWebhook = async () => {
-    if (!webhookId) return
+    if (!webhookId) return false
 
     try {
       setIsDeleting(true)

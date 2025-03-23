@@ -98,9 +98,6 @@ export function SocialLoginButtons({
     </Button>
   )
 
-  // Early return for production mode
-  if (isProduction) return null
-
   const renderGithubButton = () => {
     if (githubAvailable) return githubButton
 

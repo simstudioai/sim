@@ -36,12 +36,6 @@ interface ConditionInputProps {
 
 export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  const [lineCount, setLineCount] = useState(1)
-  const [showTags, setShowTags] = useState(false)
-  const [showEnvVars, setShowEnvVars] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [cursorPosition, setCursorPosition] = useState(0)
-  const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
@@ -49,6 +43,11 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const updateNodeInternals = useUpdateNodeInternals()
   const removeEdge = useWorkflowStore((state) => state.removeEdge)
   const edges = useWorkflowStore((state) => state.edges)
+
+  // Use a ref to track the previous store value for comparison
+  const prevStoreValueRef = useRef<string | null>(null)
+  // Use a ref to track if we're currently syncing from store to prevent loops
+  const isSyncingFromStoreRef = useRef(false)
 
   // Initialize conditional blocks with if and else blocks
   const [conditionalBlocks, setConditionalBlocks] = useState<ConditionalBlock[]>([
@@ -74,46 +73,71 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     },
   ])
 
-  // Sync store value with conditional blocks on initial load
+  // Sync store value with conditional blocks when storeValue changes
   useEffect(() => {
-    if (storeValue !== null) {
-      try {
-        const parsedValue = JSON.parse(storeValue.toString())
-        if (Array.isArray(parsedValue)) {
-          setConditionalBlocks(parsedValue)
-        }
-      } catch {
-        // If the store value isn't valid JSON, initialize with default blocks
-        setConditionalBlocks([
-          {
-            id: crypto.randomUUID(),
-            title: 'if',
-            value: '',
-            showTags: false,
-            showEnvVars: false,
-            searchTerm: '',
-            cursorPosition: 0,
-            activeSourceBlockId: null,
-          },
-          {
-            id: crypto.randomUUID(),
-            title: 'else',
-            value: '',
-            showTags: false,
-            showEnvVars: false,
-            searchTerm: '',
-            cursorPosition: 0,
-            activeSourceBlockId: null,
-          },
-        ])
+    // Skip if we don't have a store value
+    if (storeValue === null) return
+
+    // Skip if the store value hasn't changed
+    const storeValueStr = storeValue.toString()
+    if (storeValueStr === prevStoreValueRef.current) return
+
+    // Update the previous store value ref
+    prevStoreValueRef.current = storeValueStr
+
+    // Set that we're syncing from store to prevent loops
+    isSyncingFromStoreRef.current = true
+
+    try {
+      const parsedValue = JSON.parse(storeValueStr)
+      if (Array.isArray(parsedValue)) {
+        setConditionalBlocks(parsedValue)
       }
+    } catch (error) {
+      // If parsing fails, set default blocks
+      setConditionalBlocks([
+        {
+          id: crypto.randomUUID(),
+          title: 'if',
+          value: '',
+          showTags: false,
+          showEnvVars: false,
+          searchTerm: '',
+          cursorPosition: 0,
+          activeSourceBlockId: null,
+        },
+        {
+          id: crypto.randomUUID(),
+          title: 'else',
+          value: '',
+          showTags: false,
+          showEnvVars: false,
+          searchTerm: '',
+          cursorPosition: 0,
+          activeSourceBlockId: null,
+        },
+      ])
+    } finally {
+      // Reset the syncing flag
+      setTimeout(() => {
+        isSyncingFromStoreRef.current = false
+      }, 0)
     }
-  }, [])
+  }, [storeValue])
 
   // Update store whenever conditional blocks change
   useEffect(() => {
-    setStoreValue(JSON.stringify(conditionalBlocks))
-    updateNodeInternals(`${blockId}-${subBlockId}`)
+    // Skip if we're currently syncing from store to prevent loops
+    if (isSyncingFromStoreRef.current) return
+
+    const newValue = JSON.stringify(conditionalBlocks)
+
+    // Only update if the value has actually changed
+    if (newValue !== prevStoreValueRef.current) {
+      prevStoreValueRef.current = newValue
+      setStoreValue(newValue)
+      updateNodeInternals(`${blockId}-${subBlockId}`)
+    }
   }, [conditionalBlocks, blockId, subBlockId])
 
   // Update block value with trigger checks - handle both tag and env var triggers consistently

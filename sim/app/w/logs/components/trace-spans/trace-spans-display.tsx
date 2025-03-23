@@ -1,15 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  BarChart,
-  ChevronDown,
-  ChevronRight,
-  Code,
-  Cpu,
-  Database,
-  ExternalLink,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
 import {
   AgentIcon,
   ApiIcon,
@@ -83,7 +75,7 @@ function TraceSpanItem({
   isLast,
   parentStartTime,
   workflowStartTime,
-}: TraceSpanItemProps): JSX.Element {
+}: TraceSpanItemProps): React.ReactNode {
   const [expanded, setExpanded] = useState(false) // Collapsed by default
   const hasChildren = span.children && span.children.length > 0
   const hasToolCalls = span.toolCalls && span.toolCalls.length > 0
@@ -264,11 +256,6 @@ function TraceSpanItem({
                   {span.relativeStartMs !== undefined
                     ? `+${span.relativeStartMs}ms`
                     : formatRelativeTime(startOffset)}
-                </span>
-              )}
-              {span.tokens && (
-                <span className="text-xs bg-secondary/40 px-1.5 py-0.5 rounded text-muted-foreground whitespace-nowrap">
-                  {span.tokens} tokens
                 </span>
               )}
             </div>

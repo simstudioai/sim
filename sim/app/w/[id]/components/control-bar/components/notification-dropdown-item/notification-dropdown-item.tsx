@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Copy, Rocket, Terminal, X } from 'lucide-react'
+import { AlertCircle, Copy, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
@@ -24,12 +24,14 @@ const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
   api: Rocket,
+  marketplace: Store,
 }
 
 const NotificationColors = {
   error: 'text-destructive',
   console: 'text-foreground',
   api: 'text-[#7F2FFF]',
+  marketplace: 'text-foreground',
 }
 
 export function NotificationDropdownItem({
@@ -49,7 +51,9 @@ export function NotificationDropdownItem({
     return () => clearInterval(interval)
   }, [])
 
-  const timeAgo = formatDistanceToNow(timestamp, { addSuffix: true })
+  // Format time and replace "less than a minute ago" with "<1 minute ago"
+  const rawTimeAgo = formatDistanceToNow(timestamp, { addSuffix: true })
+  const timeAgo = rawTimeAgo.replace('less than a minute ago', '<1 minute ago')
 
   return (
     <DropdownMenuItem
@@ -60,11 +64,17 @@ export function NotificationDropdownItem({
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium">
-            {type === 'error' ? 'Error' : type === 'api' ? 'API' : 'Console'}
+            {type === 'error'
+              ? 'Error'
+              : type === 'api'
+                ? 'API'
+                : type === 'marketplace'
+                  ? 'Marketplace'
+                  : 'Console'}
           </span>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>
-        <p className="text-sm text-foreground break-words break-all whitespace-normal">
+        <p className="text-sm text-foreground break-normal whitespace-normal hyphens-auto overflow-wrap-anywhere">
           {message.length > 100 ? `${message.slice(0, 60)}...` : message}
         </p>
       </div>
