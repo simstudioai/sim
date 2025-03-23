@@ -36,7 +36,7 @@ export function useWorkflowExecution() {
         totalDuration,
       }
 
-      const response = await fetch(`/api/workflow/${activeWorkflowId}/log`, {
+      const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

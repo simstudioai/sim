@@ -175,7 +175,7 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
     if (!workflowId) return
 
     try {
-      const response = await fetch(`/api/workflow/${workflowId}/deploy`, {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
         method: 'DELETE',
       })
 
