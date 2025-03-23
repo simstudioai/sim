@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
+import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
-import { validateWorkflowAccess } from '@/app/api/workflow/middleware'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflow/utils'
 
 const logger = createLogger('MarketplaceUnpublishAPI')
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from(schema.marketplace)
       .where(eq(schema.marketplace.workflowId, id))
       .limit(1)
-      .then(rows => rows[0])
+      .then((rows) => rows[0])
 
     if (!marketplaceEntry) {
       logger.warn(`[${requestId}] No marketplace entry found for workflow: ${id}`)
@@ -51,4 +51,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.error(`[${requestId}] Error unpublishing workflow: ${(await params).id}`, error)
     return createErrorResponse('Failed to unpublish workflow', 500)
   }
-} 
+}

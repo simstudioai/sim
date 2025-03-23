@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
@@ -558,8 +559,18 @@ async function processWebhook(
       executionTime: result.metadata?.duration,
     })
 
+    // Build trace spans from execution logs
+    const { traceSpans, totalDuration } = buildTraceSpans(result)
+
+    // Add trace spans to the execution result
+    const enrichedResult = {
+      ...result,
+      traceSpans,
+      totalDuration,
+    }
+
     // Log each execution step and the final result
-    await persistExecutionLogs(foundWorkflow.id, executionId, result, 'webhook')
+    await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
 
     // Return the execution result
     return NextResponse.json(result, { status: 200 })

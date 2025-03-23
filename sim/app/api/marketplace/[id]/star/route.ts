@@ -2,9 +2,9 @@ import { NextRequest } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflow/utils'
 
 const logger = createLogger('MarketplaceStarAPI')
 
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params
     const session = await getSession()
     const userId = session?.user?.id
-    
+
     if (!userId) {
       return createErrorResponse('Unauthorized', 401)
     }
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .from(schema.marketplace)
       .where(eq(schema.marketplace.id, id))
       .limit(1)
-      .then(rows => rows[0])
+      .then((rows) => rows[0])
 
     if (!marketplaceEntry) {
       logger.warn(`[${requestId}] No marketplace entry found with ID: ${id}`)
@@ -37,28 +37,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const existingStar = await db
       .select()
       .from(schema.marketplaceStar)
-      .where(and(
-        eq(schema.marketplaceStar.marketplaceId, id),
-        eq(schema.marketplaceStar.userId, userId)
-      ))
+      .where(
+        and(eq(schema.marketplaceStar.marketplaceId, id), eq(schema.marketplaceStar.userId, userId))
+      )
       .limit(1)
-      .then(rows => rows[0])
+      .then((rows) => rows[0])
 
     let action
     if (existingStar) {
       // User has already starred, so unstar it
-      await db.delete(schema.marketplaceStar).where(
-        and(
-          eq(schema.marketplaceStar.marketplaceId, id),
-          eq(schema.marketplaceStar.userId, userId)
+      await db
+        .delete(schema.marketplaceStar)
+        .where(
+          and(
+            eq(schema.marketplaceStar.marketplaceId, id),
+            eq(schema.marketplaceStar.userId, userId)
+          )
         )
-      )
-      
+
       // Decrement the star count
-      await db.update(schema.marketplace)
+      await db
+        .update(schema.marketplace)
         .set({ stars: marketplaceEntry.stars - 1 })
         .where(eq(schema.marketplace.id, id))
-      
+
       action = 'unstarred'
     } else {
       // User hasn't starred yet, add a star
@@ -68,12 +70,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         userId: userId,
         createdAt: new Date(),
       })
-      
+
       // Increment the star count
-      await db.update(schema.marketplace)
+      await db
+        .update(schema.marketplace)
         .set({ stars: marketplaceEntry.stars + 1 })
         .where(eq(schema.marketplace.id, id))
-      
+
       action = 'starred'
     }
 
@@ -107,12 +110,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const existingStar = await db
       .select()
       .from(schema.marketplaceStar)
-      .where(and(
-        eq(schema.marketplaceStar.marketplaceId, id),
-        eq(schema.marketplaceStar.userId, userId)
-      ))
+      .where(
+        and(eq(schema.marketplaceStar.marketplaceId, id), eq(schema.marketplaceStar.userId, userId))
+      )
       .limit(1)
-      .then(rows => rows[0])
+      .then((rows) => rows[0])
 
     return createSuccessResponse({
       isStarred: !!existingStar,
@@ -121,4 +123,4 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.error(`[${requestId}] Error checking star status: ${(await params).id}`, error)
     return createErrorResponse('Failed to check star status', 500)
   }
-} 
+}
