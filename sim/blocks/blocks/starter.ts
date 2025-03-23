@@ -54,23 +54,15 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
       layout: 'full',
       condition: { field: 'startWorkflow', value: 'webhook' },
     },
-    // Common schedule fields for all frequency types
+    // Schedule configuration status display
     {
-      id: 'scheduleStartAt',
-      title: 'Start At',
-      type: 'date-input',
-      layout: 'half',
-      placeholder: 'Select day',
+      id: 'scheduleConfig',
+      title: 'Schedule Status',
+      type: 'schedule-config',
+      layout: 'full',
       condition: { field: 'startWorkflow', value: 'schedule' },
     },
-    {
-      id: 'scheduleTime',
-      title: 'Time',
-      type: 'time-input',
-      layout: 'half',
-      condition: { field: 'startWorkflow', value: 'schedule' },
-    },
-    // Frequency configuration
+    // Hidden fields for schedule configuration (used by the modal only)
     {
       id: 'scheduleType',
       title: 'Frequency',
@@ -85,46 +77,83 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
         { label: 'Custom Cron', id: 'custom' },
       ],
       value: () => 'daily',
+      hidden: true,
       condition: { field: 'startWorkflow', value: 'schedule' },
     },
-    // Minutes schedule options
+    {
+      id: 'scheduleStartAt',
+      type: 'date-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'scheduleTime',
+      type: 'time-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
     {
       id: 'minutesInterval',
-      title: 'Run Every',
       type: 'short-input',
-      layout: 'full',
-      placeholder: '15 minutes',
-      condition: {
-        field: 'scheduleType',
-        value: 'minutes',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
     },
-    // Custom cron options
+    {
+      id: 'hourlyMinute',
+      type: 'short-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'dailyTime',
+      type: 'short-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'weeklyDay',
+      type: 'dropdown',
+      hidden: true,
+      options: [
+        { label: 'Monday', id: 'MON' },
+        { label: 'Tuesday', id: 'TUE' },
+        { label: 'Wednesday', id: 'WED' },
+        { label: 'Thursday', id: 'THU' },
+        { label: 'Friday', id: 'FRI' },
+        { label: 'Saturday', id: 'SAT' },
+        { label: 'Sunday', id: 'SUN' },
+      ],
+      value: () => 'MON',
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'weeklyDayTime',
+      type: 'short-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'monthlyDay',
+      type: 'short-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
+    {
+      id: 'monthlyTime',
+      type: 'short-input',
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
+    },
     {
       id: 'cronExpression',
-      title: 'Cron Expression',
       type: 'short-input',
-      layout: 'full',
-      placeholder: '*/15 * * * *',
-      condition: {
-        field: 'scheduleType',
-        value: 'custom',
-        and: {
-          field: 'startWorkflow',
-          value: 'schedule',
-        },
-      },
+      hidden: true,
+      condition: { field: 'startWorkflow', value: 'schedule' },
     },
-    // Timezone configuration (for all schedule types)
     {
       id: 'timezone',
-      title: 'Timezone',
       type: 'dropdown',
-      layout: 'full',
+      hidden: true,
       options: [
         { label: 'UTC', id: 'UTC' },
         { label: 'US Eastern (UTC-4)', id: 'America/New_York' },

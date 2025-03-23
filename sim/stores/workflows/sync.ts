@@ -18,9 +18,6 @@ let loadingFromDBToken: string | null = null
 let loadingFromDBStartTime = 0
 const LOADING_TIMEOUT = 3000 // 3 seconds maximum loading time
 
-// Track workflows that had scheduling enabled in previous syncs
-const scheduledWorkflows = new Set<string>()
-
 /**
  * Checks if the system is currently in the process of loading data from the database
  * Includes safety timeout to prevent permanent blocking of syncs
@@ -37,67 +34,6 @@ export function isActivelyLoadingFromDB(): boolean {
   }
 
   return true
-}
-
-/**
- * Checks if a workflow has scheduling enabled
- * @param blocks The workflow blocks
- * @returns true if scheduling is enabled, false otherwise
- */
-function hasSchedulingEnabled(blocks: Record<string, BlockState>): boolean {
-  // Find the starter block
-  const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-  if (!starterBlock) return false
-
-  // Check if the startWorkflow value is 'schedule'
-  const startWorkflow = starterBlock.subBlocks.startWorkflow?.value
-  return startWorkflow === 'schedule'
-}
-
-/**
- * Updates or cancels the schedule for a workflow based on its current configuration
- * @param workflowId The workflow ID
- * @param state The workflow state
- * @returns A promise that resolves when the schedule update is complete
- */
-async function updateWorkflowSchedule(workflowId: string, state: any): Promise<void> {
-  try {
-    const isScheduleEnabled = hasSchedulingEnabled(state.blocks)
-
-    // Always call the schedule API to either update or cancel the schedule
-    // The API will handle the logic to create, update, or delete the schedule
-    const response = await fetch(API_ENDPOINTS.SCHEDULE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workflowId,
-        state,
-      }),
-    })
-
-    if (!response.ok) {
-      logger.error(
-        `Failed to ${isScheduleEnabled ? 'update' : 'cancel'} schedule for workflow ${workflowId}:`,
-        response.statusText
-      )
-      return
-    }
-
-    const result = await response.json()
-
-    // Update our tracking of scheduled workflows
-    if (isScheduleEnabled) {
-      scheduledWorkflows.add(workflowId)
-      logger.info(`Schedule updated for workflow ${workflowId}:`, result)
-    } else {
-      scheduledWorkflows.delete(workflowId)
-      logger.info(`Schedule cancelled for workflow ${workflowId}:`, result)
-    }
-  } catch (error) {
-    logger.error(`Error managing schedule for workflow ${workflowId}:`, {
-      error,
-    })
-  }
 }
 
 /**
@@ -207,11 +143,6 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       if (id === activeWorkflowId) {
         useWorkflowStore.setState(workflowState)
       }
-
-      // 7. Track if this workflow has scheduling enabled
-      if (hasSchedulingEnabled(workflowState.blocks)) {
-        scheduledWorkflows.add(id)
-      }
     })
 
     // 8. Update registry store with all workflows
@@ -296,35 +227,5 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
   syncOnExit: true,
   onSyncSuccess: async (data) => {
     logger.info('Workflows synced to DB successfully')
-
-    // After successful sync to DB, update schedules for all workflows
-    try {
-      const workflowsData = getAllWorkflowsWithValues()
-      const currentWorkflowIds = new Set(Object.keys(workflowsData))
-
-      // Process each workflow to update its schedule if needed
-      const schedulePromises = Object.entries(workflowsData).map(async ([id, workflow]) => {
-        const isCurrentlyScheduled = hasSchedulingEnabled(workflow.state.blocks)
-        const wasScheduledBefore = scheduledWorkflows.has(id)
-
-        // Only update schedule if the scheduling status has changed or it's currently scheduled
-        // This ensures we update schedules when they change and cancel them when they're disabled
-        if (isCurrentlyScheduled || wasScheduledBefore) {
-          await updateWorkflowSchedule(id, workflow.state)
-        }
-      })
-
-      // Wait for all schedule updates to complete
-      await Promise.all(schedulePromises)
-
-      // Clean up tracking for workflows that no longer exist
-      for (const id of scheduledWorkflows) {
-        if (!currentWorkflowIds.has(id)) {
-          scheduledWorkflows.delete(id)
-        }
-      }
-    } catch (error) {
-      logger.error('Error updating workflow schedules:', { error })
-    }
   },
 }))

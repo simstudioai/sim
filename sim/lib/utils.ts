@@ -134,3 +134,71 @@ export async function validateApiKey(
   if (!apiKey || !storedApiKey) return false
   return apiKey === storedApiKey
 }
+
+/**
+ * Format a date into a human-readable format
+ * @param date - The date to format
+ * @returns A formatted date string in the format "MMM D, YYYY h:mm A"
+ */
+export function formatDateTime(date: Date): string {
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+/**
+ * Format a date into a short format
+ * @param date - The date to format
+ * @returns A formatted date string in the format "MMM D, YYYY"
+ */
+export function formatDate(date: Date): string {
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+/**
+ * Format a time into a short format
+ * @param date - The date to format
+ * @returns A formatted time string in the format "h:mm A"
+ */
+export function formatTime(date: Date): string {
+  return date.toLocaleString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+/**
+ * Format a duration in milliseconds to a human-readable format
+ * @param durationMs - The duration in milliseconds
+ * @returns A formatted duration string
+ */
+export function formatDuration(durationMs: number): string {
+  if (durationMs < 1000) {
+    return `${durationMs}ms`
+  }
+
+  const seconds = Math.floor(durationMs / 1000)
+  if (seconds < 60) {
+    return `${seconds}s`
+  }
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  if (minutes < 60) {
+    return `${minutes}m ${remainingSeconds}s`
+  }
+
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  return `${hours}h ${remainingMinutes}m`
+}
