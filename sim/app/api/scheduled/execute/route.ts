@@ -13,6 +13,9 @@ import { environment, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 
+// Add dynamic export to prevent caching
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('ScheduledExecuteAPI')
 
 interface SubBlockValue {
@@ -144,16 +147,12 @@ function calculateNextRunTime(
 // Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
 
-export const config = {
-  runtime: 'nodejs',
-  schedule: '*/1 * * * *',
-}
-
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
 // Add GET handler for cron job
 export async function GET(req: NextRequest) {
+  logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
   const requestId = crypto.randomUUID().slice(0, 8)
   const now = new Date()
 
