@@ -9,7 +9,7 @@ import {
   getEmailSubject,
   renderOTPEmail,
   renderPasswordResetEmail,
-} from '@/app/emails/render-email'
+} from '@/app/(auth)/components/emails/render-email'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
