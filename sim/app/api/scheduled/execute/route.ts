@@ -13,6 +13,9 @@ import { environment, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 
+// Add dynamic export to prevent caching
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('ScheduledExecuteAPI')
 
 interface SubBlockValue {

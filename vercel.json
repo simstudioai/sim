@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/scheduled/execute",
+      "path": "/sim/app/api/scheduled/execute",
       "schedule": "*/1 * * * *"
     }
   ]
