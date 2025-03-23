@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import type { BlockConfig } from '@/blocks/types'
 
 export type ToolbarBlockProps = {
@@ -10,10 +11,24 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
     e.dataTransfer.effectAllowed = 'move'
   }
 
+  // Handle click to add block
+  const handleClick = useCallback(() => {
+    if (config.type === 'connectionBlock') return
+
+    // Dispatch a custom event to be caught by the workflow component
+    const event = new CustomEvent('add-block-from-toolbar', {
+      detail: {
+        type: config.type,
+      },
+    })
+    window.dispatchEvent(event)
+  }, [config.type])
+
   return (
     <div
       draggable
       onDragStart={handleDragStart}
+      onClick={handleClick}
       className="group flex items-center gap-3 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50 cursor-pointer active:cursor-grabbing"
     >
       <div
