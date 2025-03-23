@@ -25,7 +25,7 @@ export function ScheduleStatus({ blockId }: ScheduleStatusProps) {
       setIsLoading(true)
       try {
         // Check if there's a schedule for this workflow
-        const response = await fetch(`/api/scheduled?workflowId=${workflowId}`)
+        const response = await fetch(`/api/schedules?workflowId=${workflowId}`)
         if (response.ok) {
           const data = await response.json()
           if (data.schedule) {
