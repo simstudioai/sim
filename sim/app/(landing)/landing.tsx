@@ -1,7 +1,7 @@
-import GitHubStars from './github-stars'
-import HeroWorkflowProvider from './hero-workflow'
-import NavClient from './nav-client'
-import WaitlistForm from './waitlist-form'
+import GitHubStars from './components/github-stars'
+import HeroWorkflowProvider from './components/hero-workflow'
+import NavClient from './components/nav-client'
+import WaitlistForm from './components/waitlist-form'
 
 export default function Landing() {
   return (
