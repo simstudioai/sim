@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -47,11 +48,47 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+const logger = createLogger('MarketplaceModal')
+
+/**
+ * Sanitizes sensitive data from workflow state before publishing
+ * Removes API keys, tokens, and environment variable references
+ */
+const sanitizeWorkflowData = (workflowData: any) => {
+  if (!workflowData) return workflowData
+
+  const sanitizedData = JSON.parse(JSON.stringify(workflowData))
+  let sanitizedCount = 0
+
+  // Handle workflow state format
+  if (sanitizedData.state?.blocks) {
+    Object.values(sanitizedData.state.blocks).forEach((block: any) => {
+      if (block.subBlocks) {
+        // Check for sensitive fields in subBlocks
+        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
+          // Check for API key related fields in any block type
+          const isSensitiveField =
+            key.toLowerCase() === 'apikey' || key.toLowerCase().includes('api_key')
+
+          if (isSensitiveField && subBlock.value) {
+            subBlock.value = ''
+            sanitizedCount++
+          }
+        })
+      }
+    })
+  }
+
+  logger.info(`Sanitized ${sanitizedCount} API keys from workflow data`)
+  return sanitizedData
+}
 
 interface MarketplaceModalProps {
   open: boolean
@@ -219,6 +256,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         return
       }
 
+      // Sanitize the workflow data
+      const sanitizedWorkflowData = sanitizeWorkflowData(workflowData)
+      logger.info('Publishing sanitized workflow to marketplace', {
+        workflowId: activeWorkflowId,
+        workflowName: data.name,
+        category: data.category,
+      })
+
       const response = await fetch('/api/marketplace/publish', {
         method: 'POST',
         headers: {
@@ -230,7 +275,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
           description: data.description,
           category: data.category,
           authorName: data.authorName,
-          workflowState: workflowData.state,
+          workflowState: sanitizedWorkflowData.state,
         }),
       })
 
@@ -414,6 +459,13 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderPublishForm = () => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="mb-4 rounded-md bg-amber-50 p-3 border border-amber-200">
+          <p className="text-sm text-amber-800">
+            <span className="font-medium text-amber-800">Security:</span> API keys and environment
+            variables will be automatically removed before publishing.
+          </p>
+        </div>
+
         <FormField
           control={form.control}
           name="name"
