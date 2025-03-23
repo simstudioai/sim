@@ -42,6 +42,7 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
         { label: 'WhatsApp', id: 'whatsapp' },
         { label: 'GitHub', id: 'github' },
         { label: 'Discord', id: 'discord' },
+        { label: 'Slack', id: 'slack' },
         // { label: 'Stripe', id: 'stripe' },
       ],
       value: () => 'generic',
