@@ -86,22 +86,24 @@ export const ResetPasswordEmail = ({
         </Container>
 
         <Section style={baseStyles.footer}>
-          <Row style={{ marginBottom: '10px' }}>
-            <Column align="center">
-              <Link
-                href="https://x.com/simstudioai"
-                style={{ textDecoration: 'none', margin: '0 8px' }}
-              >
-                <XIcon />
-              </Link>
-              <Link
-                href="https://discord.gg/crdsGfGk"
-                style={{ textDecoration: 'none', margin: '0 8px' }}
-              >
-                <DiscordIcon />
-              </Link>
-            </Column>
-          </Row>
+          <table width="100%" border={0} cellPadding={0} cellSpacing={0} role="presentation">
+            <tr>
+              <td align="center" style={{ padding: '10px 0' }}>
+                <Link
+                  href="https://x.com/simstudioai"
+                  style={{ textDecoration: 'none', margin: '0 8px', display: 'inline-block' }}
+                >
+                  <XIcon />
+                </Link>
+                <Link
+                  href="https://discord.gg/crdsGfGk"
+                  style={{ textDecoration: 'none', margin: '0 8px', display: 'inline-block' }}
+                >
+                  <DiscordIcon />
+                </Link>
+              </td>
+            </tr>
+          </table>
           <Text style={baseStyles.footerText}>
             © {new Date().getFullYear()} Sim Studio, All Rights Reserved
             <br />
