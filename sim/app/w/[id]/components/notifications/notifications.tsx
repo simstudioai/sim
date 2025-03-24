@@ -18,6 +18,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { Notification } from '@/stores/notifications/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Notifications')
@@ -92,19 +93,22 @@ function DeleteApiConfirmation({
 export function NotificationList() {
   // Store access
   const { notifications, hideNotification } = useNotificationStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
 
   // Local state
   const [fadingNotifications, setFadingNotifications] = useState<Set<string>>(new Set())
 
-  // Filter to only show visible notifications
-  const visibleNotifications = notifications.filter((n) => n.isVisible)
+  // Filter to only show visible notifications for the current workflow
+  const visibleNotifications = notifications.filter(
+    (n) => n.isVisible && n.workflowId === activeWorkflowId
+  )
 
   // Handle auto-dismissal of non-persistent notifications
   useEffect(() => {
     // Setup timers for each notification
     const timers: ReturnType<typeof setTimeout>[] = []
 
-    notifications.forEach((notification) => {
+    visibleNotifications.forEach((notification) => {
       // Skip if already hidden or marked as persistent
       if (!notification.isVisible || notification.options?.isPersistent) return
 
@@ -128,7 +132,7 @@ export function NotificationList() {
 
     // Cleanup timers on unmount or when notifications change
     return () => timers.forEach(clearTimeout)
-  }, [notifications, hideNotification])
+  }, [visibleNotifications, hideNotification])
 
   // Early return if no notifications to show
   if (visibleNotifications.length === 0) return null
