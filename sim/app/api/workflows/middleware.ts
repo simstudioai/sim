@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getWorkflowById } from '@/lib/workflows'
+import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowMiddleware')
 

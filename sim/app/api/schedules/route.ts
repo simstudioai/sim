@@ -6,7 +6,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflowSchedule } from '@/db/schema'
 
-const logger = createLogger('Scheduled API')
+const logger = createLogger('ScheduledAPI')
 
 /**
  * Get schedule information for a workflow

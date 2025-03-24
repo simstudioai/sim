@@ -208,7 +208,7 @@ export function ControlBar() {
       try {
         setIsDeploying(true)
 
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy/info`)
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`)
         if (!response.ok) throw new Error('Failed to fetch deployment info')
 
         const { apiKey } = await response.json()
@@ -312,6 +312,19 @@ export function ControlBar() {
       for (let i = 0; i < runCount; i++) {
         await handleRunWorkflow()
         setCompletedRuns(i + 1)
+      }
+
+      // Update workflow stats after all runs are complete
+      if (activeWorkflowId) {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
+          method: 'POST',
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          logger.error(`Failed to update workflow stats: ${JSON.stringify(errorData)}`)
+          throw new Error('Failed to update workflow stats')
+        }
       }
     } catch (error) {
       logger.error('Error during multiple workflow runs:', { error })

@@ -1,4 +1,13 @@
-import { boolean, json, pgTable, text, timestamp, uniqueIndex, integer } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  decimal,
+  integer,
+  json,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -67,6 +76,8 @@ export const workflow = pgTable('workflow', {
   apiKey: text('api_key'),
   isPublished: boolean('is_published').notNull().default(false),
   collaborators: json('collaborators').notNull().default('[]'),
+  runCount: integer('run_count').notNull().default(0),
+  lastRunAt: timestamp('last_run_at'),
 })
 
 export const waitlist = pgTable('waitlist', {
@@ -179,17 +190,36 @@ export const marketplace = pgTable('marketplace', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const marketplaceStar = pgTable('marketplace_star', {
+export const marketplaceStar = pgTable(
+  'marketplace_star',
+  {
+    id: text('id').primaryKey(),
+    marketplaceId: text('marketplace_id')
+      .notNull()
+      .references(() => marketplace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      userMarketplaceIdx: uniqueIndex('user_marketplace_idx').on(table.userId, table.marketplaceId),
+    }
+  }
+)
+
+export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
-  marketplaceId: text('marketplace_id')
-    .notNull()
-    .references(() => marketplace.id, { onDelete: 'cascade' }),
   userId: text('user_id')
     .notNull()
-    .references(() => user.id),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-}, (table) => {
-  return {
-    userMarketplaceIdx: uniqueIndex('user_marketplace_idx').on(table.userId, table.marketplaceId),
-  }
+    .references(() => user.id, { onDelete: 'cascade' })
+    .unique(), // One record per user
+  totalManualExecutions: integer('total_manual_executions').notNull().default(0),
+  totalApiCalls: integer('total_api_calls').notNull().default(0),
+  totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
+  totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
+  totalTokensUsed: integer('total_tokens_used').notNull().default(0),
+  totalCost: decimal('total_cost').notNull().default('0'),
+  lastActive: timestamp('last_active').notNull().defaultNow(),
 })
