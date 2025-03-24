@@ -50,7 +50,7 @@
     "@react-email/components": "^0.0.34",
     "@vercel/og": "^0.6.5",
     "@webcontainer/api": "^1.5.1-internal.9",
-    "better-auth": "^1.2.5-beta.5",
+    "better-auth": "^1.2.5-beta.8",
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
