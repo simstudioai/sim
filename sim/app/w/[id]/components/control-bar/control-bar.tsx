@@ -488,44 +488,51 @@ export function ControlBar() {
   /**
    * Render notifications dropdown
    */
-  const renderNotificationsDropdown = () => (
-    <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Bell />
-              <span className="sr-only">Notifications</span>
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
-      </Tooltip>
+  const renderNotificationsDropdown = () => {
+    // Ensure we're only showing notifications for the current workflow
+    const currentWorkflowNotifications = activeWorkflowId
+      ? notifications.filter((n) => n.workflowId === activeWorkflowId)
+      : []
 
-      {workflowNotifications.length === 0 ? (
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem className="text-sm text-muted-foreground">
-            No new notifications
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      ) : (
-        <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
-          {[...workflowNotifications]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .map((notification) => (
-              <NotificationDropdownItem
-                key={notification.id}
-                id={notification.id}
-                type={notification.type}
-                message={notification.message}
-                timestamp={notification.timestamp}
-                options={notification.options}
-              />
-            ))}
-        </DropdownMenuContent>
-      )}
-    </DropdownMenu>
-  )
+    return (
+      <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Bell />
+                <span className="sr-only">Notifications</span>
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
+        </Tooltip>
+
+        {currentWorkflowNotifications.length === 0 ? (
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem className="text-sm text-muted-foreground">
+              No new notifications
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        ) : (
+          <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
+            {[...currentWorkflowNotifications]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .map((notification) => (
+                <NotificationDropdownItem
+                  key={notification.id}
+                  id={notification.id}
+                  type={notification.type}
+                  message={notification.message}
+                  timestamp={notification.timestamp}
+                  options={notification.options}
+                />
+              ))}
+          </DropdownMenuContent>
+        )}
+      </DropdownMenu>
+    )
+  }
 
   /**
    * Render publish button
