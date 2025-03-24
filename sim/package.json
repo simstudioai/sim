@@ -56,7 +56,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "croner": "^9.0.0",
-    "date-fns": "^3.6.0",
+    "date-fns": "^4.1.0",
     "drizzle-orm": "^0.39.3",
     "framer-motion": "^12.5.0",
     "groq-sdk": "^0.15.0",
