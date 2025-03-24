@@ -6,6 +6,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
@@ -158,6 +159,11 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       success: result.success,
       executionTime: result.metadata?.duration,
     })
+
+    // Update workflow run counts if execution was successful
+    if (result.success) {
+      await updateWorkflowRunCounts(workflowId)
+    }
 
     // Build trace spans from execution logs
     const { traceSpans, totalDuration } = buildTraceSpans(result)

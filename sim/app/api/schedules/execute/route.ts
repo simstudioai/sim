@@ -7,6 +7,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
@@ -326,6 +327,16 @@ export async function GET(req: NextRequest) {
         )
         const result = await executor.execute(schedule.workflowId)
 
+        logger.info(`[${requestId}] Workflow execution completed: ${schedule.workflowId}`, {
+          success: result.success,
+          executionTime: result.metadata?.duration,
+        })
+
+        // Update workflow run counts if execution was successful
+        if (result.success) {
+          await updateWorkflowRunCounts(schedule.workflowId)
+        }
+
         // Build trace spans from execution logs
         const { traceSpans, totalDuration } = buildTraceSpans(result)
 
@@ -371,10 +382,6 @@ export async function GET(req: NextRequest) {
               nextRunAt: nextRetryAt,
             })
             .where(eq(workflowSchedule.id, schedule.id))
-
-          logger.debug(
-            `[${requestId}] Scheduled retry for workflow ${schedule.workflowId} at ${nextRetryAt.toISOString()}`
-          )
         }
       } catch (error: any) {
         logger.error(

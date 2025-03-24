@@ -313,6 +313,17 @@ export function ControlBar() {
         await handleRunWorkflow()
         setCompletedRuns(i + 1)
       }
+
+      // Update workflow stats after all runs are complete
+      if (activeWorkflowId) {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
+          method: 'POST',
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to update workflow stats')
+        }
+      }
     } catch (error) {
       logger.error('Error during multiple workflow runs:', { error })
       addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)

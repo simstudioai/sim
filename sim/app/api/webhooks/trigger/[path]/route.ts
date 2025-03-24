@@ -6,6 +6,7 @@ import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/executio
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
 import { environment, webhook, workflow } from '@/db/schema'
@@ -558,6 +559,11 @@ async function processWebhook(
       success: result.success,
       executionTime: result.metadata?.duration,
     })
+
+    // Update workflow run counts if execution was successful
+    if (result.success) {
+      await updateWorkflowRunCounts(foundWorkflow.id)
+    }
 
     // Build trace spans from execution logs
     const { traceSpans, totalDuration } = buildTraceSpans(result)
