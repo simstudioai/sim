@@ -19,7 +19,7 @@ export function useWorkflowExecution() {
   const { blocks, edges, loops } = useWorkflowStore()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
-  const { toggleConsole, isOpen } = useConsoleStore()
+  const { toggleConsole } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { isExecuting, setIsExecuting } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
@@ -59,8 +59,11 @@ export function useWorkflowExecution() {
     if (!activeWorkflowId) return
     setIsExecuting(true)
 
+    // Get the current console state directly from the store
+    const currentIsOpen = useConsoleStore.getState().isOpen
+    
     // Open console if it's not already open
-    if (!isOpen) {
+    if (!currentIsOpen) {
       toggleConsole()
     }
 
@@ -194,7 +197,6 @@ export function useWorkflowExecution() {
     edges,
     loops,
     addNotification,
-    isOpen,
     toggleConsole,
     getAllVariables,
     setIsExecuting,
