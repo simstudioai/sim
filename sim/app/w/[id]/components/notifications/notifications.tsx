@@ -24,8 +24,43 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const logger = createLogger('Notifications')
 
 // Constants
-const NOTIFICATION_TIMEOUT = 4000
-const FADE_DURATION = 300
+const NOTIFICATION_TIMEOUT = 4000 // Show notification for 4 seconds
+const FADE_DURATION = 500 // Fade out over 500ms
+
+// Define keyframes for the animations in a style tag
+const AnimationStyles = () => (
+  <style jsx global>{`
+    @keyframes notification-slide {
+      0% {
+        opacity: 0;
+        transform: translateY(-100%);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes notification-fade-out {
+      0% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-10%);
+      }
+    }
+
+    .animate-notification-slide {
+      animation: notification-slide 300ms ease forwards;
+    }
+
+    .animate-notification-fade-out {
+      animation: notification-fade-out ${FADE_DURATION}ms ease forwards;
+    }
+  `}</style>
+)
 
 // Icon mapping for notification types
 const NotificationIcon = {
@@ -92,15 +127,23 @@ function DeleteApiConfirmation({
  */
 export function NotificationList() {
   // Store access
-  const { notifications, hideNotification } = useNotificationStore()
+  const { notifications, hideNotification, markAsRead, removeNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
 
   // Local state
   const [fadingNotifications, setFadingNotifications] = useState<Set<string>>(new Set())
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
 
-  // Filter to only show visible notifications for the current workflow
+  // Filter to only show:
+  // 1. Visible notifications for the current workflow
+  // 2. That are either unread OR marked as persistent
+  // 3. And have not been marked for removal
   const visibleNotifications = notifications.filter(
-    (n) => n.isVisible && n.workflowId === activeWorkflowId
+    (n) =>
+      n.isVisible &&
+      n.workflowId === activeWorkflowId &&
+      (!n.read || n.options?.isPersistent) &&
+      !removedIds.has(n.id)
   )
 
   // Handle auto-dismissal of non-persistent notifications
@@ -117,9 +160,14 @@ export function NotificationList() {
         setFadingNotifications((prev) => new Set([...prev, notification.id]))
       }, NOTIFICATION_TIMEOUT)
 
-      // Hide notification after fade completes
+      // Hide notification after fade completes and mark for removal from DOM
       const hideTimer = setTimeout(() => {
         hideNotification(notification.id)
+        markAsRead(notification.id)
+
+        // Mark this notification ID as removed to exclude it from rendering
+        setRemovedIds((prev) => new Set([...prev, notification.id]))
+
         setFadingNotifications((prev) => {
           const next = new Set(prev)
           next.delete(notification.id)
@@ -132,28 +180,45 @@ export function NotificationList() {
 
     // Cleanup timers on unmount or when notifications change
     return () => timers.forEach(clearTimeout)
-  }, [visibleNotifications, hideNotification])
+  }, [visibleNotifications, hideNotification, markAsRead])
 
   // Early return if no notifications to show
   if (visibleNotifications.length === 0) return null
 
   return (
-    <div
-      className="absolute left-1/2 z-50 space-y-2 max-w-lg w-full"
-      style={{
-        top: '30px',
-        transform: 'translateX(-50%)',
-      }}
-    >
-      {visibleNotifications.map((notification) => (
-        <NotificationAlert
-          key={notification.id}
-          notification={notification}
-          isFading={fadingNotifications.has(notification.id)}
-          onHide={hideNotification}
-        />
-      ))}
-    </div>
+    <>
+      <AnimationStyles />
+      <div
+        className="absolute left-1/2 z-50 space-y-2 max-w-lg w-full pointer-events-none"
+        style={{
+          top: '30px',
+          transform: 'translateX(-50%)',
+        }}
+      >
+        {visibleNotifications.map((notification) => (
+          <NotificationAlert
+            key={notification.id}
+            notification={notification}
+            isFading={fadingNotifications.has(notification.id)}
+            onHide={(id) => {
+              hideNotification(id)
+              markAsRead(id)
+              // Start the fade out animation
+              setFadingNotifications((prev) => new Set([...prev, id]))
+              // Remove from DOM after animation completes
+              setTimeout(() => {
+                setRemovedIds((prev) => new Set([...prev, id]))
+                setFadingNotifications((prev) => {
+                  const next = new Set(prev)
+                  next.delete(id)
+                  return next
+                })
+              }, FADE_DURATION)
+            }}
+          />
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -168,12 +233,13 @@ interface NotificationAlertProps {
 
 function NotificationAlert({ notification, isFading, onHide }: NotificationAlertProps) {
   const { id, type, message, options, workflowId } = notification
-  const Icon = NotificationIcon[type]
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const { setDeploymentStatus } = useWorkflowStore()
   const { isDeployed } = useWorkflowStore((state) => ({
     isDeployed: state.isDeployed,
   }))
+
+  const Icon = NotificationIcon[type]
 
   const handleDeleteApi = async () => {
     if (!workflowId) return
@@ -202,8 +268,10 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
     <>
       <Alert
         className={cn(
-          'transition-all duration-300 ease-in-out opacity-0 translate-y-[-100%]',
-          isFading ? 'animate-notification-fade-out' : 'animate-notification-slide',
+          'transition-all duration-300 ease-in-out opacity-0 translate-y-[-100%] pointer-events-auto',
+          isFading
+            ? 'animate-notification-fade-out pointer-events-none'
+            : 'animate-notification-slide',
           NotificationColors[type]
         )}
       >

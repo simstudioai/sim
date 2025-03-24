@@ -34,6 +34,7 @@ export const useNotificationStore = create<NotificationStore>()(
           message,
           timestamp: Date.now(),
           isVisible: true,
+          read: false,
           workflowId,
           options,
         }
@@ -52,7 +53,7 @@ export const useNotificationStore = create<NotificationStore>()(
       hideNotification: (id) =>
         set((state) => {
           const newNotifications = state.notifications.map((n) =>
-            n.id === id ? { ...n, isVisible: false } : n
+            n.id === id ? { ...n, isVisible: false, read: true } : n
           )
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
@@ -62,6 +63,24 @@ export const useNotificationStore = create<NotificationStore>()(
         set((state) => {
           const newNotifications = state.notifications.map((n) =>
             n.id === id ? { ...n, isVisible: true } : n
+          )
+          persistNotifications(newNotifications)
+          return { notifications: newNotifications }
+        }),
+
+      markAsRead: (id) =>
+        set((state) => {
+          const newNotifications = state.notifications.map((n) =>
+            n.id === id ? { ...n, read: true } : n
+          )
+          persistNotifications(newNotifications)
+          return { notifications: newNotifications }
+        }),
+
+      markAllAsRead: (workflowId) =>
+        set((state) => {
+          const newNotifications = state.notifications.map((n) =>
+            n.workflowId === workflowId ? { ...n, read: true } : n
           )
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
