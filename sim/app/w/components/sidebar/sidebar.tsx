@@ -21,7 +21,7 @@ export function Sidebar() {
   const [showHelp, setShowHelp] = useState(false)
 
   // Sort workflows by lastModified date (which corresponds to createdAt for new workflows)
-  // Newest workflows at the bottom (ascending order by date)
+  // Newest workflows at the top (ascending order by date)
   const sortedWorkflows = useMemo(() => {
     return Object.values(workflows).sort((a, b) => {
       // Ensure we're comparing dates properly by converting to timestamps
@@ -33,7 +33,7 @@ export function Sidebar() {
         b.lastModified instanceof Date
           ? b.lastModified.getTime()
           : new Date(b.lastModified).getTime()
-      return dateA - dateB // Ascending order (oldest first, newest last)
+      return dateB - dateA // Ascending order (oldest last, newest first)
     })
   }, [workflows])
 

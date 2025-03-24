@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -12,6 +13,9 @@ import { db } from '@/db'
 import { environment, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+
+// Add dynamic export to prevent caching
+export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ScheduledExecuteAPI')
 
@@ -144,16 +148,12 @@ function calculateNextRunTime(
 // Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
 
-export const config = {
-  runtime: 'nodejs',
-  schedule: '*/1 * * * *',
-}
-
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
 // Add GET handler for cron job
 export async function GET(req: NextRequest) {
+  logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
   const requestId = crypto.randomUUID().slice(0, 8)
   const now = new Date()
 
@@ -326,8 +326,18 @@ export async function GET(req: NextRequest) {
         )
         const result = await executor.execute(schedule.workflowId)
 
+        // Build trace spans from execution logs
+        const { traceSpans, totalDuration } = buildTraceSpans(result)
+
+        // Add trace spans to the execution result
+        const enrichedResult = {
+          ...result,
+          traceSpans,
+          totalDuration,
+        }
+
         // Log each execution step and the final result
-        await persistExecutionLogs(schedule.workflowId, executionId, result, 'schedule')
+        await persistExecutionLogs(schedule.workflowId, executionId, enrichedResult, 'schedule')
 
         // Only update next_run_at if execution was successful
         if (result.success) {

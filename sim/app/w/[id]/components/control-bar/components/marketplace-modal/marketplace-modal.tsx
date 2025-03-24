@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -47,11 +48,53 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import {
+  CATEGORIES,
+  getCategoryColor,
+  getCategoryIcon,
+  getCategoryLabel,
+} from '@/app/w/marketplace/constants/categories'
+
+const logger = createLogger('MarketplaceModal')
+
+/**
+ * Sanitizes sensitive data from workflow state before publishing
+ * Removes API keys, tokens, and environment variable references
+ */
+const sanitizeWorkflowData = (workflowData: any) => {
+  if (!workflowData) return workflowData
+
+  const sanitizedData = JSON.parse(JSON.stringify(workflowData))
+  let sanitizedCount = 0
+
+  // Handle workflow state format
+  if (sanitizedData.state?.blocks) {
+    Object.values(sanitizedData.state.blocks).forEach((block: any) => {
+      if (block.subBlocks) {
+        // Check for sensitive fields in subBlocks
+        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
+          // Check for API key related fields in any block type
+          const isSensitiveField =
+            key.toLowerCase() === 'apikey' || key.toLowerCase().includes('api_key')
+
+          if (isSensitiveField && subBlock.value) {
+            subBlock.value = ''
+            sanitizedCount++
+          }
+        })
+      }
+    })
+  }
+
+  logger.info(`Sanitized ${sanitizedCount} API keys from workflow data`)
+  return sanitizedData
+}
 
 interface MarketplaceModalProps {
   open: boolean
@@ -76,41 +119,6 @@ const marketplaceFormSchema = z.object({
 })
 
 type MarketplaceFormValues = z.infer<typeof marketplaceFormSchema>
-
-// Categories for the dropdown with icons
-const CATEGORIES = [
-  //   {
-  //     value: 'project_management',
-  //     label: 'Project Management',
-  //     icon: <ChartBar className="h-4 w-4 mr-2" />,
-  //   },
-  { value: 'data', label: 'Data Analysis', icon: <Database className="h-4 w-4 mr-2" /> },
-  { value: 'marketing', label: 'Marketing', icon: <MailIcon className="h-4 w-4 mr-2" /> },
-  { value: 'sales', label: 'Sales', icon: <Store className="h-4 w-4 mr-2" /> },
-  //   { value: 'productivity', label: 'Productivity', icon: <TimerIcon className="h-4 w-4 mr-2" /> },
-  //   { value: 'content', label: 'Content Creation', icon: <NotebookPen className="h-4 w-4 mr-2" /> },
-  {
-    value: 'customer_service',
-    label: 'Customer Service',
-    icon: <BotMessageSquare className="h-4 w-4 mr-2" />,
-  },
-  { value: 'research', label: 'Research', icon: <Atom className="h-4 w-4 mr-2" /> },
-  { value: 'finance', label: 'Finance', icon: <LineChart className="h-4 w-4 mr-2" /> },
-  { value: 'programming', label: 'Programming', icon: <Code className="h-4 w-4 mr-2" /> },
-  { value: 'other', label: 'Other', icon: <Brain className="h-4 w-4 mr-2" /> },
-]
-
-// Find category label by value
-const getCategoryLabel = (value: string) => {
-  const category = CATEGORIES.find((cat) => cat.value === value)
-  return category ? category.label : value
-}
-
-// Find category icon by value
-const getCategoryIcon = (value: string) => {
-  const category = CATEGORIES.find((cat) => cat.value === value)
-  return category ? category.icon : <Store className="h-4 w-4 mr-2" />
-}
 
 // Tooltip texts
 const TOOLTIPS = {
@@ -219,6 +227,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         return
       }
 
+      // Sanitize the workflow data
+      const sanitizedWorkflowData = sanitizeWorkflowData(workflowData)
+      logger.info('Publishing sanitized workflow to marketplace', {
+        workflowId: activeWorkflowId,
+        workflowName: data.name,
+        category: data.category,
+      })
+
       const response = await fetch('/api/marketplace/publish', {
         method: 'POST',
         headers: {
@@ -230,7 +246,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
           description: data.description,
           category: data.category,
           authorName: data.authorName,
-          workflowState: workflowData.state,
+          workflowState: sanitizedWorkflowData.state,
         }),
       })
 
@@ -414,6 +430,13 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderPublishForm = () => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="mb-4 rounded-md bg-amber-50 p-3 border border-amber-200">
+          <p className="text-sm text-amber-800">
+            <span className="font-medium text-amber-800">Security:</span> API keys and environment
+            variables will be automatically removed before publishing.
+          </p>
+        </div>
+
         <FormField
           control={form.control}
           name="name"
@@ -548,26 +571,4 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       </DialogContent>
     </Dialog>
   )
-}
-
-// Add this helper function after the getCategoryLabel function
-const getCategoryColor = (value: string): string => {
-  switch (value) {
-    case 'data':
-      return '#0ea5e9' // sky-500
-    case 'marketing':
-      return '#f43f5e' // rose-500
-    case 'sales':
-      return '#10b981' // emerald-500
-    case 'customer_service':
-      return '#8b5cf6' // violet-500
-    case 'research':
-      return '#f59e0b' // amber-500
-    case 'finance':
-      return '#14b8a6' // teal-500
-    case 'programming':
-      return '#6366f1' // indigo-500
-    default:
-      return '#7F2FFF' // Brand purple
-  }
 }

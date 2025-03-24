@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
 import {
   AgentIcon,
@@ -16,9 +16,17 @@ import { TraceSpan } from '../../stores/types'
 interface TraceSpansDisplayProps {
   traceSpans?: TraceSpan[]
   totalDuration?: number
+  onExpansionChange?: (expanded: boolean) => void
 }
 
-export function TraceSpansDisplay({ traceSpans, totalDuration = 0 }: TraceSpansDisplayProps) {
+export function TraceSpansDisplay({
+  traceSpans,
+  totalDuration = 0,
+  onExpansionChange,
+}: TraceSpansDisplayProps) {
+  // Keep track of expanded spans
+  const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
+
   if (!traceSpans || traceSpans.length === 0) {
     return <div className="text-sm text-muted-foreground">No trace data available</div>
   }
@@ -35,25 +43,44 @@ export function TraceSpansDisplay({ traceSpans, totalDuration = 0 }: TraceSpansD
     return startTime < earliest ? startTime : earliest
   }, Infinity)
 
-  return (
-    <div>
-      {/* Show only the total duration in the header */}
-      <div className="text-xs font-semibold text-right px-2 text-muted-foreground">
-        <span className="font-mono">{formatTotalDuration(totalDuration)}</span>
-      </div>
+  // Handle span toggling
+  const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
+    const newExpandedSpans = new Set(expandedSpans)
+    if (expanded) {
+      newExpandedSpans.add(spanId)
+    } else {
+      newExpandedSpans.delete(spanId)
+    }
+    setExpandedSpans(newExpandedSpans)
 
-      <div className="border rounded-md bg-background/40 mt-0.5">
-        {traceSpans.map((span, index) => (
-          <TraceSpanItem
-            key={index}
-            span={span}
-            depth={0}
-            totalDuration={totalDuration}
-            isLast={index === traceSpans.length - 1}
-            parentStartTime={new Date(span.startTime).getTime()}
-            workflowStartTime={workflowStartTime}
-          />
-        ))}
+    // Only notify parent component if this span has children or tool calls
+    if (onExpansionChange && hasSubItems) {
+      onExpansionChange(newExpandedSpans.size > 0)
+    }
+  }
+
+  return (
+    <div className="w-full">
+      <div className="rounded-md border shadow-sm overflow-hidden">
+        {traceSpans.map((span, index) => {
+          const hasSubItems =
+            (span.children && span.children.length > 0) ||
+            (span.toolCalls && span.toolCalls.length > 0)
+          return (
+            <TraceSpanItem
+              key={index}
+              span={span}
+              depth={0}
+              totalDuration={totalDuration}
+              isLast={index === traceSpans.length - 1}
+              parentStartTime={new Date(span.startTime).getTime()}
+              workflowStartTime={workflowStartTime}
+              onToggle={handleSpanToggle}
+              expandedSpans={expandedSpans}
+              hasSubItems={hasSubItems}
+            />
+          )
+        })}
       </div>
     </div>
   )
@@ -66,6 +93,9 @@ interface TraceSpanItemProps {
   isLast: boolean
   parentStartTime: number // Start time of the parent span for offset calculation
   workflowStartTime: number // Start time of the entire workflow
+  onToggle: (spanId: string, expanded: boolean, hasSubItems: boolean) => void
+  expandedSpans: Set<string>
+  hasSubItems?: boolean
 }
 
 function TraceSpanItem({
@@ -75,10 +105,15 @@ function TraceSpanItem({
   isLast,
   parentStartTime,
   workflowStartTime,
+  onToggle,
+  expandedSpans,
+  hasSubItems = false,
 }: TraceSpanItemProps): React.ReactNode {
-  const [expanded, setExpanded] = useState(false) // Collapsed by default
+  const spanId = span.id || `span-${span.name}-${span.startTime}`
+  const expanded = expandedSpans.has(spanId)
   const hasChildren = span.children && span.children.length > 0
   const hasToolCalls = span.toolCalls && span.toolCalls.length > 0
+  const hasNestedItems = hasChildren || hasToolCalls
 
   // Calculate timing information
   const spanStartTime = new Date(span.startTime).getTime()
@@ -98,12 +133,19 @@ function TraceSpanItem({
   // For parent-relative timing display
   const startOffsetPercentage = totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0
 
+  // Handle click to expand/collapse this span
+  const handleSpanClick = () => {
+    if (hasNestedItems) {
+      onToggle(spanId, !expanded, hasNestedItems)
+    }
+  }
+
   // Get appropriate icon based on span type
   const getSpanIcon = () => {
     const type = span.type.toLowerCase()
 
     // Expand/collapse for spans with children
-    if (hasChildren || hasToolCalls) {
+    if (hasNestedItems) {
       return expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
     }
 
@@ -229,20 +271,25 @@ function TraceSpanItem({
     <div
       className={cn(
         'border-b last:border-b-0 transition-colors',
-        expanded ? 'bg-secondary/10' : 'hover:bg-secondary/5'
+        expanded ? 'bg-accent/30' : 'hover:bg-accent/20'
       )}
     >
       {/* Span header */}
       <div
-        className="flex items-center py-1.5 px-2 cursor-pointer"
-        onClick={() => setExpanded(!expanded)}
+        className={cn(
+          'flex items-center py-1.5 px-2',
+          hasNestedItems ? 'cursor-pointer' : 'cursor-default'
+        )}
+        onClick={handleSpanClick}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
-        <div className="mr-2 flex items-center justify-center w-5">{getSpanIcon()}</div>
+        <div className="mr-2 flex-shrink-0 flex items-center justify-center w-5">
+          {getSpanIcon()}
+        </div>
 
-        <div className="flex-1 flex items-center min-w-0">
-          <div className="flex flex-col min-w-0 mr-3">
-            <div className="flex items-center space-x-2">
+        <div className="flex-1 flex items-center min-w-0 overflow-hidden gap-2">
+          <div className="min-w-0 overflow-hidden flex-shrink">
+            <div className="flex items-center space-x-2 mb-0.5">
               <span
                 className={cn(
                   'text-sm font-medium truncate',
@@ -252,19 +299,19 @@ function TraceSpanItem({
                 {formatSpanName(span)}
               </span>
               {depth > 0 && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
                   {span.relativeStartMs !== undefined
                     ? `+${span.relativeStartMs}ms`
                     : formatRelativeTime(startOffset)}
                 </span>
               )}
             </div>
-            <span className="text-xs text-muted-foreground">{formatDuration(duration)}</span>
+            <span className="text-xs text-muted-foreground block">{formatDuration(duration)}</span>
           </div>
 
-          <div className="ml-auto flex items-center gap-3 shrink-0">
-            {/* Timeline visualization - all spans are positioned relative to workflow start */}
-            <div className="w-48 h-2 bg-secondary/20 rounded-full overflow-hidden relative">
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+            {/* Timeline visualization - responsive width based on container size */}
+            <div className="h-2 bg-accent/40 rounded-full overflow-hidden relative flex-shrink-0 hidden sm:block sm:w-16 md:w-24 lg:w-32 xl:w-40">
               <div
                 className="h-full rounded-full absolute"
                 style={{
@@ -276,7 +323,7 @@ function TraceSpanItem({
             </div>
 
             {/* Duration text - always show in ms */}
-            <span className="text-xs text-muted-foreground w-20 text-right font-mono tabular-nums">
+            <span className="text-xs text-muted-foreground w-[52px] text-right font-mono tabular-nums flex-shrink-0">
               {`${duration}ms`}
             </span>
           </div>
@@ -289,17 +336,26 @@ function TraceSpanItem({
           {/* Render child spans */}
           {hasChildren && (
             <div>
-              {span.children!.map((childSpan, index) => (
-                <TraceSpanItem
-                  key={index}
-                  span={childSpan}
-                  depth={depth + 1}
-                  totalDuration={totalDuration}
-                  isLast={index === span.children!.length - 1}
-                  parentStartTime={spanStartTime}
-                  workflowStartTime={workflowStartTime}
-                />
-              ))}
+              {span.children!.map((childSpan, index) => {
+                const childHasSubItems =
+                  (childSpan.children && childSpan.children.length > 0) ||
+                  (childSpan.toolCalls && childSpan.toolCalls.length > 0)
+
+                return (
+                  <TraceSpanItem
+                    key={index}
+                    span={childSpan}
+                    depth={depth + 1}
+                    totalDuration={totalDuration}
+                    isLast={index === span.children!.length - 1}
+                    parentStartTime={spanStartTime}
+                    workflowStartTime={workflowStartTime}
+                    onToggle={onToggle}
+                    expandedSpans={expandedSpans}
+                    hasSubItems={childHasSubItems}
+                  />
+                )
+              })}
             </div>
           )}
 
@@ -316,7 +372,7 @@ function TraceSpanItem({
                   : toolStartTime + (toolCall.duration || 0)
 
                 const toolSpan: TraceSpan = {
-                  id: `${span.id}-tool-${index}`,
+                  id: `${spanId}-tool-${index}`,
                   name: toolCall.name,
                   type: 'tool',
                   duration: toolCall.duration || toolEndTime - toolStartTime,
@@ -325,6 +381,7 @@ function TraceSpanItem({
                   status: toolCall.error ? 'error' : 'success',
                 }
 
+                // Tool calls typically don't have sub-items
                 return (
                   <TraceSpanItem
                     key={`tool-${index}`}
@@ -334,6 +391,9 @@ function TraceSpanItem({
                     isLast={index === span.toolCalls!.length - 1}
                     parentStartTime={spanStartTime}
                     workflowStartTime={workflowStartTime}
+                    onToggle={onToggle}
+                    expandedSpans={expandedSpans}
+                    hasSubItems={false}
                   />
                 )
               })}

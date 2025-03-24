@@ -12,6 +12,7 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { ActionBar } from './components/action-bar/action-bar'
+import { ScheduleStatus } from './components/action-bar/schedule-status'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
 
@@ -266,6 +267,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 Disabled
               </Badge>
             )}
+            {type === 'starter' && <ScheduleStatus blockId={id} />}
             {config.longDescription && (
               <Tooltip>
                 <TooltipTrigger asChild>

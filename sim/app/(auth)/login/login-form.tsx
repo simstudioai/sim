@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -12,12 +13,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { RequestResetForm } from '@/app/(auth)/components/reset-password-form'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
+
+const logger = createLogger('LoginForm')
 
 export default function LoginPage({
   githubAvailable,
@@ -30,8 +36,19 @@ export default function LoginPage({
 }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
+  const [showPassword, setShowPassword] = useState(false)
+  const [password, setPassword] = useState('')
+
+  // Forgot password states
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [isSubmittingReset, setIsSubmittingReset] = useState(false)
+  const [resetStatus, setResetStatus] = useState<{
+    type: 'success' | 'error' | null
+    message: string
+  }>({ type: null, message: '' })
 
   useEffect(() => {
     setMounted(true)
@@ -43,61 +60,149 @@ export default function LoginPage({
 
     const formData = new FormData(e.currentTarget)
     const email = formData.get('email') as string
-    const password = formData.get('password') as string
 
     try {
-      const result = await client.signIn.email({
-        email,
-        password,
-        callbackURL: '/w',
-      })
+      const result = await client.signIn.email(
+        {
+          email,
+          password,
+          callbackURL: '/w',
+        },
+        {
+          onError: (ctx) => {
+            console.error('Login error:', ctx.error)
+            let errorMessage = 'Invalid email or password'
+
+            // Handle all possible error cases from Better Auth
+            if (ctx.error.message?.includes('EMAIL_NOT_VERIFIED')) {
+              return
+            } else if (
+              ctx.error.message?.includes('BAD_REQUEST') ||
+              ctx.error.message?.includes('Email and password sign in is not enabled')
+            ) {
+              errorMessage = 'Email sign in is currently disabled.'
+            } else if (
+              ctx.error.message?.includes('INVALID_CREDENTIALS') ||
+              ctx.error.message?.includes('invalid password')
+            ) {
+              errorMessage = 'Invalid email or password. Please try again.'
+            } else if (
+              ctx.error.message?.includes('USER_NOT_FOUND') ||
+              ctx.error.message?.includes('not found')
+            ) {
+              errorMessage = 'No account found with this email. Please sign up first.'
+            } else if (ctx.error.message?.includes('MISSING_CREDENTIALS')) {
+              errorMessage = 'Please enter both email and password.'
+            } else if (ctx.error.message?.includes('EMAIL_PASSWORD_DISABLED')) {
+              errorMessage = 'Email and password login is disabled.'
+            } else if (ctx.error.message?.includes('FAILED_TO_CREATE_SESSION')) {
+              errorMessage = 'Failed to create session. Please try again later.'
+            } else if (ctx.error.message?.includes('too many attempts')) {
+              errorMessage =
+                'Too many login attempts. Please try again later or reset your password.'
+            } else if (ctx.error.message?.includes('account locked')) {
+              errorMessage =
+                'Your account has been locked for security. Please reset your password.'
+            } else if (ctx.error.message?.includes('network')) {
+              errorMessage = 'Network error. Please check your connection and try again.'
+            } else if (ctx.error.message?.includes('rate limit')) {
+              errorMessage = 'Too many requests. Please wait a moment before trying again.'
+            }
+
+            addNotification('error', errorMessage, null)
+          },
+        }
+      )
 
       if (!result || result.error) {
-        throw new Error(result?.error?.message || 'Authentication failed')
+        setIsLoading(false)
+        return
       }
     } catch (err: any) {
-      let errorMessage = 'Invalid email or password'
-
-      if (err.message?.includes('not verified')) {
-        // Redirect to verification page directly without asking for confirmation
+      // Handle only the special verification case that requires a redirect
+      if (err.message?.includes('not verified') || err.message?.includes('EMAIL_NOT_VERIFIED')) {
         try {
-          // Send a new verification OTP
           await client.emailOtp.sendVerificationOtp({
             email,
             type: 'email-verification',
           })
 
-          // Redirect to the verify page
-          router.push(`/verify?email=${encodeURIComponent(email)}`)
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('verificationEmail', email)
+          }
+
+          router.push(`/verify`)
           return
         } catch (verifyErr) {
-          errorMessage = 'Failed to send verification code. Please try again later.'
+          addNotification(
+            'error',
+            'Failed to send verification code. Please try again later.',
+            null
+          )
+          setIsLoading(false)
+          return
         }
-      } else if (err.message?.includes('not found')) {
-        errorMessage = 'No account found with this email. Please sign up first.'
-      } else if (err.message?.includes('invalid password')) {
-        errorMessage = 'Invalid password. Please try again or use the forgot password link.'
-      } else if (err.message?.includes('too many attempts')) {
-        errorMessage = 'Too many login attempts. Please try again later or reset your password.'
-      } else if (err.message?.includes('account locked')) {
-        errorMessage = 'Your account has been locked for security. Please reset your password.'
-      } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many requests. Please wait a moment before trying again.'
       }
 
-      addNotification('error', errorMessage, null)
-      // Prevent navigation on error
-      return
+      console.error('Uncaught login error:', err)
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      setResetStatus({
+        type: 'error',
+        message: 'Please enter your email address',
+      })
+      return
+    }
+
+    try {
+      setIsSubmittingReset(true)
+      setResetStatus({ type: null, message: '' })
+
+      const response = await fetch('/api/auth/forget-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: forgotPasswordEmail,
+          redirectTo: `${window.location.origin}/reset-password`,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to request password reset')
+      }
+
+      setResetStatus({
+        type: 'success',
+        message: 'Password reset link sent to your email',
+      })
+
+      setTimeout(() => {
+        setForgotPasswordOpen(false)
+        setResetStatus({ type: null, message: '' })
+      }, 2000)
+    } catch (error) {
+      logger.error('Error requesting password reset:', { error })
+      setResetStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to request password reset',
+      })
+    } finally {
+      setIsSubmittingReset(false)
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
-      {mounted && <NotificationList />}
+      {/* Ensure NotificationList is always rendered */}
+      <NotificationList />
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
         <Card className="w-full">
@@ -134,14 +239,39 @@ export default function LoginPage({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      required
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const emailInput = document.getElementById('email') as HTMLInputElement
+                          setForgotPasswordEmail(emailInput?.value || '')
+                          setForgotPasswordOpen(true)
+                        }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Enter your password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        onClick={() => setShowPassword(!showPassword)}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Signing in...' : 'Sign in'}
@@ -160,6 +290,24 @@ export default function LoginPage({
           </CardFooter>
         </Card>
       </div>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+          </DialogHeader>
+          <RequestResetForm
+            email={forgotPasswordEmail}
+            onEmailChange={setForgotPasswordEmail}
+            onSubmit={handleForgotPassword}
+            isSubmitting={isSubmittingReset}
+            statusType={resetStatus.type}
+            statusMessage={resetStatus.message}
+            className="py-4"
+          />
+        </DialogContent>
+      </Dialog>
     </main>
   )
 }

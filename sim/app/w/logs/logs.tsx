@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
-import { formatCost } from '@/providers/utils'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
@@ -27,9 +26,18 @@ const getLevelBadgeStyles = (level: string) => {
 
 // Helper function to get trigger badge styling
 const getTriggerBadgeStyles = (trigger: string) => {
-  return trigger.toLowerCase() === 'manual'
-    ? 'bg-secondary text-secondary-foreground'
-    : 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+  switch (trigger.toLowerCase()) {
+    case 'manual':
+      return 'bg-secondary text-secondary-foreground'
+    case 'api':
+      return 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
+    case 'webhook':
+      return 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+    case 'schedule':
+      return 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
+    default:
+      return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400'
+  }
 }
 
 // Add a new CSS class for the selected row animation
@@ -216,13 +224,12 @@ export default function Logs() {
               <table className="w-full table-fixed">
                 <colgroup>
                   <col className="w-[16%]" />
-                  <col className="w-[8%]" />
-                  <col className="w-[12%]" />
+                  <col className="w-[8%] md:w-[7%]" />
+                  <col className="w-[12%] md:w-[10%]" />
                   <col className="w-[8%] hidden lg:table-column" />
                   <col className="w-[8%] hidden lg:table-column" />
-                  <col className="w-auto lg:w-auto" />
-                  <col className="w-[8%]" />
-                  <col className="w-[8%] hidden lg:table-cell" />
+                  <col className="w-auto md:w-[53%] lg:w-auto" />
+                  <col className="w-[8%] md:w-[10%]" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -246,9 +253,6 @@ export default function Logs() {
                     </th>
                     <th className="px-4 pt-2 pb-3 text-left font-medium">
                       <span className="text-xs text-muted-foreground leading-none">Duration</span>
-                    </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground leading-none">Cost</span>
                     </th>
                   </tr>
                 </thead>
@@ -282,18 +286,19 @@ export default function Logs() {
                 <table className="w-full table-fixed">
                   <colgroup>
                     <col className="w-[16%]" />
-                    <col className="w-[8%]" />
-                    <col className="w-[12%]" />
+                    <col className="w-[8%] md:w-[7%]" />
+                    <col className="w-[12%] md:w-[10%]" />
                     <col className="w-[8%] hidden lg:table-column" />
                     <col className="w-[8%] hidden lg:table-column" />
-                    <col className="w-auto lg:w-auto" />
-                    <col className="w-[8%]" />
-                    <col className="w-[8%] hidden lg:table-cell" />
+                    <col className="w-auto md:w-[53%] lg:w-auto" />
+                    <col className="w-[8%] md:w-[10%]" />
                   </colgroup>
                   <tbody>
                     {filteredLogs.map((log) => {
                       const formattedDate = formatDate(log.createdAt)
                       const isSelected = selectedLog?.id === log.id
+                      const isWorkflowExecutionLog =
+                        log.executionId && executionGroups[log.executionId].length === 1
 
                       return (
                         <tr
@@ -390,17 +395,6 @@ export default function Logs() {
                             >
                               {log.duration || '—'}
                             </div>
-                          </td>
-
-                          {/* Cost column - hidden on small screens */}
-                          <td className="px-4 py-3 hidden lg:table-cell">
-                            {log.metadata?.cost?.total ? (
-                              <div className="text-xs text-muted-foreground">
-                                {formatCost(log.metadata.cost.total)}
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground">—</div>
-                            )}
                           </td>
                         </tr>
                       )

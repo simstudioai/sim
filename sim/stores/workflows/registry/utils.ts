@@ -30,7 +30,7 @@ export function generateUniqueName(existingWorkflows: Record<string, WorkflowMet
   return `Workflow ${nextNumber}`
 }
 
-// Determines the next color to use for a new workflow based on the last used color
+// Determines the next color to use for a new workflow based on the color of the newest workflow
 export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowMetadata>): string {
   const workflowArray = Object.values(existingWorkflows)
 
@@ -38,13 +38,25 @@ export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowM
     return WORKFLOW_COLORS[0]
   }
 
-  const lastWorkflow = workflowArray[workflowArray.length - 1]
+  // Sort workflows by lastModified date (newest first)
+  const sortedWorkflows = [...workflowArray].sort((a, b) => {
+    const dateA = a.lastModified instanceof Date
+      ? a.lastModified.getTime()
+      : new Date(a.lastModified).getTime()
+    const dateB = b.lastModified instanceof Date
+      ? b.lastModified.getTime()
+      : new Date(b.lastModified).getTime()
+    return dateB - dateA
+  })
 
-  // Find the index of the last used color, defaulting to first color if undefined
-  const lastColorIndex = lastWorkflow?.color ? WORKFLOW_COLORS.indexOf(lastWorkflow.color) : -1
+  // Get the newest workflow (first in sorted array)
+  const newestWorkflow = sortedWorkflows[0]
+
+  // Find the index of the newest workflow's color, defaulting to -1 if undefined
+  const currentColorIndex = newestWorkflow?.color ? WORKFLOW_COLORS.indexOf(newestWorkflow.color) : -1
 
   // Get next color index, wrapping around to 0 if we reach the end
-  const nextColorIndex = (lastColorIndex + 1) % WORKFLOW_COLORS.length
+  const nextColorIndex = (currentColorIndex + 1) % WORKFLOW_COLORS.length
 
   return WORKFLOW_COLORS[nextColorIndex]
 }

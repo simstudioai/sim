@@ -48,11 +48,13 @@ export function useVerification({
     logger.info('Notification store state:', { addNotification: !!addNotification })
   }, [addNotification])
 
-  // Get email from URL query param
   useEffect(() => {
-    const emailParam = searchParams.get('email')
-    if (emailParam) {
-      setEmail(decodeURIComponent(emailParam))
+    if (typeof window !== 'undefined') {
+      const storedEmail = sessionStorage.getItem('verificationEmail')
+      if (storedEmail) {
+        setEmail(storedEmail)
+        return
+      }
     }
   }, [searchParams])
 
@@ -98,6 +100,12 @@ export function useVerification({
       // Check if verification was successful
       if (response && !response.error) {
         setIsVerified(true)
+
+        // Clear email from sessionStorage after successful verification
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('verificationEmail')
+        }
+
         // Redirect to dashboard after a short delay
         setTimeout(() => router.push('/w'), 2000)
       } else {

@@ -13,6 +13,7 @@ import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
+import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
 import { Switch } from './components/switch'
@@ -127,6 +128,10 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
       case 'webhook-config':
         return (
           <WebhookConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
+        )
+      case 'schedule-config':
+        return (
+          <ScheduleConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
         )
       case 'oauth-input':
         return (

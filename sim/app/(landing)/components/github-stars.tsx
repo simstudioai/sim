@@ -2,17 +2,20 @@ import { Star } from 'lucide-react'
 import { GithubIcon } from '@/components/icons'
 
 async function getGitHubStars() {
+  const token = process.env.GITHUB_TOKEN
+
   const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
     headers: {
       Accept: 'application/vnd.github+json',
       'X-GitHub-Api-Version': '2022-11-28',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     next: { revalidate: 3600 }, // Revalidate every hour
   })
 
   if (!response.ok) {
-    // Return 0 stars if API fails, we don't want to break the UI
-    return 0
+    // Return current stars if API fails, we don't want to break the UI
+    return 65
   }
 
   const data = await response.json()
