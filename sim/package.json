@@ -57,7 +57,7 @@
     "cmdk": "^1.0.0",
     "croner": "^9.0.0",
     "date-fns": "^3.6.0",
-    "drizzle-orm": "^0.39.3",
+    "drizzle-orm": "^0.41.0",
     "framer-motion": "^12.5.0",
     "groq-sdk": "^0.15.0",
     "input-otp": "^1.4.2",
