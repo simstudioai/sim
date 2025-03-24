@@ -27,7 +27,7 @@
     "publish:cli": "npm run build:cli && npm run cli:publish"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.38.0",
+    "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-s3": "^3.758.0",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",
     "@hookform/resolvers": "^4.1.3",
