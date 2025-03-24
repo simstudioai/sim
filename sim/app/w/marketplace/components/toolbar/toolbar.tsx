@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   BotMessageSquare,
+  Clock,
   Code,
   LineChart,
   MailIcon,
@@ -15,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { mockWorkflows } from '../../marketplace'
+import { CATEGORIES, getCategoryIcon } from '../../constants/categories'
 
 export type MarketplaceCategory = 'popular' | 'programming' | 'marketing' | 'all'
 
@@ -24,21 +25,27 @@ interface ToolbarProps {
   activeSection: string | null
 }
 
-// Map of category icons
-const categoryIcons: Record<string, React.ReactNode> = {
+// Map of special section icons
+const specialIcons: Record<string, React.ReactNode> = {
   popular: <Star className="h-4 w-4 mr-2" />,
-  programming: <Code className="h-4 w-4 mr-2" />,
-  marketing: <MailIcon className="h-4 w-4 mr-2" />,
-  sales: <Store className="h-4 w-4 mr-2" />,
+  recent: <Clock className="h-4 w-4 mr-2" />,
 }
 
 export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
   const [categories, setCategories] = useState<string[]>([])
 
-  // Extract all available categories from mockWorkflows
+  // Set categories including special sections
   useEffect(() => {
-    const availableCategories = Object.keys(mockWorkflows)
-    setCategories(availableCategories)
+    // Start with special sections like 'popular' and 'recent'
+    const specialSections = ['popular']
+
+    // Add categories from centralized definitions
+    const categoryValues = CATEGORIES.map((cat) => cat.value)
+
+    // Add 'recent' as the last item
+    const allCategories = [...specialSections, ...categoryValues, 'recent']
+
+    setCategories(allCategories)
   }, [])
 
   return (
@@ -54,7 +61,7 @@ export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
             }`}
             onClick={() => scrollToSection(category)}
           >
-            {categoryIcons[category] || <Star className="h-4 w-4 mr-2" />}
+            {specialIcons[category] || getCategoryIcon(category)}
             {category}
           </Button>
         ))}
