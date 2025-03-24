@@ -148,6 +148,13 @@
       "when": 1742552444912,
       "tag": "0020_clear_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1742850849852,
+      "tag": "0021_shocking_korath",
+      "breakpoints": true
     }
   ]
 }

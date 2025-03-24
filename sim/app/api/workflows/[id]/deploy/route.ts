@@ -12,6 +12,59 @@ const logger = createLogger('WorkflowDeployAPI')
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const { id } = await params
+
+  try {
+    logger.debug(`[${requestId}] Fetching deployment info for workflow: ${id}`)
+    const validation = await validateWorkflowAccess(request, id, false)
+
+    if (validation.error) {
+      logger.warn(`[${requestId}] Failed to fetch deployment info: ${validation.error.message}`)
+      return createErrorResponse(validation.error.message, validation.error.status)
+    }
+
+    // Fetch the workflow information including deployment details
+    const result = await db
+      .select({
+        apiKey: workflow.apiKey,
+        isDeployed: workflow.isDeployed,
+        deployedAt: workflow.deployedAt,
+      })
+      .from(workflow)
+      .where(eq(workflow.id, id))
+      .limit(1)
+
+    if (result.length === 0) {
+      logger.warn(`[${requestId}] Workflow not found: ${id}`)
+      return createErrorResponse('Workflow not found', 404)
+    }
+
+    const workflowData = result[0]
+
+    // If the workflow is not deployed, return appropriate response
+    if (!workflowData.isDeployed || !workflowData.apiKey) {
+      logger.info(`[${requestId}] Workflow is not deployed: ${id}`)
+      return createSuccessResponse({
+        isDeployed: false,
+        apiKey: null,
+        deployedAt: null,
+      })
+    }
+
+    logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
+    return createSuccessResponse({
+      apiKey: workflowData.apiKey,
+      isDeployed: workflowData.isDeployed,
+      deployedAt: workflowData.deployedAt,
+    })
+  } catch (error: any) {
+    logger.error(`[${requestId}] Error fetching deployment info: ${id}`, error)
+    return createErrorResponse(error.message || 'Failed to fetch deployment information', 500)
+  }
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params

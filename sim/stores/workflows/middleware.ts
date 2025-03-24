@@ -2,7 +2,6 @@ import { StateCreator } from 'zustand'
 import { saveSubblockValues, saveWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
-import { mergeSubblockState } from './utils'
 import { WorkflowState, WorkflowStore } from './workflow/types'
 
 // Types

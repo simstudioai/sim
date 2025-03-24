@@ -1,7 +1,8 @@
+import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflowLogs } from '@/db/schema'
+import { userStats, workflow, workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -69,6 +70,20 @@ export async function persistExecutionLogs(
   triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
 ) {
   try {
+    // Get the workflow record to get the userId
+    const [workflowRecord] = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowRecord) {
+      logger.error(`Workflow ${workflowId} not found`)
+      return
+    }
+
+    const userId = workflowRecord.userId
+
     // Track accumulated cost data across all agent blocks
     let totalCost = 0
     let totalInputCost = 0
@@ -512,14 +527,39 @@ export async function persistExecutionLogs(
         }
       }
 
-      logger.info(`Workflow execution total cost: ${totalCost}`, {
-        workflowId,
-        executionId,
-        totalCost,
-        inputCost: totalInputCost,
-        outputCost: totalOutputCost,
-        models: Object.keys(modelCounts),
-      })
+      if (userId) {
+        try {
+          const userStatsRecords = await db
+            .select()
+            .from(userStats)
+            .where(eq(userStats.userId, userId))
+
+          if (userStatsRecords.length === 0) {
+            await db.insert(userStats).values({
+              id: crypto.randomUUID(),
+              userId: userId,
+              totalManualExecutions: 0,
+              totalApiCalls: 0,
+              totalWebhookTriggers: 0,
+              totalScheduledExecutions: 0,
+              totalTokensUsed: totalTokens,
+              totalCost: totalCost.toString(),
+              lastActive: new Date(),
+            })
+          } else {
+            await db
+              .update(userStats)
+              .set({
+                totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+                totalCost: sql`total_cost + ${totalCost}`,
+                lastActive: new Date(),
+              })
+              .where(eq(userStats.userId, userId))
+          }
+        } catch (error) {
+          logger.error(`Error upserting user stats:`, error)
+        }
+      }
     }
 
     // Log the final execution result
