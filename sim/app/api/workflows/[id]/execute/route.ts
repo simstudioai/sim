@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -10,7 +10,7 @@ import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
-import { environment } from '@/db/schema'
+import { environment, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { validateWorkflowAccess } from '../../middleware'
@@ -163,6 +163,15 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     // Update workflow run counts if execution was successful
     if (result.success) {
       await updateWorkflowRunCounts(workflowId)
+
+      // Track API call in user stats
+      await db
+        .update(userStats)
+        .set({
+          totalApiCalls: sql`total_api_calls + 1`,
+          lastActive: new Date(),
+        })
+        .where(eq(userStats.userId, workflow.userId))
     }
 
     // Build trace spans from execution logs

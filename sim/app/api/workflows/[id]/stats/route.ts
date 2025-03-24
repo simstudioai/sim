@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { userWorkflowStats, workflow } from '@/db/schema'
+import { userStats, workflow } from '@/db/schema'
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const { id } = params
@@ -31,12 +31,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .where(eq(workflow.id, id))
 
     await db
-      .update(userWorkflowStats)
+      .update(userStats)
       .set({
         totalWorkflowRuns: sql`total_workflow_runs + ${runs}`,
-        lastUpdated: new Date(),
+        lastActive: new Date(),
       })
-      .where(eq(userWorkflowStats.userId, workflowRecord.userId))
+      .where(eq(userStats.userId, workflowRecord.userId))
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
@@ -9,7 +9,7 @@ import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
-import { environment, webhook, workflow } from '@/db/schema'
+import { environment, userStats, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 
@@ -563,6 +563,15 @@ async function processWebhook(
     // Update workflow run counts if execution was successful
     if (result.success) {
       await updateWorkflowRunCounts(foundWorkflow.id)
+
+      // Track webhook trigger in user stats
+      await db
+        .update(userStats)
+        .set({
+          totalWebhookTriggers: sql`total_webhook_triggers + 1`,
+          lastActive: new Date(),
+        })
+        .where(eq(userStats.userId, foundWorkflow.userId))
     }
 
     // Build trace spans from execution logs

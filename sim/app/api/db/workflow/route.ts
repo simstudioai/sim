@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { userStats, workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -128,6 +128,17 @@ export async function POST(req: NextRequest) {
               createdAt: now,
               updatedAt: now,
             })
+          )
+
+          // Increment workflowsCreated in userStats
+          operations.push(
+            db
+              .update(userStats)
+              .set({
+                workflowsCreated: sql`workflows_created + 1`,
+                lastActive: now,
+              })
+              .where(eq(userStats.userId, session.user.id))
           )
         } else {
           // Existing workflow - update if needed
