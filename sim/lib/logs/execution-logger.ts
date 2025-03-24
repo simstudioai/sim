@@ -1,7 +1,8 @@
+import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflowLogs } from '@/db/schema'
+import { userStats, workflow, workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -69,6 +70,20 @@ export async function persistExecutionLogs(
   triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
 ) {
   try {
+    // Get the workflow record to get the userId
+    const [workflowRecord] = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
+
+    if (!workflowRecord) {
+      logger.error(`Workflow ${workflowId} not found`)
+      return
+    }
+
+    const userId = workflowRecord.userId
+
     // Track accumulated cost data across all agent blocks
     let totalCost = 0
     let totalInputCost = 0
@@ -520,6 +535,18 @@ export async function persistExecutionLogs(
         outputCost: totalOutputCost,
         models: Object.keys(modelCounts),
       })
+
+      // Update user stats with cost and token information
+      if (userId) {
+        await db
+          .update(userStats)
+          .set({
+            totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+            totalCost: sql`total_cost + ${totalCost}`,
+            lastActive: new Date(),
+          })
+          .where(eq(userStats.userId, userId))
+      }
     }
 
     // Log the final execution result
