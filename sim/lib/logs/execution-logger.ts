@@ -527,25 +527,38 @@ export async function persistExecutionLogs(
         }
       }
 
-      logger.info(`Workflow execution total cost: ${totalCost}`, {
-        workflowId,
-        executionId,
-        totalCost,
-        inputCost: totalInputCost,
-        outputCost: totalOutputCost,
-        models: Object.keys(modelCounts),
-      })
-
-      // Update user stats with cost and token information
       if (userId) {
-        await db
-          .update(userStats)
-          .set({
-            totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-            totalCost: sql`total_cost + ${totalCost}`,
-            lastActive: new Date(),
-          })
-          .where(eq(userStats.userId, userId))
+        try {
+          const userStatsRecords = await db
+            .select()
+            .from(userStats)
+            .where(eq(userStats.userId, userId))
+
+          if (userStatsRecords.length === 0) {
+            await db.insert(userStats).values({
+              id: crypto.randomUUID(),
+              userId: userId,
+              totalManualExecutions: 0,
+              totalApiCalls: 0,
+              totalWebhookTriggers: 0,
+              totalScheduledExecutions: 0,
+              totalTokensUsed: totalTokens,
+              totalCost: totalCost.toString(),
+              lastActive: new Date(),
+            })
+          } else {
+            await db
+              .update(userStats)
+              .set({
+                totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
+                totalCost: sql`total_cost + ${totalCost}`,
+                lastActive: new Date(),
+              })
+              .where(eq(userStats.userId, userId))
+          }
+        } catch (error) {
+          logger.error(`Error upserting user stats:`, error)
+        }
       }
     }
 

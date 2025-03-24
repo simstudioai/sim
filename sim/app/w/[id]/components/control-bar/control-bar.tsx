@@ -321,6 +321,8 @@ export function ControlBar() {
         })
 
         if (!response.ok) {
+          const errorData = await response.json()
+          logger.error(`Failed to update workflow stats: ${JSON.stringify(errorData)}`)
           throw new Error('Failed to update workflow stats')
         }
       }

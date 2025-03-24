@@ -215,12 +215,11 @@ export const userStats = pgTable('user_stats', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One record per user
-  totalWorkflowRuns: integer('total_workflow_runs').notNull().default(0),
+  totalManualExecutions: integer('total_manual_executions').notNull().default(0),
   totalApiCalls: integer('total_api_calls').notNull().default(0),
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
-  workflowsCreated: integer('workflows_created').notNull().default(0),
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
