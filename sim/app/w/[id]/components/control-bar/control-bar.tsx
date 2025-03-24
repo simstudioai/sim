@@ -208,7 +208,7 @@ export function ControlBar() {
       try {
         setIsDeploying(true)
 
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy/info`)
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`)
         if (!response.ok) throw new Error('Failed to fetch deployment info')
 
         const { apiKey } = await response.json()
