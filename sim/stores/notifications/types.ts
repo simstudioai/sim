@@ -7,6 +7,7 @@ export interface Notification {
   timestamp: number
   isVisible: boolean
   workflowId: string | null
+  read: boolean
   options?: NotificationOptions
 }
 
@@ -31,6 +32,8 @@ export interface NotificationStore {
   ) => void
   hideNotification: (id: string) => void
   showNotification: (id: string) => void
+  markAsRead: (id: string) => void
+  markAllAsRead: (workflowId: string) => void
   removeNotification: (id: string) => void
   clearNotifications: () => void
   getWorkflowNotifications: (workflowId: string) => Notification[]

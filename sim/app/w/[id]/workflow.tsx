@@ -12,6 +12,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -51,6 +52,7 @@ function WorkflowContent() {
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
+  const { markAllAsRead } = useNotificationStore()
 
   // Initialize workflow
   useEffect(() => {
@@ -157,16 +159,26 @@ function WorkflowContent() {
           if (!isActivelyLoadingFromDB()) {
             clearInterval(checkInterval)
             setActiveWorkflow(currentId)
+            markAllAsRead(currentId)
           }
         }, 100)
         return
       }
 
       setActiveWorkflow(currentId)
+      markAllAsRead(currentId)
     }
 
     validateAndNavigate()
-  }, [params.id, workflows, setActiveWorkflow, createWorkflow, router, isInitialized])
+  }, [
+    params.id,
+    workflows,
+    setActiveWorkflow,
+    createWorkflow,
+    router,
+    isInitialized,
+    markAllAsRead,
+  ])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {
