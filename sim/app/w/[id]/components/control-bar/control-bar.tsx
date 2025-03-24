@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, History, Loader2, Play, Rocket, Store, Trash2 } from 'lucide-react'
+import { Bell, ChevronDown, History, Loader2, Play, Rocket, Store, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
@@ -34,6 +35,9 @@ import { MarketplaceModal } from './components/marketplace-modal/marketplace-mod
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 
 const logger = createLogger('ControlBar')
+
+// Predefined run count options
+const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
 
 /**
  * Control bar for managing workflows - handles editing, deletion, deployment,
@@ -75,6 +79,12 @@ export function ControlBar() {
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
+
+  // Multiple runs state
+  const [runCount, setRunCount] = useState(1)
+  const [completedRuns, setCompletedRuns] = useState(0)
+  const [isMultiRunning, setIsMultiRunning] = useState(false)
+  const [showRunProgress, setShowRunProgress] = useState(false)
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -287,6 +297,35 @@ export function ControlBar() {
   }
 
   /**
+   * Handle multiple workflow runs
+   */
+  const handleMultipleRuns = async () => {
+    if (isExecuting || isMultiRunning || runCount <= 0) return
+
+    // Reset state for a new batch of runs
+    setCompletedRuns(0)
+    setIsMultiRunning(true)
+    setShowRunProgress(runCount > 1)
+
+    try {
+      // Run the workflow multiple times sequentially
+      for (let i = 0; i < runCount; i++) {
+        await handleRunWorkflow()
+        setCompletedRuns(i + 1)
+      }
+    } catch (error) {
+      logger.error('Error during multiple workflow runs:', { error })
+      addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
+    } finally {
+      setIsMultiRunning(false)
+      // Keep progress visible for a moment after completion
+      if (runCount > 1) {
+        setTimeout(() => setShowRunProgress(false), 2000)
+      }
+    }
+  }
+
+  /**
    * Render workflow name section (editable/non-editable)
    */
   const renderWorkflowName = () => (
@@ -449,44 +488,51 @@ export function ControlBar() {
   /**
    * Render notifications dropdown
    */
-  const renderNotificationsDropdown = () => (
-    <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Bell />
-              <span className="sr-only">Notifications</span>
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
-      </Tooltip>
+  const renderNotificationsDropdown = () => {
+    // Ensure we're only showing notifications for the current workflow
+    const currentWorkflowNotifications = activeWorkflowId
+      ? notifications.filter((n) => n.workflowId === activeWorkflowId)
+      : []
 
-      {workflowNotifications.length === 0 ? (
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem className="text-sm text-muted-foreground">
-            No new notifications
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      ) : (
-        <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
-          {[...workflowNotifications]
-            .sort((a, b) => b.timestamp - a.timestamp)
-            .map((notification) => (
-              <NotificationDropdownItem
-                key={notification.id}
-                id={notification.id}
-                type={notification.type}
-                message={notification.message}
-                timestamp={notification.timestamp}
-                options={notification.options}
-              />
-            ))}
-        </DropdownMenuContent>
-      )}
-    </DropdownMenu>
-  )
+    return (
+      <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Bell />
+                <span className="sr-only">Notifications</span>
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          {!notificationsOpen && <TooltipContent>Notifications</TooltipContent>}
+        </Tooltip>
+
+        {currentWorkflowNotifications.length === 0 ? (
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem className="text-sm text-muted-foreground">
+              No new notifications
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        ) : (
+          <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
+            {[...currentWorkflowNotifications]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .map((notification) => (
+                <NotificationDropdownItem
+                  key={notification.id}
+                  id={notification.id}
+                  type={notification.type}
+                  message={notification.message}
+                  timestamp={notification.timestamp}
+                  options={notification.options}
+                />
+              ))}
+          </DropdownMenuContent>
+        )}
+      </DropdownMenu>
+    )
+  }
 
   /**
    * Render publish button
@@ -520,31 +566,78 @@ export function ControlBar() {
   )
 
   /**
-   * Render run workflow button
+   * Render run workflow button with multi-run dropdown
    */
   const renderRunButton = () => (
-    <Button
-      className={cn(
-        // Base styles
-        'gap-2 ml-1 font-medium',
-        // Brand color with hover states
-        'bg-[#7F2FFF] hover:bg-[#7028E6]',
-        // Hover effect with brand color
-        'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-        // Text color and transitions
-        'text-white transition-all duration-200',
-        // Running state animation
-        isExecuting &&
-          'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-        // Disabled state
-        'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none'
+    <div className="flex items-center">
+      {showRunProgress && (
+        <div className="mr-3 w-28">
+          <Progress value={(completedRuns / runCount) * 100} className="h-2 bg-muted" />
+          <p className="text-xs text-muted-foreground mt-1 text-center">
+            {completedRuns}/{runCount} runs
+          </p>
+        </div>
       )}
-      onClick={handleRunWorkflow}
-      disabled={isExecuting}
-    >
-      <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
-      {isExecuting ? 'Running' : 'Run'}
-    </Button>
+
+      <div className="flex ml-1">
+        {/* Main Run Button */}
+        <Button
+          className={cn(
+            'gap-2 font-medium',
+            'bg-[#7F2FFF] hover:bg-[#7028E6]',
+            'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+            'text-white transition-all duration-200',
+            (isExecuting || isMultiRunning) &&
+              'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+            'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
+            'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
+          )}
+          onClick={handleMultipleRuns}
+          disabled={isExecuting || isMultiRunning}
+        >
+          <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
+          {isMultiRunning
+            ? `Running ${completedRuns}/${runCount}`
+            : isExecuting
+              ? 'Running'
+              : runCount === 1
+                ? 'Run'
+                : `Run (${runCount})`}
+        </Button>
+
+        {/* Dropdown Trigger */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              className={cn(
+                'px-2 font-medium',
+                'bg-[#7F2FFF] hover:bg-[#7028E6]',
+                'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                'text-white transition-all duration-200',
+                (isExecuting || isMultiRunning) &&
+                  'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+                'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
+                'rounded-l-none h-10'
+              )}
+              disabled={isExecuting || isMultiRunning}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-20">
+            {RUN_COUNT_OPTIONS.map((count) => (
+              <DropdownMenuItem
+                key={count}
+                onClick={() => setRunCount(count)}
+                className={cn('justify-center', runCount === count && 'bg-muted')}
+              >
+                {count}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
   )
 
   return (
