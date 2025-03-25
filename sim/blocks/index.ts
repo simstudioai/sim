@@ -30,6 +30,7 @@ import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
+import { ConfluenceBlock } from './blocks/confluence'
 
 // Export blocks for ease of use
 export {
@@ -63,6 +64,7 @@ export {
   WhatsAppBlock,
   GoogleSheetsBlock,
   PerplexityBlock,
+  ConfluenceBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -97,6 +99,7 @@ const blocks: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  confluence: ConfluenceBlock,
 }
 
 // Helper functions

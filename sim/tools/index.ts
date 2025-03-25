@@ -40,6 +40,7 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
+import { confluenceRetrieveTool } from './confluence/retrieve'
 
 const logger = createLogger('Tools')
 
@@ -98,6 +99,7 @@ export const tools: Record<string, ToolConfig> = {
   guesty_reservation: guestyReservationTool,
   guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
+  confluence_retrieve: confluenceRetrieveTool,
 }
 
 // Get a tool by its ID
