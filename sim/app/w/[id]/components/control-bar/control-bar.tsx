@@ -559,6 +559,7 @@ export function ControlBar() {
                   message={notification.message}
                   timestamp={notification.timestamp}
                   options={notification.options}
+                  setDropdownOpen={setNotificationsOpen}
                 />
               ))}
           </DropdownMenuContent>

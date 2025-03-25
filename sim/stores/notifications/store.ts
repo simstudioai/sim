@@ -61,9 +61,16 @@ export const useNotificationStore = create<NotificationStore>()(
 
       showNotification: (id) =>
         set((state) => {
-          const newNotifications = state.notifications.map((n) =>
-            n.id === id ? { ...n, isVisible: true } : n
-          )
+          // Find the notification first to ensure it exists
+          const notification = state.notifications.find(n => n.id === id)
+          if (!notification) return { notifications: state.notifications }
+          
+          // Bring the notification to the top and make it visible
+          const filteredNotifications = state.notifications.filter(n => n.id !== id)
+          const updatedNotification = { ...notification, isVisible: true, read: false }
+          
+          // Put the notification at the top so it's easily visible in dropdowns
+          const newNotifications = [updatedNotification, ...filteredNotifications]
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
         }),
