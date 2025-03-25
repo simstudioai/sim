@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, like } from 'drizzle-orm'
+import { and, eq, like, or } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
@@ -43,10 +43,15 @@ export async function POST(request: NextRequest) {
         .where(and(eq(account.userId, session.user.id), eq(account.providerId, providerId)))
     } else {
       // Otherwise, delete all accounts for this provider
-      // We use LIKE to match all feature types (e.g., google-default, google-email, etc.)
+      // Handle both exact matches (e.g., 'confluence') and prefixed matches (e.g., 'google-email')
       await db
         .delete(account)
-        .where(and(eq(account.userId, session.user.id), like(account.providerId, `${provider}-%`)))
+        .where(
+          and(
+            eq(account.userId, session.user.id),
+            or(eq(account.providerId, provider), like(account.providerId, `${provider}-%`))
+          )
+        )
     }
 
     return NextResponse.json({ success: true }, { status: 200 })
