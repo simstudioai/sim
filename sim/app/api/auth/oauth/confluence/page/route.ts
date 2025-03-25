@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { domain, accessToken, title, limit = 50 } = await request.json()
+    const { domain, accessToken, pageId } = await request.json()
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -12,36 +12,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
+    if (!pageId) {
+      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
+    }
+
     // Log request details for debugging
     console.log('Request details:', {
       domain,
       tokenLength: accessToken ? accessToken.length : 0,
-      hasTitle: !!title,
-      limit,
+      pageId,
     })
 
-    // Build the URL with query parameters
-    const baseUrl = `https://${domain}/wiki/api/v2/pages`
-    const queryParams = new URLSearchParams()
+    // Build the URL - using the same format as retrieve.ts
+    const url = `https://${domain}/wiki/api/v2/pages/${pageId}?expand=body.view`
 
-    if (limit) {
-      queryParams.append('limit', limit.toString())
-    }
+    console.log(`Fetching Confluence page from: ${url}`)
 
-    if (title) {
-      queryParams.append('title', title)
-    }
-
-    const queryString = queryParams.toString()
-    const url = queryString ? `${baseUrl}?${queryString}` : baseUrl
-
-    console.log(`Fetching Confluence pages from: ${url}`)
-
-    // Make the request to Confluence API with OAuth Bearer token
+    // Make the request to Confluence API
     const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        Accept: 'application/json',
         Authorization: `Bearer ${accessToken}`,
       },
     })
@@ -55,7 +47,7 @@ export async function POST(request: Request) {
       try {
         const errorData = await response.json()
         console.error('Error details:', JSON.stringify(errorData, null, 2))
-        errorMessage = errorData.message || `Failed to fetch Confluence pages (${response.status})`
+        errorMessage = errorData.message || `Failed to fetch Confluence page (${response.status})`
       } catch (e) {
         console.error('Could not parse error response as JSON:', e)
 
@@ -63,9 +55,9 @@ export async function POST(request: Request) {
         try {
           const text = await response.text()
           console.error('Response text:', text)
-          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
+          errorMessage = `Failed to fetch Confluence page: ${response.status} ${response.statusText}`
         } catch (textError) {
-          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
+          errorMessage = `Failed to fetch Confluence page: ${response.status} ${response.statusText}`
         }
       }
 
@@ -73,29 +65,22 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    console.log('Confluence API response:', JSON.stringify(data, null, 2).substring(0, 300) + '...')
-    console.log(`Found ${data.results?.length || 0} pages`)
-
-    if (data.results && data.results.length > 0) {
-      console.log('First few pages:')
-      data.results.slice(0, 3).forEach((page: any) => {
-        console.log(`- ${page.id}: ${page.title}`)
-      })
-    }
+    console.log(`Successfully fetched page: ${data.id} - ${data.title}`)
 
     return NextResponse.json({
-      files: data.results.map((page: any) => ({
-        id: page.id,
-        name: page.title,
+      file: {
+        id: data.id,
+        name: data.title,
         mimeType: 'confluence/page',
-        url: page._links?.webui || '',
-        modifiedTime: page.version?.createdAt || '',
-        spaceId: page.spaceId,
-        webViewLink: page._links?.webui || '',
-      })),
+        url: data._links?.webui || '',
+        modifiedTime: data.version?.createdAt || '',
+        spaceId: data.spaceId,
+        webViewLink: data._links?.webui || '',
+        content: data.body?.view?.value || '',
+      },
     })
   } catch (error) {
-    console.error('Error fetching Confluence pages:', error)
+    console.error('Error fetching Confluence page:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
