@@ -104,7 +104,10 @@ export interface ExecutionResult {
   metadata?: {
     duration: number // Total execution time in milliseconds
     startTime: string // ISO timestamp when execution started
-    endTime: string // ISO timestamp when execution completed
+    endTime?: string // ISO timestamp when execution completed
+    pendingBlocks?: string[] // Blocks pending execution in debug mode
+    isDebugSession?: boolean // Whether this is a debug session
+    context?: ExecutionContext // Execution context for resuming in debug mode
   }
 }
 

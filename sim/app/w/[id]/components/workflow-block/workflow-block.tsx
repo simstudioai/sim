@@ -20,11 +20,13 @@ interface WorkflowBlockProps {
   type: string
   config: BlockConfig
   name: string
+  isActive?: boolean
+  isPending?: boolean
 }
 
 // Combine both interfaces into a single component
 export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
-  const { type, config, name } = data
+  const { type, config, name, isActive: dataIsActive, isPending } = data
 
   // State management
   const [isConnecting, setIsConnecting] = useState(false)
@@ -52,6 +54,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   // Execution store
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
+  const isActive = dataIsActive || isActiveBlock
 
   // Update node internals when handles change
   useEffect(() => {
@@ -200,9 +203,17 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           'transition-ring transition-block-bg',
           isWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
-          isActiveBlock && 'ring-2 animate-pulse-ring'
+          isActive && 'ring-2 animate-pulse-ring ring-blue-500',
+          isPending && 'ring-2 ring-amber-500'
         )}
       >
+        {/* Show debug indicator for pending blocks */}
+        {isPending && (
+          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white text-xs px-2 py-0.5 rounded-t-md z-10">
+            Next Step
+          </div>
+        )}
+
         <ActionBar blockId={id} blockType={type} />
         <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
 

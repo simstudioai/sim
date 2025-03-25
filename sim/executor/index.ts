@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useConsoleStore } from '@/stores/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { BlockOutput } from '@/blocks/types'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import {
@@ -32,6 +33,7 @@ export class Executor {
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
   private workflowInput: any
+  private isDebugging: boolean = false
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -55,6 +57,8 @@ export class Executor {
       new ApiBlockHandler(),
       new GenericBlockHandler(),
     ]
+
+    this.isDebugging = useGeneralStore.getState().isDebugModeEnabled
   }
 
   /**
@@ -64,7 +68,7 @@ export class Executor {
    * @returns Execution result containing output, logs, and metadata
    */
   async execute(workflowId: string): Promise<ExecutionResult> {
-    const { setIsExecuting, reset } = useExecutionStore.getState()
+    const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
 
@@ -75,6 +79,10 @@ export class Executor {
     try {
       setIsExecuting(true)
 
+      if (this.isDebugging) {
+        setIsDebugging(true)
+      }
+
       let hasMoreLayers = true
       let iteration = 0
       const maxIterations = 100 // Safety limit for infinite loops
@@ -82,18 +90,45 @@ export class Executor {
       while (hasMoreLayers && iteration < maxIterations) {
         const nextLayer = this.getNextExecutionLayer(context)
 
-        if (nextLayer.length === 0) {
-          hasMoreLayers = false
-        } else {
-          const outputs = await this.executeLayer(nextLayer, context)
+        if (this.isDebugging) {
+          // In debug mode, update the pending blocks and wait for user interaction
+          setPendingBlocks(nextLayer)
 
-          if (outputs.length > 0) {
-            finalOutput = outputs[outputs.length - 1]
-          }
-
-          const hasLoopReachedMaxIterations = await this.loopManager.processLoopIterations(context)
-          if (hasLoopReachedMaxIterations) {
+          // If there are no more blocks, we're done
+          if (nextLayer.length === 0) {
             hasMoreLayers = false
+          } else {
+            // Return early to wait for manual stepping
+            // The caller (useWorkflowExecution) will handle resumption
+            return {
+              success: true,
+              output: finalOutput,
+              metadata: {
+                duration: Date.now() - startTime.getTime(),
+                startTime: context.metadata.startTime!,
+                pendingBlocks: nextLayer,
+                isDebugSession: true,
+                context: context, // Include context for resumption
+              },
+              logs: context.blockLogs,
+            }
+          }
+        } else {
+          // Normal execution without debug mode
+          if (nextLayer.length === 0) {
+            hasMoreLayers = false
+          } else {
+            const outputs = await this.executeLayer(nextLayer, context)
+
+            if (outputs.length > 0) {
+              finalOutput = outputs[outputs.length - 1]
+            }
+
+            const hasLoopReachedMaxIterations =
+              await this.loopManager.processLoopIterations(context)
+            if (hasLoopReachedMaxIterations) {
+              hasMoreLayers = false
+            }
           }
         }
 
@@ -123,7 +158,78 @@ export class Executor {
         logs: context.blockLogs,
       }
     } finally {
-      reset()
+      if (!this.isDebugging) {
+        reset()
+      }
+    }
+  }
+
+  /**
+   * Continues execution in debug mode from the current state.
+   *
+   * @param blockIds - Block IDs to execute in this step
+   * @param context - The current execution context
+   * @returns Updated execution result
+   */
+  async continueExecution(blockIds: string[], context: ExecutionContext): Promise<ExecutionResult> {
+    const { setPendingBlocks } = useExecutionStore.getState()
+    let finalOutput: NormalizedBlockOutput = { response: {} }
+
+    try {
+      // Execute the current layer - using the original context, not a clone
+      const outputs = await this.executeLayer(blockIds, context)
+
+      if (outputs.length > 0) {
+        finalOutput = outputs[outputs.length - 1]
+      }
+
+      await this.loopManager.processLoopIterations(context)
+      const nextLayer = this.getNextExecutionLayer(context)
+      setPendingBlocks(nextLayer)
+
+      // Check if we've completed execution
+      const isComplete = nextLayer.length === 0
+
+      if (isComplete) {
+        const endTime = new Date()
+        context.metadata.endTime = endTime.toISOString()
+
+        return {
+          success: true,
+          output: finalOutput,
+          metadata: {
+            duration: endTime.getTime() - new Date(context.metadata.startTime!).getTime(),
+            startTime: context.metadata.startTime!,
+            endTime: context.metadata.endTime!,
+            pendingBlocks: [],
+            isDebugSession: false,
+          },
+          logs: context.blockLogs,
+        }
+      }
+
+      // Return the updated state for the next step
+      return {
+        success: true,
+        output: finalOutput,
+        metadata: {
+          duration: Date.now() - new Date(context.metadata.startTime!).getTime(),
+          startTime: context.metadata.startTime!,
+          pendingBlocks: nextLayer,
+          isDebugSession: true,
+          context: context, // Return the same context object for continuity
+        },
+        logs: context.blockLogs,
+      }
+    } catch (error: any) {
+      console.error('Debug step execution failed:', this.sanitizeError(error))
+
+      return {
+        success: false,
+        output: finalOutput,
+        error: this.extractErrorMessage(error),
+        logs: context.blockLogs,
+      }
     }
   }
 
