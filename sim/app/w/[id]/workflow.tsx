@@ -43,6 +43,9 @@ function WorkflowContent() {
   // State
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [isPublicWorkflow, setIsPublicWorkflow] = useState(false)
+  const [publicWorkflowData, setPublicWorkflowData] = useState<any>(null)
+  const [loadingPublicWorkflow, setLoadingPublicWorkflow] = useState(false)
 
   // Hooks
   const params = useParams()
@@ -51,8 +54,16 @@ function WorkflowContent() {
 
   // Store access
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
-  const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
-    useWorkflowStore()
+  const {
+    blocks,
+    edges,
+    loops,
+    addBlock,
+    updateBlockPosition,
+    addEdge,
+    removeEdge,
+    initializeWorkflow,
+  } = useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
@@ -151,9 +162,47 @@ function WorkflowContent() {
         return
       }
 
+      // Check if the workflow is in the user's registry
       if (!workflows[currentId]) {
-        router.replace(`/w/${workflowIds[0]}`)
-        return
+        // If not in registry, try to load it as a public workflow
+        setLoadingPublicWorkflow(true)
+        try {
+          const response = await fetch(`/api/workflows/public/${currentId}`)
+
+          if (response.ok) {
+            // Workflow exists and is public
+            const data = await response.json()
+            setPublicWorkflowData(data.data)
+            setIsPublicWorkflow(true)
+
+            // Initialize the workflow store with the public workflow state
+            if (data.data?.state) {
+              const { blocks, edges, loops } = data.data.state
+              initializeWorkflow(blocks || {}, edges || [], loops || {})
+
+              // Initialize subblock store with workflow values
+              if (blocks) {
+                useSubBlockStore.getState().initializeFromWorkflow(currentId, blocks)
+              }
+            }
+            setLoadingPublicWorkflow(false)
+            return
+          } else if (response.status === 403) {
+            // Workflow exists but is not public, redirect to first workflow
+            router.replace(`/w/${workflowIds[0]}`)
+            return
+          } else {
+            // Workflow doesn't exist, redirect to first workflow
+            router.replace(`/w/${workflowIds[0]}`)
+            return
+          }
+        } catch (error) {
+          console.error('Error loading public workflow:', error)
+          router.replace(`/w/${workflowIds[0]}`)
+          return
+        } finally {
+          setLoadingPublicWorkflow(false)
+        }
       }
 
       // Import the isActivelyLoadingFromDB function to check sync status
@@ -190,6 +239,7 @@ function WorkflowContent() {
     isInitialized,
     markAllAsRead,
     resetVariablesLoaded,
+    initializeWorkflow,
   ])
 
   // Transform blocks and loops into ReactFlow nodes

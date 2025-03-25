@@ -306,6 +306,23 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
       },
 
+      // Initialize workflow from external state (used for public workflows)
+      initializeWorkflow: (blocks: any, edges: any, loops: any) => {
+        const newState = {
+          blocks: blocks || {},
+          edges: edges || [],
+          loops: loops || {},
+          lastSaved: Date.now(),
+          isDeployed: false,
+          deployedAt: undefined,
+          isPublished: true,
+        }
+
+        set(newState)
+        // Don't push to history since this is an initial load
+        // Don't sync to avoid overwriting the original workflow
+      },
+
       toggleBlockEnabled: (id: string) => {
         const newState = {
           blocks: {
