@@ -52,7 +52,7 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
-      trustedProviders: ['google', 'github', 'email-password'],
+      trustedProviders: ['google', 'github', 'email-password', 'confluence'],
     },
   },
   socialProviders: {
@@ -293,6 +293,56 @@ export const auth = betterAuth({
               emailVerified: profile.data.verified || false,
               createdAt: now,
               updatedAt: now,
+            }
+          },
+        },
+
+        // Confluence provider
+        {
+          providerId: 'confluence',
+          clientId: process.env.CONFLUENCE_CLIENT_ID as string,
+          clientSecret: process.env.CONFLUENCE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.atlassian.com/authorize',
+          tokenUrl: 'https://auth.atlassian.com/oauth/token',
+          userInfoUrl: 'https://api.atlassian.com/me',
+          scopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/confluence`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.atlassian.com/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Confluence user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+
+              const now = new Date()
+
+              return {
+                id: profile.account_id,
+                name: profile.name || profile.display_name || 'Confluence User',
+                email: profile.email || `${profile.account_id}@atlassian.com`,
+                image: profile.picture || null,
+                emailVerified: true, // Assume verified since it's an Atlassian account
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Confluence getUserInfo:', { error })
+              return null
             }
           },
         },
