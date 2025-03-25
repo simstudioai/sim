@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { useConsoleStore } from '@/stores/console/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { BlockOutput } from '@/blocks/types'
@@ -39,12 +39,13 @@ export class Executor {
     private workflow: SerializedWorkflow,
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
+    private workflowVariables: Record<string, any> = {},
     workflowInput?: any
   ) {
     this.validateWorkflow()
     this.workflowInput = workflowInput || {}
 
-    this.resolver = new InputResolver(workflow, environmentVariables)
+    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables)
     this.loopManager = new LoopManager(workflow.loops || {})
     this.pathTracker = new PathTracker(workflow)
 

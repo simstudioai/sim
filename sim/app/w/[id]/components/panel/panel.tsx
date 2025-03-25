@@ -1,27 +1,26 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { PanelLeftClose, PanelRightClose, Terminal } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { PanelRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useConsoleStore } from '@/stores/console/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { ConsoleEntry } from './components/console-entry/console-entry'
+import { usePanelStore } from '../../../../../stores/panel/store'
+import { Console } from './components/console/console'
+import { Variables } from './components/variables/variables'
 
-export function Console() {
+export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)
   const [isDragging, setIsDragging] = useState(false)
 
-  const isOpen = useConsoleStore((state) => state.isOpen)
-  const toggleConsole = useConsoleStore((state) => state.toggleConsole)
-  const entries = useConsoleStore((state) => state.entries)
+  const isOpen = usePanelStore((state) => state.isOpen)
+  const togglePanel = usePanelStore((state) => state.togglePanel)
+  const activeTab = usePanelStore((state) => state.activeTab)
+  const setActiveTab = usePanelStore((state) => state.setActiveTab)
+
   const clearConsole = useConsoleStore((state) => state.clearConsole)
   const { activeWorkflowId } = useWorkflowRegistry()
-
-  const filteredEntries = useMemo(() => {
-    return entries.filter((entry) => entry.workflowId === activeWorkflowId)
-  }, [entries, activeWorkflowId])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true)
@@ -56,14 +55,14 @@ export function Console() {
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            onClick={toggleConsole}
+            onClick={togglePanel}
             className="fixed right-4 bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground transition-colors hover:text-foreground hover:bg-accent border"
           >
-            <Terminal className="h-5 w-5" />
-            <span className="sr-only">Open Console</span>
+            <PanelRight className="h-5 w-5" />
+            <span className="sr-only">Open Panel</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top">Open Console</TooltipContent>
+        <TooltipContent side="top">Open Panel</TooltipContent>
       </Tooltip>
     )
   }
@@ -79,43 +78,61 @@ export function Console() {
       />
 
       <div className="flex items-center justify-between h-14 px-4 border-b">
-        <h2 className="text-sm font-medium">Console</h2>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => clearConsole(activeWorkflowId)}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          Clear
-        </Button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('console')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              activeTab === 'console'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            }`}
+          >
+            Console
+          </button>
+          <button
+            onClick={() => setActiveTab('variables')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              activeTab === 'variables'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            }`}
+          >
+            Variables
+          </button>
+        </div>
+
+        {activeTab === 'console' && (
+          <button
+            onClick={() => clearConsole(activeWorkflowId)}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              true ? 'text-muted-foreground hover:text-foreground hover:bg-accent/50' : ''
+            }`}
+          >
+            Clear
+          </button>
+        )}
       </div>
 
-      <ScrollArea className="h-[calc(100%-4rem)]">
-        <div className="pb-16">
-          {filteredEntries.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-sm text-muted-foreground pt-4">
-              No console entries
-            </div>
-          ) : (
-            filteredEntries.map((entry) => (
-              <ConsoleEntry key={entry.id} entry={entry} consoleWidth={width} />
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      <div className="h-[calc(100%-4rem)]">
+        {activeTab === 'console' ? (
+          <Console panelWidth={width} />
+        ) : (
+          <Variables panelWidth={width} />
+        )}
+      </div>
 
       <div className="absolute left-0 right-0 bottom-0 h-16 bg-background border-t">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={toggleConsole}
+              onClick={togglePanel}
               className="absolute left-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
             >
-              <PanelRightClose className="h-5 w-5" />
-              <span className="sr-only">Close Console</span>
+              <PanelRight className="h-5 w-5 transform rotate-180" />
+              <span className="sr-only">Close Panel</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Close Console</TooltipContent>
+          <TooltipContent side="right">Close Panel</TooltipContent>
         </Tooltip>
       </div>
     </div>

@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useChatStore } from './chat/store'
-import { useConsoleStore } from './console/store'
+import { useConsoleStore } from './panel/console/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
 import { useEnvironmentStore } from './settings/environment/store'
+import { useVariablesStore } from './panel/variables/store'
 import { getSyncManagers, initializeSyncManagers, resetSyncManagers } from './sync-registry'
 import {
   loadRegistry,
@@ -228,6 +229,7 @@ export {
   useConsoleStore,
   useChatStore,
   useCustomToolsStore,
+  useVariablesStore,
 }
 
 // Helper function to reset all stores
@@ -251,6 +253,7 @@ export const resetAllStores = () => {
   useConsoleStore.setState({ entries: [], isOpen: false })
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
+  useVariablesStore.getState().resetLoaded() // Reset variables store tracking
 }
 
 // Helper function to log all store states
@@ -265,6 +268,7 @@ export const logAllStores = () => {
     chat: useChatStore.getState(),
     customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),
+    variables: useVariablesStore.getState(),
   }
 
   return state
