@@ -11,6 +11,7 @@ import { Section } from './components/section'
 import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowCard } from './components/workflow-card'
 import { WorkflowCardSkeleton } from './components/workflow-card-skeleton'
+import { CATEGORIES } from './constants/categories'
 
 // Types
 export interface Workflow {
@@ -22,7 +23,7 @@ export interface Workflow {
   views: number
   tags: string[]
   thumbnail?: string
-  workflowUrl?: string
+  workflowUrl: string
   workflowState?: {
     blocks: Record<string, any>
     edges: Array<{
@@ -67,6 +68,9 @@ export interface MarketplaceData {
   byCategory: Record<string, MarketplaceWorkflow[]>
 }
 
+// The order to display sections in, matching toolbar order
+const SECTION_ORDER = ['popular', 'recent', ...CATEGORIES.map((cat) => cat.value)]
+
 export default function Marketplace() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -77,10 +81,13 @@ export default function Marketplace() {
     byCategory: {},
   })
   const [activeSection, setActiveSection] = useState<string | null>(null)
+  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
+  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
 
   // Create refs for each section
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const contentRef = useRef<HTMLDivElement>(null)
+  const initialFetchCompleted = useRef(false)
 
   // Convert marketplace data to the format expected by components
   const workflowData = useMemo(() => {
@@ -94,6 +101,7 @@ export default function Marketplace() {
         views: item.views,
         tags: [item.category],
         workflowState: item.workflowState,
+        workflowUrl: `/w/${item.workflowId}`,
       })),
       recent: marketplaceData.recent.map((item) => ({
         id: item.id,
@@ -104,6 +112,7 @@ export default function Marketplace() {
         views: item.views,
         tags: [item.category],
         workflowState: item.workflowState,
+        workflowUrl: `/w/${item.workflowId}`,
       })),
     }
 
@@ -119,6 +128,7 @@ export default function Marketplace() {
           views: item.views,
           tags: [item.category],
           workflowState: item.workflowState,
+          workflowUrl: `/w/${item.workflowId}`,
         }))
       }
     })
@@ -126,22 +136,46 @@ export default function Marketplace() {
     return result
   }, [marketplaceData])
 
-  // Fetch workflows on component mount
+  // Fetch workflows on component mount - improved to include state initially
   useEffect(() => {
-    const fetchWorkflows = async () => {
+    const fetchInitialData = async () => {
       try {
         setLoading(true)
 
-        const response = await fetch('/api/marketplace/featured')
+        // Fetch ALL data including categories in the initial load
+        const response = await fetch(
+          '/api/marketplace/workflows?includeState=true&section=popular,recent,byCategory'
+        )
 
         if (!response.ok) {
           throw new Error('Failed to fetch marketplace data')
         }
 
         const data = await response.json()
-        setMarketplaceData(data)
 
-        // Set initial active section to first category
+        // Add all categories to loaded sections to avoid redundant load
+        setLoadedSections((prev) => {
+          const allSections = new Set([...prev])
+          Object.keys(data.byCategory || {}).forEach((category) => {
+            allSections.add(category)
+          })
+          return allSections
+        })
+
+        console.log(
+          'Initial marketplace data loaded with categories:',
+          data.popular?.length || 0,
+          'popular,',
+          data.recent?.length || 0,
+          'recent,',
+          'categories:',
+          Object.keys(data.byCategory || {})
+        )
+
+        setMarketplaceData(data)
+        initialFetchCompleted.current = true
+
+        // Set initial active section to popular
         setActiveSection('popular')
         setLoading(false)
       } catch (error) {
@@ -151,11 +185,61 @@ export default function Marketplace() {
       }
     }
 
-    fetchWorkflows()
+    fetchInitialData()
   }, [])
 
-  // Function to fetch workflow state for a specific workflow
-  const fetchWorkflowState = async (workflowId: string) => {
+  // Lazy load category data when sections become visible
+  const loadCategoryData = async (categoryName: string) => {
+    if (loadedSections.has(categoryName)) {
+      return // Already loaded, no need to fetch again
+    }
+
+    try {
+      setLoadedSections((prev) => new Set([...prev, categoryName]))
+
+      console.log(`Loading category: ${categoryName}`) // Debug
+
+      const response = await fetch(
+        `/api/marketplace/workflows?includeState=true&category=${categoryName}`
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${categoryName} category data`)
+      }
+
+      const data = await response.json()
+
+      // Debug logging
+      console.log(
+        `Category data received:`,
+        data.byCategory ? Object.keys(data.byCategory) : 'No byCategory',
+        data.byCategory?.[categoryName]?.length || 0
+      )
+
+      // Check if we received any data in the category
+      if (
+        !data.byCategory ||
+        !data.byCategory[categoryName] ||
+        data.byCategory[categoryName].length === 0
+      ) {
+        console.warn(`No items found for category: ${categoryName}`)
+      }
+
+      setMarketplaceData((prev) => ({
+        ...prev,
+        byCategory: {
+          ...prev.byCategory,
+          [categoryName]: data.byCategory?.[categoryName] || [],
+        },
+      }))
+    } catch (error) {
+      console.error(`Error fetching ${categoryName} category:`, error)
+      // We don't set a global error, just log it
+    }
+  }
+
+  // Function to mark a workflow as needing state and fetch it if not available
+  const ensureWorkflowState = async (workflowId: string) => {
     try {
       // Find which section contains this workflow
       let foundWorkflow: MarketplaceWorkflow | undefined
@@ -176,35 +260,44 @@ export default function Marketplace() {
         }
       }
 
-      // If we have the workflow and it doesn't already have state
+      // If we have the workflow but it doesn't have state, fetch it
       if (foundWorkflow && !foundWorkflow.workflowState) {
-        // In a real implementation, fetch the workflow state from the server
-        // For now, we'll just use a placeholder
-        const response = await fetch(`/api/marketplace/${foundWorkflow.workflowId}/state`, {
-          method: 'GET',
-        })
+        const response = await fetch(
+          `/api/marketplace/workflows?marketplaceId=${workflowId}&includeState=true`,
+          {
+            method: 'GET',
+          }
+        )
 
         if (response.ok) {
-          const stateData = await response.json()
+          const data = await response.json()
 
           // Update the workflow data with the state
           setMarketplaceData((prevData) => {
             const updatedData = { ...prevData }
 
+            // Helper function to update workflow in a section
+            const updateWorkflowInSection = (workflows: MarketplaceWorkflow[]) => {
+              return workflows.map((w) =>
+                w.id === workflowId
+                  ? {
+                      ...w,
+                      workflowState: data.data.workflowState,
+                    }
+                  : w
+              )
+            }
+
             // Update in popular
-            updatedData.popular = updatedData.popular.map((w) =>
-              w.id === workflowId ? { ...w, workflowState: stateData.state } : w
-            )
+            updatedData.popular = updateWorkflowInSection(updatedData.popular)
 
             // Update in recent
-            updatedData.recent = updatedData.recent.map((w) =>
-              w.id === workflowId ? { ...w, workflowState: stateData.state } : w
-            )
+            updatedData.recent = updateWorkflowInSection(updatedData.recent)
 
             // Update in categories
             Object.keys(updatedData.byCategory).forEach((category) => {
-              updatedData.byCategory[category] = updatedData.byCategory[category].map((w) =>
-                w.id === workflowId ? { ...w, workflowState: stateData.state } : w
+              updatedData.byCategory[category] = updateWorkflowInSection(
+                updatedData.byCategory[category]
               )
             })
 
@@ -213,7 +306,7 @@ export default function Marketplace() {
         }
       }
     } catch (error) {
-      console.error(`Error fetching workflow state for ${workflowId}:`, error)
+      console.error(`Error ensuring workflow state for ${workflowId}:`, error)
     }
   }
 
@@ -243,9 +336,40 @@ export default function Marketplace() {
     return filtered
   }, [searchQuery, workflowData])
 
+  // Sort sections according to the toolbar order
+  const sortedFilteredWorkflows = useMemo(() => {
+    // Get entries from filteredWorkflows
+    const entries = Object.entries(filteredWorkflows)
+
+    // Sort based on the SECTION_ORDER
+    entries.sort((a, b) => {
+      const indexA = SECTION_ORDER.indexOf(a[0])
+      const indexB = SECTION_ORDER.indexOf(b[0])
+
+      // If both categories are in our predefined order, use that order
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB
+      }
+
+      // If only one category is in our order, prioritize it
+      if (indexA !== -1) return -1
+      if (indexB !== -1) return 1
+
+      // Otherwise, alphabetical order
+      return a[0].localeCompare(b[0])
+    })
+
+    return entries
+  }, [filteredWorkflows])
+
   // Function to scroll to a specific section
   const scrollToSection = (sectionId: string) => {
     if (sectionRefs.current[sectionId]) {
+      // Load the section data if not already loaded
+      if (!loadedSections.has(sectionId) && sectionId !== 'popular' && sectionId !== 'recent') {
+        loadCategoryData(sectionId)
+      }
+
       sectionRefs.current[sectionId]?.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
@@ -253,8 +377,10 @@ export default function Marketplace() {
     }
   }
 
-  // Setup intersection observer to track active section
+  // Setup intersection observer to track active section and load sections as they become visible
   useEffect(() => {
+    if (!initialFetchCompleted.current) return
+
     // Function to get current section IDs in their display order
     const getCurrentSectionIds = () => {
       return Object.keys(filteredWorkflows).filter(
@@ -262,31 +388,56 @@ export default function Marketplace() {
       )
     }
 
-    // Store current section positions for better tracking
-    const sectionPositions: Record<string, DOMRect> = {}
+    // Create intersection observer to detect when sections enter viewport
+    const observeSections = () => {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            const sectionId = entry.target.id
 
-    // Initial calculation of section positions
-    const calculateSectionPositions = () => {
+            // Update visibility tracking
+            if (entry.isIntersecting) {
+              setVisibleSections((prev) => {
+                const updated = new Set(prev)
+                updated.add(sectionId)
+                return updated
+              })
+
+              // Load category data if section is visible and not loaded yet
+              if (
+                !loadedSections.has(sectionId) &&
+                sectionId !== 'popular' &&
+                sectionId !== 'recent'
+              ) {
+                loadCategoryData(sectionId)
+              }
+            } else {
+              setVisibleSections((prev) => {
+                const updated = new Set(prev)
+                updated.delete(sectionId)
+                return updated
+              })
+            }
+          })
+        },
+        {
+          root: contentRef.current,
+          rootMargin: '200px 0px', // Load sections slightly before they become visible
+          threshold: 0.1,
+        }
+      )
+
+      // Observe all sections
       Object.entries(sectionRefs.current).forEach(([id, ref]) => {
         if (ref) {
-          sectionPositions[id] = ref.getBoundingClientRect()
+          observer.observe(ref)
         }
       })
+
+      return observer
     }
 
-    // Debounce function to limit rapid position calculations
-    const debounce = (fn: Function, delay: number) => {
-      let timer: NodeJS.Timeout
-      return function (...args: any[]) {
-        clearTimeout(timer)
-        timer = setTimeout(() => fn(...args), delay)
-      }
-    }
-
-    // Calculate positions initially and on resize
-    calculateSectionPositions()
-    const debouncedCalculatePositions = debounce(calculateSectionPositions, 100)
-    window.addEventListener('resize', debouncedCalculatePositions)
+    const observer = observeSections()
 
     // Use a single source of truth for determining the active section
     const determineActiveSection = () => {
@@ -347,10 +498,10 @@ export default function Marketplace() {
     contentElement?.addEventListener('scroll', handleScroll, { passive: true })
 
     return () => {
-      window.removeEventListener('resize', debouncedCalculatePositions)
+      observer.disconnect()
       contentElement?.removeEventListener('scroll', handleScroll)
     }
-  }, [loading, filteredWorkflows])
+  }, [initialFetchCompleted.current, loading, filteredWorkflows, loadedSections])
 
   return (
     <div className="flex flex-col h-[100vh]">
@@ -388,7 +539,7 @@ export default function Marketplace() {
           {/* Render workflow sections */}
           {!loading && (
             <>
-              {Object.entries(filteredWorkflows).map(
+              {sortedFilteredWorkflows.map(
                 ([category, workflows]) =>
                   workflows.length > 0 && (
                     <Section
@@ -407,7 +558,7 @@ export default function Marketplace() {
                             key={workflow.id}
                             workflow={workflow}
                             index={index}
-                            onHover={fetchWorkflowState}
+                            onHover={ensureWorkflowState}
                           />
                         ))}
                       </div>
@@ -415,7 +566,7 @@ export default function Marketplace() {
                   )
               )}
 
-              {Object.keys(filteredWorkflows).length === 0 && !loading && (
+              {sortedFilteredWorkflows.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center h-64">
                   <AlertCircle className="h-8 w-8 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No workflows found matching your search.</p>

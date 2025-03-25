@@ -62,6 +62,7 @@ export interface WorkflowActions {
   triggerUpdate: () => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setPublishStatus: (isPublished: boolean) => void
+  initializeWorkflow: (blocks: any, edges: any, loops: any) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions
