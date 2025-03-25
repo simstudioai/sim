@@ -27,7 +27,7 @@ interface VariablesProps {
 }
 
 export function Variables({ panelWidth }: VariablesProps) {
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const { activeWorkflowId, workflows } = useWorkflowRegistry()
   const {
     variables: storeVariables,
     addVariable,
@@ -43,10 +43,10 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   // Load variables when workflow changes
   useEffect(() => {
-    if (activeWorkflowId) {
+    if (activeWorkflowId && workflows[activeWorkflowId]) {
       loadVariables(activeWorkflowId)
     }
-  }, [activeWorkflowId, loadVariables])
+  }, [activeWorkflowId, workflows, loadVariables])
 
   // Track editor references
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -55,9 +55,9 @@ export function Variables({ panelWidth }: VariablesProps) {
   const handleAddVariable = () => {
     if (!activeWorkflowId) return
 
-    // Create a default variable
+    // Create a default variable - naming is handled in the store
     const id = addVariable({
-      name: `Variable ${Object.keys(storeVariables).length + 1}`,
+      name: '', // Store will generate an appropriate name
       type: 'string',
       value: '',
       workflowId: activeWorkflowId,

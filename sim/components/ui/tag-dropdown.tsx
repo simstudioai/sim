@@ -6,6 +6,7 @@ import { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getBlock } from '@/blocks'
 
 const logger = createLogger('TagDropdown')
 
@@ -267,6 +268,22 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return tags.filter((tag: string) => tag.toLowerCase().includes(searchTerm))
   }, [tags, searchTerm])
 
+  // Group tags into variables and blocks
+  const { variableTags, blockTags } = useMemo(() => {
+    const varTags: string[] = []
+    const blkTags: string[] = []
+
+    filteredTags.forEach((tag) => {
+      if (tag.startsWith('variable.')) {
+        varTags.push(tag)
+      } else {
+        blkTags.push(tag)
+      }
+    })
+
+    return { variableTags: varTags, blockTags: blkTags }
+  }, [filteredTags])
+
   // Reset selection when filtered results change
   useEffect(() => {
     setSelectedIndex(0)
@@ -292,7 +309,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         (v) => v.name.replace(/\s+/g, '') === variableName
       )
 
-      // Use the tag as is if variable not found
+      // We still use the full tag format internally to maintain compatibility
       if (variableObj) {
         processedTag = tag
       }
@@ -355,36 +372,107 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         {filteredTags.length === 0 ? (
           <div className="px-3 py-2 text-sm text-muted-foreground">No matching tags found</div>
         ) : (
-          filteredTags.map((tag: string, index: number) => {
-            const isVariable = tag.startsWith('variable.')
-            const variableInfo = isVariable ? variableInfoMap?.[tag] : null
+          <>
+            {variableTags.length > 0 && (
+              <>
+                <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                  Variables
+                </div>
+                <div className="-mx-1 -px-1">
+                  {variableTags.map((tag: string, index: number) => {
+                    const variableInfo = variableInfoMap?.[tag] || null
+                    const tagIndex = filteredTags.indexOf(tag)
 
-            return (
-              <button
-                key={tag}
-                className={cn(
-                  'w-full px-3 py-1.5 text-sm text-left flex items-center',
-                  'hover:bg-accent hover:text-accent-foreground',
-                  'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                  index === selectedIndex && 'bg-accent text-accent-foreground',
-                  isVariable && 'font-medium'
-                )}
-                onMouseEnter={() => setSelectedIndex(index)}
-                onMouseDown={(e) => {
-                  e.preventDefault() // Prevent input blur
-                  handleTagSelect(tag)
-                }}
-              >
-                {isVariable && (
-                  <span className="mr-2 inline-block w-2 h-2 rounded-full bg-blue-500" />
-                )}
-                <span className="flex-1">{tag}</span>
-                {isVariable && variableInfo && (
-                  <span className="ml-2 text-xs text-muted-foreground">{variableInfo.type}</span>
-                )}
-              </button>
-            )
-          })
+                    return (
+                      <button
+                        key={tag}
+                        className={cn(
+                          'w-full px-3 py-1.5 text-sm text-left flex items-center gap-2',
+                          'hover:bg-accent hover:text-accent-foreground',
+                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                        )}
+                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseDown={(e) => {
+                          e.preventDefault() // Prevent input blur
+                          handleTagSelect(tag)
+                        }}
+                      >
+                        <div
+                          className="flex items-center justify-center w-5 h-5 rounded"
+                          style={{ backgroundColor: '#2F8BFF' }}
+                        >
+                          <span className="w-3 h-3 text-white font-bold text-xs">V</span>
+                        </div>
+                        <span className="flex-1 truncate">
+                          {tag.startsWith('variable.') ? tag.substring('variable.'.length) : tag}
+                        </span>
+                        {variableInfo && (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {variableInfo.type}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
+            {blockTags.length > 0 && (
+              <>
+                {variableTags.length > 0 && <div className="my-0" />}
+                <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                  Blocks
+                </div>
+                <div className="-mx-1 -px-1">
+                  {blockTags.map((tag: string, index: number) => {
+                    const tagIndex = filteredTags.indexOf(tag)
+
+                    // Get block name from tag (first part before the dot)
+                    const blockName = tag.split('.')[0]
+
+                    // Get block type from blocks
+                    const blockType = Object.values(blocks).find(
+                      (block) =>
+                        (block.name || block.type).replace(/\s+/g, '').toLowerCase() === blockName
+                    )?.type
+
+                    // Get block color from block config
+                    const blockConfig = blockType ? getBlock(blockType) : null
+                    const blockColor = blockConfig?.bgColor || '#2F55FF' // Default to blue if not found
+
+                    return (
+                      <button
+                        key={tag}
+                        className={cn(
+                          'w-full px-3 py-1.5 text-sm text-left flex items-center gap-2',
+                          'hover:bg-accent hover:text-accent-foreground',
+                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                        )}
+                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseDown={(e) => {
+                          e.preventDefault() // Prevent input blur
+                          handleTagSelect(tag)
+                        }}
+                      >
+                        <div
+                          className="flex items-center justify-center w-5 h-5 rounded"
+                          style={{ backgroundColor: blockColor }}
+                        >
+                          <span className="w-3 h-3 text-white font-bold text-xs">
+                            {blockName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <span className="flex-1 truncate">{tag}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

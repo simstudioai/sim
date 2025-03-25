@@ -133,8 +133,17 @@ export async function GET(
 
     // Return variables if they exist
     const variables = workflowRecord[0].variables as Record<string, Variable> || {}
+    
+    // Add cache headers to prevent frequent reloading
+    const headers = new Headers({
+      'Cache-Control': 'max-age=60, stale-while-revalidate=300', // Cache for 1 minute, stale for 5
+      'ETag': `"${requestId}-${Object.keys(variables).length}"`,
+    })
 
-    return NextResponse.json({ data: variables }, { status: 200 })
+    return NextResponse.json({ data: variables }, { 
+      status: 200,
+      headers,
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow variables fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })

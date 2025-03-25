@@ -3,8 +3,15 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { devtools, persist } from 'zustand/middleware'
 import { Variable, VariablesStore } from './types'
 import { API_ENDPOINTS } from '@/stores/constants'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('Variables Store')
+const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
+
+// Map to store debounce timers for each workflow
+const saveTimers = new Map<string, NodeJS.Timeout>()
+// Track which workflows have already been loaded
+const loadedWorkflows = new Set<string>()
 
 export const useVariablesStore = create<VariablesStore>()(
   devtools(
@@ -18,12 +25,46 @@ export const useVariablesStore = create<VariablesStore>()(
         addVariable: (variable) => {
           const id = crypto.randomUUID()
           
+          // Get variables for this workflow
+          const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
+          
+          // Auto-generate variable name if not provided or it's a default pattern name
+          if (!variable.name || /^Variable \d+$/.test(variable.name)) {
+            // Find the highest existing Variable N number
+            const existingNumbers = workflowVariables
+              .map(v => {
+                const match = v.name.match(/^Variable (\d+)$/)
+                return match ? parseInt(match[1]) : 0
+              })
+              .filter(n => !isNaN(n))
+            
+            // Set new number to max + 1, or 1 if none exist
+            const nextNumber = existingNumbers.length > 0 
+              ? Math.max(...existingNumbers) + 1 
+              : 1
+              
+            variable.name = `Variable ${nextNumber}`
+          }
+          
+          // Ensure name uniqueness within the workflow
+          let uniqueName = variable.name
+          let nameIndex = 1
+          
+          // Check if name already exists in this workflow
+          while (workflowVariables.some(v => v.name === uniqueName)) {
+            uniqueName = `${variable.name} (${nameIndex})`
+            nameIndex++
+          }
+          
           set((state) => ({
             variables: {
               ...state.variables,
               [id]: {
-                ...variable,
                 id,
+                workflowId: variable.workflowId,
+                name: uniqueName,
+                type: variable.type,
+                value: variable.value,
               },
             },
           }))
@@ -37,6 +78,26 @@ export const useVariablesStore = create<VariablesStore>()(
         updateVariable: (id, update) => {
           set((state) => {
             if (!state.variables[id]) return state
+            
+            // If name is being updated, ensure it's unique
+            if (update.name) {
+              const workflowId = state.variables[id].workflowId
+              const workflowVariables = Object.values(state.variables).filter(
+                v => v.workflowId === workflowId && v.id !== id
+              )
+              
+              let uniqueName = update.name
+              let nameIndex = 1
+              
+              // Check if name already exists in this workflow
+              while (workflowVariables.some(v => v.name === uniqueName)) {
+                uniqueName = `${update.name} (${nameIndex})`
+                nameIndex++
+              }
+              
+              // Update with unique name
+              update = { ...update, name: uniqueName }
+            }
 
             const updated = {
               ...state.variables,
@@ -46,9 +107,21 @@ export const useVariablesStore = create<VariablesStore>()(
               },
             }
 
-            // Auto-save to DB
+            // Debounced auto-save to DB
             const workflowId = state.variables[id].workflowId
-            setTimeout(() => get().saveVariables(workflowId), 0)
+            
+            // Clear existing timer for this workflow if it exists
+            if (saveTimers.has(workflowId)) {
+              clearTimeout(saveTimers.get(workflowId))
+            }
+            
+            // Set new debounced save timer
+            const timer = setTimeout(() => {
+              get().saveVariables(workflowId)
+              saveTimers.delete(workflowId)
+            }, SAVE_DEBOUNCE_DELAY)
+            
+            saveTimers.set(workflowId, timer)
 
             return { variables: updated }
           })
@@ -61,7 +134,7 @@ export const useVariablesStore = create<VariablesStore>()(
             const workflowId = state.variables[id].workflowId
             const { [id]: _, ...rest } = state.variables
 
-            // Auto-save to DB
+            // Auto-save to DB - no debounce for deletion
             setTimeout(() => get().saveVariables(workflowId), 0)
 
             return { variables: rest }
@@ -74,14 +147,28 @@ export const useVariablesStore = create<VariablesStore>()(
 
           const variable = state.variables[id]
           const newId = crypto.randomUUID()
+          
+          // Ensure the duplicated name is unique
+          const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
+          let baseName = `${variable.name} (copy)`
+          let uniqueName = baseName
+          let nameIndex = 1
+          
+          // Check if name already exists in this workflow
+          while (workflowVariables.some(v => v.name === uniqueName)) {
+            uniqueName = `${baseName} (${nameIndex})`
+            nameIndex++
+          }
 
           set((state) => ({
             variables: {
               ...state.variables,
               [newId]: {
-                ...variable,
                 id: newId,
-                name: `${variable.name} (copy)`,
+                workflowId: variable.workflowId,
+                name: uniqueName,
+                type: variable.type,
+                value: variable.value,
               },
             },
           }))
@@ -93,10 +180,36 @@ export const useVariablesStore = create<VariablesStore>()(
         },
 
         loadVariables: async (workflowId) => {
+          // Skip if already loaded to prevent redundant API calls
+          if (loadedWorkflows.has(workflowId)) return
+          
           try {
             set({ isLoading: true, error: null })
 
             const response = await fetch(`${API_ENDPOINTS.WORKFLOW_VARIABLES}/${workflowId}`)
+
+            // Handle 404 workflow not found gracefully
+            if (response.status === 404) {
+              logger.info(`No variables found for workflow ${workflowId}, initializing empty set`)
+              set((state) => {
+                // Keep variables from other workflows
+                const otherVariables = Object.values(state.variables).reduce((acc, variable) => {
+                  if (variable.workflowId !== workflowId) {
+                    acc[variable.id] = variable
+                  }
+                  return acc
+                }, {} as Record<string, Variable>)
+                
+                // Mark this workflow as loaded to prevent further attempts
+                loadedWorkflows.add(workflowId)
+                
+                return {
+                  variables: otherVariables,
+                  isLoading: false,
+                }
+              })
+              return
+            }
 
             if (!response.ok) {
               throw new Error(`Failed to load workflow variables: ${response.statusText}`)
@@ -114,6 +227,9 @@ export const useVariablesStore = create<VariablesStore>()(
                   return acc
                 }, {} as Record<string, Variable>)
 
+                // Mark this workflow as loaded
+                loadedWorkflows.add(workflowId)
+                
                 return {
                   variables: { ...otherVariables, ...data },
                   isLoading: false,
@@ -129,6 +245,9 @@ export const useVariablesStore = create<VariablesStore>()(
                   return acc
                 }, {} as Record<string, Variable>)
 
+                // Mark this workflow as loaded
+                loadedWorkflows.add(workflowId)
+                
                 return {
                   variables: otherVariables,
                   isLoading: false,
@@ -146,6 +265,13 @@ export const useVariablesStore = create<VariablesStore>()(
 
         saveVariables: async (workflowId) => {
           try {
+            // Skip if workflow doesn't exist in the registry
+            const workflowExists = useWorkflowRegistry.getState().workflows[workflowId]
+            if (!workflowExists) {
+              logger.info(`Skipping variable save for non-existent workflow: ${workflowId}`)
+              return
+            }
+            
             set({ isLoading: true, error: null })
 
             // Get only variables for this workflow
@@ -164,6 +290,14 @@ export const useVariablesStore = create<VariablesStore>()(
               }),
             })
 
+            // Handle 404 workflow not found gracefully
+            if (response.status === 404) {
+              logger.info(`Cannot save variables - workflow ${workflowId} not found in database yet`)
+              // Reset loading state but don't treat as error
+              set({ isLoading: false })
+              return
+            }
+
             if (!response.ok) {
               throw new Error(`Failed to save workflow variables: ${response.statusText}`)
             }
@@ -177,12 +311,19 @@ export const useVariablesStore = create<VariablesStore>()(
             })
 
             // Reload from DB to ensure consistency
+            // Reset tracking to force a reload
+            loadedWorkflows.delete(workflowId)
             get().loadVariables(workflowId)
           }
         },
 
         getVariablesByWorkflowId: (workflowId) => {
           return Object.values(get().variables).filter((variable) => variable.workflowId === workflowId)
+        },
+        
+        // Reset the loaded workflow tracking
+        resetLoaded: () => {
+          loadedWorkflows.clear()
         },
       }),
       {
