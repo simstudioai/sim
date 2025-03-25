@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react'
 import { PanelRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useConsoleStore } from '@/stores/console/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { usePanelStore } from '../../../../../stores/panel/store'
 import { Console } from './components/console/console'
 import { Variables } from './components/variables/variables'
-import { usePanelStore } from './stores/panel/store'
 
 export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)

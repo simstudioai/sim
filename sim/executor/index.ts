@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { useConsoleStore } from '@/stores/console/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { BlockOutput } from '@/blocks/types'

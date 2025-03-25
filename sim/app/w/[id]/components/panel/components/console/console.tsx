@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useConsoleStore } from '@/stores/console/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { ConsoleEntry } from './components/console-entry/console-entry'
 

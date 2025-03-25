@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useChatStore } from './chat/store'
-import { useConsoleStore } from './console/store'
+import { useConsoleStore } from './panel/console/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'

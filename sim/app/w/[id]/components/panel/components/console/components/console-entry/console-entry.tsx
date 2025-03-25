@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { AlertCircle, AlertTriangle, Calendar, CheckCircle2, Clock, Terminal } from 'lucide-react'
-import { ConsoleEntry as ConsoleEntryType } from '@/stores/console/types'
+import { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { getBlock } from '@/blocks'
 import { JSONView } from '../json-view/json-view'
 
