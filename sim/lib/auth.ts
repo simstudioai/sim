@@ -269,29 +269,49 @@ export const auth = betterAuth({
           accessType: 'offline',
           scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
           pkce: true,
+          responseType: 'code',
+          prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
           getUserInfo: async (tokens) => {
-            const response = await fetch(
-              'https://api.x.com/2/users/me?user.fields=profile_image_url',
-              {
-                headers: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                },
+            try {
+              const response = await fetch(
+                'https://api.x.com/2/users/me?user.fields=profile_image_url,username,name,verified',
+                {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+              )
+
+              if (!response.ok) {
+                logger.error('Error fetching X user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
               }
-            )
 
-            const profile = await response.json()
+              const profile = await response.json()
 
-            const now = new Date()
+              if (!profile.data) {
+                logger.error('Invalid X profile response:', profile)
+                return null
+              }
 
-            return {
-              id: profile.data.id,
-              name: profile.data.name,
-              email: profile.data.username || null, // Use username as email
-              image: profile.data.profile_image_url,
-              emailVerified: profile.data.verified || false,
-              createdAt: now,
-              updatedAt: now,
+              const now = new Date()
+
+              return {
+                id: profile.data.id,
+                name: profile.data.name || 'X User',
+                email: `${profile.data.username}@x.com`, // Create synthetic email with username
+                image: profile.data.profile_image_url,
+                emailVerified: profile.data.verified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in X getUserInfo:', { error })
+              return null
             }
           },
         },

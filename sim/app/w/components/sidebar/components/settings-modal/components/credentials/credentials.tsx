@@ -238,7 +238,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         },
         body: JSON.stringify({
           provider: service.providerId.split('-')[0],
-          accountId,
+          providerId: service.providerId,
         }),
       })
 
