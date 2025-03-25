@@ -13,6 +13,7 @@ interface NotificationDropdownItemProps {
   message: string
   timestamp: number
   options?: NotificationOptions
+  setDropdownOpen?: (open: boolean) => void
 }
 
 const NotificationIcon = {
@@ -37,6 +38,7 @@ export function NotificationDropdownItem({
   message,
   timestamp,
   options,
+  setDropdownOpen,
 }: NotificationDropdownItemProps) {
   const { showNotification } = useNotificationStore()
   const Icon = NotificationIcon[type]
@@ -48,15 +50,23 @@ export function NotificationDropdownItem({
     return () => clearInterval(interval)
   }, [])
 
+  // Handle click to show the notification
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    showNotification(id)
+    // Close the dropdown after clicking
+    if (setDropdownOpen) {
+      setDropdownOpen(false)
+    }
+  }
+
   // Format time and replace "less than a minute ago" with "<1 minute ago"
   const rawTimeAgo = formatDistanceToNow(timestamp, { addSuffix: true })
   const timeAgo = rawTimeAgo.replace('less than a minute ago', '<1 minute ago')
 
   return (
-    <DropdownMenuItem
-      className="flex items-start gap-2 p-3 cursor-pointer"
-      onClick={() => showNotification(id)}
-    >
+    <DropdownMenuItem className="flex items-start gap-2 p-3 cursor-pointer" onClick={handleClick}>
       <Icon className={cn('h-4 w-4', NotificationColors[type])} />
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">

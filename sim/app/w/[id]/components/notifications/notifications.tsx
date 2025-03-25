@@ -148,6 +148,28 @@ export function NotificationList() {
       !removedIds.has(n.id)
   )
 
+  // Reset removedIds whenever a notification's visibility changes from false to true
+  useEffect(() => {
+    const newlyVisibleNotifications = notifications.filter(
+      (n) => n.isVisible && removedIds.has(n.id)
+    )
+
+    if (newlyVisibleNotifications.length > 0) {
+      setRemovedIds((prev) => {
+        const next = new Set(prev)
+        newlyVisibleNotifications.forEach((n) => next.delete(n.id))
+        return next
+      })
+
+      // Also reset fading state for these notifications
+      setFadingNotifications((prev) => {
+        const next = new Set(prev)
+        newlyVisibleNotifications.forEach((n) => next.delete(n.id))
+        return next
+      })
+    }
+  }, [notifications, removedIds])
+
   // Handle auto-dismissal of non-persistent notifications
   useEffect(() => {
     // Setup timers for each notification
