@@ -2,15 +2,10 @@ import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { AlertCircle, Copy, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import {
-  NotificationOptions,
-  NotificationStore,
-  NotificationType,
-} from '@/stores/notifications/types'
+import { NotificationOptions, NotificationType } from '@/stores/notifications/types'
 
 interface NotificationDropdownItemProps {
   id: string
@@ -25,6 +20,7 @@ const NotificationIcon = {
   console: Terminal,
   api: Rocket,
   marketplace: Store,
+  info: AlertCircle,
 }
 
 const NotificationColors = {
@@ -32,6 +28,7 @@ const NotificationColors = {
   console: 'text-foreground',
   api: 'text-[#7F2FFF]',
   marketplace: 'text-foreground',
+  info: 'text-blue-500',
 }
 
 export function NotificationDropdownItem({
@@ -70,7 +67,9 @@ export function NotificationDropdownItem({
                 ? 'API'
                 : type === 'marketplace'
                   ? 'Marketplace'
-                  : 'Console'}
+                  : type === 'info'
+                    ? 'Info'
+                    : 'Console'}
           </span>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>

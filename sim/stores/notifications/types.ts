@@ -1,4 +1,4 @@
-export type NotificationType = 'error' | 'console' | 'api' | 'marketplace'
+export type NotificationType = 'error' | 'console' | 'api' | 'marketplace' | 'info'
 
 export interface Notification {
   id: string

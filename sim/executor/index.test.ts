@@ -10,9 +10,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { SerializedWorkflow } from '../serializer/types'
 import { Executor } from './index'
-import { NormalizedBlockOutput } from './types'
 
-// Mock all dependencies
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
@@ -36,13 +34,23 @@ vi.mock('@/stores/execution/store', () => ({
       setIsExecuting: vi.fn(),
       reset: vi.fn(),
       setActiveBlocks: vi.fn(),
+      setPendingBlocks: vi.fn(),
+      setIsDebugging: vi.fn(),
     }),
   },
 }))
 
-// Mock all handler classes with a proper mock implementation
+vi.mock('@/stores/settings/general/store', () => ({
+  useGeneralStore: {
+    getState: () => ({
+      isDebugModeEnabled: true,
+    }),
+  },
+}))
+
+// Mock all handler classes
 vi.mock('./handlers', () => {
-  // Create a factory function that returns a handler implementation
+  // Factory function for handler mocks
   const createHandler = (handlerName: string) => {
     return vi.fn().mockImplementation(() => ({
       canHandle: (block: any) => block.metadata?.id === handlerName || handlerName === 'generic',
@@ -86,7 +94,7 @@ vi.mock('./loops', () => ({
  * Test Fixtures
  */
 
-// Create a minimal workflow with just a starter and one block
+// Create a minimal workflow
 const createMinimalWorkflow = (): SerializedWorkflow => ({
   version: '1.0',
   blocks: [
@@ -412,6 +420,20 @@ describe('Executor', () => {
       // Just verify execution completes and returns expected structure
       expect(result).toHaveProperty('success')
       expect(result).toHaveProperty('output')
+    })
+  })
+
+  /**
+   * Debug mode tests
+   */
+  describe('debug mode', () => {
+    // Test that the executor can be put into debug mode
+    test('should detect debug mode from settings', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+      const isDebugging = (executor as any).isDebugging
+
+      expect(isDebugging).toBe(true)
     })
   })
 

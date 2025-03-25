@@ -3,7 +3,20 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
-import { Bell, ChevronDown, History, Loader2, Play, Rocket, Store, Trash2 } from 'lucide-react'
+import {
+  Bell,
+  Bug,
+  ChevronDown,
+  History,
+  Loader2,
+  Play,
+  Rocket,
+  SkipForward,
+  StepForward,
+  Store,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +39,9 @@ import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
@@ -61,6 +76,11 @@ export function ControlBar() {
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
 
+  // Debug mode state
+  const { isDebugModeEnabled, toggleDebugMode } = useGeneralStore()
+  const { isDebugging, pendingBlocks, handleStepDebug, handleCancelDebug, handleResumeDebug } =
+    useWorkflowExecution()
+
   // Local state
   const [mounted, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
@@ -84,6 +104,7 @@ export function ControlBar() {
   const [runCount, setRunCount] = useState(1)
   const [completedRuns, setCompletedRuns] = useState(0)
   const [isMultiRunning, setIsMultiRunning] = useState(false)
+  const [showRunProgress, setShowRunProgress] = useState(false)
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -304,6 +325,7 @@ export function ControlBar() {
     // Reset state for a new batch of runs
     setCompletedRuns(0)
     setIsMultiRunning(true)
+    setShowRunProgress(runCount > 1)
 
     try {
       // Run the workflow multiple times sequentially
@@ -329,6 +351,10 @@ export function ControlBar() {
       addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
     } finally {
       setIsMultiRunning(false)
+      // Keep progress visible for a moment after completion
+      if (runCount > 1) {
+        setTimeout(() => setShowRunProgress(false), 2000)
+      }
     }
   }
 
@@ -573,10 +599,129 @@ export function ControlBar() {
   )
 
   /**
+   * Render debug mode controls
+   */
+  const renderDebugControls = () => {
+    // Display debug controls only when in debug mode and actively debugging
+    if (!isDebugModeEnabled || !isDebugging) return null
+
+    const pendingCount = pendingBlocks.length
+
+    return (
+      <div className="flex items-center gap-2 ml-2 bg-muted rounded-md px-2 py-1">
+        <div className="flex flex-col">
+          <span className="text-xs text-muted-foreground">Debug Mode</span>
+          <span className="text-xs font-medium">
+            {pendingCount} block{pendingCount !== 1 ? 's' : ''} pending
+          </span>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleStepDebug}
+              className="h-8 w-8 bg-background"
+              disabled={pendingCount === 0}
+            >
+              <StepForward className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Step Forward</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleResumeDebug}
+              className="h-8 w-8 bg-background"
+              disabled={pendingCount === 0}
+            >
+              <SkipForward className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Resume Until End</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCancelDebug}
+              className="h-8 w-8 bg-background"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Cancel Debugging</TooltipContent>
+        </Tooltip>
+      </div>
+    )
+  }
+
+  /**
+   * Render debug mode toggle button
+   */
+  const renderDebugModeToggle = () => {
+    const handleToggleDebugMode = () => {
+      // If turning off debug mode, make sure to clean up any debug state
+      if (isDebugModeEnabled) {
+        // Only clean up if we're not actively executing
+        if (!isExecuting) {
+          useExecutionStore.getState().setIsDebugging(false)
+          useExecutionStore.getState().setPendingBlocks([])
+        }
+      }
+      toggleDebugMode()
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleToggleDebugMode}
+            disabled={isExecuting || isMultiRunning}
+            className={cn(isDebugModeEnabled && 'text-amber-500')}
+          >
+            <Bug className="h-5 w-5" />
+            <span className="sr-only">Toggle Debug Mode</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isDebugModeEnabled ? 'Disable Debug Mode' : 'Enable Debug Mode'}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
    * Render run workflow button with multi-run dropdown
    */
   const renderRunButton = () => (
     <div className="flex items-center">
+      {showRunProgress && (
+        <div className="mr-3 w-28">
+          <Progress value={(completedRuns / runCount) * 100} className="h-2 bg-muted" />
+          <p className="text-xs text-muted-foreground mt-1 text-center">
+            {completedRuns}/{runCount} runs
+          </p>
+        </div>
+      )}
+
+      {/* Show how many blocks have been executed in debug mode if debugging */}
+      {isDebugging && (
+        <div className="mr-3 min-w-28 px-1 py-0.5 bg-muted rounded">
+          <div className="text-xs text-muted-foreground text-center">
+            <span className="font-medium">Debugging Mode</span>
+          </div>
+        </div>
+      )}
+
+      {renderDebugControls()}
+
       <div className="flex ml-1">
         {/* Main Run Button */}
         <Button
@@ -588,52 +733,64 @@ export function ControlBar() {
             (isExecuting || isMultiRunning) &&
               'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
             'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
-            'rounded-r-none border-r border-r-[#6420cc] py-1.5 px-3 h-10 text-sm rounded-l-sm'
+            isDebugModeEnabled
+              ? 'rounded py-2 px-4 h-10'
+              : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
           )}
-          onClick={handleMultipleRuns}
+          onClick={isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns}
           disabled={isExecuting || isMultiRunning}
         >
-          <Play className={cn('!h-3 !w-3', 'fill-current stroke-current')} />
+          {isDebugModeEnabled ? (
+            <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
+          ) : (
+            <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
+          )}
           {isMultiRunning
             ? `Running ${completedRuns}/${runCount}`
             : isExecuting
-              ? 'Running'
-              : runCount === 1
-                ? 'Run'
-                : `Run (${runCount})`}
+              ? isDebugging
+                ? 'Debugging'
+                : 'Running'
+              : isDebugModeEnabled
+                ? 'Debug'
+                : runCount === 1
+                  ? 'Run'
+                  : `Run (${runCount})`}
         </Button>
 
-        {/* Dropdown Trigger */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              className={cn(
-                'px-1.5 font-medium',
-                'bg-[#7F2FFF] hover:bg-[#7028E6]',
-                'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                'text-white transition-all duration-200',
-                (isExecuting || isMultiRunning) &&
-                  'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
-                'rounded-l-none h-10 rounded-r-sm'
-              )}
-              disabled={isExecuting || isMultiRunning}
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-20">
-            {RUN_COUNT_OPTIONS.map((count) => (
-              <DropdownMenuItem
-                key={count}
-                onClick={() => setRunCount(count)}
-                className={cn('justify-center cursor-pointer', runCount === count && 'bg-muted')}
+        {/* Dropdown Trigger - Only show when not in debug mode */}
+        {!isDebugModeEnabled && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                className={cn(
+                  'px-2 font-medium',
+                  'bg-[#7F2FFF] hover:bg-[#7028E6]',
+                  'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                  'text-white transition-all duration-200',
+                  (isExecuting || isMultiRunning) &&
+                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+                  'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
+                  'rounded-l-none h-10'
+                )}
+                disabled={isExecuting || isMultiRunning}
               >
-                {count}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-20">
+              {RUN_COUNT_OPTIONS.map((count) => (
+                <DropdownMenuItem
+                  key={count}
+                  onClick={() => setRunCount(count)}
+                  className={cn('justify-center', runCount === count && 'bg-muted')}
+                >
+                  {count}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </div>
   )
@@ -651,6 +808,7 @@ export function ControlBar() {
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
+        {renderDebugModeToggle()}
         {renderPublishButton()}
         {renderDeployButton()}
         {renderRunButton()}
