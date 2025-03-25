@@ -1,10 +1,9 @@
 import { ToolConfig, ToolResponse } from '../types'
 
 export interface ConfluenceRetrieveParams {
-  apiKey: string
+  accessToken: string
   pageId: string
-  domain: string 
-  email: string
+  domain: string
 }
 
 export interface ConfluenceRetrieveResponse extends ToolResponse {
@@ -16,18 +15,21 @@ export interface ConfluenceRetrieveResponse extends ToolResponse {
   }
 }
 
-export const confluenceRetrieveTool: ToolConfig<ConfluenceRetrieveParams, ConfluenceRetrieveResponse> = {
+export const confluenceRetrieveTool: ToolConfig<
+  ConfluenceRetrieveParams,
+  ConfluenceRetrieveResponse
+> = {
   id: 'confluence_retrieve',
   name: 'Confluence Retrieve',
   description: 'Retrieve content from Confluence pages using the Confluence API.',
   version: '1.0.0',
 
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: 'Your Confluence API token',
+      description: 'OAuth access token for Confluence',
     },
     domain: {
       type: 'string',
@@ -35,30 +37,24 @@ export const confluenceRetrieveTool: ToolConfig<ConfluenceRetrieveParams, Conflu
       requiredForToolCall: true,
       description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
-    email: {
-      type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Atlassian email address',
-    },
     pageId: {
       type: 'string',
       required: true,
       description: 'Confluence page ID to retrieve',
-    }
+    },
   },
 
   request: {
     url: (params: ConfluenceRetrieveParams) => {
-      return `https://${params.domain}/wiki/rest/api/content/${params.pageId}?expand=body.view`;
+      return `https://${params.domain}/wiki/rest/api/content/${params.pageId}?expand=body.view`
     },
     method: 'GET',
     headers: (params: ConfluenceRetrieveParams) => {
       return {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${Buffer.from(`${params.email}:${params.apiKey}`).toString('base64')}`,
-      };
-    }
+        Authorization: `Bearer ${params.accessToken}`,
+      }
+    },
   },
 
   transformResponse: async (response: Response) => {
@@ -66,15 +62,15 @@ export const confluenceRetrieveTool: ToolConfig<ConfluenceRetrieveParams, Conflu
     if (!response.ok) {
       throw new Error(data.message || 'Confluence API error')
     }
-    
+
     const cleanContent = data.body.view.value
-      .replace(/<[^>]*>/g, '') 
-      .replace(/&nbsp;/g, ' ') 
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
       .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
-      .replace(/\s+/g, ' ') 
-      .trim();
+      .replace(/\s+/g, ' ')
+      .trim()
 
     return {
       success: true,
@@ -83,12 +79,12 @@ export const confluenceRetrieveTool: ToolConfig<ConfluenceRetrieveParams, Conflu
         pageId: data.id,
         content: cleanContent,
         title: data.title,
-      }
+      },
     }
   },
 
   transformError: (error: any) => {
     const message = error.message || 'Confluence retrieve failed'
     return message
-  }
+  },
 }

@@ -20,11 +20,14 @@ export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
       placeholder: 'Enter Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     {
-      id: 'email',
-      title: 'Email',
-      type: 'short-input',
+      id: 'credential',
+      title: 'Confluence Account',
+      type: 'oauth-input',
       layout: 'full',
-      placeholder: 'Enter your Atlassian email address',
+      provider: 'confluence',
+      serviceId: 'confluence',
+      requiredScopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+      placeholder: 'Select Confluence account',
     },
     {
       id: 'pageId',
@@ -33,24 +36,25 @@ export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
       layout: 'full',
       placeholder: 'Enter the confluence page ID (e.g., 12340)',
     },
-    {
-      id: 'apiKey',
-      title: 'OAuth Token',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter your Confluence OAuth token',
-      password: true,
-      connectionDroppable: false,
-    },
   ],
   tools: {
     access: ['confluence_retrieve'],
+    config: {
+      tool: () => 'confluence_retrieve',
+      params: (params) => {
+        const { credential, ...rest } = params
+
+        return {
+          accessToken: credential,
+          ...rest,
+        }
+      },
+    },
   },
   inputs: {
-    apiKey: { type: 'string', required: true },
-    pageId: { type: 'string', required: true },
     domain: { type: 'string', required: true },
-    email: { type: 'string', required: true },
+    credential: { type: 'string', required: true },
+    pageId: { type: 'string', required: true },
   },
   outputs: {
     response: {

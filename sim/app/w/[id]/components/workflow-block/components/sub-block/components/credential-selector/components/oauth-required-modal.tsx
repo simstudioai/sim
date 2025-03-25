@@ -43,6 +43,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',
   'https://www.googleapis.com/auth/spreadsheets': 'View and manage your Google Sheets',
+  'read:confluence-content.all': 'Read Confluence content',
   repo: 'Access your repositories',
   workflow: 'Manage repository workflows',
   'user:email': 'Access your email address',

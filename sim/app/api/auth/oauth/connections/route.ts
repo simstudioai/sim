@@ -3,7 +3,6 @@ import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 
@@ -14,9 +13,6 @@ interface GoogleIdToken {
   sub?: string
   name?: string
 }
-
-// Valid OAuth providers
-const VALID_PROVIDERS = ['google', 'github', 'x']
 
 /**
  * Get all OAuth connections for the current user
@@ -53,7 +49,7 @@ export async function GET(request: NextRequest) {
       // Extract the base provider and feature type from providerId (e.g., 'google-email' -> 'google', 'email')
       const [provider, featureType = 'default'] = acc.providerId.split('-')
 
-      if (provider && VALID_PROVIDERS.includes(provider)) {
+      if (provider) {
         // Try multiple methods to get a user-friendly display name
         let displayName = ''
 

@@ -2,6 +2,7 @@
 import { AgentBlock } from './blocks/agent'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
+import { ConfluenceBlock } from './blocks/confluence'
 import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
@@ -30,7 +31,6 @@ import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
-import { ConfluenceBlock } from './blocks/confluence'
 
 // Export blocks for ease of use
 export {
@@ -72,6 +72,7 @@ const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
   api: ApiBlock,
   condition: ConditionBlock,
+  confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   firecrawl: FirecrawlBlock,
@@ -99,7 +100,6 @@ const blocks: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  confluence: ConfluenceBlock,
 }
 
 // Helper functions
