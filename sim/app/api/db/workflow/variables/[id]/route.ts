@@ -24,10 +24,10 @@ const VariablesSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const workflowId = params.id
+  const workflowId = (await params).id
 
   try {
     const session = await getSession()
@@ -98,11 +98,11 @@ export async function POST(
 }
 
 export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const workflowId = params.id
+  const workflowId = (await params).id
 
   try {
     // Get the session directly in the API route

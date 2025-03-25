@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { Variable } from '@/stores/panel/variables/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -76,6 +79,20 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   // Get available tags from workflow state
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
+  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+
+  // Get variables from variables store
+  const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
+  const loadVariables = useVariablesStore((state) => state.loadVariables)
+  const variables = useVariablesStore((state) => state.variables)
+  const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
+
+  // Load variables when workflowId changes
+  useEffect(() => {
+    if (workflowId) {
+      loadVariables(workflowId)
+    }
+  }, [workflowId, loadVariables])
 
   // Extract search term from input
   const searchTerm = useMemo(() => {
@@ -85,7 +102,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }, [inputValue, cursorPosition])
 
   // Get source block and compute tags
-  const { tags } = useMemo(() => {
+  const { tags, variableInfoMap = {} } = useMemo(() => {
     // Helper function to get output paths
     const getOutputPaths = (obj: any, prefix = '', isStarterBlock = false): string[] => {
       if (typeof obj !== 'object' || obj === null) {
@@ -108,10 +125,28 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       })
     }
 
+    // Variables as tags - format as variable.{variableName}
+    const variableTags = workflowVariables.map(
+      (variable: Variable) => `variable.${variable.name.replace(/\s+/g, '')}`
+    )
+
+    // Create a map of variable tags to their type information
+    const variableInfoMap = workflowVariables.reduce(
+      (acc, variable) => {
+        const tagName = `variable.${variable.name.replace(/\s+/g, '')}`
+        acc[tagName] = {
+          type: variable.type,
+          id: variable.id,
+        }
+        return acc
+      },
+      {} as Record<string, { type: string; id: string }>
+    )
+
     // If we have an active source block ID from a drop, use that specific block only
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
-      if (!sourceBlock) return { tags: [] }
+      if (!sourceBlock) return { tags: [...variableTags] }
 
       const blockName = sourceBlock.name || sourceBlock.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
@@ -124,9 +159,12 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             .getValue(activeSourceBlockId, 'metrics') as unknown as Metric[]
           if (Array.isArray(metricsValue)) {
             return {
-              tags: metricsValue.map(
-                (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
-              ),
+              tags: [
+                ...variableTags,
+                ...metricsValue.map(
+                  (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
+                ),
+              ],
             }
           }
         } catch (e) {
@@ -149,7 +187,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             const fields = extractFieldsFromSchema(responseFormat)
             if (fields.length > 0) {
               return {
-                tags: fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`),
+                tags: [
+                  ...variableTags,
+                  ...fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`),
+                ],
               }
             }
           }
@@ -161,7 +202,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       // Fall back to default outputs if no response format
       const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
       return {
-        tags: outputPaths.map((path) => `${normalizedBlockName}.${path}`),
+        tags: [...variableTags, ...outputPaths.map((path) => `${normalizedBlockName}.${path}`)],
       }
     }
 
@@ -217,8 +258,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       return outputPaths.map((path) => `${normalizedBlockName}.${path}`)
     })
 
-    return { tags: sourceTags }
-  }, [blocks, edges, blockId, activeSourceBlockId])
+    return { tags: [...variableTags, ...sourceTags], variableInfoMap }
+  }, [blocks, edges, blockId, activeSourceBlockId, workflowVariables])
 
   // Filter tags based on search term
   const filteredTags = useMemo(() => {
@@ -240,7 +281,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
     if (lastOpenBracket === -1) return
 
-    const newValue = textBeforeCursor.slice(0, lastOpenBracket) + '<' + tag + '>' + textAfterCursor
+    // Process the tag if it's a variable tag
+    let processedTag = tag
+    if (tag.startsWith('variable.')) {
+      // Get the variable name from the tag (after 'variable.')
+      const variableName = tag.substring('variable.'.length)
+
+      // Find the variable in the store by name
+      const variableObj = Object.values(variables).find(
+        (v) => v.name.replace(/\s+/g, '') === variableName
+      )
+
+      // Use the tag as is if variable not found
+      if (variableObj) {
+        processedTag = tag
+      }
+    }
+
+    const newValue =
+      textBeforeCursor.slice(0, lastOpenBracket) + '<' + processedTag + '>' + textAfterCursor
 
     onSelect(newValue)
     onClose?.()
@@ -296,24 +355,36 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         {filteredTags.length === 0 ? (
           <div className="px-3 py-2 text-sm text-muted-foreground">No matching tags found</div>
         ) : (
-          filteredTags.map((tag: string, index: number) => (
-            <button
-              key={tag}
-              className={cn(
-                'w-full px-3 py-1.5 text-sm text-left',
-                'hover:bg-accent hover:text-accent-foreground',
-                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                index === selectedIndex && 'bg-accent text-accent-foreground'
-              )}
-              onMouseEnter={() => setSelectedIndex(index)}
-              onMouseDown={(e) => {
-                e.preventDefault() // Prevent input blur
-                handleTagSelect(tag)
-              }}
-            >
-              {tag}
-            </button>
-          ))
+          filteredTags.map((tag: string, index: number) => {
+            const isVariable = tag.startsWith('variable.')
+            const variableInfo = isVariable ? variableInfoMap?.[tag] : null
+
+            return (
+              <button
+                key={tag}
+                className={cn(
+                  'w-full px-3 py-1.5 text-sm text-left flex items-center',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                  index === selectedIndex && 'bg-accent text-accent-foreground',
+                  isVariable && 'font-medium'
+                )}
+                onMouseEnter={() => setSelectedIndex(index)}
+                onMouseDown={(e) => {
+                  e.preventDefault() // Prevent input blur
+                  handleTagSelect(tag)
+                }}
+              >
+                {isVariable && (
+                  <span className="mr-2 inline-block w-2 h-2 rounded-full bg-blue-500" />
+                )}
+                <span className="flex-1">{tag}</span>
+                {isVariable && variableInfo && (
+                  <span className="ml-2 text-xs text-muted-foreground">{variableInfo.type}</span>
+                )}
+              </button>
+            )
+          })
         )}
       </div>
     </div>
