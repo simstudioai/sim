@@ -37,19 +37,19 @@ export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
   // Set categories including special sections
   useEffect(() => {
     // Start with special sections like 'popular' and 'recent'
-    const specialSections = ['popular']
+    const specialSections = ['popular', 'recent']
 
     // Add categories from centralized definitions
     const categoryValues = CATEGORIES.map((cat) => cat.value)
 
-    // Add 'recent' as the last item
-    const allCategories = [...specialSections, ...categoryValues, 'recent']
+    // Put special sections first, then regular categories
+    const allCategories = [...specialSections, ...categoryValues]
 
     setCategories(allCategories)
   }, [])
 
   return (
-    <div className="p-4 w-64 border-r h-full overflow-auto">
+    <div className="p-4 w-60 border-r h-full overflow-auto">
       <h2 className="text-sm font-medium mb-4 pl-2">Categories</h2>
       <nav className="space-y-1">
         {categories.map((category) => (
