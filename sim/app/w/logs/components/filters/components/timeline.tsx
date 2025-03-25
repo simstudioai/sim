@@ -25,7 +25,10 @@ export default function Timeline() {
         {timeRanges.map((range) => (
           <DropdownMenuItem
             key={range}
-            onClick={() => setTimeRange(range)}
+            onSelect={(e) => {
+              e.preventDefault()
+              setTimeRange(range)
+            }}
             className="flex items-center justify-between p-2 cursor-pointer text-sm"
           >
             <span>{range}</span>

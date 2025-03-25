@@ -69,9 +69,23 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     }))
   }
 
+  // Group connections by their ID for better organization
+  const connectionsByBlock = incomingConnections.reduce(
+    (acc, connection) => {
+      acc[connection.id] = connection
+      return acc
+    },
+    {} as Record<string, ConnectedBlock>
+  )
+
+  // Sort connections by name to make it easier to find blocks
+  const sortedConnections = Object.values(connectionsByBlock).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  )
+
   return (
-    <div className="absolute -left-[180px] top-0 space-y-2 flex flex-col items-end w-[160px]">
-      {incomingConnections.map((connection) => (
+    <div className="absolute -left-[240px] top-0 space-y-2 flex flex-col items-end w-[220px] max-h-[400px] overflow-y-auto">
+      {sortedConnections.map((connection) => (
         <div key={connection.id} className="space-y-2">
           {Array.isArray(connection.outputType) ? (
             // Handle array of field names

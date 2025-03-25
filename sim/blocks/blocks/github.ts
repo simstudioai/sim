@@ -16,7 +16,7 @@ type GitHubResponse =
 export const GitHubBlock: BlockConfig<GitHubResponse> = {
   type: 'github',
   name: 'GitHub',
-  description: 'Interact with GitHub repositories and PRs',
+  description: 'Interact with GitHub',
   longDescription:
     'Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.',
   category: 'tools',

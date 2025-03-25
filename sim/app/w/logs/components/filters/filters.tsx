@@ -10,7 +10,7 @@ import Workflow from './components/workflow'
  */
 export function Filters() {
   return (
-    <div className="p-4 w-64 border-r h-full overflow-auto">
+    <div className="p-4 w-60 border-r h-full overflow-auto">
       <h2 className="text-sm font-medium mb-4 pl-2">Filters</h2>
 
       {/* Timeline Filter */}

@@ -84,7 +84,6 @@ export function ControlBar() {
   const [runCount, setRunCount] = useState(1)
   const [completedRuns, setCompletedRuns] = useState(0)
   const [isMultiRunning, setIsMultiRunning] = useState(false)
-  const [showRunProgress, setShowRunProgress] = useState(false)
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -305,7 +304,6 @@ export function ControlBar() {
     // Reset state for a new batch of runs
     setCompletedRuns(0)
     setIsMultiRunning(true)
-    setShowRunProgress(runCount > 1)
 
     try {
       // Run the workflow multiple times sequentially
@@ -331,10 +329,6 @@ export function ControlBar() {
       addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
     } finally {
       setIsMultiRunning(false)
-      // Keep progress visible for a moment after completion
-      if (runCount > 1) {
-        setTimeout(() => setShowRunProgress(false), 2000)
-      }
     }
   }
 
@@ -583,15 +577,6 @@ export function ControlBar() {
    */
   const renderRunButton = () => (
     <div className="flex items-center">
-      {showRunProgress && (
-        <div className="mr-3 w-28">
-          <Progress value={(completedRuns / runCount) * 100} className="h-2 bg-muted" />
-          <p className="text-xs text-muted-foreground mt-1 text-center">
-            {completedRuns}/{runCount} runs
-          </p>
-        </div>
-      )}
-
       <div className="flex ml-1">
         {/* Main Run Button */}
         <Button
@@ -603,12 +588,12 @@ export function ControlBar() {
             (isExecuting || isMultiRunning) &&
               'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
             'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
-            'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
+            'rounded-r-none border-r border-r-[#6420cc] py-1.5 px-3 h-10 text-sm rounded-l-sm'
           )}
           onClick={handleMultipleRuns}
           disabled={isExecuting || isMultiRunning}
         >
-          <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
+          <Play className={cn('!h-3 !w-3', 'fill-current stroke-current')} />
           {isMultiRunning
             ? `Running ${completedRuns}/${runCount}`
             : isExecuting
@@ -623,26 +608,26 @@ export function ControlBar() {
           <DropdownMenuTrigger asChild>
             <Button
               className={cn(
-                'px-2 font-medium',
+                'px-1.5 font-medium',
                 'bg-[#7F2FFF] hover:bg-[#7028E6]',
                 'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                 'text-white transition-all duration-200',
                 (isExecuting || isMultiRunning) &&
                   'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                 'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
-                'rounded-l-none h-10'
+                'rounded-l-none h-10 rounded-r-sm'
               )}
               disabled={isExecuting || isMultiRunning}
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-20">
+          <DropdownMenuContent align="end" className="min-w-20">
             {RUN_COUNT_OPTIONS.map((count) => (
               <DropdownMenuItem
                 key={count}
                 onClick={() => setRunCount(count)}
-                className={cn('justify-center', runCount === count && 'bg-muted')}
+                className={cn('justify-center cursor-pointer', runCount === count && 'bg-muted')}
               >
                 {count}
               </DropdownMenuItem>

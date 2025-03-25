@@ -29,7 +29,7 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className="group flex items-center gap-3 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent/50 cursor-pointer active:cursor-grabbing"
+      className="group flex items-center gap-3 rounded-lg border bg-card p-3.5 shadow-sm transition-colors hover:bg-accent/50 cursor-pointer active:cursor-grabbing"
     >
       <div
         className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"

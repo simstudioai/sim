@@ -59,10 +59,13 @@ export default function Workflow() {
           <ChevronDown className="h-4 w-4 ml-2 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[220px] max-h-[300px] overflow-y-auto">
+      <DropdownMenuContent align="start" className="w-[180px] max-h-[300px] overflow-y-auto">
         <DropdownMenuItem
           key="all"
-          onClick={clearSelections}
+          onSelect={(e) => {
+            e.preventDefault()
+            clearSelections()
+          }}
           className="flex items-center justify-between p-2 cursor-pointer text-sm"
         >
           <span>All workflows</span>
@@ -74,7 +77,10 @@ export default function Workflow() {
         {workflows.map((workflow) => (
           <DropdownMenuItem
             key={workflow.id}
-            onClick={() => toggleWorkflowId(workflow.id)}
+            onSelect={(e) => {
+              e.preventDefault()
+              toggleWorkflowId(workflow.id)
+            }}
             className="flex items-center justify-between p-2 cursor-pointer text-sm"
           >
             <div className="flex items-center">

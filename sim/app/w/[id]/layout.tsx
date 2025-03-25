@@ -9,7 +9,7 @@ export default function WorkflowLayout({ children }: { children: React.ReactNode
     <>
       <ControlBar />
       <Toolbar />
-      <Chat />
+      {/* <Chat /> */}
       <Console />
       <main className="grid items-start gap-2 bg-muted/40 h-[calc(100vh-4rem)]">
         <ErrorBoundary>{children}</ErrorBoundary>
