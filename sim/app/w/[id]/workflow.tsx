@@ -14,6 +14,7 @@ import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -54,6 +55,7 @@ function WorkflowContent() {
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
+  const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
   // Execution and debug mode state
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
@@ -163,6 +165,8 @@ function WorkflowContent() {
         const checkInterval = setInterval(() => {
           if (!isActivelyLoadingFromDB()) {
             clearInterval(checkInterval)
+            // Reset variables loaded state before setting active workflow
+            resetVariablesLoaded()
             setActiveWorkflow(currentId)
             markAllAsRead(currentId)
           }
@@ -170,6 +174,8 @@ function WorkflowContent() {
         return
       }
 
+      // Reset variables loaded state before setting active workflow
+      resetVariablesLoaded()
       setActiveWorkflow(currentId)
       markAllAsRead(currentId)
     }
@@ -183,6 +189,7 @@ function WorkflowContent() {
     router,
     isInitialized,
     markAllAsRead,
+    resetVariablesLoaded,
   ])
 
   // Transform blocks and loops into ReactFlow nodes

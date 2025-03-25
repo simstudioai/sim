@@ -12,6 +12,10 @@ import { BlockState } from './workflow/types'
 
 const logger = createLogger('Workflows Sync')
 
+// Add debounce utility
+let syncDebounceTimer: NodeJS.Timeout | null = null;
+const DEBOUNCE_DELAY = 500; // 500ms delay
+
 // Flag to prevent immediate sync back to DB after loading from DB
 let isLoadingFromDB = false
 let loadingFromDBToken: string | null = null
@@ -177,8 +181,10 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       const workflowCount = Object.keys(registryWorkflows).length
       logger.info(`DB loading complete. Workflows in registry: ${workflowCount}`)
 
-      // Trigger one final sync to ensure consistency
-      if (workflowCount > 0) {
+      // Only trigger a final sync if necessary (don't do this for normal loads)
+      // This helps reduce unnecessary POST requests
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (workflowCount > 0 && activeWorkflowId && activeDBSyncNeeded()) {
         // Small delay for state to fully settle before allowing syncs
         setTimeout(() => {
           workflowSync.sync()
@@ -188,8 +194,26 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
   }
 }
 
-// Syncs workflows to the database
-export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
+// Helper to determine if an active DB sync is actually needed
+function activeDBSyncNeeded(): boolean {
+  // In most cases after initial load, we don't need to sync back to DB
+  // Only sync if we have detected a change that needs to be persisted
+  const lastSynced = localStorage.getItem('last_db_sync_timestamp')
+  const currentTime = Date.now()
+  
+  if (!lastSynced) {
+    // First sync - record it and return true
+    localStorage.setItem('last_db_sync_timestamp', currentTime.toString())
+    return true
+  }
+  
+  // Add additional checks here if needed for specific workflow changes
+  // For now, we'll simply avoid the automatic sync after load
+  return false
+}
+
+// Create the basic sync configuration
+const workflowSyncConfig = {
   endpoint: API_ENDPOINTS.WORKFLOW,
   preparePayload: () => {
     if (typeof window === 'undefined') return {}
@@ -222,10 +246,35 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => ({
       workflows: workflowsData,
     }
   },
-  method: 'POST',
+  method: 'POST' as const,
   syncOnInterval: true,
   syncOnExit: true,
-  onSyncSuccess: async (data) => {
+  onSyncSuccess: async () => {
     logger.info('Workflows synced to DB successfully')
   },
-}))
+};
+
+// Create the sync manager
+const baseWorkflowSync = createSingletonSyncManager('workflow-sync', () => workflowSyncConfig);
+
+// Create a debounced version of the sync manager
+export const workflowSync = {
+  ...baseWorkflowSync,
+  sync: () => {
+    // Clear any existing timeout
+    if (syncDebounceTimer) {
+      clearTimeout(syncDebounceTimer);
+    }
+    
+    // Set new timeout
+    syncDebounceTimer = setTimeout(() => {
+      // Perform the sync
+      baseWorkflowSync.sync();
+      
+      // Update the last sync timestamp
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('last_db_sync_timestamp', Date.now().toString());
+      }
+    }, DEBOUNCE_DELAY);
+  }
+};

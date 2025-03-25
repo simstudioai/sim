@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { useConsoleStore } from '@/stores/console/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
@@ -10,6 +10,7 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -23,6 +24,7 @@ export function useWorkflowExecution() {
   const { toggleConsole } = useConsoleStore()
   const { getAllVariables } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
+  const { getVariablesByWorkflowId, variables } = useVariablesStore()
   const {
     isExecuting,
     isDebugging,
@@ -117,11 +119,21 @@ export function useWorkflowExecution() {
         {} as Record<string, string>
       )
 
+      // Get workflow variables
+      const workflowVars = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
+      const workflowVariables = workflowVars.reduce(
+        (acc, variable) => {
+          acc[variable.id] = variable
+          return acc
+        },
+        {} as Record<string, any>
+      )
+
       // Create serialized workflow
       const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
       // Create executor and store in global state
-      const newExecutor = new Executor(workflow, currentBlockStates, envVarValues)
+      const newExecutor = new Executor(workflow, currentBlockStates, envVarValues, workflowVariables)
       setExecutor(newExecutor)
 
       // Execute workflow
@@ -246,6 +258,7 @@ export function useWorkflowExecution() {
     addNotification,
     toggleConsole,
     getAllVariables,
+    getVariablesByWorkflowId,
     setIsExecuting,
     setIsDebugging,
     isDebugModeEnabled,

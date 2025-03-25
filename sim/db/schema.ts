@@ -78,6 +78,7 @@ export const workflow = pgTable('workflow', {
   collaborators: json('collaborators').notNull().default('[]'),
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
+  variables: json('variables').default('{}'),
 })
 
 export const waitlist = pgTable('waitlist', {

@@ -155,6 +155,13 @@
       "when": 1742850849852,
       "tag": "0021_shocking_korath",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1742889909342,
+      "tag": "0022_gray_galactus",
+      "breakpoints": true
     }
   ]
 }
