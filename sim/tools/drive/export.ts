@@ -16,7 +16,7 @@ export const exportTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'google-drive',
-    additionalScopes: ['https://www.googleapis.com/auth/drive'],
+    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
     accessToken: { type: 'string', required: true },

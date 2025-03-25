@@ -1,8 +1,10 @@
 import { ConfluenceIcon } from '@/components/icons'
-import { ConfluenceRetrieveResponse } from '@/tools/confluence/types'
+import { ConfluenceRetrieveResponse, ConfluenceUpdateResponse } from '@/tools/confluence/types'
 import { BlockConfig } from '../types'
 
-export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
+type ConfluenceResponse = ConfluenceRetrieveResponse | ConfluenceUpdateResponse
+
+export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   type: 'confluence',
   name: 'Confluence',
   description: 'Interact with Confluence',
@@ -12,12 +14,23 @@ export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
   bgColor: '#E0E0E0',
   icon: ConfluenceIcon,
   subBlocks: [
+    // Operation selector
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Read Page', id: 'read' },
+        { label: 'Update Page', id: 'update' },
+      ],
+    },
     {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter Confluence domain (e.g., yourcompany.atlassian.net)',
+      placeholder: 'Enter Confluence domain (e.g., simstudio.atlassian.net)',
     },
     {
       id: 'credential',
@@ -26,21 +39,56 @@ export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
       layout: 'full',
       provider: 'confluence',
       serviceId: 'confluence',
-      requiredScopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+      requiredScopes: [
+        'read:page:confluence',
+        'read:confluence-content.all',
+        'write:confluence-content',
+        'read:me',
+        'offline_access',
+      ],
       placeholder: 'Select Confluence account',
     },
+    // Use file-selector component for page selection
     {
       id: 'pageId',
-      title: 'Page ID',
+      title: 'Select Page',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'confluence',
+      serviceId: 'confluence',
+      placeholder: 'Select Confluence page',
+    },
+    // Update page fields
+    {
+      id: 'title',
+      title: 'New Title',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter the confluence page ID (e.g., 12340)',
+      placeholder: 'Enter new title for the page',
+      condition: { field: 'operation', value: 'update' },
+    },
+    {
+      id: 'content',
+      title: 'New Content',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter new content for the page',
+      condition: { field: 'operation', value: 'update' },
     },
   ],
   tools: {
-    access: ['confluence_retrieve'],
+    access: ['confluence_retrieve', 'confluence_update'],
     config: {
-      tool: () => 'confluence_retrieve',
+      tool: (params) => {
+        switch (params.operation) {
+          case 'read':
+            return 'confluence_retrieve'
+          case 'update':
+            return 'confluence_update'
+          default:
+            return 'confluence_retrieve'
+        }
+      },
       params: (params) => {
         const { credential, ...rest } = params
 
@@ -52,9 +100,13 @@ export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
     },
   },
   inputs: {
+    operation: { type: 'string', required: true },
     domain: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     pageId: { type: 'string', required: true },
+    // Update operation inputs
+    title: { type: 'string', required: false },
+    content: { type: 'string', required: false },
   },
   outputs: {
     response: {
@@ -63,6 +115,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
         pageId: 'string',
         content: 'string',
         title: 'string',
+        success: 'boolean',
       },
     },
   },

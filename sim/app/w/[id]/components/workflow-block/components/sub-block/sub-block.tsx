@@ -1,5 +1,6 @@
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks/index'
 import { SubBlockConfig } from '@/blocks/types'
@@ -32,6 +33,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
   }
+
+  const { getValue } = useSubBlockStore()
 
   const isFieldRequired = () => {
     const blockType = useWorkflowStore.getState().blocks[blockId]?.type
