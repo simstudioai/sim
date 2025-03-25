@@ -75,10 +75,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'google-drive',
         icon: (props) => GoogleDriveIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: [
-          'https://www.googleapis.com/auth/drive',
-          'https://www.googleapis.com/auth/drive.file',
-        ],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
       },
       'google-docs': {
         id: 'google-docs',
@@ -185,7 +182,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'confluence',
         icon: (props) => ConfluenceIcon(props),
         baseProviderIcon: (props) => ConfluenceIcon(props),
-        scopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+        scopes: [
+          'read:page:confluence',
+          'read:confluence-content.all',
+          'read:me',
+          'offline_access',
+          'write:confluence-content',
+        ],
       },
     },
     defaultService: 'confluence',

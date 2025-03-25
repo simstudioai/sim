@@ -14,7 +14,12 @@ export const confluenceRetrieveTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'confluence',
-    additionalScopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+    additionalScopes: [
+      'read:page:confluence',
+      'read:confluence-content.all',
+      'read:me',
+      'offline_access',
+    ],
   },
 
   params: {
@@ -38,7 +43,7 @@ export const confluenceRetrieveTool: ToolConfig<
 
   request: {
     url: (params: ConfluenceRetrieveParams) => {
-      return `https://${params.domain}/wiki/rest/api/content/${params.pageId}?expand=body.view`
+      return `https://${params.domain}/wiki/api/v2/pages/${params.pageId}?expand=body.view`
     },
     method: 'GET',
     headers: (params: ConfluenceRetrieveParams) => {

@@ -208,7 +208,6 @@ export const auth = betterAuth({
           scopes: [
             'https://www.googleapis.com/auth/userinfo.email',
             'https://www.googleapis.com/auth/userinfo.profile',
-            'https://www.googleapis.com/auth/drive',
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
@@ -305,7 +304,13 @@ export const auth = betterAuth({
           authorizationUrl: 'https://auth.atlassian.com/authorize',
           tokenUrl: 'https://auth.atlassian.com/oauth/token',
           userInfoUrl: 'https://api.atlassian.com/me',
-          scopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+          scopes: [
+            'read:page:confluence',
+            'read:confluence-content.all',
+            'read:me',
+            'offline_access',
+            'write:confluence-content',
+          ],
           responseType: 'code',
           pkce: true,
           accessType: 'offline',

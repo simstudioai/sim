@@ -41,7 +41,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       provider: 'google-drive',
       serviceId: 'google-drive',
-      requiredScopes: ['https://www.googleapis.com/auth/drive'],
+      requiredScopes: ['https://www.googleapis.com/auth/drive.file'],
       placeholder: 'Select Google Drive account',
     },
     // Upload Fields

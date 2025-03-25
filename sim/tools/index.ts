@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
@@ -40,7 +41,6 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
-import { confluenceRetrieveTool } from './confluence/retrieve'
 
 const logger = createLogger('Tools')
 
@@ -100,6 +100,8 @@ export const tools: Record<string, ToolConfig> = {
   guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
   confluence_retrieve: confluenceRetrieveTool,
+  confluence_list: confluenceListTool,
+  confluence_update: confluenceUpdateTool,
 }
 
 // Get a tool by its ID
