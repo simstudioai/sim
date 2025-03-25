@@ -5,7 +5,7 @@ import { BlockConfig } from '../types'
 export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {
   type: 'confluence',
   name: 'Confluence',
-  description: 'Use content from Confluence',
+  description: 'Interact with Confluence',
   longDescription:
     'Connect to Confluence workspaces to retrieve and search documentation. Access page content, metadata, and integrate Confluence documentation into your workflows.',
   category: 'tools',
