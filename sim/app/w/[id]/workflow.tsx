@@ -12,6 +12,7 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
@@ -53,6 +54,10 @@ function WorkflowContent() {
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
+
+  // Execution and debug mode state
+  const { activeBlockIds, pendingBlocks } = useExecutionStore()
+  const { isDebugModeEnabled } = useGeneralStore()
 
   // Initialize workflow
   useEffect(() => {
@@ -219,6 +224,9 @@ function WorkflowContent() {
         }
       }
 
+      const isActive = activeBlockIds.has(block.id)
+      const isPending = isDebugModeEnabled && pendingBlocks.includes(block.id)
+
       nodeArray.push({
         id: block.id,
         type: 'workflowBlock',
@@ -229,12 +237,14 @@ function WorkflowContent() {
           type: block.type,
           config: blockConfig,
           name: block.name,
+          isActive,
+          isPending,
         },
       })
     })
 
     return nodeArray
-  }, [blocks, loops])
+  }, [blocks, loops, activeBlockIds, pendingBlocks, isDebugModeEnabled])
 
   // Update nodes
   const onNodesChange = useCallback(
