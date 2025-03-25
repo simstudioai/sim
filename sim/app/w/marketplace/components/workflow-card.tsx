@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { Eye, Star } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { Workflow } from '../marketplace'
@@ -61,18 +60,10 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
     }
   }
 
-  // Extract the actual workflow ID from workflow
-  const workflowUrl = workflow.workflowUrl || `/w/${workflow.id}`
-
   return (
-    <Link
-      href={workflowUrl}
-      className="block"
-      aria-label={`View ${workflow.name} workflow`}
-      onClick={handleClick}
-    >
+    <div className="block" aria-label={`View ${workflow.name} workflow`} onClick={handleClick}>
       <Card
-        className="overflow-hidden transition-all hover:shadow-md flex flex-col h-full"
+        className="overflow-hidden transition-all hover:shadow-md flex flex-col h-full cursor-pointer"
         onMouseEnter={handleMouseEnter}
       >
         {/* Workflow preview/thumbnail area */}
@@ -126,6 +117,6 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
           </CardFooter>
         </div>
       </Card>
-    </Link>
+    </div>
   )
 }
