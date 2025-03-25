@@ -6,6 +6,7 @@ import { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
 
 const logger = createLogger('TagDropdown')
@@ -87,6 +88,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const loadVariables = useVariablesStore((state) => state.loadVariables)
   const variables = useVariablesStore((state) => state.variables)
   const workflowVariables = workflowId ? getVariablesByWorkflowId(workflowId) : []
+
+  // Get all connected blocks using useBlockConnections
+  const { incomingConnections } = useBlockConnections(blockId)
 
   // Load variables when workflowId changes
   useEffect(() => {
@@ -207,42 +211,25 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    // Otherwise, show tags from all incoming connections
-    const sourceEdges = edges.filter((edge) => edge.target === blockId)
-    const sourceTags = sourceEdges.flatMap((edge) => {
-      const sourceBlock = blocks[edge.source]
-      if (!sourceBlock) return []
-
-      const blockName = sourceBlock.name || sourceBlock.type
+    // Use all incoming connections instead of just direct edges
+    const sourceTags = incomingConnections.flatMap((connection: ConnectedBlock) => {
+      const blockName = connection.name || connection.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
-      // Check for response format first
-      try {
-        const responseFormatValue = useSubBlockStore
-          .getState()
-          .getValue(edge.source, 'responseFormat')
-        if (responseFormatValue) {
-          const responseFormat =
-            typeof responseFormatValue === 'string'
-              ? JSON.parse(responseFormatValue)
-              : responseFormatValue
-
-          if (responseFormat) {
-            const fields = extractFieldsFromSchema(responseFormat)
-            if (fields.length > 0) {
-              return fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`)
-            }
-          }
+      // Extract fields from response format
+      if (connection.responseFormat) {
+        const fields = extractFieldsFromSchema(connection.responseFormat)
+        if (fields.length > 0) {
+          return fields.map((field: Field) => `${normalizedBlockName}.response.${field.name}`)
         }
-      } catch (e) {
-        logger.error('Error parsing response format:', { e })
       }
 
-      if (sourceBlock.type === 'evaluator') {
+      // For evaluator blocks, use metrics
+      if (connection.type === 'evaluator') {
         try {
           const metricsValue = useSubBlockStore
             .getState()
-            .getValue(edge.source, 'metrics') as unknown as Metric[]
+            .getValue(connection.id, 'metrics') as unknown as Metric[]
           if (Array.isArray(metricsValue)) {
             return metricsValue.map(
               (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
@@ -255,12 +242,15 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       // Fall back to default outputs if no response format
+      const sourceBlock = blocks[connection.id]
+      if (!sourceBlock) return []
+
       const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
       return outputPaths.map((path) => `${normalizedBlockName}.${path}`)
     })
 
     return { tags: [...variableTags, ...sourceTags], variableInfoMap }
-  }, [blocks, edges, blockId, activeSourceBlockId, workflowVariables])
+  }, [blocks, incomingConnections, blockId, activeSourceBlockId, workflowVariables])
 
   // Filter tags based on search term
   const filteredTags = useMemo(() => {
