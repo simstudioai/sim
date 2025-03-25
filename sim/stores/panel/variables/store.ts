@@ -29,11 +29,11 @@ export const useVariablesStore = create<VariablesStore>()(
           const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
           
           // Auto-generate variable name if not provided or it's a default pattern name
-          if (!variable.name || /^Variable \d+$/.test(variable.name)) {
+          if (!variable.name || /^variable\d+$/.test(variable.name)) {
             // Find the highest existing Variable N number
             const existingNumbers = workflowVariables
               .map(v => {
-                const match = v.name.match(/^Variable (\d+)$/)
+                const match = v.name.match(/^variable(\d+)$/)
                 return match ? parseInt(match[1]) : 0
               })
               .filter(n => !isNaN(n))
@@ -43,7 +43,7 @@ export const useVariablesStore = create<VariablesStore>()(
               ? Math.max(...existingNumbers) + 1 
               : 1
               
-            variable.name = `Variable ${nextNumber}`
+            variable.name = `variable${nextNumber}`
           }
           
           // Ensure name uniqueness within the workflow
@@ -56,6 +56,29 @@ export const useVariablesStore = create<VariablesStore>()(
             nameIndex++
           }
           
+          // Handle initial value
+          let variableValue = variable.value
+          
+          // Auto-add quotes for string values if they aren't already quoted
+          if (variable.type === 'string' && 
+              typeof variableValue === 'string' && 
+              variableValue.trim() !== '') {
+            // Only add quotes if not already properly quoted
+            const trimmedValue = variableValue.trim()
+            
+            // Check if entire string is already properly quoted
+            const isAlreadyQuoted = (
+              (trimmedValue.startsWith('"') && trimmedValue.endsWith('"') && trimmedValue.length >= 2) || 
+              (trimmedValue.startsWith("'") && trimmedValue.endsWith("'") && trimmedValue.length >= 2)
+            )
+            
+            if (!isAlreadyQuoted) {
+              // Escape any existing quotes in the content
+              const escapedValue = variableValue.replace(/"/g, '\\"')
+              variableValue = `"${escapedValue}"`
+            }
+          }
+          
           set((state) => ({
             variables: {
               ...state.variables,
@@ -64,7 +87,7 @@ export const useVariablesStore = create<VariablesStore>()(
                 workflowId: variable.workflowId,
                 name: uniqueName,
                 type: variable.type,
-                value: variable.value,
+                value: variableValue,
               },
             },
           }))
@@ -97,6 +120,27 @@ export const useVariablesStore = create<VariablesStore>()(
               
               // Update with unique name
               update = { ...update, name: uniqueName }
+            }
+
+            // Auto-add quotes for string values if they aren't already quoted
+            if (update.value !== undefined && 
+                state.variables[id].type === 'string' && 
+                typeof update.value === 'string' && 
+                update.value.trim() !== '') {
+              // Only add quotes if not already properly quoted
+              const trimmedValue = update.value.trim()
+              
+              // Check if entire string is already properly quoted
+              const isAlreadyQuoted = (
+                (trimmedValue.startsWith('"') && trimmedValue.endsWith('"') && trimmedValue.length >= 2) || 
+                (trimmedValue.startsWith("'") && trimmedValue.endsWith("'") && trimmedValue.length >= 2)
+              )
+              
+              if (!isAlreadyQuoted) {
+                // Escape any existing quotes in the content
+                const escapedValue = update.value.replace(/"/g, '\\"')
+                update = { ...update, value: `"${escapedValue}"` }
+              }
             }
 
             const updated = {

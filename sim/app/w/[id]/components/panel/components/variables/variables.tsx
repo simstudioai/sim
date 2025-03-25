@@ -17,7 +17,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useVariablesStore } from '../../../../../../../stores/panel/variables/store'
 import { Variable, VariableType } from '../../../../../../../stores/panel/variables/types'
@@ -121,6 +120,22 @@ export function Variables({ panelWidth }: VariablesProps) {
         const parsed = JSON.parse(variable.value as string)
         return JSON.stringify(parsed, null, 2)
       }
+
+      // For string type, remove surrounding quotes for display
+      if (variable.type === 'string') {
+        const value = variable.value as string
+        const trimmed = value.trim()
+
+        // Remove surrounding quotes if they exist
+        if (
+          (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+          (trimmed.startsWith("'") && trimmed.endsWith("'"))
+        ) {
+          // Get the content between quotes and unescape any internal quotes
+          return trimmed.slice(1, -1).replace(/\\"/g, '"')
+        }
+        return value
+      }
     } catch (e) {
       // If not valid JSON, return as is
     }
@@ -140,6 +155,7 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   // Handle editor value changes
   const handleEditorChange = (variable: Variable, newValue: string) => {
+    // For string type, we send the raw input value so the store can handle quoting
     updateVariable(variable.id, { value: newValue })
   }
 

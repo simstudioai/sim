@@ -39,12 +39,13 @@ export class Executor {
     private workflow: SerializedWorkflow,
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
+    private workflowVariables: Record<string, any> = {},
     workflowInput?: any
   ) {
     this.validateWorkflow()
     this.workflowInput = workflowInput || {}
 
-    this.resolver = new InputResolver(workflow, environmentVariables)
+    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables)
     this.loopManager = new LoopManager(workflow.loops || {})
     this.pathTracker = new PathTracker(workflow)
 

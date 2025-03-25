@@ -10,7 +10,8 @@ export class InputResolver {
 
   constructor(
     private workflow: SerializedWorkflow,
-    private environmentVariables: Record<string, string>
+    private environmentVariables: Record<string, string>,
+    private workflowVariables: Record<string, any> = {}
   ) {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
@@ -59,8 +60,11 @@ export class InputResolver {
 
       // Handle string values that may contain references
       if (typeof value === 'string') {
-        // Resolve block references
-        let resolvedValue = this.resolveBlockReferences(value, context, block)
+        // First check for variable references
+        let resolvedValue = this.resolveVariableReferences(value)
+        
+        // Then resolve block references
+        resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
 
         // Check if this is an API key field
         const isApiKey =
@@ -97,6 +101,44 @@ export class InputResolver {
   }
 
   /**
+   * Resolves workflow variable references in a string (<variable.name>).
+   * 
+   * @param value - String containing variable references
+   * @returns String with resolved variable references
+   */
+  resolveVariableReferences(value: string): string {
+    const variableMatches = value.match(/<variable\.([^>]+)>/g)
+    if (!variableMatches) return value
+
+    let resolvedValue = value
+
+    for (const match of variableMatches) {
+      const variableName = match.slice('<variable.'.length, -1)
+      
+      // Find the variable by normalized name (without spaces)
+      const foundVariable = Object.entries(this.workflowVariables).find(
+        ([_, variable]) => {
+          const normalizedName = (variable.name || '').replace(/\s+/g, '')
+          return normalizedName === variableName
+        }
+      )
+
+      if (foundVariable) {
+        const [_, variable] = foundVariable
+        // Format the value appropriately
+        const formattedValue = 
+          typeof variable.value === 'object'
+            ? JSON.stringify(variable.value)
+            : String(variable.value)
+            
+        resolvedValue = resolvedValue.replace(match, formattedValue)
+      }
+    }
+
+    return resolvedValue
+  }
+
+  /**
    * Resolves block references in a string (<blockId.property> or <blockName.property>).
    * Handles inactive paths, missing blocks, and formats values appropriately.
    *
@@ -117,6 +159,11 @@ export class InputResolver {
     let resolvedValue = value
 
     for (const match of blockMatches) {
+      // Skip variables - they've already been processed
+      if (match.startsWith('<variable.')) {
+        continue
+      }
+      
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
@@ -359,8 +406,11 @@ export class InputResolver {
 
     // Handle strings
     if (typeof value === 'string') {
-      // First resolve block references
-      const resolvedReferences = this.resolveBlockReferences(value, context, currentBlock)
+      // First resolve variable references
+      const resolvedVars = this.resolveVariableReferences(value)
+      
+      // Then resolve block references
+      const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, currentBlock)
 
       // Check if this is an API key field
       const isApiKey = this.isApiKeyField(currentBlock, value)

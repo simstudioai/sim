@@ -102,14 +102,14 @@ export function Panel() {
         </div>
 
         {activeTab === 'console' && (
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => clearConsole(activeWorkflowId)}
-            className="text-muted-foreground hover:text-foreground"
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              true ? 'text-muted-foreground hover:text-foreground hover:bg-accent/50' : ''
+            }`}
           >
             Clear
-          </Button>
+          </button>
         )}
       </div>
 
