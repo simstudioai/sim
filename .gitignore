@@ -11,8 +11,6 @@ docs/node_modules
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-package.json
-package-lock.json
 
 # testing
 /coverage
