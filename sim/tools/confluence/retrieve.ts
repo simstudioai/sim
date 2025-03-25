@@ -21,7 +21,6 @@ export const confluenceRetrieveTool: ToolConfig<
     accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
       description: 'OAuth access token for Confluence',
     },
     domain: {
