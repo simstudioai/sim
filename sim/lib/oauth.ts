@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import {
+  ConfluenceIcon,
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
@@ -15,7 +16,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 const logger = createLogger('OAuth')
 
 // Define the base OAuth provider type
-export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | string
+export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | string
 export type OAuthService =
   | 'google'
   | 'google-email'
@@ -25,6 +26,7 @@ export type OAuthService =
   | 'github'
   | 'x'
   | 'supabase'
+  | 'confluence'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -170,6 +172,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'supabase',
+  },
+  confluence: {
+    id: 'confluence',
+    name: 'Confluence',
+    icon: (props) => ConfluenceIcon(props),
+    services: {
+      confluence: {
+        id: 'confluence',
+        name: 'Confluence',
+        description: 'Access Confluence content and documentation.',
+        providerId: 'confluence',
+        icon: (props) => ConfluenceIcon(props),
+        baseProviderIcon: (props) => ConfluenceIcon(props),
+        scopes: ['read:confluence-content.all'],
+      },
+    },
+    defaultService: 'confluence',
   },
 }
 
