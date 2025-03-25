@@ -1,5 +1,5 @@
 import { ConfluenceIcon } from '@/components/icons'
-import { ConfluenceRetrieveResponse } from '@/tools/confluence/retrieve'
+import { ConfluenceRetrieveResponse } from '@/tools/confluence/types'
 import { BlockConfig } from '../types'
 
 export const ConfluenceBlock: BlockConfig<ConfluenceRetrieveResponse> = {

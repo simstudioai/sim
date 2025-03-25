@@ -1,19 +1,6 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-export interface ConfluenceRetrieveParams {
-  accessToken: string
-  pageId: string
-  domain: string
-}
-
-export interface ConfluenceRetrieveResponse extends ToolResponse {
-  output: {
-    ts: string
-    pageId: string
-    content: string
-    title: string
-  }
-}
+import { ToolConfig } from '../types'
+import { ConfluenceRetrieveResponse } from './types'
+import { ConfluenceRetrieveParams } from './types'
 
 export const confluenceRetrieveTool: ToolConfig<
   ConfluenceRetrieveParams,
@@ -23,6 +10,12 @@ export const confluenceRetrieveTool: ToolConfig<
   name: 'Confluence Retrieve',
   description: 'Retrieve content from Confluence pages using the Confluence API.',
   version: '1.0.0',
+
+  oauth: {
+    required: true,
+    provider: 'confluence',
+    additionalScopes: ['read:confluence-content.all', 'read:me', 'offline_access'],
+  },
 
   params: {
     accessToken: {
