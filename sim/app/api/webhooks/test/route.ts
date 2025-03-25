@@ -225,7 +225,7 @@ export async function GET(request: NextRequest) {
       }
 
       case 'slack': {
-        const signingSecret = providerConfig.signingSecret || ''
+        const signingSecret = providerConfig.signingSecret
         
         if (!signingSecret) {
           logger.warn(`[${requestId}] Slack webhook missing signing secret: ${webhookId}`)

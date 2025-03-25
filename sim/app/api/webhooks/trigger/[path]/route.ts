@@ -5,12 +5,13 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
-import { decryptSecret, validateSlackSignature } from '@/lib/utils'
+import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
 import { environment, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+import {validateSlackSignature} from '../../utils'
 
 const logger = createLogger('WebhookTriggerAPI')
 
