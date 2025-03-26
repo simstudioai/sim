@@ -71,7 +71,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {!entry.error && !entry.warning && (
             <div className="flex items-start gap-2">
               <Terminal className="h-4 w-4 text-muted-foreground mt-1" />
-              <div className="text-sm font-mono flex-1">
+              <div className="text-sm font-mono flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
                 <JSONView data={entry.output} initiallyExpanded={isExpanded} />
               </div>
             </div>
@@ -80,7 +80,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {entry.error && (
             <div className="flex items-start gap-2 border rounded-md p-3 border-red-500 bg-red-50 text-destructive dark:border-border dark:text-foreground dark:bg-background">
               <AlertCircle className="h-4 w-4 text-red-500 mt-1" />
-              <div className="flex-1 break-all">
+              <div className="flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
                 <div className="font-medium">Error</div>
                 <pre className="text-sm whitespace-pre-wrap">{entry.error}</pre>
               </div>
@@ -90,7 +90,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {entry.warning && (
             <div className="flex items-start gap-2 border rounded-md p-3 border-yellow-500 bg-yellow-50 text-yellow-700 dark:border-border dark:text-yellow-500 dark:bg-background">
               <AlertTriangle className="h-4 w-4 text-yellow-500 mt-1" />
-              <div className="flex-1 break-all">
+              <div className="flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
                 <div className="font-medium">Warning</div>
                 <pre className="text-sm whitespace-pre-wrap">{entry.warning}</pre>
               </div>
