@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  simstudio:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../sim:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - POSTGRES_URL=postgresql://postgres:postgres@db:5432/simstudio
+      - BETTER_AUTH_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - BETTER_AUTH_SECRET=your_auth_secret_here
+      - ENCRYPTION_KEY=your_encryption_key_here
+      - GOOGLE_CLIENT_ID=placeholder
+      - GOOGLE_CLIENT_SECRET=placeholder
+      - GITHUB_CLIENT_ID=placeholder
+      - GITHUB_CLIENT_SECRET=placeholder
+      - RESEND_API_KEY=placeholder
+      - WEBCONTAINER_CLIENT_ID=placeholder
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=simstudio
+    volumes:
+      - ../postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  local-llm:
+    image: ollama/ollama:latest
+    pull_policy: missing
+    volumes:
+      - ${HOME}/.ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_LOAD_TIMEOUT=-1
+      - OLLAMA_KEEP_ALIVE=-1
+      - OLLAMA_DEBUG=1
+    command: "serve"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data: 
