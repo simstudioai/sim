@@ -5,11 +5,11 @@ export const STORAGE_KEYS = {
 }
 
 export const API_ENDPOINTS = {
-  WORKFLOW: '/api/workflows/sync',
+  SYNC: '/api/workflows/sync',
   ENVIRONMENT: '/api/environment',
   SCHEDULE: '/api/schedules/schedule',
   SETTINGS: '/api/settings',
-  WORKFLOW_VARIABLES: '/api/workflows/[id]/variables',
+  WORKFLOWS: '/api/workflows',
 }
 
 export const SYNC_INTERVALS = {

@@ -5,6 +5,7 @@ import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
 import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
+import { SlackConfig } from './providers/slack-config'
 import { StripeConfig } from './providers/stripe-config'
 import { WhatsAppConfig } from './providers/whatsapp-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
@@ -12,7 +13,6 @@ import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
 import { WebhookDialogHeader } from './ui/webhook-header'
 import { WebhookUrlField } from './ui/webhook-url'
-import { SlackConfig } from './providers/slack-config'
 
 const logger = createLogger('WebhookModal')
 
@@ -213,8 +213,7 @@ export function WebhookModal({
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
-      (webhookProvider === 'slack' &&
-        slackSigningSecret !== originalValues.slackSigningSecret)
+      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret)
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -448,18 +447,18 @@ export function WebhookModal({
             copyToClipboard={copyToClipboard}
           />
         )
-        case 'slack':
-          return (
-            <SlackConfig
-              signingSecret={slackSigningSecret}
-              setSigningSecret={setSlackSigningSecret}
-              isLoadingToken={isLoadingToken}
-              testResult={testResult}
-              copied={copied}
-              copyToClipboard={copyToClipboard}
-              testWebhook={testWebhook}
-            />
-          )
+      case 'slack':
+        return (
+          <SlackConfig
+            signingSecret={slackSigningSecret}
+            setSigningSecret={setSlackSigningSecret}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
+          />
+        )
       case 'generic':
       default:
         return (

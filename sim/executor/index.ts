@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { BlockOutput } from '@/blocks/types'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -394,8 +394,9 @@ export class Executor {
           const sourceExecuted = executedBlocks.has(conn.source)
           const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
           const sourceBlockState = context.blockStates.get(conn.source)
-          const hasSourceError = sourceBlockState?.output?.error !== undefined || 
-                                sourceBlockState?.output?.response?.error !== undefined
+          const hasSourceError =
+            sourceBlockState?.output?.error !== undefined ||
+            sourceBlockState?.output?.response?.error !== undefined
 
           // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
@@ -605,7 +606,10 @@ export class Executor {
       const hasErrorPath = this.activateErrorPath(blockId, context)
 
       // Console.error the error for visibility
-      logger.error(`Error executing block ${block.metadata?.name || blockId}:`, this.sanitizeError(error))
+      logger.error(
+        `Error executing block ${block.metadata?.name || blockId}:`,
+        this.sanitizeError(error)
+      )
 
       // If there are error paths to follow, return error output instead of throwing
       if (hasErrorPath) {
@@ -635,7 +639,7 @@ export class Executor {
   /**
    * Activates error paths from a block that had an error.
    * Checks for connections from the block's "error" handle and adds them to the active execution path.
-   * 
+   *
    * @param blockId - ID of the block that had an error
    * @param context - Current execution context
    * @returns Whether there was an error path to follow
@@ -682,7 +686,7 @@ export class Executor {
           status: output.status || 500,
         },
         error: output.error,
-      };
+      }
     }
 
     if (output && typeof output === 'object' && 'response' in output) {
@@ -690,10 +694,10 @@ export class Executor {
       if (output.response && output.response.error) {
         return {
           ...output,
-          error: output.response.error
-        };
+          error: output.response.error,
+        }
       }
-      return output as NormalizedBlockOutput;
+      return output as NormalizedBlockOutput
     }
 
     const blockType = block.metadata?.id

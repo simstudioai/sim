@@ -28,7 +28,11 @@ export function WebhookDialogFooter({
   onClose,
 }: WebhookDialogFooterProps) {
   const showTestButton =
-    webhookId && (webhookProvider === 'whatsapp' || webhookProvider === 'generic' || webhookProvider === "slack") && onTest
+    webhookId &&
+    (webhookProvider === 'whatsapp' ||
+      webhookProvider === 'generic' ||
+      webhookProvider === 'slack') &&
+    onTest
 
   return (
     <DialogFooter className="flex justify-between sticky bottom-0 py-3 bg-background border-t z-10 mt-auto w-full">
