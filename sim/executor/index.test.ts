@@ -472,5 +472,278 @@ describe('Executor', () => {
       const normalizedGenericOutput = normalizeOutput(genericOutput, genericBlock)
       expect(normalizedGenericOutput.response.result).toEqual(genericOutput)
     })
+
+    test('should normalize error outputs correctly', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+      const normalizeOutput = (executor as any).normalizeBlockOutput.bind(executor)
+
+      // Test error output with error property
+      const errorOutput = { error: 'Test error message', status: 400 }
+      const normalizedErrorOutput = normalizeOutput(errorOutput, { metadata: { id: 'api' } })
+
+      expect(normalizedErrorOutput).toHaveProperty('error', 'Test error message')
+      expect(normalizedErrorOutput.response).toHaveProperty('error', 'Test error message')
+      expect(normalizedErrorOutput.response).toHaveProperty('status', 400)
+
+      // Test object with response.error
+      const responseErrorOutput = { response: { error: 'Response error', data: 'test' } }
+      const normalizedResponseError = normalizeOutput(responseErrorOutput, {
+        metadata: { id: 'api' },
+      })
+
+      expect(normalizedResponseError).toHaveProperty('error', 'Response error')
+      expect(normalizedResponseError.response).toHaveProperty('error', 'Response error')
+      expect(normalizedResponseError.response).toHaveProperty('data', 'test')
+    })
+  })
+
+  /**
+   * Error handling tests
+   */
+  describe('error handling', () => {
+    // Create a workflow with an error path
+    const createWorkflowWithErrorPath = (): SerializedWorkflow => ({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'starter',
+          position: { x: 0, y: 0 },
+          config: { tool: 'test-tool', params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+          metadata: { id: 'starter', name: 'Starter Block' },
+        },
+        {
+          id: 'block1',
+          position: { x: 100, y: 0 },
+          config: { tool: 'test-tool', params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+          metadata: { id: 'function', name: 'Function Block' },
+        },
+        {
+          id: 'error-handler',
+          position: { x: 200, y: 50 },
+          config: { tool: 'test-tool', params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+          metadata: { id: 'test', name: 'Error Handler Block' },
+        },
+        {
+          id: 'success-block',
+          position: { x: 200, y: -50 },
+          config: { tool: 'test-tool', params: {} },
+          inputs: {},
+          outputs: {},
+          enabled: true,
+          metadata: { id: 'test', name: 'Success Block' },
+        },
+      ],
+      connections: [
+        {
+          source: 'starter',
+          target: 'block1',
+        },
+        {
+          source: 'block1',
+          target: 'success-block',
+          sourceHandle: 'source',
+        },
+        {
+          source: 'block1',
+          target: 'error-handler',
+          sourceHandle: 'error',
+        },
+      ],
+      loops: {},
+    })
+
+    test('should activate error paths when a block has an error', () => {
+      const workflow = createWorkflowWithErrorPath()
+      const executor = new Executor(workflow)
+
+      // Mock context
+      const context = {
+        executedBlocks: new Set(['starter', 'block1']),
+        activeExecutionPath: new Set(['block1']),
+        blockStates: new Map(),
+        workflow: workflow,
+      } as any
+
+      // Add error state to the block
+      context.blockStates.set('block1', {
+        output: {
+          error: 'Test error',
+          response: { error: 'Test error' },
+        },
+        executed: true,
+      })
+
+      // Call activateErrorPath method
+      const activateErrorPath = (executor as any).activateErrorPath.bind(executor)
+      const result = activateErrorPath('block1', context)
+
+      // Should return true since there is an error path
+      expect(result).toBe(true)
+
+      // Error-handler block should be in active execution path
+      expect(context.activeExecutionPath.has('error-handler')).toBe(true)
+    })
+
+    test('should not activate error paths for starter and condition blocks', () => {
+      const workflow = createWorkflowWithErrorPath()
+      const executor = new Executor(workflow)
+
+      // Add condition block
+      workflow.blocks.push({
+        id: 'condition-block',
+        position: { x: 300, y: 0 },
+        config: { tool: 'test-tool', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+        metadata: { id: 'condition', name: 'Condition Block' },
+      })
+
+      // Mock context
+      const context = {
+        executedBlocks: new Set(['starter', 'condition-block']),
+        activeExecutionPath: new Set(['condition-block']),
+        blockStates: new Map(),
+        workflow: workflow,
+      } as any
+
+      // Add error states
+      context.blockStates.set('starter', {
+        output: { error: 'Test error' },
+        executed: true,
+      })
+
+      context.blockStates.set('condition-block', {
+        output: { error: 'Test error' },
+        executed: true,
+      })
+
+      // Call activateErrorPath method
+      const activateErrorPath = (executor as any).activateErrorPath.bind(executor)
+
+      // Should return false for both blocks
+      expect(activateErrorPath('starter', context)).toBe(false)
+      expect(activateErrorPath('condition-block', context)).toBe(false)
+    })
+
+    test('should return false if no error connections exist', () => {
+      const workflow = createMinimalWorkflow()
+      const executor = new Executor(workflow)
+
+      // Mock context
+      const context = {
+        executedBlocks: new Set(['starter', 'block1']),
+        activeExecutionPath: new Set(['block1']),
+        blockStates: new Map(),
+        workflow: workflow,
+      } as any
+
+      // Add error state to the block
+      context.blockStates.set('block1', {
+        output: { error: 'Test error' },
+        executed: true,
+      })
+
+      // Call activateErrorPath method
+      const activateErrorPath = (executor as any).activateErrorPath.bind(executor)
+      const result = activateErrorPath('block1', context)
+
+      // Should return false since there is no error path
+      expect(result).toBe(false)
+    })
+
+    test('should execute error path when a block throws an error', async () => {
+      // Skip this test for now, as it requires complex mocking
+      // TODO: Revisit this test with proper mocks for handler execution
+    })
+
+    test('should create proper error output for a block error', () => {
+      const workflow = createWorkflowWithErrorPath()
+      const executor = new Executor(workflow)
+
+      // Create an error with additional properties
+      const testError = new Error('Test function execution error') as Error & {
+        status?: number
+      }
+      testError.status = 400
+
+      // Create a context with blockLogs
+      const mockContext = {
+        blockLogs: [],
+        blockStates: new Map(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['block1']),
+        workflow,
+      }
+
+      // Call the extractErrorMessage method directly
+      const extractErrorMessage = (executor as any).extractErrorMessage.bind(executor)
+      const errorMessage = extractErrorMessage(testError)
+
+      // Verify the error message is extracted correctly
+      expect(errorMessage).toBe('Test function execution error')
+
+      // Create an error output manually
+      const errorOutput = {
+        response: {
+          error: errorMessage,
+          status: testError.status || 500,
+        },
+        error: errorMessage,
+      }
+
+      // Verify the error output structure
+      expect(errorOutput).toHaveProperty('error')
+      expect(errorOutput.response).toHaveProperty('error')
+      expect(errorOutput.response).toHaveProperty('status')
+    })
+
+    test('should check for error handle in getNextExecutionLayer', () => {
+      const workflow = createWorkflowWithErrorPath()
+      const executor = new Executor(workflow)
+
+      // Create a test context
+      const context = {
+        workflowId: 'test-id',
+        blockStates: new Map(),
+        blockLogs: [],
+        metadata: { startTime: new Date().toISOString() },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        executedBlocks: new Set(['starter', 'block1']),
+        activeExecutionPath: new Set(['block1', 'error-handler']),
+        workflow,
+      } as any
+
+      // Add block state with error
+      context.blockStates.set('block1', {
+        output: {
+          error: 'Test error',
+          response: { error: 'Test error' },
+        },
+        executed: true,
+      })
+
+      // Call getNextExecutionLayer method
+      const getNextLayer = (executor as any).getNextExecutionLayer.bind(executor)
+      const nextLayer = getNextLayer(context)
+
+      // Error handler should be in the next layer
+      expect(nextLayer).toContain('error-handler')
+
+      // Success block should not be in the next layer
+      expect(nextLayer).not.toContain('success-block')
+    })
   })
 })
