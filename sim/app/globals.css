@@ -33,6 +33,12 @@
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
+    
+    /* Scrollbar Custom Properties */
+    --scrollbar-track: 0 0% 85%;
+    --scrollbar-thumb: 0 0% 65%;
+    --scrollbar-thumb-hover: 0 0% 55%;
+    --scrollbar-size: 8px;
   }
 
   .dark {
@@ -63,6 +69,11 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+    
+    /* Dark Mode Scrollbar Custom Properties */
+    --scrollbar-track: 217.2 32.6% 17.5%;
+    --scrollbar-thumb: 217.2 32.6% 30%;
+    --scrollbar-thumb-hover: 217.2 32.6% 40%;
   }
 }
 
@@ -75,6 +86,32 @@
   body {
     @apply bg-background text-foreground;
     overscroll-behavior-x: none;
+  }
+  
+  /* Global Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+  
+  ::-webkit-scrollbar-track {
+    background-color: hsl(var(--scrollbar-track));
+    border-radius: var(--radius);
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--scrollbar-thumb));
+    border-radius: var(--radius);
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--scrollbar-thumb-hover));
+  }
+  
+  /* For Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
   }
 }
 
@@ -100,6 +137,16 @@
     transition-property: box-shadow, transform;
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 300ms;
+  }
+  
+  /* Custom Scrollbar Utility Classes */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }
 

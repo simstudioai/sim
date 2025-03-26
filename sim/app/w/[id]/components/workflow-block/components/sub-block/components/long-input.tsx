@@ -195,7 +195,7 @@ export function LongInput({
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 py-2 overflow-auto whitespace-pre-wrap break-words scrollbar-none text-sm bg-transparent box-border"
+        className="absolute inset-0 pointer-events-none px-3 py-2 overflow-auto whitespace-pre-wrap break-words text-sm bg-transparent box-border"
         style={{ width: 'calc(100% - 2px)' }}
       >
         {formatDisplayText(value?.toString() ?? '')}

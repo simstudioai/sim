@@ -310,7 +310,7 @@ export function ShortInput({
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre scrollbar-none text-sm bg-transparent"
+        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre text-sm bg-transparent"
       >
         {password && !isFocused
           ? '•'.repeat(value?.toString().length ?? 0)

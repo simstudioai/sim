@@ -147,7 +147,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
             }}
             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50"
           />
-          <div className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre scrollbar-none text-sm bg-transparent">
+          <div className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre text-sm bg-transparent">
             {formatDisplayText(cellValue)}
           </div>
         </div>
