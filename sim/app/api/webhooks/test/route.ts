@@ -224,6 +224,55 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      case 'slack': {
+        const signingSecret = providerConfig.signingSecret
+        
+        if (!signingSecret) {
+          logger.warn(`[${requestId}] Slack webhook missing signing secret: ${webhookId}`)
+          return NextResponse.json(
+            { success: false, error: 'Webhook has no signing secret configured' },
+            { status: 400 }
+          )
+        }
+        
+        logger.info(`[${requestId}] Slack webhook test successful: ${webhookId}`)
+        return NextResponse.json({
+          success: true,
+          webhook: {
+            id: foundWebhook.id,
+            url: webhookUrl,
+            isActive: foundWebhook.isActive,
+          },
+          message:
+            'Slack webhook configuration is valid. Use this URL in your Slack Event Subscriptions settings.',
+          setup: {
+            url: webhookUrl,
+            events: ['message.channels', 'reaction_added', 'app_mention'],
+            signingSecretConfigured: true,
+          },
+          test: {
+            curlCommand: [
+              `curl -X POST "${webhookUrl}"`,
+              `-H "Content-Type: application/json"`,
+              `-H "X-Slack-Request-Timestamp: $(date +%s)"`, 
+              `-H "X-Slack-Signature: v0=$(date +%s)"`,
+              `-d '{"type":"event_callback","event":{"type":"message","channel":"C0123456789","user":"U0123456789","text":"Hello from Slack!","ts":"1234567890.123456"},"team_id":"T0123456789"}'`
+            ].join(' \\\n'),
+            samplePayload: {
+              "type": "event_callback",
+              "token": "XXYYZZ",
+              "team_id": "T123ABC",
+              "event": {
+                "type": "message",
+                "user": "U123ABC",
+                "text": "Hello from Slack!",
+                "ts": "1234567890.1234"
+              },
+              "event_id": "Ev123ABC"
+            }
+          }
+        })
+      }
       default: {
         // Generic webhook test
         logger.info(`[${requestId}] Generic webhook test successful: ${webhookId}`)
