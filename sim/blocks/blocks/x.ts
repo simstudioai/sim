@@ -28,14 +28,16 @@ export const XBlock: BlockConfig<XResponse> = {
       ],
       value: () => 'x_write',
     },
-    // API Key (common)
+    // X OAuth Authentication
     {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
+      id: 'credential',
+      title: 'X Account',
+      type: 'oauth-input',
       layout: 'full',
-      placeholder: 'Enter your X Bearer token',
-      password: true,
+      provider: 'x',
+      serviceId: 'x',
+      requiredScopes: ['tweet.read', 'tweet.write', 'users.read'],
+      placeholder: 'Select X account',
     },
     // Write operation inputs
     {
@@ -131,15 +133,6 @@ export const XBlock: BlockConfig<XResponse> = {
       placeholder: 'Enter username (without @)',
       condition: { field: 'operation', value: 'x_user' },
     },
-    {
-      id: 'includeRecentTweets',
-      title: 'Include Recent Tweets',
-      type: 'dropdown',
-      layout: 'full',
-      options: ['true', 'false'],
-      value: () => 'false',
-      condition: { field: 'operation', value: 'x_user' },
-    },
   ],
   tools: {
     access: ['x_write', 'x_read', 'x_search', 'x_user'],
@@ -158,11 +151,46 @@ export const XBlock: BlockConfig<XResponse> = {
             return 'x_write'
         }
       },
+      params: (params) => {
+        const { credential, ...rest } = params
+
+        // Convert string values to appropriate types
+        const parsedParams: Record<string, any> = {
+          accessToken: credential,
+        }
+
+        // Add other params
+        Object.keys(rest).forEach((key) => {
+          let value = rest[key]
+
+          // Convert string boolean values to actual booleans
+          if (value === 'true' || value === 'false') {
+            parsedParams[key] = value === 'true'
+          }
+          // Convert numeric strings to numbers where appropriate
+          else if (key === 'maxResults' && value) {
+            parsedParams[key] = parseInt(value as string, 10)
+          }
+          // Handle mediaIds conversion from comma-separated string to array
+          else if (key === 'mediaIds' && typeof value === 'string') {
+            parsedParams[key] = value
+              .split(',')
+              .map((id) => id.trim())
+              .filter((id) => id !== '')
+          }
+          // Keep other values as is
+          else {
+            parsedParams[key] = value
+          }
+        })
+
+        return parsedParams
+      },
     },
   },
   inputs: {
     operation: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    credential: { type: 'string', required: true },
     // Write operation
     text: { type: 'string', required: false },
     replyTo: { type: 'string', required: false },
