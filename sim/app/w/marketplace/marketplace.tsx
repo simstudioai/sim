@@ -1,17 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { AlertCircle, ArrowLeft, Search } from 'lucide-react'
-import { Input } from '@/components/ui/input'
+import { AlertCircle } from 'lucide-react'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorMessage } from './components/error-message'
 import { Section } from './components/section'
 import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowCard } from './components/workflow-card'
 import { WorkflowCardSkeleton } from './components/workflow-card-skeleton'
-import { CATEGORIES } from './constants/categories'
+import { CATEGORIES, getCategoryLabel } from './constants/categories'
 
 // Types
 export interface Workflow {
@@ -545,7 +542,7 @@ export default function Marketplace() {
                     <Section
                       key={category}
                       id={category}
-                      title={category}
+                      title={getCategoryLabel(category)}
                       ref={(el) => {
                         if (el) {
                           sectionRefs.current[category] = el
