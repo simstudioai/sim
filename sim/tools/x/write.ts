@@ -7,12 +7,17 @@ export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
   description: 'Post new tweets, reply to tweets, or create polls on X (Twitter)',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'tweet.write', 'users.read'],
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'X API Bearer token',
+      description: 'X OAuth access token',
     },
     text: {
       type: 'string',
@@ -40,7 +45,7 @@ export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
     url: 'https://api.x.com/2/tweets',
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {
@@ -69,7 +74,6 @@ export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
 
   transformResponse: async (response) => {
     const data = await response.json()
-
     return {
       success: true,
       output: {
@@ -91,10 +95,10 @@ export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
 
   transformError: (error) => {
     if (error.title === 'Unauthorized') {
-      return 'Invalid Bearer token. Please check your credentials or token scopes.'
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
-    if (error.title === 'Not Found') {
-      return 'The specified tweet or resource was not found.'
+    if (error.title === 'Forbidden') {
+      return 'You do not have permission to post tweets. Ensure your X app has tweet.write scope.'
     }
     return error.detail || 'An unexpected error occurred while posting to X'
   },

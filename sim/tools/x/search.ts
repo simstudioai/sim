@@ -7,12 +7,17 @@ export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   description: 'Search for tweets using keywords, hashtags, or advanced queries',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'users.read'],
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'X API key for authentication',
+      description: 'X OAuth access token',
     },
     query: {
       type: 'string',
@@ -67,7 +72,7 @@ export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
   },
@@ -123,11 +128,11 @@ export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
   transformError: (error) => {
     if (error.title === 'Unauthorized') {
-      return 'Invalid API key. Please check your credentials.'
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
     if (error.title === 'Invalid Request') {
       return 'Invalid search query. Please check your search parameters.'
     }
-    return error.detail || 'An unexpected error occurred while searching X'
+    return error.detail || 'An error occurred while searching X'
   },
 }

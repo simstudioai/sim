@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, ExternalLink, Plus, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +29,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const searchParams = useSearchParams()
   const { data: session } = useSession()
   const userId = session?.user?.id
+  const pendingServiceRef = useRef<HTMLDivElement>(null)
 
   const [services, setServices] = useState<ServiceInfo[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -36,6 +37,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const [pendingService, setPendingService] = useState<string | null>(null)
   const [pendingScopes, setPendingScopes] = useState<string[]>([])
   const [authSuccess, setAuthSuccess] = useState(false)
+  const [showActionRequired, setShowActionRequired] = useState(false)
 
   // Define available services from our standardized OAuth providers
   const defineServices = (): ServiceInfo[] => {
@@ -161,16 +163,21 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     const serviceId = loadFromStorage<string>('pending_service_id')
     const scopes = loadFromStorage<string[]>('pending_oauth_scopes') || []
     const returnUrl = loadFromStorage<string>('pending_oauth_return_url')
+    const fromOAuthModal = loadFromStorage<boolean>('from_oauth_modal')
 
     if (serviceId) {
       setPendingService(serviceId)
       setPendingScopes(scopes)
+
+      // Only show action required notification if navigated from the OAuth modal
+      setShowActionRequired(!!fromOAuthModal)
 
       // Clear the pending connection after a short delay
       // This gives the user time to see the highlighted connection
       setTimeout(() => {
         removeFromStorage('pending_service_id')
         removeFromStorage('pending_oauth_scopes')
+        removeFromStorage('from_oauth_modal')
       }, 500)
     }
 
@@ -238,7 +245,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         },
         body: JSON.stringify({
           provider: service.providerId.split('-')[0],
-          accountId,
+          providerId: service.providerId,
         }),
       })
 
@@ -285,6 +292,15 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     {} as Record<string, ServiceInfo[]>
   )
 
+  const scrollToHighlightedService = () => {
+    if (pendingServiceRef.current) {
+      pendingServiceRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div>
@@ -308,17 +324,27 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         </div>
       )}
 
-      {/* Pending service message */}
-      {pendingService && (
-        <div className="mb-6 p-4 bg-primary/10 border border-primary rounded-md text-sm flex items-start gap-2">
-          <div className="min-w-4 mt-0.5">
+      {/* Pending service message - only shown when coming from OAuth required modal */}
+      {pendingService && showActionRequired && (
+        <div className="mb-6 p-5 bg-primary/5 border border-primary/20 rounded-md text-sm flex items-start gap-3 shadow-sm">
+          <div className="min-w-5 mt-0.5">
             <ExternalLink className="h-4 w-4 text-primary" />
           </div>
-          <p>
-            <span className="font-medium text-primary">Action Required:</span> Please connect your
-            account to enable the requested features. The required service will be highlighted
-            below.
-          </p>
+          <div className="flex flex-col flex-1">
+            <p className="text-muted-foreground">
+              <span className="font-medium text-primary">Action Required:</span> Please connect your
+              account to enable the requested features. The required service is highlighted below.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={scrollToHighlightedService}
+              className="mt-3 self-start text-sm font-medium text-primary border-primary/20 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors flex items-center gap-1.5 px-3 h-8"
+            >
+              <span>Go to service</span>
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       )}
 
@@ -346,6 +372,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                       'p-6 transition-all hover:shadow-md',
                       pendingService === service.id && 'border-primary shadow-md'
                     )}
+                    ref={pendingService === service.id ? pendingServiceRef : undefined}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4">

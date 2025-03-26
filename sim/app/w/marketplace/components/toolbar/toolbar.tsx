@@ -1,22 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import {
-  BotMessageSquare,
-  Clock,
-  Code,
-  LineChart,
-  MailIcon,
-  PanelLeftClose,
-  PanelRight,
-  Sparkles,
-  Star,
-  Store,
-} from 'lucide-react'
+import { Clock, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { CATEGORIES, getCategoryIcon } from '../../constants/categories'
+import { CATEGORIES, getCategoryIcon, getCategoryLabel } from '../../constants/categories'
 
 export type MarketplaceCategory = 'popular' | 'programming' | 'marketing' | 'all'
 
@@ -62,7 +49,11 @@ export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
             onClick={() => scrollToSection(category)}
           >
             {specialIcons[category] || getCategoryIcon(category)}
-            {category}
+            {category === 'popular'
+              ? 'Popular'
+              : category === 'recent'
+                ? 'Recent'
+                : getCategoryLabel(category)}
           </Button>
         ))}
       </nav>

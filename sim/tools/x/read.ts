@@ -7,12 +7,17 @@ export const readTool: ToolConfig<XReadParams, XReadResponse> = {
   description: 'Read tweet details, including replies and conversation context',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'users.read'],
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'X API key for authentication',
+      description: 'X OAuth access token',
     },
     tweetId: {
       type: 'string',
@@ -41,7 +46,7 @@ export const readTool: ToolConfig<XReadParams, XReadResponse> = {
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
   },
@@ -93,7 +98,7 @@ export const readTool: ToolConfig<XReadParams, XReadResponse> = {
 
   transformError: (error) => {
     if (error.title === 'Unauthorized') {
-      return 'Invalid API key. Please check your credentials.'
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
     if (error.title === 'Not Found') {
       return 'The specified tweet was not found.'

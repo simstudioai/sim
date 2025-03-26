@@ -1,116 +1,144 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
-import { XTweet, XUser, XUserParams, XUserResponse } from './types'
+import { XUser, XUserParams, XUserResponse } from './types'
+
+const logger = createLogger('XUserTool')
 
 export const userTool: ToolConfig<XUserParams, XUserResponse> = {
   id: 'x_user',
   name: 'X User',
-  description: 'Get user profile information and recent tweets',
+  description: 'Get user profile information',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'users.read'],
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'X API key for authentication',
+      description: 'X OAuth access token',
     },
     username: {
       type: 'string',
       required: true,
       description: 'Username to look up (without @ symbol)',
     },
-    includeRecentTweets: {
-      type: 'boolean',
-      required: false,
-      description: 'Whether to include recent tweets from the user',
-    },
   },
 
   request: {
     url: (params) => {
       const username = encodeURIComponent(params.username)
-      const userFields = ['description', 'profile_image_url', 'verified', 'public_metrics'].join(
-        ','
-      )
+      // Keep fields minimal to reduce chance of rate limits
+      const userFields = 'description,profile_image_url,verified,public_metrics'
 
       return `https://api.x.com/2/users/by/username/${username}?user.fields=${userFields}`
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    const requestUrl = new URL(response.url)
-    const apiKey = response.headers.get('Authorization')?.split(' ')[1] || ''
-
-    const transformUser = (user: any): XUser => ({
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      description: user.description,
-      profileImageUrl: user.profile_image_url,
-      verified: user.verified,
-      metrics: {
-        followersCount: user.public_metrics.followers_count,
-        followingCount: user.public_metrics.following_count,
-        tweetCount: user.public_metrics.tweet_count,
-      },
-    })
-
-    const transformTweet = (tweet: any): XTweet => ({
-      id: tweet.id,
-      text: tweet.text,
-      createdAt: tweet.created_at,
-      authorId: tweet.author_id,
-      conversationId: tweet.conversation_id,
-      inReplyToUserId: tweet.in_reply_to_user_id,
-      attachments: {
-        mediaKeys: tweet.attachments?.media_keys,
-        pollId: tweet.attachments?.poll_ids?.[0],
-      },
-    })
-
-    const user = transformUser(data.data)
-    let recentTweets: XTweet[] | undefined
-
-    // Check if includeRecentTweets was in the original request
-    const includeRecentTweets = requestUrl.searchParams.get('include_tweets') === 'true'
-
-    // Fetch recent tweets if requested
-    if (includeRecentTweets && apiKey) {
-      const tweetsResponse = await fetch(
-        `https://api.x.com/2/users/${user.id}/tweets?max_results=10&tweet.fields=created_at,conversation_id,in_reply_to_user_id,attachments`,
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-      const tweetsData = await tweetsResponse.json()
-      recentTweets = tweetsData.data.map(transformTweet)
+  transformResponse: async (response, params) => {
+    if (!params) {
+      throw new Error('Missing required parameters')
     }
 
-    return {
-      success: true,
-      output: {
-        user,
-        recentTweets,
-      },
+    // Handle rate limit issues (429 status code)
+    if (response.status === 429) {
+      logger.warn('X API rate limit exceeded', {
+        status: response.status,
+        username: params.username,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+
+      // Try to extract rate limit reset time from headers if available
+      const resetTime = response.headers.get('x-rate-limit-reset')
+      const message = resetTime
+        ? `Rate limit exceeded. Please try again after ${new Date(parseInt(resetTime) * 1000).toLocaleTimeString()}.`
+        : 'X API rate limit exceeded. Please try again later.'
+
+      throw new Error(message)
+    }
+
+    try {
+      const responseData = await response.json()
+      logger.debug('X API response', {
+        status: response.status,
+        headers: Object.fromEntries(response.headers.entries()),
+        responseData,
+      })
+
+      // Check if response contains expected data structure
+      if (!responseData.data) {
+        // If there's an error object in the response
+        if (responseData.errors && responseData.errors.length > 0) {
+          const error = responseData.errors[0]
+          throw new Error(`X API error: ${error.detail || error.message || JSON.stringify(error)}`)
+        }
+        throw new Error('Invalid response format from X API')
+      }
+
+      const userData = responseData.data
+
+      // Create the base user object with defensive coding for missing properties
+      const user: XUser = {
+        id: userData.id,
+        username: userData.username,
+        name: userData.name || '',
+        description: userData.description || '',
+        profileImageUrl: userData.profile_image_url || '',
+        verified: !!userData.verified,
+        metrics: {
+          followersCount: userData.public_metrics?.followers_count || 0,
+          followingCount: userData.public_metrics?.following_count || 0,
+          tweetCount: userData.public_metrics?.tweet_count || 0,
+        },
+      }
+
+      return {
+        success: true,
+        output: {
+          user,
+        },
+      }
+    } catch (error) {
+      logger.error('Error processing X API response', {
+        error,
+        status: response.status,
+        username: params.username,
+      })
+      throw error
     }
   },
 
   transformError: (error) => {
+    if (error.status === 429) {
+      return 'X API rate limit exceeded. Please try again later.'
+    }
     if (error.title === 'Unauthorized') {
-      return 'Invalid API key. Please check your credentials.'
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
     if (error.title === 'Not Found') {
       return 'The specified user was not found.'
     }
-    return error.detail || 'An unexpected error occurred while fetching user data from X'
+    if (error.detail) {
+      return `X API error: ${error.detail}`
+    }
+
+    // Extract the message from the error object
+    const errorMessage =
+      error.message || 'An unexpected error occurred while fetching user data from X'
+
+    if (errorMessage.includes('rate limit')) {
+      return 'X API rate limit exceeded. Please try again later or use a different X account.'
+    }
+
+    return errorMessage
   },
 }
