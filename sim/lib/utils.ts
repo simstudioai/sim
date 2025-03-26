@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { nanoid } from 'nanoid'
 import { twMerge } from 'tailwind-merge'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -121,20 +122,6 @@ export function convertScheduleOptionsToCron(
   }
 }
 
-export async function generateApiKey(): Promise<string> {
-  const buffer = randomBytes(32)
-  const hash = createHash('sha256').update(buffer).digest('hex')
-  return `wf_${hash}`
-}
-
-export async function validateApiKey(
-  apiKey: string | null,
-  storedApiKey: string | null
-): Promise<boolean> {
-  if (!apiKey || !storedApiKey) return false
-  return apiKey === storedApiKey
-}
-
 /**
  * Format a date into a human-readable format
  * @param date - The date to format
@@ -201,4 +188,12 @@ export function formatDuration(durationMs: number): string {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
+}
+
+/**
+ * Generates a standardized API key with the 'sim_' prefix
+ * @returns A new API key string
+ */
+export function generateApiKey(): string {
+  return `sim_${nanoid(32)}`
 }

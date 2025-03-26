@@ -3,8 +3,9 @@ import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { apiKey } from '@/db/schema'
+import { generateApiKey } from '@/lib/utils'
 import { db } from '@/db'
+import { apiKey } from '@/db/schema'
 
 const logger = createLogger('ApiKeysRoute')
 
@@ -61,8 +62,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request. Name is required.' }, { status: 400 })
     }
 
-    // Generate an API key - we'll use a prefix to identify this as an API key (sim_)
-    const keyValue = `sim_${nanoid(32)}`
+    const keyValue = generateApiKey()
 
     // Insert the new API key
     const [newKey] = await db

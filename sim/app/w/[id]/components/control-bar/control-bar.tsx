@@ -211,10 +211,10 @@ export function ControlBar() {
   const handleDeploy = async () => {
     if (!activeWorkflowId) return
 
-    // If already deployed, show the existing deployment info instead of redeploying
+    // If already deployed, show the API info
     if (isDeployed) {
-      // Find existing API notification for this workflow
-      const apiNotification = workflowNotifications.find(
+      // Try to find an existing API notification
+      const apiNotification = notifications.find(
         (n) => n.type === 'api' && n.workflowId === activeWorkflowId
       )
 
@@ -244,11 +244,13 @@ export function ControlBar() {
             },
             {
               label: 'API Key',
-              content: apiKey,
+              content: apiKey || 'No API key found. Visit your account settings to create one.',
             },
             {
               label: 'Example curl command',
-              content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+              content: apiKey
+                ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`
+                : `You need an API key to call this endpoint. Visit your account settings to create one.`,
             },
           ],
         })
@@ -285,11 +287,13 @@ export function ControlBar() {
           },
           {
             label: 'API Key',
-            content: apiKey,
+            content: apiKey || 'No API key found. Visit your account settings to create one.',
           },
           {
             label: 'Example curl command',
-            content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+            content: apiKey
+              ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`
+              : `You need an API key to call this endpoint. Visit your account settings to create one.`,
           },
         ],
       })
