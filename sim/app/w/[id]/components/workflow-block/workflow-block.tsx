@@ -224,13 +224,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             position={horizontalHandles ? Position.Left : Position.Top}
             id="target"
             className={cn(
-              '!w-3.5 !h-3.5',
-              '!bg-white !rounded-full !border !border-gray-200',
-              'group-hover:!border-blue-500',
+              '!w-[7px] !h-5',
+              '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
+              '!z-[-1]',
+              'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
+              horizontalHandles
+                ? 'hover:!w-[10px] hover:!left-[-10px] hover:!rounded-l-full hover:!rounded-r-none'
+                : 'hover:!h-[10px] hover:!translate-y-[-3px] hover:!rounded-t-full hover:!rounded-b-none',
               '!cursor-crosshair',
-              'transition-[border-color] duration-150',
+              'transition-all duration-150',
               horizontalHandles ? '!left-[-7px]' : '!top-[-7px]'
             )}
+            style={{
+              ...(horizontalHandles ? { top: '50%', transform: 'translateY(-50%)' } : {}),
+            }}
             data-nodeid={id}
             data-handleid="target"
             isConnectableStart={false}
@@ -362,24 +369,74 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
         {/* Output Handle */}
         {type !== 'condition' && (
-          <Handle
-            type="source"
-            position={horizontalHandles ? Position.Right : Position.Bottom}
-            id="source"
-            className={cn(
-              '!w-3.5 !h-3.5',
-              '!bg-white !rounded-full !border !border-gray-200',
-              'group-hover:!border-blue-500',
-              '!cursor-crosshair',
-              'transition-[border-color] duration-150',
-              horizontalHandles ? '!right-[-7px]' : '!bottom-[-7px]'
+          <>
+            <Handle
+              type="source"
+              position={horizontalHandles ? Position.Right : Position.Bottom}
+              id="source"
+              className={cn(
+                '!w-[7px] !h-5',
+                '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
+                '!z-[-1]',
+                'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
+                horizontalHandles
+                  ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
+                  : 'hover:!h-[10px] hover:!translate-y-[3px] hover:!rounded-b-full hover:!rounded-t-none',
+                '!cursor-crosshair',
+                'transition-all duration-150',
+                horizontalHandles ? '!right-[-7px]' : '!bottom-[-7px]'
+              )}
+              style={{
+                ...(horizontalHandles ? { top: '50%', transform: 'translateY(-50%)' } : {}),
+              }}
+              data-nodeid={id}
+              data-handleid="source"
+              isConnectableStart={true}
+              isConnectableEnd={false}
+              isValidConnection={(connection) => connection.target !== id}
+            />
+
+            {/* Error Handle - Don't show for starter blocks */}
+            {type !== 'starter' && (
+              <Handle
+                type="source"
+                position={horizontalHandles ? Position.Right : Position.Bottom}
+                id="error"
+                className={cn(
+                  '!w-[7px] !h-5',
+                  '!bg-red-400 dark:!bg-red-500 !rounded-[2px] !border-none',
+                  '!z-[-1]',
+                  'group-hover:!shadow-[0_0_0_3px_rgba(248,113,113,0.15)]',
+                  horizontalHandles
+                    ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
+                    : 'hover:!h-[10px] hover:!translate-y-[3px] hover:!rounded-b-full hover:!rounded-t-none',
+                  '!cursor-crosshair',
+                  'transition-all duration-150'
+                )}
+                style={{
+                  position: 'absolute',
+                  ...(horizontalHandles
+                    ? {
+                        right: '-8px',
+                        top: 'auto',
+                        bottom: '30px',
+                        transform: 'translateY(0)',
+                      }
+                    : {
+                        bottom: '-7px',
+                        left: 'auto',
+                        right: '30px',
+                        transform: 'translateX(0)',
+                      }),
+                }}
+                data-nodeid={id}
+                data-handleid="error"
+                isConnectableStart={true}
+                isConnectableEnd={false}
+                isValidConnection={(connection) => connection.target !== id}
+              />
             )}
-            data-nodeid={id}
-            data-handleid="source"
-            isConnectableStart={true}
-            isConnectableEnd={false}
-            isValidConnection={(connection) => connection.target !== id}
-          />
+          </>
         )}
       </Card>
     </div>
