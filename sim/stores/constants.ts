@@ -9,6 +9,7 @@ export const API_ENDPOINTS = {
   ENVIRONMENT: '/api/db/environment',
   SCHEDULE: '/api/schedules/schedule',
   WORKFLOW_VARIABLES: '/api/db/workflow/variables',
+  API_KEY: '/api/db/api-key',
 }
 
 export const SYNC_INTERVALS = {
