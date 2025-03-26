@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Z-index fixes for workflow components */
+.workflow-container .react-flow__edges {
+  z-index: 0 !important;
+}
+
+.workflow-container .react-flow__node {
+  z-index: 20 !important;
+}
+
+.workflow-container .react-flow__handle {
+  z-index: 30 !important;
+}
+
+.workflow-container .react-flow__edge [data-testid="workflow-edge"] {
+  z-index: 0 !important;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

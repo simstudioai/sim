@@ -204,7 +204,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           isWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
           isActive && 'ring-2 animate-pulse-ring ring-blue-500',
-          isPending && 'ring-2 ring-amber-500'
+          isPending && 'ring-2 ring-amber-500',
+          'z-[20]'
         )}
       >
         {/* Show debug indicator for pending blocks */}
@@ -226,7 +227,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             className={cn(
               '!w-[7px] !h-5',
               '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
-              '!z-[-1]',
+              '!z-[30]',
               'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
               horizontalHandles
                 ? 'hover:!w-[10px] hover:!left-[-10px] hover:!rounded-l-full hover:!rounded-r-none'
@@ -377,7 +378,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               className={cn(
                 '!w-[7px] !h-5',
                 '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
-                '!z-[-1]',
+                '!z-[30]',
                 'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
                 horizontalHandles
                   ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
@@ -405,7 +406,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 className={cn(
                   '!w-[7px] !h-5',
                   '!bg-red-400 dark:!bg-red-500 !rounded-[2px] !border-none',
-                  '!z-[-1]',
+                  '!z-[30]',
                   'group-hover:!shadow-[0_0_0_3px_rgba(248,113,113,0.15)]',
                   horizontalHandles
                     ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
