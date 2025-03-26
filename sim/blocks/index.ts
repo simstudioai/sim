@@ -31,6 +31,7 @@ import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
+import { TwilioSMSBlock } from './blocks/twilio'
 
 // Export blocks for ease of use
 export {
@@ -65,6 +66,7 @@ export {
   GoogleSheetsBlock,
   PerplexityBlock,
   ConfluenceBlock,
+  TwilioSMSBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -100,6 +102,7 @@ const blocks: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  twilio_sms: TwilioSMSBlock,
 }
 
 // Helper functions
