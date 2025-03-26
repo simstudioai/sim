@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
+import { generateApiKey } from '@/lib/utils'
 import { db } from '@/db'
 import { apiKey, workflow } from '@/db/schema'
 import { validateWorkflowAccess } from '../../middleware'
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // If no API key exists, create one
     if (userApiKey.length === 0) {
-      const newApiKey = `sk_${uuidv4().replace(/-/g, '')}`
+      const newApiKey = generateApiKey()
       await db.insert(apiKey).values({
         id: uuidv4(),
         userId,

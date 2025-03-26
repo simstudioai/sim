@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx'
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { nanoid } from 'nanoid'
 import { twMerge } from 'tailwind-merge'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -187,4 +188,12 @@ export function formatDuration(durationMs: number): string {
   const hours = Math.floor(minutes / 60)
   const remainingMinutes = minutes % 60
   return `${hours}h ${remainingMinutes}m`
+}
+
+/**
+ * Generates a standardized API key with the 'sim_' prefix
+ * @returns A new API key string
+ */
+export function generateApiKey(): string {
+  return `sim_${nanoid(32)}`
 }
