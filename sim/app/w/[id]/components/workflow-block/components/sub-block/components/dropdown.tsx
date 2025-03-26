@@ -7,7 +7,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
-import { useOllamaStore } from '@/stores/ollama/store'
 
 interface DropdownProps {
   options: Array<string | { label: string; id: string }> | (() => Array<string | { label: string; id: string }>)
@@ -18,12 +17,19 @@ interface DropdownProps {
 
 export function Dropdown({ options, defaultValue, blockId, subBlockId }: DropdownProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId, true)
-  const ollamaModels = useOllamaStore((state) => state.models)
 
-  // Evaluate options if it's a function
+  // Evaluate options if it's a function and deduplicate based on values
   const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
-  }, [options, ollamaModels]) // Add ollamaModels as a dependency
+    const rawOptions = typeof options === 'function' ? options() : options
+    const seen = new Set<string>()
+    return rawOptions.filter(option => {
+      const value = typeof option === 'string' ? option : option.id
+      if (seen.has(value)) return false
+      seen.add(value)
+      return true
+    })
+  }, [options])
+
 
   // Set the value to the first option if it's not set
   useEffect(() => {
