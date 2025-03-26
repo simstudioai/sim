@@ -4,6 +4,7 @@ import { devtools, persist } from 'zustand/middleware'
 import { Variable, VariablesStore } from './types'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('Variables Store')
 const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
@@ -104,7 +105,9 @@ export const useVariablesStore = create<VariablesStore>()(
             
             // If name is being updated, ensure it's unique
             if (update.name) {
-              const workflowId = state.variables[id].workflowId
+              const oldVariable = state.variables[id]
+              const oldVariableName = oldVariable.name
+              const workflowId = oldVariable.workflowId
               const workflowVariables = Object.values(state.variables).filter(
                 v => v.workflowId === workflowId && v.id !== id
               )
@@ -116,6 +119,69 @@ export const useVariablesStore = create<VariablesStore>()(
               while (workflowVariables.some(v => v.name === uniqueName)) {
                 uniqueName = `${update.name} (${nameIndex})`
                 nameIndex++
+              }
+              
+              // If name has changed, update references in subblocks
+              if (uniqueName !== oldVariableName) {
+                // Update references in subblock store
+                const subBlockStore = useSubBlockStore.getState()
+                const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+                
+                if (activeWorkflowId) {
+                  // Get the workflow values for the active workflow
+                  const workflowValues = subBlockStore.workflowValues[activeWorkflowId] || {}
+                  const updatedWorkflowValues = { ...workflowValues }
+                  
+                  // Loop through blocks
+                  Object.entries(workflowValues).forEach(([blockId, blockValues]) => {
+                    // Loop through subblocks and update references
+                    Object.entries(blockValues as Record<string, any>).forEach(([subBlockId, value]) => {
+                      const oldVarName = oldVariableName.replace(/\s+/g, '').toLowerCase()
+                      const newVarName = uniqueName.replace(/\s+/g, '').toLowerCase()
+                      const regex = new RegExp(`<variable\.${oldVarName}>`, 'gi')
+                      
+                      // Use a recursive function to handle all object types
+                      updatedWorkflowValues[blockId][subBlockId] = updateReferences(
+                        value,
+                        regex,
+                        `<variable.${newVarName}>`
+                      )
+                      
+                      // Helper function to recursively update references in any data structure
+                      function updateReferences(value: any, regex: RegExp, replacement: string): any {
+                        // Handle string values
+                        if (typeof value === 'string') {
+                          return regex.test(value) ? value.replace(regex, replacement) : value
+                        }
+                        
+                        // Handle arrays
+                        if (Array.isArray(value)) {
+                          return value.map((item) => updateReferences(item, regex, replacement))
+                        }
+                        
+                        // Handle objects
+                        if (value !== null && typeof value === 'object') {
+                          const result = { ...value }
+                          for (const key in result) {
+                            result[key] = updateReferences(result[key], regex, replacement)
+                          }
+                          return result
+                        }
+                        
+                        // Return unchanged for other types
+                        return value
+                      }
+                    })
+                  })
+                  
+                  // Update the subblock store with the new values
+                  useSubBlockStore.setState({
+                    workflowValues: {
+                      ...subBlockStore.workflowValues,
+                      [activeWorkflowId]: updatedWorkflowValues,
+                    },
+                  })
+                }
               }
               
               // Update with unique name
