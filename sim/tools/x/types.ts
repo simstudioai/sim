@@ -28,9 +28,13 @@ export interface XUser {
   }
 }
 
+// Common parameters for all X endpoints
+export interface XBaseParams {
+  accessToken: string
+}
+
 // Write Operation
-export interface XWriteParams {
-  apiKey: string
+export interface XWriteParams extends XBaseParams {
   text: string
   replyTo?: string
   mediaIds?: string[]
@@ -47,8 +51,7 @@ export interface XWriteResponse extends ToolResponse {
 }
 
 // Read Operation
-export interface XReadParams {
-  apiKey: string
+export interface XReadParams extends XBaseParams {
   tweetId: string
   includeReplies?: boolean
 }
@@ -65,8 +68,7 @@ export interface XReadResponse extends ToolResponse {
 }
 
 // Search Operation
-export interface XSearchParams {
-  apiKey: string
+export interface XSearchParams extends XBaseParams {
   query: string
   maxResults?: number
   startTime?: string
@@ -92,8 +94,7 @@ export interface XSearchResponse extends ToolResponse {
 }
 
 // User Operation
-export interface XUserParams {
-  apiKey: string
+export interface XUserParams extends XBaseParams {
   username: string
   includeRecentTweets?: boolean
 }

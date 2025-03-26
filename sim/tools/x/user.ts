@@ -1,5 +1,5 @@
 import { ToolConfig } from '../types'
-import { XTweet, XUser, XUserParams, XUserResponse } from './types'
+import { XUser, XUserParams, XUserResponse } from './types'
 
 export const userTool: ToolConfig<XUserParams, XUserResponse> = {
   id: 'x_user',
@@ -7,110 +7,91 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
   description: 'Get user profile information and recent tweets',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'users.read'],
+  },
+
   params: {
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'X API key for authentication',
+      description: 'X OAuth access token',
     },
     username: {
       type: 'string',
       required: true,
       description: 'Username to look up (without @ symbol)',
     },
-    includeRecentTweets: {
-      type: 'boolean',
-      required: false,
-      description: 'Whether to include recent tweets from the user',
-    },
   },
 
   request: {
     url: (params) => {
       const username = encodeURIComponent(params.username)
-      const userFields = ['description', 'profile_image_url', 'verified', 'public_metrics'].join(
-        ','
-      )
+      const userFields = 'description,profile_image_url,verified,public_metrics'
 
       return `https://api.x.com/2/users/by/username/${username}?user.fields=${userFields}`
     },
     method: 'GET',
     headers: (params) => ({
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
-    const requestUrl = new URL(response.url)
-    const apiKey = response.headers.get('Authorization')?.split(' ')[1] || ''
+  transformResponse: async (response, params) => {
+    if (!params) {
+      throw new Error('Missing required parameters')
+    }
 
-    const transformUser = (user: any): XUser => ({
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      description: user.description,
-      profileImageUrl: user.profile_image_url,
-      verified: user.verified,
+    const responseData = await response.json()
+
+    // Check if response contains expected data structure
+    if (!responseData.data) {
+      // If there's an error object in the response
+      if (responseData.errors && responseData.errors.length > 0) {
+        const error = responseData.errors[0]
+        throw new Error(error.detail || error.message || 'Failed to fetch user data')
+      }
+      throw new Error('Invalid response format from X API')
+    }
+
+    const userData = responseData.data
+
+    // Create the base user object with defensive coding for missing properties
+    const user: XUser = {
+      id: userData.id,
+      username: userData.username,
+      name: userData.name || '',
+      description: userData.description || '',
+      profileImageUrl: userData.profile_image_url || '',
+      verified: !!userData.verified,
       metrics: {
-        followersCount: user.public_metrics.followers_count,
-        followingCount: user.public_metrics.following_count,
-        tweetCount: user.public_metrics.tweet_count,
+        followersCount: userData.public_metrics?.followers_count || 0,
+        followingCount: userData.public_metrics?.following_count || 0,
+        tweetCount: userData.public_metrics?.tweet_count || 0,
       },
-    })
-
-    const transformTweet = (tweet: any): XTweet => ({
-      id: tweet.id,
-      text: tweet.text,
-      createdAt: tweet.created_at,
-      authorId: tweet.author_id,
-      conversationId: tweet.conversation_id,
-      inReplyToUserId: tweet.in_reply_to_user_id,
-      attachments: {
-        mediaKeys: tweet.attachments?.media_keys,
-        pollId: tweet.attachments?.poll_ids?.[0],
-      },
-    })
-
-    const user = transformUser(data.data)
-    let recentTweets: XTweet[] | undefined
-
-    // Check if includeRecentTweets was in the original request
-    const includeRecentTweets = requestUrl.searchParams.get('include_tweets') === 'true'
-
-    // Fetch recent tweets if requested
-    if (includeRecentTweets && apiKey) {
-      const tweetsResponse = await fetch(
-        `https://api.x.com/2/users/${user.id}/tweets?max_results=10&tweet.fields=created_at,conversation_id,in_reply_to_user_id,attachments`,
-        {
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-      const tweetsData = await tweetsResponse.json()
-      recentTweets = tweetsData.data.map(transformTweet)
     }
 
     return {
       success: true,
       output: {
         user,
-        recentTweets,
       },
     }
   },
 
   transformError: (error) => {
     if (error.title === 'Unauthorized') {
-      return 'Invalid API key. Please check your credentials.'
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
     if (error.title === 'Not Found') {
       return 'The specified user was not found.'
     }
-    return error.detail || 'An unexpected error occurred while fetching user data from X'
+    if (error.detail) {
+      return `X API error: ${error.detail}`
+    }
+    return error.message || 'An unexpected error occurred while fetching user data from X'
   },
 }
