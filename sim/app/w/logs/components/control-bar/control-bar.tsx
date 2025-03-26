@@ -37,7 +37,7 @@ export function ControlBar() {
   const fetchLogs = async () => {
     try {
       // Include workflow data in the response
-      const response = await fetch('/api/db/workflow-logs?includeWorkflow=true')
+      const response = await fetch('/api/logs?includeWorkflow=true')
 
       if (!response.ok) {
         throw new Error(`Error fetching logs: ${response.statusText}`)

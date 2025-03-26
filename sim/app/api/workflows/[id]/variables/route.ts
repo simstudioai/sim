@@ -3,9 +3,9 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { Variable } from '@/stores/panel/variables/types'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'
-import { Variable } from '@/stores/panel/variables/types'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
@@ -22,10 +22,7 @@ const VariablesSchema = z.object({
   ),
 })
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const workflowId = (await params).id
 
@@ -90,17 +87,11 @@ export async function POST(
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating workflow variables`, error)
-    return NextResponse.json(
-      { error: 'Failed to update workflow variables' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
   }
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const workflowId = (await params).id
 
@@ -132,20 +123,23 @@ export async function GET(
     }
 
     // Return variables if they exist
-    const variables = workflowRecord[0].variables as Record<string, Variable> || {}
-    
+    const variables = (workflowRecord[0].variables as Record<string, Variable>) || {}
+
     // Add cache headers to prevent frequent reloading
     const headers = new Headers({
       'Cache-Control': 'max-age=60, stale-while-revalidate=300', // Cache for 1 minute, stale for 5
-      'ETag': `"${requestId}-${Object.keys(variables).length}"`,
+      ETag: `"${requestId}-${Object.keys(variables).length}"`,
     })
 
-    return NextResponse.json({ data: variables }, { 
-      status: 200,
-      headers,
-    })
+    return NextResponse.json(
+      { data: variables },
+      {
+        status: 200,
+        headers,
+      }
+    )
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow variables fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-} 
+}
