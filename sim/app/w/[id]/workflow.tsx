@@ -472,6 +472,7 @@ function WorkflowContent() {
           noWheelClassName="allow-scroll"
           edgesFocusable={true}
           edgesUpdatable={true}
+          className="workflow-container"
         >
           <Background />
         </ReactFlow>
