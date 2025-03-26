@@ -7,6 +7,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { usePanelStore } from '@/stores/panel/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -22,6 +23,7 @@ export function useWorkflowExecution() {
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
   const { toggleConsole } = useConsoleStore()
+  const { togglePanel, setActiveTab } = usePanelStore()
   const { getAllVariables } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
@@ -79,13 +81,14 @@ export function useWorkflowExecution() {
       setIsDebugging(true)
     }
 
-    // Get the current console state directly from the store
-    const currentIsOpen = useConsoleStore.getState().isOpen
-
-    // Open console if it's not already open
-    if (!currentIsOpen) {
-      toggleConsole()
+    // Check if panel is open and open it if not
+    const isPanelOpen = usePanelStore.getState().isOpen
+    if (!isPanelOpen) {
+      togglePanel()
     }
+    
+    // Set active tab to console
+    setActiveTab('console')
 
     const executionId = uuidv4()
 
@@ -257,6 +260,8 @@ export function useWorkflowExecution() {
     loops,
     addNotification,
     toggleConsole,
+    togglePanel,
+    setActiveTab,
     getAllVariables,
     getVariablesByWorkflowId,
     setIsExecuting,
