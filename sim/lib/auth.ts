@@ -52,7 +52,7 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
-      trustedProviders: ['google', 'github', 'email-password', 'confluence'],
+      trustedProviders: ['google', 'github', 'email-password', 'confluence', 'supabase', 'x'],
     },
   },
   socialProviders: {
@@ -249,13 +249,54 @@ export const auth = betterAuth({
           clientId: process.env.SUPABASE_CLIENT_ID as string,
           clientSecret: process.env.SUPABASE_CLIENT_SECRET as string,
           authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
-          accessType: 'offline',
           tokenUrl: 'https://api.supabase.com/v1/oauth/token',
-          userInfoUrl: 'https://api.supabase.com/v1/oauth/userinfo',
+          // Supabase doesn't have a standard userInfo endpoint that works with our flow,
+          // so we use a dummy URL and rely on our custom getUserInfo implementation
+          userInfoUrl: 'https://dummy-not-used.supabase.co',
           scopes: ['database.read', 'database.write', 'projects.read'],
           responseType: 'code',
           pkce: true,
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/supabase`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Creating Supabase user profile from token data')
+
+              // Extract user identifier from tokens if possible
+              let userId = 'supabase-user'
+              if (tokens.idToken) {
+                try {
+                  // Try to decode the JWT to get user information
+                  const decodedToken = JSON.parse(
+                    Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
+                  )
+                  if (decodedToken.sub) {
+                    userId = decodedToken.sub
+                  }
+                } catch (e) {
+                  logger.warn('Failed to decode Supabase ID token', { error: e })
+                }
+              }
+
+              // Generate a unique enough identifier
+              const uniqueId = `${userId}-${Date.now()}`
+
+              const now = new Date()
+
+              // Create a synthetic user profile since we can't fetch one
+              return {
+                id: uniqueId,
+                name: 'Supabase User',
+                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
+                image: null,
+                emailVerified: false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error creating Supabase user profile:', { error })
+              return null
+            }
+          },
         },
 
         // X provider
