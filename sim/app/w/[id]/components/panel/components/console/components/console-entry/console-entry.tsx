@@ -4,6 +4,7 @@ import { AlertCircle, AlertTriangle, Calendar, CheckCircle2, Clock, Terminal } f
 import { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { getBlock } from '@/blocks'
 import { JSONView } from '../json-view/json-view'
+import { formatDuration } from '@/lib/utils'
 
 interface ConsoleEntryProps {
   entry: ConsoleEntryType
@@ -27,6 +28,65 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
   ) : (
     <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
   )
+
+  const formattedTime = useMemo(() => {
+    const date = new Date(entry.timestamp)
+    return date.toLocaleTimeString()
+  }, [entry.timestamp])
+
+  const renderOutput = (output: any) => {
+    if (!output) return null;
+
+    // Handle image upload output
+    if (output.type === 'image') {
+      return (
+        <div className="mt-2">
+          <img 
+            src={output.data} 
+            alt={output.metadata?.fileName || 'Uploaded image'} 
+            className="max-w-full h-auto rounded-md shadow-sm"
+            style={{ maxHeight: '300px' }}
+          />
+          <div className="mt-2 text-sm text-muted-foreground">
+            <div>File: {output.metadata?.fileName}</div>
+            <div>Size: {(output.metadata?.fileSize / 1024).toFixed(2)} KB</div>
+            <div>Type: {output.metadata?.mimeType}</div>
+          </div>
+        </div>
+      )
+    }
+
+    // Handle image generation output
+    if (output.imageUrl) {
+      return (
+        <div className="mt-2">
+          <img 
+            src={output.imageUrl} 
+            alt={output.metadata?.prompt || 'Generated image'} 
+            className="max-w-full h-auto rounded-md shadow-sm"
+            style={{ maxHeight: '300px' }}
+          />
+          <div className="mt-2 text-sm text-muted-foreground">
+            <div>Provider: {output.provider}</div>
+            {output.metadata && (
+              <>
+                <div>Prompt: {output.metadata.prompt}</div>
+                <div>Model: {output.metadata.model}</div>
+                <div>Size: {output.metadata.width}x{output.metadata.height}</div>
+              </>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    // Handle other types of output
+    if (typeof output === 'object') {
+      return <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(output, null, 2)}</pre>
+    }
+
+    return <span className="text-sm">{String(output)}</span>
+  }
 
   return (
     <div
@@ -58,11 +118,11 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           >
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              <span>{format(new Date(entry.startedAt), 'HH:mm:ss')}</span>
+              <span>{formattedTime}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              <span>Duration: {entry.durationMs}ms</span>
+              <span>{formatDuration(entry.durationMs)}</span>
             </div>
           </div>
         </div>
@@ -72,7 +132,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
             <div className="flex items-start gap-2">
               <Terminal className="h-4 w-4 text-muted-foreground mt-1" />
               <div className="text-sm font-mono flex-1">
-                <JSONView data={entry.output} initiallyExpanded={isExpanded} />
+                {renderOutput(entry.output)}
               </div>
             </div>
           )}
