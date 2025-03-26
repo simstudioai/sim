@@ -84,7 +84,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
   )
 
   return (
-    <div className="absolute -left-[162px] top-0 space-y-2 flex flex-col items-end max-h-[400px] overflow-y-auto">
+    <div className="absolute -left-[220px] w-[200px] top-0 space-y-2 flex flex-col items-end max-h-[400px] overflow-y-auto">
       {sortedConnections.map((connection) => (
         <div key={connection.id} className="space-y-2">
           {Array.isArray(connection.outputType) ? (
