@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { desc, eq, sql } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { CATEGORIES } from '@/app/w/marketplace/constants/categories'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
-import { CATEGORIES } from '@/app/w/marketplace/constants/categories'
 
 const logger = createLogger('MarketplaceWorkflowsAPI')
 
@@ -13,14 +13,14 @@ export const revalidate = 60
 
 /**
  * Consolidated API endpoint for marketplace workflows
- * 
+ *
  * Supports:
  * - Getting featured/popular/recent workflows
  * - Getting workflows by category
  * - Getting workflow state
  * - Getting workflow details
  * - Incrementing view counts
- * 
+ *
  * Query parameters:
  * - section: 'popular', 'recent', 'byCategory', or specific category name
  * - limit: Maximum number of items to return per section (default: 6)
@@ -30,7 +30,7 @@ export const revalidate = 60
  */
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  
+
   try {
     // Parse query parameters
     const url = new URL(request.url)
@@ -41,11 +41,11 @@ export async function GET(request: NextRequest) {
     const includeState = url.searchParams.get('includeState') === 'true'
     const workflowId = url.searchParams.get('workflowId')
     const marketplaceId = url.searchParams.get('marketplaceId')
-    
+
     // Handle single workflow request first (by workflow ID)
     if (workflowId) {
-      let marketplaceEntry;
-      
+      let marketplaceEntry
+
       if (includeState) {
         // Query with state included
         marketplaceEntry = await db
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
           .from(schema.marketplace)
           .where(eq(schema.marketplace.workflowId, workflowId))
           .limit(1)
-          .then((rows) => rows[0]);
+          .then((rows) => rows[0])
       } else {
         // Query without state
         marketplaceEntry = await db
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
           .from(schema.marketplace)
           .where(eq(schema.marketplace.workflowId, workflowId))
           .limit(1)
-          .then((rows) => rows[0]);
+          .then((rows) => rows[0])
       }
 
       if (!marketplaceEntry) {
@@ -95,22 +95,23 @@ export async function GET(request: NextRequest) {
       }
 
       // Transform response if state was requested
-      const responseData = includeState && 'state' in marketplaceEntry
-        ? {
-            ...marketplaceEntry,
-            workflowState: marketplaceEntry.state,
-            state: undefined,
-          }
-        : marketplaceEntry;
+      const responseData =
+        includeState && 'state' in marketplaceEntry
+          ? {
+              ...marketplaceEntry,
+              workflowState: marketplaceEntry.state,
+              state: undefined,
+            }
+          : marketplaceEntry
 
       logger.info(`[${requestId}] Retrieved marketplace data for workflow: ${workflowId}`)
       return createSuccessResponse(responseData)
     }
-    
+
     // Handle single marketplace entry request (by marketplace ID)
     if (marketplaceId) {
-      let marketplaceEntry;
-      
+      let marketplaceEntry
+
       if (includeState) {
         // Query with state included
         marketplaceEntry = await db
@@ -131,7 +132,7 @@ export async function GET(request: NextRequest) {
           .from(schema.marketplace)
           .where(eq(schema.marketplace.id, marketplaceId))
           .limit(1)
-          .then((rows) => rows[0]);
+          .then((rows) => rows[0])
       } else {
         // Query without state
         marketplaceEntry = await db
@@ -151,7 +152,7 @@ export async function GET(request: NextRequest) {
           .from(schema.marketplace)
           .where(eq(schema.marketplace.id, marketplaceId))
           .limit(1)
-          .then((rows) => rows[0]);
+          .then((rows) => rows[0])
       }
 
       if (!marketplaceEntry) {
@@ -160,18 +161,19 @@ export async function GET(request: NextRequest) {
       }
 
       // Transform response if state was requested
-      const responseData = includeState && 'state' in marketplaceEntry
-        ? {
-            ...marketplaceEntry,
-            workflowState: marketplaceEntry.state,
-            state: undefined,
-          }
-        : marketplaceEntry;
+      const responseData =
+        includeState && 'state' in marketplaceEntry
+          ? {
+              ...marketplaceEntry,
+              workflowState: marketplaceEntry.state,
+              state: undefined,
+            }
+          : marketplaceEntry
 
       logger.info(`[${requestId}] Retrieved marketplace entry: ${marketplaceId}`)
       return createSuccessResponse(responseData)
     }
-    
+
     // Handle featured/collection requests
     const result: {
       popular: any[]
@@ -180,7 +182,7 @@ export async function GET(request: NextRequest) {
     } = {
       popular: [],
       recent: [],
-      byCategory: {}
+      byCategory: {},
     }
 
     // Define common fields to select
@@ -198,13 +200,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Add state if requested
-    const selectFields = includeState 
+    const selectFields = includeState
       ? { ...baseFields, state: schema.marketplace.state }
-      : baseFields;
+      : baseFields
 
     // Determine which sections to fetch
     const sections = sectionParam ? sectionParam.split(',') : ['popular', 'recent', 'byCategory']
-    
+
     // Get popular items if requested
     if (sections.includes('popular')) {
       result.popular = await db
@@ -213,7 +215,7 @@ export async function GET(request: NextRequest) {
         .orderBy(desc(schema.marketplace.stars), desc(schema.marketplace.views))
         .limit(limit)
     }
-    
+
     // Get recent items if requested
     if (sections.includes('recent')) {
       result.recent = await db
@@ -222,33 +224,37 @@ export async function GET(request: NextRequest) {
         .orderBy(desc(schema.marketplace.createdAt))
         .limit(limit)
     }
-    
+
     // Get categories if requested
-    if (sections.includes('byCategory') || categoryParam || sections.some(s => CATEGORIES.some(c => c.value === s))) {
+    if (
+      sections.includes('byCategory') ||
+      categoryParam ||
+      sections.some((s) => CATEGORIES.some((c) => c.value === s))
+    ) {
       // Identify all requested categories
-      const requestedCategories = new Set<string>();
-      
+      const requestedCategories = new Set<string>()
+
       // Add explicitly requested category
       if (categoryParam) {
-        requestedCategories.add(categoryParam);
+        requestedCategories.add(categoryParam)
       }
-      
+
       // Add categories from sections parameter
-      sections.forEach(section => {
-        if (CATEGORIES.some(c => c.value === section)) {
-          requestedCategories.add(section);
+      sections.forEach((section) => {
+        if (CATEGORIES.some((c) => c.value === section)) {
+          requestedCategories.add(section)
         }
-      });
-      
+      })
+
       // Include byCategory section contents if requested
       if (sections.includes('byCategory')) {
-        CATEGORIES.forEach(c => requestedCategories.add(c.value));
+        CATEGORIES.forEach((c) => requestedCategories.add(c.value))
       }
-      
+
       // Log what we're fetching
-      const categoriesToFetch = Array.from(requestedCategories);
-      logger.info(`[${requestId}] Fetching specific categories: ${categoriesToFetch.join(', ')}`);
-      
+      const categoriesToFetch = Array.from(requestedCategories)
+      logger.info(`[${requestId}] Fetching specific categories: ${categoriesToFetch.join(', ')}`)
+
       // Process each requested category
       await Promise.all(
         categoriesToFetch.map(async (categoryValue) => {
@@ -257,40 +263,44 @@ export async function GET(request: NextRequest) {
             .from(schema.marketplace)
             .where(eq(schema.marketplace.category, categoryValue))
             .orderBy(desc(schema.marketplace.stars), desc(schema.marketplace.views))
-            .limit(limit);
-          
+            .limit(limit)
+
           // Always add the category to the result, even if empty
-          result.byCategory[categoryValue] = categoryItems;
-          logger.info(`[${requestId}] Category ${categoryValue}: found ${categoryItems.length} items`);
+          result.byCategory[categoryValue] = categoryItems
+          logger.info(
+            `[${requestId}] Category ${categoryValue}: found ${categoryItems.length} items`
+          )
         })
-      );
+      )
     }
 
     // Transform the data if state was included to match the expected format
     if (includeState) {
       const transformSection = (section: any[]) => {
-        return section.map(item => 
-          'state' in item ? {
-            ...item,
-            workflowState: item.state,
-            state: undefined
-          } : item
-        );
-      };
+        return section.map((item) =>
+          'state' in item
+            ? {
+                ...item,
+                workflowState: item.state,
+                state: undefined,
+              }
+            : item
+        )
+      }
 
       if (result.popular.length > 0) {
-        result.popular = transformSection(result.popular);
+        result.popular = transformSection(result.popular)
       }
-      
+
       if (result.recent.length > 0) {
-        result.recent = transformSection(result.recent);
+        result.recent = transformSection(result.recent)
       }
-      
-      Object.keys(result.byCategory).forEach(category => {
+
+      Object.keys(result.byCategory).forEach((category) => {
         if (result.byCategory[category].length > 0) {
-          result.byCategory[category] = transformSection(result.byCategory[category]);
+          result.byCategory[category] = transformSection(result.byCategory[category])
         }
-      });
+      })
     }
 
     logger.info(`[${requestId}] Fetched marketplace items${includeState ? ' with state' : ''}`)
@@ -303,17 +313,17 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST handler for incrementing view counts
- * 
+ *
  * Request body:
  * - id: Marketplace entry ID to increment view count for
  */
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  
+
   try {
     const body = await request.json()
     const { id } = body
-    
+
     if (!id) {
       return createErrorResponse('Marketplace ID is required', 400)
     }
@@ -336,8 +346,8 @@ export async function POST(request: NextRequest) {
     // Increment the view count
     await db
       .update(schema.marketplace)
-      .set({ 
-        views: sql`${schema.marketplace.views} + 1` 
+      .set({
+        views: sql`${schema.marketplace.views} + 1`,
       })
       .where(eq(schema.marketplace.id, id))
 
@@ -350,4 +360,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error incrementing view count`, error)
     return createErrorResponse(`Failed to track view: ${error.message}`, 500)
   }
-} 
+}

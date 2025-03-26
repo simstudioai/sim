@@ -12,7 +12,7 @@ import { db } from '@/db'
 import { environment, userStats, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import {validateSlackSignature} from '../../utils'
+import { validateSlackSignature } from '../../utils'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -118,12 +118,12 @@ export async function POST(
 
   try {
     const path = (await params).path
-    
+
     // Clone the request to get both the raw body for Slack signature verification
     // and the parsed JSON body for processing
     const requestClone = request.clone()
     rawBody = await requestClone.text()
-    
+
     // Parse the request body
     const body = JSON.parse(rawBody || '{}')
     logger.info(`[${requestId}] Webhook POST request received for path: ${path}`)
@@ -168,16 +168,16 @@ export async function POST(
       // Validate Slack signature if this is a Slack webhook
       const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
       const signingSecret = providerConfig.signingSecret
-      
+
       if (signingSecret) {
         const slackSignature = request.headers.get('x-slack-signature')
         const slackTimestamp = request.headers.get('x-slack-request-timestamp')
-        
+
         if (!slackSignature || !slackTimestamp || !rawBody) {
           logger.warn(`[${requestId}] Missing Slack signature headers`, {
             hasSignature: !!slackSignature,
             hasTimestamp: !!slackTimestamp,
-            hasBody: !!rawBody
+            hasBody: !!rawBody,
           })
           return NextResponse.json({ error: 'Invalid Slack request' }, { status: 400 })
         }
@@ -189,14 +189,14 @@ export async function POST(
           slackTimestamp,
           rawBody
         )
-        
+
         if (!isValid) {
           logger.warn(`[${requestId}] Invalid Slack signature`)
           return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
         }
-        
+
         logger.info(`[${requestId}] Slack signature validated successfully`)
-        
+
         // Handle Slack URL verification challenge during POST
         if (body.type === 'url_verification' && body.challenge) {
           logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
@@ -216,13 +216,19 @@ export async function POST(
       if (messageId) {
         await markMessageAsProcessed(messageId)
       }
-      
+
       // Mark this request as processed to prevent duplicates
       await markMessageAsProcessed(requestHash, 60 * 60 * 24)
-      
-      // Process the webhook for Slack
-      return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId, requestId)
 
+      // Process the webhook for Slack
+      return await processWebhook(
+        foundWebhook,
+        foundWorkflow,
+        body,
+        request,
+        executionId,
+        requestId
+      )
     } else if (foundWebhook.provider === 'whatsapp') {
       // Extract WhatsApp specific data
       const data = body?.entry?.[0]?.changes?.[0]?.value

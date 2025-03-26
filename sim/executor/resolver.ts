@@ -62,7 +62,7 @@ export class InputResolver {
       if (typeof value === 'string') {
         // First check for variable references
         let resolvedValue = this.resolveVariableReferences(value)
-        
+
         // Then resolve block references
         resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
 
@@ -102,7 +102,7 @@ export class InputResolver {
 
   /**
    * Resolves workflow variable references in a string (<variable.name>).
-   * 
+   *
    * @param value - String containing variable references
    * @returns String with resolved variable references
    */
@@ -114,23 +114,21 @@ export class InputResolver {
 
     for (const match of variableMatches) {
       const variableName = match.slice('<variable.'.length, -1)
-      
+
       // Find the variable by normalized name (without spaces)
-      const foundVariable = Object.entries(this.workflowVariables).find(
-        ([_, variable]) => {
-          const normalizedName = (variable.name || '').replace(/\s+/g, '')
-          return normalizedName === variableName
-        }
-      )
+      const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => {
+        const normalizedName = (variable.name || '').replace(/\s+/g, '')
+        return normalizedName === variableName
+      })
 
       if (foundVariable) {
         const [_, variable] = foundVariable
         // Format the value appropriately
-        const formattedValue = 
+        const formattedValue =
           typeof variable.value === 'object'
             ? JSON.stringify(variable.value)
             : String(variable.value)
-            
+
         resolvedValue = resolvedValue.replace(match, formattedValue)
       }
     }
@@ -163,7 +161,7 @@ export class InputResolver {
       if (match.startsWith('<variable.')) {
         continue
       }
-      
+
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
@@ -408,7 +406,7 @@ export class InputResolver {
     if (typeof value === 'string') {
       // First resolve variable references
       const resolvedVars = this.resolveVariableReferences(value)
-      
+
       // Then resolve block references
       const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, currentBlock)
 

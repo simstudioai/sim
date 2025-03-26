@@ -5,4 +5,4 @@ export interface PanelStore {
   activeTab: PanelTab
   togglePanel: () => void
   setActiveTab: (tab: PanelTab) => void
-} 
+}

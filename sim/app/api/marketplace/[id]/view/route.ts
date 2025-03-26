@@ -10,7 +10,7 @@ const logger = createLogger('MarketplaceViewAPI')
 /**
  * POST handler for incrementing the view count when a workflow card is clicked
  * This endpoint is called from the WorkflowCard component's onClick handler
- * 
+ *
  * The ID parameter is the marketplace entry ID, not the workflow ID
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -37,8 +37,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Increment the view count for this workflow
     await db
       .update(schema.marketplace)
-      .set({ 
-        views: sql`${schema.marketplace.views} + 1` 
+      .set({
+        views: sql`${schema.marketplace.views} + 1`,
       })
       .where(eq(schema.marketplace.id, id))
 
@@ -54,4 +54,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
     return createErrorResponse('Failed to track view', 500)
   }
-} 
+}

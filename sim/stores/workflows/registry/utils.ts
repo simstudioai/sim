@@ -40,12 +40,10 @@ export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowM
 
   // Sort workflows by lastModified date (newest first)
   const sortedWorkflows = [...workflowArray].sort((a, b) => {
-    const dateA = a.lastModified instanceof Date
-      ? a.lastModified.getTime()
-      : new Date(a.lastModified).getTime()
-    const dateB = b.lastModified instanceof Date
-      ? b.lastModified.getTime()
-      : new Date(b.lastModified).getTime()
+    const dateA =
+      a.lastModified instanceof Date ? a.lastModified.getTime() : new Date(a.lastModified).getTime()
+    const dateB =
+      b.lastModified instanceof Date ? b.lastModified.getTime() : new Date(b.lastModified).getTime()
     return dateB - dateA
   })
 
@@ -53,7 +51,9 @@ export function getNextWorkflowColor(existingWorkflows: Record<string, WorkflowM
   const newestWorkflow = sortedWorkflows[0]
 
   // Find the index of the newest workflow's color, defaulting to -1 if undefined
-  const currentColorIndex = newestWorkflow?.color ? WORKFLOW_COLORS.indexOf(newestWorkflow.color) : -1
+  const currentColorIndex = newestWorkflow?.color
+    ? WORKFLOW_COLORS.indexOf(newestWorkflow.color)
+    : -1
 
   // Get next color index, wrapping around to 0 if we reach the end
   const nextColorIndex = (currentColorIndex + 1) % WORKFLOW_COLORS.length

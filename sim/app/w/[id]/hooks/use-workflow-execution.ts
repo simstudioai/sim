@@ -2,16 +2,16 @@ import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
+import { usePanelStore } from '@/stores/panel/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { usePanelStore } from '@/stores/panel/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -86,7 +86,7 @@ export function useWorkflowExecution() {
     if (!isPanelOpen) {
       togglePanel()
     }
-    
+
     // Set active tab to console
     setActiveTab('console')
 
@@ -136,7 +136,12 @@ export function useWorkflowExecution() {
       const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
       // Create executor and store in global state
-      const newExecutor = new Executor(workflow, currentBlockStates, envVarValues, workflowVariables)
+      const newExecutor = new Executor(
+        workflow,
+        currentBlockStates,
+        envVarValues,
+        workflowVariables
+      )
       setExecutor(newExecutor)
 
       // Execute workflow

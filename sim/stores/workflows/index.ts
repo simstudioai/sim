@@ -13,17 +13,17 @@ export function getWorkflowWithValues(workflowId: string) {
   const { workflows } = useWorkflowRegistry.getState()
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
-  
+
   if (!workflows[workflowId]) {
     logger.warn(`Workflow ${workflowId} not found`)
     return null
   }
-  
+
   const metadata = workflows[workflowId]
-  
+
   // Load the specific state for this workflow
   let workflowState: WorkflowState
-  
+
   if (workflowId === activeWorkflowId) {
     // For the active workflow, use the current state from the store
     workflowState = {
@@ -43,10 +43,10 @@ export function getWorkflowWithValues(workflowId: string) {
     }
     workflowState = savedState
   }
-  
+
   // Merge the subblock values for this specific workflow
   const mergedBlocks = mergeSubblockState(workflowState.blocks, workflowId)
-  
+
   return {
     id: workflowId,
     name: metadata.name,

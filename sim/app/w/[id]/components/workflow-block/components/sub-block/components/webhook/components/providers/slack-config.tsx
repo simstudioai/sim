@@ -13,18 +13,17 @@ interface SlackConfigProps {
     test?: any
   } | null
   copied: string | null
-  copyToClipboard: (text: string, type: string) => void 
+  copyToClipboard: (text: string, type: string) => void
   testWebhook: () => Promise<void>
-
 }
 
 export function SlackConfig({
-    signingSecret,
-    setSigningSecret,
-    isLoadingToken,
-    testResult,
-    copied,
-    copyToClipboard,  
+  signingSecret,
+  setSigningSecret,
+  isLoadingToken,
+  testResult,
+  copied,
+  copyToClipboard,
 }: SlackConfigProps) {
   return (
     <div className="space-y-4">
@@ -57,7 +56,17 @@ export function SlackConfig({
       <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
         <h4 className="font-medium">Setup Instructions</h4>
         <ol className="list-decimal list-inside space-y-1 text-sm">
-          <li>Go to your <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Slack Apps page</a></li>
+          <li>
+            Go to your{' '}
+            <a
+              href="https://api.slack.com/apps"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-500 hover:underline"
+            >
+              Slack Apps page
+            </a>
+          </li>
           <li>Create a new app or select an existing one</li>
           <li>Navigate to &quot;Event Subscriptions&quot; in the left sidebar</li>
           <li>Enable events and add the Webhook URL above as the Request URL</li>

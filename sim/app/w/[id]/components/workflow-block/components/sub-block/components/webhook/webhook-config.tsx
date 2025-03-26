@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { DiscordIcon, GithubIcon, StripeIcon, WhatsAppIcon, SlackIcon } from '@/components/icons'
+import { DiscordIcon, GithubIcon, SlackIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -156,7 +156,7 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
     icon: (props) => <SlackIcon {...props} />,
     configFields: {
       signingSecret: {
-        type: 'string', 
+        type: 'string',
         label: 'Signing Secret',
         placeholder: 'Enter your Slack app signing secret',
         description: 'The signing secret from your Slack app to validate request authenticity.',

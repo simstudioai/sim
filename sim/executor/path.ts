@@ -98,8 +98,10 @@ export class PathTracker {
       } else {
         // For regular blocks, activate all outgoing connections based on success or error status
         const blockState = context.blockStates.get(blockId)
-        const hasError = blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
-        
+        const hasError =
+          blockState?.output?.error !== undefined ||
+          blockState?.output?.response?.error !== undefined
+
         // Get all outgoing connections
         const outgoingConnections = this.workflow.connections.filter(
           (conn) => conn.source === blockId
@@ -111,7 +113,7 @@ export class PathTracker {
             if (hasError) {
               context.activeExecutionPath.add(conn.target)
             }
-          } 
+          }
           // For regular (source) connections, only activate them if there's no error
           else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
             if (!hasError) {
