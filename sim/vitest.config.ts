@@ -1,18 +1,18 @@
 /// <reference types="vitest" />
+import react from '@vitejs/plugin-react'
 import path from 'node:path'
-import { defineConfig } from 'vitest/config'
+import { resolve } from 'path'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  plugins: [react()],
   test: {
-    environment: 'jsdom',
-    include: ['**/*.test.{ts,tsx,js,jsx}'],
-    exclude: ['node_modules', '.next', 'dist'],
     globals: true,
-    setupFiles: ['./vitest.setup.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
-      exclude: ['node_modules', '.next', 'dist'],
+    environment: 'node',
+    include: ['**/*.test.{ts,tsx}'],
+    exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
+    alias: {
+      '@': resolve(__dirname, './'),
     },
   },
   resolve: {
