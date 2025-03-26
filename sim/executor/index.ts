@@ -392,6 +392,10 @@ export class Executor {
       } else {
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
+          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
+          const sourceBlockState = context.blockStates.get(conn.source)
+          const hasSourceError = sourceBlockState?.output?.error !== undefined || 
+                                sourceBlockState?.output?.response?.error !== undefined
 
           // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
@@ -411,7 +415,6 @@ export class Executor {
           }
 
           // For router blocks, check if this is the selected target
-          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
           if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(conn.source)
 
@@ -422,6 +425,16 @@ export class Executor {
 
             // Otherwise, this dependency is met only if source is executed and this is the selected target
             return sourceExecuted && conn.target === selectedTarget
+          }
+
+          // For error connections, check if the source had an error
+          if (conn.sourceHandle === 'error') {
+            return sourceExecuted && hasSourceError
+          }
+
+          // For regular connections, check if the source was executed without error
+          if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+            return sourceExecuted && !hasSourceError
           }
 
           // If source is not in active path, consider this dependency met
@@ -556,6 +569,7 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
+      // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
       addConsole({
         output: {},
@@ -570,6 +584,34 @@ export class Executor {
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
+
+      // Create error output with appropriate structure
+      const errorOutput: NormalizedBlockOutput = {
+        response: {
+          error: this.extractErrorMessage(error),
+          status: error.status || 500,
+        },
+        error: this.extractErrorMessage(error),
+      }
+
+      // Set block state with error output
+      context.blockStates.set(blockId, {
+        output: errorOutput,
+        executed: true,
+        executionTime: blockLog.durationMs,
+      })
+
+      // Check for error connections and follow them if they exist
+      const hasErrorPath = this.activateErrorPath(blockId, context)
+
+      // Console.error the error for visibility
+      logger.error(`Error executing block ${block.metadata?.name || blockId}:`, this.sanitizeError(error))
+
+      // If there are error paths to follow, return error output instead of throwing
+      if (hasErrorPath) {
+        // Return the error output to allow execution to continue along error path
+        return errorOutput
+      }
 
       // Create a proper error message that is never undefined
       let errorMessage = error.message
@@ -591,6 +633,39 @@ export class Executor {
   }
 
   /**
+   * Activates error paths from a block that had an error.
+   * Checks for connections from the block's "error" handle and adds them to the active execution path.
+   * 
+   * @param blockId - ID of the block that had an error
+   * @param context - Current execution context
+   * @returns Whether there was an error path to follow
+   */
+  private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
+    // Skip for starter blocks which don't have error handles
+    const block = this.workflow.blocks.find((b) => b.id === blockId)
+    if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
+      return false
+    }
+
+    // Look for connections from this block's error handle
+    const errorConnections = this.workflow.connections.filter(
+      (conn) => conn.source === blockId && conn.sourceHandle === 'error'
+    )
+
+    if (errorConnections.length === 0) {
+      return false
+    }
+
+    // Add all error connection targets to the active execution path
+    for (const conn of errorConnections) {
+      context.activeExecutionPath.add(conn.target)
+      logger.info(`Activated error path from ${blockId} to ${conn.target}`)
+    }
+
+    return true
+  }
+
+  /**
    * Normalizes a block output to ensure it has the expected structure.
    * Handles different block types with appropriate response formats.
    *
@@ -599,8 +674,26 @@ export class Executor {
    * @returns Normalized output with consistent structure
    */
   private normalizeBlockOutput(output: any, block: SerializedBlock): NormalizedBlockOutput {
+    // Handle error outputs
+    if (output && typeof output === 'object' && output.error) {
+      return {
+        response: {
+          error: output.error,
+          status: output.status || 500,
+        },
+        error: output.error,
+      };
+    }
+
     if (output && typeof output === 'object' && 'response' in output) {
-      return output as NormalizedBlockOutput
+      // If response already contains an error, maintain it
+      if (output.response && output.response.error) {
+        return {
+          ...output,
+          error: output.response.error
+        };
+      }
+      return output as NormalizedBlockOutput;
     }
 
     const blockType = block.metadata?.id

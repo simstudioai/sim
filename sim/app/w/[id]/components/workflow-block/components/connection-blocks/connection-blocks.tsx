@@ -84,7 +84,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
   )
 
   return (
-    <div className="absolute -left-[240px] top-0 space-y-2 flex flex-col items-end w-[220px] max-h-[400px] overflow-y-auto">
+    <div className="absolute -left-[162px] top-0 space-y-2 flex flex-col items-end max-h-[400px] overflow-y-auto">
       {sortedConnections.map((connection) => (
         <div key={connection.id} className="space-y-2">
           {Array.isArray(connection.outputType) ? (
@@ -103,7 +103,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
                   draggable
                   onDragStart={(e) => handleDragStart(e, connection, field)}
                   onDragEnd={handleDragEnd}
-                  className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-fit"
+                  className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-max"
                 >
                   <div className="text-sm">
                     <span className="font-medium leading-none">
@@ -119,7 +119,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
               draggable
               onDragStart={(e) => handleDragStart(e, connection)}
               onDragEnd={handleDragEnd}
-              className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-fit"
+              className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-max"
             >
               <div className="text-sm">
                 <span className="font-medium leading-none">
