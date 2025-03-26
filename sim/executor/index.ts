@@ -72,10 +72,21 @@ export class Executor {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
+    let context: ExecutionContext | null = null
 
-    this.validateWorkflow()
+    try {
+      this.validateWorkflow()
+    } catch (error: any) {
+      logger.error('Workflow validation failed:', this.sanitizeError(error))
+      return {
+        success: false,
+        output: finalOutput,
+        error: this.extractErrorMessage(error),
+        logs: [],
+      }
+    }
 
-    const context = this.createExecutionContext(workflowId, startTime)
+    context = this.createExecutionContext(workflowId, startTime)
 
     try {
       setIsExecuting(true)
@@ -119,16 +130,21 @@ export class Executor {
           if (nextLayer.length === 0) {
             hasMoreLayers = false
           } else {
-            const outputs = await this.executeLayer(nextLayer, context)
+            try {
+              const outputs = await this.executeLayer(nextLayer, context)
 
-            if (outputs.length > 0) {
-              finalOutput = outputs[outputs.length - 1]
-            }
+              if (outputs.length > 0) {
+                finalOutput = outputs[outputs.length - 1]
+              }
 
-            const hasLoopReachedMaxIterations =
-              await this.loopManager.processLoopIterations(context)
-            if (hasLoopReachedMaxIterations) {
-              hasMoreLayers = false
+              const hasLoopReachedMaxIterations =
+                await this.loopManager.processLoopIterations(context)
+              if (hasLoopReachedMaxIterations) {
+                hasMoreLayers = false
+              }
+            } catch (layerError: any) {
+              // Log the error but continue execution
+              logger.error('Error executing layer:', this.sanitizeError(layerError))
             }
           }
         }
@@ -156,7 +172,7 @@ export class Executor {
         success: false,
         output: finalOutput,
         error: this.extractErrorMessage(error),
-        logs: context.blockLogs,
+        logs: context?.blockLogs || [],
       }
     } finally {
       if (!this.isDebugging) {
@@ -178,13 +194,24 @@ export class Executor {
 
     try {
       // Execute the current layer - using the original context, not a clone
-      const outputs = await this.executeLayer(blockIds, context)
+      try {
+        const outputs = await this.executeLayer(blockIds, context)
 
-      if (outputs.length > 0) {
-        finalOutput = outputs[outputs.length - 1]
+        if (outputs.length > 0) {
+          finalOutput = outputs[outputs.length - 1]
+        }
+      } catch (layerError: any) {
+        // Log the error but continue with the workflow
+        logger.error('Error executing debug step layer:', this.sanitizeError(layerError))
       }
 
-      await this.loopManager.processLoopIterations(context)
+      try {
+        await this.loopManager.processLoopIterations(context)
+      } catch (loopError: any) {
+        // Log loop errors but continue with the workflow
+        logger.error('Error processing loop iterations:', this.sanitizeError(loopError))
+      }
+
       const nextLayer = this.getNextExecutionLayer(context)
       setPendingBlocks(nextLayer)
 
@@ -223,7 +250,7 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      console.error('Debug step execution failed:', this.sanitizeError(error))
+      logger.error('Debug step execution failed:', this.sanitizeError(error))
 
       return {
         success: false,
@@ -392,6 +419,10 @@ export class Executor {
       } else {
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
+          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
+          const sourceBlockState = context.blockStates.get(conn.source)
+          const hasSourceError = sourceBlockState?.output?.error !== undefined || 
+                                sourceBlockState?.output?.response?.error !== undefined
 
           // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
@@ -411,7 +442,6 @@ export class Executor {
           }
 
           // For router blocks, check if this is the selected target
-          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
           if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(conn.source)
 
@@ -422,6 +452,16 @@ export class Executor {
 
             // Otherwise, this dependency is met only if source is executed and this is the selected target
             return sourceExecuted && conn.target === selectedTarget
+          }
+
+          // For error connections, check if the source had an error
+          if (conn.sourceHandle === 'error') {
+            return sourceExecuted && hasSourceError
+          }
+
+          // For regular connections, check if the source was executed without error
+          if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+            return sourceExecuted && !hasSourceError
           }
 
           // If source is not in active path, consider this dependency met
@@ -460,9 +500,24 @@ export class Executor {
     try {
       setActiveBlocks(new Set(blockIds))
 
-      const results = await Promise.all(
-        blockIds.map((blockId) => this.executeBlock(blockId, context))
+      // Execute each block, capturing results but not failing the entire layer if one block fails
+      const blockPromises = blockIds.map(blockId => 
+        this.executeBlock(blockId, context)
+          .catch(error => {
+            logger.error(`Error executing block ${blockId}:`, this.sanitizeError(error))
+            // Return an error output
+            return {
+              response: { 
+                error: this.extractErrorMessage(error),
+                status: error.status || 500
+              },
+              error: this.extractErrorMessage(error)
+            } as NormalizedBlockOutput
+          })
       )
+      
+      // Wait for all blocks to complete, regardless of success or failure
+      const results = await Promise.all(blockPromises)
 
       blockIds.forEach((blockId) => {
         context.executedBlocks.add(blockId)
@@ -490,7 +545,12 @@ export class Executor {
   ): Promise<NormalizedBlockOutput> {
     const block = this.workflow.blocks.find((b) => b.id === blockId)
     if (!block) {
-      throw new Error(`Block ${blockId} not found`)
+      const errorMessage = `Block ${blockId} not found`
+      logger.error(errorMessage)
+      return {
+        response: { error: errorMessage },
+        error: errorMessage
+      }
     }
 
     // Special case for starter block - it's already been initialized in createExecutionContext
@@ -556,6 +616,7 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
+      // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
       addConsole({
         output: {},
@@ -571,23 +632,64 @@ export class Executor {
         blockType: block.metadata?.id || 'unknown',
       })
 
-      // Create a proper error message that is never undefined
-      let errorMessage = error.message
-
-      // Handle the specific "undefined (undefined)" case
-      if (!errorMessage || errorMessage === 'undefined (undefined)') {
-        errorMessage = `Error executing ${block.metadata?.id || 'unknown'} block: ${block.metadata?.name || 'Unnamed Block'}`
-
-        // Try to get more details if possible
-        if (error && typeof error === 'object') {
-          if (error.code) errorMessage += ` (code: ${error.code})`
-          if (error.status) errorMessage += ` (status: ${error.status})`
-          if (error.type) errorMessage += ` (type: ${error.type})`
-        }
+      // Create error output with appropriate structure
+      const errorOutput: NormalizedBlockOutput = {
+        response: {
+          error: this.extractErrorMessage(error),
+          status: error.status || 500,
+        },
+        error: this.extractErrorMessage(error),
       }
 
-      throw new Error(errorMessage)
+      // Set block state with error output
+      context.blockStates.set(blockId, {
+        output: errorOutput,
+        executed: true,
+        executionTime: blockLog.durationMs,
+      })
+
+      // Check for error connections and follow them if they exist
+      const hasErrorPath = this.activateErrorPath(blockId, context)
+
+      // Log the error for visibility but don't throw
+      logger.error(`Error executing block ${block.metadata?.name || blockId}:`, this.sanitizeError(error))
+
+      // Always return error output instead of throwing
+      return errorOutput
     }
+  }
+
+  /**
+   * Activates error paths from a block that had an error.
+   * Checks for connections from the block's "error" handle and adds them to the active execution path.
+   * 
+   * @param blockId - ID of the block that had an error
+   * @param context - Current execution context
+   * @returns Whether there was an error path to follow
+   */
+  private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
+    // Skip for starter blocks which don't have error handles
+    const block = this.workflow.blocks.find((b) => b.id === blockId)
+    if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
+      return false
+    }
+
+    // Look for connections from this block's error handle
+    const errorConnections = this.workflow.connections.filter(
+      (conn) => conn.source === blockId && conn.sourceHandle === 'error'
+    )
+
+    if (errorConnections.length === 0) {
+      return false
+    }
+
+    // Add all error connection targets to the active execution path
+    for (const conn of errorConnections) {
+      context.activeExecutionPath.add(conn.target)
+      logger.info(`Activated error path from ${blockId} to ${conn.target}`)
+    }
+
+    return true
   }
 
   /**
@@ -599,8 +701,26 @@ export class Executor {
    * @returns Normalized output with consistent structure
    */
   private normalizeBlockOutput(output: any, block: SerializedBlock): NormalizedBlockOutput {
+    // Handle error outputs
+    if (output && typeof output === 'object' && output.error) {
+      return {
+        response: {
+          error: output.error,
+          status: output.status || 500,
+        },
+        error: output.error,
+      };
+    }
+
     if (output && typeof output === 'object' && 'response' in output) {
-      return output as NormalizedBlockOutput
+      // If response already contains an error, maintain it
+      if (output.response && output.response.error) {
+        return {
+          ...output,
+          error: output.response.error
+        };
+      }
+      return output as NormalizedBlockOutput;
     }
 
     const blockType = block.metadata?.id

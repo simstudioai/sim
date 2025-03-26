@@ -176,26 +176,36 @@ export class InputResolver {
         if (starterBlock) {
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
-            // Navigate through the path parts
-            let replacementValue: any = blockState.output
-            for (const part of pathParts) {
-              if (!replacementValue || typeof replacementValue !== 'object') {
-                throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
+            try {
+              // Navigate through the path parts
+              let replacementValue: any = blockState.output
+              for (const part of pathParts) {
+                if (!replacementValue || typeof replacementValue !== 'object') {
+                  console.warn(`Invalid path "${part}" in "${path}" for starter block.`)
+                  replacementValue = ''
+                  break
+                }
+                replacementValue = replacementValue[part]
+                if (replacementValue === undefined) {
+                  console.warn(`No value found at path "${path}" in starter block.`)
+                  replacementValue = ''
+                  break
+                }
               }
-              replacementValue = replacementValue[part]
-              if (replacementValue === undefined) {
-                throw new Error(`No value found at path "${path}" in starter block.`)
-              }
+
+              // Format the value
+              const formattedValue =
+                typeof replacementValue === 'object'
+                  ? JSON.stringify(replacementValue)
+                  : String(replacementValue)
+
+              resolvedValue = resolvedValue.replace(match, formattedValue)
+              continue
+            } catch (error) {
+              console.warn(`Error resolving starter block reference: ${error}`)
+              resolvedValue = resolvedValue.replace(match, '')
+              continue
             }
-
-            // Format the value
-            const formattedValue =
-              typeof replacementValue === 'object'
-                ? JSON.stringify(replacementValue)
-                : String(replacementValue)
-
-            resolvedValue = resolvedValue.replace(match, formattedValue)
-            continue
           }
         }
       }
@@ -208,18 +218,22 @@ export class InputResolver {
       }
 
       if (!sourceBlock) {
-        // Provide a more helpful error message with available block names
+        // Log a warning instead of throwing, and replace with empty string
         const availableBlocks = Array.from(this.blockByNormalizedName.keys()).join(', ')
-        throw new Error(
+        console.warn(
           `Block reference "${blockRef}" was not found. Available blocks: ${availableBlocks}. ` +
             `For the starter block, try using "start" or the exact block name.`
         )
+        resolvedValue = resolvedValue.replace(match, '')
+        continue
       }
 
       if (sourceBlock.enabled === false) {
-        throw new Error(
+        console.warn(
           `Block "${sourceBlock.metadata?.name || sourceBlock.id}" is disabled, and block "${currentBlock.metadata?.name || currentBlock.id}" depends on it.`
         )
+        resolvedValue = resolvedValue.replace(match, '')
+        continue
       }
 
       const isInActivePath = context.activeExecutionPath.has(sourceBlock.id)
@@ -249,44 +263,55 @@ export class InputResolver {
           continue
         }
 
-        throw new Error(
+        console.warn(
           `No state found for block "${sourceBlock.metadata?.name || sourceBlock.id}" (ID: ${sourceBlock.id}).`
         )
+        resolvedValue = resolvedValue.replace(match, '')
+        continue
       }
 
-      let replacementValue: any = blockState.output
+      try {
+        let replacementValue: any = blockState.output
 
-      for (const part of pathParts) {
-        if (!replacementValue || typeof replacementValue !== 'object') {
-          throw new Error(
-            `Invalid path "${part}" in "${path}" for block "${currentBlock.metadata?.name || currentBlock.id}".`
-          )
+        for (const part of pathParts) {
+          if (!replacementValue || typeof replacementValue !== 'object') {
+            console.warn(
+              `Invalid path "${part}" in "${path}" for block "${currentBlock.metadata?.name || currentBlock.id}".`
+            )
+            replacementValue = ''
+            break
+          }
+
+          replacementValue = replacementValue[part]
+
+          if (replacementValue === undefined) {
+            console.warn(
+              `No value found at path "${path}" in block "${sourceBlock.metadata?.name || sourceBlock.id}".`
+            )
+            replacementValue = ''
+            break
+          }
         }
 
-        replacementValue = replacementValue[part]
+        let formattedValue: string
 
-        if (replacementValue === undefined) {
-          throw new Error(
-            `No value found at path "${path}" in block "${sourceBlock.metadata?.name || sourceBlock.id}".`
-          )
+        if (currentBlock.metadata?.id === 'condition') {
+          formattedValue = this.stringifyForCondition(replacementValue)
+        } else if (currentBlock.metadata?.id === 'function' && typeof replacementValue === 'string') {
+          // For function blocks, we need to properly quote string values to avoid syntax errors
+          formattedValue = JSON.stringify(replacementValue)
+        } else {
+          formattedValue =
+            typeof replacementValue === 'object'
+              ? JSON.stringify(replacementValue)
+              : String(replacementValue)
         }
+
+        resolvedValue = resolvedValue.replace(match, formattedValue)
+      } catch (error) {
+        console.warn(`Error resolving block reference: ${error}`)
+        resolvedValue = resolvedValue.replace(match, '')
       }
-
-      let formattedValue: string
-
-      if (currentBlock.metadata?.id === 'condition') {
-        formattedValue = this.stringifyForCondition(replacementValue)
-      } else if (currentBlock.metadata?.id === 'function' && typeof replacementValue === 'string') {
-        // For function blocks, we need to properly quote string values to avoid syntax errors
-        formattedValue = JSON.stringify(replacementValue)
-      } else {
-        formattedValue =
-          typeof replacementValue === 'object'
-            ? JSON.stringify(replacementValue)
-            : String(replacementValue)
-      }
-
-      resolvedValue = resolvedValue.replace(match, formattedValue)
     }
 
     return resolvedValue
