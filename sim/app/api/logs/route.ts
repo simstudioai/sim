@@ -25,6 +25,7 @@ const QueryParamsSchema = z.object({
   endDate: z.string().optional(),
 })
 
+// Used to retrieve and display workflow logs
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
