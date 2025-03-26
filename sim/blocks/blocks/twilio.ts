@@ -33,7 +33,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
       title: 'Message',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter your message or use template variables like {{input.name}}',
+      placeholder: 'e.g. "Hello! This is a test message."',
     },
     {
       id: 'accountSid',
@@ -75,9 +75,9 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
     response: {
       type: {
         success: 'boolean',
-        messageId: 'string',
-        status: 'string',
-        error: 'string'
+        messageId: 'any',
+        status: 'any',
+        error: 'any'
       },
     },
   },

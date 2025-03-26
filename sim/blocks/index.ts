@@ -98,11 +98,11 @@ const blocks: Record<string, BlockConfig> = {
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
+  twilio_sms: TwilioSMSBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  twilio_sms: TwilioSMSBlock,
 }
 
 // Helper functions
