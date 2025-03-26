@@ -121,20 +121,6 @@ export function convertScheduleOptionsToCron(
   }
 }
 
-export async function generateApiKey(): Promise<string> {
-  const buffer = randomBytes(32)
-  const hash = createHash('sha256').update(buffer).digest('hex')
-  return `wf_${hash}`
-}
-
-export async function validateApiKey(
-  apiKey: string | null,
-  storedApiKey: string | null
-): Promise<boolean> {
-  if (!apiKey || !storedApiKey) return false
-  return apiKey === storedApiKey
-}
-
 /**
  * Format a date into a human-readable format
  * @param date - The date to format
