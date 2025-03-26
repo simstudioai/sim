@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { DiscordIcon, GithubIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
+import { DiscordIcon, GithubIcon, StripeIcon, WhatsAppIcon, SlackIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -50,6 +50,10 @@ export interface GeneralWebhookConfig {
   allowedIps?: string[]
 }
 
+export interface SlackConfig {
+  signingSecret: string
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -57,6 +61,7 @@ export type ProviderConfig =
   | DiscordConfig
   | StripeConfig
   | GeneralWebhookConfig
+  | SlackConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -142,6 +147,19 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Allowed IP Addresses',
         placeholder: '10.0.0.1, 192.168.1.1',
         description: 'Comma-separated list of allowed IP addresses (optional).',
+      },
+    },
+  },
+  slack: {
+    id: 'slack',
+    name: 'Slack',
+    icon: (props) => <SlackIcon {...props} />,
+    configFields: {
+      signingSecret: {
+        type: 'string', 
+        label: 'Signing Secret',
+        placeholder: 'Enter your Slack app signing secret',
+        description: 'The signing secret from your Slack app to validate request authenticity.',
       },
     },
   },

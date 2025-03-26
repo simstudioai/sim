@@ -12,6 +12,7 @@ import { db } from '@/db'
 import { environment, userStats, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+import {validateSlackSignature} from '../../utils'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -113,12 +114,18 @@ export async function POST(
   const requestId = crypto.randomUUID().slice(0, 8)
   const executionId = uuidv4()
   let foundWorkflow: any = null
+  let rawBody: string | null = null
 
   try {
     const path = (await params).path
-
+    
+    // Clone the request to get both the raw body for Slack signature verification
+    // and the parsed JSON body for processing
+    const requestClone = request.clone()
+    rawBody = await requestClone.text()
+    
     // Parse the request body
-    const body = await request.json().catch(() => ({}))
+    const body = JSON.parse(rawBody || '{}')
     logger.info(`[${requestId}] Webhook POST request received for path: ${path}`)
 
     // Generate a unique request ID based on the request content
@@ -156,8 +163,68 @@ export async function POST(
       workflowId: foundWorkflow.id,
     })
 
-    // For WhatsApp, also check for duplicate messages using their message ID
-    if (foundWebhook.provider === 'whatsapp') {
+    // Provider-specific validation and handling
+    if (foundWebhook.provider === 'slack') {
+      // Validate Slack signature if this is a Slack webhook
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const signingSecret = providerConfig.signingSecret
+      
+      if (signingSecret) {
+        const slackSignature = request.headers.get('x-slack-signature')
+        const slackTimestamp = request.headers.get('x-slack-request-timestamp')
+        
+        if (!slackSignature || !slackTimestamp || !rawBody) {
+          logger.warn(`[${requestId}] Missing Slack signature headers`, {
+            hasSignature: !!slackSignature,
+            hasTimestamp: !!slackTimestamp,
+            hasBody: !!rawBody
+          })
+          return NextResponse.json({ error: 'Invalid Slack request' }, { status: 400 })
+        }
+
+        // Validate the Slack signature
+        const isValid = await validateSlackSignature(
+          signingSecret,
+          slackSignature,
+          slackTimestamp,
+          rawBody
+        )
+        
+        if (!isValid) {
+          logger.warn(`[${requestId}] Invalid Slack signature`)
+          return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+        }
+        
+        logger.info(`[${requestId}] Slack signature validated successfully`)
+        
+        // Handle Slack URL verification challenge during POST
+        if (body.type === 'url_verification' && body.challenge) {
+          logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
+          return NextResponse.json({ challenge: body.challenge })
+        }
+      }
+
+      // Check if we've already processed this message using Redis
+      const messageId = body?.event?.event_id
+      if (messageId && (await hasProcessedMessage(messageId))) {
+        logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
+        // Return early for duplicate messages to prevent workflow execution
+        return new NextResponse('Duplicate message', { status: 200 })
+      }
+
+      // Store the message ID in Redis to prevent duplicate processing in future requests
+      if (messageId) {
+        await markMessageAsProcessed(messageId)
+      }
+      
+      // Mark this request as processed to prevent duplicates
+      await markMessageAsProcessed(requestHash, 60 * 60 * 24)
+      
+      // Process the webhook for Slack
+      return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId, requestId)
+
+    } else if (foundWebhook.provider === 'whatsapp') {
+      // Extract WhatsApp specific data
       const data = body?.entry?.[0]?.changes?.[0]?.value
       const messages = data?.messages || []
 
