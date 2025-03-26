@@ -30,10 +30,12 @@ export const WorkflowEdge = ({
     <>
       <BaseEdge
         path={edgePath}
+        data-testid="workflow-edge"
         style={{
           strokeWidth: 2,
           stroke: isSelected ? '#475569' : '#94a3b8',
           strokeDasharray: '5,5',
+          zIndex: -10,
         }}
         interactionWidth={20}
       />
@@ -52,6 +54,7 @@ export const WorkflowEdge = ({
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
+              zIndex: 1000,
             }}
             onClick={(e) => {
               e.preventDefault()
