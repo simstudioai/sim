@@ -975,51 +975,112 @@ export class GenericBlockHandler implements BlockHandler {
     }
 
     try {
+      // Log the request parameters for debugging
+      logger.info(`Executing ${tool.name || block.config.tool} block:`, {
+        blockId: block.id,
+        blockName: block.metadata?.name || 'Unnamed Block',
+        provider: inputs.provider,
+        model: inputs.model,
+        resolution: inputs.resolution,
+        prompt: inputs.prompt,
+        timestamp: new Date().toISOString()
+      })
+
+      // Run validation if available
+      if (tool.validate) {
+        try {
+          await tool.validate(inputs)
+        } catch (validationError: any) {
+          // Create a detailed error message for validation failures
+          const errorMessage = `${tool.name || block.config.tool} validation failed: ${validationError.message}`
+          const error = new Error(errorMessage)
+          
+          // Add additional context
+          Object.assign(error, {
+            toolId: block.config.tool,
+            toolName: tool.name,
+            blockId: block.id,
+            blockName: block.metadata?.name || 'Unnamed Block',
+            timestamp: new Date().toISOString(),
+            provider: inputs.provider,
+            inputs: {
+              provider: inputs.provider,
+              model: inputs.model,
+              resolution: inputs.resolution,
+              prompt: inputs.prompt
+            }
+          })
+
+          throw error
+        }
+      }
+
       const result = await executeTool(block.config.tool, {
         ...inputs,
         _context: { workflowId: context.workflowId },
       })
 
       if (!result.success) {
+        // Extract error details
         const errorDetails = []
         if (result.error) errorDetails.push(result.error)
+        if (result.output?.error) errorDetails.push(result.output.error)
+        
+        // Check for provider-specific error details
+        if (result.output?.provider && result.output?.message) {
+          errorDetails.push(`${result.output.provider} error: ${result.output.message}`)
+        }
 
-        const errorMessage =
-          errorDetails.length > 0
-            ? errorDetails.join(' - ')
-            : `Block execution of ${tool.name || block.config.tool} failed with no error message`
+        // Create a detailed error message
+        const errorMessage = errorDetails.length > 0
+          ? errorDetails.join(' - ')
+          : `${tool.name || block.config.tool} failed: ${result.error || 'Unknown error'}`
 
-        // Create a detailed error object with formatted message
         const error = new Error(errorMessage)
-
-        // Add additional properties for debugging
+        
+        // Add additional context
         Object.assign(error, {
           toolId: block.config.tool,
-          toolName: tool.name || 'Unknown tool',
+          toolName: tool.name,
           blockId: block.id,
           blockName: block.metadata?.name || 'Unnamed Block',
           output: result.output || {},
           timestamp: new Date().toISOString(),
+          provider: result.output?.provider || inputs.provider,
+          status: result.output?.status,
+          details: result.output?.details || {}
         })
 
         throw error
       }
 
-      return { response: result.output }
+      // Return a consistent response structure
+      return {
+        response: {
+          content: result.output?.content || result.output,
+          model: result.output?.model,
+          provider: result.output?.provider || inputs.provider,
+          metadata: {
+            blockId: block.id,
+            blockName: block.metadata?.name || 'Unnamed Block',
+            timestamp: new Date().toISOString()
+          },
+          ...(result.output || {})
+        }
+      }
     } catch (error: any) {
       // Ensure we have a meaningful error message
       if (!error.message || error.message === 'undefined (undefined)') {
         // Construct a detailed error message with available information
-        let errorMessage = `Block execution of ${tool.name || block.config.tool} failed`
+        let errorMessage = `${tool.name || block.config.tool} failed`
 
-        // Add block name if available
-        if (block.metadata?.name) {
-          errorMessage += `: ${block.metadata.name}`
-        }
+        // Add details if available
+        if (error.status) errorMessage += ` (Status: ${error.status})`
+        if (error.statusText) errorMessage += ` - ${error.statusText}`
 
-        // Add status code if available
-        if (error.status) {
-          errorMessage += ` (Status: ${error.status})`
+        // If we still have no details, give a generic but helpful message
+        if (errorMessage === `${tool.name || block.config.tool} failed`) {
+          errorMessage += ` - ${block.metadata?.name || 'Unknown error'}`
         }
 
         error.message = errorMessage
@@ -1029,6 +1090,17 @@ export class GenericBlockHandler implements BlockHandler {
       if (typeof error === 'object' && error !== null) {
         if (!error.toolId) error.toolId = block.config.tool
         if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block'
+        if (!error.timestamp) error.timestamp = new Date().toISOString()
+
+        // Add request details if missing
+        if (inputs && !error.request) {
+          error.request = {
+            provider: inputs.provider,
+            model: inputs.model,
+            resolution: inputs.resolution,
+            prompt: inputs.prompt
+          }
+        }
       }
 
       throw error

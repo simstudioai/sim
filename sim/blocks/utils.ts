@@ -64,7 +64,7 @@ export function processDallEResponse(response: any) {
     provider: 'DALL-E',
     metadata: {
       prompt: imageData.revised_prompt || response.prompt,
-      model: response.model || 'dall-e-3',
+      model: response.model || 'dall-e-2' || 'dall-e-3',
       width: parseInt((response.size || '1024x1024').split('x')[0]) || 1024,
       height: parseInt((response.size || '1024x1024').split('x')[1]) || 1024,
       format: 'url',

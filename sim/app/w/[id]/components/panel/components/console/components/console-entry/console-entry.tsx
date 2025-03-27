@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { AlertCircle, AlertTriangle, Calendar, CheckCircle2, Clock, Terminal } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Calendar, CheckCircle2, Clock, Terminal, Download } from 'lucide-react'
 import { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { getBlock } from '@/blocks'
 import { JSONView } from '../json-view/json-view'
@@ -34,59 +34,79 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
     return date.toLocaleTimeString()
   }, [entry.timestamp])
 
-  const renderOutput = (output: any) => {
-    if (!output) return null;
+  const handleDownload = async (imageUrl: string, model?: string) => {
+    try {
+      const response = await fetch('/api/download-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageUrl }),
+      });
 
-    // Handle image upload output
-    if (output.type === 'image') {
-      return (
-        <div className="mt-2">
-          <img 
-            src={output.data} 
-            alt={output.metadata?.fileName || 'Uploaded image'} 
-            className="max-w-full h-auto rounded-md shadow-sm"
-            style={{ maxHeight: '300px' }}
-          />
-          <div className="mt-2 text-sm text-muted-foreground">
-            <div>File: {output.metadata?.fileName}</div>
-            <div>Size: {(output.metadata?.fileSize / 1024).toFixed(2)} KB</div>
-            <div>Type: {output.metadata?.mimeType}</div>
-          </div>
-        </div>
-      )
+      if (!response.ok) throw new Error('Failed to download image');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const modelInfo = model ? `-${model}` : '';
+      a.download = `dalle-image${modelInfo}-${timestamp}.png`;
+      
+      document.body.appendChild(a);
+      a.click();
+      
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      window.open(imageUrl, '_blank');
     }
+  };
+
+  const renderImageWithDownload = (imageUrl: string, model?: string) => (
+    <div className="relative group mt-2">
+      <img 
+        src={imageUrl} 
+        alt="Generated image"
+        className="max-w-full h-auto rounded-md shadow-sm"
+        style={{ maxHeight: '300px' }}
+      />
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDownload(imageUrl, model);
+        }}
+        className="absolute top-2 right-2 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-opacity opacity-0 group-hover:opacity-100"
+        title="Download image"
+      >
+        <Download className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
+  const enhanceOutputWithImage = (output: any) => {
+    if (!output) return output;
 
     // Handle image generation output
-    if (output.imageUrl) {
-      return (
-        <div className="mt-2">
-          <img 
-            src={output.imageUrl} 
-            alt={output.metadata?.prompt || 'Generated image'} 
-            className="max-w-full h-auto rounded-md shadow-sm"
-            style={{ maxHeight: '300px' }}
-          />
-          <div className="mt-2 text-sm text-muted-foreground">
-            <div>Provider: {output.provider}</div>
-            {output.metadata && (
-              <>
-                <div>Prompt: {output.metadata.prompt}</div>
-                <div>Model: {output.metadata.model}</div>
-                <div>Size: {output.metadata.width}x{output.metadata.height}</div>
-              </>
-            )}
-          </div>
-        </div>
-      )
+    if (output.response?.content || output.imageUrl) {
+      const imageUrl = output.response?.content || output.imageUrl;
+      const model = output.response?.metadata?.model || output.metadata?.model;
+      
+      // Create a copy of the output to avoid mutating the original
+      const enhancedOutput = { ...output };
+      
+      // Add the image component to the output
+      enhancedOutput._imageComponent = renderImageWithDownload(imageUrl, model);
+      
+      return enhancedOutput;
     }
 
-    // Handle other types of output
-    if (typeof output === 'object') {
-      return <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(output, null, 2)}</pre>
-    }
-
-    return <span className="text-sm">{String(output)}</span>
-  }
+    return output;
+  };
 
   return (
     <div
@@ -131,8 +151,8 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {!entry.error && !entry.warning && (
             <div className="flex items-start gap-2">
               <Terminal className="h-4 w-4 text-muted-foreground mt-1" />
-              <div className="text-sm font-mono flex-1">
-                {renderOutput(entry.output)}
+              <div className="text-sm font-mono flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
+                <JSONView data={enhanceOutputWithImage(entry.output)} initiallyExpanded={isExpanded} />
               </div>
             </div>
           )}
@@ -140,7 +160,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {entry.error && (
             <div className="flex items-start gap-2 border rounded-md p-3 border-red-500 bg-red-50 text-destructive dark:border-border dark:text-foreground dark:bg-background">
               <AlertCircle className="h-4 w-4 text-red-500 mt-1" />
-              <div className="flex-1 break-all">
+              <div className="flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
                 <div className="font-medium">Error</div>
                 <pre className="text-sm whitespace-pre-wrap">{entry.error}</pre>
               </div>
@@ -150,7 +170,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {entry.warning && (
             <div className="flex items-start gap-2 border rounded-md p-3 border-yellow-500 bg-yellow-50 text-yellow-700 dark:border-border dark:text-yellow-500 dark:bg-background">
               <AlertTriangle className="h-4 w-4 text-yellow-500 mt-1" />
-              <div className="flex-1 break-all">
+              <div className="flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
                 <div className="font-medium">Warning</div>
                 <pre className="text-sm whitespace-pre-wrap">{entry.warning}</pre>
               </div>

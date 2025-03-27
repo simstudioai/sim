@@ -599,12 +599,30 @@ export class Executor {
    * @returns Normalized output with consistent structure
    */
   private normalizeBlockOutput(output: any, block: SerializedBlock): NormalizedBlockOutput {
+    // Handle null/undefined output
+    if (!output) {
+      return {
+        response: {
+          content: '',
+          model: '',
+          provider: '',
+          metadata: {
+            blockId: block.id,
+            blockName: block.metadata?.name || 'Unnamed Block',
+            timestamp: new Date().toISOString()
+          }
+        }
+      }
+    }
+
+    // If output already has the correct structure, return it
     if (output && typeof output === 'object' && 'response' in output) {
       return output as NormalizedBlockOutput
     }
 
     const blockType = block.metadata?.id
 
+    // Handle specific block types
     if (blockType === 'agent') {
       return output
     }
@@ -628,14 +646,14 @@ export class Executor {
       if (output && typeof output === 'object' && 'response' in output) {
         return {
           response: {
-            ...output.response,
-            conditionResult: output.response.conditionResult || false,
-            selectedPath: output.response.selectedPath || {
+            ...(output.response || {}),
+            conditionResult: output.response?.conditionResult || false,
+            selectedPath: output.response?.selectedPath || {
               blockId: '',
               blockType: '',
               blockTitle: '',
             },
-            selectedConditionId: output.response.selectedConditionId || '',
+            selectedConditionId: output.response?.selectedConditionId || '',
           },
         }
       }
@@ -653,49 +671,38 @@ export class Executor {
       }
     }
 
-    if (blockType === 'function') {
+    // Handle image generation blocks
+    if (blockType === 'image-generation' || block.config.tool === 'image-generation') {
+      const safeOutput = output && typeof output === 'object' ? output : {}
       return {
         response: {
-          result: output?.result,
-          stdout: output?.stdout || '',
-          executionTime: output?.executionTime || 0,
-        },
+          content: safeOutput.content || output || '',
+          model: safeOutput.model || '',
+          provider: safeOutput.provider || '',
+          metadata: {
+            blockId: block.id,
+            blockName: block.metadata?.name || 'Unnamed Block',
+            timestamp: new Date().toISOString()
+          },
+          ...safeOutput
+        }
       }
     }
 
-    if (blockType === 'api') {
-      return {
-        response: {
-          data: output?.data,
-          status: output?.status || 0,
-          headers: output?.headers || {},
-        },
-      }
-    }
-
-    if (blockType === 'evaluator') {
-      const evaluatorResponse: {
-        content: string
-        model: string
-        [key: string]: any
-      } = {
-        content: output?.content || '',
-        model: output?.model || '',
-      }
-
-      if (output && typeof output === 'object') {
-        Object.keys(output).forEach((key) => {
-          if (key !== 'content' && key !== 'model') {
-            evaluatorResponse[key] = output[key]
-          }
-        })
-      }
-
-      return { response: evaluatorResponse }
-    }
-
+    // Default case - wrap the output in a response object
+    const safeOutput = output && typeof output === 'object' ? output : {}
     return {
-      response: { result: output },
+      response: {
+        content: safeOutput.content || output || '',
+        model: safeOutput.model || '',
+        provider: safeOutput.provider || '',
+        metadata: {
+          blockId: block.id,
+          blockName: block.metadata?.name || 'Unnamed Block',
+          timestamp: new Date().toISOString()
+        },
+        ...safeOutput
+      }
     }
   }
 

@@ -41,6 +41,8 @@ import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 import { confluenceRetrieveTool } from './confluence/retrieve'
+import imageGenerationTool from './image-generation'
+import stableDiffusion from './stable-diffusion'
 
 const logger = createLogger('Tools')
 
@@ -100,6 +102,33 @@ export const tools: Record<string, ToolConfig> = {
   guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
   confluence_retrieve: confluenceRetrieveTool,
+  image_generation: imageGenerationTool,
+  stable_diffusion: async (params: any) => {
+    try {
+      // Always return the result of execute, which is already properly formatted
+      return await stableDiffusion.execute(params)
+    } catch (error) {
+      // Provide a fallback response if something goes wrong
+      return {
+        success: false,
+        error: error.message || 'Unknown error',
+        output: {
+          imageUrl: '',
+          provider: 'Stable Diffusion',
+          metadata: {
+            prompt: params.prompt || '',
+            width: params.width || 1024,
+            height: params.height || 1024,
+            model: 'sd-xl',
+            format: 'png',
+            additionalParams: {
+              error: error.message
+            }
+          }
+        }
+      }
+    }
+  },
 }
 
 // Get a tool by its ID
@@ -361,9 +390,7 @@ export async function executeTool(
             },
           }
         } catch (error) {
-          logger.error(`Error in post-processing for tool ${toolId}:`, {
-            error,
-          })
+          logger.error(`Error in post-processing for tool ${toolId}:`, { error })
           // Return original result if post-processing fails
           // Still include timing data
           const endTime = new Date()

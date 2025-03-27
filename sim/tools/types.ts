@@ -63,6 +63,9 @@ export interface ToolConfig<P = any, R = any> {
   // Response handling
   transformResponse?: (response: Response, params?: P) => Promise<R>
   transformError?: (error: any) => string | Promise<R>
+
+  // Parameter validation
+  validate?: (params: P) => boolean | Promise<boolean>
 }
 
 export interface TableRow {

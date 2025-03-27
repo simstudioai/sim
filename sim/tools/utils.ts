@@ -79,10 +79,29 @@ export async function executeRequest(
         errorContent = { message: externalResponse.statusText }
       }
 
+      // Log the full error for debugging
+      logger.error(`${toolId} API error:`, { 
+        status: externalResponse.status,
+        statusText: externalResponse.statusText,
+        error: errorContent,
+        url,
+        method,
+        headers: Object.keys(headers),
+        timestamp: new Date().toISOString()
+      })
+
       // Use the tool's error transformer or a default message
       if (tool.transformError) {
         try {
-          const errorResult = tool.transformError(errorContent)
+          const errorResult = tool.transformError({
+            response: { data: errorContent },
+            status: externalResponse.status,
+            statusText: externalResponse.statusText,
+            message: errorContent.message || externalResponse.statusText,
+            url,
+            method,
+            headers
+          })
 
           // Handle both string and Promise return types
           if (typeof errorResult === 'string') {
@@ -125,6 +144,13 @@ export async function executeRequest(
 
     return await transformResponse(externalResponse)
   } catch (error: any) {
+    // Log the full error for debugging
+    logger.error(`${toolId} execution error:`, {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    })
+
     return {
       success: false,
       output: {},
