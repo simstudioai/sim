@@ -5,6 +5,7 @@ import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
+import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool, webcontainerExecuteTool } from './function'
 import {
@@ -55,6 +56,7 @@ export const tools: Record<string, ToolConfig> = {
   function_execute: functionExecuteTool,
   webcontainer_execute: webcontainerExecuteTool,
   vision_tool: visionTool,
+  file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
   jina_readurl: readUrlTool,
   slack_message: slackMessageTool,
@@ -369,9 +371,7 @@ export async function executeTool(
             },
           }
         } catch (error) {
-          logger.error(`Error in post-processing for tool ${toolId}:`, {
-            error,
-          })
+          logger.error(`Error in post-processing for tool ${toolId}:`, { error })
           // Return original result if post-processing fails
           // Still include timing data
           const endTime = new Date()
