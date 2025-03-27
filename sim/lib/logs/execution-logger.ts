@@ -99,7 +99,7 @@ export async function persistExecutionLogs(
       // Check for agent block and tool calls
       let metadata: ToolCallMetadata | undefined = undefined
 
-      logger.debug('block type', log.blockType)
+      logger.debug('Block type:', log.blockType)
       // If this is an agent block
       if (log.blockType === 'agent' && log.output) {
         logger.debug('Processing agent block output for tool calls', {
