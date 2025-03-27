@@ -15,4 +15,4 @@ RUN npx drizzle-kit generate
 EXPOSE 3000
 
 # Run migrations and start the app
-CMD npx drizzle-kit push && npm run dev
+CMD ["sh", "-c", "npx drizzle-kit push && npm run dev"]
