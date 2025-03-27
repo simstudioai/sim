@@ -42,6 +42,5 @@ export interface SerializedBlock {
 export interface SerializedLoop {
   id: string
   nodes: string[]
-  maxIterations: number
-  minIterations: number
+  iterations: number
 }

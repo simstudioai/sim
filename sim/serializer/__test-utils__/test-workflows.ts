@@ -359,8 +359,8 @@ export function createLoopWorkflowState(): WorkflowStateFixture {
     loop1: {
       id: 'loop1',
       nodes: ['function1', 'condition1'],
-      maxIterations: 10,
-      minIterations: 1,
+      iterations: 10,
+      loopType: 'for',
     },
   }
 

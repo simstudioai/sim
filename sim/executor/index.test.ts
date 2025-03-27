@@ -236,8 +236,7 @@ const createWorkflowWithLoop = (): SerializedWorkflow => ({
     loop1: {
       id: 'loop1',
       nodes: ['block1', 'block2'],
-      maxIterations: 5,
-      minIterations: 0,
+      iterations: 5,
     },
   },
 })
