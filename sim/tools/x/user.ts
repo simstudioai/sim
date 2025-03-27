@@ -45,15 +45,10 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
   },
 
   transformResponse: async (response, params) => {
-    if (!params) {
-      throw new Error('Missing required parameters')
-    }
-
     // Handle rate limit issues (429 status code)
     if (response.status === 429) {
       logger.warn('X API rate limit exceeded', {
         status: response.status,
-        username: params.username,
         headers: Object.fromEntries(response.headers.entries()),
       })
 
@@ -111,7 +106,6 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
       logger.error('Error processing X API response', {
         error,
         status: response.status,
-        username: params.username,
       })
       throw error
     }
