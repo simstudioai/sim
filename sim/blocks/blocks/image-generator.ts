@@ -20,7 +20,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       options: [
         { label: 'DALL-E', id: 'dalle' },
       ],
-      value: 'dalle',
+      value: () => 'dalle',
     },
     {
       id: 'prompt',
@@ -118,7 +118,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         url: 'string',
         model: 'string',
         revised_prompt: 'any',
-        parameters: 'json',
+        prompt: 'string',
         image: 'string'
       },
       visualization: {
