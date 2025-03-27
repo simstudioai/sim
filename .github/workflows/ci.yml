@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/docker-image]
   pull_request:
-    branches: [main]
+    branches: [main, feat/docker-image]
 
 env:
   REGISTRY: ghcr.io
