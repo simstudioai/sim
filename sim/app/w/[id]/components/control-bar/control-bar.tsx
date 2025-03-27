@@ -331,6 +331,9 @@ export function ControlBar() {
     setIsMultiRunning(true)
     setShowRunProgress(runCount > 1)
 
+    let result = null
+    let workflowError = null
+
     try {
       // Run the workflow multiple times sequentially
       for (let i = 0; i < runCount; i++) {
@@ -351,13 +354,18 @@ export function ControlBar() {
         }
       }
     } catch (error) {
+      workflowError = error
       logger.error('Error during multiple workflow runs:', { error })
-      addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
     } finally {
       setIsMultiRunning(false)
       // Keep progress visible for a moment after completion
       if (runCount > 1) {
         setTimeout(() => setShowRunProgress(false), 2000)
+      }
+
+      // Show notification after state is updated
+      if (workflowError) {
+        addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
       }
     }
   }
