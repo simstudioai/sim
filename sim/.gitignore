@@ -1,5 +1,19 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# DELETE WHEN MAKING A PR
+# Package files in root and all subdirectories
+package.json
+package-lock.json
+**/package.json
+**/package-lock.json
+
+# node_modules (already in your gitignore but let's be explicit)
+node_modules
+**/node_modules
+
+
+
+
 # dependencies
 /node_modules
 /packages/**/node_modules

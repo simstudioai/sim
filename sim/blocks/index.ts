@@ -13,6 +13,7 @@ import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
 import { GuestyBlock } from './blocks/guesty'
 import { JinaBlock } from './blocks/jina'
+import { JiraBlock } from './blocks/jira'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
 import { PerplexityBlock } from './blocks/perplexity'
@@ -65,6 +66,7 @@ export {
   GoogleSheetsBlock,
   PerplexityBlock,
   ConfluenceBlock,
+  JiraBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -84,6 +86,7 @@ const blocks: Record<string, BlockConfig> = {
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
   jina: JinaBlock,
+  jira: JiraBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
   perplexity: PerplexityBlock,

@@ -23,7 +23,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       options: [
         { label: 'Read Issue', id: 'read' },
         { label: 'Update Issue', id: 'update' },
-        { label: 'Create Issue', id: 'create' },
+        { label: 'Write Issue', id: 'write' },
       ],
     },
     {
@@ -41,8 +41,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       provider: 'jira',
       serviceId: 'jira',
       requiredScopes: [
-        'read:page:jira',
-        'update:page:jira',
+        'read:issue:jira',
+        'update:issue:jira',
         'read:jira-content.all',
         'write:jira-content',
         'read:me',
@@ -50,7 +50,16 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       ],
       placeholder: 'Select Jira account',
     },
-    // Use file-selector component for page selection
+    // Use file-selector component for issue selection
+    {
+      id: 'boardId',
+      title: 'Board ID',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'jira',
+      serviceId: 'jira',
+      placeholder: 'Enter Jira board ID',
+    },
     {
       id: 'issueKey',
       title: 'Select Issue',
@@ -58,15 +67,15 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       layout: 'full',
       provider: 'jira',
       serviceId: 'jira',
-      placeholder: 'Select jira issue',
+      placeholder: 'Select Jira issue',
     },
-    // Update page fields
+    // Update issue fields
     {
       id: 'title',
       title: 'New Title',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter new title for the page',
+      placeholder: 'Enter new title for the issue',
       condition: { field: 'operation', value: 'update' },
     },
     {
@@ -74,7 +83,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'New Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter new content for the page',
+      placeholder: 'Enter new content for the issue',
       condition: { field: 'operation', value: 'update' },
     },
   ],
@@ -87,8 +96,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             return 'jira_retrieve'
           case 'update':
             return 'jira_update'
-          case 'create':
-            return 'jira_create'
+          case 'write':
+            return 'jira_write'
           default:
             return 'jira_retrieve'
         }
@@ -107,6 +116,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     operation: { type: 'string', required: true },
     domain: { type: 'string', required: true },
     credential: { type: 'string', required: true },
+    boardId: { type: 'string', required: true },
     issueKey: { type: 'string', required: true },
     // Update operation inputs
     title: { type: 'string', required: false },

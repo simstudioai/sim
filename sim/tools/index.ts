@@ -18,6 +18,7 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { jiraUpdateTool } from './jira' //TODO: add the other jira tools, testing update for now
 import { notionReadTool, notionWriteTool } from './notion'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { perplexityChatTool } from './perplexity'
@@ -102,6 +103,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
+  jira_update: jiraUpdateTool,
 }
 
 // Get a tool by its ID

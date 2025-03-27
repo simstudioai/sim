@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import {
+  JiraIcon,
   ConfluenceIcon,
   GithubIcon,
   GmailIcon,
@@ -16,7 +17,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 const logger = createLogger('OAuth')
 
 // Define the base OAuth provider type
-export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | string
+export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | 'jira' | string
 export type OAuthService =
   | 'google'
   | 'google-email'
@@ -27,6 +28,7 @@ export type OAuthService =
   | 'x'
   | 'supabase'
   | 'confluence'
+  | 'jira'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -193,6 +195,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'confluence',
   },
+  jira: {
+    id: 'jira',
+    name: 'Jira',
+    icon: (props) => JiraIcon(props),
+    services: {
+      jira: {
+        id: 'jira',
+        name: 'Jira',
+        description: 'Access Jira content and issues.',
+        providerId: 'jira',
+        icon: (props) => JiraIcon(props),
+        baseProviderIcon: (props) => JiraIcon(props),
+        scopes: [
+          'read:page:jira',
+          'update:page:jira',
+          'read:jira-content.all',
+          'write:jira-content',
+          'read:me',
+          'offline_access',
+        ],
+      },
+    },
+    defaultService: 'jira',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -243,6 +269,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'x'
   } else if (provider === 'confluence') {
     return 'confluence'
+  } else if (provider === 'jira') {
+    return 'jira'
   }
 
   return providerConfig.defaultService
@@ -340,6 +368,11 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = process.env.CONFLUENCE_CLIENT_ID
         clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
+        break
+      case 'jira':
+        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
+        clientId = process.env.JIRA_CLIENT_ID
+        clientSecret = process.env.JIRA_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
