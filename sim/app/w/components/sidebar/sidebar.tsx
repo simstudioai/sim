@@ -124,7 +124,7 @@ export function Sidebar() {
         </Tooltip>
 
         {/* Agents */}
-        <Tooltip>
+        {/* <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -144,7 +144,7 @@ export function Sidebar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">Agents</TooltipContent>
-        </Tooltip>
+        </Tooltip> */}
 
         {/* Logs */}
         <Tooltip>
