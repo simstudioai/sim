@@ -822,61 +822,35 @@ export class Executor {
    * @returns A meaningful error message string
    */
   private extractErrorMessage(error: any): string {
-    if (!error) return 'Unknown error occurred'
-
-    // Handle Error instances
-    if (error instanceof Error) {
-      return error.message || `Error: ${String(error)}`
-    }
-
-    // Handle string errors
+    // If it's already a string, return it
     if (typeof error === 'string') {
       return error
     }
 
-    // Handle object errors with nested structure
-    if (typeof error === 'object') {
-      // Case: { error: { message: "msg" } }
-      if (error.error && typeof error.error === 'object' && error.error.message) {
-        return error.error.message
-      }
-
-      // Case: { error: "msg" }
-      if (error.error && typeof error.error === 'string') {
-        return error.error
-      }
-
-      // Case: { message: "msg" }
-      if (error.message) {
-        return error.message
-      }
-
-      // Add specific handling for HTTP errors
-      if (error.status || error.request) {
-        let message = 'API request failed'
-
-        // Add URL information if available
-        if (error.request && error.request.url) {
-          message += `: ${error.request.url}`
-        }
-
-        // Add status code if available
-        if (error.status) {
-          message += ` (Status: ${error.status})`
-        }
-
-        return message
-      }
-
-      // Last resort: try to stringify the object
-      try {
-        return `Error details: ${JSON.stringify(error)}`
-      } catch {
-        return 'Error occurred but details could not be displayed'
-      }
+    // If it has a message property, use that
+    if (error.message) {
+      return error.message
     }
 
-    return 'Unknown error occurred'
+    // If it's an object with response data, include that
+    if (error.response?.data) {
+      const data = error.response.data
+      if (typeof data === 'string') {
+        return data
+      }
+      if (data.message) {
+        return data.message
+      }
+      return JSON.stringify(data)
+    }
+
+    // If it's an object, stringify it
+    if (typeof error === 'object') {
+      return JSON.stringify(error)
+    }
+
+    // Fallback to string conversion
+    return String(error)
   }
 
   /**
@@ -887,44 +861,34 @@ export class Executor {
    * @returns A sanitized version of the error for logging
    */
   private sanitizeError(error: any): any {
-    if (!error) return { message: 'No error details available' }
-
-    // Handle Error instances
-    if (error instanceof Error) {
-      return {
-        message: error.message || 'Error without message',
-        stack: error.stack,
-      }
-    }
-
-    // Handle string errors
+    // If it's already a string, return it
     if (typeof error === 'string') {
-      return { message: error }
-    }
-
-    // Handle object errors with nested structure
-    if (typeof error === 'object') {
-      // If error has a nested error object with undefined message, fix it
-      if (error.error && typeof error.error === 'object') {
-        if (!error.error.message) {
-          error.error.message = 'No specific error message provided'
-        }
-      }
-
-      // If no message property exists at root level, add one
-      if (!error.message) {
-        if (error.error && typeof error.error === 'string') {
-          error.message = error.error
-        } else if (error.status) {
-          error.message = `API request failed with status ${error.status}`
-        } else {
-          error.message = 'Error occurred during workflow execution'
-        }
-      }
-
       return error
     }
 
-    return { message: `Unexpected error type: ${typeof error}` }
+    // If it has a message property, return that
+    if (error.message) {
+      return error.message
+    }
+
+    // If it's an object with response data, include that
+    if (error.response?.data) {
+      const data = error.response.data
+      if (typeof data === 'string') {
+        return data
+      }
+      if (data.message) {
+        return data.message
+      }
+      return JSON.stringify(data)
+    }
+
+    // If it's an object, stringify it
+    if (typeof error === 'object') {
+      return JSON.stringify(error)
+    }
+
+    // Fallback to string conversion
+    return String(error)
   }
 }
