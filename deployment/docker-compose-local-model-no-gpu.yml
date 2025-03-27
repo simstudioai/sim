@@ -39,10 +39,28 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=simstudio
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
+      timeout: 5s
+      retries: 5
+
+  local-llm:
+    image: ollama/ollama:latest
+    pull_policy: always
+    volumes:
+      - ${HOME}/.ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_LOAD_TIMEOUT=-1
+      - OLLAMA_KEEP_ALIVE=-1
+      - OLLAMA_DEBUG=1
+    command: "serve"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
       timeout: 5s
       retries: 5
 

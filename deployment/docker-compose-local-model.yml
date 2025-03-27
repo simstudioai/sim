@@ -39,7 +39,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=simstudio
     volumes:
-      - ../postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -48,16 +48,24 @@ services:
 
   local-llm:
     image: ollama/ollama:latest
-    pull_policy: missing
+    pull_policy: always
     volumes:
       - ${HOME}/.ollama:/root/.ollama
     ports:
       - "11434:11434"
     environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
       - OLLAMA_LOAD_TIMEOUT=-1
       - OLLAMA_KEEP_ALIVE=-1
       - OLLAMA_DEBUG=1
     command: "serve"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/"]
       interval: 10s
