@@ -34,19 +34,20 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   icon: AgentIcon,
   subBlocks: [
     {
-      id: 'systemPrompt',
-      title: 'System Prompt',
-      type: 'long-input',
+      id: 'chatHistory',
+      title: 'Chat History',
+      type: 'chat-history',
       layout: 'full',
-      placeholder: 'Enter system prompt...',
+      placeholder: 'Add messages to the chat history...',
     },
+    /*
     {
       id: 'context',
       title: 'User Prompt',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter context or user message...',
-    },
+    }, */
     {
       id: 'model',
       title: 'Model',
@@ -125,8 +126,37 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     },
   },
   inputs: {
-    systemPrompt: { type: 'string', required: false },
-    context: { type: 'string', required: false },
+    /*systemPrompt: { type: 'string', required: false }, * /
+    /*context: { type: 'string', required: false }, */
+    chatHistory: {
+      type: 'array',
+      required: false,
+      description: 'Array of messages in the chat history',
+      schema: {
+        type: 'array',
+        properties: {},
+        items: {
+          type: 'object',
+          properties: {
+            role: {
+              type: 'string',
+              enum: ['system', 'user', 'assistant', 'function'],
+              description: 'The role of the message sender'
+            },
+            content: {
+              type: 'string',
+              description: 'The content of the message'
+            },
+            name: {
+              type: 'string',
+              description: 'Optional name field for function calls',
+              required: false
+            }
+          },
+          required: ['role', 'content']
+        }
+      }
+    },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
     responseFormat: {
