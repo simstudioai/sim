@@ -281,8 +281,8 @@ export class Executor {
         throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
       }
 
-      if (loop.maxIterations <= 0) {
-        throw new Error(`Loop ${loopId} must have a positive maxIterations value`)
+      if (loop.iterations <= 0) {
+        throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
     }
   }

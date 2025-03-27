@@ -28,8 +28,8 @@ export interface SubBlockState {
 export interface Loop {
   id: string
   nodes: string[]
-  maxIterations: number
-  minIterations: number
+  iterations: number
+  loopType: 'for' | 'forEach' | 'while'
 }
 
 export interface WorkflowState {
@@ -57,8 +57,8 @@ export interface WorkflowActions {
   updateBlockName: (id: string, name: string) => void
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
-  updateLoopMaxIterations: (loopId: string, maxIterations: number) => void
-  updateLoopMinIterations: (loopId: string, minIterations: number) => void
+  updateLoopIterations: (loopId: string, iterations: number) => void
+  updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
   triggerUpdate: () => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setPublishStatus: (isPublished: boolean) => void

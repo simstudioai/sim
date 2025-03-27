@@ -7,8 +7,7 @@ import { ExecutionContext } from './types'
 export class LoopManager {
   constructor(
     private loops: Record<string, SerializedLoop>,
-    private defaultMaxIterations: number = 5,
-    private defaultMinIterations: number = 0
+    private defaultIterations: number = 5
   ) {}
 
   /**
@@ -29,28 +28,21 @@ export class LoopManager {
       // Get current iteration count
       const currentIteration = context.loopIterations.get(loopId) || 0
 
-      // If we've hit the max iterations, skip this loop and mark flag
-      if (currentIteration >= loop.maxIterations) {
+      // If we've hit the iterations count, skip this loop and mark flag
+      if (currentIteration >= loop.iterations) {
         hasLoopReachedMaxIterations = true
         continue
       }
 
-      // Get min iterations for the loop
-      const minIterations = loop.minIterations || this.defaultMinIterations
-
-      // Check if loop should iterate again
-      const normalIteration = this.shouldIterateLoop(loopId, context)
-      const forceIteration =
-        currentIteration < minIterations && this.allBlocksExecuted(loop.nodes, context)
-
-      const shouldIterate = normalIteration || forceIteration
-
-      if (shouldIterate) {
+      // Check if all blocks in the loop have been executed
+      const allExecuted = this.allBlocksExecuted(loop.nodes, context)
+      
+      if (allExecuted) {
         // Increment iteration counter
         context.loopIterations.set(loopId, currentIteration + 1)
 
-        // Check if we've now reached max iterations after incrementing
-        if (currentIteration + 1 >= loop.maxIterations) {
+        // Check if we've now reached iterations limit after incrementing
+        if (currentIteration + 1 >= loop.iterations) {
           hasLoopReachedMaxIterations = true
         }
 
@@ -104,51 +96,6 @@ export class LoopManager {
   }
 
   /**
-   * Checks if a loop should iterate again.
-   * A loop should iterate if:
-   * 1. All blocks in the loop have been executed
-   * 2. At least one feedback path exists
-   * 3. We haven't hit the max iterations
-   *
-   * @param loopId - ID of the loop to check
-   * @param context - Current execution context
-   * @returns Whether the loop should iterate again
-   */
-  private shouldIterateLoop(loopId: string, context: ExecutionContext): boolean {
-    const loop = this.loops[loopId]
-    if (!loop) return false
-
-    const allBlocksExecuted = this.allBlocksExecuted(loop.nodes, context)
-    if (!allBlocksExecuted) return false
-
-    const currentIteration = context.loopIterations.get(loopId) || 0
-    const maxIterations = loop.maxIterations || this.defaultMaxIterations
-    if (currentIteration >= maxIterations) return false
-
-    const conditionBlocks = loop.nodes.filter((nodeId) => {
-      const block = context.blockStates.get(nodeId)
-      return block?.output?.response?.selectedConditionId !== undefined
-    })
-
-    for (const conditionId of conditionBlocks) {
-      const conditionState = context.blockStates.get(conditionId)
-      if (!conditionState) continue
-
-      const selectedPath = conditionState.output?.response?.selectedPath
-      if (!selectedPath) continue
-
-      const targetIndex = loop.nodes.indexOf(selectedPath.blockId)
-      const sourceIndex = loop.nodes.indexOf(conditionId)
-
-      if (targetIndex !== -1 && targetIndex < sourceIndex) {
-        return true
-      }
-    }
-
-    return false
-  }
-
-  /**
    * Checks if all blocks in a list have been executed.
    *
    * @param nodeIds - IDs of nodes to check
@@ -186,22 +133,12 @@ export class LoopManager {
   }
 
   /**
-   * Gets the maximum iterations for a loop.
+   * Gets the iterations for a loop.
    *
    * @param loopId - ID of the loop
-   * @returns Maximum iterations for the loop
+   * @returns Iterations for the loop
    */
-  getMaxIterations(loopId: string): number {
-    return this.loops[loopId]?.maxIterations || this.defaultMaxIterations
-  }
-
-  /**
-   * Gets the minimum iterations for a loop.
-   *
-   * @param loopId - ID of the loop
-   * @returns Minimum iterations for the loop
-   */
-  getMinIterations(loopId: string): number {
-    return this.loops[loopId]?.minIterations || this.defaultMinIterations
+  getIterations(loopId: string): number {
+    return this.loops[loopId]?.iterations || this.defaultIterations
   }
 }
