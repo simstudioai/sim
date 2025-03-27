@@ -42,6 +42,12 @@ const modelPricing: ModelPricingMap = {
     output: 0.4,
     updatedAt: '2025-03-21',
   },
+  'gemini-2.5-pro-exp-03-25': {
+    input: 0.15,
+    cachedInput: 0.075,
+    output: 0.6,
+    updatedAt: '2025-03-25',
+  },
 
   // Deepseek Models
   'deepseek-v3': {
