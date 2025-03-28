@@ -49,13 +49,13 @@ docker compose down
 if [ "$LOCAL" = true ]; then
   if nvidia-smi &> /dev/null; then
     # GPU available with local LLM
-    docker compose -f deployment/docker-compose-local-model.yml up --build
+    docker compose --profile local-gpu up --build -d
   else
     # No GPU available with local LLM
-    docker compose -f deployment/docker-compose-local-model-no-gpu.yml up --build
+    docker compose --profile local-cpu up --build -d
   fi
 else
-    docker compose -f deployment/docker-compose.yml up --build
+    docker compose up --build -d
 fi
 
 # Wait for database to be ready
