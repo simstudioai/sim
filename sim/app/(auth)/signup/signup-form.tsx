@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
@@ -37,7 +37,7 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
-export default function SignupPage({
+function SignupFormContent({
   githubAvailable,
   googleAvailable,
   isProduction,
@@ -281,5 +281,31 @@ export default function SignupPage({
         </Card>
       </div>
     </main>
+  )
+}
+
+export default function SignupPage({
+  githubAvailable,
+  googleAvailable,
+  isProduction,
+}: {
+  githubAvailable: boolean
+  googleAvailable: boolean
+  isProduction: boolean
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <SignupFormContent
+        githubAvailable={githubAvailable}
+        googleAvailable={googleAvailable}
+        isProduction={isProduction}
+      />
+    </Suspense>
   )
 }
