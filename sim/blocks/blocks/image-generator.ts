@@ -8,7 +8,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   description: 'Generate images',
   longDescription:
     'Create high-quality images using DALL-E. Configure resolution, quality, style, and other parameters to get exactly the image you need.',
-  category: 'blocks',
+  category: 'tools',
   bgColor: '#FF6B6B',
   icon: ImageIcon,
   subBlocks: [
@@ -38,6 +38,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         { label: 'DALL-E 2', id: 'dall-e-2' },
         { label: 'DALL-E 3', id: 'dall-e-3' },
       ],
+      value: () => 'dall-e-3',
     },
     {
       id: 'size',
@@ -49,6 +50,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         { label: '1024x1792', id: '1024x1792' },
         { label: '1792x1024', id: '1792x1024' },
       ],
+      value: () => '1024x1024',
     },
     {
       id: 'quality',
@@ -59,6 +61,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         { label: 'Standard', id: 'standard' },
         { label: 'HD', id: 'hd' },
       ],
+      value: () => 'standard',
     },
     {
       id: 'style',
@@ -69,6 +72,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
         { label: 'Vivid', id: 'vivid' },
         { label: 'Natural', id: 'natural' },
       ],
+      value: () => 'vivid',
     },
     {
       id: 'apiKey',
@@ -115,16 +119,10 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   outputs: {
     response: {
       type: {
-        url: 'string',
-        model: 'string',
-        revised_prompt: 'any',
-        prompt: 'string',
-        image: 'string'
-      },
-      visualization: {
-        type: 'image',
-        url: 'response.url',
-      },
+        content: 'string', // URL of the generated image
+        image: 'string', // Base64 image data
+        metadata: 'json' // Contains only model information
+      }
     },
   },
 } 
