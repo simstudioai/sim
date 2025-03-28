@@ -10,11 +10,13 @@ const emailSchema = z.string().email('Please enter a valid email')
 export default function WaitlistForm() {
   const [email, setEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'exists'>('idle')
+  const [errorMessage, setErrorMessage] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setStatus('idle')
+    setErrorMessage('')
 
     try {
       // Validate email
@@ -32,7 +34,14 @@ export default function WaitlistForm() {
       const data = await response.json()
 
       if (!response.ok) {
-        setStatus('error')
+        // Check if the error is because the email already exists
+        if (response.status === 400 && data.message?.includes('already exists')) {
+          setStatus('exists')
+          setErrorMessage('Already on the waitlist')
+        } else {
+          setStatus('error')
+          setErrorMessage(data.message || 'Failed to join waitlist')
+        }
         return
       }
 
@@ -40,6 +49,7 @@ export default function WaitlistForm() {
       setEmail('')
     } catch (error) {
       setStatus('error')
+      setErrorMessage('Please try again')
     } finally {
       setIsSubmitting(false)
     }
@@ -49,7 +59,21 @@ export default function WaitlistForm() {
     if (isSubmitting) return 'Joining...'
     if (status === 'success') return 'Joined!'
     if (status === 'error') return 'Try again'
+    if (status === 'exists') return 'Already joined'
     return 'Join waitlist'
+  }
+
+  const getButtonStyle = () => {
+    switch (status) {
+      case 'success':
+        return 'bg-green-500 hover:bg-green-600'
+      case 'error':
+        return 'bg-red-500 hover:bg-red-600'
+      case 'exists':
+        return 'bg-amber-500 hover:bg-amber-600'
+      default:
+        return 'bg-white text-black hover:bg-gray-100'
+    }
   }
 
   return (
@@ -68,13 +92,7 @@ export default function WaitlistForm() {
         />
         <Button
           type="submit"
-          className={`rounded-md px-8 h-[48px] text-sm md:text-md ${
-            status === 'success'
-              ? 'bg-green-500 hover:bg-green-600'
-              : status === 'error'
-                ? 'bg-red-500 hover:bg-red-600'
-                : 'bg-white text-black hover:bg-gray-100'
-          }`}
+          className={`rounded-md px-8 h-[48px] text-sm md:text-md ${getButtonStyle()}`}
           disabled={isSubmitting}
         >
           {getButtonText()}
