@@ -1,6 +1,8 @@
 import { renderAsync } from '@react-email/components'
 import { OTPVerificationEmail } from './otp-verification-email'
 import { ResetPasswordEmail } from './reset-password-email'
+import { WaitlistApprovalEmail } from './waitlist-approval-email'
+import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
 
 /**
  * Renders the OTP verification email to HTML
@@ -24,10 +26,33 @@ export async function renderPasswordResetEmail(
 }
 
 /**
+ * Renders the waitlist confirmation email to HTML
+ */
+export async function renderWaitlistConfirmationEmail(email: string): Promise<string> {
+  return await renderAsync(WaitlistConfirmationEmail({ email }))
+}
+
+/**
+ * Renders the waitlist approval email to HTML
+ */
+export async function renderWaitlistApprovalEmail(
+  email: string,
+  signupLink: string
+): Promise<string> {
+  return await renderAsync(WaitlistApprovalEmail({ email, signupLink }))
+}
+
+/**
  * Gets the appropriate email subject based on email type
  */
 export function getEmailSubject(
-  type: 'sign-in' | 'email-verification' | 'forget-password' | 'reset-password'
+  type:
+    | 'sign-in'
+    | 'email-verification'
+    | 'forget-password'
+    | 'reset-password'
+    | 'waitlist-confirmation'
+    | 'waitlist-approval'
 ): string {
   switch (type) {
     case 'sign-in':
@@ -38,6 +63,10 @@ export function getEmailSubject(
       return 'Reset your Sim Studio password'
     case 'reset-password':
       return 'Reset your Sim Studio password'
+    case 'waitlist-confirmation':
+      return 'Welcome to the Sim Studio Waitlist'
+    case 'waitlist-approval':
+      return "You've Been Approved to Join Sim Studio!"
     default:
       return 'Sim Studio'
   }
