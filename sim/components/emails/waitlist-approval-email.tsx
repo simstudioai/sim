@@ -6,6 +6,7 @@ import {
   Head,
   Html,
   Img,
+  Link,
   Preview,
   Row,
   Section,
@@ -14,37 +15,22 @@ import {
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
-interface OTPVerificationEmailProps {
-  otp: string
+interface WaitlistApprovalEmailProps {
   email?: string
-  type?: 'sign-in' | 'email-verification' | 'forget-password'
+  signupLink?: string
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
-const getSubjectByType = (type: string) => {
-  switch (type) {
-    case 'sign-in':
-      return 'Sign in to Sim Studio'
-    case 'email-verification':
-      return 'Verify your email for Sim Studio'
-    case 'forget-password':
-      return 'Reset your Sim Studio password'
-    default:
-      return 'Verification code for Sim Studio'
-  }
-}
-
-export const OTPVerificationEmail = ({
-  otp,
+export const WaitlistApprovalEmail = ({
   email = '',
-  type = 'email-verification',
-}: OTPVerificationEmailProps) => {
+  signupLink = '',
+}: WaitlistApprovalEmailProps) => {
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>{getSubjectByType(type)}</Preview>
+        <Preview>You've Been Approved to Join Sim Studio!</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -60,6 +46,7 @@ export const OTPVerificationEmail = ({
               </Column>
             </Row>
           </Section>
+
           <Section style={baseStyles.sectionsBorders}>
             <Row>
               <Column style={baseStyles.sectionBorder} />
@@ -67,22 +54,23 @@ export const OTPVerificationEmail = ({
               <Column style={baseStyles.sectionBorder} />
             </Row>
           </Section>
+
           <Section style={baseStyles.content}>
+            <Text style={baseStyles.paragraph}>Great news!</Text>
             <Text style={baseStyles.paragraph}>
-              {type === 'sign-in'
-                ? 'Sign in to'
-                : type === 'forget-password'
-                  ? 'Reset your password for'
-                  : 'Welcome to'}{' '}
-              Sim Studio!
+              You've been approved to join Sim Studio! We're excited to have you as part of our
+              community of developers building, testing, and optimizing AI workflows.
             </Text>
-            <Text style={baseStyles.paragraph}>Your verification code is:</Text>
-            <Section style={baseStyles.codeContainer}>
-              <Text style={baseStyles.code}>{otp}</Text>
-            </Section>
-            <Text style={baseStyles.paragraph}>This code will expire in 15 minutes.</Text>
             <Text style={baseStyles.paragraph}>
-              If you didn't request this code, you can safely ignore this email.
+              Your email ({email}) has been approved. Click the button below to create your account
+              and start using Sim Studio today:
+            </Text>
+            <Link href={signupLink} style={{ textDecoration: 'none' }}>
+              <Text style={baseStyles.button}>Create Your Account</Text>
+            </Link>
+            <Text style={baseStyles.paragraph}>
+              This approval link will expire in 7 days. If you have any questions or need
+              assistance, feel free to reach out to our support team.
             </Text>
             <Text style={baseStyles.paragraph}>
               Best regards,
@@ -98,4 +86,4 @@ export const OTPVerificationEmail = ({
   )
 }
 
-export default OTPVerificationEmail
+export default WaitlistApprovalEmail
