@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionCookie } from 'better-auth/cookies'
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import {
-  approveWaitlistUser,
-  getWaitlistEntries,
-  rejectWaitlistUser,
-  WaitlistStatus,
-} from '@/lib/waitlist/service'
-import { db } from '@/db'
-import { session, user } from '@/db/schema'
+import { Logger } from '@/lib/logs/console-logger'
+import { approveWaitlistUser, getWaitlistEntries, rejectWaitlistUser } from '@/lib/waitlist/service'
+
+const logger = new Logger('WaitlistAPI')
 
 // Schema for GET request query parameters
 const getQuerySchema = z.object({
   page: z.coerce.number().optional().default(1),
   limit: z.coerce.number().optional().default(20),
-  status: z.enum(['pending', 'approved', 'rejected']).optional(),
+  status: z.enum(['all', 'pending', 'approved', 'rejected']).optional(),
+  search: z.string().optional(),
 })
 
 // Schema for POST request body
@@ -24,70 +19,48 @@ const actionSchema = z.object({
   action: z.enum(['approve', 'reject']),
 })
 
-// Check if the user has admin permissions
-async function isAdmin(request: NextRequest) {
-  const sessionCookie = getSessionCookie(request)
+// Admin password from environment variables
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
 
-  if (!sessionCookie) {
+// Check if the request has valid admin password
+function isAuthorized(request: NextRequest) {
+  // Get authorization header (Bearer token)
+  const authHeader = request.headers.get('authorization')
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return false
   }
 
-  try {
-    // Get the user ID from the session cookie
-    const sessionId = sessionCookie
+  // Extract token
+  const token = authHeader.split(' ')[1]
 
-    // Fetch the session to get the user ID
-    const sessionRecord = await db
-      .select()
-      .from(session)
-      .where(eq(session.id, sessionId))
-      .limit(1)
-      .then((rows) => rows[0])
-
-    if (!sessionRecord) {
-      return false
-    }
-
-    // Fetch the user
-    const userRecord = await db
-      .select()
-      .from(user)
-      .where(eq(user.id, sessionRecord.userId))
-      .limit(1)
-      .then((rows) => rows[0])
-
-    if (!userRecord) {
-      return false
-    }
-
-    // Check if the user's email is in the admin list
-    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim())
-    return adminEmails.includes(userRecord.email)
-  } catch (error) {
-    console.error('Error checking admin status:', error)
-    return false
-  }
+  // Compare with expected token
+  return token === ADMIN_PASSWORD
 }
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify user is an admin
-    const admin = await isAdmin(request)
-
-    if (!admin) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    // Check authorization
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ success: false, message: 'Unauthorized access' }, { status: 401 })
     }
 
     // Parse query parameters
     const { searchParams } = request.nextUrl
     const page = searchParams.get('page') ? Number(searchParams.get('page')) : 1
     const limit = searchParams.get('limit') ? Number(searchParams.get('limit')) : 20
-    const status = searchParams.get('status') as WaitlistStatus | null
+    const status = searchParams.get('status') || 'all'
+    const search = searchParams.get('search') || undefined
+
+    logger.info(
+      `API route: Received request with status: "${status}", search: "${search || 'none'}", page: ${page}, limit: ${limit}`
+    )
 
     // Validate params
-    const validatedParams = getQuerySchema.safeParse({ page, limit, status })
+    const validatedParams = getQuerySchema.safeParse({ page, limit, status, search })
 
     if (!validatedParams.success) {
+      logger.error('Invalid parameters:', validatedParams.error.format())
       return NextResponse.json(
         {
           success: false,
@@ -98,16 +71,27 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get waitlist entries
+    // Get waitlist entries with search parameter
     const entries = await getWaitlistEntries(
       validatedParams.data.page,
       validatedParams.data.limit,
-      validatedParams.data.status
+      validatedParams.data.status,
+      validatedParams.data.search
     )
 
-    return NextResponse.json({ success: true, data: entries })
+    logger.info(
+      `API route: Returning ${entries.entries.length} entries for status: "${status}", total: ${entries.total}`
+    )
+
+    // Return response with cache control header to prevent caching
+    return new NextResponse(JSON.stringify({ success: true, data: entries }), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    })
   } catch (error) {
-    console.error('Admin waitlist API error:', error)
+    logger.error('Admin waitlist API error:', error)
 
     return NextResponse.json(
       {
@@ -121,11 +105,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify user is an admin
-    const admin = await isAdmin(request)
-
-    if (!admin) {
-      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
+    // Check authorization
+    if (!isAuthorized(request)) {
+      return NextResponse.json({ success: false, message: 'Unauthorized access' }, { status: 401 })
     }
 
     // Parse request body
@@ -151,9 +133,42 @@ export async function POST(request: NextRequest) {
 
     // Perform the requested action
     if (action === 'approve') {
-      result = await approveWaitlistUser(email)
+      try {
+        result = await approveWaitlistUser(email)
+      } catch (error) {
+        logger.error('Error approving waitlist user:', error)
+        // Check if it's the JWT_SECRET missing error
+        if (error instanceof Error && error.message.includes('JWT_SECRET')) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                'Configuration error: JWT_SECRET environment variable is missing. Please contact the administrator.',
+            },
+            { status: 500 }
+          )
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to approve user',
+          },
+          { status: 500 }
+        )
+      }
     } else if (action === 'reject') {
-      result = await rejectWaitlistUser(email)
+      try {
+        result = await rejectWaitlistUser(email)
+      } catch (error) {
+        logger.error('Error rejecting waitlist user:', error)
+        return NextResponse.json(
+          {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to reject user',
+          },
+          { status: 500 }
+        )
+      }
     }
 
     if (!result || !result.success) {
@@ -171,7 +186,7 @@ export async function POST(request: NextRequest) {
       message: result.message,
     })
   } catch (error) {
-    console.error('Admin waitlist API error:', error)
+    logger.error('Admin waitlist API error:', error)
 
     return NextResponse.json(
       {

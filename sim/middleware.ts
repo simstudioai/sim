@@ -14,44 +14,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/w/1', request.url))
   }
 
-  // Handle admin routes protection
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    const sessionCookie = getSessionCookie(request)
-
-    // In development, bypass admin check if no ADMIN_EMAILS is set
-    if (isDevelopment && !process.env.ADMIN_EMAILS) {
-      return NextResponse.next()
-    }
-
-    // No session, redirect to login
-    if (!sessionCookie) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
-
-    try {
-      // Get session from cookie
-      const session = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/session?token=${sessionCookie}`
-      )
-      const sessionData = await session.json()
-
-      // Check if user email is in admin list
-      if (
-        !sessionData.user?.email ||
-        !ADMIN_EMAILS.includes(sessionData.user.email.toLowerCase())
-      ) {
-        // Not an admin, redirect to unauthorized
-        return NextResponse.redirect(new URL('/', request.url))
-      }
-    } catch (error) {
-      console.error('Error validating admin access:', error)
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-
-    // Admin access granted
-    return NextResponse.next()
-  }
-
   // Handle protected routes that require authentication
   if (request.nextUrl.pathname.startsWith('/w/') || request.nextUrl.pathname === '/w') {
     const sessionCookie = getSessionCookie(request)
@@ -90,7 +52,6 @@ export const config = {
   matcher: [
     '/w', // Match exactly /w
     '/w/:path*', // Match protected routes
-    '/admin/:path*', // Match admin routes
     '/login',
     '/signup',
   ],

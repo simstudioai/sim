@@ -1,4 +1,4 @@
-import { count, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, like, or, SQL } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import {
   getEmailSubject,
@@ -82,19 +82,54 @@ export async function addToWaitlist(email: string): Promise<{ success: boolean; 
   }
 }
 
-// Get all waitlist entries with pagination
-export async function getWaitlistEntries(page = 1, limit = 20, status?: WaitlistStatus) {
+// Get all waitlist entries with pagination and search
+export async function getWaitlistEntries(
+  page = 1,
+  limit = 20,
+  status?: WaitlistStatus | 'all',
+  search?: string
+) {
   try {
     const offset = (page - 1) * limit
 
-    // Get entries
+    // Build query conditions
+    let whereCondition
+
+    // First, determine if we need to apply status filter
+    const shouldFilterByStatus = status && status !== 'all'
+
+    console.log('Service: Filtering by status:', shouldFilterByStatus ? status : 'No status filter')
+
+    // Now build the conditions
+    if (shouldFilterByStatus && search && search.trim()) {
+      // Both status and search
+      console.log('Service: Applying status + search filter:', status)
+      whereCondition = and(
+        eq(waitlist.status, status as string),
+        like(waitlist.email, `%${search.trim()}%`)
+      )
+    } else if (shouldFilterByStatus) {
+      // Only status
+      console.log('Service: Applying status filter only:', status)
+      whereCondition = eq(waitlist.status, status as string)
+    } else if (search && search.trim()) {
+      // Only search
+      console.log('Service: Applying search filter only')
+      whereCondition = like(waitlist.email, `%${search.trim()}%`)
+    } else {
+      console.log('Service: No filters applied, showing all entries')
+    }
+
+    // Log what filter is being applied
+    console.log('Service: Where condition:', whereCondition ? 'applied' : 'none')
+
+    // Get entries with conditions
     let entries = []
-    if (status) {
-      // Get entries with status filter
+    if (whereCondition) {
       entries = await db
         .select()
         .from(waitlist)
-        .where(eq(waitlist.status, status as string))
+        .where(whereCondition)
         .limit(limit)
         .offset(offset)
         .orderBy(desc(waitlist.createdAt))
@@ -108,18 +143,17 @@ export async function getWaitlistEntries(page = 1, limit = 20, status?: Waitlist
         .orderBy(desc(waitlist.createdAt))
     }
 
-    // Get total count for pagination
+    // Get total count for pagination with same conditions
     let countResult = []
-    if (status) {
-      // Get count with status filter
-      countResult = await db
-        .select({ value: count() })
-        .from(waitlist)
-        .where(eq(waitlist.status, status as string))
+    if (whereCondition) {
+      countResult = await db.select({ value: count() }).from(waitlist).where(whereCondition)
     } else {
-      // Get count of all entries
       countResult = await db.select({ value: count() }).from(waitlist)
     }
+
+    console.log(
+      `Service: Found ${entries.length} entries with ${status === 'all' ? 'all statuses' : `status=${status}`}, total: ${countResult[0]?.value || 0}`
+    )
 
     return {
       entries,

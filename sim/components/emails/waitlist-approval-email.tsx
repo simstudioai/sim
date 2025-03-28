@@ -58,7 +58,10 @@ export const WaitlistApprovalEmail = ({ email = '', signupLink }: WaitlistApprov
               We're excited to let you know that you've been approved to join Sim Studio. You can
               now create an account and start building your agentic workflows.
             </Text>
-            <Link href={signupLink} style={{ textDecoration: 'none' }}>
+            <Link
+              href={`${signupLink}&email=${encodeURIComponent(email)}`}
+              style={{ textDecoration: 'none' }}
+            >
               <Text style={baseStyles.button}>Create Your Account</Text>
             </Link>
             <Text style={baseStyles.paragraph}>
