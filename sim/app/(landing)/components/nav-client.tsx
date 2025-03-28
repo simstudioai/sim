@@ -59,7 +59,7 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
             <XIcon />
           </a>
           <a
-            href="https://discord.gg/pQKwMTvNrg"
+            href="https://discord.gg/Hr4UWYEcTT"
             className="text-white/80 hover:text-white/100 p-2 rounded-md group hover:scale-[1.04] transition-colors transition-transform duration-200"
             aria-label="Discord"
             target="_blank"
