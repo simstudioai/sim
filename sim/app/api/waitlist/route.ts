@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { isRateLimited } from '@/lib/waitlist/rate-limiter'
 import { addToWaitlist } from '@/lib/waitlist/service'
 
 const waitlistSchema = z.object({
@@ -7,6 +8,23 @@ const waitlistSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  const rateLimitCheck = await isRateLimited(request, 'waitlist')
+  if (rateLimitCheck.limited) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: rateLimitCheck.message || 'Too many requests. Please try again later.',
+        retryAfter: rateLimitCheck.remainingTime,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitCheck.remainingTime || 60),
+        },
+      }
+    )
+  }
+
   try {
     // Parse the request body
     const body = await request.json()

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
+import { verifyToken } from './lib/waitlist/token'
 
 // Environment flag to check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development'
-
-// Admin emails - ideally from environment variables
-const ADMIN_EMAILS =
-  process.env.ADMIN_EMAILS?.split(',').map((email) => email.trim().toLowerCase()) || []
 
 export async function middleware(request: NextRequest) {
   // Check if the path is exactly /w
@@ -20,6 +17,10 @@ export async function middleware(request: NextRequest) {
     if (!sessionCookie) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
+
+    // Add session expiration validation if better-auth provides this functionality
+    // This would depend on the implementation of better-auth
+
     return NextResponse.next()
   }
 
@@ -30,17 +31,40 @@ export async function middleware(request: NextRequest) {
 
   // Handle waitlist protection for login and signup in production
   if (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') {
-    // Check for a waitlist token in the URL - this should be handled by the page itself
+    // Check for a waitlist token in the URL
     const waitlistToken = request.nextUrl.searchParams.get('token')
 
-    // Always allow access if a token is provided - validation happens in the page
+    // Validate the token if present
     if (waitlistToken) {
-      return NextResponse.next()
-    }
+      try {
+        const decodedToken = await verifyToken(waitlistToken)
 
-    // If this is the signup page without a token, redirect to the waitlist page
-    if (request.nextUrl.pathname === '/signup') {
-      return NextResponse.redirect(new URL('/', request.url))
+        // If token is valid and is a waitlist approval token
+        if (decodedToken && decodedToken.type === 'waitlist-approval') {
+          // Check token expiration
+          const now = Math.floor(Date.now() / 1000)
+          if (decodedToken.exp > now) {
+            // Token is valid and not expired, allow access
+            return NextResponse.next()
+          }
+        }
+
+        // Token is invalid, expired, or wrong type - redirect to home
+        if (request.nextUrl.pathname === '/signup') {
+          return NextResponse.redirect(new URL('/', request.url))
+        }
+      } catch (error) {
+        console.error('Token validation error:', error)
+        // In case of error, redirect signup attempts to home
+        if (request.nextUrl.pathname === '/signup') {
+          return NextResponse.redirect(new URL('/', request.url))
+        }
+      }
+    } else {
+      // If no token for signup, redirect to home
+      if (request.nextUrl.pathname === '/signup') {
+        return NextResponse.redirect(new URL('/', request.url))
+      }
     }
   }
 
