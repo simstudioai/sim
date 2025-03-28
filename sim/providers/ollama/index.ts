@@ -21,13 +21,15 @@ export const ollamaProvider: ProviderConfig = {
     try {
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        useOllamaStore.getState().setModels([])
+        logger.warn('Ollama service is not available. The provider will be disabled.')
+        return
       }
       const data = await response.json() as ModelsObject
       this.models = data.models.map((model) => model.name)
       useOllamaStore.getState().setModels(this.models)
     } catch (error) {
-      logger.error('Error initializing Ollama provider', {
+      logger.warn('Ollama model instantiation failed. The provider will be disabled.', {
         error: error instanceof Error ? error.message : 'Unknown error'
       })
     }
