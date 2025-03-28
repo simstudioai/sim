@@ -12,6 +12,7 @@ import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
 import { GuestyBlock } from './blocks/guesty'
+import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -67,6 +68,7 @@ export {
   QdrantBlock,
   PerplexityBlock,
   ConfluenceBlock,
+  ImageGeneratorBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -85,6 +87,7 @@ const blocks: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
+  image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
