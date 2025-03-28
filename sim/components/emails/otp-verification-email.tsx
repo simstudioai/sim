@@ -138,7 +138,7 @@ export const OTPVerificationEmail = ({
           >
             © {new Date().getFullYear()} Sim Studio, All Rights Reserved
             <br />
-            If you have any questions, please contact us at support@simstudio.ai
+            If you have any questions, please contact us at help@simstudio.ai
           </Text>
         </Section>
       </Body>
