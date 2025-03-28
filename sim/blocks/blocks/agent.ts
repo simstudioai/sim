@@ -1,6 +1,6 @@
 import { AgentIcon } from '@/components/icons'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
-import { getModelProviders } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 import { useOllamaStore } from '@/stores/ollama/store'
@@ -55,7 +55,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'half',
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
-        const baseModels = Object.keys(getModelProviders())
+        const baseModels = Object.keys(getBaseModelProviders())
         return [...baseModels, ...ollamaModels]
       },
     },
@@ -121,7 +121,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getModelProviders()[model]
+        const tool = getAllModelProviders()[model]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

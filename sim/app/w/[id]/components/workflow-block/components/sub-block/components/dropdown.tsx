@@ -18,18 +18,10 @@ interface DropdownProps {
 export function Dropdown({ options, defaultValue, blockId, subBlockId }: DropdownProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId, true)
 
-  // Evaluate options if it's a function and deduplicate based on values
+  // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
-    const rawOptions = typeof options === 'function' ? options() : options
-    const seen = new Set<string>()
-    return rawOptions.filter(option => {
-      const value = typeof option === 'string' ? option : option.id
-      if (seen.has(value)) return false
-      seen.add(value)
-      return true
-    })
+    return typeof options === 'function' ? options() : options
   }, [options])
-
 
   // Set the value to the first option if it's not set
   useEffect(() => {

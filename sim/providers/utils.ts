@@ -86,7 +86,21 @@ export function updateOllamaProviderModels(models: string[]): void {
   logger.info('Updated Ollama provider models', { models })
 }
 
-export function getModelProviders(): Record<string, ProviderId> {
+export function getBaseModelProviders(): Record<string, ProviderId> {
+  return Object.entries(providers)
+    .filter(([providerId]) => providerId !== 'ollama')
+    .reduce(
+      (map, [providerId, config]) => {
+        config.models.forEach((model) => {
+          map[model.toLowerCase()] = providerId as ProviderId
+        })
+        return map
+      },
+      {} as Record<string, ProviderId>
+    )
+}
+
+export function getAllModelProviders(): Record<string, ProviderId> {
   return Object.entries(providers).reduce(
     (map, [providerId, config]) => {
       config.models.forEach((model) => {
@@ -100,8 +114,8 @@ export function getModelProviders(): Record<string, ProviderId> {
 
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
-  if (normalizedModel in getModelProviders()) {
-    return getModelProviders()[normalizedModel]
+  if (normalizedModel in getAllModelProviders()) {
+    return getAllModelProviders()[normalizedModel]
   }
 
   for (const [providerId, config] of Object.entries(providers)) {
