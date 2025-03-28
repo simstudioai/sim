@@ -19,6 +19,7 @@ import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
 import { notionReadTool, notionWriteTool } from './notion'
+import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { perplexityChatTool } from './perplexity'
 import {
@@ -102,6 +103,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
+  dalle_generate: dalleTool,
 }
 
 // Get a tool by its ID

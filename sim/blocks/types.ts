@@ -137,6 +137,10 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
           whenFilled: 'json'
         }
       }
+      visualization?: {
+        type: 'image'
+        url: string
+      }
     }
   }
 }

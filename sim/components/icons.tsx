@@ -1735,3 +1735,24 @@ export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function ImageIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width="28"
+      height="28"
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="3" width="22" height="22" rx="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="M3 21L10 14L14 18L21 11L25 15V21" />
+    </svg>
+  )
+}

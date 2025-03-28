@@ -6,7 +6,11 @@ const isStandaloneBuild = process.env.USE_LOCAL_STORAGE === 'true'
 const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
-    domains: ['avatars.githubusercontent.com'],
+    domains: [
+      'avatars.githubusercontent.com',
+      'oaidalleapiprodscus.blob.core.windows.net',
+      'api.stability.ai',
+    ],
     // Enable static image optimization for standalone export
     unoptimized: isStandaloneBuild,
   },
