@@ -159,19 +159,6 @@ export const webhook = pgTable(
   }
 )
 
-export const apiKey = pgTable('api_key', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  key: text('key').notNull().unique(),
-  lastUsed: timestamp('last_used'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  expiresAt: timestamp('expires_at'),
-})
-
 export const marketplace = pgTable('marketplace', {
   id: text('id').primaryKey(),
   workflowId: text('workflow_id')
@@ -223,4 +210,55 @@ export const userStats = pgTable('user_stats', {
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   lastActive: timestamp('last_active').notNull().defaultNow(),
+})
+
+export const agent = pgTable('agent', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  config: json('config').notNull(), // Store the ServerConfig as JSON
+  isDefault: boolean('is_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const apiKey = pgTable('api_key', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  key: text('key').notNull().unique(),
+  lastUsed: timestamp('last_used'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at'),
+})
+
+export const agentChat = pgTable('agent_chat', {
+  id: text('id').primaryKey(),
+  agentId: text('agent_id')
+    .notNull()
+    .references(() => agent.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const agentChatMessage = pgTable('agent_chat_message', {
+  id: text('id').primaryKey(),
+  chatId: text('chat_id')
+    .notNull()
+    .references(() => agentChat.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(), // 'user', 'assistant', 'system'
+  content: text('content'),
+  toolCallData: json('tool_call_data'), // For storing tool calls and results
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  order: integer('order').notNull(), // To maintain message order
 })

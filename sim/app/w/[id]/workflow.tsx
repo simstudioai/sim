@@ -83,12 +83,18 @@ function WorkflowContent() {
   // Listen for toolbar block click events
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
-      const { type } = event.detail
+      const { type, config: blockCustomConfig } = event.detail
 
       if (!type) return
       if (type === 'connectionBlock') return
 
-      const blockConfig = getBlock(type)
+      // Check if this is an agent instance block
+      const isAgentInstance = type.startsWith('agent_instance_');
+      
+      // For agent instances, use agent type instead of the instance ID
+      const blockType = isAgentInstance ? 'agent' : type;
+      
+      const blockConfig = getBlock(blockType)
       if (!blockConfig) {
         logger.error('Invalid block type:', { type })
         return
@@ -102,16 +108,38 @@ function WorkflowContent() {
 
       // Create a new block with a unique ID
       const id = crypto.randomUUID()
-      const name = `${blockConfig.name} ${
-        Object.values(blocks).filter((b) => b.type === type).length + 1
-      }`
+      
+      // For agent instances, use the saved agent name
+      const name = isAgentInstance && blockCustomConfig?.name 
+        ? blockCustomConfig.name
+        : `${blockConfig.name} ${Object.values(blocks).filter((b) => b.type === blockType).length + 1}`
 
       // Add the block to the workflow
-      addBlock(id, type, name, centerPosition)
+      addBlock(id, blockType, name, centerPosition)
+      
+      // For agent instances, we need to set up the sub-blocks with the saved configuration
+      if (isAgentInstance && blockCustomConfig) {
+        // Get the agent ID from the config
+        const agentId = blockCustomConfig.agentId;
+        
+        // Update the sub blocks with saved values if we have an agent instance
+        if (blockCustomConfig.name) {
+          setSubBlockValue(id, 'name', blockCustomConfig.name);
+        }
+        
+        if (blockCustomConfig.prompt) {
+          setSubBlockValue(id, 'systemPrompt', blockCustomConfig.prompt);
+        }
+        
+        if (blockCustomConfig.mcpServers && Array.isArray(blockCustomConfig.mcpServers)) {
+          // Convert to appropriate format for agent block if needed
+          setSubBlockValue(id, 'mcpServers', blockCustomConfig.mcpServers);
+        }
+      }
 
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-      if (isAutoConnectEnabled && type !== 'starter') {
+      if (isAutoConnectEnabled && blockType !== 'starter') {
         const closestBlockId = findClosestOutput(centerPosition)
         if (closestBlockId) {
           addEdge({
@@ -134,7 +162,7 @@ function WorkflowContent() {
         handleAddBlockFromToolbar as EventListener
       )
     }
-  }, [project, blocks, addBlock, addEdge])
+  }, [project, blocks, addBlock, addEdge, setSubBlockValue])
 
   // Init workflow
   useEffect(() => {
@@ -334,28 +362,52 @@ function WorkflowContent() {
         const data = JSON.parse(event.dataTransfer.getData('application/json'))
         if (data.type === 'connectionBlock') return
 
+        // Check if this is an agent instance block
+        const isAgentInstance = data.type.startsWith('agent_instance_');
+        const blockType = isAgentInstance ? 'agent' : data.type;
+        const blockCustomConfig = isAgentInstance ? data.config : null;
+        
         const reactFlowBounds = event.currentTarget.getBoundingClientRect()
         const position = project({
           x: event.clientX - reactFlowBounds.left,
           y: event.clientY - reactFlowBounds.top,
         })
 
-        const blockConfig = getBlock(data.type)
+        const blockConfig = getBlock(blockType)
         if (!blockConfig) {
           logger.error('Invalid block type:', { data })
           return
         }
 
         const id = crypto.randomUUID()
-        const name = `${blockConfig.name} ${
-          Object.values(blocks).filter((b) => b.type === data.type).length + 1
-        }`
+        
+        // For agent instances, use the saved agent name
+        const name = isAgentInstance && blockCustomConfig?.name 
+          ? blockCustomConfig.name
+          : `${blockConfig.name} ${Object.values(blocks).filter((b) => b.type === blockType).length + 1}`
 
-        addBlock(id, data.type, name, position)
+        addBlock(id, blockType, name, position)
+        
+        // For agent instances, set the sub-block values
+        if (isAgentInstance && blockCustomConfig) {
+          // Update the sub blocks with saved values if we have an agent instance
+          if (blockCustomConfig.name) {
+            setSubBlockValue(id, 'name', blockCustomConfig.name);
+          }
+          
+          if (blockCustomConfig.prompt) {
+            setSubBlockValue(id, 'systemPrompt', blockCustomConfig.prompt);
+          }
+          
+          if (blockCustomConfig.mcpServers && Array.isArray(blockCustomConfig.mcpServers)) {
+            // Convert to appropriate format for agent block if needed
+            setSubBlockValue(id, 'mcpServers', blockCustomConfig.mcpServers);
+          }
+        }
 
         // Auto-connect logic
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        if (isAutoConnectEnabled && data.type !== 'starter') {
+        if (isAutoConnectEnabled && blockType !== 'starter') {
           const closestBlockId = findClosestOutput(position)
           if (closestBlockId) {
             addEdge({
@@ -372,7 +424,7 @@ function WorkflowContent() {
         logger.error('Error dropping block:', { err })
       }
     },
-    [project, blocks, addBlock, addEdge, findClosestOutput]
+    [project, blocks, addBlock, addEdge, findClosestOutput, setSubBlockValue]
   )
 
   // Update onPaneClick to only handle edge selection

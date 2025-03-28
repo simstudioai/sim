@@ -7,7 +7,13 @@ export type ToolbarBlockProps = {
 
 export function ToolbarBlock({ config }: ToolbarBlockProps) {
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('application/json', JSON.stringify({ type: config.type }))
+    // For agent instances, include the full config data
+    const isAgentInstance = config.type.startsWith('agent_instance_');
+    const payload = isAgentInstance 
+      ? { type: config.type, config: config.config }
+      : { type: config.type };
+      
+    e.dataTransfer.setData('application/json', JSON.stringify(payload))
     e.dataTransfer.effectAllowed = 'move'
   }
 
@@ -15,14 +21,18 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
   const handleClick = useCallback(() => {
     if (config.type === 'connectionBlock') return
 
+    // For agent instances, include config data in the event
+    const isAgentInstance = config.type.startsWith('agent_instance_');
+    const detail = isAgentInstance 
+      ? { type: config.type, config: config.config }
+      : { type: config.type };
+
     // Dispatch a custom event to be caught by the workflow component
     const event = new CustomEvent('add-block-from-toolbar', {
-      detail: {
-        type: config.type,
-      },
+      detail
     })
     window.dispatchEvent(event)
-  }, [config.type])
+  }, [config.type, config.config])
 
   return (
     <div

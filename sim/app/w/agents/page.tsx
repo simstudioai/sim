@@ -1,3 +1,12 @@
-import Agents from './agents'
+"use client";
 
-export default Agents
+import { AgentProvider } from "./hooks/useAgentContext";
+import { AgentContent } from "./components/AgentContent";
+
+export default function AgentsPage() {
+  return (
+    <AgentProvider>
+      <AgentContent />
+    </AgentProvider>
+  );
+}

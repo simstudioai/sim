@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
+    "dev-agent": "cd agent && poetry install && poetry run langgraph dev --host localhost --port 8123 --no-browser",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -27,6 +28,10 @@
     "publish:cli": "npm run build:cli && npm run cli:publish"
   },
   "dependencies": {
+    "@copilotkit/react-core": "^1.6.0",
+    "@copilotkit/react-ui": "^1.6.0",
+    "@copilotkit/runtime": "^1.6.0",
+    "class-validator": "^0.14.1",
     "@anthropic-ai/sdk": "^0.39.0",
     "@aws-sdk/client-s3": "^3.758.0",
     "@cerebras/cerebras_cloud_sdk": "^1.23.0",

@@ -3,20 +3,24 @@
 import { useEffect, useRef, useState } from 'react'
 
 interface ToolbarTabsProps {
-  activeTab: 'blocks' | 'tools'
-  onTabChange: (tab: 'blocks' | 'tools') => void
+  activeTab: 'blocks' | 'tools' | 'agents'
+  onTabChange: (tab: 'blocks' | 'tools' | 'agents') => void
 }
 
 export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
   const blocksRef = useRef<HTMLButtonElement>(null)
   const toolsRef = useRef<HTMLButtonElement>(null)
+  const agentsRef = useRef<HTMLButtonElement>(null)
   const [underlineStyle, setUnderlineStyle] = useState({
     width: 0,
     transform: '',
   })
 
   useEffect(() => {
-    const activeRef = activeTab === 'blocks' ? blocksRef : toolsRef
+    let activeRef = blocksRef
+    if (activeTab === 'tools') activeRef = toolsRef
+    if (activeTab === 'agents') activeRef = agentsRef
+    
     if (activeRef.current) {
       const rect = activeRef.current.getBoundingClientRect()
       const parentRect = activeRef.current.parentElement?.getBoundingClientRect()
@@ -49,6 +53,15 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
           }`}
         >
           Tools
+        </button>
+        <button
+          ref={agentsRef}
+          onClick={() => onTabChange('agents')}
+          className={`text-sm font-medium transition-colors hover:text-foreground ${
+            activeTab === 'agents' ? 'text-foreground' : 'text-muted-foreground'
+          }`}
+        >
+          Agents
         </button>
       </div>
 

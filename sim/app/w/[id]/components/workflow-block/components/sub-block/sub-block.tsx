@@ -14,6 +14,7 @@ import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
+import { MCPServersTable } from './components/mcp-servers-table'
 import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -47,6 +48,18 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   }
 
   const renderInput = () => {
+    // Get the block type to check if this is an agent_template
+    const blockType = useWorkflowStore.getState().blocks[blockId]?.type
+    
+    // Use custom MCP servers component for agent_template blocks
+    if (blockType === 'agent_template' && config.id === 'mcpServers' && config.type === 'table') {
+      return <MCPServersTable blockId={blockId} subBlockId={config.id} columns={config.columns ?? []} />
+    }
+    if (blockType === 'agent' && config.id === 'mcpServers' && config.type === 'table') {
+      return <MCPServersTable blockId={blockId} subBlockId={config.id} columns={config.columns ?? []} />
+    }
+    
+    // Handle regular component types
     switch (config.type) {
       case 'short-input':
         return (

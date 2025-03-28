@@ -2,7 +2,7 @@ import { AgentIcon } from '@/components/icons'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
-interface AgentResponse extends ToolResponse {
+interface AgentTemplateResponse extends ToolResponse {
   output: {
     content: string
     name: string
@@ -11,13 +11,13 @@ interface AgentResponse extends ToolResponse {
   }
 }
 
-export const AgentBlock: BlockConfig<AgentResponse> = {
-  type: 'agent',
-  name: 'Agent',
-  description: 'Build an agent',
-  longDescription: 'Create powerful AI agents with customizable instructions and MCP server connections.',
-  category: 'blocks',
-  bgColor: '#7F2FFF',
+export const AgentTemplateBlock: BlockConfig<AgentTemplateResponse> = {
+  type: 'agent_template',
+  name: 'Agent Template',
+  description: 'Create and configure an agent with MCP servers',
+  longDescription: 'Build a powerful agent with customizable instructions and MCP server connections.',
+  category: 'agents',
+  bgColor: '#5D3FD3',
   icon: AgentIcon,
   subBlocks: [
     {
@@ -44,9 +44,9 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     }
   ],
   tools: {
-    access: ['agent_create'],
+    access: ['agent_template_create'],
     config: {
-      tool: () => 'agent_create',
+      tool: () => 'agent_template_create',
     },
   },
   inputs: {
@@ -78,4 +78,4 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       },
     },
   },
-}
+} 

@@ -1,5 +1,6 @@
 // Import blocks
 import { AgentBlock } from './blocks/agent'
+import { AgentTemplateBlock } from './blocks/agent-template'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
@@ -35,6 +36,7 @@ import { BlockConfig } from './types'
 // Export blocks for ease of use
 export {
   AgentBlock,
+  AgentTemplateBlock,
   ApiBlock,
   FunctionBlock,
   VisionBlock,
@@ -70,6 +72,7 @@ export {
 // Registry of all block configurations, alphabetically sorted
 const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
+  agent_template: AgentTemplateBlock,
   api: ApiBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
@@ -105,7 +108,7 @@ const blocks: Record<string, BlockConfig> = {
 // Helper functions
 export const getBlock = (type: string): BlockConfig | undefined => blocks[type]
 
-export const getBlocksByCategory = (category: 'blocks' | 'tools'): BlockConfig[] =>
+export const getBlocksByCategory = (category: 'blocks' | 'tools' | 'agents'): BlockConfig[] =>
   Object.values(blocks).filter((block) => block.category === category)
 
 export const getAllBlockTypes = (): string[] => Object.keys(blocks)
