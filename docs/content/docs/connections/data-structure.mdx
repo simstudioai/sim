@@ -6,8 +6,6 @@ description: Understanding the data structure of different block outputs
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-## Connection Data Structure
-
 When you connect blocks, the output data structure from the source block determines what values are available in the destination block. Each block type produces a specific output structure that you can reference in downstream blocks.
 
 <Callout type="info">
@@ -29,7 +27,9 @@ Different block types produce different output structures. Here's what you can e
         "completion": 85,
         "total": 205
       },
-      "toolCalls": [...]
+      "toolCalls": [...],
+      "cost": [...],
+      "usage": [...]
     }
     ```
 
@@ -42,6 +42,8 @@ Different block types produce different output structures. Here's what you can e
       - **completion**: Number of tokens in the completion
       - **total**: Total tokens used
     - **toolCalls**: Array of tool calls made by the agent (if any)
+    - **cost**: Array of cost objects for each tool call (if any)
+    - **usage**: Token usage statistics for the entire response
   </Tab>
   <Tab>
     ```json

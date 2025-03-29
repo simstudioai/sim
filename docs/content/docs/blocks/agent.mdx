@@ -6,8 +6,17 @@ description: Create powerful AI agents using any LLM provider
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
 import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { ThemeImage } from '@/components/ui/theme-image'
 
 The Agent block is a fundamental component in Sim Studio that allows you to create powerful AI agents using various LLM providers. These agents can process inputs based on customizable system prompts and utilize integrated tools to enhance their capabilities.
+
+<ThemeImage 
+  lightSrc="/static/light/agent-light.png" 
+  darkSrc="/static/dark/agent-dark.png" 
+  alt="Agent Block" 
+  width={300} 
+  height={175} 
+/>
 
 <Callout type="info">
   Agent blocks serve as interfaces to Large Language Models, enabling your workflow to leverage state-of-the-art AI capabilities.
@@ -56,10 +65,11 @@ The user prompt or context is the specific input or question that the agent shou
 
 Choose from a variety of LLM providers:
 
-- OpenAI (GPT-3.5, GPT-4)
-- Anthropic (Claude)
-- Google (Gemini)
-- Mistral AI
+- OpenAI (GPT-4o, o1, o3-mini)
+- Anthropic (Claude 3.7 Sonnet)
+- Google (Gemini 2.5 Pro, Gemini 2.0 Flash)
+- Groq, Cerebras
+- Ollama Local Models
 - And more
 
 ### Temperature
@@ -86,13 +96,34 @@ Your API key for the selected LLM provider. This is securely stored and used for
 
 ### Tools
 
-Integrate specialized tools to enhance the agent's capabilities. Tools can be:
+Integrate specialized tools to enhance the agent's capabilities. You can add tools to your agent by:
 
-- Search engines for retrieving information
-- Document processors for working with files
-- Database connectors for data retrieval
-- API clients for external service integration
-- And many more
+1. Clicking the Tools section in the Agent configuration
+2. Selecting from the tools dropdown menu
+3. Choosing an existing tool or creating a new one
+
+<ThemeImage 
+  lightSrc="/static/light/tooldropdown-light.png" 
+  darkSrc="/static/dark/tooldropdown-dark.png" 
+  alt="Tools Dropdown" 
+  width={150} 
+  height={125} 
+/>
+
+Available tools include:
+
+- **Confluence**: Access and query Confluence knowledge bases
+- **Evaluator**: Use evaluation metrics to assess content
+- **GitHub**: Interact with GitHub repositories and issues
+- **Gmail**: Process and respond to emails
+- **Firecrawl**: Web search and content retrieval
+- And many, many more pre-built integrations
+
+You can also create custom tools to meet specific requirements for your agent's capabilities.
+
+<Callout type="info">
+  Tools significantly expand what your agent can do, allowing it to access external systems, retrieve information, and take actions beyond simple text generation.
+</Callout>
 
 ### Response Format
 
@@ -114,6 +145,8 @@ Define a structured format for the agent's response when needed, using JSON or o
       <li><strong>Model</strong>: The model used for generation</li>
       <li><strong>Tokens</strong>: Usage statistics (prompt, completion, total)</li>
       <li><strong>Tool Calls</strong>: Details of any tools used during processing</li>
+      <li><strong>Cost</strong>: Cost of the response</li>
+      <li><strong>Usage</strong>: Usage statistics (prompt, completion, total)</li>
     </ul>
   </Tab>
 </Tabs>
@@ -140,19 +173,7 @@ tools:
 
 ## Best Practices
 
-### Be specific in system prompts
-
-Clearly define the agent's role, tone, and limitations. The more specific your instructions are, the better the agent will be able to fulfill its intended purpose.
-
-### Choose the right temperature setting
-
-- Use lower temperature settings (0-0.3) when accuracy is important
-- Increase temperature (0.7-2.0) for more creative or varied responses
-
-### Combine with Evaluator blocks
-
-Use Evaluator blocks to assess agent responses and ensure quality. This allows you to create feedback loops and implement quality control measures.
-
-### Leverage tools effectively
-
-Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent.
+- **Be specific in system prompts**: Clearly define the agent's role, tone, and limitations. The more specific your instructions are, the better the agent will be able to fulfill its intended purpose.
+- **Choose the right temperature setting**: Use lower temperature settings (0-0.3) when accuracy is important, or increase temperature (0.7-2.0) for more creative or varied responses
+- **Combine with Evaluator blocks**: Use Evaluator blocks to assess agent responses and ensure quality. This allows you to create feedback loops and implement quality control measures.
+- **Leverage tools effectively**: Integrate tools that complement the agent's purpose and enhance its capabilities. Be selective about which tools you provide to avoid overwhelming the agent.
