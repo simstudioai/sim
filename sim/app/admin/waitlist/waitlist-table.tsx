@@ -346,50 +346,66 @@ export function WaitlistTable() {
       {/* Filter bar - similar to logs.tsx */}
       <div className="border-b px-6">
         <div className="flex flex-wrap items-center gap-2 py-3">
-          <FilterButton
-            active={status === 'all'}
-            onClick={() => handleStatusChange('all')}
-            icon={<UserIcon className="h-4 w-4" />}
-            label="All"
-            className={
-              status === 'all'
-                ? 'bg-blue-100 text-blue-900 hover:bg-blue-200 hover:text-blue-900'
-                : ''
-            }
-          />
-          <FilterButton
-            active={status === 'pending'}
-            onClick={() => handleStatusChange('pending')}
-            icon={<UserIcon className="h-4 w-4" />}
-            label="Pending"
-            className={
-              status === 'pending'
-                ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 hover:text-amber-900'
-                : ''
-            }
-          />
-          <FilterButton
-            active={status === 'approved'}
-            onClick={() => handleStatusChange('approved')}
-            icon={<UserCheckIcon className="h-4 w-4" />}
-            label="Approved"
-            className={
-              status === 'approved'
-                ? 'bg-green-100 text-green-900 hover:bg-green-200 hover:text-green-900'
-                : ''
-            }
-          />
-          <FilterButton
-            active={status === 'rejected'}
-            onClick={() => handleStatusChange('rejected')}
-            icon={<UserXIcon className="h-4 w-4" />}
-            label="Rejected"
-            className={
-              status === 'rejected'
-                ? 'bg-red-100 text-red-900 hover:bg-red-200 hover:text-red-900'
-                : ''
-            }
-          />
+          <div className="flex justify-between items-center">
+            {/* Filter buttons */}
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <FilterButton
+                active={status === 'all'}
+                onClick={() => handleStatusChange('all')}
+                icon={<UserIcon className="h-4 w-4" />}
+                label="All"
+                className={
+                  status === 'all'
+                    ? 'bg-blue-100 text-blue-900 hover:bg-blue-200 hover:text-blue-900'
+                    : ''
+                }
+              />
+              <FilterButton
+                active={status === 'pending'}
+                onClick={() => handleStatusChange('pending')}
+                icon={<UserIcon className="h-4 w-4" />}
+                label="Pending"
+                className={
+                  status === 'pending'
+                    ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 hover:text-amber-900'
+                    : ''
+                }
+              />
+              <FilterButton
+                active={status === 'approved'}
+                onClick={() => handleStatusChange('approved')}
+                icon={<UserCheckIcon className="h-4 w-4" />}
+                label="Approved"
+                className={
+                  status === 'approved'
+                    ? 'bg-green-100 text-green-900 hover:bg-green-200 hover:text-green-900'
+                    : ''
+                }
+              />
+              <FilterButton
+                active={status === 'rejected'}
+                onClick={() => handleStatusChange('rejected')}
+                icon={<UserXIcon className="h-4 w-4" />}
+                label="Rejected"
+                className={
+                  status === 'rejected'
+                    ? 'bg-red-100 text-red-900 hover:bg-red-200 hover:text-red-900'
+                    : ''
+                }
+              />
+              <FilterButton
+                active={status === 'signed_up'}
+                onClick={() => handleStatusChange('signed_up')}
+                icon={<CheckIcon className="h-4 w-4" />}
+                label="Signed Up"
+                className={
+                  status === 'signed_up'
+                    ? 'bg-purple-100 text-purple-900 hover:bg-purple-200 hover:text-purple-900'
+                    : ''
+                }
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -557,24 +573,45 @@ export function WaitlistTable() {
                       </TooltipProvider>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          entry.status === 'approved'
-                            ? 'default'
-                            : entry.status === 'rejected'
-                              ? 'destructive'
-                              : 'secondary'
-                        }
-                        className={
-                          entry.status === 'approved'
-                            ? 'bg-green-100 text-green-800 border border-green-200 hover:bg-green-200'
-                            : entry.status === 'rejected'
-                              ? 'bg-red-100 text-red-800 border border-red-200 hover:bg-red-200'
-                              : 'bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200'
-                        }
-                      >
-                        {entry.status}
-                      </Badge>
+                      {/* Status badge */}
+                      <div className="py-2.5 px-4">
+                        {entry.status === 'pending' && (
+                          <Badge
+                            variant="outline"
+                            className="bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200"
+                          >
+                            <InfoIcon className="mr-1 h-3 w-3" />
+                            Pending
+                          </Badge>
+                        )}
+                        {entry.status === 'approved' && (
+                          <Badge
+                            variant="outline"
+                            className="bg-green-100 text-green-800 border border-green-200 hover:bg-green-200"
+                          >
+                            <UserCheckIcon className="mr-1 h-3 w-3" />
+                            Approved
+                          </Badge>
+                        )}
+                        {entry.status === 'rejected' && (
+                          <Badge
+                            variant="outline"
+                            className="bg-red-100 text-red-800 border border-red-200 hover:bg-red-200"
+                          >
+                            <UserXIcon className="mr-1 h-3 w-3" />
+                            Rejected
+                          </Badge>
+                        )}
+                        {entry.status === 'signed_up' && (
+                          <Badge
+                            variant="outline"
+                            className="bg-purple-100 text-purple-800 border border-purple-200 hover:bg-purple-200"
+                          >
+                            <CheckIcon className="mr-1 h-3 w-3" />
+                            Signed Up
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end space-x-2">

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 // Define types inline since types.ts was deleted
-export type WaitlistStatus = 'pending' | 'approved' | 'rejected'
+export type WaitlistStatus = 'pending' | 'approved' | 'rejected' | 'signed_up'
 
 export interface WaitlistEntry {
   id: string

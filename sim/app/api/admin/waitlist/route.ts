@@ -9,7 +9,7 @@ const logger = new Logger('WaitlistAPI')
 const getQuerySchema = z.object({
   page: z.coerce.number().optional().default(1),
   limit: z.coerce.number().optional().default(20),
-  status: z.enum(['all', 'pending', 'approved', 'rejected']).optional(),
+  status: z.enum(['all', 'pending', 'approved', 'rejected', 'signed_up']).optional(),
   search: z.string().optional(),
 })
 
