@@ -1,22 +1,13 @@
 import { TwilioIcon } from '@/components/icons'
-import { ToolResponse } from '@/tools/types'
 import { BlockCategory, BlockConfig, BlockIcon } from '../types'
-
-interface TwilioSMSBlockOutput extends ToolResponse {
-  output: {
-    success: boolean
-    messageId?: string
-    status?: string
-    error?: string
-  }
-}
+import { TwilioSMSBlockOutput } from '@/tools/twilio/types'
 
 export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   type: 'twilio_sms',
   name: 'Twilio SMS',
   description: 'Send SMS messages via Twilio',
   longDescription: 
-    'Send text messages to single or multiple recipients using the Twilio API. Supports message templates and delivery status tracking.',
+    'Send text messages to single or multiple recipients using the Twilio API.',
   category: 'tools',
   bgColor: '#F22F46', // Twilio brand color
   icon: TwilioIcon,
@@ -52,16 +43,16 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
     },
     {
       id: 'fromNumber',
-      title: 'From Phone Number',
+      title: 'From Twilio Phone Number',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Your Twilio phone number (with country code)',
+      placeholder: 'e.g. +1234567890',
     }
   ],
   tools: {
     access: ['twilio_send_sms'],
     config: {
-      tool: () => 'twilio_send_sms',
+      tool: () => 'twilio_send_sms'
     },
   },
   inputs: {
@@ -75,9 +66,9 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
     response: {
       type: {
         success: 'boolean',
-        messageId: 'any',
-        status: 'any',
-        error: 'any'
+        messageId: 'string',
+        status: 'string',
+        error: 'string'
       },
     },
   },

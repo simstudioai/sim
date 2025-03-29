@@ -63,6 +63,9 @@ export interface ToolConfig<P = any, R = any> {
   // Response handling
   transformResponse?: (response: Response, params?: P) => Promise<R>
   transformError?: (error: any) => string | Promise<R>
+
+  // Add the execute property to the ToolConfig interface
+  execute?: (params: P) => Promise<ToolResponse>
 }
 
 export interface TableRow {
