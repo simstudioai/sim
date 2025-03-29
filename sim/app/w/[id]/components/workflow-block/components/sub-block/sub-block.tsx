@@ -13,6 +13,7 @@ import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
+import { InputFormat } from './components/input-format'
 import { LongInput } from './components/long-input'
 import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
@@ -161,8 +162,10 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         return <FileSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       case 'folder-selector':
         return <FolderSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+      case 'input-format':
+        return <InputFormat blockId={blockId} subBlockId={config.id} />
       default:
-        return null
+        return <div>Unknown input type: {config.type}</div>
     }
   }
 

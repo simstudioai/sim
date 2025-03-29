@@ -115,9 +115,21 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         return prefix ? [prefix] : []
       }
 
-      // Special handling for starter block.
-      // TODO: In the future, we will support response formats and required input types. For now, we just take the input altogether.
+      // Special handling for starter block with input format
       if (isStarterBlock && prefix === 'response') {
+        try {
+          // Check if there's an input format defined
+          const inputFormatValue = useSubBlockStore
+            .getState()
+            .getValue(activeSourceBlockId || blockId, 'inputFormat')
+          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
+            // Return fields from input format
+            return inputFormatValue.map((field: any) => `response.input.${field.name}`)
+          }
+        } catch (e) {
+          logger.error('Error parsing input format:', { e })
+        }
+
         return ['response.input']
       }
 

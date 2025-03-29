@@ -43,6 +43,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -211,6 +212,50 @@ export function ControlBar() {
   const handleDeploy = async () => {
     if (!activeWorkflowId) return
 
+    // Check if the workflow has inputFormat defined
+    let inputFormatExample = ''
+    try {
+      // Find the starter block in the workflow
+      const blocks = Object.values(useWorkflowStore.getState().blocks)
+      const starterBlock = blocks.find((block) => block.type === 'starter')
+
+      if (starterBlock) {
+        const inputFormat = useSubBlockStore.getState().getValue(starterBlock.id, 'inputFormat')
+
+        // If input format is defined, create an example
+        if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
+          const exampleData: Record<string, any> = {}
+
+          // Create example values for each field
+          inputFormat.forEach((field) => {
+            if (field.name) {
+              switch (field.type) {
+                case 'string':
+                  exampleData[field.name] = 'example'
+                  break
+                case 'number':
+                  exampleData[field.name] = 42
+                  break
+                case 'boolean':
+                  exampleData[field.name] = true
+                  break
+                case 'object':
+                  exampleData[field.name] = { key: 'value' }
+                  break
+                case 'array':
+                  exampleData[field.name] = [1, 2, 3]
+                  break
+              }
+            }
+          })
+
+          inputFormatExample = ` -d '${JSON.stringify(exampleData)}'`
+        }
+      }
+    } catch (error) {
+      console.error('Error generating input format example:', error)
+    }
+
     // If already deployed, show the API info
     if (isDeployed) {
       // Try to find an existing API notification
@@ -249,7 +294,7 @@ export function ControlBar() {
             {
               label: 'Example curl command',
               content: apiKey
-                ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`
+                ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
                 : `You need an API key to call this endpoint. Visit your account settings to create one.`,
             },
           ],
@@ -292,7 +337,7 @@ export function ControlBar() {
           {
             label: 'Example curl command',
             content: apiKey
-              ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`
+              ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
               : `You need an API key to call this endpoint. Visit your account settings to create one.`,
           },
         ],
