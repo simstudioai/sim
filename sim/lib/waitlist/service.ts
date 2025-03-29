@@ -11,7 +11,7 @@ import { db } from '@/db'
 import { waitlist } from '@/db/schema'
 
 // Define types for better type safety
-export type WaitlistStatus = 'pending' | 'approved' | 'rejected'
+export type WaitlistStatus = 'pending' | 'approved' | 'rejected' | 'signed_up'
 
 export interface WaitlistEntry {
   id: string
@@ -308,5 +308,48 @@ export async function verifyWaitlistToken(
   } catch (error) {
     console.error('Error verifying waitlist token:', error)
     return { valid: false }
+  }
+}
+
+// Mark a user as signed up after they create an account
+export async function markWaitlistUserAsSignedUp(
+  email: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { user, normalizedEmail } = await findUserByEmail(email)
+
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found in waitlist',
+      }
+    }
+
+    if (user.status !== 'approved') {
+      return {
+        success: false,
+        message: 'User is not in approved status',
+      }
+    }
+
+    // Update status to signed_up
+    await db
+      .update(waitlist)
+      .set({
+        status: 'signed_up',
+        updatedAt: new Date(),
+      })
+      .where(eq(waitlist.email, normalizedEmail))
+
+    return {
+      success: true,
+      message: 'User marked as signed up',
+    }
+  } catch (error) {
+    console.error('Error marking waitlist user as signed up:', error)
+    return {
+      success: false,
+      message: 'An error occurred while updating user status',
+    }
   }
 }

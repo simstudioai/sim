@@ -56,6 +56,7 @@ function SignupFormContent({
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const [email, setEmail] = useState('')
+  const [waitlistToken, setWaitlistToken] = useState('')
 
   useEffect(() => {
     setMounted(true)
@@ -63,7 +64,37 @@ function SignupFormContent({
     if (emailParam) {
       setEmail(emailParam)
     }
+
+    // Check for waitlist token
+    const tokenParam = searchParams.get('token')
+    if (tokenParam) {
+      setWaitlistToken(tokenParam)
+      // Verify the token and get the email
+      verifyWaitlistToken(tokenParam)
+    }
   }, [searchParams])
+
+  // Verify waitlist token and pre-fill email
+  const verifyWaitlistToken = async (token: string) => {
+    try {
+      const response = await fetch('/api/auth/verify-waitlist-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.email) {
+        setEmail(data.email)
+      }
+    } catch (error) {
+      console.error('Error verifying waitlist token:', error)
+      // Continue regardless of errors - we don't want to block sign up
+    }
+  }
 
   // Validate password and return array of error messages
   const validatePassword = (passwordValue: string): string[] => {
