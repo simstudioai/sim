@@ -6,6 +6,7 @@ import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
 import { groqProvider } from './groq'
 import { openaiProvider } from './openai'
+import { ollamaProvider } from './ollama'
 import { getModelPricing } from './pricing'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
@@ -40,7 +41,7 @@ export const providers: Record<
   deepseek: {
     ...deepseekProvider,
     models: ['deepseek-v3', 'deepseek-r1'],
-    modelPatterns: [/^deepseek/],
+    modelPatterns: [],
   },
   xai: {
     ...xAIProvider,
@@ -61,26 +62,60 @@ export const providers: Record<
     ],
     modelPatterns: [/^groq/],
   },
+  ollama: {
+    ...ollamaProvider,
+    models: [],
+    modelPatterns: [],
+  },
 }
 
-/**
- * Direct mapping from model names to provider IDs
- * Automatically generated from the providers configuration
- */
-export const MODEL_PROVIDERS: Record<string, ProviderId> = Object.entries(providers).reduce(
-  (map, [providerId, config]) => {
-    config.models.forEach((model) => {
-      map[model.toLowerCase()] = providerId as ProviderId
+// Initialize all providers that have initialize method
+Object.entries(providers).forEach(([id, provider]) => {
+  if (provider.initialize) {
+    provider.initialize().catch(error => {
+      logger.error(`Failed to initialize ${id} provider`, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
     })
-    return map
-  },
-  {} as Record<string, ProviderId>
-)
+  }
+})
+
+// Function to update Ollama provider models
+export function updateOllamaProviderModels(models: string[]): void {
+  providers.ollama.models = models
+  logger.info('Updated Ollama provider models', { models })
+}
+
+export function getBaseModelProviders(): Record<string, ProviderId> {
+  return Object.entries(providers)
+    .filter(([providerId]) => providerId !== 'ollama')
+    .reduce(
+      (map, [providerId, config]) => {
+        config.models.forEach((model) => {
+          map[model.toLowerCase()] = providerId as ProviderId
+        })
+        return map
+      },
+      {} as Record<string, ProviderId>
+    )
+}
+
+export function getAllModelProviders(): Record<string, ProviderId> {
+  return Object.entries(providers).reduce(
+    (map, [providerId, config]) => {
+      config.models.forEach((model) => {
+        map[model.toLowerCase()] = providerId as ProviderId
+      })
+      return map
+    },
+    {} as Record<string, ProviderId>
+  )
+}
 
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
-  if (normalizedModel in MODEL_PROVIDERS) {
-    return MODEL_PROVIDERS[normalizedModel]
+  if (normalizedModel in getAllModelProviders()) {
+    return getAllModelProviders()[normalizedModel]
   }
 
   for (const [providerId, config] of Object.entries(providers)) {
@@ -93,8 +128,8 @@ export function getProviderFromModel(model: string): ProviderId {
     }
   }
 
-  logger.warn(`No provider found for model: ${model}, defaulting to deepseek`)
-  return 'deepseek'
+  logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
+  return 'ollama'
 }
 
 export function getProvider(id: string): ProviderConfig | undefined {

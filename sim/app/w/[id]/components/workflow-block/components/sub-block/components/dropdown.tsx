@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   Select,
   SelectContent,
@@ -9,7 +9,7 @@ import {
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
-  options: Array<string | { label: string; id: string }>
+  options: Array<string | { label: string; id: string }> | (() => Array<string | { label: string; id: string }>)
   defaultValue?: string
   blockId: string
   subBlockId: string
@@ -18,14 +18,19 @@ interface DropdownProps {
 export function Dropdown({ options, defaultValue, blockId, subBlockId }: DropdownProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId, true)
 
+  // Evaluate options if it's a function
+  const evaluatedOptions = useMemo(() => {
+    return typeof options === 'function' ? options() : options
+  }, [options])
+
   // Set the value to the first option if it's not set
   useEffect(() => {
-    if (!value && options.length > 0) {
-      const firstOption = options[0]
+    if (!value && evaluatedOptions.length > 0) {
+      const firstOption = evaluatedOptions[0]
       const firstValue = typeof firstOption === 'string' ? firstOption : firstOption.id
       setValue(firstValue)
     }
-  }, [value, options, defaultValue, setValue])
+  }, [value, evaluatedOptions, defaultValue, setValue])
 
   const getOptionValue = (option: string | { label: string; id: string }) => {
     return typeof option === 'string' ? option : option.id
@@ -38,14 +43,14 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
   return (
     <Select
       value={value as string | undefined}
-      defaultValue={defaultValue ?? getOptionValue(options[0])}
+      defaultValue={defaultValue ?? getOptionValue(evaluatedOptions[0])}
       onValueChange={(value) => setValue(value)}
     >
       <SelectTrigger className="text-left">
         <SelectValue placeholder="Select an option" />
       </SelectTrigger>
       <SelectContent className="max-h-48">
-        {options.map((option) => (
+        {evaluatedOptions.map((option) => (
           <SelectItem key={getOptionValue(option)} value={getOptionValue(option)}>
             {getOptionLabel(option)}
           </SelectItem>
