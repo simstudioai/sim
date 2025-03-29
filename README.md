@@ -21,12 +21,6 @@
 
 ## How to Self-Host
 
-### Step 1: Fork the Repository
-
-**Important:** Start by forking this repository by clicking the "Fork" button at the top right of this page. This creates your own copy of the repository under your GitHub account.
-
-> **Note:** Ensure you have an editor, git, npm, and Docker (if you're not setting up manually) installed on your system.
-
 There are several ways to self-host Sim Studio:
 
 ### Option 1: Docker Environment (Recommended)
