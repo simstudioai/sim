@@ -39,9 +39,11 @@ export const openaiProvider: ProviderConfig = {
     })
 
     // Start with an empty array for all messages
-    const allMessages = []
+    // const allMessages = []
+    const allMessages = request.messages || []
 
     // Add system prompt if present
+    /*
     if (request.systemPrompt) {
       allMessages.push({
         role: 'system',
@@ -56,11 +58,25 @@ export const openaiProvider: ProviderConfig = {
         content: request.context,
       })
     }
+      */
+    if (!Array.isArray(allMessages) || allMessages.length === 0) {
+      logger.error('Invalid messages array in OpenAI request', {
+        messages: allMessages,
+      })
+      throw new Error('Invalid messages array: Expected a non-empty array of messages')
+    }
 
+    /*
     // Add remaining messages
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+      */
+    // log the nessages being sent
+    logger.info('Sending messages to OpenAI', {
+      messageCount: allMessages.length,
+      roles: allMessages.map(m => m.role),
+    })
 
     // Transform tools to OpenAI format if provided
     const tools = request.tools?.length

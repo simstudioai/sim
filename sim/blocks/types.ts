@@ -4,7 +4,7 @@ import { ToolResponse } from '@/tools/types'
 
 // Basic types
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
-export type ParamType = 'string' | 'number' | 'boolean' | 'json'
+export type ParamType = 'string' | 'number' | 'boolean' | 'json' | 'array'
 export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'any'
 
 // Block classification
@@ -12,6 +12,7 @@ export type BlockCategory = 'blocks' | 'tools'
 
 // SubBlock types
 export type SubBlockType =
+  | 'chat-history' // Chat history // just added it
   | 'short-input' // Single line input
   | 'long-input' // Multi-line input
   | 'dropdown' // Select menu
