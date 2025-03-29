@@ -39,8 +39,12 @@ cd sim
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
 cp sim/.env.example sim/.env
 
-# Start the Docker environment
-docker compose up -d
+# Start Sim Studio using the provided script
+docker compose up -d --build
+
+or
+
+./start_simstudio_docker.sh
 ```
 
 After running these commands:
@@ -65,6 +69,36 @@ After running these commands:
    # Rebuild and restart (after code changes)
    docker compose up -d --build
    ```
+
+#### Working with Local Models
+
+To use local models with Sim Studio, follow these steps:
+
+1. **Pull Local Models**
+
+   ```bash
+   # Run the ollama_docker.sh script to pull the required models
+   ./sim/scripts/ollama_docker.sh pull <model_name>
+   ```
+
+2. **Start Sim Studio with Local Models**
+
+   ```bash
+   #Start Sim Studio with local model support
+   ./start_simstudio_docker.sh --local
+
+   # or
+
+   # Start Sim Studio with local model support if you have nvidia GPU
+   docker compose up --profile local-gpu -d --build
+
+   # or
+
+   # Start Sim Studio with local model support if you don't have nvidia GPU
+   docker compose up --profile local-cpu -d --build
+   ```
+
+The application will now be configured to use your local models. You can access it at [http://localhost:3000/w/](http://localhost:3000/w/).
 
 ### Option 2: Dev Containers
 

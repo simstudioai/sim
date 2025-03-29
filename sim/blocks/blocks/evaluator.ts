@@ -1,9 +1,10 @@
 import { ChartBarIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ProviderId } from '@/providers/types'
-import { MODEL_PROVIDERS } from '@/providers/utils'
+import { getBaseModelProviders, getAllModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig, ParamType } from '../types'
+import { useOllamaStore } from '@/stores/ollama/store'
 
 const logger = createLogger('EvaluatorBlock')
 
@@ -146,7 +147,11 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_PROVIDERS),
+      options: () => {
+        const ollamaModels = useOllamaStore.getState().models
+        const baseModels = Object.keys(getBaseModelProviders())
+        return [...baseModels, ...ollamaModels]
+      },
     },
     {
       id: 'apiKey',
@@ -218,7 +223,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = MODEL_PROVIDERS[model as ProviderId]
+        const tool = getAllModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

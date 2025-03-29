@@ -1,6 +1,6 @@
 import { TranslateIcon } from '@/components/icons'
 import { ProviderId } from '@/providers/types'
-import { MODEL_PROVIDERS } from '@/providers/utils'
+import { getBaseModelProviders } from '@/providers/utils'
 import { BlockConfig } from '../types'
 
 const getTranslationPrompt = (
@@ -43,7 +43,7 @@ export const TranslateBlock: BlockConfig = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_PROVIDERS),
+      options: Object.keys(getBaseModelProviders()),
     },
     {
       id: 'apiKey',
@@ -75,7 +75,7 @@ export const TranslateBlock: BlockConfig = {
           throw new Error('No model selected')
         }
 
-        const tool = MODEL_PROVIDERS[model as ProviderId]
+        const tool = getBaseModelProviders()[model as ProviderId]
 
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)

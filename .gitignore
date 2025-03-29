@@ -63,3 +63,6 @@ next-env.d.ts
 docs/.source
 docs/.contentlayer
 docs/.content-collections
+
+# database instantiation
+**/postgres_data/

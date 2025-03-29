@@ -6,6 +6,7 @@ export type ProviderId =
   | 'xai'
   | 'cerebras'
   | 'groq'
+  | 'ollama'
 
 /**
  * Model pricing information per million tokens
@@ -40,6 +41,7 @@ export interface ProviderConfig {
   version: string
   models: string[]
   defaultModel: string
+  initialize?: () => Promise<void>
   executeRequest?: (request: ProviderRequest) => Promise<ProviderResponse>
 }
 

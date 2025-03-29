@@ -35,7 +35,6 @@ export async function executeProviderRequest(
   if (!provider.executeRequest) {
     throw new Error(`Provider ${providerId} does not implement executeRequest`)
   }
-
   const sanitizedRequest = sanitizeRequest(request)
 
   // If responseFormat is provided, modify the system prompt to enforce structured output

@@ -84,7 +84,7 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
-  options?: string[] | { label: string; id: string }[]
+  options?: string[] | { label: string; id: string }[] | (() => string[] | { label: string; id: string }[])
   min?: number
   max?: number
   columns?: string[]
