@@ -27,14 +27,12 @@ export function LoopLabel({ id, data }: NodeProps) {
         return 'For loop'
       case 'forEach':
         return 'For each'
-      case 'while':
-        return 'While'
       default:
         return 'Loop'
     }
   }
 
-  const handleLoopTypeChange = (type: 'for' | 'forEach' | 'while') => {
+  const handleLoopTypeChange = (type: 'for' | 'forEach') => {
     updateLoopType(loopId, type)
     setOpen(false)
   }
@@ -73,15 +71,6 @@ export function LoopLabel({ id, data }: NodeProps) {
             onClick={() => handleLoopTypeChange('forEach')}
           >
             <span>For each</span>
-          </div>
-          <div
-            className={cn(
-              'px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors duration-150 flex items-center',
-              loopType === 'while' && 'bg-accent'
-            )}
-            onClick={() => handleLoopTypeChange('while')}
-          >
-            <span>While</span>
           </div>
         </div>
       </PopoverContent>

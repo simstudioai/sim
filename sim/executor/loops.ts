@@ -97,7 +97,7 @@ export class LoopManager {
           }
         }
       } else {
-        // Original logic for 'for' and 'while' loops
+        // Original logic for 'for' loops
         // Get current iteration count
         const currentIteration = context.loopIterations.get(loopId) || 0
 

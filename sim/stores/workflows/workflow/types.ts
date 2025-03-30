@@ -29,7 +29,7 @@ export interface Loop {
   id: string
   nodes: string[]
   iterations: number
-  loopType: 'for' | 'forEach' | 'while'
+  loopType: 'for' | 'forEach'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
 }
 

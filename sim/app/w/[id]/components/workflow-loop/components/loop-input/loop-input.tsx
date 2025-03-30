@@ -97,8 +97,6 @@ export function LoopInput({ id }: NodeProps) {
         return `Iterations: ${iterations}`
       case 'forEach':
         return 'Items'
-      case 'while':
-        return 'Stopping condition'
       default:
         return `Iterations: ${iterations}`
     }
@@ -108,8 +106,6 @@ export function LoopInput({ id }: NodeProps) {
     switch (loopType) {
       case 'forEach':
         return "['item1', 'item2', 'item3']"
-      case 'while':
-        return 'condition === false'
       default:
         return ''
     }
@@ -137,11 +133,7 @@ export function LoopInput({ id }: NodeProps) {
       >
         <div className="space-y-2">
           <div className="text-xs font-medium text-muted-foreground">
-            {loopType === 'for'
-              ? 'Loop Iterations'
-              : loopType === 'forEach'
-                ? 'Collection Items'
-                : 'Stopping Condition'}
+            {loopType === 'for' ? 'Loop Iterations' : 'Collection Items'}
           </div>
 
           {loopType === 'for' ? (
@@ -157,7 +149,7 @@ export function LoopInput({ id }: NodeProps) {
               />
             </div>
           ) : (
-            // Code editor for 'forEach' and 'while' loops
+            // Code editor for 'forEach' loops
             <div
               className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input"
               ref={editorRef}
@@ -185,9 +177,7 @@ export function LoopInput({ id }: NodeProps) {
           <div className="text-[10px] text-muted-foreground">
             {loopType === 'for'
               ? 'Enter a number between 1 and 50'
-              : loopType === 'forEach'
-                ? 'Define the collection to iterate over'
-                : 'Define the condition to continue looping'}
+              : 'Define the collection to iterate over'}
           </div>
         </div>
       </PopoverContent>
