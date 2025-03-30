@@ -451,10 +451,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                     let bgColor = '#8857E6' // Purple for loop variables
 
                     if (loopProperty === 'currentItem') {
-                      tagIcon = 'I'
+                      tagIcon = 'i'
                       tagDescription = 'Current item'
                     } else if (loopProperty === 'items') {
-                      tagIcon = '[]'
+                      tagIcon = 'I'
                       tagDescription = 'All items'
                     } else if (loopProperty === 'index') {
                       tagIcon = '#'
