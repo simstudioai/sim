@@ -8,6 +8,7 @@ import { NodeProps } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -27,6 +28,11 @@ export function LoopInput({ id }: NodeProps) {
   const [editorValue, setEditorValue] = useState('')
   const [open, setOpen] = useState(false)
   const editorRef = useRef<HTMLDivElement | null>(null)
+
+  // State for tag dropdown
+  const [showTags, setShowTags] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState(0)
+  const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
 
   // Initialize editor value from the store
   useEffect(() => {
@@ -79,9 +85,26 @@ export function LoopInput({ id }: NodeProps) {
     }
   }
 
+  // Handle tag selection
+  const handleTagSelect = (newValue: string) => {
+    setEditorValue(newValue)
+    updateLoopForEachItems(loopId, newValue)
+    setShowTags(false)
+  }
+
   const handleEditorChange = (value: string) => {
     // Always set the editor value to exactly what the user typed
     setEditorValue(value)
+
+    // Get current cursor position (approximation for editor)
+    const textArea = editorRef.current?.querySelector('textarea')
+    if (textArea) {
+      setCursorPosition(textArea.selectionStart || 0)
+
+      // Check for tag trigger
+      const tagTrigger = checkTagTrigger(value, textArea.selectionStart || 0)
+      setShowTags(tagTrigger.show)
+    }
 
     // Save the items to the store for forEach loops
     if (loopType === 'forEach') {
@@ -89,6 +112,52 @@ export function LoopInput({ id }: NodeProps) {
       updateLoopForEachItems(loopId, value)
     }
   }
+
+  // Handle editor focus
+  const handleEditorFocus = () => {
+    // Reset tag dropdown state
+    setShowTags(false)
+    setActiveSourceBlockId(null)
+  }
+
+  // Handle editor blur
+  const handleEditorBlur = () => {
+    // We don't immediately hide the tag dropdown to allow clicking on it
+    setTimeout(() => {
+      if (!document.activeElement?.closest('.tag-dropdown')) {
+        setShowTags(false)
+      }
+    }, 100)
+  }
+
+  // Add and remove keyboard event listener for editor
+  useEffect(() => {
+    const textArea = editorRef.current?.querySelector('textarea')
+    if (!textArea) return
+
+    const handleKeyboardEvent = (e: KeyboardEvent) => {
+      // Update cursor position when key is pressed in editor
+      setCursorPosition(textArea.selectionStart || 0)
+
+      // Check for tag trigger
+      const tagTrigger = checkTagTrigger(editorValue, textArea.selectionStart || 0)
+
+      if (e.key === 'Escape') {
+        setShowTags(false)
+      } else if (e.key === '<') {
+        // Show tags dropdown when '<' is typed
+        setShowTags(true)
+      } else if (e.key === '>') {
+        // Hide tags dropdown when '>' is typed
+        setShowTags(false)
+      } else {
+        setShowTags(tagTrigger.show)
+      }
+    }
+
+    textArea.addEventListener('keyup', handleKeyboardEvent)
+    return () => textArea.removeEventListener('keyup', handleKeyboardEvent)
+  }, [editorValue, editorRef])
 
   // Determine label based on loop type
   const getLabel = () => {
@@ -149,27 +218,45 @@ export function LoopInput({ id }: NodeProps) {
               />
             </div>
           ) : (
-            // Code editor for 'forEach' loops
-            <div
-              className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input"
-              ref={editorRef}
-            >
-              {editorValue === '' && (
-                <div className="absolute top-[8.5px] left-3 text-muted-foreground/50 pointer-events-none select-none">
-                  {getPlaceholder()}
-                </div>
-              )}
-              <Editor
-                value={editorValue}
-                onValueChange={handleEditorChange}
-                highlight={(code) => highlight(code, languages.javascript, 'javascript')}
-                padding={0}
-                style={{
-                  fontFamily: 'monospace',
-                  lineHeight: '21px',
+            // Code editor for 'forEach' loops with tag dropdown support
+            <div className="relative">
+              <div
+                className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input"
+                ref={editorRef}
+              >
+                {editorValue === '' && (
+                  <div className="absolute top-[8.5px] left-3 text-muted-foreground/50 pointer-events-none select-none">
+                    {getPlaceholder()}
+                  </div>
+                )}
+                <Editor
+                  value={editorValue}
+                  onValueChange={handleEditorChange}
+                  highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                  padding={0}
+                  style={{
+                    fontFamily: 'monospace',
+                    lineHeight: '21px',
+                  }}
+                  className="focus:outline-none w-full"
+                  textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap"
+                  onFocus={handleEditorFocus}
+                  onBlur={handleEditorBlur}
+                />
+              </div>
+              <TagDropdown
+                visible={showTags}
+                onSelect={handleTagSelect}
+                blockId={id}
+                activeSourceBlockId={activeSourceBlockId}
+                inputValue={editorValue}
+                cursorPosition={cursorPosition}
+                onClose={() => {
+                  setShowTags(false)
+                  setActiveSourceBlockId(null)
                 }}
-                className="focus:outline-none w-full"
-                textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap"
+                className="w-[calc(100%)] tag-dropdown"
+                style={{ top: 'calc(100% + 4px)' }}
               />
             </div>
           )}

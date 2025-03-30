@@ -195,7 +195,26 @@ export class InputResolver {
             
             // Get the current item directly from the items array at the current index
             if (Array.isArray(items) && index >= 0 && index < items.length) {
-              const currentItem = items[index];
+              let currentItem = items[index];
+              
+              // Special handling for variable references stored as strings in loop items
+              if (typeof currentItem === 'string' && currentItem.startsWith('<') && currentItem.endsWith('>') && 
+                  currentItem.includes('variable.')) {
+                // This is a variable reference stored as a string in the array
+                // Try to resolve it using the same variable resolution logic
+                const resolvedVar = this.resolveVariableReferences(currentItem);
+                
+                // If it was resolved (changed), update the current item
+                if (resolvedVar !== currentItem) {
+                  currentItem = resolvedVar;
+                  
+                  // Try to convert to appropriate primitive type if possible
+                  if (resolvedVar === 'true') currentItem = true;
+                  else if (resolvedVar === 'false') currentItem = false;
+                  else if (resolvedVar === 'null') currentItem = null;
+                  else if (!isNaN(Number(resolvedVar))) currentItem = Number(resolvedVar);
+                }
+              }
               
               // Format the value based on type
               if (currentItem !== undefined) {
