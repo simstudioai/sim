@@ -43,4 +43,6 @@ export interface SerializedLoop {
   id: string
   nodes: string[]
   iterations: number
+  loopType?: 'for' | 'forEach' | 'while'
+  forEachItems?: any[] | Record<string, any> | string // Items to iterate over or expression to evaluate
 }

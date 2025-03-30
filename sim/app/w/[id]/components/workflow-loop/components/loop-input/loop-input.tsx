@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -20,12 +20,30 @@ export function LoopInput({ id }: NodeProps) {
   const iterations = loop?.iterations ?? 5
   const loopType = loop?.loopType || 'for'
   const updateLoopIterations = useWorkflowStore((state) => state.updateLoopIterations)
+  const updateLoopForEachItems = useWorkflowStore((state) => state.updateLoopForEachItems)
 
   // Local state for input values
   const [inputValue, setInputValue] = useState(iterations.toString())
-  const [editorValue, setEditorValue] = useState('// Add your condition here')
+  const [editorValue, setEditorValue] = useState('')
   const [open, setOpen] = useState(false)
   const editorRef = useRef<HTMLDivElement | null>(null)
+
+  // Initialize editor value from the store
+  useEffect(() => {
+    if (loopType === 'forEach' && loop?.forEachItems) {
+      // Handle different types of forEachItems
+      if (typeof loop.forEachItems === 'string') {
+        // Preserve the string exactly as stored
+        setEditorValue(loop.forEachItems)
+      } else if (Array.isArray(loop.forEachItems) || typeof loop.forEachItems === 'object') {
+        // For new objects/arrays from the store, use default formatting
+        // This only happens for data loaded from DB that wasn't originally user-formatted
+        setEditorValue(JSON.stringify(loop.forEachItems))
+      }
+    } else if (loopType === 'forEach') {
+      setEditorValue('')
+    }
+  }, [loopType, loop?.forEachItems])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
@@ -62,8 +80,14 @@ export function LoopInput({ id }: NodeProps) {
   }
 
   const handleEditorChange = (value: string) => {
+    // Always set the editor value to exactly what the user typed
     setEditorValue(value)
-    // In a real implementation, save this to the store
+
+    // Save the items to the store for forEach loops
+    if (loopType === 'forEach') {
+      // Pass the exact string to preserve formatting
+      updateLoopForEachItems(loopId, value)
+    }
   }
 
   // Determine label based on loop type
@@ -83,9 +107,9 @@ export function LoopInput({ id }: NodeProps) {
   const getPlaceholder = () => {
     switch (loopType) {
       case 'forEach':
-        return '// items.length > 0'
+        return "['item1', 'item2', 'item3']"
       case 'while':
-        return '// condition === true'
+        return 'condition === false'
       default:
         return ''
     }

@@ -192,7 +192,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 id: loopId,
                 nodes: path,
                 iterations: 5,
-                loopType: 'for',
+                loopType: 'for', // Default to 'for' loop
+                forEachItems: ''
               }
               processedPaths.add(canonicalPath)
             }
@@ -231,7 +232,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 id: loopId,
                 nodes: path,
                 iterations: 5,
-                loopType: 'for',
+                loopType: 'for', // Default to 'for' loop
+                forEachItems: ''
               }
               processedPaths.add(canonicalPath)
             }
@@ -556,6 +558,45 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         pushHistory(set, get, newState, 'Update loop type')
+        get().updateLastSaved()
+        workflowSync.sync()
+      },
+
+      updateLoopForEachItems: (loopId: string, items: string) => {
+        let parsedItems: any = items;
+        
+        // Try to parse the string as JSON if it looks like JSON
+        if (typeof items === 'string' && 
+            ((items.trim().startsWith('[') && items.trim().endsWith(']')) || 
+             (items.trim().startsWith('{') && items.trim().endsWith('}')))
+        ) {
+          try {
+            // First try to parse to validate it's valid JSON
+            JSON.parse(items);
+            
+            // If parsing succeeds, store the original string to preserve formatting
+            // This way we keep the user's exact formatting (spacing, line breaks, etc.)
+            parsedItems = items;
+          } catch (e) {
+            // If parsing fails, keep it as a string
+            parsedItems = items;
+          }
+        }
+        
+        const newState = {
+          blocks: { ...get().blocks },
+          edges: [...get().edges],
+          loops: {
+            ...get().loops,
+            [loopId]: {
+              ...get().loops[loopId],
+              forEachItems: parsedItems,
+            },
+          },
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, 'Update forEach items')
         get().updateLastSaved()
         workflowSync.sync()
       },

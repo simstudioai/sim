@@ -30,6 +30,7 @@ export interface Loop {
   nodes: string[]
   iterations: number
   loopType: 'for' | 'forEach' | 'while'
+  forEachItems?: any[] | Record<string, any> | string // Items or expression
 }
 
 export interface WorkflowState {
@@ -59,6 +60,7 @@ export interface WorkflowActions {
   updateBlockHeight: (id: string, height: number) => void
   updateLoopIterations: (loopId: string, iterations: number) => void
   updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
+  updateLoopForEachItems: (loopId: string, items: string) => void
   triggerUpdate: () => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setPublishStatus: (isPublished: boolean) => void
