@@ -1,4 +1,5 @@
 import { Card } from '@/components/ui/card'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 
 interface ConnectionBlocksProps {
@@ -69,6 +70,42 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     }))
   }
 
+  // Extract fields from starter block input format
+  const extractFieldsFromStarterInput = (connection: ConnectedBlock): ResponseField[] => {
+    // Only process for starter blocks
+    if (connection.type !== 'starter') return []
+
+    try {
+      // Get input format from subblock store
+      const inputFormat = useSubBlockStore.getState().getValue(connection.id, 'inputFormat')
+
+      // Make sure we have a valid input format
+      if (!inputFormat || !Array.isArray(inputFormat) || inputFormat.length === 0) {
+        return [{ name: 'input', type: 'any' }]
+      }
+
+      // Check if any fields have been configured with names
+      const hasConfiguredFields = inputFormat.some(
+        (field: any) => field.name && field.name.trim() !== ''
+      )
+
+      // If no fields have been configured, return the default input field
+      if (!hasConfiguredFields) {
+        return [{ name: 'input', type: 'any' }]
+      }
+
+      // Map input fields to response fields
+      return inputFormat.map((field: any) => ({
+        name: `input.${field.name}`,
+        type: field.type || 'string',
+        description: field.description,
+      }))
+    } catch (e) {
+      console.error('Error extracting fields from starter input format:', e)
+      return [{ name: 'input', type: 'any' }]
+    }
+  }
+
   // Deduplicate connections by ID
   const connectionMap = incomingConnections.reduce(
     (acc, connection) => {
@@ -112,6 +149,20 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
   return (
     <div className="absolute right-full pr-5 top-0 space-y-2 flex flex-col items-end max-h-[400px] overflow-y-auto">
       {sortedConnections.map((connection, index) => {
+        // Special handling for starter blocks with input format
+        if (connection.type === 'starter') {
+          const starterFields = extractFieldsFromStarterInput(connection)
+
+          if (starterFields.length > 0) {
+            return (
+              <div key={connection.id} className="space-y-2">
+                {starterFields.map((field) => renderConnectionCard(connection, field))}
+              </div>
+            )
+          }
+        }
+
+        // Regular connection handling
         return (
           <div key={`${connection.id}-${index}`} className="space-y-2">
             {Array.isArray(connection.outputType)

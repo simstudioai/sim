@@ -30,6 +30,7 @@ export type SubBlockType =
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
+  | 'input-format' // Input structure format
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'
@@ -84,7 +85,10 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
-  options?: string[] | { label: string; id: string }[] | (() => string[] | { label: string; id: string }[])
+  options?:
+    | string[]
+    | { label: string; id: string }[]
+    | (() => string[] | { label: string; id: string }[])
   min?: number
   max?: number
   columns?: string[]
