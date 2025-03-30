@@ -35,6 +35,7 @@ export interface OAuthRequiredModalProps {
 // Map of OAuth scopes to user-friendly descriptions
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
+  'https://www.googleapis.com/auth/gmail.labels': 'View and manage your email labels',
   // 'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
   // 'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
   'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
