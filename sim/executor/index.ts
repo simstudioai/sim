@@ -46,7 +46,12 @@ export class Executor {
     this.workflowInput = workflowInput || {}
 
     this.loopManager = new LoopManager(workflow.loops || {})
-    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables, this.loopManager)
+    this.resolver = new InputResolver(
+      workflow,
+      environmentVariables,
+      workflowVariables,
+      this.loopManager
+    )
     this.pathTracker = new PathTracker(workflow)
 
     this.blockHandlers = [

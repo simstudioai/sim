@@ -193,7 +193,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 nodes: path,
                 iterations: 5,
                 loopType: 'for', // Default to 'for' loop
-                forEachItems: ''
+                forEachItems: '',
               }
               processedPaths.add(canonicalPath)
             }
@@ -233,7 +233,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 nodes: path,
                 iterations: 5,
                 loopType: 'for', // Default to 'for' loop
-                forEachItems: ''
+                forEachItems: '',
               }
               processedPaths.add(canonicalPath)
             }
@@ -563,27 +563,28 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateLoopForEachItems: (loopId: string, items: string) => {
-        let parsedItems: any = items;
-        
+        let parsedItems: any = items
+
         // Try to parse the string as JSON if it looks like JSON
-        if (typeof items === 'string' && 
-            ((items.trim().startsWith('[') && items.trim().endsWith(']')) || 
-             (items.trim().startsWith('{') && items.trim().endsWith('}')))
+        if (
+          typeof items === 'string' &&
+          ((items.trim().startsWith('[') && items.trim().endsWith(']')) ||
+            (items.trim().startsWith('{') && items.trim().endsWith('}')))
         ) {
           try {
             // First try to parse to validate it's valid JSON
-            const parsed = JSON.parse(items);
-            
+            const parsed = JSON.parse(items)
+
             // If parsing succeeds, store the original string to preserve formatting
             // This way we keep the user's exact formatting (spacing, line breaks, etc.)
-            parsedItems = items;
+            parsedItems = items
           } catch (e) {
             // If parsing fails, keep it as a string expression
-            console.error('Invalid JSON format for forEach items:', e);
-            parsedItems = items;
+            console.error('Invalid JSON format for forEach items:', e)
+            parsedItems = items
           }
         }
-        
+
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges],

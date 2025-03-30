@@ -67,17 +67,15 @@ export async function POST(req: NextRequest) {
       environmentVariables: envVars, // Make environment variables available in the context
       console: {
         log: (...args: any[]) => {
-          const logMessage =
-            args
-              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-              .join(' ')
+          const logMessage = args
+            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+            .join(' ')
           stdout += logMessage
         },
         error: (...args: any[]) => {
-          const errorMessage =
-            args
-              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-              .join(' ')
+          const errorMessage = args
+            .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+            .join(' ')
           logger.error(`[${requestId}] Code Console Error:`, errorMessage)
           stdout += 'ERROR: ' + errorMessage
         },

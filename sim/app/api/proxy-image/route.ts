@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     // Add appropriate headers for fetching images
     const response = await fetch(imageUrl, {
       headers: {
-        'Accept': 'image/*, */*',
+        Accept: 'image/*, */*',
         'User-Agent': 'Mozilla/5.0 (compatible; ImageProxyBot/1.0)',
       },
       // Set a reasonable timeout
@@ -24,17 +24,17 @@ export async function GET(request: Request) {
 
     if (!response.ok) {
       console.error(`Failed to fetch image from ${imageUrl}:`, response.status, response.statusText)
-      return new NextResponse(`Failed to fetch image: ${response.status} ${response.statusText}`, { 
-        status: response.status 
+      return new NextResponse(`Failed to fetch image: ${response.status} ${response.statusText}`, {
+        status: response.status,
       })
     }
 
     const contentType = response.headers.get('content-type')
     console.log('Image content-type:', contentType)
-    
+
     const blob = await response.blob()
     console.log('Image size:', blob.size, 'bytes')
-    
+
     if (blob.size === 0) {
       console.error('Empty image received from source URL')
       return new NextResponse('Empty image received from source', { status: 422 })
@@ -52,11 +52,11 @@ export async function GET(request: Request) {
   } catch (error) {
     // Log the full error for debugging
     console.error('Error proxying image:', error)
-    
+
     // Return a helpful error response
     return new NextResponse(
-      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { status: 500 }
     )
   }
-} 
+}

@@ -1,6 +1,6 @@
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { ExecutionContext } from './types'
 import { LoopManager } from './loops'
+import { ExecutionContext } from './types'
 
 /**
  * Resolves input values for blocks by handling references and variable substitution.
@@ -182,91 +182,98 @@ export class InputResolver {
         if (containingLoopId) {
           const loop = context.workflow?.loops[containingLoopId]
           const loopType = loop?.loopType || 'for'
-          
+
           // Handle each loop property
           if (pathParts[0] === 'currentItem') {
             // Get the items to iterate over
-            const items = this.getLoopItems(loop, context);
-            
+            const items = this.getLoopItems(loop, context)
+
             // Get the correct index using the LoopManager
-            const index = this.loopManager 
+            const index = this.loopManager
               ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
-              : context.loopIterations.get(containingLoopId) || 0;
-            
+              : context.loopIterations.get(containingLoopId) || 0
+
             // Get the current item directly from the items array at the current index
             if (Array.isArray(items) && index >= 0 && index < items.length) {
-              const currentItem = items[index];
-              
+              const currentItem = items[index]
+
               // Format the value based on type
               if (currentItem !== undefined) {
                 if (typeof currentItem !== 'object' || currentItem === null) {
                   // For primitives, convert to string
-                  resolvedValue = resolvedValue.replace(match, String(currentItem));
-                } else if (Array.isArray(currentItem) && currentItem.length === 2 && typeof currentItem[0] === 'string') {
+                  resolvedValue = resolvedValue.replace(match, String(currentItem))
+                } else if (
+                  Array.isArray(currentItem) &&
+                  currentItem.length === 2 &&
+                  typeof currentItem[0] === 'string'
+                ) {
                   // Handle [key, value] pair from Object.entries()
                   if (pathParts.length > 1) {
                     if (pathParts[1] === 'key') {
-                      resolvedValue = resolvedValue.replace(match, String(currentItem[0]));
+                      resolvedValue = resolvedValue.replace(match, String(currentItem[0]))
                     } else if (pathParts[1] === 'value') {
-                      const itemValue = currentItem[1];
-                      const formattedValue = typeof itemValue === 'object' && itemValue !== null
-                        ? JSON.stringify(itemValue)
-                        : String(itemValue);
-                      resolvedValue = resolvedValue.replace(match, formattedValue);
+                      const itemValue = currentItem[1]
+                      const formattedValue =
+                        typeof itemValue === 'object' && itemValue !== null
+                          ? JSON.stringify(itemValue)
+                          : String(itemValue)
+                      resolvedValue = resolvedValue.replace(match, formattedValue)
                     }
                   } else {
                     // Default to stringifying the whole item
-                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem));
+                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
                   }
                 } else {
                   // Navigate path if provided for objects
                   if (pathParts.length > 1) {
-                    let itemValue = currentItem;
+                    let itemValue = currentItem
                     for (let i = 1; i < pathParts.length; i++) {
                       if (!itemValue || typeof itemValue !== 'object') {
-                        throw new Error(`Invalid path "${pathParts[i]}" in loop item reference "${path}"`);
+                        throw new Error(
+                          `Invalid path "${pathParts[i]}" in loop item reference "${path}"`
+                        )
                       }
-                      itemValue = itemValue[pathParts[i]];
+                      itemValue = itemValue[pathParts[i]]
                       if (itemValue === undefined) {
-                        throw new Error(`No value found at path "${path}" in loop item`);
+                        throw new Error(`No value found at path "${path}" in loop item`)
                       }
                     }
-                    
-                    const formattedValue = typeof itemValue === 'object' && itemValue !== null
-                      ? JSON.stringify(itemValue)
-                      : String(itemValue);
-                    
-                    resolvedValue = resolvedValue.replace(match, formattedValue);
+
+                    const formattedValue =
+                      typeof itemValue === 'object' && itemValue !== null
+                        ? JSON.stringify(itemValue)
+                        : String(itemValue)
+
+                    resolvedValue = resolvedValue.replace(match, formattedValue)
                   } else {
                     // Return the whole item as JSON
-                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem));
+                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
                   }
                 }
               }
-              
-              continue;
+
+              continue
             }
           } else if (pathParts[0] === 'items' && loopType === 'forEach') {
             // Get all items in the forEach loop
-            const items = this.getLoopItems(loop, context);
-            
+            const items = this.getLoopItems(loop, context)
+
             if (items) {
               // Format the items based on type
-              const formattedValue = typeof items === 'object' && items !== null
-                ? JSON.stringify(items)
-                : String(items);
-              
-              resolvedValue = resolvedValue.replace(match, formattedValue);
-              continue;
+              const formattedValue =
+                typeof items === 'object' && items !== null ? JSON.stringify(items) : String(items)
+
+              resolvedValue = resolvedValue.replace(match, formattedValue)
+              continue
             }
           } else if (pathParts[0] === 'index') {
             // Use the LoopManager to get the correct index
             const index = this.loopManager
               ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
-              : context.loopIterations.get(containingLoopId) || 0;
-            
-            resolvedValue = resolvedValue.replace(match, String(index));
-            continue;
+              : context.loopIterations.get(containingLoopId) || 0
+
+            resolvedValue = resolvedValue.replace(match, String(index))
+            continue
           }
         }
       }
@@ -614,58 +621,61 @@ export class InputResolver {
    * @returns The items to iterate over (array or object)
    */
   private getLoopItems(loop: any, context: ExecutionContext): any[] | Record<string, any> | null {
-    if (!loop) return null;
-    
+    if (!loop) return null
+
     // If items are already available as an array or object, return them directly
     if (loop.forEachItems) {
-      if (Array.isArray(loop.forEachItems) || (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)) {
-        return loop.forEachItems;
+      if (
+        Array.isArray(loop.forEachItems) ||
+        (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)
+      ) {
+        return loop.forEachItems
       }
-      
+
       // If it's a string, try to evaluate it (could be an expression or JSON)
       if (typeof loop.forEachItems === 'string') {
         try {
           // Check if it's valid JSON
-          const trimmedExpression = loop.forEachItems.trim();
+          const trimmedExpression = loop.forEachItems.trim()
           if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
             try {
               // Try to parse as JSON first
-              return JSON.parse(trimmedExpression);
+              return JSON.parse(trimmedExpression)
             } catch (jsonError) {
-              console.error(`Error parsing JSON for loop:`, jsonError);
+              console.error(`Error parsing JSON for loop:`, jsonError)
               // If JSON parsing fails, continue with expression evaluation
             }
           }
-          
+
           // If not valid JSON or JSON parsing failed, try to evaluate as an expression
           if (trimmedExpression && !trimmedExpression.startsWith('//')) {
-            const result = new Function('context', `return ${loop.forEachItems}`)(context);
+            const result = new Function('context', `return ${loop.forEachItems}`)(context)
             if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
-              return result;
+              return result
             }
           }
         } catch (e) {
-          console.error(`Error evaluating forEach items:`, e);
+          console.error(`Error evaluating forEach items:`, e)
         }
       }
     }
-    
+
     // As a fallback, look for the most recent array or object in any block's output
     // This is less reliable but might help in some cases
     for (const [blockId, blockState] of context.blockStates.entries()) {
-      const output = blockState.output?.response;
+      const output = blockState.output?.response
       if (output) {
         for (const [key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {
-            return value;
+            return value
           } else if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
-            return value;
+            return value
           }
         }
       }
     }
-    
+
     // Default to empty array if no valid items found
-    return [];
+    return []
   }
 }
