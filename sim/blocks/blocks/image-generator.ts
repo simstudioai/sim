@@ -17,9 +17,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       title: 'Provider',
       type: 'dropdown',
       layout: 'full',
-      options: [
-        { label: 'DALL-E', id: 'dalle' },
-      ],
+      options: [{ label: 'DALL-E', id: 'dalle' }],
       value: () => 'dalle',
     },
     {
@@ -121,8 +119,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       type: {
         content: 'string', // URL of the generated image
         image: 'string', // Base64 image data
-        metadata: 'json' // Contains only model information
-      }
+        metadata: 'json', // Contains only model information
+      },
     },
   },
-} 
+}

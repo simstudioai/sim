@@ -9,7 +9,9 @@ import {
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
-  options: Array<string | { label: string; id: string }> | (() => Array<string | { label: string; id: string }>)
+  options:
+    | Array<string | { label: string; id: string }>
+    | (() => Array<string | { label: string; id: string }>)
   defaultValue?: string
   blockId: string
   subBlockId: string

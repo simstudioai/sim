@@ -5,8 +5,8 @@ import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
 import { groqProvider } from './groq'
-import { openaiProvider } from './openai'
 import { ollamaProvider } from './ollama'
+import { openaiProvider } from './openai'
 import { getModelPricing } from './pricing'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
@@ -72,9 +72,9 @@ export const providers: Record<
 // Initialize all providers that have initialize method
 Object.entries(providers).forEach(([id, provider]) => {
   if (provider.initialize) {
-    provider.initialize().catch(error => {
+    provider.initialize().catch((error) => {
       logger.error(`Failed to initialize ${id} provider`, {
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     })
   }

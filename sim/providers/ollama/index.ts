@@ -1,9 +1,9 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { ModelsObject } from './types'
-import { useOllamaStore } from '@/stores/ollama/store'
 
 const logger = createLogger('Ollama Provider')
 const OLLAMA_HOST = 'http://localhost:11434'
@@ -25,12 +25,12 @@ export const ollamaProvider: ProviderConfig = {
         logger.warn('Ollama service is not available. The provider will be disabled.')
         return
       }
-      const data = await response.json() as ModelsObject
+      const data = (await response.json()) as ModelsObject
       this.models = data.models.map((model) => model.name)
       useOllamaStore.getState().setModels(this.models)
     } catch (error) {
       logger.warn('Ollama model instantiation failed. The provider will be disabled.', {
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
   },
@@ -52,7 +52,7 @@ export const ollamaProvider: ProviderConfig = {
     try {
       // Prepare messages array
       const ollama = new OpenAI({
-        apiKey: "empty",
+        apiKey: 'empty',
         baseURL: `${OLLAMA_HOST}/v1`,
         dangerouslyAllowBrowser: true,
       })
@@ -296,4 +296,3 @@ export const ollamaProvider: ProviderConfig = {
     }
   },
 }
-

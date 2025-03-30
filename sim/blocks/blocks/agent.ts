@@ -1,9 +1,9 @@
 import { AgentIcon } from '@/components/icons'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
-import { useOllamaStore } from '@/stores/ollama/store'
 
 interface AgentResponse extends ToolResponse {
   output: {

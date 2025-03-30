@@ -31,17 +31,20 @@ export class LoopManager {
       // Handle forEach loop
       if (loopType === 'forEach') {
         // Get the items to iterate over if we haven't already processed them into an array/object
-        if (!loop.forEachItems || typeof loop.forEachItems === 'string' || 
-            !(Array.isArray(loop.forEachItems) || typeof loop.forEachItems === 'object')) {
+        if (
+          !loop.forEachItems ||
+          typeof loop.forEachItems === 'string' ||
+          !(Array.isArray(loop.forEachItems) || typeof loop.forEachItems === 'object')
+        ) {
           // Evaluate the forEach items expression
-          const items = await this.evalForEachItems(loopId, loop, context);
-          
+          const items = await this.evalForEachItems(loopId, loop, context)
+
           // Store the evaluated items for future iterations
           if (Array.isArray(items) || (typeof items === 'object' && items !== null)) {
-            loop.forEachItems = items;
+            loop.forEachItems = items
           } else {
             // Default to empty array if we couldn't get any valid items
-            loop.forEachItems = [];
+            loop.forEachItems = []
           }
         }
 
@@ -49,10 +52,10 @@ export class LoopManager {
         const currentIteration = context.loopIterations.get(loopId) || 0
 
         // For forEach, convert to array if it's an object
-        const items = Array.isArray(loop.forEachItems) 
-          ? loop.forEachItems 
+        const items = Array.isArray(loop.forEachItems)
+          ? loop.forEachItems
           : Object.entries(loop.forEachItems as Record<string, any>)
-        
+
         // If we've processed all items or hit max iterations, skip this loop
         if (currentIteration >= items.length || currentIteration >= loop.iterations) {
           if (currentIteration >= items.length) {
@@ -63,14 +66,14 @@ export class LoopManager {
 
         // Check if all blocks in the loop have been executed
         const allExecuted = this.allBlocksExecuted(loop.nodes, context)
-        
+
         if (allExecuted) {
           // Get current item to process in this iteration
           const currentItem = items[currentIteration]
-          
+
           // Store the current item in the context for blocks to access via <loop.currentItem>
           context.loopItems.set(loopId, currentItem)
-          
+
           // IMPORTANT: We're incrementing the iteration counter AFTER storing the current item
           // But BEFORE resetting the blocks for next iteration
           // This ensures that when blocks execute in the new iteration, they'll get the correct index
@@ -109,7 +112,7 @@ export class LoopManager {
 
         // Check if all blocks in the loop have been executed
         const allExecuted = this.allBlocksExecuted(loop.nodes, context)
-        
+
         if (allExecuted) {
           // IMPORTANT: Increment the counter BEFORE resetting blocks for the next iteration
           // This ensures the next iteration will show the correct index value
@@ -145,7 +148,7 @@ export class LoopManager {
   /**
    * Gets the correct loop index based on the current block being executed.
    * Accounts for position within the loop cycle to provide accurate index.
-   * 
+   *
    * @param loopId - ID of the loop
    * @param blockId - ID of the block requesting the index
    * @param context - Current execution context
@@ -154,20 +157,20 @@ export class LoopManager {
   getLoopIndex(loopId: string, blockId: string, context: ExecutionContext): number {
     const loop = this.loops[loopId]
     if (!loop) return 0
-    
+
     // Get the current iteration counter from context
     const iterationCounter = context.loopIterations.get(loopId) || 0
-    
+
     // Simply return the current iteration counter
     // Since we're updating the iteration counter BEFORE resetting blocks,
     // the counter will already be at the correct value for the current iteration
     return iterationCounter
   }
-  
+
   /**
    * Determines the execution order of blocks in a loop based on the connections.
    * This is needed to figure out which blocks should be assigned which iteration.
-   * 
+   *
    * @param nodeIds - IDs of nodes in the loop
    * @param context - Current execution context
    * @returns Array of block IDs in execution order
@@ -176,22 +179,22 @@ export class LoopManager {
     // Start with the entry block
     const entryBlock = this.findEntryBlock(nodeIds, context)
     if (!entryBlock) return nodeIds
-    
+
     const result: string[] = [entryBlock]
     const visited = new Set<string>([entryBlock])
-    
+
     // Perform a depth-first traversal to determine execution order
     const traverse = (nodeId: string) => {
       // Find all outgoing connections from this node
-      const connections = context.workflow?.connections.filter(
-        conn => conn.source === nodeId && 
-               nodeIds.includes(conn.target) && 
-               conn.sourceHandle !== 'error'
-      ) || []
-      
+      const connections =
+        context.workflow?.connections.filter(
+          (conn) =>
+            conn.source === nodeId && nodeIds.includes(conn.target) && conn.sourceHandle !== 'error'
+        ) || []
+
       // Sort by target node to ensure deterministic order
       connections.sort((a, b) => a.target.localeCompare(b.target))
-      
+
       // Visit each target node
       for (const conn of connections) {
         if (!visited.has(conn.target)) {
@@ -201,99 +204,102 @@ export class LoopManager {
         }
       }
     }
-    
+
     // Start traversal from the entry block
     traverse(entryBlock)
-    
+
     // If there are nodes we didn't visit, add them at the end
     for (const nodeId of nodeIds) {
       if (!visited.has(nodeId)) {
         result.push(nodeId)
       }
     }
-    
+
     return result
   }
 
   /**
    * Evaluates the forEach items string or retrieves items for a forEach loop.
-   * 
+   *
    * @param loopId - ID of the loop
    * @param loop - Loop configuration
    * @param context - Current execution context
    * @returns Items to iterate over (array or object)
    */
   private async evalForEachItems(
-    loopId: string, 
-    loop: SerializedLoop, 
+    loopId: string,
+    loop: SerializedLoop,
     context: ExecutionContext
   ): Promise<any[] | Record<string, any> | undefined> {
     // If forEachItems is not set, return empty array
     if (!loop.forEachItems) {
-      return [];
+      return []
     }
-    
+
     // If we already have items as an array or object, return them directly
-    if (Array.isArray(loop.forEachItems) || (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)) {
-      return loop.forEachItems as any[] | Record<string, any>;
+    if (
+      Array.isArray(loop.forEachItems) ||
+      (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)
+    ) {
+      return loop.forEachItems as any[] | Record<string, any>
     }
 
     // If we have forEachItems as a string, try to evaluate it as an expression
     if (typeof loop.forEachItems === 'string') {
       try {
         // Skip comments or empty expressions
-        const trimmedExpression = loop.forEachItems.trim();
+        const trimmedExpression = loop.forEachItems.trim()
         if (trimmedExpression.startsWith('//') || trimmedExpression === '') {
-          return [];
+          return []
         }
-        
+
         // First check if it's valid JSON (array or object)
         if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
           try {
             // Try to parse as JSON first
-            return JSON.parse(trimmedExpression);
+            return JSON.parse(trimmedExpression)
           } catch (jsonError) {
-            console.error(`Error parsing JSON for loop ${loopId}:`, jsonError);
+            console.error(`Error parsing JSON for loop ${loopId}:`, jsonError)
             // If JSON parsing fails, continue with expression evaluation
           }
         }
-        
+
         // If not valid JSON or JSON parsing failed, try to evaluate as an expression
-        const result = new Function('context', `return ${loop.forEachItems}`)(context);
-        
+        const result = new Function('context', `return ${loop.forEachItems}`)(context)
+
         // If the result is an array or object, return it
         if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
-          return result;
+          return result
         }
-        
+
         // If it's a primitive, wrap it in an array
         if (result !== undefined) {
-          return [result];
+          return [result]
         }
-        
-        return [];
+
+        return []
       } catch (e) {
-        console.error(`Error evaluating forEach items for loop ${loopId}:`, e);
-        return [];
+        console.error(`Error evaluating forEach items for loop ${loopId}:`, e)
+        return []
       }
     }
 
     // As a fallback, try to find the first non-empty array or object in the context
     for (const [blockId, blockState] of context.blockStates.entries()) {
-      const output = blockState.output?.response;
+      const output = blockState.output?.response
       if (output) {
         // Look for arrays or objects in the response that could be iterated over
         for (const [key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {
-            return value;
+            return value
           } else if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
-            return value;
+            return value
           }
         }
       }
     }
 
-    return [];
+    return []
   }
 
   /**

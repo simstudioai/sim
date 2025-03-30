@@ -15,7 +15,7 @@
   z-index: 30 !important;
 }
 
-.workflow-container .react-flow__edge [data-testid="workflow-edge"] {
+.workflow-container .react-flow__edge [data-testid='workflow-edge'] {
   z-index: 0 !important;
 }
 

@@ -1,10 +1,10 @@
 import { ChartBarIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { ProviderId } from '@/providers/types'
-import { getBaseModelProviders, getAllModelProviders } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig, ParamType } from '../types'
-import { useOllamaStore } from '@/stores/ollama/store'
 
 const logger = createLogger('EvaluatorBlock')
 
