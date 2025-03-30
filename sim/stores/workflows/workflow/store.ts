@@ -191,8 +191,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               newLoops[loopId] = {
                 id: loopId,
                 nodes: path,
-                maxIterations: 5,
-                minIterations: 0,
+                iterations: 5,
+                loopType: 'for', // Default to 'for' loop
+                forEachItems: ''
               }
               processedPaths.add(canonicalPath)
             }
@@ -230,8 +231,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               newLoops[loopId] = {
                 id: loopId,
                 nodes: path,
-                maxIterations: 5,
-                minIterations: 0,
+                iterations: 5,
+                loopType: 'for', // Default to 'for' loop
+                forEachItems: ''
               }
               processedPaths.add(canonicalPath)
             }
@@ -522,7 +524,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().updateLastSaved()
       },
 
-      updateLoopMaxIterations: (loopId: string, maxIterations: number) => {
+      updateLoopIterations: (loopId: string, iterations: number) => {
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges],
@@ -530,18 +532,18 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...get().loops,
             [loopId]: {
               ...get().loops[loopId],
-              maxIterations: Math.max(1, Math.min(50, maxIterations)), // Clamp between 1-50
+              iterations: Math.max(1, Math.min(50, iterations)), // Clamp between 1-50
             },
           },
         }
 
         set(newState)
-        pushHistory(set, get, newState, 'Update loop max iterations')
+        pushHistory(set, get, newState, 'Update loop iterations')
         get().updateLastSaved()
         workflowSync.sync()
       },
 
-      updateLoopMinIterations: (loopId: string, minIterations: number) => {
+      updateLoopType: (loopId: string, loopType: Loop['loopType']) => {
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges],
@@ -549,17 +551,54 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...get().loops,
             [loopId]: {
               ...get().loops[loopId],
-              minIterations: Math.max(
-                0,
-                Math.min(get().loops[loopId].maxIterations, minIterations)
-              ), // Clamp between 0 and maxIterations
+              loopType,
             },
           },
         }
 
         set(newState)
-        pushHistory(set, get, newState, 'Update loop min iterations')
+        pushHistory(set, get, newState, 'Update loop type')
         get().updateLastSaved()
+        workflowSync.sync()
+      },
+
+      updateLoopForEachItems: (loopId: string, items: string) => {
+        let parsedItems: any = items;
+        
+        // Try to parse the string as JSON if it looks like JSON
+        if (typeof items === 'string' && 
+            ((items.trim().startsWith('[') && items.trim().endsWith(']')) || 
+             (items.trim().startsWith('{') && items.trim().endsWith('}')))
+        ) {
+          try {
+            // First try to parse to validate it's valid JSON
+            JSON.parse(items);
+            
+            // If parsing succeeds, store the original string to preserve formatting
+            // This way we keep the user's exact formatting (spacing, line breaks, etc.)
+            parsedItems = items;
+          } catch (e) {
+            // If parsing fails, keep it as a string
+            parsedItems = items;
+          }
+        }
+        
+        const newState = {
+          blocks: { ...get().blocks },
+          edges: [...get().edges],
+          loops: {
+            ...get().loops,
+            [loopId]: {
+              ...get().loops[loopId],
+              forEachItems: parsedItems,
+            },
+          },
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, 'Update forEach items')
+        get().updateLastSaved()
+        workflowSync.sync()
       },
 
       triggerUpdate: () => {
