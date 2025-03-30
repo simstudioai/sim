@@ -54,20 +54,51 @@ const isBase64Image = (str: string): boolean => {
 }
 
 // Check if this is a response with the new image structure
-// Modified to be more flexible - content must be a URL, image is optional
+// Strict validation to only detect actual image responses
 const hasImageContent = (obj: any): boolean => {
-  return (
-    obj &&
-    typeof obj === 'object' &&
-    'content' in obj &&
+  // Debug check - basic structure validation
+  if (
+    !(
+      obj &&
+      typeof obj === 'object' &&
+      'content' in obj &&
+      typeof obj.content === 'string' &&
+      'metadata' in obj &&
+      typeof obj.metadata === 'object'
+    )
+  ) {
+    return false
+  }
+
+  // Case 1: Has explicit image data
+  const hasExplicitImageData =
+    'image' in obj &&
+    typeof obj.image === 'string' &&
+    obj.image.length > 0 &&
+    isBase64Image(obj.image)
+
+  if (hasExplicitImageData) {
+    return true
+  }
+
+  // Case 2: Has explicit image type in metadata
+  const hasExplicitImageType =
+    obj.metadata &&
+    obj.metadata.type &&
+    typeof obj.metadata.type === 'string' &&
+    obj.metadata.type.toLowerCase() === 'image'
+
+  if (hasExplicitImageType) {
+    return true
+  }
+
+  // Case 3: Content URL points to an image file
+  const isImageUrl =
     typeof obj.content === 'string' &&
-    'metadata' in obj &&
-    typeof obj.metadata === 'object' &&
-    // Either has valid image data
-    (('image' in obj && typeof obj.image === 'string') ||
-      // Or at least has content that looks like a URL (more permissive check)
-      obj.content.startsWith('http'))
-  )
+    obj.content.startsWith('http') &&
+    !!obj.content.toLowerCase().match(/\.(png|jpg|jpeg|gif|webp|svg)(\?|$)/)
+
+  return isImageUrl
 }
 
 // Image preview component with support for both URL and base64
@@ -80,6 +111,8 @@ const ImagePreview = ({
   imageData?: string
   isBase64?: boolean
 }) => {
+  const [loadError, setLoadError] = useState(false)
+
   const downloadImage = async () => {
     try {
       let blob: Blob
@@ -129,6 +162,10 @@ const ImagePreview = ({
     return <div className="my-2 text-muted-foreground">Image data unavailable</div>
   }
 
+  if (loadError) {
+    return <div className="my-2 text-muted-foreground">Failed to load image</div>
+  }
+
   // Determine the source for the image
   const imageSrc =
     isBase64 && imageData && imageData.length > 0
@@ -143,6 +180,7 @@ const ImagePreview = ({
         className="max-w-full h-auto rounded-md border"
         onError={(e) => {
           console.error('Image failed to load:', imageSrc)
+          setLoadError(true)
           e.currentTarget.alt = 'Failed to load image'
           e.currentTarget.style.height = '100px'
           e.currentTarget.style.width = '100%'
@@ -152,20 +190,22 @@ const ImagePreview = ({
           e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'
         }}
       />
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          variant="secondary"
-          size="icon"
-          className="h-8 w-8 bg-background/80 backdrop-blur-sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            downloadImage()
-          }}
-        >
-          <Download className="h-4 w-4" />
-          <span className="sr-only">Download image</span>
-        </Button>
-      </div>
+      {!loadError && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-8 w-8 bg-background/80 backdrop-blur-sm"
+            onClick={(e) => {
+              e.stopPropagation()
+              downloadImage()
+            }}
+          >
+            <Download className="h-4 w-4" />
+            <span className="sr-only">Download image</span>
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
