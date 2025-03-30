@@ -456,11 +456,13 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               id={`condition-${block.id}`}
               key={`${block.id}-${index}`}
               className={cn(
-                '!w-3.5 !h-3.5',
-                '!bg-white !rounded-full !border !border-gray-200',
-                'group-hover:!border-blue-500',
-                '!transition-border !duration-150 !cursor-crosshair',
-                '!absolute !z-50',
+                '!w-[7px] !h-5',
+                '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
+                '!z-[30]',
+                'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
+                'hover:!w-[10px] hover:!right-[-28px] hover:!rounded-r-full hover:!rounded-l-none',
+                '!cursor-crosshair',
+                'transition-all duration-150',
                 '!right-[-25px]'
               )}
               data-nodeid={`${blockId}-${subBlockId}`}
