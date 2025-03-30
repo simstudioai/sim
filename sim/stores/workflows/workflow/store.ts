@@ -572,13 +572,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         ) {
           try {
             // First try to parse to validate it's valid JSON
-            JSON.parse(items);
+            const parsed = JSON.parse(items);
             
             // If parsing succeeds, store the original string to preserve formatting
             // This way we keep the user's exact formatting (spacing, line breaks, etc.)
             parsedItems = items;
           } catch (e) {
-            // If parsing fails, keep it as a string
+            // If parsing fails, keep it as a string expression
+            console.error('Invalid JSON format for forEach items:', e);
             parsedItems = items;
           }
         }
