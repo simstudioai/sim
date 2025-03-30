@@ -563,19 +563,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateLoopForEachItems: (loopId: string, items: string) => {
-        let parsedItems: any = items;
+        // Don't try to parse JSON if the string contains variable tags <...>
+        const containsVariableTags = items.includes('<') && items.includes('>')
         
-        // Try to parse the string as JSON if it looks like JSON
-        if (typeof items === 'string' && 
+        let parsedItems = items;
+        
+        // Only try to parse as JSON if it doesn't contain variable tags
+        if (!containsVariableTags && 
+            typeof items === 'string' && 
             ((items.trim().startsWith('[') && items.trim().endsWith(']')) || 
              (items.trim().startsWith('{') && items.trim().endsWith('}')))
         ) {
           try {
             // First try to parse to validate it's valid JSON
-            const parsed = JSON.parse(items);
+            JSON.parse(items);
             
             // If parsing succeeds, store the original string to preserve formatting
-            // This way we keep the user's exact formatting (spacing, line breaks, etc.)
             parsedItems = items;
           } catch (e) {
             // If parsing fails, keep it as a string expression
@@ -586,7 +589,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         
         const newState = {
           blocks: { ...get().blocks },
-          edges: [...get().edges],
+          edges: [...get().edges ],
           loops: {
             ...get().loops,
             [loopId]: {

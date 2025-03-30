@@ -45,7 +45,7 @@ export class Executor {
     this.validateWorkflow()
     this.workflowInput = workflowInput || {}
 
-    this.loopManager = new LoopManager(workflow.loops || {})
+    this.loopManager = new LoopManager(workflow.loops || {}, 5, workflowVariables)
     this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables, this.loopManager)
     this.pathTracker = new PathTracker(workflow)
 
