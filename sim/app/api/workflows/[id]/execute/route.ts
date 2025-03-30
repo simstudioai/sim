@@ -234,18 +234,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Log headers to check Content-Type
-    logger.info(`[${requestId}] Request headers:`, {
-      contentType: request.headers.get('Content-Type'),
-    })
-
-    // Get request body text first for debugging
     const bodyText = await request.text()
-    logger.info(`[${requestId}] Raw request body: ${bodyText}`)
-
-    // Parse the body text into JSON
     const body = bodyText ? JSON.parse(bodyText) : {}
-    logger.info(`[${requestId}] Parsed request body:`, body)
 
     const result = await executeWorkflow(validation.workflow, requestId, body)
     return createSuccessResponse(result)

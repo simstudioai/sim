@@ -207,12 +207,9 @@ export function ControlBar() {
   }
 
   /**
-   * Workflow deployment handler
+   * Get an example of the input format for the workflow
    */
-  const handleDeploy = async () => {
-    if (!activeWorkflowId) return
-
-    // Check if the workflow has inputFormat defined
+  const getInputFormatExample = () => {
     let inputFormatExample = ''
     try {
       // Find the starter block in the workflow
@@ -255,6 +252,17 @@ export function ControlBar() {
     } catch (error) {
       console.error('Error generating input format example:', error)
     }
+
+    return inputFormatExample
+  }
+
+  /**
+   * Workflow deployment handler
+   */
+  const handleDeploy = async () => {
+    if (!activeWorkflowId) return
+
+    const inputFormatExample = getInputFormatExample()
 
     // If already deployed, show the API info
     if (isDeployed) {

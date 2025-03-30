@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
+import { Copy, Eye, EyeOff, Info, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -258,6 +258,7 @@ interface NotificationAlertProps {
 function NotificationAlert({ notification, isFading, onHide }: NotificationAlertProps) {
   const { id, type, message, options, workflowId } = notification
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
   const { setDeploymentStatus } = useWorkflowStore()
   const { isDeployed } = useWorkflowStore((state) => ({
     isDeployed: state.isDeployed,
@@ -286,6 +287,27 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
     } catch (error) {
       logger.error('Error deleting API deployment:', { error })
     }
+  }
+
+  // Function to mask API key with asterisks but keep first and last 4 chars visible
+  const maskApiKey = (key: string) => {
+    if (!key || key.includes('No API key found')) return key
+    if (key.length <= 8) return key
+    return `${key.substring(0, 4)}${'*'.repeat(key.length - 8)}${key.substring(key.length - 4)}`
+  }
+
+  // Modify the curl command to use a placeholder for the API key
+  const formatCurlCommand = (command: string, apiKey: string) => {
+    if (!command.includes('curl')) return command
+
+    // Replace the actual API key with a placeholder in the command
+    const sanitizedCommand = command.replace(apiKey, 'SIM_API_KEY')
+
+    // Format the command with line breaks for better readability
+    return sanitizedCommand
+      .replace(' -H ', '\n  -H ')
+      .replace(' -d ', '\n  -d ')
+      .replace(' http', '\n  http')
   }
 
   return (
@@ -317,19 +339,52 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
                 <p>{!isDeployed ? 'Workflow currently not deployed' : message}</p>
 
                 {/* Optional sections with copyable content */}
-                {options?.sections?.map((section, index) => (
-                  <div key={index} className="space-y-1.5">
-                    <div className="text-xs font-medium text-muted-foreground">{section.label}</div>
+                {options?.sections?.map((section, index) => {
+                  // Get the API key from the sections to use in curl command formatting
+                  const apiKey = options.sections?.find((s) => s.label === 'API Key')?.content || ''
 
-                    {/* Copyable code block */}
-                    <div className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors">
-                      <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
-                        {section.content}
-                      </pre>
-                      <CopyButton text={section.content} />
+                  return (
+                    <div key={index} className="space-y-1.5">
+                      <div className="text-xs font-medium text-muted-foreground">
+                        {section.label}
+                      </div>
+
+                      {/* Copyable code block */}
+                      <div className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors">
+                        {section.label === 'API Key' ? (
+                          <>
+                            <pre
+                              className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto cursor-pointer"
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              title={
+                                showApiKey ? 'Click to hide API Key' : 'Click to reveal API Key'
+                              }
+                            >
+                              {showApiKey ? section.content : maskApiKey(section.content)}
+                            </pre>
+                            <div className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                              <CopyButton text={section.content} showLabel={false} />
+                            </div>
+                          </>
+                        ) : section.label === 'Example curl command' ? (
+                          <>
+                            <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                              {formatCurlCommand(section.content, apiKey)}
+                            </pre>
+                            <CopyButton text={section.content} showLabel={false} />
+                          </>
+                        ) : (
+                          <>
+                            <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                              {section.content}
+                            </pre>
+                            <CopyButton text={section.content} showLabel={false} />
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
 
                 {/* Status and Delete button row - with pulsing green indicator */}
                 <div className="flex items-center justify-between">

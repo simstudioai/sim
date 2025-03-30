@@ -12,4 +12,5 @@ const client = postgres(connectionString, {
   connect_timeout: 30, // Timeout after 30 seconds when connecting
 })
 
+// Export the database client (never null)
 export const db = drizzle(client)
