@@ -213,8 +213,7 @@ describe('Serializer', () => {
       expect(serialized.loops.loop1).toBeDefined()
       expect(serialized.loops.loop1.nodes).toContain('function1')
       expect(serialized.loops.loop1.nodes).toContain('condition1')
-      expect(serialized.loops.loop1.maxIterations).toBe(10)
-      expect(serialized.loops.loop1.minIterations).toBe(1)
+      expect(serialized.loops.loop1.iterations).toBe(10)
 
       // Check connections for loop
       const loopBackConnection = serialized.connections.find(

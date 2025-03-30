@@ -62,7 +62,7 @@ export interface Connection {
 
 export interface Loop {
   nodes: string[]
-  maxIterations: number
+  iterations: number
   iterationVariable?: string
 }
 

@@ -16,6 +16,7 @@ function createLoopLabelNode(loopId: string, bounds: { x: number; y: number }) {
     parentNode: `loop-${loopId}`,
     draggable: false,
     data: {
+      loopId,
       label: 'Loop',
     },
   }
@@ -24,7 +25,14 @@ function createLoopLabelNode(loopId: string, bounds: { x: number; y: number }) {
 // Helper function to create loop input node
 function createLoopInputNode(loopId: string, bounds: { x: number; width: number }) {
   const loop = useWorkflowStore.getState().loops[loopId]
-  const BADGE_WIDTH = loop?.maxIterations > 9 ? 153 : 144
+  const loopType = loop?.loopType || 'for'
+
+  // Dynamic width based on loop type
+  let BADGE_WIDTH = 116 // Default for 'for' loop
+
+  if (loopType === 'forEach') {
+    BADGE_WIDTH = 72 // Adjusted for 'Items' text
+  }
 
   return {
     id: `loop-input-${loopId}`,

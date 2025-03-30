@@ -87,6 +87,7 @@ export interface ExecutionContext {
   }
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
+  loopItems: Map<string, any> // Tracks current item for forEach loops
 
   // Execution tracking
   executedBlocks: Set<string> // Set of block IDs that have been executed

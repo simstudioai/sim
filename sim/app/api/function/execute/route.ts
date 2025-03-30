@@ -69,16 +69,16 @@ export async function POST(req: NextRequest) {
         log: (...args: any[]) => {
           const logMessage =
             args
-              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)))
-              .join(' ') + '\n'
+              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+              .join(' ')
           stdout += logMessage
         },
         error: (...args: any[]) => {
           const errorMessage =
             args
-              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)))
-              .join(' ') + '\n'
-          logger.error(`[${requestId}] Code Console Error:`, errorMessage.trim())
+              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+              .join(' ')
+          logger.error(`[${requestId}] Code Console Error:`, errorMessage)
           stdout += 'ERROR: ' + errorMessage
         },
       },

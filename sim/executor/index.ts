@@ -45,8 +45,8 @@ export class Executor {
     this.validateWorkflow()
     this.workflowInput = workflowInput || {}
 
-    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables)
     this.loopManager = new LoopManager(workflow.loops || {})
+    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables, this.loopManager)
     this.pathTracker = new PathTracker(workflow)
 
     this.blockHandlers = [
@@ -281,8 +281,8 @@ export class Executor {
         throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
       }
 
-      if (loop.maxIterations <= 0) {
-        throw new Error(`Loop ${loopId} must have a positive maxIterations value`)
+      if (loop.iterations <= 0) {
+        throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
     }
   }
@@ -309,6 +309,7 @@ export class Executor {
         condition: new Map(),
       },
       loopIterations: new Map(),
+      loopItems: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: this.workflow,
@@ -321,6 +322,14 @@ export class Executor {
         executionTime: 0,
       })
     })
+
+    // Initialize loop iterations
+    if (this.workflow.loops) {
+      for (const loopId of Object.keys(this.workflow.loops)) {
+        // Start all loops at iteration 0
+        context.loopIterations.set(loopId, 0)
+      }
+    }
 
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
@@ -336,7 +345,7 @@ export class Executor {
         executed: true,
         executionTime: 0,
       })
-
+      
       // Mark the starter block as executed and add its connections to the active path
       context.executedBlocks.add(starterBlock.id)
 
