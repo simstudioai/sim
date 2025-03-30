@@ -16,15 +16,24 @@ export function mergeSubblockState(
   const blocksToProcess = blockId ? { [blockId]: blocks[blockId] } : blocks
   const subBlockStore = useSubBlockStore.getState()
 
+  // Get all the values stored in the subblock store for this workflow
+  const workflowSubblockValues = workflowId ? subBlockStore.workflowValues[workflowId] || {} : {}
+
   return Object.entries(blocksToProcess).reduce(
     (acc, [id, block]) => {
-      // Skip if block is undefined or doesn't have subBlocks
-      if (!block || !block.subBlocks) {
+      // Skip if block is undefined
+      if (!block) {
         return acc
       }
 
+      // Initialize subBlocks if not present
+      const blockSubBlocks = block.subBlocks || {}
+
+      // Get stored values for this block
+      const blockValues = workflowSubblockValues[id] || {}
+
       // Create a deep copy of the block's subBlocks to maintain structure
-      const mergedSubBlocks = Object.entries(block.subBlocks).reduce(
+      const mergedSubBlocks = Object.entries(blockSubBlocks).reduce(
         (subAcc, [subBlockId, subBlock]) => {
           // Skip if subBlock is undefined
           if (!subBlock) {
@@ -37,9 +46,8 @@ export function mergeSubblockState(
           // If workflowId is provided, use it to get the value
           if (workflowId) {
             // Try to get the value from the subblock store for this specific workflow
-            const workflowValues = subBlockStore.workflowValues[workflowId]
-            if (workflowValues && workflowValues[id]) {
-              storedValue = workflowValues[id][subBlockId]
+            if (blockValues[subBlockId] !== undefined) {
+              storedValue = blockValues[subBlockId]
             }
           } else {
             // Fall back to the active workflow if no workflowId is provided
@@ -56,6 +64,19 @@ export function mergeSubblockState(
         },
         {} as Record<string, SubBlockState>
       )
+
+      // Add any values that exist in the store but aren't in the block structure
+      // This handles cases where block config has been updated but values still exist
+      Object.entries(blockValues).forEach(([subBlockId, value]) => {
+        if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
+          // Create a minimal subblock structure
+          mergedSubBlocks[subBlockId] = {
+            id: subBlockId,
+            type: 'short-input', // Default type that's safe to use
+            value: value,
+          }
+        }
+      })
 
       // Return the full block state with updated subBlocks
       acc[id] = {

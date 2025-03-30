@@ -28,7 +28,6 @@ export function SlackConfig({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="slack-signing-secret">Signing Secret</Label>
         <CopyableField
           id="slack-signing-secret"
           label="Signing Secret"

@@ -4,6 +4,17 @@ import { SubBlockConfig } from '@/blocks/types'
 import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 
+/**
+ * SubBlockState stores values for all subblocks in workflows
+ *
+ * Important implementation notes:
+ * 1. Values are stored per workflow, per block, per subblock
+ * 2. When workflows are synced to the database, the mergeSubblockState function
+ *    in utils.ts combines the block structure with these values
+ * 3. If a subblock value exists here but not in the block structure
+ *    (e.g., inputFormat in starter block), the merge function will include it
+ *    in the synchronized state to ensure persistence
+ */
 interface SubBlockState {
   workflowValues: Record<string, Record<string, Record<string, any>>> // Store values per workflow ID
 }

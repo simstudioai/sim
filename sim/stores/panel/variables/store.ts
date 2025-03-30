@@ -107,7 +107,7 @@ export const useVariablesStore = create<VariablesStore>()(
             if (!state.variables[id]) return state
 
             // If name is being updated, ensure it's unique
-            if (update.name) {
+            if (update.name !== undefined) {
               const oldVariable = state.variables[id]
               const oldVariableName = oldVariable.name
               const workflowId = oldVariable.workflowId
@@ -124,7 +124,8 @@ export const useVariablesStore = create<VariablesStore>()(
                 nameIndex++
               }
 
-              // If name has changed, update references in subblocks
+              // Always update references in subblocks when name changes, even if empty
+              // This ensures references are updated even when name is completely cleared
               if (uniqueName !== oldVariableName) {
                 // Update references in subblock store
                 const subBlockStore = useSubBlockStore.getState()

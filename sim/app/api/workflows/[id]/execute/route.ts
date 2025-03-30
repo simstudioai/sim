@@ -234,7 +234,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    const body = await request.json().catch(() => ({}))
+    const bodyText = await request.text()
+    const body = bodyText ? JSON.parse(bodyText) : {}
+
     const result = await executeWorkflow(validation.workflow, requestId, body)
     return createSuccessResponse(result)
   } catch (error: any) {

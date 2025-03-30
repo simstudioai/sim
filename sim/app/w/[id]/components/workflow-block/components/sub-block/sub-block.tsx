@@ -17,6 +17,7 @@ import { LongInput } from './components/long-input'
 import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
+import { InputFormat } from './components/starter/input-format'
 import { Switch } from './components/switch'
 import { Table } from './components/table'
 import { TimeInput } from './components/time-input'
@@ -161,8 +162,10 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         return <FileSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       case 'folder-selector':
         return <FolderSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+      case 'input-format':
+        return <InputFormat blockId={blockId} subBlockId={config.id} />
       default:
-        return null
+        return <div>Unknown input type: {config.type}</div>
     }
   }
 
