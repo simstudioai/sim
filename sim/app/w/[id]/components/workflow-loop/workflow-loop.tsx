@@ -32,8 +32,6 @@ function createLoopInputNode(loopId: string, bounds: { x: number; width: number 
 
   if (loopType === 'forEach') {
     BADGE_WIDTH = 72 // Adjusted for 'Items' text
-  } else if (loopType === 'while') {
-    BADGE_WIDTH = 160 // Adjusted for 'Stopping condition' text
   }
 
   return {
