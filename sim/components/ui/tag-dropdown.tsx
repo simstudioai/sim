@@ -123,6 +123,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             .getState()
             .getValue(activeSourceBlockId || blockId, 'inputFormat')
           if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
+            // Check if any fields have been configured with names
+            const hasConfiguredFields = inputFormatValue.some(
+              (field: any) => field.name && field.name.trim() !== ''
+            )
+
+            // If no fields have been configured, return the default input path
+            if (!hasConfiguredFields) {
+              return ['response.input']
+            }
+
             // Return fields from input format
             return inputFormatValue.map((field: any) => `response.input.${field.name}`)
           }

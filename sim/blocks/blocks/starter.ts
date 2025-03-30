@@ -31,31 +31,13 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
       ],
       value: () => 'manual',
     },
-    // Structured Input toggle (visible for manual runs)
-    // {
-    //   id: 'useInputFormat',
-    //   title: 'Use Structured Input',
-    //   type: 'dropdown',
-    //   layout: 'full',
-    //   options: [
-    //     { label: 'Yes', id: 'true' },
-    //     { label: 'No', id: 'false' },
-    //   ],
-    //   value: () => 'false',
-    //   condition: { field: 'startWorkflow', value: 'manual' },
-    // },
-    // Input Format Editor (visible when toggle is on and startWorkflow is manual)
+    // Structured Input format - visible if manual run is selected
     {
       id: 'inputFormat',
-      title: 'Input Format',
+      title: 'Input Format (for API calls)',
       type: 'input-format',
       layout: 'full',
-      // TODO: Fix this
-      // condition: {
-      //   field: 'startWorkflow',
-      //   value: 'manual',
-      //   and: { field: 'useInputFormat', value: 'true' }
-      // },
+      condition: { field: 'startWorkflow', value: 'manual' },
     },
     // Webhook configuration
     {
