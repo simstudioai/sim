@@ -626,12 +626,18 @@ export class InputResolver {
       if (typeof loop.forEachItems === 'string') {
         try {
           // Check if it's valid JSON
-          if (loop.forEachItems.trim().startsWith('[') || loop.forEachItems.trim().startsWith('{')) {
-            return JSON.parse(loop.forEachItems);
+          const trimmedExpression = loop.forEachItems.trim();
+          if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
+            try {
+              // Try to parse as JSON first
+              return JSON.parse(trimmedExpression);
+            } catch (jsonError) {
+              console.error(`Error parsing JSON for loop:`, jsonError);
+              // If JSON parsing fails, continue with expression evaluation
+            }
           }
           
-          // Otherwise, try to evaluate it as an expression
-          const trimmedExpression = loop.forEachItems.trim();
+          // If not valid JSON or JSON parsing failed, try to evaluate as an expression
           if (trimmedExpression && !trimmedExpression.startsWith('//')) {
             const result = new Function('context', `return ${loop.forEachItems}`)(context);
             if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {

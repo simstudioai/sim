@@ -247,7 +247,18 @@ export class LoopManager {
           return [];
         }
         
-        // Simple expression evaluation using Function constructor
+        // First check if it's valid JSON (array or object)
+        if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
+          try {
+            // Try to parse as JSON first
+            return JSON.parse(trimmedExpression);
+          } catch (jsonError) {
+            console.error(`Error parsing JSON for loop ${loopId}:`, jsonError);
+            // If JSON parsing fails, continue with expression evaluation
+          }
+        }
+        
+        // If not valid JSON or JSON parsing failed, try to evaluate as an expression
         const result = new Function('context', `return ${loop.forEachItems}`)(context);
         
         // If the result is an array or object, return it
