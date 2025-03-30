@@ -12,6 +12,9 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useNotificationStore } from '@/stores/notifications/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -51,6 +54,12 @@ function WorkflowContent() {
   const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge } =
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
+  const { markAllAsRead } = useNotificationStore()
+  const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
+
+  // Execution and debug mode state
+  const { activeBlockIds, pendingBlocks } = useExecutionStore()
+  const { isDebugModeEnabled } = useGeneralStore()
 
   // Initialize workflow
   useEffect(() => {
@@ -70,6 +79,62 @@ function WorkflowContent() {
       }
     }
   }, [])
+
+  // Listen for toolbar block click events
+  useEffect(() => {
+    const handleAddBlockFromToolbar = (event: CustomEvent) => {
+      const { type } = event.detail
+
+      if (!type) return
+      if (type === 'connectionBlock') return
+
+      const blockConfig = getBlock(type)
+      if (!blockConfig) {
+        logger.error('Invalid block type:', { type })
+        return
+      }
+
+      // Calculate the center position of the viewport
+      const centerPosition = project({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
+      })
+
+      // Create a new block with a unique ID
+      const id = crypto.randomUUID()
+      const name = `${blockConfig.name} ${
+        Object.values(blocks).filter((b) => b.type === type).length + 1
+      }`
+
+      // Add the block to the workflow
+      addBlock(id, type, name, centerPosition)
+
+      // Auto-connect logic
+      const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+      if (isAutoConnectEnabled && type !== 'starter') {
+        const closestBlockId = findClosestOutput(centerPosition)
+        if (closestBlockId) {
+          addEdge({
+            id: crypto.randomUUID(),
+            source: closestBlockId,
+            target: id,
+            sourceHandle: 'source',
+            targetHandle: 'target',
+            type: 'custom',
+          })
+        }
+      }
+    }
+
+    window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
+
+    return () => {
+      window.removeEventListener(
+        'add-block-from-toolbar',
+        handleAddBlockFromToolbar as EventListener
+      )
+    }
+  }, [project, blocks, addBlock, addEdge])
 
   // Init workflow
   useEffect(() => {
@@ -100,17 +165,32 @@ function WorkflowContent() {
         const checkInterval = setInterval(() => {
           if (!isActivelyLoadingFromDB()) {
             clearInterval(checkInterval)
+            // Reset variables loaded state before setting active workflow
+            resetVariablesLoaded()
             setActiveWorkflow(currentId)
+            markAllAsRead(currentId)
           }
         }, 100)
         return
       }
 
+      // Reset variables loaded state before setting active workflow
+      resetVariablesLoaded()
       setActiveWorkflow(currentId)
+      markAllAsRead(currentId)
     }
 
     validateAndNavigate()
-  }, [params.id, workflows, setActiveWorkflow, createWorkflow, router, isInitialized])
+  }, [
+    params.id,
+    workflows,
+    setActiveWorkflow,
+    createWorkflow,
+    router,
+    isInitialized,
+    markAllAsRead,
+    resetVariablesLoaded,
+  ])
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes = useMemo(() => {
@@ -151,6 +231,9 @@ function WorkflowContent() {
         }
       }
 
+      const isActive = activeBlockIds.has(block.id)
+      const isPending = isDebugModeEnabled && pendingBlocks.includes(block.id)
+
       nodeArray.push({
         id: block.id,
         type: 'workflowBlock',
@@ -161,12 +244,14 @@ function WorkflowContent() {
           type: block.type,
           config: blockConfig,
           name: block.name,
+          isActive,
+          isPending,
         },
       })
     })
 
     return nodeArray
-  }, [blocks, loops])
+  }, [blocks, loops, activeBlockIds, pendingBlocks, isDebugModeEnabled])
 
   // Update nodes
   const onNodesChange = useCallback(
@@ -363,7 +448,7 @@ function WorkflowContent() {
           onDragOver={(e) => e.preventDefault()}
           fitView
           minZoom={0.1}
-          maxZoom={1}
+          maxZoom={1.3}
           panOnScroll
           defaultEdgeOptions={{ type: 'custom' }}
           proOptions={{ hideAttribution: true }}
@@ -387,6 +472,7 @@ function WorkflowContent() {
           noWheelClassName="allow-scroll"
           edgesFocusable={true}
           edgesUpdatable={true}
+          className="workflow-container"
         >
           <Background />
         </ReactFlow>

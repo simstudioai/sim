@@ -1,5 +1,6 @@
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks/index'
 import { SubBlockConfig } from '@/blocks/types'
@@ -13,6 +14,7 @@ import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
+import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
 import { Switch } from './components/switch'
@@ -31,6 +33,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
   }
+
+  const { getValue } = useSubBlockStore()
 
   const isFieldRequired = () => {
     const blockType = useWorkflowStore.getState().blocks[blockId]?.type
@@ -127,6 +131,10 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
       case 'webhook-config':
         return (
           <WebhookConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
+        )
+      case 'schedule-config':
+        return (
+          <ScheduleConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
         )
       case 'oauth-input':
         return (

@@ -1,11 +1,23 @@
 ---
-title: Router Block
+title: Router
 description: Route workflow execution based on specific conditions or logic
 ---
 
-# Router Block
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { ThemeImage } from '@/components/ui/theme-image'
 
 The Router block is a powerful component in Sim Studio that intelligently routes workflow execution based on content analysis, user input, or predefined conditions. It acts as a decision-making junction in your workflow, directing the flow to different paths based on various criteria.
+
+
+<ThemeImage 
+  lightSrc="/static/light/router-light.png" 
+  darkSrc="/static/dark/router-dark.png" 
+  alt="Router Block" 
+  width={300} 
+  height={175} 
+/>
 
 ## Overview
 
@@ -47,10 +59,11 @@ The possible destination blocks that the Router can select from. The Router will
 
 Choose an LLM provider to power the routing decision:
 
-- OpenAI (GPT-3.5, GPT-4)
-- Anthropic (Claude)
-- Google (Gemini)
-- Mistral AI
+- OpenAI (GPT-4o, o1, o3-mini)
+- Anthropic (Claude 3.7 Sonnet)
+- Google (Gemini 2.5 Pro, Gemini 2.0 Flash)
+- Groq, Cerebras
+- Ollama Local Models
 - And more
 
 Select a model with strong reasoning capabilities for more accurate routing decisions.

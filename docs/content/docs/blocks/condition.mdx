@@ -1,14 +1,23 @@
 ---
 title: Condition
-description: Branch workflow execution based on boolean expressions
+description: Create conditional logic and branching in your workflows
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
 import { Steps, Step } from 'fumadocs-ui/components/steps'
 import { Files, Folder, File } from 'fumadocs-ui/components/files'
+import { ThemeImage } from '@/components/ui/theme-image'
 
 The Condition block allows you to branch your workflow execution path based on boolean expressions. It evaluates conditions and routes the workflow accordingly, enabling you to create dynamic, responsive workflows with different execution paths.
+
+<ThemeImage 
+  lightSrc="/static/light/condition-light.png" 
+  darkSrc="/static/dark/condition-dark.png" 
+  alt="Condition Block" 
+  width={300} 
+  height={175} 
+/>
 
 <Callout>
   Condition blocks enable deterministic decision-making without requiring an LLM, making them ideal for straightforward branching logic.
@@ -145,16 +154,6 @@ conditions:
     description: "Customer is not satisfied"
     path: "improvement_feedback_block"
 ```
-
-## Key Points from the Documentation
-
-According to the [Fumadocs Files component documentation](https://fumadocs.vercel.app/docs/ui/components/files):
-
-1. The `File` component requires a `name` prop (string)
-2. The `File` component can optionally have an `icon` prop (ReactNode)
-3. The components must be used in the correct hierarchy: `<Files>` wrapping `<Folder>` and/or `<File>` components
-
-Make sure you're following this structure in your MDX files to avoid errors with the Files component.
 
 ## Best Practices
 

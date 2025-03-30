@@ -3,7 +3,7 @@ import { Resend } from 'resend'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 const logger = createLogger('HelpAPI')
 
 // Define schema for validation
@@ -18,6 +18,18 @@ export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
+    // Check if Resend API key is configured
+    if (!resend) {
+      logger.error(`[${requestId}] RESEND_API_KEY not configured`)
+      return NextResponse.json(
+        {
+          error:
+            'Email service not configured. Please set RESEND_API_KEY in environment variables.',
+        },
+        { status: 500 }
+      )
+    }
+
     // Handle multipart form data
     const formData = await req.formData()
 
@@ -132,6 +144,15 @@ The Sim Studio Team
       { status: 200 }
     )
   } catch (error) {
+    // Check if error is related to missing API key
+    if (error instanceof Error && error.message.includes('API key')) {
+      logger.error(`[${requestId}] API key configuration error`, error)
+      return NextResponse.json(
+        { error: 'Email service configuration error. Please check your RESEND_API_KEY.' },
+        { status: 500 }
+      )
+    }
+
     logger.error(`[${requestId}] Error processing help request`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

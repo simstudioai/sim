@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Rocket, Terminal, X } from 'lucide-react'
+import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -18,19 +18,57 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { Notification } from '@/stores/notifications/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Notifications')
 
 // Constants
-const NOTIFICATION_TIMEOUT = 4000
-const FADE_DURATION = 300
+const NOTIFICATION_TIMEOUT = 4000 // Show notification for 4 seconds
+const FADE_DURATION = 500 // Fade out over 500ms
+
+// Define keyframes for the animations in a style tag
+const AnimationStyles = () => (
+  <style jsx global>{`
+    @keyframes notification-slide {
+      0% {
+        opacity: 0;
+        transform: translateY(-100%);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes notification-fade-out {
+      0% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-10%);
+      }
+    }
+
+    .animate-notification-slide {
+      animation: notification-slide 300ms ease forwards;
+    }
+
+    .animate-notification-fade-out {
+      animation: notification-fade-out ${FADE_DURATION}ms ease forwards;
+    }
+  `}</style>
+)
 
 // Icon mapping for notification types
 const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
   api: Rocket,
+  marketplace: Store,
+  info: Info,
 }
 
 // Color schemes for different notification types
@@ -40,6 +78,9 @@ const NotificationColors = {
   console:
     'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
   api: 'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
+  marketplace:
+    'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
+  info: 'border-blue-500 bg-blue-50 text-blue-800 dark:border-border dark:bg-blue-900/20 dark:text-blue-400',
 }
 
 // API deployment status styling
@@ -88,20 +129,53 @@ function DeleteApiConfirmation({
  */
 export function NotificationList() {
   // Store access
-  const { notifications, hideNotification } = useNotificationStore()
+  const { notifications, hideNotification, markAsRead, removeNotification } = useNotificationStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
 
   // Local state
   const [fadingNotifications, setFadingNotifications] = useState<Set<string>>(new Set())
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
 
-  // Filter to only show visible notifications
-  const visibleNotifications = notifications.filter((n) => n.isVisible)
+  // Filter to only show:
+  // 1. Visible notifications for the current workflow
+  // 2. That are either unread OR marked as persistent
+  // 3. And have not been marked for removal
+  const visibleNotifications = notifications.filter(
+    (n) =>
+      n.isVisible &&
+      n.workflowId === activeWorkflowId &&
+      (!n.read || n.options?.isPersistent) &&
+      !removedIds.has(n.id)
+  )
+
+  // Reset removedIds whenever a notification's visibility changes from false to true
+  useEffect(() => {
+    const newlyVisibleNotifications = notifications.filter(
+      (n) => n.isVisible && removedIds.has(n.id)
+    )
+
+    if (newlyVisibleNotifications.length > 0) {
+      setRemovedIds((prev) => {
+        const next = new Set(prev)
+        newlyVisibleNotifications.forEach((n) => next.delete(n.id))
+        return next
+      })
+
+      // Also reset fading state for these notifications
+      setFadingNotifications((prev) => {
+        const next = new Set(prev)
+        newlyVisibleNotifications.forEach((n) => next.delete(n.id))
+        return next
+      })
+    }
+  }, [notifications, removedIds])
 
   // Handle auto-dismissal of non-persistent notifications
   useEffect(() => {
     // Setup timers for each notification
     const timers: ReturnType<typeof setTimeout>[] = []
 
-    notifications.forEach((notification) => {
+    visibleNotifications.forEach((notification) => {
       // Skip if already hidden or marked as persistent
       if (!notification.isVisible || notification.options?.isPersistent) return
 
@@ -110,9 +184,14 @@ export function NotificationList() {
         setFadingNotifications((prev) => new Set([...prev, notification.id]))
       }, NOTIFICATION_TIMEOUT)
 
-      // Hide notification after fade completes
+      // Hide notification after fade completes and mark for removal from DOM
       const hideTimer = setTimeout(() => {
         hideNotification(notification.id)
+        markAsRead(notification.id)
+
+        // Mark this notification ID as removed to exclude it from rendering
+        setRemovedIds((prev) => new Set([...prev, notification.id]))
+
         setFadingNotifications((prev) => {
           const next = new Set(prev)
           next.delete(notification.id)
@@ -125,28 +204,45 @@ export function NotificationList() {
 
     // Cleanup timers on unmount or when notifications change
     return () => timers.forEach(clearTimeout)
-  }, [notifications, hideNotification])
+  }, [visibleNotifications, hideNotification, markAsRead])
 
   // Early return if no notifications to show
   if (visibleNotifications.length === 0) return null
 
   return (
-    <div
-      className="absolute left-1/2 z-50 space-y-2 max-w-md w-full"
-      style={{
-        top: '30px',
-        transform: 'translateX(-50%)',
-      }}
-    >
-      {visibleNotifications.map((notification) => (
-        <NotificationAlert
-          key={notification.id}
-          notification={notification}
-          isFading={fadingNotifications.has(notification.id)}
-          onHide={hideNotification}
-        />
-      ))}
-    </div>
+    <>
+      <AnimationStyles />
+      <div
+        className="absolute left-1/2 z-50 space-y-2 max-w-lg w-full pointer-events-none"
+        style={{
+          top: '30px',
+          transform: 'translateX(-50%)',
+        }}
+      >
+        {visibleNotifications.map((notification) => (
+          <NotificationAlert
+            key={notification.id}
+            notification={notification}
+            isFading={fadingNotifications.has(notification.id)}
+            onHide={(id) => {
+              hideNotification(id)
+              markAsRead(id)
+              // Start the fade out animation
+              setFadingNotifications((prev) => new Set([...prev, id]))
+              // Remove from DOM after animation completes
+              setTimeout(() => {
+                setRemovedIds((prev) => new Set([...prev, id]))
+                setFadingNotifications((prev) => {
+                  const next = new Set(prev)
+                  next.delete(id)
+                  return next
+                })
+              }, FADE_DURATION)
+            }}
+          />
+        ))}
+      </div>
+    </>
   )
 }
 
@@ -161,18 +257,19 @@ interface NotificationAlertProps {
 
 function NotificationAlert({ notification, isFading, onHide }: NotificationAlertProps) {
   const { id, type, message, options, workflowId } = notification
-  const Icon = NotificationIcon[type]
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const { setDeploymentStatus } = useWorkflowStore()
   const { isDeployed } = useWorkflowStore((state) => ({
     isDeployed: state.isDeployed,
   }))
 
+  const Icon = NotificationIcon[type]
+
   const handleDeleteApi = async () => {
     if (!workflowId) return
 
     try {
-      const response = await fetch(`/api/workflow/${workflowId}/deploy`, {
+      const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
         method: 'DELETE',
       })
 
@@ -195,8 +292,10 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
     <>
       <Alert
         className={cn(
-          'transition-all duration-300 ease-in-out opacity-0 translate-y-[-100%]',
-          isFading ? 'animate-notification-fade-out' : 'animate-notification-slide',
+          'transition-all duration-300 ease-in-out opacity-0 translate-y-[-100%] pointer-events-auto',
+          isFading
+            ? 'animate-notification-fade-out pointer-events-none'
+            : 'animate-notification-slide',
           NotificationColors[type]
         )}
       >
@@ -289,7 +388,7 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
             )}
           </div>
         ) : (
-          // Original layout for error and console notifications
+          // Original layout for error, console and marketplace notifications
           <div className="flex items-start gap-4 py-1">
             {/* Icon with proper vertical alignment */}
             <div className="flex-shrink-0 mt-0.5">
@@ -297,6 +396,8 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
                 className={cn('h-4 w-4', {
                   '!text-red-500 mt-[-3px]': type === 'error',
                   'text-foreground mt-[-3px]': type === 'console',
+                  'mt-[-4.5px] text-foreground ': type === 'marketplace',
+                  '!text-blue-500 mt-[-3px]': type === 'info',
                 })}
               />
             </div>
@@ -304,7 +405,15 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
             {/* Content area with right margin for balance */}
             <div className="flex-1 space-y-2 mr-4">
               <AlertTitle className="flex items-center justify-between -mt-0.5">
-                <span>{type === 'error' ? 'Error' : 'Console'}</span>
+                <span>
+                  {type === 'error'
+                    ? 'Error'
+                    : type === 'marketplace'
+                      ? 'Marketplace'
+                      : type === 'info'
+                        ? 'Info'
+                        : 'Console'}
+                </span>
 
                 {/* Close button for persistent notifications */}
                 {options?.isPersistent && (
@@ -322,7 +431,9 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
 
               <AlertDescription className="space-y-4">
                 {/* Message with auto-expanding and max height */}
-                <p className="max-h-[300px] overflow-hidden text-ellipsis">{message}</p>
+                <p className="max-h-[300px] overflow-hidden break-words break-all whitespace-normal">
+                  {message}
+                </p>
 
                 {/* Optional sections with copyable content */}
                 {options?.sections?.map((section, index) => (

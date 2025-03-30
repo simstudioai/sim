@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useDebounce } from '../../hooks/use-debounce'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '../../stores/store'
 import { LogsResponse } from '../../stores/types'
 
@@ -37,7 +37,7 @@ export function ControlBar() {
   const fetchLogs = async () => {
     try {
       // Include workflow data in the response
-      const response = await fetch('/api/db/workflow-logs?includeWorkflow=true')
+      const response = await fetch('/api/logs?includeWorkflow=true')
 
       if (!response.ok) {
         throw new Error(`Error fetching logs: ${response.statusText}`)

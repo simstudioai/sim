@@ -4,7 +4,6 @@ export interface WorkflowData {
   description: string | null
   color: string
   state: any
-  // Add other workflow fields as needed
 }
 
 export interface ToolCall {
@@ -20,6 +19,24 @@ export interface ToolCall {
 
 export interface ToolCallMetadata {
   toolCalls?: ToolCall[]
+}
+
+export interface CostMetadata {
+  model?: string
+  input?: number
+  output?: number
+  total?: number
+  tokens?: {
+    prompt?: number
+    completion?: number
+    total?: number
+  }
+  pricing?: {
+    input: number
+    output: number
+    cachedInput?: number
+    updatedAt: string
+  }
 }
 
 export interface TraceSpan {
@@ -49,6 +66,7 @@ export interface WorkflowLog {
   metadata?: ToolCallMetadata & {
     traceSpans?: TraceSpan[]
     totalDuration?: number
+    cost?: CostMetadata
   }
 }
 
