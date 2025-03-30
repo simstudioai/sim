@@ -54,7 +54,19 @@ export function ShortInput({
     const normalizedTitle = config?.title?.replace(/\s+/g, '').toLowerCase() || ''
 
     // Check for common API key naming patterns
-    const apiKeyPatterns = ['apikey', 'api_key', 'api-key', 'secretkey', 'secret_key', 'secret-key']
+    const apiKeyPatterns = [
+      'apikey',
+      'api_key',
+      'api-key',
+      'secretkey',
+      'secret_key',
+      'secret-key',
+      'token',
+      'access_token',
+      'auth_token',
+      'secret',
+      'password',
+    ]
 
     return apiKeyPatterns.some(
       (pattern) =>
@@ -240,8 +252,13 @@ export function ShortInput({
   const displayValue =
     password && !isFocused ? '•'.repeat(value?.toString().length ?? 0) : (value?.toString() ?? '')
 
-  // Modify the EnvVarDropdown to use the correct setter
+  // Explicitly mark environment variable references with '{{' and '}}' when inserting
   const handleEnvVarSelect = (newValue: string) => {
+    // For API keys, ensure we're using the full value with {{ }} format
+    if (isApiKeyField && !newValue.startsWith('{{')) {
+      newValue = `{{${newValue}}}`
+    }
+
     if (onChange) {
       onChange(newValue)
     } else {
@@ -293,7 +310,7 @@ export function ShortInput({
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre scrollbar-none text-sm bg-transparent"
+        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre text-sm bg-transparent"
       >
         {password && !isFocused
           ? '•'.repeat(value?.toString().length ?? 0)

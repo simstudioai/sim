@@ -1,39 +1,98 @@
 version: 2
 updates:
-  # Update npm dependencies
   - package-ecosystem: "npm"
-    directory: "/sim"  # Location of package.json
+    directory: "/sim"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5  # Start conservative to manage review load
+      day: "monday"
+      time: "09:00"
+    # Disable version updates
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
-    # Group related dependencies to reduce PR volume
+      - "security"
+    commit-message:
+      prefix: "fix(deps)"
+      prefix-development: "chore(deps)"
+      include: "scope"
     groups:
-      development-tools:
+      dependencies:
+        applies-to: security-updates
         patterns:
-          - "*eslint*"
-          - "*prettier*"
-          - "*test*"
-      ui-components:
-        patterns:
-          - "@shadcn/*"
-          - "tailwind*"
-      react-ecosystem:
-        patterns:
-          - "react*"
-          - "next*"
-    # Auto-merge configuration should be at this level
-    target-branch: "main"
-    versioning-strategy: auto
-    pull-request-branch-name:
-      separator: "-"
+          - "*"
     
-  # Also check for GitHub Actions updates
+  # Documentation site dependencies (/docs)
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+    # Disable version updates
+    open-pull-requests-limit: 0
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "docs(deps)"
+      include: "scope"
+    groups:
+      docs-dependencies:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    
+  # Root-level dependencies (if any)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "friday"
+    # Disable version updates
+    open-pull-requests-limit: 0
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      root-dependencies:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    
+  # GitHub Actions workflows
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "monthly"
+    # Disable version updates
+    open-pull-requests-limit: 0
     labels:
       - "dependencies"
-      - "github-actions" 
+      - "security"
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    
+  # Docker containers (if applicable)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    # Disable version updates
+    open-pull-requests-limit: 0
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "docker(deps)"
+    groups:
+      docker:
+        applies-to: security-updates
+        patterns:
+          - "*"

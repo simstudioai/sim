@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,27 +50,21 @@ export function CredentialSelector({
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [selectedId, setSelectedId] = useState(value)
-  const initialFetchRef = useRef(false)
 
-  // Determine the appropriate service ID based on provider and scopes
-  const getServiceId = (): string => {
-    if (serviceId) return serviceId
-    return getServiceIdFromScopes(provider, requiredScopes)
-  }
+  // Derive service and provider IDs using useMemo
+  const effectiveServiceId = useMemo(() => {
+    return serviceId || getServiceIdFromScopes(provider, requiredScopes)
+  }, [provider, requiredScopes, serviceId])
 
-  // Determine the appropriate provider ID based on service and scopes
-  const getProviderId = (): string => {
-    const effectiveServiceId = getServiceId()
+  const effectiveProviderId = useMemo(() => {
     return getProviderIdFromServiceId(effectiveServiceId)
-  }
+  }, [effectiveServiceId])
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     try {
-      const providerId = getProviderId()
-
-      const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
+      const response = await fetch(`/api/auth/oauth/credentials?provider=${effectiveProviderId}`)
       if (response.ok) {
         const data = await response.json()
         setCredentials(data.credentials)
@@ -105,27 +99,43 @@ export function CredentialSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, onChange, selectedId, getProviderId])
+  }, [effectiveProviderId, onChange, selectedId])
 
-  // Fetch credentials on initial mount and when dependencies change
+  // Fetch credentials on initial mount
   useEffect(() => {
-    if (!initialFetchRef.current) {
-      fetchCredentials()
-      initialFetchRef.current = true
-    }
-  }, [fetchCredentials])
-
-  // Also fetch credentials when opening the popover
-  useEffect(() => {
-    if (open) {
-      fetchCredentials()
-    }
-  }, [open, fetchCredentials])
+    fetchCredentials()
+    // This effect should only run once on mount, so empty dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Update local state when external value changes
   useEffect(() => {
     setSelectedId(value)
   }, [value])
+
+  // Listen for visibility changes to update credentials when user returns from settings
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCredentials()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [fetchCredentials])
+
+  // Handle popover open to fetch fresh credentials
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen) {
+      // Fetch fresh credentials when opening the dropdown
+      fetchCredentials()
+    }
+  }
 
   // Get the selected credential
   const selectedCredential = credentials.find((cred) => cred.id === selectedId)
@@ -139,14 +149,11 @@ export function CredentialSelector({
 
   // Handle adding a new credential
   const handleAddCredential = () => {
-    const effectiveServiceId = getServiceId()
-    const providerId = getProviderId()
-
     // Store information about the required connection
     saveToStorage<string>('pending_service_id', effectiveServiceId)
     saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
     saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    saveToStorage<string>('pending_oauth_provider_id', effectiveProviderId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
@@ -184,7 +191,7 @@ export function CredentialSelector({
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -243,14 +250,16 @@ export function CredentialSelector({
                   ))}
                 </CommandGroup>
               )}
-              <CommandGroup>
-                <CommandItem onSelect={handleAddCredential}>
-                  <div className="flex items-center gap-2 text-primary">
-                    {getProviderIcon(provider)}
-                    <span>Connect {getProviderName(provider)} account</span>
-                  </div>
-                </CommandItem>
-              </CommandGroup>
+              {credentials.length === 0 && (
+                <CommandGroup>
+                  <CommandItem onSelect={handleAddCredential}>
+                    <div className="flex items-center gap-2 text-primary">
+                      {getProviderIcon(provider)}
+                      <span>Connect {getProviderName(provider)} account</span>
+                    </div>
+                  </CommandItem>
+                </CommandGroup>
+              )}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -263,7 +272,7 @@ export function CredentialSelector({
           provider={provider}
           toolName={getProviderName(provider)}
           requiredScopes={requiredScopes}
-          serviceId={getServiceId()}
+          serviceId={effectiveServiceId}
         />
       )}
     </>

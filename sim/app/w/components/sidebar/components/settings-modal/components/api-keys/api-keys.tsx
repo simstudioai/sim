@@ -170,8 +170,8 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
       </div>
 
       <p className="text-sm text-muted-foreground leading-relaxed">
-        API keys allow you to authenticate with the Sim SDK. Keep your API keys secure. They have
-        access to your account and workflows.
+        API keys allow you to authenticate and trigger workflows. Keep your API keys secure. They
+        have access to your account and workflows.
       </p>
 
       {isLoading ? (

@@ -69,56 +69,67 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     }))
   }
 
-  return (
-    <div className="absolute -left-[180px] top-0 space-y-2 flex flex-col items-end w-[160px]">
-      {incomingConnections.map((connection) => (
-        <div key={connection.id} className="space-y-2">
-          {Array.isArray(connection.outputType) ? (
-            // Handle array of field names
-            connection.outputType.map((fieldName) => {
-              // Try to find field in response format
-              const fields = extractFieldsFromSchema(connection)
-              const field = fields.find((f) => f.name === fieldName) || {
-                name: fieldName,
-                type: 'string',
-              }
+  // Deduplicate connections by ID
+  const connectionMap = incomingConnections.reduce(
+    (acc, connection) => {
+      acc[connection.id] = connection
+      return acc
+    },
+    {} as Record<string, ConnectedBlock>
+  )
 
-              return (
-                <Card
-                  key={field.name}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, connection, field)}
-                  onDragEnd={handleDragEnd}
-                  className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-fit"
-                >
-                  <div className="text-sm">
-                    <span className="font-medium leading-none">
-                      {connection.name.replace(/\s+/g, '').toLowerCase()}
-                    </span>
-                    <span className="text-muted-foreground">.{field.name}</span>
-                  </div>
-                </Card>
-              )
-            })
-          ) : (
-            <Card
-              draggable
-              onDragStart={(e) => handleDragStart(e, connection)}
-              onDragEnd={handleDragEnd}
-              className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-fit"
-            >
-              <div className="text-sm">
-                <span className="font-medium leading-none">
-                  {connection.name.replace(/\s+/g, '').toLowerCase()}
-                </span>
-                <span className="text-muted-foreground">
-                  {typeof connection.outputType === 'string' ? `.${connection.outputType}` : ''}
-                </span>
-              </div>
-            </Card>
-          )}
+  // Sort connections by name
+  const sortedConnections = Object.values(connectionMap).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  )
+
+  // Helper function to render a connection card
+  const renderConnectionCard = (connection: ConnectedBlock, field?: ResponseField) => {
+    const displayName = connection.name.replace(/\s+/g, '').toLowerCase()
+
+    return (
+      <Card
+        key={`${field ? field.name : connection.id}`}
+        draggable
+        onDragStart={(e) => handleDragStart(e, connection, field)}
+        onDragEnd={handleDragEnd}
+        className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-max"
+      >
+        <div className="text-sm">
+          <span className="font-medium leading-none">{displayName}</span>
+          <span className="text-muted-foreground">
+            {field
+              ? `.${field.name}`
+              : typeof connection.outputType === 'string'
+                ? `.${connection.outputType}`
+                : ''}
+          </span>
         </div>
-      ))}
+      </Card>
+    )
+  }
+
+  return (
+    <div className="absolute right-full pr-5 top-0 space-y-2 flex flex-col items-end max-h-[400px] overflow-y-auto">
+      {sortedConnections.map((connection, index) => {
+        return (
+          <div key={`${connection.id}-${index}`} className="space-y-2">
+            {Array.isArray(connection.outputType)
+              ? // Handle array of field names
+                connection.outputType.map((fieldName) => {
+                  // Try to find field in response format
+                  const fields = extractFieldsFromSchema(connection)
+                  const field = fields.find((f) => f.name === fieldName) || {
+                    name: fieldName,
+                    type: 'string',
+                  }
+
+                  return renderConnectionCard(connection, field)
+                })
+              : renderConnectionCard(connection)}
+          </div>
+        )
+      })}
     </div>
   )
 }

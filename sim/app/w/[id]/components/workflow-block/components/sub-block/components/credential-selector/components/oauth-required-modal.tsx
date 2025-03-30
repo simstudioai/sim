@@ -35,14 +35,23 @@ export interface OAuthRequiredModalProps {
 // Map of OAuth scopes to user-friendly descriptions
 const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'https://www.googleapis.com/auth/gmail.send': 'Send emails on your behalf',
-  'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
-  'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
+  'https://www.googleapis.com/auth/gmail.labels': 'View and manage your email labels',
+  // 'https://www.googleapis.com/auth/gmail.readonly': 'View and read your email messages',
+  // 'https://www.googleapis.com/auth/drive': 'View and manage your Google Drive files',
   'https://www.googleapis.com/auth/drive.file': 'View and manage your Google Drive files',
-  'https://www.googleapis.com/auth/documents': 'View and manage your Google Docs',
+  // 'https://www.googleapis.com/auth/documents': 'View and manage your Google Docs',
   'https://www.googleapis.com/auth/calendar': 'View and manage your calendar',
   'https://www.googleapis.com/auth/userinfo.email': 'View your email address',
   'https://www.googleapis.com/auth/userinfo.profile': 'View your basic profile info',
   'https://www.googleapis.com/auth/spreadsheets': 'View and manage your Google Sheets',
+  'read:confluence-content.all': 'Read Confluence content',
+  'read:page:confluence': 'Read Confluence pages',
+  'write:confluence-content': 'Write Confluence content',
+  'read:me': 'Read your profile information',
+  'database.read': 'Read your database',
+  'database.write': 'Write to your database',
+  'projects.read': 'Read your projects',
+  offline_access: 'Access your account when you are not using the application',
   repo: 'Access your repositories',
   workflow: 'Manage repository workflows',
   'user:email': 'Access your email address',
@@ -100,6 +109,7 @@ export function OAuthRequiredModal({
       saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
       saveToStorage<string>('pending_oauth_return_url', window.location.href)
       saveToStorage<string>('pending_oauth_provider_id', providerId)
+      saveToStorage<boolean>('from_oauth_modal', true)
 
       // Close the modal
       onClose()

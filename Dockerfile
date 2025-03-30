@@ -6,6 +6,9 @@ WORKDIR /app
 # Copy the entire sim directory
 COPY sim/ ./
 
+# Create the .env file if it doesn't exist
+RUN touch .env
+
 # Install dependencies
 RUN npm install
 

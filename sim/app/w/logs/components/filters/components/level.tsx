@@ -34,7 +34,10 @@ export default function Level() {
         {levels.map((levelItem) => (
           <DropdownMenuItem
             key={levelItem.value}
-            onClick={() => setLevel(levelItem.value)}
+            onSelect={(e) => {
+              e.preventDefault()
+              setLevel(levelItem.value)
+            }}
             className="flex items-center justify-between p-2 cursor-pointer text-sm"
           >
             <div className="flex items-center">

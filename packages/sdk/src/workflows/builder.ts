@@ -55,11 +55,11 @@ export class WorkflowBuilder {
   /**
    * Create a loop with specific blocks
    */
-  createLoop(nodes: string[], maxIterations: number, iterationVariable?: string): this {
+  createLoop(nodes: string[], iterations: number, iterationVariable?: string): this {
     const loopId = `loop_${Date.now()}`
     const loop: Loop = {
       nodes,
-      maxIterations,
+      iterations,
       ...(iterationVariable ? { iterationVariable } : {})
     }
     this.workflow.loops = {

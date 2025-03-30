@@ -1,264 +1,44 @@
 import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useConsoleStore } from '@/stores/console/store'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
+import { usePanelStore } from '@/stores/panel/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { TraceSpan } from '@/app/w/logs/stores/types'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 
 const logger = createLogger('useWorkflowExecution')
 
-// Helper function to build a tree of trace spans from execution logs
-function buildTraceSpans(result: ExecutionResult): {
-  traceSpans: TraceSpan[]
-  totalDuration: number
-} {
-  // If no logs, return empty spans
-  if (!result.logs || result.logs.length === 0) {
-    return { traceSpans: [], totalDuration: 0 }
-  }
-
-  // Store all spans as a map for faster lookup
-  const spanMap = new Map<string, TraceSpan>()
-
-  // First pass: Create spans for each block
-  result.logs.forEach((log) => {
-    // Skip logs that don't have block execution information
-    if (!log.blockId || !log.blockType) return
-
-    // Create a unique ID for this span using blockId and timestamp
-    const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
-
-    // Extract duration if available
-    const duration = log.durationMs || 0
-
-    // Create the span
-    const span: TraceSpan = {
-      id: spanId,
-      name: log.blockName || log.blockId,
-      type: log.blockType,
-      duration: duration,
-      startTime: log.startedAt,
-      endTime: log.endedAt,
-      status: log.error ? 'error' : 'success',
-      children: [],
-    }
-
-    // Add provider timing data if it exists
-    if (log.output?.response?.providerTiming) {
-      const providerTiming = log.output.response.providerTiming
-
-      // If we have time segments, use them to create a more detailed timeline
-      if (providerTiming.timeSegments && providerTiming.timeSegments.length > 0) {
-        const segmentStartTime = new Date(log.startedAt).getTime()
-        const children: TraceSpan[] = []
-
-        // Process segments in order
-        providerTiming.timeSegments.forEach(
-          (
-            segment: {
-              type: string
-              name: string
-              startTime: number
-              endTime: number
-              duration: number
-            },
-            index: number
-          ) => {
-            const relativeStart = segment.startTime - segmentStartTime
-
-            // Enhance the segment name to include model information for model segments
-            let enhancedName = segment.name
-            if (segment.type === 'model') {
-              const modelName = log.output.response.model || ''
-
-              if (segment.name === 'Initial response') {
-                enhancedName = `Initial response${modelName ? ` (${modelName})` : ''}`
-              } else if (segment.name.includes('iteration')) {
-                // Extract the iteration number
-                const iterationMatch = segment.name.match(/\(iteration (\d+)\)/)
-                const iterationNum = iterationMatch ? iterationMatch[1] : ''
-
-                enhancedName = `Model response${iterationNum ? ` (iteration ${iterationNum})` : ''}${modelName ? ` (${modelName})` : ''}`
-              }
-            }
-
-            const segmentSpan: TraceSpan = {
-              id: `${spanId}-segment-${index}`,
-              name: enhancedName,
-              // Make sure we handle model and tool types, and fallback to generic 'span' for anything else
-              type: segment.type === 'model' || segment.type === 'tool' ? segment.type : 'span',
-              duration: segment.duration,
-              startTime: new Date(segment.startTime).toISOString(),
-              endTime: new Date(segment.endTime).toISOString(),
-              status: 'success',
-              // Add relative timing display for segments after the first one
-              relativeStartMs: index === 0 ? undefined : relativeStart,
-              // For model segments, add token info if available
-              ...(segment.type === 'model' && {
-                tokens: index === 0 ? log.output.response.tokens?.completion : undefined,
-              }),
-            }
-
-            children.push(segmentSpan)
-          }
-        )
-
-        // Add all segments as children
-        if (!span.children) span.children = []
-        span.children.push(...children)
-      }
-      // If no segments but we have provider timing, create a provider span
-      else {
-        // Create a child span for the provider execution
-        const providerSpan: TraceSpan = {
-          id: `${spanId}-provider`,
-          name: log.output.response.model || 'AI Provider',
-          type: 'provider',
-          duration: providerTiming.duration || 0,
-          startTime: providerTiming.startTime || log.startedAt,
-          endTime: providerTiming.endTime || log.endedAt,
-          status: 'success',
-          tokens: log.output.response.tokens?.total,
-        }
-
-        // If we have model time, create a child span for just the model processing
-        if (providerTiming.modelTime) {
-          const modelName = log.output.response.model || ''
-          const modelSpan: TraceSpan = {
-            id: `${spanId}-model`,
-            name: `Model Generation${modelName ? ` (${modelName})` : ''}`,
-            type: 'model',
-            duration: providerTiming.modelTime,
-            startTime: providerTiming.startTime, // Approximate
-            endTime: providerTiming.endTime, // Approximate
-            status: 'success',
-            tokens: log.output.response.tokens?.completion,
-          }
-
-          if (!providerSpan.children) providerSpan.children = []
-          providerSpan.children.push(modelSpan)
-        }
-
-        if (!span.children) span.children = []
-        span.children.push(providerSpan)
-
-        // When using provider timing without segments, still add tool calls if they exist
-        if (log.output?.response?.toolCalls?.list) {
-          span.toolCalls = log.output.response.toolCalls.list.map((tc: any) => ({
-            name: tc.name,
-            duration: tc.duration || 0,
-            startTime: tc.startTime || log.startedAt,
-            endTime: tc.endTime || log.endedAt,
-            status: tc.error ? 'error' : 'success',
-            input: tc.arguments || tc.input,
-            output: tc.result || tc.output,
-            error: tc.error,
-          }))
-        }
-      }
-    } else {
-      // When not using provider timing at all, add tool calls if they exist
-      if (log.output?.response?.toolCalls?.list) {
-        span.toolCalls = log.output.response.toolCalls.list.map((tc: any) => ({
-          name: tc.name,
-          duration: tc.duration || 0,
-          startTime: tc.startTime || log.startedAt,
-          endTime: tc.endTime || log.endedAt,
-          status: tc.error ? 'error' : 'success',
-          input: tc.arguments || tc.input,
-          output: tc.result || tc.output,
-          error: tc.error,
-        }))
-      }
-    }
-
-    // Store in map
-    spanMap.set(spanId, span)
-  })
-
-  // Second pass: Build the hierarchy
-  // We'll first need to sort logs chronologically
-  const sortedLogs = [...result.logs].sort((a, b) => {
-    const aTime = new Date(a.startedAt).getTime()
-    const bTime = new Date(b.startedAt).getTime()
-    return aTime - bTime
-  })
-
-  // Track parent spans using a stack
-  const spanStack: TraceSpan[] = []
-  const rootSpans: TraceSpan[] = []
-
-  // Process logs to build the hierarchy
-  sortedLogs.forEach((log) => {
-    if (!log.blockId || !log.blockType) return
-
-    const spanId = `${log.blockId}-${new Date(log.startedAt).getTime()}`
-    const span = spanMap.get(spanId)
-    if (!span) return
-
-    // If we have a non-empty stack, check if this span should be a child
-    if (spanStack.length > 0) {
-      const potentialParent = spanStack[spanStack.length - 1]
-      const parentStartTime = new Date(potentialParent.startTime).getTime()
-      const parentEndTime = new Date(potentialParent.endTime).getTime()
-      const spanStartTime = new Date(span.startTime).getTime()
-
-      // If this span starts after the parent starts and the parent is still on the stack,
-      // we'll assume it's a child span
-      if (spanStartTime >= parentStartTime && spanStartTime <= parentEndTime) {
-        if (!potentialParent.children) potentialParent.children = []
-        potentialParent.children.push(span)
-      } else {
-        // This span doesn't belong to the current parent, pop from stack
-        while (
-          spanStack.length > 0 &&
-          new Date(spanStack[spanStack.length - 1].endTime).getTime() < spanStartTime
-        ) {
-          spanStack.pop()
-        }
-
-        // Check if we still have a parent
-        if (spanStack.length > 0) {
-          const newParent = spanStack[spanStack.length - 1]
-          if (!newParent.children) newParent.children = []
-          newParent.children.push(span)
-        } else {
-          // No parent, this is a root span
-          rootSpans.push(span)
-        }
-      }
-    } else {
-      // Empty stack, this is a root span
-      rootSpans.push(span)
-    }
-
-    // Check if this span could be a parent to future spans
-    if (log.blockType === 'agent' || log.blockType === 'workflow') {
-      spanStack.push(span)
-    }
-  })
-
-  // Calculate total duration as the sum of root spans
-  const totalDuration = rootSpans.reduce((sum, span) => sum + span.duration, 0)
-
-  return { traceSpans: rootSpans, totalDuration }
-}
-
 export function useWorkflowExecution() {
   const { blocks, edges, loops } = useWorkflowStore()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
-  const { toggleConsole, isOpen } = useConsoleStore()
+  const { toggleConsole } = useConsoleStore()
+  const { togglePanel, setActiveTab } = usePanelStore()
   const { getAllVariables } = useEnvironmentStore()
-  const { isExecuting, setIsExecuting } = useExecutionStore()
+  const { isDebugModeEnabled } = useGeneralStore()
+  const { getVariablesByWorkflowId, variables } = useVariablesStore()
+  const {
+    isExecuting,
+    isDebugging,
+    pendingBlocks,
+    executor,
+    debugContext,
+    setIsExecuting,
+    setIsDebugging,
+    setPendingBlocks,
+    setExecutor,
+    setDebugContext,
+  } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
   const persistLogs = async (executionId: string, result: ExecutionResult) => {
@@ -273,7 +53,7 @@ export function useWorkflowExecution() {
         totalDuration,
       }
 
-      const response = await fetch(`/api/workflow/${activeWorkflowId}/log`, {
+      const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -296,14 +76,26 @@ export function useWorkflowExecution() {
     if (!activeWorkflowId) return
     setIsExecuting(true)
 
-    // Open console if it's not already open
-    if (!isOpen) {
-      toggleConsole()
+    // Set debug mode if it's enabled in settings
+    if (isDebugModeEnabled) {
+      setIsDebugging(true)
     }
+
+    // Check if panel is open and open it if not
+    const isPanelOpen = usePanelStore.getState().isOpen
+    if (!isPanelOpen) {
+      togglePanel()
+    }
+
+    // Set active tab to console
+    setActiveTab('console')
 
     const executionId = uuidv4()
 
     try {
+      // Clear any existing state
+      setDebugContext(null)
+
       // Use the mergeSubblockState utility to get all block states
       const mergedStates = mergeSubblockState(blocks)
       const currentBlockStates = Object.entries(mergedStates).reduce(
@@ -330,27 +122,98 @@ export function useWorkflowExecution() {
         {} as Record<string, string>
       )
 
-      // Execute workflow
-      const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
-      const executor = new Executor(workflow, currentBlockStates, envVarValues)
-      const result = await executor.execute(activeWorkflowId)
-
-      // Set result and show notification immediately
-      setExecutionResult(result)
-      addNotification(
-        result.success ? 'console' : 'error',
-        result.success
-          ? 'Workflow completed successfully'
-          : `Workflow execution failed: ${result.error}`,
-        activeWorkflowId
+      // Get workflow variables
+      const workflowVars = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
+      const workflowVariables = workflowVars.reduce(
+        (acc, variable) => {
+          acc[variable.id] = variable
+          return acc
+        },
+        {} as Record<string, any>
       )
 
-      // Send the entire execution result to our API to be processed server-side
-      await persistLogs(executionId, result)
-    } catch (error: any) {
-      logger.error('Workflow Execution Error:', { error })
+      // Create serialized workflow
+      const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      // Create executor and store in global state
+      const newExecutor = new Executor(
+        workflow,
+        currentBlockStates,
+        envVarValues,
+        workflowVariables
+      )
+      setExecutor(newExecutor)
+
+      // Execute workflow
+      const result = await newExecutor.execute(activeWorkflowId)
+
+      // If we're in debug mode, store the execution context for later steps
+      if (result.metadata?.isDebugSession && result.metadata.context) {
+        setDebugContext(result.metadata.context)
+
+        // Make sure to update pending blocks
+        if (result.metadata.pendingBlocks) {
+          setPendingBlocks(result.metadata.pendingBlocks)
+        }
+      } else {
+        // Normal execution completed
+        setExecutionResult(result)
+
+        // Show notification
+        addNotification(
+          result.success ? 'console' : 'error',
+          result.success
+            ? 'Workflow completed successfully'
+            : `Workflow execution failed: ${result.error}`,
+          activeWorkflowId
+        )
+
+        // In non-debug mode, persist logs
+        await persistLogs(executionId, result)
+        setIsExecuting(false)
+        setIsDebugging(false)
+      }
+    } catch (error: any) {
+      logger.error('Workflow Execution Error:', error)
+
+      // Properly extract error message ensuring it's never undefined
+      let errorMessage = 'Unknown error'
+
+      if (error instanceof Error) {
+        errorMessage = error.message || `Error: ${String(error)}`
+      } else if (typeof error === 'string') {
+        errorMessage = error
+      } else if (error && typeof error === 'object') {
+        // Fix the "undefined (undefined)" pattern specifically
+        if (
+          error.message === 'undefined (undefined)' ||
+          (error.error &&
+            typeof error.error === 'object' &&
+            error.error.message === 'undefined (undefined)')
+        ) {
+          errorMessage = 'API request failed - no specific error details available'
+        }
+        // Try to extract error details from potential API or execution errors
+        else if (error.message) {
+          errorMessage = error.message
+        } else if (error.error && typeof error.error === 'string') {
+          errorMessage = error.error
+        } else if (error.error && typeof error.error === 'object' && error.error.message) {
+          errorMessage = error.error.message
+        } else {
+          // Last resort: stringify the whole object
+          try {
+            errorMessage = `Error details: ${JSON.stringify(error)}`
+          } catch {
+            errorMessage = 'Error occurred but details could not be displayed'
+          }
+        }
+      }
+
+      // Ensure errorMessage is never "undefined (undefined)"
+      if (errorMessage === 'undefined (undefined)') {
+        errorMessage = 'API request failed - no specific error details available'
+      }
 
       // Set error result and show notification immediately
       const errorResult = {
@@ -361,12 +224,39 @@ export function useWorkflowExecution() {
       }
 
       setExecutionResult(errorResult)
-      addNotification('error', `Workflow execution failed: ${errorMessage}`, activeWorkflowId)
+
+      // Create a more user-friendly notification message
+      let notificationMessage = `Workflow execution failed`
+
+      // Add URL for HTTP errors
+      if (error && error.request && error.request.url) {
+        // Don't show empty URL errors
+        if (error.request.url && error.request.url.trim() !== '') {
+          notificationMessage += `: Request to ${error.request.url} failed`
+
+          // Add status if available
+          if (error.status) {
+            notificationMessage += ` (Status: ${error.status})`
+          }
+        }
+      } else {
+        // Regular errors
+        notificationMessage += `: ${errorMessage}`
+      }
+
+      // Safely show error notification
+      try {
+        addNotification('error', notificationMessage, activeWorkflowId)
+      } catch (notificationError) {
+        logger.error('Error showing error notification:', notificationError)
+        // Fallback console error
+        console.error('Workflow execution failed:', errorMessage)
+      }
 
       // Also send the error result to the API
       await persistLogs(executionId, errorResult)
-    } finally {
       setIsExecuting(false)
+      setIsDebugging(false)
     }
   }, [
     activeWorkflowId,
@@ -374,11 +264,341 @@ export function useWorkflowExecution() {
     edges,
     loops,
     addNotification,
-    isOpen,
     toggleConsole,
+    togglePanel,
+    setActiveTab,
     getAllVariables,
+    getVariablesByWorkflowId,
     setIsExecuting,
+    setIsDebugging,
+    isDebugModeEnabled,
   ])
 
-  return { isExecuting, executionResult, handleRunWorkflow }
+  /**
+   * Handles stepping through workflow execution in debug mode
+   */
+  const handleStepDebug = useCallback(async () => {
+    // Log debug information
+    logger.info('Step Debug requested', {
+      hasExecutor: !!executor,
+      hasContext: !!debugContext,
+      pendingBlockCount: pendingBlocks.length,
+    })
+
+    if (!executor || !debugContext || pendingBlocks.length === 0) {
+      logger.error('Cannot step debug - missing required state', {
+        executor: !!executor,
+        debugContext: !!debugContext,
+        pendingBlocks: pendingBlocks.length,
+      })
+
+      // Show error notification
+      addNotification(
+        'error',
+        'Cannot step through debugging - missing execution state. Try restarting debug mode.',
+        activeWorkflowId || ''
+      )
+
+      // Reset debug state
+      setIsDebugging(false)
+      setIsExecuting(false)
+      return
+    }
+
+    try {
+      console.log('Executing debug step with blocks:', pendingBlocks)
+
+      // Execute the next step with the pending blocks
+      const result = await executor.continueExecution(pendingBlocks, debugContext)
+
+      console.log('Debug step execution result:', result)
+
+      // Save the new context in the store
+      if (result.metadata?.context) {
+        setDebugContext(result.metadata.context)
+      }
+
+      // Check if the debug session is complete
+      if (
+        !result.metadata?.isDebugSession ||
+        !result.metadata.pendingBlocks ||
+        result.metadata.pendingBlocks.length === 0
+      ) {
+        logger.info('Debug session complete')
+        // Debug session complete
+        setExecutionResult(result)
+
+        // Show completion notification
+        addNotification(
+          result.success ? 'console' : 'error',
+          result.success
+            ? 'Workflow completed successfully'
+            : `Workflow execution failed: ${result.error}`,
+          activeWorkflowId || ''
+        )
+
+        // Persist logs
+        await persistLogs(uuidv4(), result)
+
+        // Reset debug state
+        setIsExecuting(false)
+        setIsDebugging(false)
+        setDebugContext(null)
+        setExecutor(null)
+        setPendingBlocks([])
+      } else {
+        // Debug session continues - update UI with new pending blocks
+        logger.info('Debug step completed, next blocks pending', {
+          nextPendingBlocks: result.metadata.pendingBlocks.length,
+        })
+
+        // This is critical - ensure we update the pendingBlocks in the store
+        setPendingBlocks(result.metadata.pendingBlocks)
+      }
+    } catch (error: any) {
+      logger.error('Debug Step Error:', error)
+
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Create error result
+      const errorResult = {
+        success: false,
+        output: { response: {} },
+        error: errorMessage,
+        logs: debugContext.blockLogs,
+      }
+
+      setExecutionResult(errorResult)
+
+      // Safely show error notification
+      try {
+        addNotification('error', `Debug step failed: ${errorMessage}`, activeWorkflowId || '')
+      } catch (notificationError) {
+        logger.error('Error showing step error notification:', notificationError)
+        console.error('Debug step failed:', errorMessage)
+      }
+
+      // Persist logs
+      await persistLogs(uuidv4(), errorResult)
+
+      // Reset debug state
+      setIsExecuting(false)
+      setIsDebugging(false)
+      setDebugContext(null)
+      setExecutor(null)
+      setPendingBlocks([])
+    }
+  }, [
+    executor,
+    debugContext,
+    pendingBlocks,
+    activeWorkflowId,
+    addNotification,
+    setIsExecuting,
+    setIsDebugging,
+    setPendingBlocks,
+    setDebugContext,
+    setExecutor,
+  ])
+
+  /**
+   * Handles resuming execution in debug mode until completion
+   */
+  const handleResumeDebug = useCallback(async () => {
+    // Log debug information
+    logger.info('Resume Debug requested', {
+      hasExecutor: !!executor,
+      hasContext: !!debugContext,
+      pendingBlockCount: pendingBlocks.length,
+    })
+
+    if (!executor || !debugContext || pendingBlocks.length === 0) {
+      logger.error('Cannot resume debug - missing required state', {
+        executor: !!executor,
+        debugContext: !!debugContext,
+        pendingBlocks: pendingBlocks.length,
+      })
+
+      // Show error notification
+      addNotification(
+        'error',
+        'Cannot resume debugging - missing execution state. Try restarting debug mode.',
+        activeWorkflowId || ''
+      )
+
+      // Reset debug state
+      setIsDebugging(false)
+      setIsExecuting(false)
+      return
+    }
+
+    try {
+      // Show a notification that we're resuming execution
+      try {
+        addNotification(
+          'info',
+          'Resuming workflow execution until completion',
+          activeWorkflowId || ''
+        )
+      } catch (notificationError) {
+        logger.error('Error showing resume notification:', notificationError)
+        console.info('Resuming workflow execution until completion')
+      }
+
+      let currentResult: ExecutionResult = {
+        success: true,
+        output: { response: {} },
+        logs: debugContext.blockLogs,
+      }
+
+      // Create copies to avoid mutation issues
+      let currentContext = { ...debugContext }
+      let currentPendingBlocks = [...pendingBlocks]
+
+      console.log('Starting resume execution with blocks:', currentPendingBlocks)
+
+      // Continue execution until there are no more pending blocks
+      let iterationCount = 0
+      const maxIterations = 100 // Safety to prevent infinite loops
+
+      while (currentPendingBlocks.length > 0 && iterationCount < maxIterations) {
+        logger.info(
+          `Resume iteration ${iterationCount + 1}, executing ${currentPendingBlocks.length} blocks`
+        )
+
+        currentResult = await executor.continueExecution(currentPendingBlocks, currentContext)
+
+        logger.info(`Resume iteration result:`, {
+          success: currentResult.success,
+          hasPendingBlocks: !!currentResult.metadata?.pendingBlocks,
+          pendingBlockCount: currentResult.metadata?.pendingBlocks?.length || 0,
+        })
+
+        // Update context for next iteration
+        if (currentResult.metadata?.context) {
+          currentContext = currentResult.metadata.context
+        } else {
+          logger.info('No context in result, ending resume')
+          break // No context means we're done
+        }
+
+        // Update pending blocks for next iteration
+        if (currentResult.metadata?.pendingBlocks) {
+          currentPendingBlocks = currentResult.metadata.pendingBlocks
+        } else {
+          logger.info('No pending blocks in result, ending resume')
+          break // No pending blocks means we're done
+        }
+
+        // If we don't have a debug session anymore, we're done
+        if (!currentResult.metadata?.isDebugSession) {
+          logger.info('Debug session ended, ending resume')
+          break
+        }
+
+        iterationCount++
+      }
+
+      if (iterationCount >= maxIterations) {
+        logger.warn('Resume execution reached maximum iteration limit')
+      }
+
+      logger.info('Resume execution complete', {
+        iterationCount,
+        success: currentResult.success,
+      })
+
+      // Final result is the last step's result
+      setExecutionResult(currentResult)
+
+      // Show completion notification
+      try {
+        addNotification(
+          currentResult.success ? 'console' : 'error',
+          currentResult.success
+            ? 'Workflow completed successfully'
+            : `Workflow execution failed: ${currentResult.error}`,
+          activeWorkflowId || ''
+        )
+      } catch (notificationError) {
+        logger.error('Error showing completion notification:', notificationError)
+        console.info('Workflow execution completed')
+      }
+
+      // Persist logs
+      await persistLogs(uuidv4(), currentResult)
+
+      // Reset debug state
+      setIsExecuting(false)
+      setIsDebugging(false)
+      setDebugContext(null)
+      setExecutor(null)
+      setPendingBlocks([])
+    } catch (error: any) {
+      logger.error('Debug Resume Error:', error)
+
+      const errorMessage = error instanceof Error ? error.message : String(error)
+
+      // Create error result
+      const errorResult = {
+        success: false,
+        output: { response: {} },
+        error: errorMessage,
+        logs: debugContext.blockLogs,
+      }
+
+      setExecutionResult(errorResult)
+
+      // Safely show error notification
+      try {
+        addNotification('error', `Resume execution failed: ${errorMessage}`, activeWorkflowId || '')
+      } catch (notificationError) {
+        logger.error('Error showing resume error notification:', notificationError)
+        console.error('Resume execution failed:', errorMessage)
+      }
+
+      // Persist logs
+      await persistLogs(uuidv4(), errorResult)
+
+      // Reset debug state
+      setIsExecuting(false)
+      setIsDebugging(false)
+      setDebugContext(null)
+      setExecutor(null)
+      setPendingBlocks([])
+    }
+  }, [
+    executor,
+    debugContext,
+    pendingBlocks,
+    activeWorkflowId,
+    addNotification,
+    setIsExecuting,
+    setIsDebugging,
+    setPendingBlocks,
+    setDebugContext,
+    setExecutor,
+  ])
+
+  /**
+   * Handles cancelling the current debugging session
+   */
+  const handleCancelDebug = useCallback(() => {
+    setIsExecuting(false)
+    setIsDebugging(false)
+    setDebugContext(null)
+    setExecutor(null)
+    setPendingBlocks([])
+  }, [setIsExecuting, setIsDebugging, setDebugContext, setExecutor, setPendingBlocks])
+
+  return {
+    isExecuting,
+    isDebugging,
+    pendingBlocks,
+    executionResult,
+    handleRunWorkflow,
+    handleStepDebug,
+    handleResumeDebug,
+    handleCancelDebug,
+  }
 }

@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
-import { environment, webhook, workflow } from '@/db/schema'
+import { environment, userStats, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+import { validateSlackSignature } from '../../utils'
 
 const logger = createLogger('WebhookTriggerAPI')
 
-// Force dynamic rendering for webhook endpoints
 export const dynamic = 'force-dynamic'
-// Increase the response size limit for webhook payloads
 export const maxDuration = 300 // 5 minutes max execution time for long-running webhooks
 
 /**
@@ -113,12 +114,18 @@ export async function POST(
   const requestId = crypto.randomUUID().slice(0, 8)
   const executionId = uuidv4()
   let foundWorkflow: any = null
+  let rawBody: string | null = null
 
   try {
     const path = (await params).path
 
+    // Clone the request to get both the raw body for Slack signature verification
+    // and the parsed JSON body for processing
+    const requestClone = request.clone()
+    rawBody = await requestClone.text()
+
     // Parse the request body
-    const body = await request.json().catch(() => ({}))
+    const body = JSON.parse(rawBody || '{}')
     logger.info(`[${requestId}] Webhook POST request received for path: ${path}`)
 
     // Generate a unique request ID based on the request content
@@ -156,8 +163,74 @@ export async function POST(
       workflowId: foundWorkflow.id,
     })
 
-    // For WhatsApp, also check for duplicate messages using their message ID
-    if (foundWebhook.provider === 'whatsapp') {
+    // Provider-specific validation and handling
+    if (foundWebhook.provider === 'slack') {
+      // Validate Slack signature if this is a Slack webhook
+      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+      const signingSecret = providerConfig.signingSecret
+
+      if (signingSecret) {
+        const slackSignature = request.headers.get('x-slack-signature')
+        const slackTimestamp = request.headers.get('x-slack-request-timestamp')
+
+        if (!slackSignature || !slackTimestamp || !rawBody) {
+          logger.warn(`[${requestId}] Missing Slack signature headers`, {
+            hasSignature: !!slackSignature,
+            hasTimestamp: !!slackTimestamp,
+            hasBody: !!rawBody,
+          })
+          return NextResponse.json({ error: 'Invalid Slack request' }, { status: 400 })
+        }
+
+        // Validate the Slack signature
+        const isValid = await validateSlackSignature(
+          signingSecret,
+          slackSignature,
+          slackTimestamp,
+          rawBody
+        )
+
+        if (!isValid) {
+          logger.warn(`[${requestId}] Invalid Slack signature`)
+          return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+        }
+
+        logger.info(`[${requestId}] Slack signature validated successfully`)
+
+        // Handle Slack URL verification challenge during POST
+        if (body.type === 'url_verification' && body.challenge) {
+          logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
+          return NextResponse.json({ challenge: body.challenge })
+        }
+      }
+
+      // Check if we've already processed this message using Redis
+      const messageId = body?.event?.event_id
+      if (messageId && (await hasProcessedMessage(messageId))) {
+        logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
+        // Return early for duplicate messages to prevent workflow execution
+        return new NextResponse('Duplicate message', { status: 200 })
+      }
+
+      // Store the message ID in Redis to prevent duplicate processing in future requests
+      if (messageId) {
+        await markMessageAsProcessed(messageId)
+      }
+
+      // Mark this request as processed to prevent duplicates
+      await markMessageAsProcessed(requestHash, 60 * 60 * 24)
+
+      // Process the webhook for Slack
+      return await processWebhook(
+        foundWebhook,
+        foundWorkflow,
+        body,
+        request,
+        executionId,
+        requestId
+      )
+    } else if (foundWebhook.provider === 'whatsapp') {
+      // Extract WhatsApp specific data
       const data = body?.entry?.[0]?.changes?.[0]?.value
       const messages = data?.messages || []
 
@@ -306,8 +379,58 @@ async function processWebhook(
           // Stripe verification would go here if needed
           break
 
+        case 'generic':
+          // Enhanced general webhook authentication
+          if (providerConfig.requireAuth) {
+            let isAuthenticated = false
+
+            // Check for token in Authorization header (Bearer token)
+            if (providerConfig.token) {
+              const providedToken = authHeader?.startsWith('Bearer ')
+                ? authHeader.substring(7)
+                : null
+              if (providedToken === providerConfig.token) {
+                isAuthenticated = true
+              }
+
+              // Check for token in custom header if specified
+              if (!isAuthenticated && providerConfig.secretHeaderName) {
+                const customHeaderValue = request.headers.get(providerConfig.secretHeaderName)
+                if (customHeaderValue === providerConfig.token) {
+                  isAuthenticated = true
+                }
+              }
+
+              // Return 401 if authentication failed
+              if (!isAuthenticated) {
+                logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
+                return new NextResponse('Unauthorized', { status: 401 })
+              }
+            }
+          }
+
+          // IP restriction check
+          if (
+            providerConfig.allowedIps &&
+            Array.isArray(providerConfig.allowedIps) &&
+            providerConfig.allowedIps.length > 0
+          ) {
+            const clientIp =
+              request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+              request.headers.get('x-real-ip') ||
+              'unknown'
+
+            if (clientIp === 'unknown' || !providerConfig.allowedIps.includes(clientIp)) {
+              logger.warn(
+                `[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`
+              )
+              return new NextResponse('Forbidden - IP not allowed', { status: 403 })
+            }
+          }
+          break
+
         default:
-          // For generic webhooks, check for a token if provided in providerConfig
+          // For other generic webhooks, check for a token if provided in providerConfig
           if (providerConfig.token) {
             const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
             if (!providedToken || providedToken !== providerConfig.token) {
@@ -510,8 +633,32 @@ async function processWebhook(
       executionTime: result.metadata?.duration,
     })
 
+    // Update workflow run counts if execution was successful
+    if (result.success) {
+      await updateWorkflowRunCounts(foundWorkflow.id)
+
+      // Track webhook trigger in user stats
+      await db
+        .update(userStats)
+        .set({
+          totalWebhookTriggers: sql`total_webhook_triggers + 1`,
+          lastActive: new Date(),
+        })
+        .where(eq(userStats.userId, foundWorkflow.userId))
+    }
+
+    // Build trace spans from execution logs
+    const { traceSpans, totalDuration } = buildTraceSpans(result)
+
+    // Add trace spans to the execution result
+    const enrichedResult = {
+      ...result,
+      traceSpans,
+      totalDuration,
+    }
+
     // Log each execution step and the final result
-    await persistExecutionLogs(foundWorkflow.id, executionId, result, 'webhook')
+    await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
 
     // Return the execution result
     return NextResponse.json(result, { status: 200 })
