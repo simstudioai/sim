@@ -99,7 +99,7 @@ export function createLoopNode({ loopId, loop, blocks }: WorkflowLoopProps) {
     id: `loop-${loopId}`,
     type: 'group',
     position: { x: loopBounds.x, y: loopBounds.y },
-    className: 'bg-[rgb(247,247,248)] dark:bg-[rgb(36,37,45)]',
+    className: 'bg-[rgb(247,247,248)] dark:bg-[rgb(36,37,45)] dark:bg-opacity-50',
     style: {
       border: '1px solid rgb(203, 213, 225)',
       borderRadius: '12px',
