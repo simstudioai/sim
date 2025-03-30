@@ -5,15 +5,10 @@ import { ExecutionContext } from './types'
  * Manages loop detection, iteration limits, and state resets.
  */
 export class LoopManager {
-  private workflowVariables: Record<string, any>;
-  
   constructor(
     private loops: Record<string, SerializedLoop>,
-    private defaultIterations: number = 5,
-    workflowVariables: Record<string, any> = {}
-  ) {
-    this.workflowVariables = workflowVariables;
-  }
+    private defaultIterations: number = 5
+  ) {}
 
   /**
    * Processes all loops and checks if any need to be iterated.
@@ -252,161 +247,8 @@ export class LoopManager {
           return [];
         }
         
-        // Import the resolver to handle variable and block references
-        let InputResolver;
-        try {
-          InputResolver = (await import('./resolver')).InputResolver;
-        } catch (importError) {
-          console.error(`Failed to import InputResolver: ${importError}`);
-          return [];
-        }
-        
-        // Create a temporary block for the resolver to use
-        const dummyBlock = {
-          id: `temp-${loopId}`,
-          position: { x: 0, y: 0 },
-          config: {
-            tool: 'loop',
-            params: { 
-              items: trimmedExpression 
-            }
-          },
-          inputs: {},
-          outputs: {},
-          enabled: true
-        };
-        
-        // Create a resolver instance
-        const resolver = new InputResolver(
-          context.workflow || { version: '1.0', blocks: [], connections: [], loops: {} },
-          context.environmentVariables,
-          this.workflowVariables,
-          this
-        );
-        
-        // Special handling for tag references (single variable tag enclosed in < >)
-        if (/^<[^>]+>$/.test(trimmedExpression)) {
-          // For a single tag reference, try to resolve it directly
-          const resolved = resolver.resolveBlockReferences(
-            trimmedExpression, 
-            context, 
-            dummyBlock as any
-          );
-          
-          // If the resolved value has changed, it was successfully resolved
-          if (resolved !== trimmedExpression) {
-            try {
-              // Try to parse as JSON if it looks like JSON
-              if ((resolved.startsWith('[') && resolved.endsWith(']')) || 
-                  (resolved.startsWith('{') && resolved.endsWith('}'))) {
-                return JSON.parse(resolved);
-              } else if (resolved.trim() !== '') {
-                // If it's not JSON but has content, return as a single-item array
-                return [resolved];
-              }
-            } catch (jsonError) {
-              // If JSON parsing fails, just return as a single item
-              return [resolved];
-            }
-          }
-        }
-        
-        // Check if the string contains variables tags (with < and >)
-        const containsVariableTags = trimmedExpression.includes('<') && trimmedExpression.includes('>');
-        
-        // Handle arrays with variable references: [<var1>, <var2>, 3, "text"]
-        if (containsVariableTags && trimmedExpression.startsWith('[') && trimmedExpression.endsWith(']')) {
-          try {
-            // Extract the items but preserve the array structure
-            const itemsStr = trimmedExpression.substring(1, trimmedExpression.length - 1);
-            
-            // Use a simple but effective split that respects JSON structure
-            const items = this.splitArrayItems(itemsStr);
-            
-            // Process each item
-            const result = [];
-            for (const item of items) {
-              const trimmedItem = item.trim();
-              
-              // If it's a variable tag, resolve it
-              if (trimmedItem.includes('<') && trimmedItem.includes('>')) {
-                // Resolve any variable/block references in this item
-                const resolvedItem = resolver.resolveBlockReferences(
-                  trimmedItem, 
-                  context, 
-                  dummyBlock as any
-                );
-                
-                // If it's still the same as the original, it wasn't resolved
-                if (resolvedItem === trimmedItem) {
-                  // Keep as is for now - it may be resolvable during iteration
-                  result.push(trimmedItem);
-                } else {
-                  // Successfully resolved - parse as JSON if possible
-                  try {
-                    if ((resolvedItem.startsWith('[') && resolvedItem.endsWith(']')) || 
-                        (resolvedItem.startsWith('{') && resolvedItem.endsWith('}'))) {
-                      result.push(JSON.parse(resolvedItem));
-                    } else {
-                      // Not JSON, use the primitive value
-                      // Try to convert to appropriate type
-                      if (resolvedItem === 'true') result.push(true);
-                      else if (resolvedItem === 'false') result.push(false);
-                      else if (resolvedItem === 'null') result.push(null);
-                      else if (!isNaN(Number(resolvedItem))) result.push(Number(resolvedItem));
-                      else result.push(resolvedItem);
-                    }
-                  } catch (jsonError) {
-                    // Not valid JSON, use as is
-                    result.push(resolvedItem);
-                  }
-                }
-              } else {
-                // For non-variable items, parse as JSON
-                try {
-                  result.push(JSON.parse(trimmedItem));
-                } catch (jsonError) {
-                  // If not valid JSON, add as a string
-                  result.push(trimmedItem);
-                }
-              }
-            }
-            
-            return result;
-          } catch (e) {
-            console.error(`Error processing array with variables for loop ${loopId}:`, e);
-            // Fall back to treating the whole thing as a string array
-            return [trimmedExpression];
-          }
-        }
-        
-        // Handle objects with variable references: {"key": <var>, "key2": "value"}
-        if (containsVariableTags && trimmedExpression.startsWith('{') && trimmedExpression.endsWith('}')) {
-          try {
-            // For objects, try a different approach - first resolve all variables in the string
-            const fullyResolvedStr = resolver.resolveBlockReferences(
-              trimmedExpression, 
-              context, 
-              dummyBlock as any
-            );
-            
-            // Try to parse the fully resolved string as JSON
-            try {
-              return JSON.parse(fullyResolvedStr);
-            } catch (jsonError) {
-              console.error(`Error parsing resolved object for loop ${loopId}:`, jsonError);
-              // If that fails, return as a string
-              return [fullyResolvedStr];
-            }
-          } catch (e) {
-            console.error(`Error processing object with variables for loop ${loopId}:`, e);
-            return [trimmedExpression];
-          }
-        }
-        
-        // If it doesn't contain variable tags, or isn't an array/object with tags,
-        // continue with standard JSON parsing
-        if (!containsVariableTags && (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{'))) {
+        // First check if it's valid JSON (array or object)
+        if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
           try {
             // Try to parse as JSON first
             return JSON.parse(trimmedExpression);
@@ -417,20 +259,16 @@ export class LoopManager {
         }
         
         // If not valid JSON or JSON parsing failed, try to evaluate as an expression
-        try {
-          const result = new Function('context', `return ${loop.forEachItems}`)(context);
-          
-          // If the result is an array or object, return it
-          if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
-            return result;
-          }
-          
-          // If it's a primitive, wrap it in an array
-          if (result !== undefined) {
-            return [result];
-          }
-        } catch (evalError) {
-          console.error(`Error evaluating expression for loop ${loopId}:`, evalError);
+        const result = new Function('context', `return ${loop.forEachItems}`)(context);
+        
+        // If the result is an array or object, return it
+        if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
+          return result;
+        }
+        
+        // If it's a primitive, wrap it in an array
+        if (result !== undefined) {
+          return [result];
         }
         
         return [];
@@ -456,74 +294,6 @@ export class LoopManager {
     }
 
     return [];
-  }
-
-  /**
-   * Splits array items respecting nested structures like objects and arrays.
-   * This is a more robust way to split array items than simply splitting by commas.
-   * 
-   * @param str - The string containing array items (without the outer brackets)
-   * @returns Array of item strings
-   */
-  private splitArrayItems(str: string): string[] {
-    const result: string[] = [];
-    let currentItem = '';
-    let depth = 0;
-    let inString = false;
-    let escapeNext = false;
-    
-    for (let i = 0; i < str.length; i++) {
-      const char = str[i];
-      
-      // Handle escape sequences in strings
-      if (inString && char === '\\' && !escapeNext) {
-        escapeNext = true;
-        currentItem += char;
-        continue;
-      }
-      
-      // If we just processed an escape, reset the flag
-      if (escapeNext) {
-        escapeNext = false;
-        currentItem += char;
-        continue;
-      }
-      
-      // Handle string boundaries
-      if (char === '"' || char === "'") {
-        inString = !inString;
-        currentItem += char;
-        continue;
-      }
-      
-      // Skip processing special characters if we're in a string
-      if (inString) {
-        currentItem += char;
-        continue;
-      }
-      
-      // Handle nested structures
-      if (char === '[' || char === '{') {
-        depth++;
-        currentItem += char;
-      } else if (char === ']' || char === '}') {
-        depth--;
-        currentItem += char;
-      } else if (char === ',' && depth === 0) {
-        // Only split on commas at the top level
-        result.push(currentItem);
-        currentItem = '';
-      } else {
-        currentItem += char;
-      }
-    }
-    
-    // Add the last item if there is one
-    if (currentItem.trim()) {
-      result.push(currentItem);
-    }
-    
-    return result;
   }
 
   /**
