@@ -31,7 +31,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   longDescription:
     'Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations.',
   category: 'blocks',
-  bgColor: '#7F2FFF',
+  bgColor: '#802FFF',
   icon: AgentIcon,
   subBlocks: [
     {

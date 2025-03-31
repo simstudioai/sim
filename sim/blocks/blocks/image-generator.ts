@@ -9,7 +9,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   longDescription:
     'Create high-quality images using DALL-E. Configure resolution, quality, style, and other parameters to get exactly the image you need.',
   category: 'tools',
-  bgColor: '#FF6B6B',
+  bgColor: '#4D5FFF',
   icon: ImageIcon,
   subBlocks: [
     {

@@ -326,7 +326,7 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
           <div className="flex items-start py-1 relative">
             {/* Left icon */}
             <div className="flex-shrink-0 mt-0.5">
-              <Icon className="!text-[#7F2FFF] h-4 w-4" />
+              <Icon className="!text-[#802FFF] h-4 w-4" />
             </div>
 
             {/* Content area with equal margins */}

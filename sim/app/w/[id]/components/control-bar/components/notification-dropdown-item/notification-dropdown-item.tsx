@@ -27,7 +27,7 @@ const NotificationIcon = {
 const NotificationColors = {
   error: 'text-destructive',
   console: 'text-foreground',
-  api: 'text-[#7F2FFF]',
+  api: 'text-[#802FFF]',
   marketplace: 'text-foreground',
   info: 'text-blue-500',
 }
