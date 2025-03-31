@@ -27,6 +27,7 @@ import { StarterBlock } from './blocks/starter'
 import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
+import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
@@ -67,6 +68,7 @@ export {
   PerplexityBlock,
   ConfluenceBlock,
   ImageGeneratorBlock,
+  TypeformBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -99,6 +101,7 @@ const blocks: Record<string, BlockConfig> = {
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
+  typeform: TypeformBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
   x: XBlock,

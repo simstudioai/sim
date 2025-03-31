@@ -1756,3 +1756,21 @@ export function ImageIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <g transform="translate(1, 4)">
+        <rect x="0" y="0" width="5" height="16" rx="2.5" fill="currentColor" />
+        <rect x="8" y="0" width="14" height="16" rx="4" fill="currentColor" />
+      </g>
+    </svg>
+  )
+}
