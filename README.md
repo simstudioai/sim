@@ -14,6 +14,12 @@
   <strong>Sim Studio</strong> is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
 </p>
 
+<p align="center">
+  <a href="https://star-history.com/#simstudioai/sim&Date">
+    <img src="https://api.star-history.com/svg?repos=simstudioai/sim&type=Date" alt="Star History Chart">
+  </a>
+</p>
+
 ## Run
 
 1. Run on our [cloud-hosted version](https://simstudio.ai)
