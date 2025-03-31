@@ -52,3 +52,6 @@ next-env.d.ts
 
 # cursorrules
 .cursorrules
+
+# uploads
+uploads

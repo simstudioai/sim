@@ -18,11 +18,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Log upload directory for debugging
+    console.log(`Uploading file to: ${UPLOAD_DIR}`)
+
     // Generate a unique filename with original extension
     const originalName = file.name
     const extension = originalName.split('.').pop() || ''
     const uniqueFilename = `${uuidv4()}.${extension}`
     const filePath = join(UPLOAD_DIR, uniqueFilename)
+    
+    // Log the full file path
+    console.log(`Full file path for upload: ${filePath}`)
     
     // Convert file to buffer
     const bytes = await file.arrayBuffer()
@@ -30,10 +36,11 @@ export async function POST(request: NextRequest) {
     
     // Write the file to the uploads directory
     await writeFile(filePath, buffer)
+    console.log(`Successfully wrote file to: ${filePath}`)
     
     // Return the file path relative to the uploads directory
     return NextResponse.json({ 
-      path: `/uploads/${uniqueFilename}`,
+      path: `/api/files/serve/${uniqueFilename}`,
       name: originalName,
       size: file.size,
       type: file.type
@@ -41,7 +48,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error uploading file:', error)
     return NextResponse.json(
-      { error: 'Failed to upload file' },
+      { error: 'Failed to upload file', message: (error as Error).message },
       { status: 500 }
     )
   }

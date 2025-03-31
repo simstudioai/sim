@@ -1771,3 +1771,25 @@ export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width="20"
+      height="24"
+      viewBox="0 0 20 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18.5 8.2L11.5 1.2C11.4 1.1 11.3 1.05 11.2 1C11.1 0.95 11 0.92 10.9 0.9C10.85 0.88 10.82 0.85 10.8 0.85H3C1.9 0.85 1 1.75 1 2.85V21.15C1 22.25 1.9 23.15 3 23.15H17C18.1 23.15 19 22.25 19 21.15V8.5C19 8.4 18.95 8.3 18.5 8.2ZM11.5 3.5L16.5 8.5H11.5V3.5ZM3 21.15V2.85H9.5V8.5C9.5 9.05 9.95 9.5 10.5 9.5H17V21.15H3Z"
+        fill="currentColor"
+      />
+      <path
+        d="M5 12.5H14V13.5H5V12.5ZM5 17.3H14V18.3H5V17.3ZM5 7.5H7V8.5H5V7.5Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}

@@ -8,13 +8,38 @@ import '@/lib/uploads/setup.server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const filePath = join(UPLOAD_DIR, ...params.path)
+    // Extract params
+    const { path } = await params
+    
+    // Join the path segments to get the filename
+    const filename = path.join('/')
+    console.log(`Serving file: ${filename}`)
+    console.log(`Upload directory: ${UPLOAD_DIR}`)
+    
+    // Try multiple possible paths
+    const possiblePaths = [
+      join(UPLOAD_DIR, ...path),
+      join(process.cwd(), 'uploads', ...path),
+      join(process.cwd(), 'sim', 'uploads', ...path)
+    ]
+    
+    let filePath = ''
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        filePath = p
+        console.log(`Found file at: ${filePath}`)
+        break
+      } else {
+        console.log(`File not found at path: ${p}`)
+      }
+    }
     
     // Check if file exists
-    if (!existsSync(filePath)) {
+    if (!filePath) {
+      console.error(`File not found in any of the checked paths for: ${filename}`)
       return NextResponse.json(
         { error: 'File not found' },
         { status: 404 }
@@ -60,14 +85,14 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Content-Disposition': `inline; filename="${params.path[params.path.length - 1]}"`,
+        'Content-Disposition': `inline; filename="${path[path.length - 1]}"`,
         'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
       },
     })
   } catch (error) {
     console.error('Error serving file:', error)
     return NextResponse.json(
-      { error: 'Failed to serve file' },
+      { error: 'Failed to serve file', message: (error as Error).message },
       { status: 500 }
     )
   }
