@@ -3,10 +3,24 @@
  *
  * @vitest-environment node
  */
+import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Workflow Execution API Route', () => {
+  let executeMock = vi.fn().mockResolvedValue({
+    success: true,
+    output: {
+      response: 'Test response',
+    },
+    logs: [],
+    metadata: {
+      duration: 123,
+      startTime: new Date().toISOString(),
+      endTime: new Date().toISOString(),
+    },
+  })
+
   beforeEach(() => {
     vi.resetModules()
 
@@ -48,21 +62,24 @@ describe('Workflow Execution API Route', () => {
       }),
     }))
 
+    // Reset execute mock to track calls
+    executeMock = vi.fn().mockResolvedValue({
+      success: true,
+      output: {
+        response: 'Test response',
+      },
+      logs: [],
+      metadata: {
+        duration: 123,
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+      },
+    })
+
     // Mock executor
     vi.doMock('@/executor', () => ({
       Executor: vi.fn().mockImplementation(() => ({
-        execute: vi.fn().mockResolvedValue({
-          success: true,
-          output: {
-            response: 'Test response',
-          },
-          logs: [],
-          metadata: {
-            duration: 123,
-            startTime: new Date().toISOString(),
-            endTime: new Date().toISOString(),
-          },
-        }),
+        execute: executeMock,
       })),
     }))
 
@@ -108,6 +125,11 @@ describe('Workflow Execution API Route', () => {
                 },
               ]),
             })),
+          })),
+        })),
+        update: vi.fn().mockImplementation(() => ({
+          set: vi.fn().mockImplementation(() => ({
+            where: vi.fn().mockResolvedValue(undefined),
           })),
         })),
       }
@@ -178,6 +200,9 @@ describe('Workflow Execution API Route', () => {
     // Verify executor was initialized
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalled()
+
+    // Verify execute was called with undefined input (GET requests don't have body)
+    expect(executeMock).toHaveBeenCalledWith('workflow-id')
   })
 
   /**
@@ -232,6 +257,124 @@ describe('Workflow Execution API Route', () => {
     // Verify executor was constructed
     const Executor = (await import('@/executor')).Executor
     expect(Executor).toHaveBeenCalled()
+
+    // Verify execute was called with the input body
+    expect(executeMock).toHaveBeenCalledWith('workflow-id')
+    // Verify the body was passed to the executor constructor
+    expect(Executor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      requestBody
+    )
+  })
+
+  /**
+   * Test POST execution with structured input matching the input format
+   */
+  it('should execute workflow with structured input matching the input format', async () => {
+    // Create structured input matching the expected input format
+    const structuredInput = {
+      firstName: 'John',
+      age: 30,
+      isActive: true,
+      preferences: { theme: 'dark' },
+      tags: ['test', 'api'],
+    }
+
+    // Create a mock request with the structured input
+    const req = createMockRequest('POST', structuredInput)
+
+    // Create params similar to what Next.js would provide
+    const params = Promise.resolve({ id: 'workflow-id' })
+
+    // Import the handler after mocks are set up
+    const { POST } = await import('./route')
+
+    // Call the handler
+    const response = await POST(req, { params })
+
+    // Ensure response exists and is successful
+    expect(response).toBeDefined()
+    expect(response.status).toBe(200)
+
+    // Parse the response body
+    const data = await response.json()
+    expect(data).toHaveProperty('success', true)
+
+    // Verify the executor was constructed with the structured input
+    const Executor = (await import('@/executor')).Executor
+    expect(Executor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      structuredInput
+    )
+  })
+
+  /**
+   * Test POST execution with empty request body
+   */
+  it('should execute workflow with empty request body', async () => {
+    // Create a mock request with empty body
+    const req = createMockRequest('POST')
+
+    // Create params similar to what Next.js would provide
+    const params = Promise.resolve({ id: 'workflow-id' })
+
+    // Import the handler after mocks are set up
+    const { POST } = await import('./route')
+
+    // Call the handler
+    const response = await POST(req, { params })
+
+    // Ensure response exists and is successful
+    expect(response).toBeDefined()
+    expect(response.status).toBe(200)
+
+    // Parse the response body
+    const data = await response.json()
+    expect(data).toHaveProperty('success', true)
+
+    // Verify the executor was constructed with an empty object
+    const Executor = (await import('@/executor')).Executor
+    expect(Executor).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      {}
+    )
+  })
+
+  /**
+   * Test POST execution with invalid JSON body
+   */
+  it('should handle invalid JSON in request body', async () => {
+    // Create a mock request with invalid JSON text
+    const req = new NextRequest('https://example.com/api/workflows/workflow-id/execute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: 'this is not valid JSON',
+    })
+
+    // Create params similar to what Next.js would provide
+    const params = Promise.resolve({ id: 'workflow-id' })
+
+    // Import the handler after mocks are set up
+    const { POST } = await import('./route')
+
+    // Call the handler - should throw an error when trying to parse the body
+    const response = await POST(req, { params })
+
+    // Expect error response due to JSON parsing failure
+    expect(response.status).toBe(500)
+
+    const data = await response.json()
+    expect(data).toHaveProperty('error')
+    // Check for JSON parse error message rather than "Failed to execute workflow"
+    expect(data.error).toContain('JSON')
   })
 
   /**

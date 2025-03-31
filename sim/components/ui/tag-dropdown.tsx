@@ -82,6 +82,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const loops = useWorkflowStore((state) => state.loops)
 
   // Get variables from variables store
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
@@ -114,9 +115,31 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         return prefix ? [prefix] : []
       }
 
-      // Special handling for starter block.
-      // TODO: In the future, we will support response formats and required input types. For now, we just take the input altogether.
+      // Special handling for starter block with input format
       if (isStarterBlock && prefix === 'response') {
+        try {
+          // Check if there's an input format defined
+          const inputFormatValue = useSubBlockStore
+            .getState()
+            .getValue(activeSourceBlockId || blockId, 'inputFormat')
+          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
+            // Check if any fields have been configured with names
+            const hasConfiguredFields = inputFormatValue.some(
+              (field: any) => field.name && field.name.trim() !== ''
+            )
+
+            // If no fields have been configured, return the default input path
+            if (!hasConfiguredFields) {
+              return ['response.input']
+            }
+
+            // Return fields from input format
+            return inputFormatValue.map((field: any) => `response.input.${field.name}`)
+          }
+        } catch (e) {
+          logger.error('Error parsing input format:', { e })
+        }
+
         return ['response.input']
       }
 
@@ -147,6 +170,27 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       },
       {} as Record<string, { type: string; id: string }>
     )
+
+    // Loop tags - Add if this block is in a loop
+    const loopTags: string[] = []
+
+    // Check if the current block is part of a loop
+    const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
+
+    if (containingLoop) {
+      const [loopId, loop] = containingLoop
+      const loopType = loop.loopType || 'for'
+
+      // Add loop.index for all loop types
+      loopTags.push('loop.index')
+
+      // Add forEach specific properties
+      if (loopType === 'forEach') {
+        // Add loop.currentItem and loop.items
+        loopTags.push('loop.currentItem')
+        loopTags.push('loop.items')
+      }
+    }
 
     // If we have an active source block ID from a drop, use that specific block only
     if (activeSourceBlockId) {
@@ -249,8 +293,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       return outputPaths.map((path) => `${normalizedBlockName}.${path}`)
     })
 
-    return { tags: [...variableTags, ...sourceTags], variableInfoMap }
-  }, [blocks, incomingConnections, blockId, activeSourceBlockId, workflowVariables])
+    return { tags: [...variableTags, ...loopTags, ...sourceTags], variableInfoMap }
+  }, [blocks, incomingConnections, blockId, activeSourceBlockId, workflowVariables, loops])
 
   // Filter tags based on search term
   const filteredTags = useMemo(() => {
@@ -258,20 +302,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return tags.filter((tag: string) => tag.toLowerCase().includes(searchTerm))
   }, [tags, searchTerm])
 
-  // Group tags into variables and blocks
-  const { variableTags, blockTags } = useMemo(() => {
+  // Group tags into variables, loops, and blocks
+  const { variableTags, loopTags, blockTags } = useMemo(() => {
     const varTags: string[] = []
+    const loopTags: string[] = []
     const blkTags: string[] = []
 
     filteredTags.forEach((tag) => {
       if (tag.startsWith('variable.')) {
         varTags.push(tag)
+      } else if (tag.startsWith('loop.')) {
+        loopTags.push(tag)
       } else {
         blkTags.push(tag)
       }
     })
 
-    return { variableTags: varTags, blockTags: blkTags }
+    return { variableTags: varTags, loopTags: loopTags, blockTags: blkTags }
   }, [filteredTags])
 
   // Reset selection when filtered results change
@@ -409,9 +456,68 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
-            {blockTags.length > 0 && (
+            {loopTags.length > 0 && (
               <>
                 {variableTags.length > 0 && <div className="my-0" />}
+                <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                  Loop
+                </div>
+                <div className="-mx-1 -px-1">
+                  {loopTags.map((tag: string, index: number) => {
+                    const tagIndex = filteredTags.indexOf(tag)
+                    const loopProperty = tag.split('.')[1]
+
+                    // Choose appropriate icon/label based on type
+                    let tagIcon = 'L'
+                    let tagDescription = ''
+                    let bgColor = '#8857E6' // Purple for loop variables
+
+                    if (loopProperty === 'currentItem') {
+                      tagIcon = 'i'
+                      tagDescription = 'Current item'
+                    } else if (loopProperty === 'items') {
+                      tagIcon = 'I'
+                      tagDescription = 'All items'
+                    } else if (loopProperty === 'index') {
+                      tagIcon = '#'
+                      tagDescription = 'Index'
+                    }
+
+                    return (
+                      <button
+                        key={tag}
+                        className={cn(
+                          'w-full px-3 py-1.5 text-sm text-left flex items-center gap-2',
+                          'hover:bg-accent hover:text-accent-foreground',
+                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                        )}
+                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseDown={(e) => {
+                          e.preventDefault() // Prevent input blur
+                          handleTagSelect(tag)
+                        }}
+                      >
+                        <div
+                          className="flex items-center justify-center w-5 h-5 rounded"
+                          style={{ backgroundColor: bgColor }}
+                        >
+                          <span className="w-3 h-3 text-white font-bold text-xs">{tagIcon}</span>
+                        </div>
+                        <span className="flex-1 truncate">{tag}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {tagDescription}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
+            {blockTags.length > 0 && (
+              <>
+                {(variableTags.length > 0 || loopTags.length > 0) && <div className="my-0" />}
                 <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                   Blocks
                 </div>

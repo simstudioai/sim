@@ -39,14 +39,19 @@ export class Executor {
     private workflow: SerializedWorkflow,
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
-    private workflowVariables: Record<string, any> = {},
-    workflowInput?: any
+    workflowInput?: any,
+    private workflowVariables: Record<string, any> = {}
   ) {
     this.validateWorkflow()
     this.workflowInput = workflowInput || {}
 
-    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables)
     this.loopManager = new LoopManager(workflow.loops || {})
+    this.resolver = new InputResolver(
+      workflow,
+      environmentVariables,
+      workflowVariables,
+      this.loopManager
+    )
     this.pathTracker = new PathTracker(workflow)
 
     this.blockHandlers = [
@@ -281,8 +286,8 @@ export class Executor {
         throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
       }
 
-      if (loop.maxIterations <= 0) {
-        throw new Error(`Loop ${loopId} must have a positive maxIterations value`)
+      if (loop.iterations <= 0) {
+        throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
     }
   }
@@ -309,6 +314,7 @@ export class Executor {
         condition: new Map(),
       },
       loopIterations: new Map(),
+      loopItems: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: this.workflow,
@@ -322,20 +328,124 @@ export class Executor {
       })
     })
 
+    // Initialize loop iterations
+    if (this.workflow.loops) {
+      for (const loopId of Object.keys(this.workflow.loops)) {
+        // Start all loops at iteration 0
+        context.loopIterations.set(loopId, 0)
+      }
+    }
+
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
       // Initialize the starter block with the workflow input
-      const starterOutput = {
-        response: {
-          input: this.workflowInput,
-        },
-      }
+      try {
+        const blockParams = starterBlock.config.params
+        const inputFormat = blockParams?.inputFormat
 
-      context.blockStates.set(starterBlock.id, {
-        output: starterOutput,
-        executed: true,
-        executionTime: 0,
-      })
+        // If input format is defined, structure the input according to the schema
+        if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
+          // Create structured input based on input format
+          const structuredInput: Record<string, any> = {}
+
+          // Process each field in the input format
+          for (const field of inputFormat) {
+            if (field.name && field.type) {
+              // Get the field value from workflow input if available
+              const inputValue = this.workflowInput?.[field.name]
+
+              // Convert the value to the appropriate type
+              let typedValue = inputValue
+              if (inputValue !== undefined) {
+                if (field.type === 'number' && typeof inputValue !== 'number') {
+                  typedValue = Number(inputValue)
+                } else if (field.type === 'boolean' && typeof inputValue !== 'boolean') {
+                  typedValue = inputValue === 'true' || inputValue === true
+                } else if (
+                  (field.type === 'object' || field.type === 'array') &&
+                  typeof inputValue === 'string'
+                ) {
+                  try {
+                    typedValue = JSON.parse(inputValue)
+                  } catch (e) {
+                    logger.warn(`Failed to parse ${field.type} input for field ${field.name}:`, e)
+                  }
+                }
+              }
+
+              // Add the field to structured input
+              structuredInput[field.name] = typedValue
+            }
+          }
+
+          // Initialize the starter block with structured input
+          const starterOutput = {
+            response: {
+              input: structuredInput,
+              ...structuredInput, // Add input fields directly at response level too
+            },
+          }
+
+          context.blockStates.set(starterBlock.id, {
+            output: starterOutput,
+            executed: true,
+            executionTime: 0,
+          })
+        } else {
+          // No input format defined or not an array,
+          // check if we're receiving input from API call
+          if (this.workflowInput && typeof this.workflowInput === 'object') {
+            // For API calls, use the raw input but make it accessible at both paths
+            const starterOutput = {
+              response: {
+                input: this.workflowInput,
+                ...this.workflowInput, // Make fields directly accessible at response level
+              },
+            }
+
+            logger.info(`Using API input type: ${typeof this.workflowInput}`, {
+              isArray: Array.isArray(this.workflowInput),
+              keys: Object.keys(this.workflowInput),
+              rawInput: JSON.stringify(this.workflowInput),
+              inputEmpty: Object.keys(this.workflowInput).length === 0,
+            })
+
+            context.blockStates.set(starterBlock.id, {
+              output: starterOutput,
+              executed: true,
+              executionTime: 0,
+            })
+          } else {
+            // Fallback for other cases
+            const starterOutput = {
+              response: {
+                input: this.workflowInput,
+              },
+            }
+
+            context.blockStates.set(starterBlock.id, {
+              output: starterOutput,
+              executed: true,
+              executionTime: 0,
+            })
+          }
+        }
+      } catch (e) {
+        logger.warn('Error processing starter block input format:', e)
+        // Fallback to raw input with both paths accessible
+        const starterOutput = {
+          response: {
+            input: this.workflowInput,
+            ...this.workflowInput, // Add input fields directly at response level too
+          },
+        }
+
+        context.blockStates.set(starterBlock.id, {
+          output: starterOutput,
+          executed: true,
+          executionTime: 0,
+        })
+      }
 
       // Mark the starter block as executed and add its connections to the active path
       context.executedBlocks.add(starterBlock.id)
