@@ -36,8 +36,7 @@ export async function POST(request: NextRequest) {
     // Check all possible file paths
     const possiblePaths = [
       fullPath,
-      join(process.cwd(), 'uploads', filename),
-      join(process.cwd(), 'sim', 'uploads', filename)
+      join(process.cwd(), 'uploads', filename)
     ]
     
     let actualPath = ''
@@ -73,12 +72,73 @@ export async function POST(request: NextRequest) {
         if (result.metadata) {
           metadata = result.metadata
         }
+        // PDF files should not be treated as binary when successfully parsed
+        if (extension === 'pdf') {
+          console.log('PDF file parsed successfully, not treating as binary')
+          isBinary = false
+          
+          // Additional validation for PDF content
+          // If the content appears to be binary/corrupted, provide a clearer message
+          if (fileContent && (
+              fileContent.includes('\u0000') || 
+              fileContent.match(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]{10,}/g)
+            )) {
+            console.log('PDF content appears to be binary/corrupted, providing a clearer message')
+            
+            // Read file size for the message
+            const fileBuffer = await readFile(actualPath)
+            const fileSize = fileBuffer.length
+            
+            // Replace with a helpful message
+            fileContent = `This PDF document could not be parsed for text content. It contains ${result.metadata?.pageCount || 'unknown number of'} pages. File size: ${fileSize} bytes.
+
+To view this PDF properly, you can:
+1. Download it directly using this URL: ${filePath}
+2. Try a dedicated PDF text extraction service or tool
+3. Open it with a PDF reader like Adobe Acrobat
+
+PDF parsing failed because the document appears to use an encoding or compression method that our parser cannot handle.`
+          }
+        }
         console.log(`Successfully parsed ${extension} file with specialized parser`)
       } catch (error) {
         console.error(`Specialized parser failed for ${extension} file:`, error)
-        // Fall back to default handling
-        const genericResult = await handleGenericFile(actualPath, filename, extension, fileType)
-        return genericResult
+        // Special handling for PDFs
+        if (extension === 'pdf') {
+          // Create a direct download link as fallback
+          const fileBuffer = await readFile(actualPath)
+          const fileSize = fileBuffer.length
+          
+          // Get page count using a simple regex pattern for a rough estimate
+          let pageCount = 0
+          const pdfContent = fileBuffer.toString('utf-8')
+          const pageMatches = pdfContent.match(/\/Type\s*\/Page\b/gi)
+          if (pageMatches) {
+            pageCount = pageMatches.length
+          }
+          
+          fileContent = `PDF parsing failed: ${(error as Error).message}
+
+This PDF document contains ${pageCount || 'an unknown number of'} pages and is ${fileSize} bytes in size.
+
+To view this PDF properly, you can:
+1. Download it directly using this URL: ${filePath}
+2. Try a dedicated PDF text extraction service or tool
+3. Open it with a PDF reader like Adobe Acrobat
+
+Common causes of PDF parsing failures:
+- The PDF uses an unsupported compression algorithm
+- The PDF is protected or encrypted
+- The PDF content uses non-standard encodings
+- The PDF was created with features our parser doesn't support`
+          
+          isBinary = false
+          console.log('Created fallback message for PDF parsing failure')
+        } else {
+          // Fall back to default handling for other file types
+          const genericResult = await handleGenericFile(actualPath, filename, extension, fileType)
+          return genericResult
+        }
       }
     } else {
       // For unsupported file types, use the generic approach
@@ -164,7 +224,8 @@ async function handleGenericFile(
     const fileBuffer = await readFile(fullPath)
     
     // Determine if file should be treated as binary
-    const binaryExtensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'png', 'jpg', 'jpeg', 'gif']
+    // Remove PDF from binary extensions since we have a specialized parser
+    const binaryExtensions = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'png', 'jpg', 'jpeg', 'gif']
     const isBinary = binaryExtensions.includes(extension)
     
     // For binary files, we don't attempt to parse as text

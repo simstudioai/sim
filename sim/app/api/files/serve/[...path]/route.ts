@@ -22,8 +22,7 @@ export async function GET(
     // Try multiple possible paths
     const possiblePaths = [
       join(UPLOAD_DIR, ...path),
-      join(process.cwd(), 'uploads', ...path),
-      join(process.cwd(), 'sim', 'uploads', ...path)
+      join(process.cwd(), 'uploads', ...path)
     ]
     
     let filePath = ''
@@ -56,6 +55,7 @@ export async function GET(
     // Map common extensions to content types
     const contentTypeMap: Record<string, string> = {
       'pdf': 'application/pdf',
+      'csv': 'text/csv',
       'jpg': 'image/jpeg',
       'jpeg': 'image/jpeg',
       'png': 'image/png',

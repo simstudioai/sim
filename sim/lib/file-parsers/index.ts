@@ -1,6 +1,8 @@
 import path from 'path';
 import { FileParser, SupportedFileType, FileParseResult } from './types';
 import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
+import { RawPdfParser } from './raw-pdf-parser';
 
 // Lazy-loaded parsers to avoid initialization issues
 let parserInstances: Record<string, FileParser> | null = null;
@@ -15,10 +17,36 @@ function getParserInstances(): Record<string, FileParser> {
     try {
       // Import parsers only when needed - with try/catch for each one
       try {
-        const { PdfParser } = require('./pdf-parser');
-        parserInstances['pdf'] = new PdfParser();
+        console.log('Attempting to load PDF parser...');
+        try {
+          // First try to use the pdf-parse library
+          // Import the PdfParser using ES module import to avoid test file access
+          const { PdfParser } = require('./pdf-parser');
+          parserInstances['pdf'] = new PdfParser();
+          console.log('PDF parser loaded successfully');
+        } catch (pdfParseError) {
+          // If that fails, fallback to our raw PDF parser
+          console.error('Failed to load primary PDF parser:', pdfParseError);
+          console.log('Falling back to raw PDF parser');
+          parserInstances['pdf'] = new RawPdfParser();
+          console.log('Raw PDF parser loaded successfully');
+        }
       } catch (error) {
-        console.error('Failed to load PDF parser:', error);
+        console.error('Failed to load any PDF parser:', error);
+        // Create a simple fallback that just returns the file size and a message
+        parserInstances['pdf'] = {
+          async parseFile(filePath: string): Promise<FileParseResult> {
+            const buffer = await readFile(filePath);
+            return {
+              content: `PDF parsing is not available. File size: ${buffer.length} bytes`,
+              metadata: {
+                info: { Error: 'PDF parsing unavailable' },
+                pageCount: 0,
+                version: 'unknown'
+              }
+            };
+          }
+        };
       }
       
       try {
@@ -39,6 +67,7 @@ function getParserInstances(): Record<string, FileParser> {
     }
   }
   
+  console.log('Available parsers:', Object.keys(parserInstances));
   return parserInstances;
 }
 
@@ -60,12 +89,16 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
     }
     
     const extension = path.extname(filePath).toLowerCase().substring(1);
+    console.log('Attempting to parse file with extension:', extension);
+    
     const parsers = getParserInstances();
     
     if (!Object.keys(parsers).includes(extension)) {
+      console.log('No parser found for extension:', extension);
       throw new Error(`Unsupported file type: ${extension}. Supported types are: ${Object.keys(parsers).join(', ')}`);
     }
     
+    console.log('Using parser for extension:', extension);
     const parser = parsers[extension];
     return await parser.parseFile(filePath);
   } catch (error) {

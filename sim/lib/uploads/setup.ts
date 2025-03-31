@@ -8,7 +8,7 @@ import { cwd } from 'process'
 const PROJECT_ROOT = path.resolve(process.cwd())
 
 // Define the upload directory path using project root
-export const UPLOAD_DIR = join(PROJECT_ROOT, 'sim', 'uploads')
+export const UPLOAD_DIR = join(PROJECT_ROOT, 'uploads')
 
 /**
  * Ensures that the uploads directory exists
