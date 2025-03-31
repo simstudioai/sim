@@ -45,8 +45,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       if (!params.accountSid) {
         throw new Error('Twilio Account SID is required')
       }
-      const url = `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Messages.json`
-      logger.info('Request URL:', url)
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Messages.json`;
       return url
     },
     method: 'POST',
@@ -55,12 +54,11 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
         throw new Error('Twilio credentials are required')
       }
       // Use Buffer instead of btoa for Node.js compatibility
-      const authToken = btoa(`${params.accountSid}:${params.authToken}`)
+      const authToken = Buffer.from(`${params.accountSid}:${params.authToken}`).toString('base64')
       const headers = {
         Authorization: `Basic ${authToken}`,
         'Content-Type': 'application/x-www-form-urlencoded'
       }
-      logger.info('Request Headers:', { ...headers, Authorization: 'Basic [REDACTED]' }) // Redact the actual token for security
       return headers
     },
     body: (params) => {
@@ -76,20 +74,15 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
 
       // Get first phone number if multiple are provided
       const toNumber = params.phoneNumbers.split('\n')[0].trim()
-
-      logger.info('fromNumber', params.fromNumber)
-      logger.info('toNumber', toNumber)
-      logger.info('message', params.message)
-    
-
-      const body_data = new URLSearchParams()
-      body_data.append('To', toNumber)
-      body_data.append('From', params.fromNumber)
-      body_data.append('Body', params.message)
-
       
-      logger.info('Request Body:', body_data.toString())
-      return body_data.toString()
+      // Create a URLSearchParams object and convert to string
+      const formData = new URLSearchParams()
+      formData.append('To', toNumber)
+      formData.append('From', params.fromNumber)
+      formData.append('Body', params.message)
+      
+      const formDataString = formData.toString()
+      return { body: formDataString }
     }
   },
 
@@ -103,7 +96,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     }
     
     logger.info('Twilio Response:', data)
-
+    logger.info('Twilio Response type:', typeof data)
     return {
       success: true,
       output: {

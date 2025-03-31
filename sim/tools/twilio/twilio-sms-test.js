@@ -4,10 +4,10 @@
 
 async function sendTwilioSMS() {
   // Configure these variables with your Twilio credentials
-  const accountSid = process.env.TWILIO_ACCOUNT_SID; // replace with your Twilio Account SID
-  const authToken = process.env.TWILIO_AUTH_TOKEN;   // replace with your Twilio Auth Token
-  const fromNumber = process.env.TWILIO_FROM_NUMBER; // e.g., '+18667563523'
-  const toNumber = process.env.TWILIO_TO_NUMBER;   // e.g., '+18777804236'
+  const accountSid = process.env.TWILIO_ACCOUNT_SID; 
+  const authToken = process.env.TWILIO_AUTH_TOKEN;   
+  const fromNumber = process.env.TWILIO_FROM_NUMBER; 
+  const toNumber = process.env.TWILIO_TO_NUMBER;   
   const message = 'Test message from standalone script';
 
   // Create Base64 auth token
