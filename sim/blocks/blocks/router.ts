@@ -1,6 +1,7 @@
 import { ConnectIcon } from '@/components/icons'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { ProviderId } from '@/providers/types'
-import { MODEL_PROVIDERS } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
@@ -108,7 +109,11 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_PROVIDERS),
+      options: () => {
+        const ollamaModels = useOllamaStore.getState().models
+        const baseModels = Object.keys(getBaseModelProviders())
+        return [...baseModels, ...ollamaModels]
+      },
     },
     {
       id: 'apiKey',
@@ -145,7 +150,7 @@ export const RouterBlock: BlockConfig<RouterResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = MODEL_PROVIDERS[model as ProviderId]
+        const tool = getAllModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

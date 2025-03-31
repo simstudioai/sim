@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="sim/public/sim.png" alt="Sim Studio Logo" width="500"/>
+  <img src="sim/public/static/sim.png" alt="Sim Studio Logo" width="500"/>
 </p>
 
 <p align="center">
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache-2.0"></a>
-  <a href="https://discord.gg/pQKwMTvNrg"><img src="https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://discord.gg/Hr4UWYEcTT"><img src="https://img.shields.io/badge/Discord-Join%20Server-7289DA?logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://x.com/simstudioai"><img src="https://img.shields.io/twitter/follow/simstudio?style=social" alt="Twitter"></a>
   <a href="https://github.com/simstudioai/sim/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
   <a href="https://github.com/simstudioai/sim/issues"><img src="https://img.shields.io/badge/support-contact%20author-purple.svg" alt="support"></a>
@@ -21,12 +21,6 @@
 
 ## How to Self-Host
 
-### Step 1: Fork the Repository
-
-**Important:** Start by forking this repository by clicking the "Fork" button at the top right of this page. This creates your own copy of the repository under your GitHub account.
-
-> **Note:** Ensure you have an editor, git, npm, and Docker (if you're not setting up manually) installed on your system.
-
 There are several ways to self-host Sim Studio:
 
 ### Option 1: Docker Environment (Recommended)
@@ -39,8 +33,12 @@ cd sim
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
 cp sim/.env.example sim/.env
 
-# Start the Docker environment
-docker compose up -d
+# Start Sim Studio using the provided script
+docker compose up -d --build
+
+or
+
+./start_simstudio_docker.sh
 ```
 
 After running these commands:
@@ -65,6 +63,36 @@ After running these commands:
    # Rebuild and restart (after code changes)
    docker compose up -d --build
    ```
+
+#### Working with Local Models
+
+To use local models with Sim Studio, follow these steps:
+
+1. **Pull Local Models**
+
+   ```bash
+   # Run the ollama_docker.sh script to pull the required models
+   ./sim/scripts/ollama_docker.sh pull <model_name>
+   ```
+
+2. **Start Sim Studio with Local Models**
+
+   ```bash
+   #Start Sim Studio with local model support
+   ./start_simstudio_docker.sh --local
+
+   # or
+
+   # Start Sim Studio with local model support if you have nvidia GPU
+   docker compose up --profile local-gpu -d --build
+
+   # or
+
+   # Start Sim Studio with local model support if you don't have nvidia GPU
+   docker compose up --profile local-cpu -d --build
+   ```
+
+The application will now be configured to use your local models. You can access it at [http://localhost:3000/w/](http://localhost:3000/w/).
 
 ### Option 2: Dev Containers
 

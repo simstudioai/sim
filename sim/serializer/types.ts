@@ -42,6 +42,7 @@ export interface SerializedBlock {
 export interface SerializedLoop {
   id: string
   nodes: string[]
-  maxIterations: number
-  minIterations: number
+  iterations: number
+  loopType?: 'for' | 'forEach' | 'while'
+  forEachItems?: any[] | Record<string, any> | string // Items to iterate over or expression to evaluate
 }

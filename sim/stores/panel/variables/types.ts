@@ -23,28 +23,28 @@ export interface VariablesStore {
    * If a variable with the same name exists, it will be suffixed with a number
    */
   addVariable: (variable: Omit<Variable, 'id'>) => string
-  
+
   /**
    * Updates a variable, ensuring name remains unique within the workflow
    * If an updated name conflicts with existing ones, a numbered suffix is added
    */
   updateVariable: (id: string, update: Partial<Omit<Variable, 'id' | 'workflowId'>>) => void
-  
+
   deleteVariable: (id: string) => void
-  
+
   /**
    * Duplicates a variable with a "(copy)" suffix, ensuring name uniqueness
    */
   duplicateVariable: (id: string) => string
-  
+
   loadVariables: (workflowId: string) => Promise<void>
   saveVariables: (workflowId: string) => Promise<void>
-  
+
   /**
    * Returns all variables for a specific workflow
    */
   getVariablesByWorkflowId: (workflowId: string) => Variable[]
-  
+
   /**
    * Resets tracking of loaded workflows
    */

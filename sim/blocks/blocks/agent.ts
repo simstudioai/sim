@@ -1,6 +1,7 @@
 import { AgentIcon } from '@/components/icons'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
-import { MODEL_PROVIDERS } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
@@ -30,7 +31,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   longDescription:
     'Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations.',
   category: 'blocks',
-  bgColor: '#7F2FFF',
+  bgColor: '#802FFF',
   icon: AgentIcon,
   subBlocks: [
     {
@@ -52,7 +53,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_PROVIDERS),
+      options: () => {
+        const ollamaModels = useOllamaStore.getState().models
+        const baseModels = Object.keys(getBaseModelProviders())
+        return [...baseModels, ...ollamaModels]
+      },
     },
     {
       id: 'temperature',
@@ -116,7 +121,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = MODEL_PROVIDERS[model]
+        const tool = getAllModelProviders()[model]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

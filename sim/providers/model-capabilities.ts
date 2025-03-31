@@ -9,6 +9,7 @@ export const MODELS_TEMP_RANGE_0_2 = [
   'gpt-4o',
   // Google models
   'gemini-2.0-flash',
+  'gemini-2.5-pro-exp-03-25',
   // Deepseek models
   'deepseek-v3',
 ]

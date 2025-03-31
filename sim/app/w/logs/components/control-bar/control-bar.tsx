@@ -37,7 +37,7 @@ export function ControlBar() {
   const fetchLogs = async () => {
     try {
       // Include workflow data in the response
-      const response = await fetch('/api/db/workflow-logs?includeWorkflow=true')
+      const response = await fetch('/api/logs?includeWorkflow=true')
 
       if (!response.ok) {
         throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -158,16 +158,16 @@ export function ControlBar() {
 
         <Button
           className={`gap-2 border bg-background text-foreground hover:bg-accent ${
-            isLive ? 'border-[#7F2FFF]' : 'border-input'
+            isLive ? 'border-[#802FFF]' : 'border-input'
           }`}
           onClick={toggleLive}
         >
           {isLive ? (
-            <Square className="!h-3.5 !w-3.5 text-[#7F2FFF]" />
+            <Square className="!h-3.5 !w-3.5 text-[#802FFF]" />
           ) : (
             <Play className="!h-3.5 !w-3.5" />
           )}
-          <span className={`${isLive ? 'text-[#7F2FFF]' : 'text-foreground'}`}>Live</span>
+          <span className={`${isLive ? 'text-[#802FFF]' : 'text-foreground'}`}>Live</span>
         </Button>
       </div>
     </div>

@@ -10,8 +10,8 @@ export const googleProvider: ProviderConfig = {
   name: 'Google',
   description: "Google's Gemini models",
   version: '1.0.0',
-  models: ['gemini-2.0-flash'],
-  defaultModel: 'gemini-2.0-flash',
+  models: ['gemini-2.0-flash', 'gemini-2.5-pro-exp-03-25'],
+  defaultModel: 'gemini-2.5-pro-exp-03-25',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
     if (!request.apiKey) {
@@ -23,6 +23,7 @@ export const googleProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
+      // First try the OpenAI compatibility approach
       const openai = new OpenAI({
         apiKey: request.apiKey,
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
@@ -65,10 +66,13 @@ export const googleProvider: ProviderConfig = {
           }))
         : undefined
 
-      // Build the request payload
-      const payload: any = {
-        model: request.model || 'gemini-2.0-flash',
+      const requestedModel = request.model || 'gemini-2.0-flash'
+
+      let payload: any = {
+        model: requestedModel,
         messages: allMessages,
+        stream: false,
+        n: 1,
       }
 
       // Add optional parameters
@@ -91,8 +95,75 @@ export const googleProvider: ProviderConfig = {
 
       // Make the initial API request
       const initialCallTime = Date.now()
-      let currentResponse = await openai.chat.completions.create(payload)
-      const firstResponseTime = Date.now() - initialCallTime
+      let currentResponse
+      let firstResponseTime = 0
+
+      try {
+        currentResponse = await openai.chat.completions.create(payload)
+        firstResponseTime = Date.now() - initialCallTime
+      } catch (error) {
+        logger.warn('OpenAI compatibility mode failed, falling back to direct Gemini API', {
+          error: error instanceof Error ? error.message : String(error),
+        })
+
+        // Fall back to direct Gemini API using the native format
+        const nativeCallStartTime = Date.now()
+        // Convert OpenAI message format to Gemini format
+        const geminiContent = allMessages
+          .map((msg) => {
+            if (msg.role === 'user') {
+              return { parts: [{ text: msg.content }] }
+            }
+            return null
+          })
+          .filter(Boolean)
+
+        // Build the Gemini native payload
+        const nativePayload: any = {
+          contents: geminiContent,
+        }
+
+        if (request.temperature !== undefined) {
+          nativePayload.generationConfig = {
+            temperature: request.temperature,
+          }
+        }
+
+        // Make direct call to Gemini API
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(nativePayload),
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+        }
+
+        const geminiResponse = await response.json()
+
+        currentResponse = {
+          choices: [
+            {
+              message: {
+                content: geminiResponse.candidates[0]?.content?.parts[0]?.text || '',
+              },
+              finish_reason: 'stop',
+            },
+          ],
+          usage: {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+          },
+        }
+        firstResponseTime = Date.now() - nativeCallStartTime
+      }
 
       let content = currentResponse.choices[0]?.message?.content || ''
       let tokens = {

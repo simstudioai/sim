@@ -46,5 +46,54 @@ services:
       timeout: 5s
       retries: 5
 
+  local-llm-gpu:
+    profiles: 
+      - local-gpu # This profile requires both 'local' and 'gpu'
+    image: ollama/ollama:latest
+    pull_policy: always
+    volumes:
+      - ${HOME}/.ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - OLLAMA_LOAD_TIMEOUT=-1
+      - OLLAMA_KEEP_ALIVE=-1
+      - OLLAMA_DEBUG=1
+    command: "serve"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  local-llm-cpu:
+    profiles:
+      - local-cpu # This profile requires both 'local' and 'cpu'
+    image: ollama/ollama:latest
+    pull_policy: always
+    volumes:
+      - ${HOME}/.ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_LOAD_TIMEOUT=-1
+      - OLLAMA_KEEP_ALIVE=-1
+      - OLLAMA_DEBUG=1
+    command: "serve"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
-  postgres_data: 
+  postgres_data:
+

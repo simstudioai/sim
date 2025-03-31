@@ -13,8 +13,8 @@ import { BlockState } from './workflow/types'
 const logger = createLogger('Workflows Sync')
 
 // Add debounce utility
-let syncDebounceTimer: NodeJS.Timeout | null = null;
-const DEBOUNCE_DELAY = 500; // 500ms delay
+let syncDebounceTimer: NodeJS.Timeout | null = null
+const DEBOUNCE_DELAY = 500 // 500ms delay
 
 // Flag to prevent immediate sync back to DB after loading from DB
 let isLoadingFromDB = false
@@ -54,7 +54,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     loadingFromDBStartTime = Date.now()
 
     // Call the API endpoint to get workflows from DB
-    const response = await fetch(API_ENDPOINTS.WORKFLOW, {
+    const response = await fetch(API_ENDPOINTS.SYNC, {
       method: 'GET',
     })
 
@@ -130,6 +130,24 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         })
       })
 
+      // Get any additional subblock values that might not be in the state but are in the store
+      const storedValues = useSubBlockStore.getState().workflowValues[id] || {}
+      Object.entries(storedValues).forEach(([blockId, blockValues]) => {
+        if (!subblockValues[blockId]) {
+          subblockValues[blockId] = {}
+        }
+
+        Object.entries(blockValues).forEach(([subblockId, value]) => {
+          // Only update if not already set or if value is null
+          if (
+            subblockValues[blockId][subblockId] === null ||
+            subblockValues[blockId][subblockId] === undefined
+          ) {
+            subblockValues[blockId][subblockId] = value
+          }
+        })
+      })
+
       // 4. Store the workflow state and subblock values in localStorage
       // This ensures compatibility with existing code that loads from localStorage
       localStorage.setItem(`workflow-${id}`, JSON.stringify(workflowState))
@@ -200,13 +218,13 @@ function activeDBSyncNeeded(): boolean {
   // Only sync if we have detected a change that needs to be persisted
   const lastSynced = localStorage.getItem('last_db_sync_timestamp')
   const currentTime = Date.now()
-  
+
   if (!lastSynced) {
     // First sync - record it and return true
     localStorage.setItem('last_db_sync_timestamp', currentTime.toString())
     return true
   }
-  
+
   // Add additional checks here if needed for specific workflow changes
   // For now, we'll simply avoid the automatic sync after load
   return false
@@ -214,7 +232,7 @@ function activeDBSyncNeeded(): boolean {
 
 // Create the basic sync configuration
 const workflowSyncConfig = {
-  endpoint: API_ENDPOINTS.WORKFLOW,
+  endpoint: API_ENDPOINTS.SYNC,
   preparePayload: () => {
     if (typeof window === 'undefined') return {}
 
@@ -252,10 +270,10 @@ const workflowSyncConfig = {
   onSyncSuccess: async () => {
     logger.info('Workflows synced to DB successfully')
   },
-};
+}
 
 // Create the sync manager
-const baseWorkflowSync = createSingletonSyncManager('workflow-sync', () => workflowSyncConfig);
+const baseWorkflowSync = createSingletonSyncManager('workflow-sync', () => workflowSyncConfig)
 
 // Create a debounced version of the sync manager
 export const workflowSync = {
@@ -263,18 +281,18 @@ export const workflowSync = {
   sync: () => {
     // Clear any existing timeout
     if (syncDebounceTimer) {
-      clearTimeout(syncDebounceTimer);
+      clearTimeout(syncDebounceTimer)
     }
-    
+
     // Set new timeout
     syncDebounceTimer = setTimeout(() => {
       // Perform the sync
-      baseWorkflowSync.sync();
-      
+      baseWorkflowSync.sync()
+
       // Update the last sync timestamp
       if (typeof window !== 'undefined') {
-        localStorage.setItem('last_db_sync_timestamp', Date.now().toString());
+        localStorage.setItem('last_db_sync_timestamp', Date.now().toString())
       }
-    }, DEBOUNCE_DELAY);
-  }
-};
+    }, DEBOUNCE_DELAY)
+  },
+}

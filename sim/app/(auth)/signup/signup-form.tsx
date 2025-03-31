@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +37,7 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
-export default function SignupPage({
+function SignupFormContent({
   githubAvailable,
   googleAvailable,
   isProduction,
@@ -47,6 +47,7 @@ export default function SignupPage({
   isProduction: boolean
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
@@ -54,10 +55,46 @@ export default function SignupPage({
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
+  const [email, setEmail] = useState('')
+  const [waitlistToken, setWaitlistToken] = useState('')
 
   useEffect(() => {
     setMounted(true)
-  }, [])
+    const emailParam = searchParams.get('email')
+    if (emailParam) {
+      setEmail(emailParam)
+    }
+
+    // Check for waitlist token
+    const tokenParam = searchParams.get('token')
+    if (tokenParam) {
+      setWaitlistToken(tokenParam)
+      // Verify the token and get the email
+      verifyWaitlistToken(tokenParam)
+    }
+  }, [searchParams])
+
+  // Verify waitlist token and pre-fill email
+  const verifyWaitlistToken = async (token: string) => {
+    try {
+      const response = await fetch('/api/auth/verify-waitlist-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.email) {
+        setEmail(data.email)
+      }
+    } catch (error) {
+      console.error('Error verifying waitlist token:', error)
+      // Continue regardless of errors - we don't want to block sign up
+    }
+  }
 
   // Validate password and return array of error messages
   const validatePassword = (passwordValue: string): string[] => {
@@ -100,7 +137,7 @@ export default function SignupPage({
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
-    const email = formData.get('email') as string
+    const emailValue = formData.get('email') as string
     const passwordValue = formData.get('password') as string
     const name = formData.get('name') as string
 
@@ -121,7 +158,7 @@ export default function SignupPage({
 
       const response = await client.signUp.email(
         {
-          email,
+          email: emailValue,
           password: passwordValue,
           name,
         },
@@ -169,7 +206,7 @@ export default function SignupPage({
       }
 
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('verificationEmail', email)
+        sessionStorage.setItem('verificationEmail', emailValue)
       }
 
       router.push(`/verify?fromSignup=true`)
@@ -221,6 +258,8 @@ export default function SignupPage({
                       type="email"
                       placeholder="name@example.com"
                       required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -273,5 +312,31 @@ export default function SignupPage({
         </Card>
       </div>
     </main>
+  )
+}
+
+export default function SignupPage({
+  githubAvailable,
+  googleAvailable,
+  isProduction,
+}: {
+  githubAvailable: boolean
+  googleAvailable: boolean
+  isProduction: boolean
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <SignupFormContent
+        githubAvailable={githubAvailable}
+        googleAvailable={googleAvailable}
+        isProduction={isProduction}
+      />
+    </Suspense>
   )
 }

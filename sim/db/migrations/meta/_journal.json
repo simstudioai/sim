@@ -162,6 +162,13 @@
       "when": 1742889909342,
       "tag": "0022_gray_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1743024111706,
+      "tag": "0023_nervous_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }

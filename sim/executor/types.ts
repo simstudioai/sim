@@ -32,7 +32,9 @@ export interface NormalizedBlockOutput {
     data?: any // Response data from API calls
     status?: number // HTTP status code
     headers?: Record<string, string> // HTTP headers
+    error?: string // Error message if block execution failed
   }
+  error?: string // Top-level error field for easy error checking
   [key: string]: any // Additional properties
 }
 
@@ -85,6 +87,7 @@ export interface ExecutionContext {
   }
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
+  loopItems: Map<string, any> // Tracks current item for forEach loops
 
   // Execution tracking
   executedBlocks: Set<string> // Set of block IDs that have been executed

@@ -11,7 +11,8 @@ import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
-import { GuestyBlock } from './blocks/guesty'
+// import { GuestyBlock } from './blocks/guesty'
+import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -26,6 +27,7 @@ import { StarterBlock } from './blocks/starter'
 import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
+import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
@@ -67,6 +69,8 @@ export {
   PerplexityBlock,
   ConfluenceBlock,
   TwilioSMSBlock,
+  ImageGeneratorBlock,
+  TypeformBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -85,6 +89,7 @@ const blocks: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
+  image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
@@ -99,6 +104,7 @@ const blocks: Record<string, BlockConfig> = {
   tavily: TavilyBlock,
   translate: TranslateBlock,
   twilio_sms: TwilioSMSBlock,
+  typeform: TypeformBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
   x: XBlock,

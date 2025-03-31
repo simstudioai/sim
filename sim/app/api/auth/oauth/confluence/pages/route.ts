@@ -12,6 +12,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
+    // Log request details for debugging
+    console.log('Request details:', {
+      domain,
+      tokenLength: accessToken ? accessToken.length : 0,
+      hasTitle: !!title,
+      limit,
+    })
+
     // Build the URL with query parameters
     const baseUrl = `https://${domain}/wiki/api/v2/pages`
     const queryParams = new URLSearchParams()
@@ -29,7 +37,7 @@ export async function POST(request: Request) {
 
     console.log(`Fetching Confluence pages from: ${url}`)
 
-    // Make the request to Confluence API
+    // Make the request to Confluence API with OAuth Bearer token
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -38,16 +46,27 @@ export async function POST(request: Request) {
       },
     })
 
+    console.log('Response status:', response.status, response.statusText)
+
     if (!response.ok) {
       console.error(`Confluence API error: ${response.status} ${response.statusText}`)
       let errorMessage
 
       try {
         const errorData = await response.json()
+        console.error('Error details:', JSON.stringify(errorData, null, 2))
         errorMessage = errorData.message || `Failed to fetch Confluence pages (${response.status})`
-        console.error('Error details:', errorData)
       } catch (e) {
-        errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
+        console.error('Could not parse error response as JSON:', e)
+
+        // Try to get the response text for more context
+        try {
+          const text = await response.text()
+          console.error('Response text:', text)
+          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
+        } catch (textError) {
+          errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
+        }
       }
 
       return NextResponse.json({ error: errorMessage }, { status: response.status })

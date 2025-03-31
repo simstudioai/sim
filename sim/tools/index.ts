@@ -19,6 +19,7 @@ import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
 import { notionReadTool, notionWriteTool } from './notion'
+import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { perplexityChatTool } from './perplexity'
 import {
@@ -35,6 +36,7 @@ import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
 import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
+import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
 import { formatRequestParams, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
@@ -65,6 +67,9 @@ export const tools: Record<string, ToolConfig> = {
   supabase_query: supabaseQueryTool,
   supabase_insert: supabaseInsertTool,
   supabase_update: supabaseUpdateTool,
+  typeform_responses: typeformResponsesTool,
+  typeform_files: typeformFilesTool,
+  typeform_insights: typeformInsightsTool,
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,
@@ -104,6 +109,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
+  dalle_generate: dalleTool,
 }
 
 // Get a tool by its ID
