@@ -51,7 +51,7 @@ const initialNodes: Node[] = [
     data: {
       type: 'agent',
       name: 'Agent 1',
-      color: '#7F2FFF',
+      color: '#802FFF',
     },
     dragHandle: '.workflow-drag-handle',
   },
@@ -62,7 +62,7 @@ const initialNodes: Node[] = [
     data: {
       type: 'agent',
       name: 'Agent 2',
-      color: '#7F2FFF',
+      color: '#802FFF',
     },
     dragHandle: '.workflow-drag-handle',
   },
@@ -139,7 +139,7 @@ const getMobileNodes = (): Node[] => [
     data: {
       type: 'agent',
       name: 'Agent 1',
-      color: '#7F2FFF',
+      color: '#802FFF',
     },
     dragHandle: '.workflow-drag-handle',
   },
@@ -150,7 +150,7 @@ const getMobileNodes = (): Node[] => [
     data: {
       type: 'agent',
       name: 'Agent 2',
-      color: '#7F2FFF',
+      color: '#802FFF',
     },
     dragHandle: '.workflow-drag-handle',
   },

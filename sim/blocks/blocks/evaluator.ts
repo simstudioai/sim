@@ -126,7 +126,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   longDescription:
     'Assess content quality using customizable evaluation metrics and scoring criteria. Create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.',
   category: 'tools',
-  bgColor: '#2FA1FF',
+  bgColor: '#4D5FFF',
   icon: ChartBarIcon,
   subBlocks: [
     {

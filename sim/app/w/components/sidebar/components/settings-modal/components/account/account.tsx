@@ -231,7 +231,7 @@ export function Account({ onOpenChange }: AccountProps) {
                   <div className="flex items-center gap-3">
                     <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-blue-500">
                       {userData.isLoggedIn ? (
-                        <div className="h-full w-full flex items-center justify-center bg-[#7F2FFF]">
+                        <div className="h-full w-full flex items-center justify-center bg-[#802FFF]">
                           <AgentIcon className="text-white transition-transform duration-200 group-hover:scale-110 -translate-y-[0.5px]" />
                         </div>
                       ) : (
@@ -282,7 +282,7 @@ export function Account({ onOpenChange }: AccountProps) {
                               account.isActive && 'bg-accent'
                             )}
                           >
-                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7F2FFF]">
+                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#802FFF]">
                               <User className="text-white w-4 h-4" />
                             </div>
                             <div className="flex flex-col">
