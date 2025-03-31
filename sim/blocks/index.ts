@@ -32,11 +32,13 @@ import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
+import { AirtableBlock } from './blocks/airtable'
 import { BlockConfig } from './types'
 
 // Export blocks for ease of use
 export {
   AgentBlock,
+  AirtableBlock,
   ApiBlock,
   FunctionBlock,
   VisionBlock,
@@ -74,6 +76,7 @@ export {
 // Registry of all block configurations, alphabetically sorted
 const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
+  airtable: AirtableBlock,
   api: ApiBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
