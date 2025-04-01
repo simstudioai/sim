@@ -1742,31 +1742,28 @@ export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-<<<<<<< HEAD
 export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
-      width="23"
-      height="28"
-      viewBox="0 0 23 28"
+      width="20"
+      height="24"
+      viewBox="0 0 20 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M8 15.2H15.2M8 20H11.6M2 4.4V23.6C2 24.2365 2.25286 24.847 2.70294 25.2971C3.15303 25.7471 3.76348 26 4.4 26H18.8C19.4365 26 20.047 25.7471 20.4971 25.2971C20.9471 24.847 21.2 24.2365 21.2 23.6V9.6104C21.2 9.29067 21.136 8.97417 21.012 8.67949C20.8879 8.38481 20.7062 8.11789 20.4776 7.8944L15.1496 2.684C14.7012 2.24559 14.0991 2.00008 13.472 2H4.4C3.76348 2 3.15303 2.25286 2.70294 2.70294C2.25286 3.15303 2 3.76348 2 4.4Z"
-        stroke="currentColor"
-        strokeWidth="2.25"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M18.5 8.2L11.5 1.2C11.4 1.1 11.3 1.05 11.2 1C11.1 0.95 11 0.92 10.9 0.9C10.85 0.88 10.82 0.85 10.8 0.85H3C1.9 0.85 1 1.75 1 2.85V21.15C1 22.25 1.9 23.15 3 23.15H17C18.1 23.15 19 22.25 19 21.15V8.5C19 8.4 18.95 8.3 18.5 8.2ZM11.5 3.5L16.5 8.5H11.5V3.5ZM3 21.15V2.85H9.5V8.5C9.5 9.05 9.95 9.5 10.5 9.5H17V21.15H3Z"
+        fill="currentColor"
       />
       <path
-        d="M14 2V6.8C14 7.43652 14.2529 8.04697 14.7029 8.49706C15.153 8.94714 15.7635 9.2 16.4 9.2H21.2"
-        stroke="currentColor"
-        strokeWidth="2.25"
-        strokeLinejoin="round"
+        d="M5 12.5H14V13.5H5V12.5ZM5 17.3H14V18.3H5V17.3ZM5 7.5H7V8.5H5V7.5Z"
+        fill="currentColor"
       />
-=======
+    </svg>
+  )
+}
+
 export function MongoDBIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
