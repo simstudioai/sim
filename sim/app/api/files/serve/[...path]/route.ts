@@ -19,10 +19,13 @@ const logger = createLogger('FilesServeAPI')
 /**
  * Main API route handler for serving files
  */
-export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
   try {
     // Extract params
-    const { path } = params
+    const { path } = await params
 
     // Join the path segments to get the filename or S3 key
     const pathString = path.join('/')
