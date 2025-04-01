@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync } from 'fs'
+import fs from 'fs'
 import { readFile, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import path from 'path'
@@ -116,9 +117,6 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(filePath)) {
       // Single file was requested
       const result = results[0]
-      if (!result.success) {
-        return NextResponse.json({ error: result.error }, { status: 400 })
-      }
       return NextResponse.json(result)
     }
 
@@ -175,24 +173,17 @@ async function handleS3File(filePath: string, fileType?: string): Promise<ParseR
     const filename = s3Key.split('/').pop() || s3Key
     const extension = path.extname(filename).toLowerCase().substring(1)
 
-    // Create a temporary file path
-    const tempFilePath = join(UPLOAD_DIR, `temp-${Date.now()}-${filename}`)
-
-    try {
-      // Save to a temporary file so we can use existing parsers
-      await writeFile(tempFilePath, fileBuffer)
-
-      // Process the file based on its type
-      const result = isSupportedFileType(extension)
-        ? await processWithSpecializedParser(tempFilePath, filename, extension, fileType, filePath)
-        : await handleGenericFile(tempFilePath, filename, extension, fileType)
-
-      return result
-    } finally {
-      // Clean up the temporary file regardless of outcome
-      if (existsSync(tempFilePath)) {
-        await unlink(tempFilePath).catch((err) => logger.error('Error removing temp file:', err))
-      }
+    // Process the file based on its content type
+    if (extension === 'pdf') {
+      return await handlePdfBuffer(fileBuffer, filename, fileType, filePath)
+    } else if (extension === 'csv') {
+      return await handleCsvBuffer(fileBuffer, filename, fileType, filePath)
+    } else if (isSupportedFileType(extension)) {
+      // For other supported types that we have parsers for
+      return await handleGenericTextBuffer(fileBuffer, filename, extension, fileType, filePath)
+    } else {
+      // For binary or unknown files
+      return handleGenericBuffer(fileBuffer, filename, extension, fileType)
     }
   } catch (error) {
     logger.error(`Error handling S3 file ${filePath}:`, error)
@@ -205,43 +196,277 @@ async function handleS3File(filePath: string, fileType?: string): Promise<ParseR
 }
 
 /**
- * Handle file stored locally
+ * Handle a PDF buffer directly in memory
  */
-async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
-  // Extract the filename from the path
-  const filename = filePath.startsWith('/api/files/serve/')
-    ? filePath.substring('/api/files/serve/'.length)
-    : path.basename(filePath)
+async function handlePdfBuffer(
+  fileBuffer: Buffer,
+  filename: string,
+  fileType?: string,
+  originalPath?: string
+): Promise<ParseResult> {
+  try {
+    logger.info(`Parsing PDF in memory: ${filename}`)
 
-  logger.info('Processing local file:', filename)
+    const result = await parseBufferAsPdf(fileBuffer)
 
-  // Try several possible file paths
-  const possiblePaths = [join(UPLOAD_DIR, filename), join(process.cwd(), 'uploads', filename)]
+    const content =
+      result.content ||
+      createPdfFallbackMessage(result.metadata?.pageCount || 0, fileBuffer.length, originalPath)
 
-  // Find the actual file path
-  let actualPath = ''
-  for (const p of possiblePaths) {
-    if (existsSync(p)) {
-      actualPath = p
-      logger.info(`Found file at: ${actualPath}`)
-      break
+    return {
+      success: true,
+      output: {
+        content,
+        fileType: fileType || 'application/pdf',
+        size: fileBuffer.length,
+        name: filename,
+        binary: false,
+        metadata: result.metadata || {},
+      },
+      filePath: originalPath,
+    }
+  } catch (error) {
+    logger.error(`Failed to parse PDF in memory:`, error)
+
+    // Create fallback message for PDF parsing failure
+    const content = createPdfFailureMessage(
+      0, // We can't determine page count without parsing
+      fileBuffer.length,
+      originalPath || filename,
+      (error as Error).message
+    )
+
+    return {
+      success: true,
+      output: {
+        content,
+        fileType: fileType || 'application/pdf',
+        size: fileBuffer.length,
+        name: filename,
+        binary: false,
+      },
+      filePath: originalPath,
     }
   }
+}
 
-  if (!actualPath) {
+/**
+ * Handle a CSV buffer directly in memory
+ */
+async function handleCsvBuffer(
+  fileBuffer: Buffer,
+  filename: string,
+  fileType?: string,
+  originalPath?: string
+): Promise<ParseResult> {
+  try {
+    logger.info(`Parsing CSV in memory: ${filename}`)
+
+    // Use the parseBuffer function from our library
+    const { parseBuffer } = await import('../../../../lib/file-parsers')
+    const result = await parseBuffer(fileBuffer, 'csv')
+
+    return {
+      success: true,
+      output: {
+        content: result.content,
+        fileType: fileType || 'text/csv',
+        size: fileBuffer.length,
+        name: filename,
+        binary: false,
+        metadata: result.metadata || {},
+      },
+      filePath: originalPath,
+    }
+  } catch (error) {
+    logger.error(`Failed to parse CSV in memory:`, error)
     return {
       success: false,
-      error: `File not found: ${filename}`,
+      error: `Failed to parse CSV: ${(error as Error).message}`,
+      filePath: originalPath,
+    }
+  }
+}
+
+/**
+ * Handle a generic text file buffer in memory
+ */
+async function handleGenericTextBuffer(
+  fileBuffer: Buffer,
+  filename: string,
+  extension: string,
+  fileType?: string,
+  originalPath?: string
+): Promise<ParseResult> {
+  try {
+    logger.info(`Parsing text file in memory: ${filename}`)
+
+    // Try to use a specialized parser if available
+    try {
+      const { parseBuffer, isSupportedFileType } = await import('../../../../lib/file-parsers')
+
+      if (isSupportedFileType(extension)) {
+        const result = await parseBuffer(fileBuffer, extension)
+
+        return {
+          success: true,
+          output: {
+            content: result.content,
+            fileType: fileType || getMimeType(extension),
+            size: fileBuffer.length,
+            name: filename,
+            binary: false,
+            metadata: result.metadata || {},
+          },
+          filePath: originalPath,
+        }
+      }
+    } catch (parserError) {
+      logger.warn(`Specialized parser failed, falling back to generic parsing:`, parserError)
+    }
+
+    // Fallback to generic text parsing
+    const content = fileBuffer.toString('utf-8')
+
+    return {
+      success: true,
+      output: {
+        content,
+        fileType: fileType || getMimeType(extension),
+        size: fileBuffer.length,
+        name: filename,
+        binary: false,
+      },
+      filePath: originalPath,
+    }
+  } catch (error) {
+    logger.error(`Failed to parse text file in memory:`, error)
+    return {
+      success: false,
+      error: `Failed to parse file: ${(error as Error).message}`,
+      filePath: originalPath,
+    }
+  }
+}
+
+/**
+ * Handle a generic binary buffer
+ */
+function handleGenericBuffer(
+  fileBuffer: Buffer,
+  filename: string,
+  extension: string,
+  fileType?: string
+): ParseResult {
+  const isBinary = binaryExtensions.includes(extension)
+  const content = isBinary
+    ? `[Binary ${extension.toUpperCase()} file - ${fileBuffer.length} bytes]`
+    : fileBuffer.toString('utf-8')
+
+  return {
+    success: true,
+    output: {
+      content,
+      fileType: fileType || getMimeType(extension),
+      size: fileBuffer.length,
+      name: filename,
+      binary: isBinary,
+    },
+  }
+}
+
+/**
+ * Parse a PDF buffer
+ */
+async function parseBufferAsPdf(buffer: Buffer) {
+  try {
+    // Import parsers dynamically to avoid initialization issues in tests
+    // First try to use the main PDF parser
+    try {
+      const { PdfParser } = await import('../../../../lib/file-parsers/pdf-parser')
+      const parser = new PdfParser()
+      logger.info('Using main PDF parser for buffer')
+
+      if (parser.parseBuffer) {
+        return await parser.parseBuffer(buffer)
+      } else {
+        throw new Error('PDF parser does not support buffer parsing')
+      }
+    } catch (error) {
+      // Fallback to raw PDF parser
+      logger.warn('Main PDF parser failed, using raw parser for buffer:', error)
+      const { RawPdfParser } = await import('../../../../lib/file-parsers/raw-pdf-parser')
+      const rawParser = new RawPdfParser()
+
+      return await rawParser.parseBuffer(buffer)
+    }
+  } catch (error) {
+    throw new Error(`PDF parsing failed: ${(error as Error).message}`)
+  }
+}
+
+/**
+ * Handle a local file from the filesystem
+ */
+async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
+  // Check if this is an S3 path that was incorrectly routed
+  if (filePath.includes('/api/files/serve/s3/')) {
+    logger.warn(`S3 path detected in handleLocalFile, redirecting to S3 handler: ${filePath}`)
+    return handleS3File(filePath, fileType)
+  }
+
+  try {
+    logger.info(`Handling local file: ${filePath}`)
+
+    // Extract the filename from the path for API serve paths
+    let localFilePath = filePath
+    if (filePath.startsWith('/api/files/serve/')) {
+      const filename = filePath.replace('/api/files/serve/', '')
+      localFilePath = path.join(UPLOAD_DIR, filename)
+      logger.info(`Resolved API path to local file: ${localFilePath}`)
+    }
+
+    // Make sure the file is actually a file that exists
+    try {
+      await fs.promises.access(localFilePath, fs.constants.R_OK)
+    } catch (error) {
+      logger.error(`File access error: ${localFilePath}`, error)
+      return {
+        success: false,
+        error: `File not found or inaccessible: ${filePath}`,
+        filePath,
+      }
+    }
+
+    // Get file stats
+    const stats = await fs.promises.stat(localFilePath)
+    if (!stats.isFile()) {
+      logger.error(`Not a file: ${localFilePath}`)
+      return {
+        success: false,
+        error: `Not a file: ${filePath}`,
+        filePath,
+      }
+    }
+
+    // Extract the filename from the path
+    const filename = path.basename(localFilePath)
+    const extension = path.extname(filename).toLowerCase().substring(1)
+
+    // Process the file based on its type
+    const result = isSupportedFileType(extension)
+      ? await processWithSpecializedParser(localFilePath, filename, extension, fileType, filePath)
+      : await handleGenericFile(localFilePath, filename, extension, fileType)
+
+    return result
+  } catch (error) {
+    logger.error(`Error handling local file ${filePath}:`, error)
+    return {
+      success: false,
+      error: `Error processing file: ${(error as Error).message}`,
       filePath,
     }
   }
-
-  const extension = path.extname(filename).toLowerCase().substring(1)
-
-  // Process the file based on its type
-  return isSupportedFileType(extension)
-    ? await processWithSpecializedParser(actualPath, filename, extension, fileType, filePath)
-    : await handleGenericFile(actualPath, filename, extension, fileType)
 }
 
 /**
@@ -346,6 +571,7 @@ async function handleGenericFile(
       ? `[Binary ${extension.toUpperCase()} file - ${fileSize} bytes]`
       : await parseTextFile(fileBuffer)
 
+    // Always return success: true for generic files (even unsupported ones)
     return {
       success: true,
       output: {
@@ -361,6 +587,7 @@ async function handleGenericFile(
     return {
       success: false,
       error: `Failed to parse file: ${(error as Error).message}`,
+      filePath,
     }
   }
 }
@@ -384,44 +611,51 @@ function getMimeType(extension: string): string {
 }
 
 /**
- * Create a fallback message for PDF files that couldn't be parsed properly
+ * Format bytes to human readable size
  */
-function createPdfFallbackMessage(
-  pageCount: number | undefined,
-  fileSize: number,
-  filePath?: string
-): string {
-  return `This PDF document could not be parsed for text content. It contains ${pageCount || 'unknown number of'} pages. File size: ${fileSize} bytes.
+function prettySize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes'
 
-To view this PDF properly, you can:
-1. Download it directly using this URL: ${filePath}
-2. Try a dedicated PDF text extraction service or tool
-3. Open it with a PDF reader like Adobe Acrobat
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
 
-PDF parsing failed because the document appears to use an encoding or compression method that our parser cannot handle.`
+  return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`
 }
 
 /**
- * Create an error message for PDF files that failed to parse
+ * Create a formatted message for PDF content
+ */
+function createPdfFallbackMessage(pageCount: number, size: number, path?: string): string {
+  const formattedPath = path
+    ? path.includes('/api/files/serve/s3/')
+      ? `S3 path: ${decodeURIComponent(path.split('/api/files/serve/s3/')[1])}`
+      : `Local path: ${path}`
+    : 'Unknown path'
+
+  return `PDF document - ${pageCount} page(s), ${prettySize(size)}
+Path: ${formattedPath}
+
+This file appears to be a PDF document that could not be fully processed as text.
+Please use a PDF viewer for best results.`
+}
+
+/**
+ * Create error message for PDF parsing failure
  */
 function createPdfFailureMessage(
   pageCount: number,
-  fileSize: number,
-  filePath: string,
-  errorMessage: string
+  size: number,
+  path: string,
+  error: string
 ): string {
-  return `PDF parsing failed: ${errorMessage}
+  const formattedPath = path.includes('/api/files/serve/s3/')
+    ? `S3 path: ${decodeURIComponent(path.split('/api/files/serve/s3/')[1])}`
+    : `Local path: ${path}`
 
-This PDF document contains ${pageCount || 'an unknown number of'} pages and is ${fileSize} bytes in size.
+  return `PDF document - Processing failed, ${prettySize(size)}
+Path: ${formattedPath}
+Error: ${error}
 
-To view this PDF properly, you can:
-1. Download it directly using this URL: ${filePath}
-2. Try a dedicated PDF text extraction service or tool
-3. Open it with a PDF reader like Adobe Acrobat
-
-Common causes of PDF parsing failures:
-- The PDF uses an unsupported compression algorithm
-- The PDF is protected or encrypted
-- The PDF content uses non-standard encodings
-- The PDF was created with features our parser doesn't support`
+This file appears to be a PDF document that could not be processed.
+Please use a PDF viewer for best results.`
 }
