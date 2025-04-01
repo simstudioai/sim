@@ -136,6 +136,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             blockId={blockId}
             subBlockId={config.id}
             acceptedTypes={config.acceptedTypes || '*'}
+            multiple={config.multiple === true}
           />
         )
       case 'webhook-config':

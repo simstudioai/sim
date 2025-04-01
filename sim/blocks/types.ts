@@ -114,6 +114,7 @@ export interface SubBlockConfig {
   mimeType?: string
   // File upload specific properties
   acceptedTypes?: string
+  multiple?: boolean
 }
 
 // Main block definition
