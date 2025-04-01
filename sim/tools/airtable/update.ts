@@ -6,9 +6,12 @@ export const updateTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse
   name: 'Airtable Update Records',
   description: 'Update existing records in an Airtable table',
   version: '1.0.0',
-  
-  provider: 'airtable',
-  
+
+  oauth: {
+    required: true,
+    provider: 'airtable',
+  },
+
   params: {
     accessToken: {
       type: 'string',
@@ -36,18 +39,18 @@ export const updateTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse
       description: 'Fields to update',
     },
   },
-  
+
   request: {
-    url: (params) => 
+    url: (params) =>
       `https://api.airtable.com/v0/${params.baseId}/${params.tableId}/${params.recordId}`,
     method: 'PATCH',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.accessToken}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => ({ fields: params.fields }),
   },
-  
+
   transformResponse: async (response) => {
     const data = await response.json()
     return {
@@ -61,8 +64,8 @@ export const updateTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse
       },
     }
   },
-  
+
   transformError: (error) => {
     return `Failed to update Airtable record: ${error.message}`
   },
-} 
+}
