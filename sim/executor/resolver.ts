@@ -1,6 +1,9 @@
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { LoopManager } from './loops'
 import { ExecutionContext } from './types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('InputResolver')
 
 /**
  * Resolves input values for blocks by handling references and variable substitution.
@@ -51,8 +54,6 @@ export class InputResolver {
   resolveInputs(block: SerializedBlock, context: ExecutionContext): Record<string, any> {
     const inputs = { ...block.config.params }
     const result: Record<string, any> = {}
-    const isFunctionBlock = block.metadata?.id === 'function'
-
     // Process each input parameter
     for (const [key, value] of Object.entries(inputs)) {
       // Skip null or undefined values
@@ -78,16 +79,39 @@ export class InputResolver {
         // Resolve environment variables
         resolvedValue = this.resolveEnvVariables(resolvedValue, isApiKey)
 
+        // Special handling for different block types
+        const isFunctionBlock = block.metadata?.id === 'function'
+        const isApiBlock = block.metadata?.id === 'api'
+        
         // For function blocks, we need special handling for code input
         if (isFunctionBlock && key === 'code') {
           // For code input in function blocks, we don't want to parse JSON
           result[key] = resolvedValue
+          logger.debug(`[resolveInputs] Function block code input preserved as string`);
         } 
+        // For API blocks, handle body input specially
+        else if (isApiBlock && key === 'body') {
+          try {
+            // If it's JSON-looking, preserve its structure
+            if (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('[')) {
+              result[key] = JSON.parse(resolvedValue)
+              logger.debug(`[resolveInputs] API block body parsed as JSON object`);
+            } else {
+              result[key] = resolvedValue
+              logger.debug(`[resolveInputs] API block body preserved as string`);
+            }
+          } catch {
+            // If parsing fails, keep as string
+            result[key] = resolvedValue
+            logger.debug(`[resolveInputs] API block body JSON parsing failed, keeping as string`);
+          }
+        }
         // For other inputs, try to convert JSON strings to objects
         else {
           try {
             if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
               result[key] = JSON.parse(resolvedValue)
+              logger.debug(`[resolveInputs] Parsed JSON value for ${key}`);
             } else {
               result[key] = resolvedValue
             }
@@ -272,6 +296,101 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
+      // Log the reference being processed
+      logger.debug(`[resolveBlockReferences] Processing block reference: ${match}`, {
+        blockRef,
+        pathParts,
+        currentBlock: currentBlock.id,
+        currentBlockType: currentBlock.metadata?.id
+      });
+
+      // Special case for "start" references
+      // This allows users to reference the starter block using <start.response.type.input>
+      // regardless of the actual name of the starter block
+      if (blockRef.toLowerCase() === 'start') {
+        // Find the starter block
+        const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+        if (starterBlock) {
+          logger.debug(`[resolveBlockReferences] Found starter block with ID: ${starterBlock.id}`);
+          
+          const blockState = context.blockStates.get(starterBlock.id)
+          if (blockState) {
+            logger.debug(`[resolveBlockReferences] Starter block state:`, JSON.stringify(blockState, null, 2));
+            
+            // Navigate through the path parts
+            let replacementValue: any = blockState.output
+            
+            // Log the initial output value from the starter block
+            logger.debug(`[resolveBlockReferences] Initial starter output:`, JSON.stringify(replacementValue, null, 2));
+            
+            for (const part of pathParts) {
+              logger.debug(`[resolveBlockReferences] Navigating path part: ${part}`, { 
+                currentValue: typeof replacementValue === 'object' ? 
+                  JSON.stringify(replacementValue) : replacementValue 
+              });
+              
+              if (!replacementValue || typeof replacementValue !== 'object') {
+                logger.warn(`[resolveBlockReferences] Invalid path "${part}" - replacementValue is not an object:`, replacementValue);
+                throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
+              }
+              
+              replacementValue = replacementValue[part]
+              
+              if (replacementValue === undefined) {
+                logger.warn(`[resolveBlockReferences] No value found at path "${part}" in starter block.`);
+                throw new Error(`No value found at path "${path}" in starter block.`)
+              }
+            }
+
+            // Format the value based on block type and path
+            let formattedValue: string;
+            
+            // Special handling for all blocks referencing starter input
+            if (blockRef.toLowerCase() === 'start' && pathParts.join('.').includes('input')) {
+              const blockType = currentBlock.metadata?.id;
+              
+              // Format based on which block is consuming this value
+              if (typeof replacementValue === 'object' && replacementValue !== null) {
+                // For function blocks, preserve the object structure for code usage
+                if (blockType === 'function') {
+                  logger.debug(`[resolveBlockReferences] Special handling for function input:`, 
+                    JSON.stringify(replacementValue, null, 2));
+                  formattedValue = JSON.stringify(replacementValue);
+                }
+                // For API blocks, handle body special case
+                else if (blockType === 'api') {
+                  logger.debug(`[resolveBlockReferences] Special handling for API input:`, 
+                    JSON.stringify(replacementValue, null, 2));
+                  formattedValue = JSON.stringify(replacementValue);
+                } 
+                // For condition blocks, ensure proper formatting
+                else if (blockType === 'condition') {
+                  logger.debug(`[resolveBlockReferences] Special handling for condition input:`, 
+                    JSON.stringify(replacementValue, null, 2));
+                  formattedValue = this.stringifyForCondition(replacementValue);
+                }
+                // For all other blocks, stringify objects
+                else {
+                  formattedValue = JSON.stringify(replacementValue);
+                }
+              } else {
+                // For primitive values
+                formattedValue = String(replacementValue);
+              }
+            } else {
+              // Standard handling for non-input references
+              formattedValue = typeof replacementValue === 'object'
+                ? JSON.stringify(replacementValue)
+                : String(replacementValue);
+            }
+            
+            logger.debug(`[resolveBlockReferences] Resolved value:`, formattedValue);
+            resolvedValue = resolvedValue.replace(match, formattedValue)
+            continue
+          }
+        }
+      }
+
       // Special case for "loop" references - allows accessing loop properties
       if (blockRef.toLowerCase() === 'loop') {
         // Find which loop this block belongs to
@@ -378,39 +497,6 @@ export class InputResolver {
               : context.loopIterations.get(containingLoopId) || 0
 
             resolvedValue = resolvedValue.replace(match, String(index))
-            continue
-          }
-        }
-      }
-
-      // Special case for "start" references
-      // This allows users to reference the starter block using <start.response.type.input>
-      // regardless of the actual name of the starter block
-      if (blockRef.toLowerCase() === 'start') {
-        // Find the starter block
-        const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
-        if (starterBlock) {
-          const blockState = context.blockStates.get(starterBlock.id)
-          if (blockState) {
-            // Navigate through the path parts
-            let replacementValue: any = blockState.output
-            for (const part of pathParts) {
-              if (!replacementValue || typeof replacementValue !== 'object') {
-                throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
-              }
-              replacementValue = replacementValue[part]
-              if (replacementValue === undefined) {
-                throw new Error(`No value found at path "${path}" in starter block.`)
-              }
-            }
-
-            // Format the value
-            const formattedValue =
-              typeof replacementValue === 'object'
-                ? JSON.stringify(replacementValue)
-                : String(replacementValue)
-
-            resolvedValue = resolvedValue.replace(match, formattedValue)
             continue
           }
         }
