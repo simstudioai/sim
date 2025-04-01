@@ -1,5 +1,5 @@
 import { PostgreSQLIcon } from '@/components/icons'
-import { PostgreSQLResponse } from '@/tools/databases/postgresql/types'
+import { PostgreSQLResponse } from '@/tools/postgresql/types'
 import { BlockConfig } from '../types'
 
 export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
@@ -13,56 +13,11 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
   icon: PostgreSQLIcon,
   subBlocks: [
     {
-      id: 'host',
-      title: 'Host',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'localhost or database host',
-      value: () => 'localhost',
-    },
-    {
-      id: 'port',
-      title: 'Port',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '5432',
-      value: () => '5432',
-    },
-    {
-      id: 'username',
-      title: 'Username',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter username (default: postgres)',
-      value: () => 'postgres',
-    },
-    {
-      id: 'password',
-      title: 'Password',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter password',
-      password: true,
-      value: () => '',
-    },
-    {
-      id: 'database',
-      title: 'Database',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter database name',
-      value: () => 'postgres',
-    },
-    {
-      id: 'ssl',
-      title: 'Use SSL',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        { label: 'No', id: 'false' },
-        { label: 'Yes', id: 'true' },
-      ],
-      value: () => 'false',
+      id: 'connection',
+      title: 'Connection',
+      type: 'tool-input',
+      layout: 'full',
+      placeholder: 'Configure PostgreSQL connection',
     },
     {
       id: 'operation',
@@ -83,53 +38,38 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       title: 'Query',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter SQL query (e.g., SELECT * FROM users)',
+      placeholder: 'Enter SQL query',
     },
     {
       id: 'params',
       title: 'Parameters',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter query parameters as array (e.g., ["value1", "value2"])',
+      placeholder: 'Enter query parameters as array',
     },
     {
       id: 'options',
       title: 'Options',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter additional query options as JSON (optional)',
+      placeholder: 'Enter query options',
     },
   ],
   tools: {
     access: ['postgresql'],
     config: {
       tool: () => 'postgresql',
-      params: (params) => {
-        const connection = {
-          host: params.host || 'localhost',
-          port: parseInt(params.port || '5432'),
-          username: params.username || 'postgres',
-          password: params.password || '',
-          database: params.database || 'postgres',
-          ssl: params.ssl === 'true'
-        }
-        return {
-          connection,
-          operation: params.operation,
-          query: params.query,
-          params: params.params ? JSON.parse(params.params) : undefined,
-          options: params.options ? JSON.parse(params.options) : undefined,
-        }
-      },
+      params: (params) => ({
+        connection: params.connection,
+        operation: params.operation,
+        query: params.query,
+        params: params.params ? JSON.parse(params.params) : undefined,
+        options: params.options ? JSON.parse(params.options) : undefined,
+      }),
     },
   },
   inputs: {
-    host: { type: 'string', required: false },
-    port: { type: 'string', required: false },
-    username: { type: 'string', required: false },
-    password: { type: 'string', required: false },
-    database: { type: 'string', required: false },
-    ssl: { type: 'string', required: false },
+    connection: { type: 'json', required: true },
     operation: { type: 'string', required: true },
     query: { type: 'string', required: true },
     params: { type: 'json', required: false },

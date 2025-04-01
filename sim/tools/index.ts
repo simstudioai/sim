@@ -27,6 +27,7 @@ import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
 import mysqlTool from './databases/mysql'
 import { mistralParserTool } from './mistral'
+import mysqlTool from './mysql'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
@@ -38,7 +39,7 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from './pinecone'
-import postgresqlTool from './databases/postgresql'
+import postgresqlTool from './postgresql'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
@@ -60,6 +61,8 @@ const logger = createLogger('Tools')
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  mysql: mysqlTool,
+  postgresql: postgresqlTool,
   mysql: mysqlTool,
   postgresql: postgresqlTool,
   openai_embeddings: openAIEmbeddings,
