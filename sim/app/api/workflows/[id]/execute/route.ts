@@ -37,6 +37,21 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     throw new Error('Workflow is already running')
   }
 
+  // Log input to help debug
+  logger.info(`[${requestId}] Executing workflow with input:`, 
+    input ? JSON.stringify(input, null, 2) : 'No input provided');
+  
+  // Validate and structure input for maximum compatibility
+  let processedInput = input;
+  if (input && typeof input === 'object') {
+    // Ensure input is properly structured for the starter block
+    if (input.input === undefined) {
+      // If input is not already nested, structure it properly
+      processedInput = { input: input };
+      logger.info(`[${requestId}] Restructured input for workflow:`, JSON.stringify(processedInput, null, 2));
+    }
+  }
+
   try {
     runningExecutions.add(workflowId)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
@@ -176,7 +191,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       serializedWorkflow, 
       processedBlockStates, 
       decryptedEnvVars, 
-      input, 
+      processedInput, 
       workflowVariables
     )
     
@@ -262,9 +277,29 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const bodyText = await request.text()
-    const body = bodyText ? JSON.parse(bodyText) : {}
+    logger.info(`[${requestId}] Raw request body:`, bodyText)
+    
+    let body = {}
+    if (bodyText && bodyText.trim()) {
+      try {
+        body = JSON.parse(bodyText)
+        logger.info(`[${requestId}] Parsed request body:`, JSON.stringify(body, null, 2))
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to parse request body:`, error)
+        return createErrorResponse('Invalid JSON in request body', 400, 'INVALID_JSON')
+      }
+    } else {
+      logger.info(`[${requestId}] No request body provided`)
+    }
 
-    const result = await executeWorkflow(validation.workflow, requestId, body)
+    // Don't double-nest the input if it's already structured
+    const hasContent = Object.keys(body).length > 0;
+    const input = hasContent ? { input: body } : {};
+    
+    logger.info(`[${requestId}] Input passed to workflow:`, JSON.stringify(input, null, 2))
+
+    // Execute workflow with the structured input
+    const result = await executeWorkflow(validation.workflow, requestId, input)
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
