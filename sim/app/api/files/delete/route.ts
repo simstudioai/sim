@@ -1,104 +1,115 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { existsSync } from 'fs'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
+import { createLogger } from '@/lib/logs/console-logger'
 import { deleteFromS3 } from '@/lib/uploads/s3-client'
 import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
 // Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
+import {
+  createErrorResponse,
+  createOptionsResponse,
+  createSuccessResponse,
+  extractFilename,
+  extractS3Key,
+  InvalidRequestError,
+  isS3Path,
+} from '../utils'
 
+const logger = createLogger('FilesDeleteAPI')
+
+/**
+ * Main API route handler for file deletion
+ */
 export async function POST(request: NextRequest) {
   try {
     const requestData = await request.json()
     const { filePath } = requestData
 
-    console.log('File delete request received:', { filePath })
+    logger.info('File delete request received:', { filePath })
 
     if (!filePath) {
-      console.error('No file path provided in delete request')
-      return NextResponse.json({ error: 'No file path provided' }, { status: 400 })
+      throw new InvalidRequestError('No file path provided')
     }
 
-    // Check if this is an S3 path
-    const isS3Path = filePath.includes('/api/files/serve/s3/')
+    try {
+      // Use appropriate handler based on path and environment
+      const result =
+        isS3Path(filePath) || USE_S3_STORAGE
+          ? await handleS3FileDelete(filePath)
+          : await handleLocalFileDelete(filePath)
 
-    // Use S3 if in production mode or path explicitly specifies S3
-    if (USE_S3_STORAGE || isS3Path) {
-      try {
-        // Extract the S3 key from the path
-        let s3Key: string
-
-        if (isS3Path) {
-          // For paths like /api/files/serve/s3/YYYY-MM/timestamp-filename.ext
-          s3Key = decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
-        } else {
-          // For raw S3 keys
-          s3Key = filePath
-        }
-
-        console.log(`Deleting file from S3: ${s3Key}`)
-
-        // Delete from S3
-        await deleteFromS3(s3Key)
-        console.log(`File successfully deleted from S3: ${s3Key}`)
-
-        return NextResponse.json({
-          success: true,
-          message: 'File deleted successfully from S3',
-        })
-      } catch (error) {
-        console.error('Error deleting file from S3:', error)
-        return NextResponse.json(
-          { error: 'Failed to delete file from S3', message: (error as Error).message },
-          { status: 500 }
-        )
-      }
-    }
-
-    // For local storage:
-    // Extract the filename from the path
-    const filename = filePath.startsWith('/api/files/serve/')
-      ? filePath.substring('/api/files/serve/'.length)
-      : filePath
-
-    console.log('Extracted filename for deletion:', filename)
-
-    const fullPath = join(UPLOAD_DIR, filename)
-    console.log('Full file path for deletion:', fullPath)
-
-    // Check if file exists
-    if (!existsSync(fullPath)) {
-      console.log(`File not found for deletion at path: ${fullPath}`)
-      return NextResponse.json(
-        { success: true, message: "File not found, but that's okay" },
-        { status: 200 }
+      // Return success response
+      return createSuccessResponse(result)
+    } catch (error) {
+      logger.error('Error deleting file:', error)
+      return createErrorResponse(
+        error instanceof Error ? error : new Error('Failed to delete file')
       )
     }
-
-    // Delete the file
-    await unlink(fullPath)
-    console.log(`File successfully deleted: ${fullPath}`)
-
-    return NextResponse.json({
-      success: true,
-      message: 'File deleted successfully',
-    })
   } catch (error) {
-    console.error('Error deleting file:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete file', message: (error as Error).message },
-      { status: 500 }
-    )
+    logger.error('Error parsing request:', error)
+    return createErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
   }
 }
 
-// Handle preflight requests
+/**
+ * Handle S3 file deletion
+ */
+async function handleS3FileDelete(filePath: string) {
+  // Extract the S3 key from the path
+  const s3Key = extractS3Key(filePath)
+  logger.info(`Deleting file from S3: ${s3Key}`)
+
+  try {
+    // Delete from S3
+    await deleteFromS3(s3Key)
+    logger.info(`File successfully deleted from S3: ${s3Key}`)
+
+    return {
+      success: true as const,
+      message: 'File deleted successfully from S3',
+    }
+  } catch (error) {
+    logger.error('Error deleting file from S3:', error)
+    throw error
+  }
+}
+
+/**
+ * Handle local file deletion
+ */
+async function handleLocalFileDelete(filePath: string) {
+  // Extract the filename from the path
+  const filename = extractFilename(filePath)
+  logger.info('Extracted filename for deletion:', filename)
+
+  const fullPath = join(UPLOAD_DIR, filename)
+  logger.info('Full file path for deletion:', fullPath)
+
+  // Check if file exists
+  if (!existsSync(fullPath)) {
+    logger.info(`File not found for deletion at path: ${fullPath}`)
+    return {
+      success: true as const,
+      message: "File not found, but that's okay",
+    }
+  }
+
+  // Delete the file
+  await unlink(fullPath)
+  logger.info(`File successfully deleted: ${fullPath}`)
+
+  return {
+    success: true as const,
+    message: 'File deleted successfully',
+  }
+}
+
+/**
+ * Handle CORS preflight requests
+ */
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Methods': 'POST',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  })
+  return createOptionsResponse()
 }

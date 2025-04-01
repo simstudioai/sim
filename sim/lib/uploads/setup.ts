@@ -2,6 +2,9 @@ import { existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import { join } from 'path'
 import path from 'path'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('UploadsSetup')
 
 // Define project root - this works regardless of how the app is started
 const PROJECT_ROOT = path.resolve(process.cwd())
@@ -22,21 +25,21 @@ export const S3_CONFIG = {
  */
 export async function ensureUploadsDirectory() {
   if (USE_S3_STORAGE) {
-    console.log('Using S3 storage, skipping local uploads directory creation')
+    logger.info('Using S3 storage, skipping local uploads directory creation')
     return true
   }
 
   try {
     if (!existsSync(UPLOAD_DIR)) {
-      console.log(`Creating uploads directory at ${UPLOAD_DIR}`)
+      logger.info(`Creating uploads directory at ${UPLOAD_DIR}`)
       await mkdir(UPLOAD_DIR, { recursive: true })
-      console.log(`Created uploads directory at ${UPLOAD_DIR}`)
+      logger.info(`Created uploads directory at ${UPLOAD_DIR}`)
     } else {
-      console.log(`Uploads directory already exists at ${UPLOAD_DIR}`)
+      logger.info(`Uploads directory already exists at ${UPLOAD_DIR}`)
     }
     return true
   } catch (error) {
-    console.error('Failed to create uploads directory:', error)
+    logger.error('Failed to create uploads directory:', error)
     return false
   }
 } 
