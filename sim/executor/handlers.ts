@@ -819,8 +819,34 @@ export class ApiBlockHandler implements BlockHandler {
     }
 
     try {
+      let processedInputs = { ...inputs };
+      
+      // Handle body specifically to ensure it's properly processed for API requests
+      if (processedInputs.body !== undefined) {
+        // If body is a string that looks like JSON, parse it
+        if (typeof processedInputs.body === 'string') {
+          try {
+            // Trim whitespace before checking for JSON pattern
+            const trimmedBody = processedInputs.body.trim();
+            if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
+              processedInputs.body = JSON.parse(trimmedBody);
+              logger.info('[ApiBlockHandler] Parsed JSON body:', JSON.stringify(processedInputs.body, null, 2));
+            }
+          } catch (e) {
+            logger.info('[ApiBlockHandler] Failed to parse body as JSON, using as string:', e);
+            // Keep as string if parsing fails
+          }
+        } else if (processedInputs.body === null) {
+          // Convert null to undefined for consistency with API expectations
+          processedInputs.body = undefined;
+        }
+      }
+      
+      // Ensure the final processed body is logged
+      logger.info('[ApiBlockHandler] Final processed request body:', JSON.stringify(processedInputs.body, null, 2));
+      
       const result = await executeTool(block.config.tool, {
-        ...inputs,
+        ...processedInputs,
         _context: { workflowId: context.workflowId },
       })
 
@@ -932,7 +958,6 @@ export class FunctionBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
-    // Prepare code for execution
     const codeContent = Array.isArray(inputs.code)
       ? inputs.code.map((c: { content: string }) => c.content).join('\n')
       : inputs.code
