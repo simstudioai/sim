@@ -7,6 +7,7 @@ import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
+import { FileBlock } from './blocks/file'
 import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
@@ -38,6 +39,7 @@ import { BlockConfig } from './types'
 export {
   AgentBlock,
   ApiBlock,
+  FileBlock,
   FunctionBlock,
   VisionBlock,
   FirecrawlBlock,
@@ -79,6 +81,7 @@ const blocks: Record<string, BlockConfig> = {
   confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
+  file: FileBlock,
   firecrawl: FirecrawlBlock,
   function: FunctionBlock,
   github: GitHubBlock,
