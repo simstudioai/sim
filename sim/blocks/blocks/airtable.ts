@@ -1,8 +1,8 @@
 import { AirtableIcon } from '@/components/icons'
 import {
   AirtableReadResponse,
-  AirtableWriteResponse,
   AirtableUpdateResponse,
+  AirtableWriteResponse,
 } from '@/tools/airtable/types'
 import { BlockConfig } from '../types'
 
@@ -12,12 +12,12 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   type: 'airtable',
   name: 'Airtable',
   description: 'Read, write, and update Airtable records',
-  longDescription: 
+  longDescription:
     'Integrate Airtable functionality to manage table records. Read data from existing tables, ' +
     'write new records, and update existing ones using OAuth authentication. Supports table ' +
     'selection and record operations with custom field mapping.',
   category: 'tools',
-  bgColor: '#FCB400',
+  bgColor: '#E0E0E0',
   icon: AirtableIcon,
   subBlocks: [
     // Operation selector
@@ -120,7 +120,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       },
       params: (params) => {
         const { credential, records, ...rest } = params
-        
+
         if (params.operation === 'update' && records) {
           const parsedRecords = JSON.parse(records)
           return {
@@ -129,7 +129,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
             ...rest,
           }
         }
-        
+
         return {
           accessToken: credential,
           records: records ? JSON.parse(records) : undefined,
@@ -147,8 +147,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     maxRecords: { type: 'number', required: false },
     filterFormula: { type: 'string', required: false },
     // Write/Update operation inputs
-    records: { 
-      type: 'json', 
+    records: {
+      type: 'json',
       required: false,
       schema: {
         type: 'object',
