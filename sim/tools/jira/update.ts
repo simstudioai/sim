@@ -12,13 +12,14 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         required: true,
         provider: 'jira',
         additionalScopes: [
-            'read:issue:jira',
-            'update:issue:jira',
-            'read:jira-content.all',
-            'write:jira-content',
+            'read:jira-user',
+            'read:issue:jira-work',
+            'write:issue:jira-work',
+            'manage:jira-project',
+            'manage:jira-configuration',
             'read:me',
             'offline_access',
-        ],
+          ],
     },
 
     //TODO: modify params to match the Jira API
@@ -34,11 +35,6 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
           required: true,
           requiredForToolCall: true,
           description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
-        },
-        boardId: {
-            type: 'string',
-            required: true,
-            description: 'Jira board id to update',
         },
         issueKey: {
           type: 'string',

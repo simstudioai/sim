@@ -20,7 +20,6 @@ export interface JiraRetrieveResponse extends ToolResponse {
 export interface JiraUpdateParams {
   accessToken: string
   domain: string
-  boardId: string
   issueKey: string
   summary?: string
   description?: string
@@ -33,7 +32,6 @@ export interface JiraUpdateResponse extends ToolResponse {
   output: {
     ts: string
     issueKey: string
-    boardId: string
     summary: string
     success: boolean
   }
@@ -42,10 +40,10 @@ export interface JiraUpdateResponse extends ToolResponse {
 export interface JiraWriteParams {
   accessToken: string
   domain: string
-  projectKey: string
+  projectId: string
   summary: string
   description?: string
-  issueType: string
+  issueTypeId: string
   priority?: string
   assignee?: string
 }
