@@ -7,6 +7,7 @@ import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
+import { FileBlock } from './blocks/file'
 import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
@@ -32,13 +33,16 @@ import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
+import { AirtableBlock } from './blocks/airtable'
 import { BlockConfig } from './types'
 import { TwilioSMSBlock } from './blocks/twilio'
 
 // Export blocks for ease of use
 export {
   AgentBlock,
+  AirtableBlock,
   ApiBlock,
+  FileBlock,
   FunctionBlock,
   VisionBlock,
   FirecrawlBlock,
@@ -76,11 +80,13 @@ export {
 // Registry of all block configurations, alphabetically sorted
 const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
+  airtable: AirtableBlock,
   api: ApiBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
+  file: FileBlock,
   firecrawl: FirecrawlBlock,
   function: FunctionBlock,
   github: GitHubBlock,

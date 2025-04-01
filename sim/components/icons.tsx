@@ -1522,6 +1522,7 @@ export function AirtableIcon(props: SVGProps<SVGSVGElement>) {
       viewBox="0 -20.5 256 256"
       version="1.1"
       xmlns="http://www.w3.org/2000/svg"
+      xmlnsXlink="http://www.w3.org/1999/xlink"
       preserveAspectRatio="xMidYMid"
     >
       <g>
@@ -1539,7 +1540,7 @@ export function AirtableIcon(props: SVGProps<SVGSVGElement>) {
         ></path>
         <path
           d="M111.422771,117.65355 L79.742409,132.949912 L2.04568588,67.4384994 C2.53454463,66.9481944 3.08848814,66.5446689 3.66412655,66.2250305 C5.26231864,65.2661153 7.54173107,65.0101153 9.47981017,65.7766689 L110.890522,105.957098 C116.045234,108.002206 116.450206,115.225166 111.422771,117.65355"
-          fillOpacity="0.25"
+          fill-opacity="0.25"
           fill="#000000"
         ></path>
       </g>
@@ -1788,6 +1789,28 @@ export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
         <rect x="0" y="0" width="5" height="16" rx="2.5" fill="currentColor" />
         <rect x="8" y="0" width="14" height="16" rx="4" fill="currentColor" />
       </g>
+    </svg>
+  )
+}
+
+export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width="20"
+      height="24"
+      viewBox="0 0 20 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M18.5 8.2L11.5 1.2C11.4 1.1 11.3 1.05 11.2 1C11.1 0.95 11 0.92 10.9 0.9C10.85 0.88 10.82 0.85 10.8 0.85H3C1.9 0.85 1 1.75 1 2.85V21.15C1 22.25 1.9 23.15 3 23.15H17C18.1 23.15 19 22.25 19 21.15V8.5C19 8.4 18.95 8.3 18.5 8.2ZM11.5 3.5L16.5 8.5H11.5V3.5ZM3 21.15V2.85H9.5V8.5C9.5 9.05 9.95 9.5 10.5 9.5H17V21.15H3Z"
+        fill="currentColor"
+      />
+      <path
+        d="M5 12.5H14V13.5H5V12.5ZM5 17.3H14V18.3H5V17.3ZM5 7.5H7V8.5H5V7.5Z"
+        fill="currentColor"
+      />
     </svg>
   )
 }

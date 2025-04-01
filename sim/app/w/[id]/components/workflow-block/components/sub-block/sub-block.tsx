@@ -12,6 +12,7 @@ import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
+import { FileUpload } from './components/file-upload'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
 import { ScheduleConfig } from './components/schedule/schedule-config'
@@ -128,6 +129,15 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
       case 'time-input':
         return (
           <TimeInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+        )
+      case 'file-upload':
+        return (
+          <FileUpload
+            blockId={blockId}
+            subBlockId={config.id}
+            acceptedTypes={config.acceptedTypes || '*'}
+            multiple={config.multiple === true}
+          />
         )
       case 'webhook-config':
         return (
