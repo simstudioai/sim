@@ -25,9 +25,28 @@ export interface RedisQueryParams {
   }
 }
 
-export interface RedisResponse extends ToolResponse {
+export interface RedisResponse {
+  success: boolean
   output: {
     result: string
     metadata: string
   }
+  error?: string
+}
+
+export interface RedisConnection {
+  host: string
+  port: number
+  password?: string
+  db?: number
+  tls?: boolean
+}
+
+export interface RedisOperation {
+  connection: RedisConnection
+  operation: 'get' | 'set' | 'del' | 'exists' | 'ttl' | 'expire'
+  key: string
+  value?: string
+  ttl?: number
+  options?: Record<string, any>
 } 

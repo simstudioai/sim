@@ -30,9 +30,37 @@ export interface ElasticsearchQueryParams {
   }
 }
 
-export interface ElasticsearchResponse extends ToolResponse {
+export interface ElasticsearchResponse {
+  success: boolean
   output: {
     result: string
     metadata: string
   }
+  error?: string
+}
+
+export interface ElasticsearchConnection {
+  node: string
+  auth?: {
+    username: string
+    password: string
+  }
+  tls?: boolean
+  cloud?: {
+    id: string
+    username: string
+    password: string
+  }
+}
+
+export interface ElasticsearchOperation {
+  connection: ElasticsearchConnection
+  operation: 'search' | 'index' | 'update' | 'delete' | 'get' | 'create_index' | 'delete_index' | 'bulk'
+  index: string
+  id?: string
+  query?: Record<string, any>
+  document?: Record<string, any>
+  documents?: Record<string, any>[]
+  mapping?: Record<string, any>
+  options?: Record<string, any>
 } 

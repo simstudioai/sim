@@ -32,6 +32,8 @@ import {
   pineconeUpsertTextTool,
 } from './pinecone'
 import postgresqlTool from './postgresql'
+import redisTool from './redis'
+import elasticsearchTool from './elasticsearch'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
@@ -54,6 +56,8 @@ export const tools: Record<string, ToolConfig> = {
   mongodb: mongodbTool,
   mysql: mysqlTool,
   postgresql: postgresqlTool,
+  redis: redisTool,
+  elasticsearch: elasticsearchTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
