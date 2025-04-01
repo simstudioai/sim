@@ -57,6 +57,8 @@ export function useSubBlockValue<T = any>(
           ? null 
           : (typeof newValue === 'object' ? JSON.parse(JSON.stringify(newValue)) : newValue)
         
+        // Update the subblock store with the new value
+        // The store's setValue method will now trigger the debounced sync automatically
         useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
         
         if (triggerWorkflowUpdate) {
