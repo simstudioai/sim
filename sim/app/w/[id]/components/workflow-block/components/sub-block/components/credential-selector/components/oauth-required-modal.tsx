@@ -59,6 +59,8 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'tweet.write': 'Post tweets on your behalf',
   'users.read': 'Read your profile information',
   'offline.access': 'Access your account when you are not using the application',
+  'data.records:read': 'Read your records',
+  'data.records:write': 'Write to your records',
 }
 
 // Convert OAuth scope to user-friendly description

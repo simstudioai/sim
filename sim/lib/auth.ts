@@ -412,6 +412,55 @@ export const auth = betterAuth({
             }
           },
         },
+
+        // Airtable provider
+        {
+          providerId: 'airtable',
+          clientId: process.env.AIRTABLE_CLIENT_ID as string,
+          clientSecret: process.env.AIRTABLE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://airtable.com/oauth/authorize',
+          tokenUrl: 'https://airtable.com/oauth/token',
+          userInfoUrl: 'https://api.airtable.com/v0/meta/whoami',
+          scopes: ['data.records:read', 'data.records:write'],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.airtable.com/v0/meta/whoami', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Airtable user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+              const now = new Date()
+
+              return {
+                id: profile.id,
+                name: profile.name || 'Airtable User',
+                email: profile.email,
+                image: null,
+                emailVerified: true,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Airtable getUserInfo:', { error })
+              return null
+            }
+          },
+        },
       ],
     }),
   ],

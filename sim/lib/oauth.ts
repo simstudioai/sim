@@ -10,13 +10,14 @@ import {
   GoogleSheetsIcon,
   SupabaseIcon,
   xIcon,
+  AirtableIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('OAuth')
 
 // Define the base OAuth provider type
-export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | string
+export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | 'airtable' | string
 export type OAuthService =
   | 'google'
   | 'google-email'
@@ -27,6 +28,7 @@ export type OAuthService =
   | 'x'
   | 'supabase'
   | 'confluence'
+  | 'airtable'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -193,6 +195,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'confluence',
   },
+  airtable: {
+    id: 'airtable',
+    name: 'Airtable',
+    icon: (props) => AirtableIcon(props),
+    services: {
+      airtable: {
+        id: 'airtable',
+        name: 'Airtable',
+        description: 'Manage Airtable bases, tables, and records.',
+        providerId: 'airtable',
+        icon: (props) => AirtableIcon(props),
+        baseProviderIcon: (props) => AirtableIcon(props),
+        scopes: ['data.records:read', 'data.records:write'],
+      },
+    },
+    defaultService: 'airtable',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -243,6 +262,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'x'
   } else if (provider === 'confluence') {
     return 'confluence'
+  } else if (provider === 'airtable') {
+    return 'airtable'
   }
 
   return providerConfig.defaultService
