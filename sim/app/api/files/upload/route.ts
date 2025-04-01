@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { uploadToS3 } from '@/lib/uploads/s3-client'
+import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
 // Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
 
@@ -17,37 +18,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
 
-    // Log upload directory for debugging
-    console.log(`Uploading files to: ${UPLOAD_DIR}`)
+    // Log storage mode
+    console.log(`Using storage mode: ${USE_S3_STORAGE ? 'S3' : 'Local'} for file upload`)
 
     const uploadResults = []
 
     // Process each file
     for (const file of files) {
-      // Generate a unique filename with original extension
       const originalName = file.name
-      const extension = originalName.split('.').pop() || ''
-      const uniqueFilename = `${uuidv4()}.${extension}`
-      const filePath = join(UPLOAD_DIR, uniqueFilename)
-
-      // Log the full file path
-      console.log(`Full file path for upload: ${filePath}`)
-
-      // Convert file to buffer
       const bytes = await file.arrayBuffer()
       const buffer = Buffer.from(bytes)
 
-      // Write the file to the uploads directory
-      await writeFile(filePath, buffer)
-      console.log(`Successfully wrote file to: ${filePath}`)
+      if (USE_S3_STORAGE) {
+        // Upload to S3 in production
+        try {
+          console.log(`Uploading file to S3: ${originalName}`)
+          const result = await uploadToS3(buffer, originalName, file.type, file.size)
+          console.log(`Successfully uploaded to S3: ${result.key}`)
+          uploadResults.push(result)
+        } catch (error) {
+          console.error('Error uploading to S3:', error)
+          throw error
+        }
+      } else {
+        // Upload to local file system in development
+        const extension = originalName.split('.').pop() || ''
+        const uniqueFilename = `${uuidv4()}.${extension}`
+        const filePath = join(UPLOAD_DIR, uniqueFilename)
 
-      // Add file info to results
-      uploadResults.push({
-        path: `/api/files/serve/${uniqueFilename}`,
-        name: originalName,
-        size: file.size,
-        type: file.type,
-      })
+        console.log(`Uploading file to local storage: ${filePath}`)
+        await writeFile(filePath, buffer)
+        console.log(`Successfully wrote file to: ${filePath}`)
+
+        uploadResults.push({
+          path: `/api/files/serve/${uniqueFilename}`,
+          name: originalName,
+          size: file.size,
+          type: file.type,
+        })
+      }
     }
 
     // Return all file information

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { existsSync } from 'fs'
-import { readFile } from 'fs/promises'
+import { readFile, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import path from 'path'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
-import { UPLOAD_DIR } from '@/lib/uploads/setup'
+import { downloadFromS3 } from '@/lib/uploads/s3-client'
+import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 export async function POST(request: NextRequest) {
@@ -68,12 +69,95 @@ export async function POST(request: NextRequest) {
  * Parse a single file and return its content
  */
 async function parseFileSingle(filePath: string, fileType?: string) {
+  console.log('Parsing file:', filePath)
+
+  // Check if this is an S3 path
+  const isS3Path = filePath.includes('/api/files/serve/s3/')
+
+  if (isS3Path || USE_S3_STORAGE) {
+    try {
+      // Extract the S3 key from the path
+      let s3Key: string
+
+      if (isS3Path) {
+        // For paths like /api/files/serve/s3/1743496428671-LEASE-AGREEMENT.pdf
+        s3Key = decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
+      } else {
+        // For other paths, assume it's a direct key
+        s3Key = filePath
+      }
+
+      console.log('Extracted S3 key:', s3Key)
+
+      // Download the file from S3
+      const fileBuffer = await downloadFromS3(s3Key)
+      console.log(
+        `Successfully downloaded file from S3: ${s3Key}, size: ${fileBuffer.length} bytes`
+      )
+
+      // Extract the filename from the S3 key
+      const filename = s3Key.split('/').pop() || s3Key
+      const extension = path.extname(filename).toLowerCase().substring(1)
+
+      // Create a temporary file path where we'll save the downloaded file
+      const tempFilePath = join(UPLOAD_DIR, `temp-${Date.now()}-${filename}`)
+      await writeFile(tempFilePath, fileBuffer)
+
+      console.log(`Saved S3 file to temporary location: ${tempFilePath}`)
+
+      try {
+        // Process the file using existing code
+        if (isSupportedFileType(extension)) {
+          console.log(`Attempting to parse ${filename} with specialized parser for ${extension}`)
+          const result = await parseFile(tempFilePath)
+
+          // Clean up the temporary file and return the result
+          await unlink(tempFilePath).catch((err) => console.error('Error removing temp file:', err))
+
+          return {
+            success: true,
+            output: {
+              content: result.content,
+              fileType: fileType || getMimeType(extension),
+              size: fileBuffer.length,
+              name: filename,
+              binary: false,
+              metadata: result.metadata || {},
+            },
+            filePath,
+          }
+        } else {
+          // For unsupported file types, use the generic approach
+          console.log(`Using generic parser for unsupported file type: ${extension}`)
+          const result = await handleGenericFile(tempFilePath, filename, extension, fileType)
+
+          // Clean up the temporary file
+          await unlink(tempFilePath).catch((err) => console.error('Error removing temp file:', err))
+
+          return result
+        }
+      } catch (error) {
+        // Clean up on error
+        await unlink(tempFilePath).catch((err) => console.error('Error removing temp file:', err))
+        throw error
+      }
+    } catch (error) {
+      console.error(`Error handling S3 file ${filePath}:`, error)
+      return {
+        success: false,
+        error: `Error accessing file from S3: ${(error as Error).message}`,
+        filePath,
+      }
+    }
+  }
+
+  // Local file handling (original code)
   // Extract the filename from the path
   const filename = filePath.startsWith('/api/files/serve/')
     ? filePath.substring('/api/files/serve/'.length)
     : path.basename(filePath)
 
-  console.log('Extracted filename:', filename)
+  console.log('Extracted filename for local file:', filename)
 
   const fullPath = join(UPLOAD_DIR, filename)
   console.log('Full file path:', fullPath, 'UPLOAD_DIR:', UPLOAD_DIR)
@@ -348,4 +432,41 @@ async function handleGenericFile(
       error: `Failed to parse file: ${(error as Error).message}`,
     }
   }
+}
+
+/**
+ * Get MIME type from file extension
+ */
+function getMimeType(extension: string): string {
+  const fileTypeMap: Record<string, string> = {
+    // Text formats
+    txt: 'text/plain',
+    csv: 'text/csv',
+    json: 'application/json',
+    xml: 'application/xml',
+    md: 'text/markdown',
+    html: 'text/html',
+    css: 'text/css',
+    js: 'application/javascript',
+    ts: 'application/typescript',
+    // Document formats
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    // Spreadsheet formats
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    // Presentation formats
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Image formats
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    // Archive formats
+    zip: 'application/zip',
+  }
+
+  return fileTypeMap[extension] || 'application/octet-stream'
 }
