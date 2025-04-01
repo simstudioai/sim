@@ -31,6 +31,7 @@ export type SubBlockType =
   | 'file-selector' // File selector for Google Drive, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'input-format' // Input structure format
+  | 'file-upload' // File uploader
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'
@@ -111,6 +112,9 @@ export interface SubBlockConfig {
   requiredScopes?: string[]
   // File selector specific properties
   mimeType?: string
+  // File upload specific properties
+  acceptedTypes?: string
+  multiple?: boolean
 }
 
 // Main block definition

@@ -265,7 +265,8 @@ describe('Workflow Execution API Route', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      requestBody
+      requestBody,
+      expect.anything() // Expect workflow variables (5th parameter)
     )
   })
 
@@ -308,7 +309,8 @@ describe('Workflow Execution API Route', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      structuredInput
+      structuredInput,
+      expect.anything() // Expect workflow variables (5th parameter)
     )
   })
 
@@ -342,7 +344,8 @@ describe('Workflow Execution API Route', () => {
       expect.anything(),
       expect.anything(),
       expect.anything(),
-      {}
+      {},
+      expect.anything() // Expect workflow variables (5th parameter)
     )
   })
 
@@ -446,5 +449,100 @@ describe('Workflow Execution API Route', () => {
     const persistExecutionError = (await import('@/lib/logs/execution-logger'))
       .persistExecutionError
     expect(persistExecutionError).toHaveBeenCalled()
+  })
+
+  /**
+   * Test that workflow variables are properly passed to the Executor
+   */
+  it('should pass workflow variables to the Executor', async () => {
+    // Create mock variables for the workflow
+    const workflowVariables = {
+      'variable1': { id: 'var1', name: 'variable1', type: 'string', value: '"test value"' },
+      'variable2': { id: 'var2', name: 'variable2', type: 'boolean', value: 'true' }
+    }
+
+    // Mock workflow with variables
+    vi.doMock('@/app/api/workflows/middleware', () => ({
+      validateWorkflowAccess: vi.fn().mockResolvedValue({
+        workflow: {
+          id: 'workflow-with-vars-id',
+          userId: 'user-id',
+          state: {
+            blocks: {
+              'starter-id': {
+                id: 'starter-id',
+                type: 'starter',
+                name: 'Start',
+                position: { x: 100, y: 100 },
+                enabled: true,
+              },
+              'agent-id': {
+                id: 'agent-id',
+                type: 'agent',
+                name: 'Agent',
+                position: { x: 300, y: 100 },
+                enabled: true,
+              },
+            },
+            edges: [
+              {
+                id: 'edge-1',
+                source: 'starter-id',
+                target: 'agent-id',
+                sourceHandle: 'source',
+                targetHandle: 'target',
+              },
+            ],
+            loops: {},
+          },
+          variables: workflowVariables,
+        },
+      }),
+    }))
+
+    // Create a constructor mock to capture the arguments
+    const executorConstructorMock = vi.fn().mockImplementation(() => ({
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        output: { response: 'Execution completed with variables' },
+        logs: [],
+        metadata: {
+          duration: 100,
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+        },
+      }),
+    }))
+
+    // Override the executor mock
+    vi.doMock('@/executor', () => ({
+      Executor: executorConstructorMock,
+    }))
+
+    // Create a mock request
+    const req = createMockRequest('POST', { testInput: 'value' })
+
+    // Create params similar to what Next.js would provide
+    const params = Promise.resolve({ id: 'workflow-with-vars-id' })
+
+    // Import the handler after mocks are set up
+    const { POST } = await import('./route')
+
+    // Call the handler
+    await POST(req, { params })
+
+    // Verify the Executor was constructed with workflow variables
+    expect(executorConstructorMock).toHaveBeenCalled()
+    
+    // Check that the 5th parameter (workflow variables) was passed
+    const executorCalls = executorConstructorMock.mock.calls
+    expect(executorCalls.length).toBeGreaterThan(0)
+    
+    // Each call to the constructor should have at least 5 parameters
+    const lastCall = executorCalls[executorCalls.length - 1]
+    expect(lastCall.length).toBeGreaterThanOrEqual(5)
+    
+    // The 5th parameter should be the workflow variables
+    expect(lastCall[4]).toEqual(workflowVariables)
   })
 })
