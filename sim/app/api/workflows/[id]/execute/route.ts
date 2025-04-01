@@ -148,11 +148,38 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       {} as Record<string, Record<string, any>>
     )
 
+    // Get workflow variables
+    let workflowVariables = {}
+    if (workflow.variables) {
+      try {
+        // Parse workflow variables if they're stored as a string
+        if (typeof workflow.variables === 'string') {
+          workflowVariables = JSON.parse(workflow.variables)
+        } else {
+          // Otherwise use as is (already parsed JSON)
+          workflowVariables = workflow.variables
+        }
+        logger.debug(`[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${workflowId}`)
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to parse workflow variables: ${workflowId}`, error)
+        // Continue execution even if variables can't be parsed
+      }
+    } else {
+      logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
+    }
+
     // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
-    const executor = new Executor(serializedWorkflow, processedBlockStates, decryptedEnvVars, input)
+    const executor = new Executor(
+      serializedWorkflow, 
+      processedBlockStates, 
+      decryptedEnvVars, 
+      input, 
+      workflowVariables
+    )
+    
     const result = await executor.execute(workflowId)
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
