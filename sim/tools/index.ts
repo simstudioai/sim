@@ -44,6 +44,7 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
+import { airtableReadTool, airtableWriteTool, airtableUpdateTool } from './airtable'
 
 const logger = createLogger('Tools')
 
@@ -110,6 +111,9 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
   dalle_generate: dalleTool,
+  airtable_read: airtableReadTool,
+  airtable_write: airtableWriteTool,
+  airtable_update: airtableUpdateTool,
 }
 
 // Get a tool by its ID
