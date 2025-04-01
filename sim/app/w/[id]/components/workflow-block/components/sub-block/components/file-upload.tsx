@@ -26,6 +26,12 @@ interface UploadedFile {
   type: string
 }
 
+interface UploadingFile {
+  id: string
+  name: string
+  size: number
+}
+
 export function FileUpload({
   blockId,
   subBlockId,
@@ -39,7 +45,7 @@ export function FileUpload({
     subBlockId,
     true
   )
-  const [isUploading, setIsUploading] = useState(false)
+  const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
 
   // For file deletion status
@@ -110,7 +116,14 @@ export function FileUpload({
 
     if (validFiles.length === 0) return
 
-    setIsUploading(true)
+    // Create placeholder uploading files - ensure unique IDs
+    const uploading = validFiles.map((file) => ({
+      id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      name: file.name,
+      size: file.size,
+    }))
+
+    setUploadingFiles(uploading)
     setUploadProgress(0)
 
     // Track progress simulation interval
@@ -201,7 +214,22 @@ export function FileUpload({
       if (multiple) {
         // For multiple files: Append to existing files if any
         const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-        const newFiles = [...existingFiles, ...uploadedFiles]
+        // Create a map to identify duplicates by path
+        const uniqueFiles = new Map()
+
+        // Add existing files to the map
+        existingFiles.forEach((file) => {
+          uniqueFiles.set(file.path, file)
+        })
+
+        // Add new files to the map (will overwrite if same path)
+        uploadedFiles.forEach((file) => {
+          uniqueFiles.set(file.path, file)
+        })
+
+        // Convert map values back to array
+        const newFiles = Array.from(uniqueFiles.values())
+
         setValue(newFiles)
 
         // Make sure to update the subblock store value for the workflow execution
@@ -228,7 +256,7 @@ export function FileUpload({
       }
 
       setTimeout(() => {
-        setIsUploading(false)
+        setUploadingFiles([])
         setUploadProgress(0)
       }, 500)
     }
@@ -399,7 +427,7 @@ export function FileUpload({
     return (
       <div
         key={file.path}
-        className="flex items-center justify-between p-2 rounded border border-border bg-secondary/30 mb-2"
+        className="flex items-center justify-between p-2 rounded border border-border bg-secondary/30"
       >
         <div className="flex-1 truncate pr-2">
           <div className="font-medium text-sm truncate">{file.name}</div>
@@ -423,9 +451,28 @@ export function FileUpload({
     )
   }
 
+  // Render a placeholder item for files being uploaded
+  const renderUploadingItem = (file: UploadingFile) => {
+    return (
+      <div
+        key={file.id}
+        className="flex items-center justify-between p-2 rounded border border-border bg-secondary/30"
+      >
+        <div className="flex-1 truncate pr-2">
+          <div className="font-medium text-sm truncate">{file.name}</div>
+          <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+        </div>
+        <div className="flex items-center justify-center h-8 w-8 shrink-0">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        </div>
+      </div>
+    )
+  }
+
   // Get files array regardless of multiple setting
   const filesArray = Array.isArray(value) ? value : value ? [value] : []
   const hasFiles = filesArray.length > 0
+  const isUploading = uploadingFiles.length > 0
 
   return (
     <div className="w-full" onClick={(e) => e.stopPropagation()}>
@@ -439,69 +486,81 @@ export function FileUpload({
         data-testid="file-input-element"
       />
 
-      {isUploading ? (
-        <div className="w-full p-4 border border-border rounded-md">
-          <Progress value={uploadProgress} className="w-full h-2 mb-2" />
-          <div className="text-xs text-center text-muted-foreground">
-            {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
+      <div className="mb-3">
+        {/* File list with consistent spacing */}
+        {(hasFiles || isUploading) && (
+          <div className="space-y-2">
+            {/* Only show files that aren't currently uploading */}
+            {filesArray.map((file) => {
+              // Don't show files that have duplicates in the uploading list
+              const isCurrentlyUploading = uploadingFiles.some(
+                (uploadingFile) => uploadingFile.name === file.name
+              )
+              return !isCurrentlyUploading && renderFileItem(file)
+            })}
+            {isUploading && (
+              <>
+                {uploadingFiles.map(renderUploadingItem)}
+                <div className="mt-1">
+                  <Progress value={uploadProgress} className="w-full h-2" />
+                  <div className="text-xs text-center text-muted-foreground mt-1">
+                    {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      ) : (
-        <>
-          {hasFiles && (
-            <div className="mb-3">
-              {/* File list */}
-              <div className="space-y-1">{filesArray.map(renderFileItem)}</div>
+        )}
 
-              {/* Action buttons */}
-              <div className="flex space-x-2 mt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={handleRemoveAllFiles}
-                >
-                  Remove All
-                </Button>
-                {multiple && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={handleOpenFileDialog}
-                  >
-                    Add More
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Show upload button if no files or if not in multiple mode */}
-          {(!hasFiles || !multiple) && (
+        {/* Action buttons */}
+        {(hasFiles || isUploading) && (
+          <div className="flex space-x-2 mt-2">
             <Button
               type="button"
               variant="outline"
-              className="w-full justify-center text-center font-normal"
-              onClick={handleOpenFileDialog}
+              size="sm"
+              className="flex-1"
+              onClick={handleRemoveAllFiles}
+              disabled={isUploading}
             >
-              <Upload className="mr-2 h-4 w-4" />
-              {multiple ? 'Upload Files' : 'Upload File'}
-
-              <Tooltip>
-                <TooltipTrigger className="ml-1">
-                  <Info className="h-4 w-4 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Max file size: {maxSize}MB</p>
-                  {multiple && <p>You can select multiple files at once</p>}
-                </TooltipContent>
-              </Tooltip>
+              Remove All
             </Button>
-          )}
-        </>
+            {multiple && !isUploading && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={handleOpenFileDialog}
+              >
+                Add More
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Show upload button if no files and not uploading */}
+      {!hasFiles && !isUploading && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-center text-center font-normal"
+          onClick={handleOpenFileDialog}
+        >
+          <Upload className="mr-2 h-4 w-4" />
+          {multiple ? 'Upload Files' : 'Upload File'}
+
+          <Tooltip>
+            <TooltipTrigger className="ml-1">
+              <Info className="h-4 w-4 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Max file size: {maxSize}MB</p>
+              {multiple && <p>You can select multiple files at once</p>}
+            </TooltipContent>
+          </Tooltip>
+        </Button>
       )}
     </div>
   )
