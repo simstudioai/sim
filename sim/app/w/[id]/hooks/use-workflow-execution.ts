@@ -140,6 +140,7 @@ export function useWorkflowExecution() {
         workflow,
         currentBlockStates,
         envVarValues,
+        undefined,
         workflowVariables
       )
       setExecutor(newExecutor)

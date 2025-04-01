@@ -320,11 +320,33 @@ export async function GET(req: NextRequest) {
         )
 
         logger.info(`[${requestId}] Executing workflow ${schedule.workflowId}`)
+        
+        // Get workflow variables
+        let workflowVariables = {}
+        if (workflowRecord.variables) {
+          try {
+            // Parse workflow variables if they're stored as a string
+            if (typeof workflowRecord.variables === 'string') {
+              workflowVariables = JSON.parse(workflowRecord.variables)
+            } else {
+              // Otherwise use as is (already parsed JSON)
+              workflowVariables = workflowRecord.variables
+            }
+            logger.debug(`[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${schedule.workflowId}`)
+          } catch (error) {
+            logger.error(`[${requestId}] Failed to parse workflow variables: ${schedule.workflowId}`, error)
+            // Continue execution even if variables can't be parsed
+          }
+        } else {
+          logger.debug(`[${requestId}] No workflow variables found for: ${schedule.workflowId}`)
+        }
+        
         const executor = new Executor(
           serializedWorkflow,
           processedBlockStates, // Use the processed block states
           decryptedEnvVars,
-          input
+          input,
+          workflowVariables
         )
         const result = await executor.execute(schedule.workflowId)
 

@@ -51,6 +51,7 @@ export class InputResolver {
   resolveInputs(block: SerializedBlock, context: ExecutionContext): Record<string, any> {
     const inputs = { ...block.config.params }
     const result: Record<string, any> = {}
+    const isFunctionBlock = block.metadata?.id === 'function'
 
     // Process each input parameter
     for (const [key, value] of Object.entries(inputs)) {
@@ -63,7 +64,7 @@ export class InputResolver {
       // Handle string values that may contain references
       if (typeof value === 'string') {
         // First check for variable references
-        let resolvedValue = this.resolveVariableReferences(value)
+        let resolvedValue = this.resolveVariableReferences(value, block)
 
         // Then resolve block references
         resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
@@ -77,16 +78,23 @@ export class InputResolver {
         // Resolve environment variables
         resolvedValue = this.resolveEnvVariables(resolvedValue, isApiKey)
 
-        // Convert JSON strings to objects if possible
-        try {
-          if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
-            result[key] = JSON.parse(resolvedValue)
-          } else {
+        // For function blocks, we need special handling for code input
+        if (isFunctionBlock && key === 'code') {
+          // For code input in function blocks, we don't want to parse JSON
+          result[key] = resolvedValue
+        } 
+        // For other inputs, try to convert JSON strings to objects
+        else {
+          try {
+            if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
+              result[key] = JSON.parse(resolvedValue)
+            } else {
+              result[key] = resolvedValue
+            }
+          } catch {
+            // If it's not valid JSON, keep it as a string
             result[key] = resolvedValue
           }
-        } catch {
-          // If it's not valid JSON, keep it as a string
-          result[key] = resolvedValue
         }
       }
       // Handle objects and arrays recursively
@@ -106,9 +114,10 @@ export class InputResolver {
    * Resolves workflow variable references in a string (<variable.name>).
    *
    * @param value - String containing variable references
+   * @param currentBlock - The current block, used to determine context
    * @returns String with resolved variable references
    */
-  resolveVariableReferences(value: string): string {
+  resolveVariableReferences(value: string, currentBlock?: SerializedBlock): string {
     const variableMatches = value.match(/<variable\.([^>]+)>/g)
     if (!variableMatches) return value
 
@@ -125,17 +134,113 @@ export class InputResolver {
 
       if (foundVariable) {
         const [_, variable] = foundVariable
-        // Format the value appropriately
-        const formattedValue =
-          typeof variable.value === 'object'
-            ? JSON.stringify(variable.value)
-            : String(variable.value)
+        
+        // Process variable value based on its type
+        let processedValue = variable.value
+        
+        // Handle string values that could be stored with quotes
+        if (variable.type === 'string' && typeof processedValue === 'string') {
+          // If the string value starts and ends with quotes, remove them
+          const trimmed = processedValue.trim()
+          if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+              (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            // Remove the quotes and unescape any escaped quotes
+            processedValue = trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
+          }
+        }
+        // Handle boolean values that might be stored as strings
+        else if (variable.type === 'boolean' && typeof processedValue === 'string') {
+          processedValue = processedValue.trim().toLowerCase() === 'true'
+        }
+        // Handle number values that might be stored as strings
+        else if (variable.type === 'number' && typeof processedValue === 'string') {
+          const parsed = Number(processedValue)
+          if (!isNaN(parsed)) {
+            processedValue = parsed
+          }
+        }
+        // Handle object/array values that might be stored as JSON strings
+        else if ((variable.type === 'object' || variable.type === 'array') && 
+                 typeof processedValue === 'string') {
+          try {
+            processedValue = JSON.parse(processedValue)
+          } catch (e) {
+            // Keep as string if parsing fails
+          }
+        }
+        
+        // Determine if this needs to be a code-compatible string literal
+        const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, value);
+        
+        // Format the processed value for insertion into the string based on context
+        let formattedValue: string;
+        
+        if (variable.type === 'string' && needsCodeStringLiteral) {
+          // For code contexts like function and condition blocks, properly quote strings
+          formattedValue = JSON.stringify(processedValue);
+        } else if (typeof processedValue === 'object' && processedValue !== null) {
+          // For objects, always stringify
+          formattedValue = JSON.stringify(processedValue);
+        } else {
+          // For other types in normal contexts, use simple string conversion
+          formattedValue = String(processedValue);
+        }
 
         resolvedValue = resolvedValue.replace(match, formattedValue)
       }
     }
 
     return resolvedValue
+  }
+
+  /**
+   * Determines if a value needs to be formatted as a code-compatible string literal
+   * based on the block type and context. Handles JavaScript and other code contexts.
+   * 
+   * @param block - The block where the value is being used
+   * @param expression - The expression containing the value
+   * @returns Whether the value should be formatted as a string literal
+   */
+  private needsCodeStringLiteral(block?: SerializedBlock, expression?: string): boolean {
+    if (!block) return false;
+    
+    // These block types execute code and need properly formatted string literals
+    const codeExecutionBlocks = ['function', 'condition'];
+    
+    // Check if this is a block that executes code
+    if (block.metadata?.id && codeExecutionBlocks.includes(block.metadata.id)) {
+      return true;
+    }
+    
+    // Check if the expression is likely part of code
+    if (expression) {
+      const codeIndicators = [
+        // Function/method calls
+        /\(\s*$/,                         // Function call
+        /\.\w+\s*\(/,                     // Method call
+        
+        // JavaScript/Python operators
+        /[=<>!+\-*/%](?:==?)?/,           // Common operators
+        /\+=|-=|\*=|\/=|%=|\*\*=?/,       // Assignment operators
+        
+        // JavaScript keywords
+        /\b(if|else|for|while|return|var|let|const|function)\b/,
+        
+        // Python keywords
+        /\b(if|else|elif|for|while|def|return|import|from|as|class|with|try|except)\b/,
+        
+        // Common code patterns
+        /^['"]use strict['"];?$/,         // JS strict mode
+        /\$\{.+?\}/,                      // JS template literals
+        /f['"].*?['"]/,                   // Python f-strings
+        /\bprint\s*\(/,                   // Python print
+        /\bconsole\.\w+\(/                // JS console methods
+      ];
+      
+      return codeIndicators.some(pattern => pattern.test(expression));
+    }
+    
+    return false;
   }
 
   /**
@@ -387,8 +492,8 @@ export class InputResolver {
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
-      } else if (currentBlock.metadata?.id === 'function' && typeof replacementValue === 'string') {
-        // For function blocks, we need to properly quote string values to avoid syntax errors
+      } else if (typeof replacementValue === 'string' && this.needsCodeStringLiteral(currentBlock, value)) {
+        // For code blocks, quote string values properly for the given language
         formattedValue = JSON.stringify(replacementValue)
       } else {
         formattedValue =
@@ -518,7 +623,7 @@ export class InputResolver {
     // Handle strings
     if (typeof value === 'string') {
       // First resolve variable references
-      const resolvedVars = this.resolveVariableReferences(value)
+      const resolvedVars = this.resolveVariableReferences(value, currentBlock)
 
       // Then resolve block references
       const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, currentBlock)

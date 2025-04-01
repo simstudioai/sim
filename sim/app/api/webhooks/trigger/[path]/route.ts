@@ -620,11 +620,32 @@ async function processWebhook(
       `[${requestId}] Starting workflow execution with ${Object.keys(processedBlockStates).length} blocks`
     )
 
+    // Get workflow variables
+    let workflowVariables = {}
+    if (foundWorkflow.variables) {
+      try {
+        // Parse workflow variables if they're stored as a string
+        if (typeof foundWorkflow.variables === 'string') {
+          workflowVariables = JSON.parse(foundWorkflow.variables)
+        } else {
+          // Otherwise use as is (already parsed JSON)
+          workflowVariables = foundWorkflow.variables
+        }
+        logger.debug(`[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${foundWorkflow.id}`)
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to parse workflow variables: ${foundWorkflow.id}`, error)
+        // Continue execution even if variables can't be parsed
+      }
+    } else {
+      logger.debug(`[${requestId}] No workflow variables found for: ${foundWorkflow.id}`)
+    }
+
     const executor = new Executor(
       serializedWorkflow,
       processedBlockStates,
       decryptedEnvVars,
-      enrichedInput
+      enrichedInput,
+      workflowVariables
     )
     const result = await executor.execute(foundWorkflow.id)
 
