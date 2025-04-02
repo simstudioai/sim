@@ -20,6 +20,8 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import mongodbTool from './mongodb'
+import mysqlTool from './mysql'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
@@ -31,6 +33,9 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from './pinecone'
+import postgresqlTool from './postgresql'
+import redisTool from './redis'
+import elasticsearchTool from './elasticsearch'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
@@ -51,6 +56,11 @@ const logger = createLogger('Tools')
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  mongodb: mongodbTool,
+  mysql: mysqlTool,
+  postgresql: postgresqlTool,
+  redis: redisTool,
+  elasticsearch: elasticsearchTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
