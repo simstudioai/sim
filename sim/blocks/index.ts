@@ -8,6 +8,7 @@ import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
+import { MistralParseBlock } from './blocks/mistral-parse'
 import { FileBlock } from './blocks/file'
 import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
@@ -44,13 +45,14 @@ export {
   AgentBlock,
   AirtableBlock,
   ApiBlock,
-  FileBlock,
+  MistralParseBlock,
   FunctionBlock,
   MySQLBlock,
   PostgreSQLBlock,
   VisionBlock,
   FirecrawlBlock,
   // GuestyBlock,
+  FileBlock,
   JinaBlock,
   TranslateBlock,
   SlackBlock,
@@ -90,8 +92,9 @@ const blocks: Record<string, BlockConfig> = {
   confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
-  file: FileBlock,
+  mistral_parse: MistralParseBlock,
   firecrawl: FirecrawlBlock,
+  file: FileBlock,
   function: FunctionBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
