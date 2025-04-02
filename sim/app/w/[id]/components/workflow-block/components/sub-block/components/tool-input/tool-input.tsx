@@ -18,12 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getAllBlocks } from '@/blocks'
 import { getTool } from '@/tools'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
@@ -69,6 +71,12 @@ const getRequiredToolParams = (toolId: string): ToolParam[] => {
       description: param.description,
       requiredForToolCall: param.requiredForToolCall ?? false,
     }))
+}
+
+// Check if a tool requires OAuth
+const getOAuthConfig = (toolId: string) => {
+  const tool = getTool(toolId)
+  return tool?.oauth
 }
 
 // For custom tools, extract parameters from the schema
@@ -289,6 +297,22 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
           ? {
               ...tool,
               operation,
+            }
+          : tool
+      )
+    )
+  }
+
+  const handleCredentialChange = (toolIndex: number, credentialId: string) => {
+    setValue(
+      selectedTools.map((tool, index) =>
+        index === toolIndex
+          ? {
+              ...tool,
+              params: {
+                ...tool.params,
+                credential: credentialId,
+              },
             }
           : tool
       )
@@ -524,6 +548,30 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                           </Select>
                         </div>
                       )}
+
+                      {/* Add OAuth credential selector if the tool requires OAuth */}
+                      {toolId &&
+                        (() => {
+                          const oauthConfig = getOAuthConfig(toolId)
+                          if (oauthConfig?.required) {
+                            return (
+                              <div className="space-y-1.5 relative">
+                                <div className="text-xs font-medium text-muted-foreground">
+                                  Account
+                                </div>
+                                <CredentialSelector
+                                  value={tool.params.credential || ''}
+                                  onChange={(value) => handleCredentialChange(toolIndex, value)}
+                                  provider={oauthConfig.provider as OAuthProvider}
+                                  requiredScopes={oauthConfig.additionalScopes || []}
+                                  label={`Select ${oauthConfig.provider} account`}
+                                  serviceId={oauthConfig.provider}
+                                />
+                              </div>
+                            )
+                          }
+                          return null
+                        })()}
 
                       {/* Existing parameters */}
                       {requiredParams.map((param) => (
