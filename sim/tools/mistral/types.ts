@@ -56,8 +56,8 @@ export interface MistralParserMetadata {
   /** Source type (always 'url' for now) */
   source: 'url'
 
-  /** Original URL to the document */
-  sourceUrl: string
+  /** Original URL to the document (only included for user-provided URLs) */
+  sourceUrl?: string
 
   /** Total number of pages in the document */
   pageCount: number
