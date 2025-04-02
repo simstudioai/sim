@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Test
+    name: Test and Build
     runs-on: ubuntu-latest
     
     steps:
@@ -31,6 +31,10 @@ jobs:
         env:
           NODE_OPTIONS: "--no-warnings"
         run: npm run test:coverage
+        
+      - name: Build application
+        working-directory: ./sim
+        run: npm run build
         
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
