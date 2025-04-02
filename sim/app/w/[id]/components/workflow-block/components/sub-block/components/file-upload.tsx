@@ -486,7 +486,7 @@ export function FileUpload({
         data-testid="file-input-element"
       />
 
-      <div className="mb-3">
+      <div>
         {/* File list with consistent spacing */}
         {(hasFiles || isUploading) && (
           <div className="space-y-2">
