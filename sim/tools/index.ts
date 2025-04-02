@@ -20,6 +20,7 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
@@ -116,6 +117,7 @@ export const tools: Record<string, ToolConfig> = {
   airtable_read: airtableReadTool,
   airtable_write: airtableWriteTool,
   airtable_update: airtableUpdateTool,
+  mistral_parser: mistralParserTool,
 }
 
 // Get a tool by its ID
@@ -295,7 +297,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
     },
 
     // Response handling
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params: Record<string, any>) => {
       const data = await response.json()
 
       if (!data.success) {
@@ -597,7 +599,7 @@ async function handleInternalRequest(
 
     // Use the tool's response transformer if available
     if (tool.transformResponse) {
-      return await tool.transformResponse(response)
+      return await tool.transformResponse(response, params)
     }
 
     // Default response handling
