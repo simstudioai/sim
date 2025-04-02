@@ -1,5 +1,6 @@
 // Import blocks
 import { AgentBlock } from './blocks/agent'
+import { AirtableBlock } from './blocks/airtable'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
@@ -28,6 +29,7 @@ import { StarterBlock } from './blocks/starter'
 import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
+import { TwilioSMSBlock } from './blocks/twilio'
 import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
@@ -36,7 +38,6 @@ import { YouTubeBlock } from './blocks/youtube'
 import { QdrantBlock } from './blocks/qdrant'
 import { AirtableBlock } from './blocks/airtable'
 import { BlockConfig } from './types'
-import { TwilioSMSBlock } from './blocks/twilio'
 
 // Export blocks for ease of use
 export {

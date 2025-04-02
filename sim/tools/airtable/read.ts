@@ -6,12 +6,12 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
   name: 'Airtable Read Records',
   description: 'Read records from an Airtable table',
   version: '1.0.0',
-  
+
   oauth: {
     required: true,
     provider: 'airtable',
   },
-  
+
   params: {
     accessToken: {
       type: 'string',
@@ -39,7 +39,7 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
       description: 'Formula to filter records',
     },
   },
-  
+
   request: {
     url: (params) => {
       const url = `https://api.airtable.com/v0/${params.baseId}/${params.tableId}`
@@ -54,11 +54,11 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
     },
     method: 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.accessToken}`,
+      Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
   },
-  
+
   transformResponse: async (response) => {
     const data = await response.json()
     return {
@@ -72,8 +72,8 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
       },
     }
   },
-  
+
   transformError: (error) => {
     return `Failed to read Airtable records: ${error.message}`
   },
-} 
+}

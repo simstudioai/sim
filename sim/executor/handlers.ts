@@ -819,32 +819,38 @@ export class ApiBlockHandler implements BlockHandler {
     }
 
     try {
-      let processedInputs = { ...inputs };
-      
+      let processedInputs = { ...inputs }
+
       // Handle body specifically to ensure it's properly processed for API requests
       if (processedInputs.body !== undefined) {
         // If body is a string that looks like JSON, parse it
         if (typeof processedInputs.body === 'string') {
           try {
             // Trim whitespace before checking for JSON pattern
-            const trimmedBody = processedInputs.body.trim();
+            const trimmedBody = processedInputs.body.trim()
             if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
-              processedInputs.body = JSON.parse(trimmedBody);
-              logger.info('[ApiBlockHandler] Parsed JSON body:', JSON.stringify(processedInputs.body, null, 2));
+              processedInputs.body = JSON.parse(trimmedBody)
+              logger.info(
+                '[ApiBlockHandler] Parsed JSON body:',
+                JSON.stringify(processedInputs.body, null, 2)
+              )
             }
           } catch (e) {
-            logger.info('[ApiBlockHandler] Failed to parse body as JSON, using as string:', e);
+            logger.info('[ApiBlockHandler] Failed to parse body as JSON, using as string:', e)
             // Keep as string if parsing fails
           }
         } else if (processedInputs.body === null) {
           // Convert null to undefined for consistency with API expectations
-          processedInputs.body = undefined;
+          processedInputs.body = undefined
         }
       }
-      
+
       // Ensure the final processed body is logged
-      logger.info('[ApiBlockHandler] Final processed request body:', JSON.stringify(processedInputs.body, null, 2));
-      
+      logger.info(
+        '[ApiBlockHandler] Final processed request body:',
+        JSON.stringify(processedInputs.body, null, 2)
+      )
+
       const result = await executeTool(block.config.tool, {
         ...processedInputs,
         _context: { workflowId: context.workflowId },
