@@ -173,13 +173,32 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           throw new Error(`Invalid protocol: ${url.protocol}. URL must use HTTP or HTTPS protocol`);
         }
         
-        // Validate file appears to be a PDF (loose check)
-        const pathname = url.pathname.toLowerCase();
-        if (!pathname.endsWith('.pdf') && !pathname.includes('pdf')) {
-          console.warn(
-            'Warning: URL does not appear to be a PDF document. ' +
-            'If this is incorrect, the document may still be processed if it is a valid PDF.'
+        // Validate against known unsupported services
+        if (url.hostname.includes('drive.google.com') || url.hostname.includes('docs.google.com')) {
+          throw new Error(
+            'Google Drive links are not supported by the Mistral OCR API. ' +
+            'Please upload your PDF to a public web server or provide a direct download link ' +
+            'that ends with .pdf extension.'
           );
+        }
+        
+        // Validate file appears to be a PDF (stricter check with informative warning)
+        const pathname = url.pathname.toLowerCase();
+        if (!pathname.endsWith('.pdf')) {
+          // Check if PDF is included in the path at all
+          if (!pathname.includes('pdf')) {
+            console.warn(
+              'Warning: URL does not appear to point to a PDF document. ' +
+              'The Mistral OCR API is designed to work with PDF files. ' +
+              'Please ensure your URL points to a valid PDF document (ideally ending with .pdf extension).'
+            );
+          } else {
+            // If "pdf" is in the URL but not at the end, give a different warning
+            console.warn(
+              'Warning: URL contains "pdf" but does not end with .pdf extension. ' +
+              'This might still work if the server returns a valid PDF document despite the missing extension.'
+            );
+          }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -417,6 +436,12 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     // Get base error message
     const errorMsg = getErrorMessage(error);
     
+    // Handle null reference errors which often occur with invalid PDF URLs
+    if (errorMsg.includes('Cannot read properties of null') || 
+        (errorMsg.includes('null') && errorMsg.includes('length'))) {
+      return 'Mistral OCR Error: Invalid PDF document URL. The URL provided either does not point to a valid PDF file or the PDF cannot be accessed. Please ensure you provide a direct link to a publicly accessible PDF file with .pdf extension.';
+    }
+    
     // Handle common API error status codes
     if (typeof error === 'object' && error !== null) {
       const status = error.status || (error.response && error.response.status);
@@ -434,7 +459,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           case 413:
             return 'Mistral OCR Error: The PDF document is too large for processing.';
           case 415:
-            return 'Mistral OCR Error: Unsupported file format. Please ensure the URL points to a valid PDF document.';
+            return 'Mistral OCR Error: Unsupported file format. Please ensure the URL points to a valid PDF document with a .pdf extension.';
           case 429:
             return 'Mistral OCR Error: Rate limit exceeded. Please try again later.';
           case 500:
@@ -448,7 +473,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     
     // Handle common network and URL errors
     if (errorMsg.includes('URL') || errorMsg.includes('protocol') || errorMsg.includes('http')) {
-      return 'Mistral OCR Error: Invalid PDF URL format. Please provide a complete URL starting with https:// to your PDF document.';
+      return 'Mistral OCR Error: Invalid PDF URL format. Please provide a complete URL starting with https:// to your PDF document (e.g., https://example.com/document.pdf).';
     }
     
     if (errorMsg.includes('ETIMEDOUT') || errorMsg.includes('timeout') || errorMsg.includes('ECONNABORTED')) {
@@ -463,7 +488,17 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       return 'Mistral OCR Error: Failed to parse the response from the OCR service.';
     }
     
+    // PDF-specific error handling
+    if (errorMsg.toLowerCase().includes('pdf')) {
+      if (errorMsg.toLowerCase().includes('invalid') || errorMsg.toLowerCase().includes('corrupted')) {
+        return 'Mistral OCR Error: The document appears to be an invalid or corrupted PDF. Please check that the URL points to a valid, properly formatted PDF document.';
+      }
+      if (errorMsg.toLowerCase().includes('password') || errorMsg.toLowerCase().includes('protected') || errorMsg.toLowerCase().includes('encrypted')) {
+        return 'Mistral OCR Error: The PDF document appears to be password-protected or encrypted. The OCR service cannot process protected documents.';
+      }
+    }
+    
     // Default error message with the original error for context
-    return `Mistral OCR Error: ${errorMsg}`;
+    return `Mistral OCR Error: Invalid PDF document or URL. Please ensure you provide a direct link to a valid PDF file. Technical details: ${errorMsg}`;
   },
 } 
