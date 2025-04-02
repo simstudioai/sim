@@ -10,9 +10,9 @@ export interface TwilioSendSMSParams {
 
 export interface TwilioSMSBlockOutput extends ToolResponse {
   output: {
-      success: boolean
-      messageId?: string
-      status?: string
-      error?: string
+    success: boolean
+    messageId?: string
+    status?: string
+    error?: string
   }
 }

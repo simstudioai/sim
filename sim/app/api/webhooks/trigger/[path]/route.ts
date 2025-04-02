@@ -631,9 +631,14 @@ async function processWebhook(
           // Otherwise use as is (already parsed JSON)
           workflowVariables = foundWorkflow.variables
         }
-        logger.debug(`[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${foundWorkflow.id}`)
+        logger.debug(
+          `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${foundWorkflow.id}`
+        )
       } catch (error) {
-        logger.error(`[${requestId}] Failed to parse workflow variables: ${foundWorkflow.id}`, error)
+        logger.error(
+          `[${requestId}] Failed to parse workflow variables: ${foundWorkflow.id}`,
+          error
+        )
         // Continue execution even if variables can't be parsed
       }
     } else {

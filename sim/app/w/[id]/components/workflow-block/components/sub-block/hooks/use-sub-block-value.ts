@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { isEqual } from 'lodash'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { isEqual } from 'lodash'
 
 /**
  * Custom hook to get and set values for a sub-block in a workflow.
  * Handles complex object values properly by using deep equality comparison.
- * 
+ *
  * @param blockId The ID of the block containing the sub-block
  * @param subBlockId The ID of the sub-block
  * @param triggerWorkflowUpdate Whether to trigger a workflow update when the value changes
@@ -30,10 +30,7 @@ export function useSubBlockValue<T = any>(
 
   // Get value from subblock store
   const storeValue = useSubBlockStore(
-    useCallback(
-      (state) => state.getValue(blockId, subBlockId),
-      [blockId, subBlockId]
-    )
+    useCallback((state) => state.getValue(blockId, subBlockId), [blockId, subBlockId])
   )
 
   // Update the ref if the store value changes
@@ -51,16 +48,19 @@ export function useSubBlockValue<T = any>(
       // Use deep comparison to avoid unnecessary updates for complex objects
       if (!isEqual(valueRef.current, newValue)) {
         valueRef.current = newValue
-        
+
         // Ensure we're passing the actual value, not a reference that might change
-        const valueCopy = newValue === null 
-          ? null 
-          : (typeof newValue === 'object' ? JSON.parse(JSON.stringify(newValue)) : newValue)
-        
+        const valueCopy =
+          newValue === null
+            ? null
+            : typeof newValue === 'object'
+              ? JSON.parse(JSON.stringify(newValue))
+              : newValue
+
         // Update the subblock store with the new value
         // The store's setValue method will now trigger the debounced sync automatically
         useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
-        
+
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()
         }
