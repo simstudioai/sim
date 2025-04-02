@@ -72,9 +72,9 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
 
     request: {
         url: (params: JiraWriteParams) => {
-          return `https://${params.domain}/rest/api/3/issue/createmeta/${params.projectId}/issuetypes/${params.issueTypeId}`
+          return `https://${params.domain}/rest/api/2/issue`
         },
-        method: 'PUT',
+        method: 'POST',
         headers: (params: JiraWriteParams) => {
           return {
             'Content-Type': 'application/json',
@@ -85,10 +85,10 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             const body: Record<string, any> = {
                 fields: {
                     project: {
-                        key: params.projectId
+                        id: params.projectId
                     },
                     issuetype: {
-                        name: params.issueTypeId
+                        id: params.issueTypeId
                     },
                     summary: params.summary
                 }

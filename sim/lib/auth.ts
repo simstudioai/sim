@@ -363,9 +363,9 @@ export const auth = betterAuth({
           scopes: [
             'read:jira-user',
             'read:issue:jira-work',
-            'write:issue:jira-work',
+            // 'write:issue:jira-work',
             'manage:jira-project',
-            'manage:jira-configuration',
+            // 'manage:jira-configuration',
             'read:me',
             'offline_access',
           ],
@@ -379,41 +379,18 @@ export const auth = betterAuth({
               const response = await fetch('https://api.atlassian.com/me', {
                 headers: {
                   Authorization: `Bearer ${tokens.accessToken}`,
-                  'Accept': 'application/json',
-                  'X-Atlassian-Token': 'no-check',  // Sometimes needed for local instances
-                  'Content-Type': 'application/json'
                 },
               })
 
-              // if (!response.ok) {
-              //   logger.error('Error fetching Jira user info:', {
-              //     status: response.status,
-              //     statusText: response.statusText,
-              //   })
-              //   return null
-              // }
               if (!response.ok) {
-                const errorText = await response.text();
-                logger.error('Jira getUserInfo failed:', {
+                logger.error('Error fetching Jira user info:', {
                   status: response.status,
                   statusText: response.statusText,
-                  errorBody: errorText,
-                  headers: Object.fromEntries(response.headers.entries())
-                });
-        
-                // Try to parse error as JSON if possible
-                try {
-                  const errorJson = JSON.parse(errorText);
-                  logger.error('Parsed error:', errorJson);
-                } catch (e) {
-                  logger.error('Raw error text:', errorText);
-                }
-                return null;
+                })
+                return null
               }
 
               const profile = await response.json()
-              logger.info('Successfully got user profile:', profile); //TODO: remove
-
 
               const now = new Date()
 

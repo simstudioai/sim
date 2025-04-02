@@ -47,6 +47,10 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:page:confluence': 'Read Confluence pages',
   'write:confluence-content': 'Write Confluence content',
   'read:me': 'Read your profile information',
+  'read:jira-user': 'Read your Jira user information',
+  'read:jira-work': 'Read your Jira work information',
+  'manage:jira-project': 'Manage your Jira projects',
+  //TODO: add more scopes for jira
   offline_access: 'Access your account when you are not using the application',
   repo: 'Access your repositories',
   workflow: 'Manage repository workflows',

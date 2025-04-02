@@ -1,19 +1,20 @@
 import { ToolConfig } from '../types'
-import { JiraListProjectsParams, JiraListProjectsResponse } from './types'
+import { JiraListIssueTypesParams, JiraListIssueTypesResponse } from './types'
 
-export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListProjectsResponse> = {
-  id: 'jira_list_projects',
-  name: 'Jira List Projects',
-  description: 'List projects from Jira using the Jira API.',
+export const jiraListIssueTypesTool: ToolConfig<JiraListIssueTypesParams, JiraListIssueTypesResponse> = {
+  id: 'jira_list_issue_types',
+  name: 'Jira List Issue Types',
+  description: 'List issue types from Jira using the Jira API.',
   version: '1.0.0',
 
   oauth: {
     required: true,
     provider: 'jira',
     additionalScopes: [
-      'read:project:jira',
-      'read:me',
-      'offline_access',
+        'read:issue-type:jira',
+        'read:field:jira',
+        'read:me',
+        'offline_access',
     ],
   },
 
@@ -39,11 +40,16 @@ export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListPr
       required: false,
       description: 'Filter projects by title',
     },
+    projectId: {
+      type: 'string',
+      required: true,
+      description: 'The ID of the project to list issue types for',
+    },
   },
 
   request: {
-    url: (params: JiraListProjectsParams) => {
-      const baseUrl = `https://${params.domain}/rest/api/2/project`
+    url: (params: JiraListIssueTypesParams) => {
+      const baseUrl = `http://${params.domain}/rest/api/2/issue/createmeta/${params.projectId}/issuetypes`
       const queryParams = new URLSearchParams()
 
       if (params.limit) {
@@ -58,7 +64,7 @@ export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListPr
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
     },
     method: 'GET',
-    headers: (params: JiraListProjectsParams) => {
+    headers: (params: JiraListIssueTypesParams) => {
       return {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${params.accessToken}`,
@@ -76,18 +82,18 @@ export const jiraListProjectsTool: ToolConfig<JiraListProjectsParams, JiraListPr
       success: true,
       output: {
         ts: new Date().toISOString(),
-        projects: data.results.map((project: any) => ({
-          id: project.id,
-          title: project.name,
-          url: project._links?.webui || '',
-          lastModified: project.version?.when || '',
+        issueTypes: data.results.map((issueType: any) => ({
+          id: issueType.id,
+          title: issueType.name,
+          url: issueType._links?.webui || '',
+          lastModified: issueType.version?.when || '',
         })),
       },
     }
   },
 
   transformError: (error: any) => {
-    const message = error.message || 'Jira list projects failed'
+    const message = error.message || 'Jira list issue types failed'
     return message
   },
 }
