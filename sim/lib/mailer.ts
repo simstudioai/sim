@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { createLogger } from '@/lib/logs/console-logger'
 
 interface EmailOptions {
   to: string
@@ -13,8 +14,13 @@ interface SendEmailResult {
   data?: any
 }
 
-// Initialize Resend with API key
-const resend = new Resend(process.env.RESEND_API_KEY)
+const logger = createLogger('Mailer')
+
+const resendApiKey = process.env.RESEND_API_KEY
+const resend =
+  resendApiKey && resendApiKey !== 'placeholder' && resendApiKey.trim() !== ''
+    ? new Resend(resendApiKey)
+    : null
 
 export async function sendEmail({
   to,
@@ -25,6 +31,19 @@ export async function sendEmail({
   try {
     const senderEmail = from || 'noreply@simstudio.ai'
 
+    if (!resend) {
+      logger.info('Email not sent (Resend not configured):', {
+        to,
+        subject,
+        from: senderEmail,
+      })
+      return {
+        success: true,
+        message: 'Email logging successful (Resend not configured)',
+        data: { id: 'mock-email-id' },
+      }
+    }
+
     const { data, error } = await resend.emails.send({
       from: `Sim Studio <${senderEmail}>`,
       to,
@@ -33,7 +52,7 @@ export async function sendEmail({
     })
 
     if (error) {
-      console.error('Resend API error:', error)
+      logger.error('Resend API error:', error)
       return {
         success: false,
         message: error.message || 'Failed to send email',
@@ -46,7 +65,7 @@ export async function sendEmail({
       data,
     }
   } catch (error) {
-    console.error('Error sending email:', error)
+    logger.error('Error sending email:', error)
     return {
       success: false,
       message: 'Failed to send email',
