@@ -95,9 +95,7 @@ describe('Typeform Responses Tool', () => {
         apiKey: 'test-token',
       }
 
-      expect(tester.getRequestUrl(params)).toBe(
-        'https://api.typeform.com/forms/form123/responses'
-      )
+      expect(tester.getRequestUrl(params)).toBe('https://api.typeform.com/forms/form123/responses')
     })
 
     test('should add pageSize parameter to URL when provided', () => {
@@ -155,9 +153,7 @@ describe('Typeform Responses Tool', () => {
         completed: 'all',
       }
 
-      expect(tester.getRequestUrl(params)).toBe(
-        'https://api.typeform.com/forms/form123/responses'
-      )
+      expect(tester.getRequestUrl(params)).toBe('https://api.typeform.com/forms/form123/responses')
     })
 
     test('should combine multiple parameters correctly', () => {
@@ -207,13 +203,13 @@ describe('Typeform Responses Tool', () => {
       expect(result.success).toBe(true)
       expect(result.output.total_items).toBe(2)
       expect(result.output.items).toHaveLength(2)
-      
+
       // Check first response
       const firstResponse = result.output.items[0]
       expect(firstResponse.token).toBe('response-id-1')
       expect(firstResponse.answers).toHaveLength(1)
       expect(firstResponse.answers[0].text).toBe('Sample answer')
-      
+
       // Check second response
       const secondResponse = result.output.items[1]
       expect(secondResponse.token).toBe('response-id-2')
@@ -266,4 +262,4 @@ describe('Typeform Responses Tool', () => {
       expect(result.error).toBeDefined()
     })
   })
-}) 
+})

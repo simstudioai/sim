@@ -1,3 +1,3 @@
-import { sendSMSTool } from './sendSMS'
+import { sendSMSTool } from './send'
 
 export const twilioSendSMSTool = sendSMSTool

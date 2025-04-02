@@ -87,73 +87,75 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
   request: {
     url: (params: TypeformResponsesParams) => {
       const url = `https://api.typeform.com/forms/${params.formId}/responses`
-      
+
       const queryParams = []
-      
+
       if (params.pageSize) {
         queryParams.push(`page_size=${params.pageSize}`)
       }
-      
+
       if (params.since) {
         queryParams.push(`since=${encodeURIComponent(params.since)}`)
       }
-      
+
       if (params.until) {
         queryParams.push(`until=${encodeURIComponent(params.until)}`)
       }
-      
+
       if (params.completed && params.completed !== 'all') {
         queryParams.push(`completed=${params.completed}`)
       }
-      
+
       return queryParams.length > 0 ? `${url}?${queryParams.join('&')}` : url
     },
     method: 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = response.statusText || 'Unknown error';
-      
+      let errorMessage = response.statusText || 'Unknown error'
+
       try {
-        const errorData = await response.json();
+        const errorData = await response.json()
         if (errorData && errorData.message) {
-          errorMessage = errorData.message;
+          errorMessage = errorData.message
         } else if (errorData && errorData.description) {
-          errorMessage = errorData.description;
+          errorMessage = errorData.description
         } else if (typeof errorData === 'string') {
-          errorMessage = errorData;
+          errorMessage = errorData
         }
       } catch (e) {
         // If we can't parse the error as JSON, just use the status text
       }
-      
-      throw new Error(`Typeform API error (${response.status}): ${errorMessage}`);
+
+      throw new Error(`Typeform API error (${response.status}): ${errorMessage}`)
     }
-    
+
     try {
-      const data = await response.json();
-      
+      const data = await response.json()
+
       return {
         success: true,
         output: data,
-      };
+      }
     } catch (error) {
-      throw new Error(`Failed to parse Typeform response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Failed to parse Typeform response: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   },
   transformError: (error) => {
     if (error instanceof Error) {
       return `Failed to retrieve Typeform responses: ${error.message}`
     }
-    
+
     if (typeof error === 'object' && error !== null) {
       return `Failed to retrieve Typeform responses: ${JSON.stringify(error)}`
     }
-    
+
     return `Failed to retrieve Typeform responses: An unknown error occurred`
   },
-} 
+}

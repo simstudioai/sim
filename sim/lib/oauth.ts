@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import {
+  AirtableIcon,
   ConfluenceIcon,
   GithubIcon,
   GmailIcon,
@@ -10,14 +11,20 @@ import {
   GoogleSheetsIcon,
   SupabaseIcon,
   xIcon,
-  AirtableIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('OAuth')
 
 // Define the base OAuth provider type
-export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | 'airtable' | string
+export type OAuthProvider =
+  | 'google'
+  | 'github'
+  | 'x'
+  | 'supabase'
+  | 'confluence'
+  | 'airtable'
+  | string
 export type OAuthService =
   | 'google'
   | 'google-email'

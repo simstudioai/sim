@@ -48,7 +48,9 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
   const bodyResult = tool.request.body ? tool.request.body(params) : undefined
 
   // Special handling for NDJSON content type or 'application/x-www-form-urlencoded'
-  const isPreformattedContent = headers['Content-Type'] === 'application/x-ndjson' || headers['Content-Type'] === 'application/x-www-form-urlencoded'
+  const isPreformattedContent =
+    headers['Content-Type'] === 'application/x-ndjson' ||
+    headers['Content-Type'] === 'application/x-www-form-urlencoded'
   const body = hasBody
     ? isPreformattedContent && bodyResult
       ? bodyResult.body
