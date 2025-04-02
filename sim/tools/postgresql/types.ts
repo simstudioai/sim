@@ -11,7 +11,12 @@ export interface PostgreSQLConnectionConfig {
 }
 
 export interface PostgreSQLQueryParams {
-  connection: PostgreSQLConnectionConfig
+  host?: string
+  port?: string
+  username?: string
+  password?: string
+  database?: string
+  ssl?: string
   operation: 'select' | 'insert' | 'update' | 'delete' | 'execute'
   query: string
   params?: any[]

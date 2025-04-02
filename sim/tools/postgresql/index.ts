@@ -39,26 +39,65 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
     headers: () => ({
       'Content-Type': 'application/json'
     }),
-    body: (params) => params
+    body: (params) => ({
+      connection: {
+        host: params.host || 'localhost',
+        port: parseInt(params.port || '5432'),
+        username: params.username || 'postgres',
+        password: params.password || 'postgres',
+        database: params.database || 'simstudio',
+        ssl: params.ssl === 'true'
+      },
+      operation: params.operation,
+      query: params.query,
+      params: params.params,
+      options: params.options
+    })
   },
   directExecution: async (params) => {
     const startTime = Date.now()
     
     try {
-      // Instead of direct PostgreSQL connection, we'll make an HTTP request to your PostgreSQL API
+      console.log('[PostgreSQL Tool] Starting execution with params:', {
+        ...params,
+        password: '[REDACTED]'
+      })
+
+      const requestBody = {
+        connection: {
+          host: params.host || 'localhost',
+          port: parseInt(params.port || '5432'),
+          username: params.username || 'postgres',
+          password: params.password || 'postgres',
+          database: params.database || 'simstudio',
+          ssl: params.ssl === 'true'
+        },
+        operation: params.operation,
+        query: params.query,
+        params: params.params,
+        options: params.options
+      }
+
+      console.log('[PostgreSQL Tool] Making API request to:', 'http://localhost:3000/api/postgresql')
+      
       const response = await fetch('http://localhost:3000/api/postgresql', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(params)
+        body: JSON.stringify(requestBody)
       })
 
+      console.log('[PostgreSQL Tool] API response status:', response.status)
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('[PostgreSQL Tool] API error response:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`)
       }
 
       const result = await response.json()
+      console.log('[PostgreSQL Tool] API response result:', result)
 
       return {
         success: true,
@@ -74,6 +113,7 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
         }
       }
     } catch (error) {
+      console.error('[PostgreSQL Tool] Error during execution:', error)
       return {
         success: false,
         output: {
