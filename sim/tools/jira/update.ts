@@ -13,12 +13,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         provider: 'jira',
         additionalScopes: [
             'read:jira-user',
-            'read:issue:jira-work',
-            'write:issue:jira-work',
-            'manage:jira-project',
-            'manage:jira-configuration',
-            'read:me',
-            'offline_access',
+            'write:jira-work',
           ],
     },
 

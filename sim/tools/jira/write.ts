@@ -13,10 +13,9 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         provider: 'jira',
         additionalScopes: [
             'read:jira-user',
-            'read:issue:jira-work',
+            'write:jira-work',
             'read:project:jira',
             'read:issue-type:jira',
-            'write:jira-work',
         ],
     },
 

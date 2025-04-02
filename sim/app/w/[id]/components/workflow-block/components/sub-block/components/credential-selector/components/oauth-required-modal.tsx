@@ -49,7 +49,9 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:me': 'Read your profile information',
   'read:jira-user': 'Read your Jira user information',
   'read:jira-work': 'Read your Jira work information',
-  'manage:jira-project': 'Manage your Jira projects',
+  'write:jira-work': 'Write your Jira work information',
+  'read:project:jira': 'Read your Jira projects',
+  'read:issue-type:jira': 'Read your Jira issue types',
   //TODO: add more scopes for jira
   offline_access: 'Access your account when you are not using the application',
   repo: 'Access your repositories',

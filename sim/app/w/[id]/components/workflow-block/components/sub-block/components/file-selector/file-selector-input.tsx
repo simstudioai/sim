@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
+//import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 
 interface FileSelectorInputProps {

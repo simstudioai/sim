@@ -11,15 +11,6 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     oauth: {
         required: true,
         provider: 'jira',
-        // additionalScopes: [
-        //     'read:jira-user',
-        //     'read:issue:jira-work',
-        //     'read:dashboard:jira',
-        //     'manage:jira-project',
-        //     'manage:jira-configuration',
-        //     'read:me',
-        //     'offline_access',
-        //   ],
     },
 
     //TODO: modify params to match the Jira API
