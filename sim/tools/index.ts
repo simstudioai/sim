@@ -1,10 +1,12 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { airtableReadTool, airtableUpdateTool, airtableWriteTool } from './airtable'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
+import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl/scrape'
 import { functionExecuteTool, webcontainerExecuteTool } from './function'
 import {
@@ -18,8 +20,13 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+<<<<<<< HEAD
 import { jiraUpdateTool } from './jira' //TODO: add the other jira tools, testing update for now
+=======
+import { mistralParserTool } from './mistral'
+>>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 import { notionReadTool, notionWriteTool } from './notion'
+import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { perplexityChatTool } from './perplexity'
 import {
@@ -36,6 +43,8 @@ import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
 import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
+import { sendSMSTool } from './twilio/send'
+import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
 import { formatRequestParams, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
@@ -54,6 +63,7 @@ export const tools: Record<string, ToolConfig> = {
   function_execute: functionExecuteTool,
   webcontainer_execute: webcontainerExecuteTool,
   vision_tool: visionTool,
+  file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
   jina_readurl: readUrlTool,
   slack_message: slackMessageTool,
@@ -65,6 +75,9 @@ export const tools: Record<string, ToolConfig> = {
   supabase_query: supabaseQueryTool,
   supabase_insert: supabaseInsertTool,
   supabase_update: supabaseUpdateTool,
+  typeform_responses: typeformResponsesTool,
+  typeform_files: typeformFilesTool,
+  typeform_insights: typeformInsightsTool,
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,
@@ -103,7 +116,16 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
+<<<<<<< HEAD
   jira_update: jiraUpdateTool,
+=======
+  twilio_send_sms: sendSMSTool,
+  dalle_generate: dalleTool,
+  airtable_read: airtableReadTool,
+  airtable_write: airtableWriteTool,
+  airtable_update: airtableUpdateTool,
+  mistral_parser: mistralParserTool,
+>>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 }
 
 // Get a tool by its ID
@@ -283,7 +305,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
     },
 
     // Response handling
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params: Record<string, any>) => {
       const data = await response.json()
 
       if (!data.success) {
@@ -365,9 +387,7 @@ export async function executeTool(
             },
           }
         } catch (error) {
-          logger.error(`Error in post-processing for tool ${toolId}:`, {
-            error,
-          })
+          logger.error(`Error in post-processing for tool ${toolId}:`, { error })
           // Return original result if post-processing fails
           // Still include timing data
           const endTime = new Date()
@@ -587,7 +607,7 @@ async function handleInternalRequest(
 
     // Use the tool's response transformer if available
     if (tool.transformResponse) {
-      return await tool.transformResponse(response)
+      return await tool.transformResponse(response, params)
     }
 
     // Default response handling

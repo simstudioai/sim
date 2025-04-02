@@ -1,5 +1,6 @@
 // Import blocks
 import { AgentBlock } from './blocks/agent'
+import { AirtableBlock } from './blocks/airtable'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
@@ -7,11 +8,14 @@ import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
+import { MistralParseBlock } from './blocks/mistral-parse'
+import { FileBlock } from './blocks/file'
 import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
-import { GuestyBlock } from './blocks/guesty'
+// import { GuestyBlock } from './blocks/guesty'
+import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
 import { JiraBlock } from './blocks/jira'
 import { NotionBlock } from './blocks/notion'
@@ -27,6 +31,8 @@ import { StarterBlock } from './blocks/starter'
 import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
+import { TwilioSMSBlock } from './blocks/twilio'
+import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
@@ -36,11 +42,14 @@ import { BlockConfig } from './types'
 // Export blocks for ease of use
 export {
   AgentBlock,
+  AirtableBlock,
   ApiBlock,
+  MistralParseBlock,
   FunctionBlock,
   VisionBlock,
   FirecrawlBlock,
   // GuestyBlock,
+  FileBlock,
   JinaBlock,
   TranslateBlock,
   SlackBlock,
@@ -66,18 +75,27 @@ export {
   GoogleSheetsBlock,
   PerplexityBlock,
   ConfluenceBlock,
+<<<<<<< HEAD
   JiraBlock,
+=======
+  TwilioSMSBlock,
+  ImageGeneratorBlock,
+  TypeformBlock,
+>>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 }
 
 // Registry of all block configurations, alphabetically sorted
 const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
+  airtable: AirtableBlock,
   api: ApiBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
+  mistral_parse: MistralParseBlock,
   firecrawl: FirecrawlBlock,
+  file: FileBlock,
   function: FunctionBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
@@ -85,6 +103,7 @@ const blocks: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
+  image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   jira: JiraBlock,
   notion: NotionBlock,
@@ -99,6 +118,8 @@ const blocks: Record<string, BlockConfig> = {
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
+  twilio_sms: TwilioSMSBlock,
+  typeform: TypeformBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
   x: XBlock,

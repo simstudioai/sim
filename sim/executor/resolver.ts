@@ -1,5 +1,9 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { LoopManager } from './loops'
 import { ExecutionContext } from './types'
+
+const logger = createLogger('InputResolver')
 
 /**
  * Resolves input values for blocks by handling references and variable substitution.
@@ -11,7 +15,8 @@ export class InputResolver {
   constructor(
     private workflow: SerializedWorkflow,
     private environmentVariables: Record<string, string>,
-    private workflowVariables: Record<string, any> = {}
+    private workflowVariables: Record<string, any> = {},
+    private loopManager?: LoopManager
   ) {
     // Create maps for efficient lookups
     this.blockById = new Map(workflow.blocks.map((block) => [block.id, block]))
@@ -49,7 +54,6 @@ export class InputResolver {
   resolveInputs(block: SerializedBlock, context: ExecutionContext): Record<string, any> {
     const inputs = { ...block.config.params }
     const result: Record<string, any> = {}
-
     // Process each input parameter
     for (const [key, value] of Object.entries(inputs)) {
       // Skip null or undefined values
@@ -61,8 +65,8 @@ export class InputResolver {
       // Handle string values that may contain references
       if (typeof value === 'string') {
         // First check for variable references
-        let resolvedValue = this.resolveVariableReferences(value)
-        
+        let resolvedValue = this.resolveVariableReferences(value, block)
+
         // Then resolve block references
         resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
 
@@ -75,16 +79,46 @@ export class InputResolver {
         // Resolve environment variables
         resolvedValue = this.resolveEnvVariables(resolvedValue, isApiKey)
 
-        // Convert JSON strings to objects if possible
-        try {
-          if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
-            result[key] = JSON.parse(resolvedValue)
-          } else {
+        // Special handling for different block types
+        const isFunctionBlock = block.metadata?.id === 'function'
+        const isApiBlock = block.metadata?.id === 'api'
+
+        // For function blocks, we need special handling for code input
+        if (isFunctionBlock && key === 'code') {
+          // For code input in function blocks, we don't want to parse JSON
+          result[key] = resolvedValue
+          logger.debug(`[resolveInputs] Function block code input preserved as string`)
+        }
+        // For API blocks, handle body input specially
+        else if (isApiBlock && key === 'body') {
+          try {
+            // If it's JSON-looking, preserve its structure
+            if (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('[')) {
+              result[key] = JSON.parse(resolvedValue)
+              logger.debug(`[resolveInputs] API block body parsed as JSON object`)
+            } else {
+              result[key] = resolvedValue
+              logger.debug(`[resolveInputs] API block body preserved as string`)
+            }
+          } catch {
+            // If parsing fails, keep as string
+            result[key] = resolvedValue
+            logger.debug(`[resolveInputs] API block body JSON parsing failed, keeping as string`)
+          }
+        }
+        // For other inputs, try to convert JSON strings to objects
+        else {
+          try {
+            if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
+              result[key] = JSON.parse(resolvedValue)
+              logger.debug(`[resolveInputs] Parsed JSON value for ${key}`)
+            } else {
+              result[key] = resolvedValue
+            }
+          } catch {
+            // If it's not valid JSON, keep it as a string
             result[key] = resolvedValue
           }
-        } catch {
-          // If it's not valid JSON, keep it as a string
-          result[key] = resolvedValue
         }
       }
       // Handle objects and arrays recursively
@@ -102,11 +136,12 @@ export class InputResolver {
 
   /**
    * Resolves workflow variable references in a string (<variable.name>).
-   * 
+   *
    * @param value - String containing variable references
+   * @param currentBlock - The current block, used to determine context
    * @returns String with resolved variable references
    */
-  resolveVariableReferences(value: string): string {
+  resolveVariableReferences(value: string, currentBlock?: SerializedBlock): string {
     const variableMatches = value.match(/<variable\.([^>]+)>/g)
     if (!variableMatches) return value
 
@@ -114,28 +149,126 @@ export class InputResolver {
 
     for (const match of variableMatches) {
       const variableName = match.slice('<variable.'.length, -1)
-      
+
       // Find the variable by normalized name (without spaces)
-      const foundVariable = Object.entries(this.workflowVariables).find(
-        ([_, variable]) => {
-          const normalizedName = (variable.name || '').replace(/\s+/g, '')
-          return normalizedName === variableName
-        }
-      )
+      const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => {
+        const normalizedName = (variable.name || '').replace(/\s+/g, '')
+        return normalizedName === variableName
+      })
 
       if (foundVariable) {
         const [_, variable] = foundVariable
-        // Format the value appropriately
-        const formattedValue = 
-          typeof variable.value === 'object'
-            ? JSON.stringify(variable.value)
-            : String(variable.value)
-            
+
+        // Process variable value based on its type
+        let processedValue = variable.value
+
+        // Handle string values that could be stored with quotes
+        if (variable.type === 'string' && typeof processedValue === 'string') {
+          // If the string value starts and ends with quotes, remove them
+          const trimmed = processedValue.trim()
+          if (
+            (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))
+          ) {
+            // Remove the quotes and unescape any escaped quotes
+            processedValue = trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
+          }
+        }
+        // Handle boolean values that might be stored as strings
+        else if (variable.type === 'boolean' && typeof processedValue === 'string') {
+          processedValue = processedValue.trim().toLowerCase() === 'true'
+        }
+        // Handle number values that might be stored as strings
+        else if (variable.type === 'number' && typeof processedValue === 'string') {
+          const parsed = Number(processedValue)
+          if (!isNaN(parsed)) {
+            processedValue = parsed
+          }
+        }
+        // Handle object/array values that might be stored as JSON strings
+        else if (
+          (variable.type === 'object' || variable.type === 'array') &&
+          typeof processedValue === 'string'
+        ) {
+          try {
+            processedValue = JSON.parse(processedValue)
+          } catch (e) {
+            // Keep as string if parsing fails
+          }
+        }
+
+        // Determine if this needs to be a code-compatible string literal
+        const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, value)
+
+        // Format the processed value for insertion into the string based on context
+        let formattedValue: string
+
+        if (variable.type === 'string' && needsCodeStringLiteral) {
+          // For code contexts like function and condition blocks, properly quote strings
+          formattedValue = JSON.stringify(processedValue)
+        } else if (typeof processedValue === 'object' && processedValue !== null) {
+          // For objects, always stringify
+          formattedValue = JSON.stringify(processedValue)
+        } else {
+          // For other types in normal contexts, use simple string conversion
+          formattedValue = String(processedValue)
+        }
+
         resolvedValue = resolvedValue.replace(match, formattedValue)
       }
     }
 
     return resolvedValue
+  }
+
+  /**
+   * Determines if a value needs to be formatted as a code-compatible string literal
+   * based on the block type and context. Handles JavaScript and other code contexts.
+   *
+   * @param block - The block where the value is being used
+   * @param expression - The expression containing the value
+   * @returns Whether the value should be formatted as a string literal
+   */
+  private needsCodeStringLiteral(block?: SerializedBlock, expression?: string): boolean {
+    if (!block) return false
+
+    // These block types execute code and need properly formatted string literals
+    const codeExecutionBlocks = ['function', 'condition']
+
+    // Check if this is a block that executes code
+    if (block.metadata?.id && codeExecutionBlocks.includes(block.metadata.id)) {
+      return true
+    }
+
+    // Check if the expression is likely part of code
+    if (expression) {
+      const codeIndicators = [
+        // Function/method calls
+        /\(\s*$/, // Function call
+        /\.\w+\s*\(/, // Method call
+
+        // JavaScript/Python operators
+        /[=<>!+\-*/%](?:==?)?/, // Common operators
+        /\+=|-=|\*=|\/=|%=|\*\*=?/, // Assignment operators
+
+        // JavaScript keywords
+        /\b(if|else|for|while|return|var|let|const|function)\b/,
+
+        // Python keywords
+        /\b(if|else|elif|for|while|def|return|import|from|as|class|with|try|except)\b/,
+
+        // Common code patterns
+        /^['"]use strict['"];?$/, // JS strict mode
+        /\$\{.+?\}/, // JS template literals
+        /f['"].*?['"]/, // Python f-strings
+        /\bprint\s*\(/, // Python print
+        /\bconsole\.\w+\(/, // JS console methods
+      ]
+
+      return codeIndicators.some((pattern) => pattern.test(expression))
+    }
+
+    return false
   }
 
   /**
@@ -163,9 +296,17 @@ export class InputResolver {
       if (match.startsWith('<variable.')) {
         continue
       }
-      
+
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
+
+      // Log the reference being processed
+      logger.debug(`[resolveBlockReferences] Processing block reference: ${match}`, {
+        blockRef,
+        pathParts,
+        currentBlock: currentBlock.id,
+        currentBlockType: currentBlock.metadata?.id,
+      })
 
       // Special case for "start" references
       // This allows users to reference the starter block using <start.response.type.input>
@@ -174,27 +315,212 @@ export class InputResolver {
         // Find the starter block
         const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
         if (starterBlock) {
+          logger.debug(`[resolveBlockReferences] Found starter block with ID: ${starterBlock.id}`)
+
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
+            logger.debug(
+              `[resolveBlockReferences] Starter block state:`,
+              JSON.stringify(blockState, null, 2)
+            )
+
             // Navigate through the path parts
             let replacementValue: any = blockState.output
+
+            // Log the initial output value from the starter block
+            logger.debug(
+              `[resolveBlockReferences] Initial starter output:`,
+              JSON.stringify(replacementValue, null, 2)
+            )
+
             for (const part of pathParts) {
+              logger.debug(`[resolveBlockReferences] Navigating path part: ${part}`, {
+                currentValue:
+                  typeof replacementValue === 'object'
+                    ? JSON.stringify(replacementValue)
+                    : replacementValue,
+              })
+
               if (!replacementValue || typeof replacementValue !== 'object') {
+                logger.warn(
+                  `[resolveBlockReferences] Invalid path "${part}" - replacementValue is not an object:`,
+                  replacementValue
+                )
                 throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
               }
+
               replacementValue = replacementValue[part]
+
               if (replacementValue === undefined) {
+                logger.warn(
+                  `[resolveBlockReferences] No value found at path "${part}" in starter block.`
+                )
                 throw new Error(`No value found at path "${path}" in starter block.`)
               }
             }
 
-            // Format the value
-            const formattedValue =
-              typeof replacementValue === 'object'
-                ? JSON.stringify(replacementValue)
-                : String(replacementValue)
+            // Format the value based on block type and path
+            let formattedValue: string
 
+            // Special handling for all blocks referencing starter input
+            if (blockRef.toLowerCase() === 'start' && pathParts.join('.').includes('input')) {
+              const blockType = currentBlock.metadata?.id
+
+              // Format based on which block is consuming this value
+              if (typeof replacementValue === 'object' && replacementValue !== null) {
+                // For function blocks, preserve the object structure for code usage
+                if (blockType === 'function') {
+                  logger.debug(
+                    `[resolveBlockReferences] Special handling for function input:`,
+                    JSON.stringify(replacementValue, null, 2)
+                  )
+                  formattedValue = JSON.stringify(replacementValue)
+                }
+                // For API blocks, handle body special case
+                else if (blockType === 'api') {
+                  logger.debug(
+                    `[resolveBlockReferences] Special handling for API input:`,
+                    JSON.stringify(replacementValue, null, 2)
+                  )
+                  formattedValue = JSON.stringify(replacementValue)
+                }
+                // For condition blocks, ensure proper formatting
+                else if (blockType === 'condition') {
+                  logger.debug(
+                    `[resolveBlockReferences] Special handling for condition input:`,
+                    JSON.stringify(replacementValue, null, 2)
+                  )
+                  formattedValue = this.stringifyForCondition(replacementValue)
+                }
+                // For all other blocks, stringify objects
+                else {
+                  formattedValue = JSON.stringify(replacementValue)
+                }
+              } else {
+                // For primitive values
+                formattedValue = String(replacementValue)
+              }
+            } else {
+              // Standard handling for non-input references
+              formattedValue =
+                typeof replacementValue === 'object'
+                  ? JSON.stringify(replacementValue)
+                  : String(replacementValue)
+            }
+
+            logger.debug(`[resolveBlockReferences] Resolved value:`, formattedValue)
             resolvedValue = resolvedValue.replace(match, formattedValue)
+            continue
+          }
+        }
+      }
+
+      // Special case for "loop" references - allows accessing loop properties
+      if (blockRef.toLowerCase() === 'loop') {
+        // Find which loop this block belongs to
+        let containingLoopId: string | undefined
+
+        for (const [loopId, loop] of Object.entries(context.workflow?.loops || {})) {
+          if (loop.nodes.includes(currentBlock.id)) {
+            containingLoopId = loopId
+            break
+          }
+        }
+
+        if (containingLoopId) {
+          const loop = context.workflow?.loops[containingLoopId]
+          const loopType = loop?.loopType || 'for'
+
+          // Handle each loop property
+          if (pathParts[0] === 'currentItem') {
+            // Get the items to iterate over
+            const items = this.getLoopItems(loop, context)
+
+            // Get the correct index using the LoopManager
+            const index = this.loopManager
+              ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
+              : context.loopIterations.get(containingLoopId) || 0
+
+            // Get the current item directly from the items array at the current index
+            if (Array.isArray(items) && index >= 0 && index < items.length) {
+              const currentItem = items[index]
+
+              // Format the value based on type
+              if (currentItem !== undefined) {
+                if (typeof currentItem !== 'object' || currentItem === null) {
+                  // For primitives, convert to string
+                  resolvedValue = resolvedValue.replace(match, String(currentItem))
+                } else if (
+                  Array.isArray(currentItem) &&
+                  currentItem.length === 2 &&
+                  typeof currentItem[0] === 'string'
+                ) {
+                  // Handle [key, value] pair from Object.entries()
+                  if (pathParts.length > 1) {
+                    if (pathParts[1] === 'key') {
+                      resolvedValue = resolvedValue.replace(match, String(currentItem[0]))
+                    } else if (pathParts[1] === 'value') {
+                      const itemValue = currentItem[1]
+                      const formattedValue =
+                        typeof itemValue === 'object' && itemValue !== null
+                          ? JSON.stringify(itemValue)
+                          : String(itemValue)
+                      resolvedValue = resolvedValue.replace(match, formattedValue)
+                    }
+                  } else {
+                    // Default to stringifying the whole item
+                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
+                  }
+                } else {
+                  // Navigate path if provided for objects
+                  if (pathParts.length > 1) {
+                    let itemValue = currentItem
+                    for (let i = 1; i < pathParts.length; i++) {
+                      if (!itemValue || typeof itemValue !== 'object') {
+                        throw new Error(
+                          `Invalid path "${pathParts[i]}" in loop item reference "${path}"`
+                        )
+                      }
+                      itemValue = itemValue[pathParts[i]]
+                      if (itemValue === undefined) {
+                        throw new Error(`No value found at path "${path}" in loop item`)
+                      }
+                    }
+
+                    const formattedValue =
+                      typeof itemValue === 'object' && itemValue !== null
+                        ? JSON.stringify(itemValue)
+                        : String(itemValue)
+
+                    resolvedValue = resolvedValue.replace(match, formattedValue)
+                  } else {
+                    // Return the whole item as JSON
+                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
+                  }
+                }
+              }
+
+              continue
+            }
+          } else if (pathParts[0] === 'items' && loopType === 'forEach') {
+            // Get all items in the forEach loop
+            const items = this.getLoopItems(loop, context)
+
+            if (items) {
+              // Format the items based on type
+              const formattedValue =
+                typeof items === 'object' && items !== null ? JSON.stringify(items) : String(items)
+
+              resolvedValue = resolvedValue.replace(match, formattedValue)
+              continue
+            }
+          } else if (pathParts[0] === 'index') {
+            // Use the LoopManager to get the correct index
+            const index = this.loopManager
+              ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
+              : context.loopIterations.get(containingLoopId) || 0
+
+            resolvedValue = resolvedValue.replace(match, String(index))
             continue
           }
         }
@@ -276,8 +602,11 @@ export class InputResolver {
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
-      } else if (currentBlock.metadata?.id === 'function' && typeof replacementValue === 'string') {
-        // For function blocks, we need to properly quote string values to avoid syntax errors
+      } else if (
+        typeof replacementValue === 'string' &&
+        this.needsCodeStringLiteral(currentBlock, value)
+      ) {
+        // For code blocks, quote string values properly for the given language
         formattedValue = JSON.stringify(replacementValue)
       } else {
         formattedValue =
@@ -407,8 +736,8 @@ export class InputResolver {
     // Handle strings
     if (typeof value === 'string') {
       // First resolve variable references
-      const resolvedVars = this.resolveVariableReferences(value)
-      
+      const resolvedVars = this.resolveVariableReferences(value, currentBlock)
+
       // Then resolve block references
       const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, currentBlock)
 
@@ -499,5 +828,72 @@ export class InputResolver {
    */
   private normalizeBlockName(name: string): string {
     return name.toLowerCase().replace(/\s+/g, '')
+  }
+
+  /**
+   * Gets the items for a forEach loop.
+   * The items can be stored directly in loop.forEachItems or may need to be evaluated.
+   *
+   * @param loop - The loop configuration
+   * @param context - Current execution context
+   * @returns The items to iterate over (array or object)
+   */
+  private getLoopItems(loop: any, context: ExecutionContext): any[] | Record<string, any> | null {
+    if (!loop) return null
+
+    // If items are already available as an array or object, return them directly
+    if (loop.forEachItems) {
+      if (
+        Array.isArray(loop.forEachItems) ||
+        (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)
+      ) {
+        return loop.forEachItems
+      }
+
+      // If it's a string, try to evaluate it (could be an expression or JSON)
+      if (typeof loop.forEachItems === 'string') {
+        try {
+          // Check if it's valid JSON
+          const trimmedExpression = loop.forEachItems.trim()
+          if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
+            try {
+              // Try to parse as JSON first
+              return JSON.parse(trimmedExpression)
+            } catch (jsonError) {
+              console.error(`Error parsing JSON for loop:`, jsonError)
+              // If JSON parsing fails, continue with expression evaluation
+            }
+          }
+
+          // If not valid JSON or JSON parsing failed, try to evaluate as an expression
+          if (trimmedExpression && !trimmedExpression.startsWith('//')) {
+            const result = new Function('context', `return ${loop.forEachItems}`)(context)
+            if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
+              return result
+            }
+          }
+        } catch (e) {
+          console.error(`Error evaluating forEach items:`, e)
+        }
+      }
+    }
+
+    // As a fallback, look for the most recent array or object in any block's output
+    // This is less reliable but might help in some cases
+    for (const [blockId, blockState] of context.blockStates.entries()) {
+      const output = blockState.output?.response
+      if (output) {
+        for (const [key, value] of Object.entries(output)) {
+          if (Array.isArray(value) && value.length > 0) {
+            return value
+          } else if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
+            return value
+          }
+        }
+      }
+    }
+
+    // Default to empty array if no valid items found
+    return []
   }
 }

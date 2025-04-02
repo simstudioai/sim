@@ -5,6 +5,7 @@ import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
 import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
+import { SlackConfig } from './providers/slack-config'
 import { StripeConfig } from './providers/stripe-config'
 import { WhatsAppConfig } from './providers/whatsapp-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
@@ -69,6 +70,7 @@ export function WebhookModal({
   const [githubContentType, setGithubContentType] = useState('application/json')
   const [discordWebhookName, setDiscordWebhookName] = useState('')
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
+  const [slackSigningSecret, setSlackSigningSecret] = useState('')
 
   // Original values to track changes
   const [originalValues, setOriginalValues] = useState({
@@ -80,6 +82,7 @@ export function WebhookModal({
     allowedIps: '',
     discordWebhookName: '',
     discordAvatarUrl: '',
+    slackSigningSecret: '',
   })
 
   // Get the current provider configuration
@@ -174,6 +177,10 @@ export function WebhookModal({
                   requireAuth: auth,
                   allowedIps: ips,
                 }))
+              } else if (webhookProvider === 'slack' && 'signingSecret' in config) {
+                const signingSecret = config.signingSecret || ''
+                setSlackSigningSecret(signingSecret)
+                setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
               }
             }
           }
@@ -205,7 +212,8 @@ export function WebhookModal({
         (generalToken !== originalValues.generalToken ||
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
-          allowedIps !== originalValues.allowedIps))
+          allowedIps !== originalValues.allowedIps)) ||
+      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret)
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -219,6 +227,7 @@ export function WebhookModal({
     requireAuth,
     allowedIps,
     originalValues,
+    slackSigningSecret,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -266,6 +275,8 @@ export function WebhookModal({
           requireAuth,
           allowedIps: parsedIps.length > 0 ? parsedIps : undefined,
         }
+      case 'slack':
+        return { signingSecret: slackSigningSecret }
       default:
         return {}
     }
@@ -296,6 +307,7 @@ export function WebhookModal({
           allowedIps,
           discordWebhookName,
           discordAvatarUrl,
+          slackSigningSecret,
         })
         setHasUnsavedChanges(false)
       }
@@ -433,6 +445,18 @@ export function WebhookModal({
             testResult={testResult}
             copied={copied}
             copyToClipboard={copyToClipboard}
+          />
+        )
+      case 'slack':
+        return (
+          <SlackConfig
+            signingSecret={slackSigningSecret}
+            setSigningSecret={setSlackSigningSecret}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
           />
         )
       case 'generic':

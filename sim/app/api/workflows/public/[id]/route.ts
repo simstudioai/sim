@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         state: schema.marketplace.state,
         name: schema.marketplace.name,
         description: schema.marketplace.description,
-        authorId: schema.marketplace.authorId, 
+        authorId: schema.marketplace.authorId,
         authorName: schema.marketplace.authorName,
       })
       .from(schema.marketplace)
@@ -65,4 +65,4 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.error(`[${requestId}] Error getting public workflow: ${(await params).id}`, error)
     return createErrorResponse('Failed to get public workflow', 500)
   }
-} 
+}

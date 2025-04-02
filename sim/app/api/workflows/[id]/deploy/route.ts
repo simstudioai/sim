@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
+import { generateApiKey } from '@/lib/utils'
 import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { apiKey, workflow } from '@/db/schema'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -28,9 +29,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Fetch the workflow information including deployment details
     const result = await db
       .select({
-        apiKey: workflow.apiKey,
         isDeployed: workflow.isDeployed,
         deployedAt: workflow.deployedAt,
+        userId: workflow.userId,
       })
       .from(workflow)
       .where(eq(workflow.id, id))
@@ -44,18 +45,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const workflowData = result[0]
 
     // If the workflow is not deployed, return appropriate response
-    if (!workflowData.isDeployed || !workflowData.apiKey) {
+    if (!workflowData.isDeployed) {
       logger.info(`[${requestId}] Workflow is not deployed: ${id}`)
       return createSuccessResponse({
         isDeployed: false,
-        apiKey: null,
         deployedAt: null,
+        apiKey: null,
       })
     }
 
+    // Fetch the user's API key
+    const userApiKey = await db
+      .select({
+        key: apiKey.key,
+      })
+      .from(apiKey)
+      .where(eq(apiKey.userId, workflowData.userId))
+      .limit(1)
+
     logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
     return createSuccessResponse({
-      apiKey: workflowData.apiKey,
+      apiKey: userApiKey.length > 0 ? userApiKey[0].key : null,
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt,
     })
@@ -78,22 +88,61 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Generate a new API key
-    const apiKey = `wf_${uuidv4().replace(/-/g, '')}`
+    // Get the workflow to find the user
+    const workflowData = await db
+      .select({
+        userId: workflow.userId,
+      })
+      .from(workflow)
+      .where(eq(workflow.id, id))
+      .limit(1)
+
+    if (workflowData.length === 0) {
+      logger.warn(`[${requestId}] Workflow not found: ${id}`)
+      return createErrorResponse('Workflow not found', 404)
+    }
+
+    const userId = workflowData[0].userId
     const deployedAt = new Date()
 
-    // Update the workflow with the API key and deployment status
+    // Check if the user already has an API key
+    const userApiKey = await db
+      .select({
+        key: apiKey.key,
+      })
+      .from(apiKey)
+      .where(eq(apiKey.userId, userId))
+      .limit(1)
+
+    let userKey = null
+
+    // If no API key exists, create one
+    if (userApiKey.length === 0) {
+      const newApiKey = generateApiKey()
+      await db.insert(apiKey).values({
+        id: uuidv4(),
+        userId,
+        name: 'Default API Key',
+        key: newApiKey,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      userKey = newApiKey
+    } else {
+      userKey = userApiKey[0].key
+    }
+
+    // Update the workflow deployment status
     await db
       .update(workflow)
       .set({
-        apiKey,
         isDeployed: true,
         deployedAt,
       })
       .where(eq(workflow.id, id))
 
     logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)
-    return createSuccessResponse({ apiKey, isDeployed: true, deployedAt })
+    return createSuccessResponse({ apiKey: userKey, isDeployed: true, deployedAt })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, error)
     return createErrorResponse(error.message || 'Failed to deploy workflow', 500)
@@ -116,11 +165,10 @@ export async function DELETE(
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Update the workflow to remove deployment
+    // Update the workflow to remove deployment status
     await db
       .update(workflow)
       .set({
-        apiKey: null,
         isDeployed: false,
         deployedAt: null,
       })

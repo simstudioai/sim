@@ -67,7 +67,7 @@ function findAllPathNodes(edges: any[], targetNodeId: string): string[] {
   const visited = new Set<string>()
   const queue: [string, number][] = [[targetNodeId, 0]] // [nodeId, distance]
   const pathNodes = new Set<string>()
-  
+
   // Build a reverse adjacency list for faster traversal
   const reverseAdjList: Record<string, string[]> = {}
   for (const edge of edges) {
@@ -76,11 +76,11 @@ function findAllPathNodes(edges: any[], targetNodeId: string): string[] {
     }
     reverseAdjList[edge.target].push(edge.source)
   }
-  
+
   // BFS to find all ancestors and their shortest distance from target
   while (queue.length > 0) {
     const [currentNodeId, distance] = queue.shift()!
-    
+
     if (visited.has(currentNodeId)) {
       // If we've seen this node before, update its distance if this path is shorter
       const currentDistance = nodeDistances.get(currentNodeId) || Infinity
@@ -89,24 +89,24 @@ function findAllPathNodes(edges: any[], targetNodeId: string): string[] {
       }
       continue
     }
-    
+
     visited.add(currentNodeId)
     nodeDistances.set(currentNodeId, distance)
-    
+
     // Don't add the target node itself to the results
     if (currentNodeId !== targetNodeId) {
       pathNodes.add(currentNodeId)
     }
-    
+
     // Get all incoming edges from the reverse adjacency list
     const incomingNodeIds = reverseAdjList[currentNodeId] || []
-    
+
     // Add all source nodes to the queue with incremented distance
     for (const sourceId of incomingNodeIds) {
       queue.push([sourceId, distance + 1])
     }
   }
-  
+
   return Array.from(pathNodes)
 }
 
@@ -121,46 +121,46 @@ export function useBlockConnections(blockId: string) {
 
   // Find all blocks along paths leading to this block
   const allPathNodeIds = findAllPathNodes(edges, blockId)
-  
+
   // Map each path node to a ConnectedBlock structure
-  const allPathConnections = allPathNodeIds.map(sourceId => {
-    const sourceBlock = blocks[sourceId]
-    if (!sourceBlock) return null
-    
-    // Get the response format from the subblock store
-    const responseFormatValue = useSubBlockStore
-      .getState()
-      .getValue(sourceId, 'responseFormat')
+  const allPathConnections = allPathNodeIds
+    .map((sourceId) => {
+      const sourceBlock = blocks[sourceId]
+      if (!sourceBlock) return null
 
-    let responseFormat
+      // Get the response format from the subblock store
+      const responseFormatValue = useSubBlockStore.getState().getValue(sourceId, 'responseFormat')
 
-    try {
-      responseFormat =
-        typeof responseFormatValue === 'string' && responseFormatValue
-          ? JSON.parse(responseFormatValue)
-          : responseFormatValue // Handle case where it's already an object
-    } catch (e) {
-      logger.error('Failed to parse response format:', { e })
-      responseFormat = undefined
-    }
+      let responseFormat
 
-    // Get the default output type from the block's outputs
-    const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
-      name: key,
-      type: 'string',
-    }))
+      try {
+        responseFormat =
+          typeof responseFormatValue === 'string' && responseFormatValue
+            ? JSON.parse(responseFormatValue)
+            : responseFormatValue // Handle case where it's already an object
+      } catch (e) {
+        logger.error('Failed to parse response format:', { e })
+        responseFormat = undefined
+      }
 
-    // Extract fields from the response format using our helper function
-    const outputFields = responseFormat ? extractFieldsFromSchema(responseFormat) : defaultOutputs
+      // Get the default output type from the block's outputs
+      const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
+        name: key,
+        type: 'string',
+      }))
 
-    return {
-      id: sourceBlock.id,
-      type: sourceBlock.type,
-      outputType: outputFields.map((field: Field) => field.name),
-      name: sourceBlock.name,
-      responseFormat,
-    }
-  }).filter(Boolean) as ConnectedBlock[]
+      // Extract fields from the response format using our helper function
+      const outputFields = responseFormat ? extractFieldsFromSchema(responseFormat) : defaultOutputs
+
+      return {
+        id: sourceBlock.id,
+        type: sourceBlock.type,
+        outputType: outputFields.map((field: Field) => field.name),
+        name: sourceBlock.name,
+        responseFormat,
+      }
+    })
+    .filter(Boolean) as ConnectedBlock[]
 
   // Keep the original incoming connections for compatibility
   const directIncomingConnections = edges

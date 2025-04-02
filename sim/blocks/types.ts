@@ -30,6 +30,8 @@ export type SubBlockType =
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
+  | 'input-format' // Input structure format
+  | 'file-upload' // File uploader
 
 // Component width setting
 export type SubBlockLayout = 'full' | 'half'
@@ -84,7 +86,10 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
-  options?: string[] | { label: string; id: string }[]
+  options?:
+    | string[]
+    | { label: string; id: string }[]
+    | (() => string[] | { label: string; id: string }[])
   min?: number
   max?: number
   columns?: string[]
@@ -107,6 +112,9 @@ export interface SubBlockConfig {
   requiredScopes?: string[]
   // File selector specific properties
   mimeType?: string
+  // File upload specific properties
+  acceptedTypes?: string
+  multiple?: boolean
 }
 
 // Main block definition
@@ -136,6 +144,10 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
           whenEmpty: ToolOutputToValueType<ExtractToolOutput<T>>
           whenFilled: 'json'
         }
+      }
+      visualization?: {
+        type: 'image'
+        url: string
       }
     }
   }

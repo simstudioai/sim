@@ -37,6 +37,26 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     throw new Error('Workflow is already running')
   }
 
+  // Log input to help debug
+  logger.info(
+    `[${requestId}] Executing workflow with input:`,
+    input ? JSON.stringify(input, null, 2) : 'No input provided'
+  )
+
+  // Validate and structure input for maximum compatibility
+  let processedInput = input
+  if (input && typeof input === 'object') {
+    // Ensure input is properly structured for the starter block
+    if (input.input === undefined) {
+      // If input is not already nested, structure it properly
+      processedInput = { input: input }
+      logger.info(
+        `[${requestId}] Restructured input for workflow:`,
+        JSON.stringify(processedInput, null, 2)
+      )
+    }
+  }
+
   try {
     runningExecutions.add(workflowId)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
@@ -148,11 +168,40 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       {} as Record<string, Record<string, any>>
     )
 
+    // Get workflow variables
+    let workflowVariables = {}
+    if (workflow.variables) {
+      try {
+        // Parse workflow variables if they're stored as a string
+        if (typeof workflow.variables === 'string') {
+          workflowVariables = JSON.parse(workflow.variables)
+        } else {
+          // Otherwise use as is (already parsed JSON)
+          workflowVariables = workflow.variables
+        }
+        logger.debug(
+          `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${workflowId}`
+        )
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to parse workflow variables: ${workflowId}`, error)
+        // Continue execution even if variables can't be parsed
+      }
+    } else {
+      logger.debug(`[${requestId}] No workflow variables found for: ${workflowId}`)
+    }
+
     // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
-    const executor = new Executor(serializedWorkflow, processedBlockStates, decryptedEnvVars, input)
+    const executor = new Executor(
+      serializedWorkflow,
+      processedBlockStates,
+      decryptedEnvVars,
+      processedInput,
+      workflowVariables
+    )
+
     const result = await executor.execute(workflowId)
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
@@ -234,8 +283,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    const body = await request.json().catch(() => ({}))
-    const result = await executeWorkflow(validation.workflow, requestId, body)
+    const bodyText = await request.text()
+    logger.info(`[${requestId}] Raw request body:`, bodyText)
+
+    let body = {}
+    if (bodyText && bodyText.trim()) {
+      try {
+        body = JSON.parse(bodyText)
+        logger.info(`[${requestId}] Parsed request body:`, JSON.stringify(body, null, 2))
+      } catch (error) {
+        logger.error(`[${requestId}] Failed to parse request body:`, error)
+        return createErrorResponse('Invalid JSON in request body', 400, 'INVALID_JSON')
+      }
+    } else {
+      logger.info(`[${requestId}] No request body provided`)
+    }
+
+    // Don't double-nest the input if it's already structured
+    const hasContent = Object.keys(body).length > 0
+    const input = hasContent ? { input: body } : {}
+
+    logger.info(`[${requestId}] Input passed to workflow:`, JSON.stringify(input, null, 2))
+
+    // Execute workflow with the structured input
+    const result = await executeWorkflow(validation.workflow, requestId, input)
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)

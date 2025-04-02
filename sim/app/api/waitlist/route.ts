@@ -1,46 +1,76 @@
-import { NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { waitlist } from '@/db/schema'
-
-const logger = createLogger('WaitlistAPI')
+import { isRateLimited } from '@/lib/waitlist/rate-limiter'
+import { addToWaitlist } from '@/lib/waitlist/service'
 
 const waitlistSchema = z.object({
-  email: z.string().email(),
+  email: z.string().email('Please enter a valid email'),
 })
 
-export async function POST(request: Request) {
-  const requestId = crypto.randomUUID().slice(0, 8)
+export async function POST(request: NextRequest) {
+  const rateLimitCheck = await isRateLimited(request, 'waitlist')
+  if (rateLimitCheck.limited) {
+    return NextResponse.json(
+      {
+        success: false,
+        message: rateLimitCheck.message || 'Too many requests. Please try again later.',
+        retryAfter: rateLimitCheck.remainingTime,
+      },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimitCheck.remainingTime || 60),
+        },
+      }
+    )
+  }
 
   try {
+    // Parse the request body
     const body = await request.json()
-    const { email } = waitlistSchema.parse(body)
 
-    // Check if email already exists
-    const existingEntry = await db
-      .select()
-      .from(waitlist)
-      .where(eq(waitlist.email, email))
-      .execute()
+    // Validate the request
+    const validatedData = waitlistSchema.safeParse(body)
 
-    if (existingEntry.length > 0) {
-      return NextResponse.json({ message: 'Email already registered' }, { status: 400 })
+    if (!validatedData.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invalid email address',
+          errors: validatedData.error.format(),
+        },
+        { status: 400 }
+      )
     }
 
-    // Add to waitlist
-    await db.insert(waitlist).values({
-      id: nanoid(),
-      email,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
+    const { email } = validatedData.data
 
-    return NextResponse.json({ message: 'Successfully joined waitlist' }, { status: 200 })
+    // Add the email to the waitlist and send confirmation email
+    const result = await addToWaitlist(email)
+
+    if (!result.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: result.message,
+        },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Successfully added to waitlist',
+    })
   } catch (error) {
-    logger.error(`[${requestId}] Waitlist error`, error)
-    return NextResponse.json({ message: 'Failed to join waitlist' }, { status: 500 })
+    console.error('Waitlist API error:', error)
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'An error occurred while processing your request',
+      },
+      { status: 500 }
+    )
   }
 }

@@ -8,6 +8,7 @@ export interface Notification {
   isVisible: boolean
   workflowId: string | null
   read: boolean
+  isFading?: boolean
   options?: NotificationOptions
 }
 
@@ -29,12 +30,14 @@ export interface NotificationStore {
     message: string,
     workflowId: string | null,
     options?: NotificationOptions
-  ) => void
+  ) => string
   hideNotification: (id: string) => void
   showNotification: (id: string) => void
+  setNotificationFading: (id: string) => void
   markAsRead: (id: string) => void
   markAllAsRead: (workflowId: string) => void
   removeNotification: (id: string) => void
   clearNotifications: () => void
   getWorkflowNotifications: (workflowId: string) => Notification[]
+  getVisibleNotificationCount: (workflowId: string | null) => number
 }

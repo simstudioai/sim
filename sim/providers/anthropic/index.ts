@@ -10,7 +10,7 @@ export const anthropicProvider: ProviderConfig = {
   name: 'Anthropic',
   description: "Anthropic's Claude models",
   version: '1.0.0',
-  models: ['claude-3-7-sonnet-20250219'],
+  models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
   defaultModel: 'claude-3-7-sonnet-20250219',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { marketplace, user, workflow } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 
 // Create a logger for this module
 const logger = createLogger('MarketplacePublishAPI')
@@ -40,7 +40,8 @@ export async function POST(request: NextRequest) {
     try {
       // Parse request body
       const body = await request.json()
-      const { workflowId, name, description, category, authorName, workflowState } = PublishRequestSchema.parse(body)
+      const { workflowId, name, description, category, authorName, workflowState } =
+        PublishRequestSchema.parse(body)
 
       // Check if the workflow belongs to the user
       const userWorkflow = await db
@@ -50,7 +51,9 @@ export async function POST(request: NextRequest) {
         .limit(1)
 
       if (!userWorkflow.length || userWorkflow[0].id !== workflowId) {
-        logger.warn(`[${requestId}] User ${userId} attempted to publish workflow they don't own: ${workflowId}`)
+        logger.warn(
+          `[${requestId}] User ${userId} attempted to publish workflow they don't own: ${workflowId}`
+        )
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
@@ -148,4 +151,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Marketplace publish error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-} 
+}

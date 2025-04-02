@@ -28,6 +28,12 @@ const modelPricing: ModelPricingMap = {
   },
 
   // Anthropic Models
+  'claude-3-5-sonnet-20240620': {
+    input: 3.0,
+    cachedInput: 1.5,
+    output: 15.0,
+    updatedAt: '2024-06-20',
+  },
   'claude-3-7-sonnet-20250219': {
     input: 3.0,
     cachedInput: 1.5,
@@ -41,6 +47,12 @@ const modelPricing: ModelPricingMap = {
     cachedInput: 0.05,
     output: 0.4,
     updatedAt: '2025-03-21',
+  },
+  'gemini-2.5-pro-exp-03-25': {
+    input: 0.15,
+    cachedInput: 0.075,
+    output: 0.6,
+    updatedAt: '2025-03-25',
   },
 
   // Deepseek Models

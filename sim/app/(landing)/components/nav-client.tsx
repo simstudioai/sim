@@ -50,6 +50,13 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
         {/* Social media icons */}
         <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
           <a
+            href={`${process.env.NEXT_PUBLIC_DOCS_URL}/docs`}
+            className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
+            rel="noopener noreferrer"
+          >
+            docs
+          </a>
+          <a
             href="https://x.com/simstudioai"
             className="text-white/80 hover:text-white/100 p-2 rounded-md group hover:scale-[1.04] transition-colors transition-transform duration-200"
             aria-label="Twitter"
@@ -59,7 +66,7 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
             <XIcon />
           </a>
           <a
-            href="https://discord.gg/pQKwMTvNrg"
+            href="https://discord.gg/Hr4UWYEcTT"
             className="text-white/80 hover:text-white/100 p-2 rounded-md group hover:scale-[1.04] transition-colors transition-transform duration-200"
             aria-label="Discord"
             target="_blank"

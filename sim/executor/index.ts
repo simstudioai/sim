@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { useConsoleStore } from '@/stores/panel/console/store'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { BlockOutput } from '@/blocks/types'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -39,14 +39,25 @@ export class Executor {
     private workflow: SerializedWorkflow,
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
-    private workflowVariables: Record<string, any> = {},
-    workflowInput?: any
+    workflowInput?: any,
+    private workflowVariables: Record<string, any> = {}
   ) {
     this.validateWorkflow()
-    this.workflowInput = workflowInput || {}
 
-    this.resolver = new InputResolver(workflow, environmentVariables, workflowVariables)
+    if (workflowInput) {
+      this.workflowInput = workflowInput
+      logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2))
+    } else {
+      this.workflowInput = {}
+    }
+
     this.loopManager = new LoopManager(workflow.loops || {})
+    this.resolver = new InputResolver(
+      workflow,
+      environmentVariables,
+      workflowVariables,
+      this.loopManager
+    )
     this.pathTracker = new PathTracker(workflow)
 
     this.blockHandlers = [
@@ -281,8 +292,8 @@ export class Executor {
         throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
       }
 
-      if (loop.maxIterations <= 0) {
-        throw new Error(`Loop ${loopId} must have a positive maxIterations value`)
+      if (loop.iterations <= 0) {
+        throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
     }
   }
@@ -309,6 +320,7 @@ export class Executor {
         condition: new Map(),
       },
       loopIterations: new Map(),
+      loopItems: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: this.workflow,
@@ -322,24 +334,175 @@ export class Executor {
       })
     })
 
+    // Initialize loop iterations
+    if (this.workflow.loops) {
+      for (const loopId of Object.keys(this.workflow.loops)) {
+        // Start all loops at iteration 0
+        context.loopIterations.set(loopId, 0)
+      }
+    }
+
     const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
       // Initialize the starter block with the workflow input
-      const starterOutput = {
-        response: {
-          input: this.workflowInput,
-        },
+      try {
+        const blockParams = starterBlock.config.params
+        /* Commenting out input format handling
+        const inputFormat = blockParams?.inputFormat
+
+        // If input format is defined, structure the input according to the schema
+        if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
+          // Create structured input based on input format
+          const structuredInput: Record<string, any> = {}
+
+          // Process each field in the input format
+          for (const field of inputFormat) {
+            if (field.name && field.type) {
+              // Get the field value from workflow input if available
+              // First try to access via input.field, then directly from field
+              // This handles both input formats: { input: { field: value } } and { field: value }
+              const inputValue = this.workflowInput?.input?.[field.name] !== undefined 
+                ? this.workflowInput.input[field.name]  // Try to get from input.field
+                : this.workflowInput?.[field.name];     // Fallback to direct field access
+              
+              logger.info(`[Executor] Processing input field ${field.name} (${field.type}):`, 
+                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined');
+
+              // Convert the value to the appropriate type
+              let typedValue = inputValue
+              if (inputValue !== undefined) {
+                if (field.type === 'number' && typeof inputValue !== 'number') {
+                  typedValue = Number(inputValue)
+                } else if (field.type === 'boolean' && typeof inputValue !== 'boolean') {
+                  typedValue = inputValue === 'true' || inputValue === true
+                } else if (
+                  (field.type === 'object' || field.type === 'array') &&
+                  typeof inputValue === 'string'
+                ) {
+                  try {
+                    typedValue = JSON.parse(inputValue)
+                  } catch (e) {
+                    logger.warn(`Failed to parse ${field.type} input for field ${field.name}:`, e)
+                  }
+                }
+              }
+
+              // Add the field to structured input
+              structuredInput[field.name] = typedValue
+            }
+          }
+
+          // Check if we managed to process any fields - if not, use the raw input
+          const hasProcessedFields = Object.keys(structuredInput).length > 0;
+          
+          // If no fields matched the input format, extract the raw input to use instead
+          const rawInputData = this.workflowInput?.input !== undefined
+            ? this.workflowInput.input  // Use the nested input data
+            : this.workflowInput;       // Fallback to direct input
+          
+          // Use the structured input if we processed fields, otherwise use raw input
+          const finalInput = hasProcessedFields ? structuredInput : rawInputData;
+          
+          // Initialize the starter block with structured input
+          // Ensure both input and direct fields are available
+          const starterOutput = {
+            response: {
+              input: finalInput,
+              ...finalInput, // Add input fields directly at response level too
+            },
+          }
+          
+          logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2));
+
+          context.blockStates.set(starterBlock.id, {
+            output: starterOutput,
+            executed: true,
+            executionTime: 0,
+          })
+        } else {
+        */
+        // No input format defined or not an array,
+        // Handle API call - prioritize using the input as-is
+        if (this.workflowInput && typeof this.workflowInput === 'object') {
+          // For API calls, extract input from the nested structure if it exists
+          const inputData =
+            this.workflowInput.input !== undefined
+              ? this.workflowInput.input // Use the nested input data
+              : this.workflowInput // Fallback to direct input
+
+          // Create starter output with both formats for maximum compatibility
+          const starterOutput = {
+            response: {
+              input: inputData,
+              ...inputData, // Make fields directly accessible at response level
+            },
+          }
+
+          logger.info(`[Executor] API input for starter block:`, {
+            type: typeof inputData,
+            isArray: Array.isArray(inputData),
+            keys: Object.keys(inputData),
+            inputData: JSON.stringify(inputData, null, 2),
+          })
+
+          logger.info(
+            `[Executor] Final starter block output:`,
+            JSON.stringify(starterOutput, null, 2)
+          )
+
+          context.blockStates.set(starterBlock.id, {
+            output: starterOutput,
+            executed: true,
+            executionTime: 0,
+          })
+        } else {
+          // Fallback for other cases
+          const starterOutput = {
+            response: {
+              input: this.workflowInput,
+            },
+          }
+
+          logger.info(`[Executor] Simple starter output:`, JSON.stringify(starterOutput, null, 2))
+
+          context.blockStates.set(starterBlock.id, {
+            output: starterOutput,
+            executed: true,
+            executionTime: 0,
+          })
+        }
+        //} // End of inputFormat conditional
+      } catch (e) {
+        logger.warn('Error processing starter block input format:', e)
+
+        // Fallback to raw input with both paths accessible
+        // Ensure we handle both input formats
+        const inputData =
+          this.workflowInput.input !== undefined
+            ? this.workflowInput.input // Use nested input if available
+            : this.workflowInput // Fallback to direct input
+
+        const starterOutput = {
+          response: {
+            input: inputData,
+            ...inputData, // Add input fields directly at response level too
+          },
+        }
+
+        logger.info(`[Executor] Fallback starter output:`, JSON.stringify(starterOutput, null, 2))
+
+        context.blockStates.set(starterBlock.id, {
+          output: starterOutput,
+          executed: true,
+          executionTime: 0,
+        })
       }
-
-      context.blockStates.set(starterBlock.id, {
-        output: starterOutput,
-        executed: true,
-        executionTime: 0,
-      })
-
-      // Mark the starter block as executed and add its connections to the active path
+      // Ensure the starter block is in the active execution path
+      context.activeExecutionPath.add(starterBlock.id)
+      // Mark the starter block as executed
       context.executedBlocks.add(starterBlock.id)
 
+      // Add all blocks connected to the starter to the active execution path
       const connectedToStarter = this.workflow.connections
         .filter((conn) => conn.source === starterBlock.id)
         .map((conn) => conn.target)
@@ -392,6 +555,11 @@ export class Executor {
       } else {
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
+          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
+          const sourceBlockState = context.blockStates.get(conn.source)
+          const hasSourceError =
+            sourceBlockState?.output?.error !== undefined ||
+            sourceBlockState?.output?.response?.error !== undefined
 
           // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
@@ -411,7 +579,6 @@ export class Executor {
           }
 
           // For router blocks, check if this is the selected target
-          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
           if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(conn.source)
 
@@ -422,6 +589,16 @@ export class Executor {
 
             // Otherwise, this dependency is met only if source is executed and this is the selected target
             return sourceExecuted && conn.target === selectedTarget
+          }
+
+          // For error connections, check if the source had an error
+          if (conn.sourceHandle === 'error') {
+            return sourceExecuted && hasSourceError
+          }
+
+          // For regular connections, check if the source was executed without error
+          if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+            return sourceExecuted && !hasSourceError
           }
 
           // If source is not in active path, consider this dependency met
@@ -510,25 +687,52 @@ export class Executor {
         throw new Error(`Cannot execute disabled block: ${block.metadata?.name || block.id}`)
       }
 
-      const inputs = this.resolver.resolveInputs(block, context)
+      // Check if this block needs the starter block's output
+      // This is especially relevant for API, function, and conditions that might reference <start.response.input>
+      const starterBlock = this.workflow.blocks.find((b) => b.metadata?.id === 'starter')
+      if (starterBlock) {
+        const starterState = context.blockStates.get(starterBlock.id)
+        if (!starterState) {
+          logger.warn(
+            `Starter block state not found when executing ${block.metadata?.name || blockId}. This may cause reference errors.`
+          )
+        } else {
+          logger.debug(
+            `Starter block state available for ${block.metadata?.name || blockId}:`,
+            JSON.stringify(starterState.output || {}, null, 2)
+          )
+        }
+      }
 
+      // Resolve inputs (which will look up references to other blocks including starter)
+      const inputs = this.resolver.resolveInputs(block, context)
+      logger.debug(
+        `Resolved inputs for ${block.metadata?.name || blockId}:`,
+        JSON.stringify(inputs, null, 2)
+      )
+
+      // Find the appropriate handler
       const handler = this.blockHandlers.find((h) => h.canHandle(block))
       if (!handler) {
         throw new Error(`No handler found for block type: ${block.metadata?.id}`)
       }
 
+      // Execute the block
       const startTime = performance.now()
       const rawOutput = await handler.execute(block, inputs, context)
       const executionTime = performance.now() - startTime
 
+      // Normalize the output
       const output = this.normalizeBlockOutput(rawOutput, block)
 
+      // Update the context with the execution result
       context.blockStates.set(blockId, {
         output,
         executed: true,
         executionTime,
       })
 
+      // Update the execution log
       blockLog.success = true
       blockLog.output = output
       blockLog.durationMs = Math.round(executionTime)
@@ -556,6 +760,7 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
+      // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
       addConsole({
         output: {},
@@ -570,6 +775,37 @@ export class Executor {
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
+
+      // Create error output with appropriate structure
+      const errorOutput: NormalizedBlockOutput = {
+        response: {
+          error: this.extractErrorMessage(error),
+          status: error.status || 500,
+        },
+        error: this.extractErrorMessage(error),
+      }
+
+      // Set block state with error output
+      context.blockStates.set(blockId, {
+        output: errorOutput,
+        executed: true,
+        executionTime: blockLog.durationMs,
+      })
+
+      // Check for error connections and follow them if they exist
+      const hasErrorPath = this.activateErrorPath(blockId, context)
+
+      // Console.error the error for visibility
+      logger.error(
+        `Error executing block ${block.metadata?.name || blockId}:`,
+        this.sanitizeError(error)
+      )
+
+      // If there are error paths to follow, return error output instead of throwing
+      if (hasErrorPath) {
+        // Return the error output to allow execution to continue along error path
+        return errorOutput
+      }
 
       // Create a proper error message that is never undefined
       let errorMessage = error.message
@@ -591,6 +827,39 @@ export class Executor {
   }
 
   /**
+   * Activates error paths from a block that had an error.
+   * Checks for connections from the block's "error" handle and adds them to the active execution path.
+   *
+   * @param blockId - ID of the block that had an error
+   * @param context - Current execution context
+   * @returns Whether there was an error path to follow
+   */
+  private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
+    // Skip for starter blocks which don't have error handles
+    const block = this.workflow.blocks.find((b) => b.id === blockId)
+    if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
+      return false
+    }
+
+    // Look for connections from this block's error handle
+    const errorConnections = this.workflow.connections.filter(
+      (conn) => conn.source === blockId && conn.sourceHandle === 'error'
+    )
+
+    if (errorConnections.length === 0) {
+      return false
+    }
+
+    // Add all error connection targets to the active execution path
+    for (const conn of errorConnections) {
+      context.activeExecutionPath.add(conn.target)
+      logger.info(`Activated error path from ${blockId} to ${conn.target}`)
+    }
+
+    return true
+  }
+
+  /**
    * Normalizes a block output to ensure it has the expected structure.
    * Handles different block types with appropriate response formats.
    *
@@ -599,7 +868,25 @@ export class Executor {
    * @returns Normalized output with consistent structure
    */
   private normalizeBlockOutput(output: any, block: SerializedBlock): NormalizedBlockOutput {
+    // Handle error outputs
+    if (output && typeof output === 'object' && output.error) {
+      return {
+        response: {
+          error: output.error,
+          status: output.status || 500,
+        },
+        error: output.error,
+      }
+    }
+
     if (output && typeof output === 'object' && 'response' in output) {
+      // If response already contains an error, maintain it
+      if (output.response && output.response.error) {
+        return {
+          ...output,
+          error: output.response.error,
+        }
+      }
       return output as NormalizedBlockOutput
     }
 
@@ -725,61 +1012,35 @@ export class Executor {
    * @returns A meaningful error message string
    */
   private extractErrorMessage(error: any): string {
-    if (!error) return 'Unknown error occurred'
-
-    // Handle Error instances
-    if (error instanceof Error) {
-      return error.message || `Error: ${String(error)}`
-    }
-
-    // Handle string errors
+    // If it's already a string, return it
     if (typeof error === 'string') {
       return error
     }
 
-    // Handle object errors with nested structure
-    if (typeof error === 'object') {
-      // Case: { error: { message: "msg" } }
-      if (error.error && typeof error.error === 'object' && error.error.message) {
-        return error.error.message
-      }
-
-      // Case: { error: "msg" }
-      if (error.error && typeof error.error === 'string') {
-        return error.error
-      }
-
-      // Case: { message: "msg" }
-      if (error.message) {
-        return error.message
-      }
-
-      // Add specific handling for HTTP errors
-      if (error.status || error.request) {
-        let message = 'API request failed'
-
-        // Add URL information if available
-        if (error.request && error.request.url) {
-          message += `: ${error.request.url}`
-        }
-
-        // Add status code if available
-        if (error.status) {
-          message += ` (Status: ${error.status})`
-        }
-
-        return message
-      }
-
-      // Last resort: try to stringify the object
-      try {
-        return `Error details: ${JSON.stringify(error)}`
-      } catch {
-        return 'Error occurred but details could not be displayed'
-      }
+    // If it has a message property, use that
+    if (error.message) {
+      return error.message
     }
 
-    return 'Unknown error occurred'
+    // If it's an object with response data, include that
+    if (error.response?.data) {
+      const data = error.response.data
+      if (typeof data === 'string') {
+        return data
+      }
+      if (data.message) {
+        return data.message
+      }
+      return JSON.stringify(data)
+    }
+
+    // If it's an object, stringify it
+    if (typeof error === 'object') {
+      return JSON.stringify(error)
+    }
+
+    // Fallback to string conversion
+    return String(error)
   }
 
   /**
@@ -790,44 +1051,34 @@ export class Executor {
    * @returns A sanitized version of the error for logging
    */
   private sanitizeError(error: any): any {
-    if (!error) return { message: 'No error details available' }
-
-    // Handle Error instances
-    if (error instanceof Error) {
-      return {
-        message: error.message || 'Error without message',
-        stack: error.stack,
-      }
-    }
-
-    // Handle string errors
+    // If it's already a string, return it
     if (typeof error === 'string') {
-      return { message: error }
-    }
-
-    // Handle object errors with nested structure
-    if (typeof error === 'object') {
-      // If error has a nested error object with undefined message, fix it
-      if (error.error && typeof error.error === 'object') {
-        if (!error.error.message) {
-          error.error.message = 'No specific error message provided'
-        }
-      }
-
-      // If no message property exists at root level, add one
-      if (!error.message) {
-        if (error.error && typeof error.error === 'string') {
-          error.message = error.error
-        } else if (error.status) {
-          error.message = `API request failed with status ${error.status}`
-        } else {
-          error.message = 'Error occurred during workflow execution'
-        }
-      }
-
       return error
     }
 
-    return { message: `Unexpected error type: ${typeof error}` }
+    // If it has a message property, return that
+    if (error.message) {
+      return error.message
+    }
+
+    // If it's an object with response data, include that
+    if (error.response?.data) {
+      const data = error.response.data
+      if (typeof data === 'string') {
+        return data
+      }
+      if (data.message) {
+        return data.message
+      }
+      return JSON.stringify(data)
+    }
+
+    // If it's an object, stringify it
+    if (typeof error === 'object') {
+      return JSON.stringify(error)
+    }
+
+    // Fallback to string conversion
+    return String(error)
   }
 }

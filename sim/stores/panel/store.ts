@@ -22,4 +22,4 @@ export const usePanelStore = create<PanelStore>()(
       }
     )
   )
-) 
+)

@@ -1,7 +1,8 @@
 import { ChartBarIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { ProviderId } from '@/providers/types'
-import { MODEL_PROVIDERS } from '@/providers/utils'
+import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig, ParamType } from '../types'
 
@@ -125,7 +126,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   longDescription:
     'Assess content quality using customizable evaluation metrics and scoring criteria. Create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.',
   category: 'tools',
-  bgColor: '#2FA1FF',
+  bgColor: '#4D5FFF',
   icon: ChartBarIcon,
   subBlocks: [
     {
@@ -146,7 +147,11 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: Object.keys(MODEL_PROVIDERS),
+      options: () => {
+        const ollamaModels = useOllamaStore.getState().models
+        const baseModels = Object.keys(getBaseModelProviders())
+        return [...baseModels, ...ollamaModels]
+      },
     },
     {
       id: 'apiKey',
@@ -218,7 +223,7 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = MODEL_PROVIDERS[model as ProviderId]
+        const tool = getAllModelProviders()[model as ProviderId]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

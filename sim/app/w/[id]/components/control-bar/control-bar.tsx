@@ -43,6 +43,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -206,15 +207,67 @@ export function ControlBar() {
   }
 
   /**
+   * Get an example of the input format for the workflow
+   */
+  const getInputFormatExample = () => {
+    let inputFormatExample = ''
+    try {
+      // Find the starter block in the workflow
+      const blocks = Object.values(useWorkflowStore.getState().blocks)
+      const starterBlock = blocks.find((block) => block.type === 'starter')
+
+      if (starterBlock) {
+        const inputFormat = useSubBlockStore.getState().getValue(starterBlock.id, 'inputFormat')
+
+        // If input format is defined, create an example
+        if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
+          const exampleData: Record<string, any> = {}
+
+          // Create example values for each field
+          inputFormat.forEach((field) => {
+            if (field.name) {
+              switch (field.type) {
+                case 'string':
+                  exampleData[field.name] = 'example'
+                  break
+                case 'number':
+                  exampleData[field.name] = 42
+                  break
+                case 'boolean':
+                  exampleData[field.name] = true
+                  break
+                case 'object':
+                  exampleData[field.name] = { key: 'value' }
+                  break
+                case 'array':
+                  exampleData[field.name] = [1, 2, 3]
+                  break
+              }
+            }
+          })
+
+          inputFormatExample = ` -d '${JSON.stringify(exampleData)}'`
+        }
+      }
+    } catch (error) {
+      console.error('Error generating input format example:', error)
+    }
+
+    return inputFormatExample
+  }
+
+  /**
    * Workflow deployment handler
    */
   const handleDeploy = async () => {
     if (!activeWorkflowId) return
 
-    // If already deployed, show the existing deployment info instead of redeploying
+    const inputFormatExample = getInputFormatExample()
+
+    // If already deployed, show the API info
     if (isDeployed) {
-      // Find existing API notification for this workflow
-      const apiNotification = workflowNotifications.find(
+      // Try to find an existing API notification
+      const apiNotification = notifications.find(
         (n) => n.type === 'api' && n.workflowId === activeWorkflowId
       )
 
@@ -244,11 +297,13 @@ export function ControlBar() {
             },
             {
               label: 'API Key',
-              content: apiKey,
+              content: apiKey || 'No API key found. Visit your account settings to create one.',
             },
             {
               label: 'Example curl command',
-              content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+              content: apiKey
+                ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
+                : `You need an API key to call this endpoint. Visit your account settings to create one.`,
             },
           ],
         })
@@ -285,11 +340,13 @@ export function ControlBar() {
           },
           {
             label: 'API Key',
-            content: apiKey,
+            content: apiKey || 'No API key found. Visit your account settings to create one.',
           },
           {
             label: 'Example curl command',
-            content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json" ${endpoint}`,
+            content: apiKey
+              ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
+              : `You need an API key to call this endpoint. Visit your account settings to create one.`,
           },
         ],
       })
@@ -327,6 +384,9 @@ export function ControlBar() {
     setIsMultiRunning(true)
     setShowRunProgress(runCount > 1)
 
+    let result = null
+    let workflowError = null
+
     try {
       // Run the workflow multiple times sequentially
       for (let i = 0; i < runCount; i++) {
@@ -347,13 +407,18 @@ export function ControlBar() {
         }
       }
     } catch (error) {
+      workflowError = error
       logger.error('Error during multiple workflow runs:', { error })
-      addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
     } finally {
       setIsMultiRunning(false)
       // Keep progress visible for a moment after completion
       if (runCount > 1) {
         setTimeout(() => setShowRunProgress(false), 2000)
+      }
+
+      // Show notification after state is updated
+      if (workflowError) {
+        addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
       }
     }
   }
@@ -442,7 +507,7 @@ export function ControlBar() {
           size="icon"
           onClick={handleDeploy}
           disabled={isDeploying}
-          className={cn('hover:text-[#7F2FFF]', isDeployed && 'text-[#7F2FFF]')}
+          className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
         >
           {isDeploying ? (
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -579,7 +644,7 @@ export function ControlBar() {
           size="icon"
           onClick={handlePublishWorkflow}
           disabled={isPublishing}
-          className={cn('hover:text-[#7F2FFF]', isPublished && 'text-[#7F2FFF]')}
+          className={cn('hover:text-[#802FFF]', isPublished && 'text-[#802FFF]')}
         >
           {isPublishing ? (
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -728,12 +793,12 @@ export function ControlBar() {
         <Button
           className={cn(
             'gap-2 font-medium',
-            'bg-[#7F2FFF] hover:bg-[#7028E6]',
-            'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+            'bg-[#802FFF] hover:bg-[#7028E6]',
+            'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
             'text-white transition-all duration-200',
             (isExecuting || isMultiRunning) &&
               'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-            'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
+            'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
             isDebugModeEnabled
               ? 'rounded py-2 px-4 h-10'
               : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
@@ -766,12 +831,12 @@ export function ControlBar() {
               <Button
                 className={cn(
                   'px-2 font-medium',
-                  'bg-[#7F2FFF] hover:bg-[#7028E6]',
-                  'shadow-[0_0_0_0_#7F2FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                  'bg-[#802FFF] hover:bg-[#7028E6]',
+                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                   'text-white transition-all duration-200',
                   (isExecuting || isMultiRunning) &&
                     'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                  'disabled:opacity-50 disabled:hover:bg-[#7F2FFF] disabled:hover:shadow-none',
+                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
                   'rounded-l-none h-10'
                 )}
                 disabled={isExecuting || isMultiRunning}

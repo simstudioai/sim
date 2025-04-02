@@ -3,7 +3,23 @@ import { devtools, persist } from 'zustand/middleware'
 import { SubBlockConfig } from '@/blocks/types'
 import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
+import { workflowSync } from '../sync'
 
+// Add debounce utility for syncing
+let syncDebounceTimer: NodeJS.Timeout | null = null
+const DEBOUNCE_DELAY = 500 // 500ms delay for sync
+
+/**
+ * SubBlockState stores values for all subblocks in workflows
+ *
+ * Important implementation notes:
+ * 1. Values are stored per workflow, per block, per subblock
+ * 2. When workflows are synced to the database, the mergeSubblockState function
+ *    in utils.ts combines the block structure with these values
+ * 3. If a subblock value exists here but not in the block structure
+ *    (e.g., inputFormat in starter block), the merge function will include it
+ *    in the synchronized state to ensure persistence
+ */
 interface SubBlockState {
   workflowValues: Record<string, Record<string, Record<string, any>>> // Store values per workflow ID
 }
@@ -13,6 +29,8 @@ interface SubBlockStore extends SubBlockState {
   getValue: (blockId: string, subBlockId: string) => any
   clear: () => void
   initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => void
+  // Add debounced sync function
+  syncWithDB: () => void
 }
 
 export const useSubBlockStore = create<SubBlockStore>()(
@@ -41,6 +59,9 @@ export const useSubBlockStore = create<SubBlockStore>()(
           // Persist to localStorage for backup
           const currentValues = get().workflowValues[activeWorkflowId] || {}
           saveSubblockValues(activeWorkflowId, currentValues)
+
+          // Trigger debounced sync to DB
+          get().syncWithDB()
         },
 
         getValue: (blockId: string, subBlockId: string) => {
@@ -62,6 +83,9 @@ export const useSubBlockStore = create<SubBlockStore>()(
           }))
 
           saveSubblockValues(activeWorkflowId, {})
+
+          // Trigger sync to DB immediately on clear
+          workflowSync.sync()
         },
 
         initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
@@ -96,6 +120,20 @@ export const useSubBlockStore = create<SubBlockStore>()(
 
           // Save to localStorage
           saveSubblockValues(workflowId, values)
+        },
+
+        // Debounced sync function to trigger DB sync
+        syncWithDB: () => {
+          // Clear any existing timeout
+          if (syncDebounceTimer) {
+            clearTimeout(syncDebounceTimer)
+          }
+
+          // Set new timeout
+          syncDebounceTimer = setTimeout(() => {
+            // Trigger workflow sync to DB
+            workflowSync.sync()
+          }, DEBOUNCE_DELAY)
         },
       }),
       {

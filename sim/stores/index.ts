@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useChatStore } from './chat/store'
-import { useConsoleStore } from './panel/console/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
-import { useEnvironmentStore } from './settings/environment/store'
+import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
+import { useEnvironmentStore } from './settings/environment/store'
 import { getSyncManagers, initializeSyncManagers, resetSyncManagers } from './sync-registry'
 import {
   loadRegistry,
