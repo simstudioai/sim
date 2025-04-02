@@ -37,6 +37,7 @@ import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { AirtableBlock } from './blocks/airtable'
 import { BlockConfig } from './types'
+import { TwilioSMSBlock } from './blocks/twilio'
 
 // Export blocks for ease of use
 export {
@@ -75,6 +76,7 @@ export {
   GoogleSheetsBlock,
   PerplexityBlock,
   ConfluenceBlock,
+  TwilioSMSBlock,
   ImageGeneratorBlock,
   TypeformBlock,
 }
@@ -113,6 +115,7 @@ const blocks: Record<string, BlockConfig> = {
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
+  twilio_sms: TwilioSMSBlock,
   typeform: TypeformBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
