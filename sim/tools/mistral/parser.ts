@@ -1,5 +1,8 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { MistralParserInput, MistralParserOutput } from './types'
+
+const logger = createLogger('mistral-parser')
 
 export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutput> = {
   id: 'mistral_parser',
@@ -57,7 +60,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
     url: 'https://api.mistral.ai/v1/ocr',
     method: 'POST',
     headers: (params) => {
-      console.log(
+      logger.info(
         'Setting up headers with API key:',
         params.apiKey ? `${params.apiKey.substring(0, 5)}...` : 'Missing'
       )
@@ -100,7 +103,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
 
           // Set the filePath parameter
           params.filePath = uploadedFilePath
-          console.log('Using uploaded file:', uploadedFilePath)
+          logger.info('Using uploaded file:', uploadedFilePath)
         } else {
           throw new Error('Invalid file upload: Upload data is missing or invalid')
         }
@@ -138,14 +141,14 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         if (!pathname.endsWith('.pdf')) {
           // Check if PDF is included in the path at all
           if (!pathname.includes('pdf')) {
-            console.warn(
+            logger.warn(
               'Warning: URL does not appear to point to a PDF document. ' +
                 'The Mistral OCR API is designed to work with PDF files. ' +
                 'Please ensure your URL points to a valid PDF document (ideally ending with .pdf extension).'
             )
           } else {
             // If "pdf" is in the URL but not at the end, give a different warning
-            console.warn(
+            logger.warn(
               'Warning: URL contains "pdf" but does not end with .pdf extension. ' +
                 'This might still work if the server returns a valid PDF document despite the missing extension.'
             )
@@ -172,7 +175,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       // Include images (base64)
       if (params.includeImageBase64 !== undefined) {
         if (typeof params.includeImageBase64 !== 'boolean') {
-          console.warn('includeImageBase64 parameter should be a boolean, using default (false)')
+          logger.warn('includeImageBase64 parameter should be a boolean, using default (false)')
         } else {
           requestBody.include_image_base64 = params.includeImageBase64
         }
@@ -190,16 +193,16 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
             requestBody.pages = validPages
 
             if (validPages.length !== params.pages.length) {
-              console.warn(
+              logger.warn(
                 `Some invalid page numbers were removed. ` +
                   `Using ${validPages.length} valid pages: ${validPages.join(', ')}`
               )
             }
           } else {
-            console.warn('No valid page numbers provided, processing all pages')
+            logger.warn('No valid page numbers provided, processing all pages')
           }
         } else if (Array.isArray(params.pages) && params.pages.length === 0) {
-          console.warn('Empty pages array provided, processing all pages')
+          logger.warn('Empty pages array provided, processing all pages')
         }
       }
 
@@ -209,7 +212,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         if (Number.isInteger(imageLimit) && imageLimit > 0) {
           requestBody.image_limit = imageLimit
         } else {
-          console.warn('imageLimit must be a positive integer, ignoring this parameter')
+          logger.warn('imageLimit must be a positive integer, ignoring this parameter')
         }
       }
 
@@ -219,12 +222,12 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
         if (Number.isInteger(imageMinSize) && imageMinSize > 0) {
           requestBody.image_min_size = imageMinSize
         } else {
-          console.warn('imageMinSize must be a positive integer, ignoring this parameter')
+          logger.warn('imageMinSize must be a positive integer, ignoring this parameter')
         }
       }
 
       // Log the request (with sensitive data redacted)
-      console.log('Mistral OCR request:', {
+      logger.info('Mistral OCR request:', {
         url: url.toString(),
         hasApiKey: !!params.apiKey,
         model: requestBody.model,
@@ -267,11 +270,15 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       // Set default values and extract from params if available
       let resultType: 'markdown' | 'text' | 'json' = 'markdown'
       let sourceUrl = ''
+      let isFileUpload = false
 
       if (params && typeof params === 'object') {
         if (params.filePath && typeof params.filePath === 'string') {
           sourceUrl = params.filePath.trim()
         }
+
+        // Check if this was a file upload
+        isFileUpload = !!params.fileUpload
 
         if (params.resultType && ['markdown', 'text', 'json'].includes(params.resultType)) {
           resultType = params.resultType as 'markdown' | 'text' | 'json'
@@ -296,7 +303,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           .filter(Boolean)
           .join('\n\n')
       } else {
-        console.warn('No pages found in OCR result, returning raw response')
+        logger.warn('No pages found in OCR result, returning raw response')
         content = JSON.stringify(ocrResult, null, 2)
       }
 
@@ -331,7 +338,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
             }
           }
         } catch (urlError) {
-          console.warn('Failed to parse document URL:', urlError)
+          logger.warn('Failed to parse document URL:', urlError)
         }
       }
 
@@ -355,35 +362,47 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
             }
           : undefined
 
+      // Create metadata object
+      const metadata: any = {
+        jobId,
+        fileType,
+        fileName,
+        source: 'url',
+        pageCount,
+        usageInfo,
+        model: typeof ocrResult.model === 'string' ? ocrResult.model : 'mistral-ocr-latest',
+        resultType,
+        processedAt: new Date().toISOString(),
+      }
+
+      // Only include sourceUrl for non-file-upload sources or URLs that don't contain our API endpoint
+      if (
+        !isFileUpload &&
+        sourceUrl &&
+        !sourceUrl.includes('/api/files/serve/') &&
+        !sourceUrl.includes('s3.amazonaws.com')
+      ) {
+        metadata.sourceUrl = sourceUrl
+      }
+
       // Return properly structured response
       const parserResponse: MistralParserOutput = {
         success: true,
         output: {
           content,
-          metadata: {
-            jobId,
-            fileType,
-            fileName,
-            source: 'url',
-            sourceUrl,
-            pageCount,
-            usageInfo,
-            model: typeof ocrResult.model === 'string' ? ocrResult.model : 'mistral-ocr-latest',
-            resultType,
-            processedAt: new Date().toISOString(),
-          },
+          metadata,
         },
       }
 
       return parserResponse
     } catch (error) {
-      console.error('Error processing OCR result:', error)
+      logger.error('Error processing OCR result:', error)
       throw error
     }
   },
 
   transformError: (error) => {
-    console.error('Mistral OCR processing error:', error)
+    logger.error('Mistral OCR processing error:', error)
 
     // Helper function to extract message from various error types
     const getErrorMessage = (err: any): string => {
