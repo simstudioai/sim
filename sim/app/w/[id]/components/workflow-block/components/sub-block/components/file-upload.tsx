@@ -542,17 +542,19 @@ export function FileUpload({
 
       {/* Show upload button if no files and not uploading */}
       {!hasFiles && !isUploading && (
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-center text-center font-normal"
-          onClick={handleOpenFileDialog}
-        >
-          <Upload className="mr-2 h-4 w-4" />
-          {multiple ? 'Upload Files' : 'Upload File'}
+        <div className="flex items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full justify-center text-center font-normal"
+            onClick={handleOpenFileDialog}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {multiple ? 'Upload Files' : 'Upload File'}
+          </Button>
 
           <Tooltip>
-            <TooltipTrigger className="ml-1">
+            <TooltipTrigger className="ml-2">
               <Info className="h-4 w-4 text-muted-foreground" />
             </TooltipTrigger>
             <TooltipContent>
@@ -560,7 +562,7 @@ export function FileUpload({
               {multiple && <p>You can select multiple files at once</p>}
             </TooltipContent>
           </Tooltip>
-        </Button>
+        </div>
       )}
     </div>
   )
