@@ -1734,6 +1734,26 @@ export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function TwilioIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 256 256"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle cx="128" cy="128" r="128" fill="none" stroke="white" strokeWidth="21"/>
+      <circle cx="85" cy="85" r="21" fill="white"/>
+      <circle cx="171" cy="85" r="21" fill="white"/>
+      <circle cx="85" cy="171" r="21" fill="white"/>
+      <circle cx="171" cy="171" r="21" fill="white"/>
+    </svg>
+  )
+}
+
 export function ImageIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
