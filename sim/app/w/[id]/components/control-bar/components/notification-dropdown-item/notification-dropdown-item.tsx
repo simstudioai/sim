@@ -5,7 +5,7 @@ import { ErrorIcon } from '@/components/icons'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { NotificationOptions, NotificationType } from '@/stores/notifications/types'
+import { Notification, NotificationOptions, NotificationType } from '@/stores/notifications/types'
 
 interface NotificationDropdownItemProps {
   id: string
@@ -40,7 +40,8 @@ export function NotificationDropdownItem({
   options,
   setDropdownOpen,
 }: NotificationDropdownItemProps) {
-  const { showNotification } = useNotificationStore()
+  const { notifications, showNotification, hideNotification, removeNotification, addNotification } =
+    useNotificationStore()
   const Icon = NotificationIcon[type]
   const [, forceUpdate] = useState({})
 
@@ -50,11 +51,59 @@ export function NotificationDropdownItem({
     return () => clearInterval(interval)
   }, [])
 
+  // Find the full notification object from the store
+  const getFullNotification = (): Notification | undefined => {
+    return notifications.find((n) => n.id === id)
+  }
+
   // Handle click to show the notification
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    showNotification(id)
+
+    const notification = getFullNotification()
+
+    if (notification) {
+      // For persistent notifications like API info, just re-show them
+      if (notification.options?.isPersistent) {
+        showNotification(id)
+      } else {
+        // For non-persistent notifications, we have different strategies:
+
+        if (notification.isVisible) {
+          if (notification.isFading) {
+            // If it's currently fading, remove and re-add it to restart animation sequence
+            removeNotification(id)
+
+            // Re-add with same properties but new ID
+            addNotification(
+              notification.type,
+              notification.message,
+              notification.workflowId,
+              notification.options
+            )
+          } else {
+            // If visible but not fading, just make sure it's at the top of the stack
+            showNotification(id)
+          }
+        } else {
+          // If not visible, we re-add it instead of just showing it
+          // This ensures a fresh animation sequence
+
+          // Create a new notification with same properties
+          addNotification(
+            notification.type,
+            notification.message,
+            notification.workflowId,
+            notification.options
+          )
+        }
+      }
+    } else {
+      // Fallback for any case where the notification doesn't exist anymore
+      addNotification(type, message, null, options)
+    }
+
     // Close the dropdown after clicking
     if (setDropdownOpen) {
       setDropdownOpen(false)

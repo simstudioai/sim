@@ -11,7 +11,7 @@ type AirtableResponse = AirtableReadResponse | AirtableWriteResponse | AirtableU
 export const AirtableBlock: BlockConfig<AirtableResponse> = {
   type: 'airtable',
   name: 'Airtable',
-  description: 'Read, write, and update Airtable records',
+  description: 'Read, write, and update Airtable',
   longDescription:
     'Integrate Airtable functionality to manage table records. Read data from existing tables, ' +
     'write new records, and update existing ones using OAuth authentication. Supports table ' +
