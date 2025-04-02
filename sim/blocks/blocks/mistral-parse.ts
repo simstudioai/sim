@@ -1,24 +1,73 @@
-import { MistralParserOutput } from '@/tools/mistral/parser'
-import { BlockConfig } from '../types'
 import { MistralIcon } from '@/components/icons'
+import { MistralParserOutput } from '@/tools/mistral/types'
+import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
+
+const isProduction = process.env.NODE_ENV === 'production'
+const isS3Enabled = process.env.USE_S3 === 'true'
+const shouldEnableFileUpload = isProduction || isS3Enabled
+
+// Define the input method selector block when needed
+const inputMethodBlock: SubBlockConfig = {
+  id: 'inputMethod',
+  title: 'Select Input Method',
+  type: 'dropdown' as SubBlockType,
+  layout: 'full' as SubBlockLayout,
+  options: [
+    { id: 'url', label: 'PDF Document URL' },
+    { id: 'upload', label: 'Upload PDF Document' },
+  ],
+}
+
+// Define the file upload block when needed
+const fileUploadBlock: SubBlockConfig = {
+  id: 'fileUpload',
+  title: 'Upload PDF',
+  type: 'file-upload' as SubBlockType,
+  layout: 'full' as SubBlockLayout,
+  acceptedTypes: 'application/pdf',
+  condition: {
+    field: 'inputMethod',
+    value: 'upload',
+  },
+}
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
   longDescription:
-    'Extract text and structure from PDF documents using Mistral\'s OCR API. Enter a URL to a PDF document (.pdf extension required), configure processing options, and get the content in your preferred format. The URL must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.',
+    "Extract text and structure from PDF documents using Mistral's OCR API." +
+    (shouldEnableFileUpload
+      ? ' Either enter a URL to a PDF document or upload a PDF file directly.'
+      : ' Enter a URL to a PDF document (.pdf extension required).') +
+    ' Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.',
   category: 'tools',
   bgColor: '#000000',
   icon: MistralIcon,
   subBlocks: [
+    // Show input method selection only if file upload is available
+    ...(shouldEnableFileUpload ? [inputMethodBlock] : []),
+
+    // URL input - always shown, but conditional on inputMethod in production
     {
       id: 'filePath',
       title: 'PDF Document URL',
-      type: 'short-input',
-      layout: 'full',
+      type: 'short-input' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
       placeholder: 'Enter full URL to a PDF document (https://example.com/document.pdf)',
+      ...(shouldEnableFileUpload
+        ? {
+            condition: {
+              field: 'inputMethod',
+              value: 'url',
+            },
+          }
+        : {}),
     },
+
+    // File upload option - only shown in production environments
+    ...(shouldEnableFileUpload ? [fileUploadBlock] : []),
+
     {
       id: 'resultType',
       title: 'Output Format',
@@ -27,7 +76,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       options: [
         { id: 'markdown', label: 'Markdown (Formatted)' },
         { id: 'text', label: 'Plain Text' },
-        { id: 'json', label: 'JSON (Raw)' }
+        { id: 'json', label: 'JSON (Raw)' },
       ],
     },
     {
@@ -65,8 +114,8 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
     {
       id: 'apiKey',
       title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
+      type: 'short-input' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
       placeholder: 'Enter your Mistral API key',
       password: true,
     },
@@ -78,48 +127,40 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       params: (params) => {
         // Basic validation
         if (!params || !params.apiKey || params.apiKey.trim() === '') {
-          throw new Error('Mistral API key is required');
+          throw new Error('Mistral API key is required')
         }
-        
-        if (!params || !params.filePath || params.filePath.trim() === '') {
-          throw new Error('PDF Document URL is required');
+
+        // Build parameters object - file processing is now handled at the tool level
+        const parameters: any = {
+          apiKey: params.apiKey.trim(),
+          resultType: params.resultType || 'markdown',
         }
-        
-        // Validate URL format
-        let validatedUrl;
-        try {
-          // Try to create a URL object to validate format
-          validatedUrl = new URL(params.filePath.trim());
-          
-          // Ensure URL is using HTTP or HTTPS protocol
-          if (!['http:', 'https:'].includes(validatedUrl.protocol)) {
-            throw new Error(`URL must use HTTP or HTTPS protocol. Found: ${validatedUrl.protocol}`);
-          }
-          
-          // Check for PDF extension and provide specific guidance
-          const pathname = validatedUrl.pathname.toLowerCase();
-          if (!pathname.endsWith('.pdf')) {
-            if (!pathname.includes('pdf')) {
-              throw new Error(
-                'The URL does not appear to point to a PDF document. ' +
-                'Please provide a URL that ends with .pdf extension. ' +
-                'If your document is not a PDF, please convert it to PDF format first.'
-              );
-            } else {
-              // PDF is in the name but not at the end, so give a warning but proceed
-              console.warn(
-                'Warning: URL contains "pdf" but does not end with .pdf extension. ' +
-                'This might still work if the server returns a valid PDF document.'
-              );
+
+        // Set filePath or fileUpload based on input method (or directly use filePath if no method selector)
+        if (shouldEnableFileUpload) {
+          const inputMethod = params.inputMethod || 'url'
+          if (inputMethod === 'url') {
+            if (!params.filePath || params.filePath.trim() === '') {
+              throw new Error('PDF Document URL is required')
             }
+            parameters.filePath = params.filePath.trim()
+          } else if (inputMethod === 'upload') {
+            if (!params.fileUpload) {
+              throw new Error('Please upload a PDF document')
+            }
+            // Pass the entire fileUpload object to the tool
+            parameters.fileUpload = params.fileUpload
           }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          throw new Error(`Invalid URL format: ${errorMessage}`);
+        } else {
+          // In local development, only URL input is available
+          if (!params.filePath || params.filePath.trim() === '') {
+            throw new Error('PDF Document URL is required')
+          }
+          parameters.filePath = params.filePath.trim()
         }
-        
-        // Process pages input (convert from comma-separated string to array of numbers)
-        let pagesArray: number[] | undefined = undefined;
+
+        // Convert pages input from string to array of numbers if provided
+        let pagesArray: number[] | undefined = undefined
         if (params.pages && params.pages.trim() !== '') {
           try {
             pagesArray = params.pages
@@ -127,77 +168,34 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
               .map((p: string) => p.trim())
               .filter((p: string) => p.length > 0)
               .map((p: string) => {
-                const num = parseInt(p, 10);
+                const num = parseInt(p, 10)
                 if (isNaN(num) || num < 0) {
-                  throw new Error(`Invalid page number: ${p}`);
+                  throw new Error(`Invalid page number: ${p}`)
                 }
-                return num;
-              });
-            
+                return num
+              })
+
             if (pagesArray && pagesArray.length === 0) {
-              pagesArray = undefined;
+              pagesArray = undefined
             }
           } catch (error: any) {
-            throw new Error(`Page number format error: ${error.message}`);
+            throw new Error(`Page number format error: ${error.message}`)
           }
         }
-        
-        // Process numeric inputs
-        let imageLimit: number | undefined = undefined;
-        if (params.imageLimit && params.imageLimit.trim() !== '') {
-          const limit = parseInt(params.imageLimit, 10);
-          if (!isNaN(limit) && limit > 0) {
-            imageLimit = limit;
-          } else {
-            throw new Error('Image limit must be a positive number');
-          }
-        }
-        
-        let imageMinSize: number | undefined = undefined;
-        if (params.imageMinSize && params.imageMinSize.trim() !== '') {
-          const size = parseInt(params.imageMinSize, 10);
-          if (!isNaN(size) && size > 0) {
-            imageMinSize = size;
-          } else {
-            throw new Error('Minimum image size must be a positive number');
-          }
-        }
-        
-        // Return structured parameters for the tool
-        const parameters: any = {
-          filePath: validatedUrl.toString(),
-          apiKey: params.apiKey.trim(),
-          resultType: params.resultType || 'markdown',
-        };
-        
-        // Add optional parameters if they're defined
+
+        // Add optional parameters
         if (pagesArray && pagesArray.length > 0) {
-          parameters.pages = pagesArray;
+          parameters.pages = pagesArray
         }
-        
-        /* 
-         * Image-related parameters - temporarily disabled
-         * Uncomment if PDF image extraction is needed
-         *
-        if (typeof params.includeImageBase64 === 'boolean') {
-          parameters.includeImageBase64 = params.includeImageBase64;
-        }
-        
-        if (imageLimit !== undefined) {
-          parameters.imageLimit = imageLimit;
-        }
-        
-        if (imageMinSize !== undefined) {
-          parameters.imageMinSize = imageMinSize;
-        }
-        */
-        
-        return parameters;
+
+        return parameters
       },
     },
   },
   inputs: {
-    filePath: { type: 'string', required: true },
+    inputMethod: { type: 'string', required: false },
+    filePath: { type: 'string', required: !shouldEnableFileUpload },
+    fileUpload: { type: 'json', required: false },
     apiKey: { type: 'string', required: true },
     resultType: { type: 'string', required: false },
     pages: { type: 'string', required: false },
@@ -214,4 +212,4 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
       },
     },
   },
-} 
+}
