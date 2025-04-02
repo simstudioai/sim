@@ -4,10 +4,10 @@ import { MistralIcon } from '@/components/icons'
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
-  name: 'Mistral PDF Parser',
+  name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
   longDescription:
-    'Extract text and structure from PDF documents using Mistral\'s OCR API. Enter a URL to a PDF document, configure processing options, and get the content in your preferred format.',
+    'Extract text and structure from PDF documents using Mistral\'s OCR API. Enter a URL to a PDF document (.pdf extension required), configure processing options, and get the content in your preferred format. The URL must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.',
   category: 'tools',
   bgColor: '#000000',
   icon: MistralIcon,
@@ -94,6 +94,24 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
           // Ensure URL is using HTTP or HTTPS protocol
           if (!['http:', 'https:'].includes(validatedUrl.protocol)) {
             throw new Error(`URL must use HTTP or HTTPS protocol. Found: ${validatedUrl.protocol}`);
+          }
+          
+          // Check for PDF extension and provide specific guidance
+          const pathname = validatedUrl.pathname.toLowerCase();
+          if (!pathname.endsWith('.pdf')) {
+            if (!pathname.includes('pdf')) {
+              throw new Error(
+                'The URL does not appear to point to a PDF document. ' +
+                'Please provide a URL that ends with .pdf extension. ' +
+                'If your document is not a PDF, please convert it to PDF format first.'
+              );
+            } else {
+              // PDF is in the name but not at the end, so give a warning but proceed
+              console.warn(
+                'Warning: URL contains "pdf" but does not end with .pdf extension. ' +
+                'This might still work if the server returns a valid PDF document.'
+              );
+            }
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
