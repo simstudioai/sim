@@ -80,6 +80,50 @@ function WorkflowContent() {
     }
   }, [])
 
+  // Handle drops
+  const findClosestOutput = useCallback(
+    (newNodePosition: { x: number; y: number }) => {
+      const existingBlocks = Object.entries(blocks)
+        .filter(([_, block]) => block.enabled)
+        .map(([id, block]) => ({
+          id,
+          type: block.type,
+          position: block.position,
+          distance: Math.sqrt(
+            Math.pow(block.position.x - newNodePosition.x, 2) +
+              Math.pow(block.position.y - newNodePosition.y, 2)
+          ),
+        }))
+        .sort((a, b) => a.distance - b.distance)
+
+      return existingBlocks[0] ? existingBlocks[0] : null
+    },
+    [blocks]
+  )
+
+  // Determine the appropriate source handle based on block type
+  const determineSourceHandle = useCallback((block: { id: string; type: string }) => {
+    // Default source handle
+    let sourceHandle = 'source'
+
+    // For condition blocks, use the first condition handle
+    if (block.type === 'condition') {
+      // Get just the first condition handle from the DOM
+      const conditionHandles = document.querySelectorAll(
+        `[data-nodeid^="${block.id}"][data-handleid^="condition-"]`
+      )
+      if (conditionHandles.length > 0) {
+        // Extract the full handle ID from the first condition handle
+        const handleId = conditionHandles[0].getAttribute('data-handleid')
+        if (handleId) {
+          sourceHandle = handleId
+        }
+      }
+    }
+
+    return sourceHandle
+  }, [])
+
   // Listen for toolbar block click events
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
@@ -112,13 +156,16 @@ function WorkflowContent() {
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
       if (isAutoConnectEnabled && type !== 'starter') {
-        const closestBlockId = findClosestOutput(centerPosition)
-        if (closestBlockId) {
+        const closestBlock = findClosestOutput(centerPosition)
+        if (closestBlock) {
+          // Get appropriate source handle
+          const sourceHandle = determineSourceHandle(closestBlock)
+
           addEdge({
             id: crypto.randomUUID(),
-            source: closestBlockId,
+            source: closestBlock.id,
             target: id,
-            sourceHandle: 'source',
+            sourceHandle,
             targetHandle: 'target',
             type: 'custom',
           })
@@ -134,7 +181,60 @@ function WorkflowContent() {
         handleAddBlockFromToolbar as EventListener
       )
     }
-  }, [project, blocks, addBlock, addEdge])
+  }, [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle])
+
+  // Update the onDrop handler
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+
+      try {
+        const data = JSON.parse(event.dataTransfer.getData('application/json'))
+        if (data.type === 'connectionBlock') return
+
+        const reactFlowBounds = event.currentTarget.getBoundingClientRect()
+        const position = project({
+          x: event.clientX - reactFlowBounds.left,
+          y: event.clientY - reactFlowBounds.top,
+        })
+
+        const blockConfig = getBlock(data.type)
+        if (!blockConfig) {
+          logger.error('Invalid block type:', { data })
+          return
+        }
+
+        const id = crypto.randomUUID()
+        const name = `${blockConfig.name} ${
+          Object.values(blocks).filter((b) => b.type === data.type).length + 1
+        }`
+
+        addBlock(id, data.type, name, position)
+
+        // Auto-connect logic
+        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+        if (isAutoConnectEnabled && data.type !== 'starter') {
+          const closestBlock = findClosestOutput(position)
+          if (closestBlock) {
+            // Get appropriate source handle
+            const sourceHandle = determineSourceHandle(closestBlock)
+
+            addEdge({
+              id: crypto.randomUUID(),
+              source: closestBlock.id,
+              target: id,
+              sourceHandle,
+              targetHandle: 'target',
+              type: 'workflowEdge',
+            })
+          }
+        }
+      } catch (err) {
+        logger.error('Error dropping block:', { err })
+      }
+    },
+    [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle]
+  )
 
   // Init workflow
   useEffect(() => {
@@ -303,76 +403,6 @@ function WorkflowContent() {
       }
     },
     [addEdge]
-  )
-
-  // Handle drops
-  const findClosestOutput = useCallback(
-    (newNodePosition: { x: number; y: number }) => {
-      const existingBlocks = Object.entries(blocks)
-        .filter(([_, block]) => block.enabled && block.type !== 'condition')
-        .map(([id, block]) => ({
-          id,
-          position: block.position,
-          distance: Math.sqrt(
-            Math.pow(block.position.x - newNodePosition.x, 2) +
-              Math.pow(block.position.y - newNodePosition.y, 2)
-          ),
-        }))
-        .sort((a, b) => a.distance - b.distance)
-
-      return existingBlocks[0]?.id
-    },
-    [blocks]
-  )
-
-  // Update the onDrop handler
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault()
-
-      try {
-        const data = JSON.parse(event.dataTransfer.getData('application/json'))
-        if (data.type === 'connectionBlock') return
-
-        const reactFlowBounds = event.currentTarget.getBoundingClientRect()
-        const position = project({
-          x: event.clientX - reactFlowBounds.left,
-          y: event.clientY - reactFlowBounds.top,
-        })
-
-        const blockConfig = getBlock(data.type)
-        if (!blockConfig) {
-          logger.error('Invalid block type:', { data })
-          return
-        }
-
-        const id = crypto.randomUUID()
-        const name = `${blockConfig.name} ${
-          Object.values(blocks).filter((b) => b.type === data.type).length + 1
-        }`
-
-        addBlock(id, data.type, name, position)
-
-        // Auto-connect logic
-        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        if (isAutoConnectEnabled && data.type !== 'starter') {
-          const closestBlockId = findClosestOutput(position)
-          if (closestBlockId) {
-            addEdge({
-              id: crypto.randomUUID(),
-              source: closestBlockId,
-              target: id,
-              sourceHandle: 'source',
-              targetHandle: 'target',
-              type: 'custom',
-            })
-          }
-        }
-      } catch (err) {
-        logger.error('Error dropping block:', { err })
-      }
-    },
-    [project, blocks, addBlock, addEdge, findClosestOutput]
   )
 
   // Update onPaneClick to only handle edge selection
