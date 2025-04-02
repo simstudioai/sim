@@ -38,17 +38,22 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   }
 
   // Log input to help debug
-  logger.info(`[${requestId}] Executing workflow with input:`, 
-    input ? JSON.stringify(input, null, 2) : 'No input provided');
-  
+  logger.info(
+    `[${requestId}] Executing workflow with input:`,
+    input ? JSON.stringify(input, null, 2) : 'No input provided'
+  )
+
   // Validate and structure input for maximum compatibility
-  let processedInput = input;
+  let processedInput = input
   if (input && typeof input === 'object') {
     // Ensure input is properly structured for the starter block
     if (input.input === undefined) {
       // If input is not already nested, structure it properly
-      processedInput = { input: input };
-      logger.info(`[${requestId}] Restructured input for workflow:`, JSON.stringify(processedInput, null, 2));
+      processedInput = { input: input }
+      logger.info(
+        `[${requestId}] Restructured input for workflow:`,
+        JSON.stringify(processedInput, null, 2)
+      )
     }
   }
 
@@ -174,7 +179,9 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
           // Otherwise use as is (already parsed JSON)
           workflowVariables = workflow.variables
         }
-        logger.debug(`[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${workflowId}`)
+        logger.debug(
+          `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${workflowId}`
+        )
       } catch (error) {
         logger.error(`[${requestId}] Failed to parse workflow variables: ${workflowId}`, error)
         // Continue execution even if variables can't be parsed
@@ -188,13 +195,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
     const executor = new Executor(
-      serializedWorkflow, 
-      processedBlockStates, 
-      decryptedEnvVars, 
-      processedInput, 
+      serializedWorkflow,
+      processedBlockStates,
+      decryptedEnvVars,
+      processedInput,
       workflowVariables
     )
-    
+
     const result = await executor.execute(workflowId)
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
@@ -278,7 +285,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const bodyText = await request.text()
     logger.info(`[${requestId}] Raw request body:`, bodyText)
-    
+
     let body = {}
     if (bodyText && bodyText.trim()) {
       try {
@@ -293,9 +300,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Don't double-nest the input if it's already structured
-    const hasContent = Object.keys(body).length > 0;
-    const input = hasContent ? { input: body } : {};
-    
+    const hasContent = Object.keys(body).length > 0
+    const input = hasContent ? { input: body } : {}
+
     logger.info(`[${requestId}] Input passed to workflow:`, JSON.stringify(input, null, 2))
 
     // Execute workflow with the structured input

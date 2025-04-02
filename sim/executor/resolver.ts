@@ -1,7 +1,7 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { LoopManager } from './loops'
 import { ExecutionContext } from './types'
-import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('InputResolver')
 
@@ -82,28 +82,28 @@ export class InputResolver {
         // Special handling for different block types
         const isFunctionBlock = block.metadata?.id === 'function'
         const isApiBlock = block.metadata?.id === 'api'
-        
+
         // For function blocks, we need special handling for code input
         if (isFunctionBlock && key === 'code') {
           // For code input in function blocks, we don't want to parse JSON
           result[key] = resolvedValue
-          logger.debug(`[resolveInputs] Function block code input preserved as string`);
-        } 
+          logger.debug(`[resolveInputs] Function block code input preserved as string`)
+        }
         // For API blocks, handle body input specially
         else if (isApiBlock && key === 'body') {
           try {
             // If it's JSON-looking, preserve its structure
             if (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('[')) {
               result[key] = JSON.parse(resolvedValue)
-              logger.debug(`[resolveInputs] API block body parsed as JSON object`);
+              logger.debug(`[resolveInputs] API block body parsed as JSON object`)
             } else {
               result[key] = resolvedValue
-              logger.debug(`[resolveInputs] API block body preserved as string`);
+              logger.debug(`[resolveInputs] API block body preserved as string`)
             }
           } catch {
             // If parsing fails, keep as string
             result[key] = resolvedValue
-            logger.debug(`[resolveInputs] API block body JSON parsing failed, keeping as string`);
+            logger.debug(`[resolveInputs] API block body JSON parsing failed, keeping as string`)
           }
         }
         // For other inputs, try to convert JSON strings to objects
@@ -111,7 +111,7 @@ export class InputResolver {
           try {
             if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
               result[key] = JSON.parse(resolvedValue)
-              logger.debug(`[resolveInputs] Parsed JSON value for ${key}`);
+              logger.debug(`[resolveInputs] Parsed JSON value for ${key}`)
             } else {
               result[key] = resolvedValue
             }
@@ -158,16 +158,18 @@ export class InputResolver {
 
       if (foundVariable) {
         const [_, variable] = foundVariable
-        
+
         // Process variable value based on its type
         let processedValue = variable.value
-        
+
         // Handle string values that could be stored with quotes
         if (variable.type === 'string' && typeof processedValue === 'string') {
           // If the string value starts and ends with quotes, remove them
           const trimmed = processedValue.trim()
-          if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
-              (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+          if (
+            (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))
+          ) {
             // Remove the quotes and unescape any escaped quotes
             processedValue = trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
           }
@@ -184,30 +186,32 @@ export class InputResolver {
           }
         }
         // Handle object/array values that might be stored as JSON strings
-        else if ((variable.type === 'object' || variable.type === 'array') && 
-                 typeof processedValue === 'string') {
+        else if (
+          (variable.type === 'object' || variable.type === 'array') &&
+          typeof processedValue === 'string'
+        ) {
           try {
             processedValue = JSON.parse(processedValue)
           } catch (e) {
             // Keep as string if parsing fails
           }
         }
-        
+
         // Determine if this needs to be a code-compatible string literal
-        const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, value);
-        
+        const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, value)
+
         // Format the processed value for insertion into the string based on context
-        let formattedValue: string;
-        
+        let formattedValue: string
+
         if (variable.type === 'string' && needsCodeStringLiteral) {
           // For code contexts like function and condition blocks, properly quote strings
-          formattedValue = JSON.stringify(processedValue);
+          formattedValue = JSON.stringify(processedValue)
         } else if (typeof processedValue === 'object' && processedValue !== null) {
           // For objects, always stringify
-          formattedValue = JSON.stringify(processedValue);
+          formattedValue = JSON.stringify(processedValue)
         } else {
           // For other types in normal contexts, use simple string conversion
-          formattedValue = String(processedValue);
+          formattedValue = String(processedValue)
         }
 
         resolvedValue = resolvedValue.replace(match, formattedValue)
@@ -220,51 +224,51 @@ export class InputResolver {
   /**
    * Determines if a value needs to be formatted as a code-compatible string literal
    * based on the block type and context. Handles JavaScript and other code contexts.
-   * 
+   *
    * @param block - The block where the value is being used
    * @param expression - The expression containing the value
    * @returns Whether the value should be formatted as a string literal
    */
   private needsCodeStringLiteral(block?: SerializedBlock, expression?: string): boolean {
-    if (!block) return false;
-    
+    if (!block) return false
+
     // These block types execute code and need properly formatted string literals
-    const codeExecutionBlocks = ['function', 'condition'];
-    
+    const codeExecutionBlocks = ['function', 'condition']
+
     // Check if this is a block that executes code
     if (block.metadata?.id && codeExecutionBlocks.includes(block.metadata.id)) {
-      return true;
+      return true
     }
-    
+
     // Check if the expression is likely part of code
     if (expression) {
       const codeIndicators = [
         // Function/method calls
-        /\(\s*$/,                         // Function call
-        /\.\w+\s*\(/,                     // Method call
-        
+        /\(\s*$/, // Function call
+        /\.\w+\s*\(/, // Method call
+
         // JavaScript/Python operators
-        /[=<>!+\-*/%](?:==?)?/,           // Common operators
-        /\+=|-=|\*=|\/=|%=|\*\*=?/,       // Assignment operators
-        
+        /[=<>!+\-*/%](?:==?)?/, // Common operators
+        /\+=|-=|\*=|\/=|%=|\*\*=?/, // Assignment operators
+
         // JavaScript keywords
         /\b(if|else|for|while|return|var|let|const|function)\b/,
-        
+
         // Python keywords
         /\b(if|else|elif|for|while|def|return|import|from|as|class|with|try|except)\b/,
-        
+
         // Common code patterns
-        /^['"]use strict['"];?$/,         // JS strict mode
-        /\$\{.+?\}/,                      // JS template literals
-        /f['"].*?['"]/,                   // Python f-strings
-        /\bprint\s*\(/,                   // Python print
-        /\bconsole\.\w+\(/                // JS console methods
-      ];
-      
-      return codeIndicators.some(pattern => pattern.test(expression));
+        /^['"]use strict['"];?$/, // JS strict mode
+        /\$\{.+?\}/, // JS template literals
+        /f['"].*?['"]/, // Python f-strings
+        /\bprint\s*\(/, // Python print
+        /\bconsole\.\w+\(/, // JS console methods
+      ]
+
+      return codeIndicators.some((pattern) => pattern.test(expression))
     }
-    
-    return false;
+
+    return false
   }
 
   /**
@@ -301,8 +305,8 @@ export class InputResolver {
         blockRef,
         pathParts,
         currentBlock: currentBlock.id,
-        currentBlockType: currentBlock.metadata?.id
-      });
+        currentBlockType: currentBlock.metadata?.id,
+      })
 
       // Special case for "start" references
       // This allows users to reference the starter block using <start.response.type.input>
@@ -311,80 +315,100 @@ export class InputResolver {
         // Find the starter block
         const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
         if (starterBlock) {
-          logger.debug(`[resolveBlockReferences] Found starter block with ID: ${starterBlock.id}`);
-          
+          logger.debug(`[resolveBlockReferences] Found starter block with ID: ${starterBlock.id}`)
+
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
-            logger.debug(`[resolveBlockReferences] Starter block state:`, JSON.stringify(blockState, null, 2));
-            
+            logger.debug(
+              `[resolveBlockReferences] Starter block state:`,
+              JSON.stringify(blockState, null, 2)
+            )
+
             // Navigate through the path parts
             let replacementValue: any = blockState.output
-            
+
             // Log the initial output value from the starter block
-            logger.debug(`[resolveBlockReferences] Initial starter output:`, JSON.stringify(replacementValue, null, 2));
-            
+            logger.debug(
+              `[resolveBlockReferences] Initial starter output:`,
+              JSON.stringify(replacementValue, null, 2)
+            )
+
             for (const part of pathParts) {
-              logger.debug(`[resolveBlockReferences] Navigating path part: ${part}`, { 
-                currentValue: typeof replacementValue === 'object' ? 
-                  JSON.stringify(replacementValue) : replacementValue 
-              });
-              
+              logger.debug(`[resolveBlockReferences] Navigating path part: ${part}`, {
+                currentValue:
+                  typeof replacementValue === 'object'
+                    ? JSON.stringify(replacementValue)
+                    : replacementValue,
+              })
+
               if (!replacementValue || typeof replacementValue !== 'object') {
-                logger.warn(`[resolveBlockReferences] Invalid path "${part}" - replacementValue is not an object:`, replacementValue);
+                logger.warn(
+                  `[resolveBlockReferences] Invalid path "${part}" - replacementValue is not an object:`,
+                  replacementValue
+                )
                 throw new Error(`Invalid path "${part}" in "${path}" for starter block.`)
               }
-              
+
               replacementValue = replacementValue[part]
-              
+
               if (replacementValue === undefined) {
-                logger.warn(`[resolveBlockReferences] No value found at path "${part}" in starter block.`);
+                logger.warn(
+                  `[resolveBlockReferences] No value found at path "${part}" in starter block.`
+                )
                 throw new Error(`No value found at path "${path}" in starter block.`)
               }
             }
 
             // Format the value based on block type and path
-            let formattedValue: string;
-            
+            let formattedValue: string
+
             // Special handling for all blocks referencing starter input
             if (blockRef.toLowerCase() === 'start' && pathParts.join('.').includes('input')) {
-              const blockType = currentBlock.metadata?.id;
-              
+              const blockType = currentBlock.metadata?.id
+
               // Format based on which block is consuming this value
               if (typeof replacementValue === 'object' && replacementValue !== null) {
                 // For function blocks, preserve the object structure for code usage
                 if (blockType === 'function') {
-                  logger.debug(`[resolveBlockReferences] Special handling for function input:`, 
-                    JSON.stringify(replacementValue, null, 2));
-                  formattedValue = JSON.stringify(replacementValue);
+                  logger.debug(
+                    `[resolveBlockReferences] Special handling for function input:`,
+                    JSON.stringify(replacementValue, null, 2)
+                  )
+                  formattedValue = JSON.stringify(replacementValue)
                 }
                 // For API blocks, handle body special case
                 else if (blockType === 'api') {
-                  logger.debug(`[resolveBlockReferences] Special handling for API input:`, 
-                    JSON.stringify(replacementValue, null, 2));
-                  formattedValue = JSON.stringify(replacementValue);
-                } 
+                  logger.debug(
+                    `[resolveBlockReferences] Special handling for API input:`,
+                    JSON.stringify(replacementValue, null, 2)
+                  )
+                  formattedValue = JSON.stringify(replacementValue)
+                }
                 // For condition blocks, ensure proper formatting
                 else if (blockType === 'condition') {
-                  logger.debug(`[resolveBlockReferences] Special handling for condition input:`, 
-                    JSON.stringify(replacementValue, null, 2));
-                  formattedValue = this.stringifyForCondition(replacementValue);
+                  logger.debug(
+                    `[resolveBlockReferences] Special handling for condition input:`,
+                    JSON.stringify(replacementValue, null, 2)
+                  )
+                  formattedValue = this.stringifyForCondition(replacementValue)
                 }
                 // For all other blocks, stringify objects
                 else {
-                  formattedValue = JSON.stringify(replacementValue);
+                  formattedValue = JSON.stringify(replacementValue)
                 }
               } else {
                 // For primitive values
-                formattedValue = String(replacementValue);
+                formattedValue = String(replacementValue)
               }
             } else {
               // Standard handling for non-input references
-              formattedValue = typeof replacementValue === 'object'
-                ? JSON.stringify(replacementValue)
-                : String(replacementValue);
+              formattedValue =
+                typeof replacementValue === 'object'
+                  ? JSON.stringify(replacementValue)
+                  : String(replacementValue)
             }
-            
-            logger.debug(`[resolveBlockReferences] Resolved value:`, formattedValue);
+
+            logger.debug(`[resolveBlockReferences] Resolved value:`, formattedValue)
             resolvedValue = resolvedValue.replace(match, formattedValue)
             continue
           }
@@ -578,7 +602,10 @@ export class InputResolver {
 
       if (currentBlock.metadata?.id === 'condition') {
         formattedValue = this.stringifyForCondition(replacementValue)
-      } else if (typeof replacementValue === 'string' && this.needsCodeStringLiteral(currentBlock, value)) {
+      } else if (
+        typeof replacementValue === 'string' &&
+        this.needsCodeStringLiteral(currentBlock, value)
+      ) {
         // For code blocks, quote string values properly for the given language
         formattedValue = JSON.stringify(replacementValue)
       } else {

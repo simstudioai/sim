@@ -59,7 +59,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
           // Persist to localStorage for backup
           const currentValues = get().workflowValues[activeWorkflowId] || {}
           saveSubblockValues(activeWorkflowId, currentValues)
-          
+
           // Trigger debounced sync to DB
           get().syncWithDB()
         },
@@ -83,7 +83,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
           }))
 
           saveSubblockValues(activeWorkflowId, {})
-          
+
           // Trigger sync to DB immediately on clear
           workflowSync.sync()
         },
@@ -121,14 +121,14 @@ export const useSubBlockStore = create<SubBlockStore>()(
           // Save to localStorage
           saveSubblockValues(workflowId, values)
         },
-        
+
         // Debounced sync function to trigger DB sync
         syncWithDB: () => {
           // Clear any existing timeout
           if (syncDebounceTimer) {
             clearTimeout(syncDebounceTimer)
           }
-          
+
           // Set new timeout
           syncDebounceTimer = setTimeout(() => {
             // Trigger workflow sync to DB

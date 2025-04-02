@@ -1745,11 +1745,11 @@ export function TwilioIcon(props: SVGProps<SVGSVGElement>) {
       fill="none"
       aria-hidden="true"
     >
-      <circle cx="128" cy="128" r="128" fill="none" stroke="white" strokeWidth="21"/>
-      <circle cx="85" cy="85" r="21" fill="white"/>
-      <circle cx="171" cy="85" r="21" fill="white"/>
-      <circle cx="85" cy="171" r="21" fill="white"/>
-      <circle cx="171" cy="171" r="21" fill="white"/>
+      <circle cx="128" cy="128" r="128" fill="none" stroke="white" strokeWidth="21" />
+      <circle cx="85" cy="85" r="21" fill="white" />
+      <circle cx="171" cy="85" r="21" fill="white" />
+      <circle cx="85" cy="171" r="21" fill="white" />
+      <circle cx="171" cy="171" r="21" fill="white" />
     </svg>
   )
 }

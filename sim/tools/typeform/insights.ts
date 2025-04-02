@@ -64,32 +64,32 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
     },
     method: 'GET',
     headers: (params) => ({
-      'Authorization': `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = response.statusText || 'Unknown error';
-      let errorDetails = '';
-      
+      let errorMessage = response.statusText || 'Unknown error'
+      let errorDetails = ''
+
       try {
-        const errorData = await response.json();
-        console.log('Typeform API error response:', JSON.stringify(errorData, null, 2));
-        
+        const errorData = await response.json()
+        console.log('Typeform API error response:', JSON.stringify(errorData, null, 2))
+
         if (errorData && errorData.message) {
-          errorMessage = errorData.message;
+          errorMessage = errorData.message
         } else if (errorData && errorData.description) {
-          errorMessage = errorData.description;
+          errorMessage = errorData.description
         } else if (typeof errorData === 'string') {
-          errorMessage = errorData;
+          errorMessage = errorData
         }
-        
+
         // Extract more details if available
         if (errorData && errorData.details) {
-          errorDetails = ` Details: ${JSON.stringify(errorData.details)}`;
+          errorDetails = ` Details: ${JSON.stringify(errorData.details)}`
         }
-        
+
         // Special handling for 403 errors
         if (response.status === 403) {
           return {
@@ -100,33 +100,33 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
 2. Insufficient plan subscription (insights may require a higher plan)
 3. No access rights to the specified form
 4. API token is invalid or expired
-Details from API: ${errorMessage}${errorDetails}`
-          };
+Details from API: ${errorMessage}${errorDetails}`,
+          }
         }
       } catch (e) {
         // If we can't parse the error as JSON, just use the status text
-        console.log('Error parsing Typeform API error:', e);
+        console.log('Error parsing Typeform API error:', e)
       }
-      
-      throw new Error(`Typeform API error (${response.status}): ${errorMessage}${errorDetails}`);
+
+      throw new Error(`Typeform API error (${response.status}): ${errorMessage}${errorDetails}`)
     }
-    
-    const data = await response.json();
-    
+
+    const data = await response.json()
+
     return {
       success: true,
-      output: data
-    };
+      output: data,
+    }
   },
   transformError: (error) => {
     if (error instanceof Error) {
       return `Failed to retrieve Typeform insights: ${error.message}`
     }
-    
+
     if (typeof error === 'object' && error !== null) {
       return `Failed to retrieve Typeform insights: ${JSON.stringify(error)}`
     }
-    
+
     return `Failed to retrieve Typeform insights: An unknown error occurred`
   },
-} 
+}

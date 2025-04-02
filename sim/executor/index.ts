@@ -45,12 +45,12 @@ export class Executor {
     this.validateWorkflow()
 
     if (workflowInput) {
-      this.workflowInput = workflowInput;
-      logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2));
+      this.workflowInput = workflowInput
+      logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2))
     } else {
-      this.workflowInput = {};
+      this.workflowInput = {}
     }
-    
+
     this.loopManager = new LoopManager(workflow.loops || {})
     this.resolver = new InputResolver(
       workflow,
@@ -421,70 +421,75 @@ export class Executor {
           })
         } else {
         */
-          // No input format defined or not an array,
-          // Handle API call - prioritize using the input as-is
-          if (this.workflowInput && typeof this.workflowInput === 'object') {
-            // For API calls, extract input from the nested structure if it exists
-            const inputData = this.workflowInput.input !== undefined
-              ? this.workflowInput.input  // Use the nested input data
-              : this.workflowInput;       // Fallback to direct input
-              
-            // Create starter output with both formats for maximum compatibility
-            const starterOutput = {
-              response: {
-                input: inputData,
-                ...inputData, // Make fields directly accessible at response level
-              },
-            }
+        // No input format defined or not an array,
+        // Handle API call - prioritize using the input as-is
+        if (this.workflowInput && typeof this.workflowInput === 'object') {
+          // For API calls, extract input from the nested structure if it exists
+          const inputData =
+            this.workflowInput.input !== undefined
+              ? this.workflowInput.input // Use the nested input data
+              : this.workflowInput // Fallback to direct input
 
-            logger.info(`[Executor] API input for starter block:`, {
-              type: typeof inputData,
-              isArray: Array.isArray(inputData),
-              keys: Object.keys(inputData),
-              inputData: JSON.stringify(inputData, null, 2),
-            });
-            
-            logger.info(`[Executor] Final starter block output:`, JSON.stringify(starterOutput, null, 2));
-
-            context.blockStates.set(starterBlock.id, {
-              output: starterOutput,
-              executed: true,
-              executionTime: 0,
-            })
-          } else {
-            // Fallback for other cases
-            const starterOutput = {
-              response: {
-                input: this.workflowInput,
-              },
-            }
-            
-            logger.info(`[Executor] Simple starter output:`, JSON.stringify(starterOutput, null, 2));
-
-            context.blockStates.set(starterBlock.id, {
-              output: starterOutput,
-              executed: true,
-              executionTime: 0,
-            })
+          // Create starter output with both formats for maximum compatibility
+          const starterOutput = {
+            response: {
+              input: inputData,
+              ...inputData, // Make fields directly accessible at response level
+            },
           }
+
+          logger.info(`[Executor] API input for starter block:`, {
+            type: typeof inputData,
+            isArray: Array.isArray(inputData),
+            keys: Object.keys(inputData),
+            inputData: JSON.stringify(inputData, null, 2),
+          })
+
+          logger.info(
+            `[Executor] Final starter block output:`,
+            JSON.stringify(starterOutput, null, 2)
+          )
+
+          context.blockStates.set(starterBlock.id, {
+            output: starterOutput,
+            executed: true,
+            executionTime: 0,
+          })
+        } else {
+          // Fallback for other cases
+          const starterOutput = {
+            response: {
+              input: this.workflowInput,
+            },
+          }
+
+          logger.info(`[Executor] Simple starter output:`, JSON.stringify(starterOutput, null, 2))
+
+          context.blockStates.set(starterBlock.id, {
+            output: starterOutput,
+            executed: true,
+            executionTime: 0,
+          })
+        }
         //} // End of inputFormat conditional
       } catch (e) {
         logger.warn('Error processing starter block input format:', e)
-        
+
         // Fallback to raw input with both paths accessible
         // Ensure we handle both input formats
-        const inputData = this.workflowInput.input !== undefined
-          ? this.workflowInput.input    // Use nested input if available
-          : this.workflowInput;         // Fallback to direct input
-          
+        const inputData =
+          this.workflowInput.input !== undefined
+            ? this.workflowInput.input // Use nested input if available
+            : this.workflowInput // Fallback to direct input
+
         const starterOutput = {
           response: {
             input: inputData,
             ...inputData, // Add input fields directly at response level too
           },
         }
-        
-        logger.info(`[Executor] Fallback starter output:`, JSON.stringify(starterOutput, null, 2));
+
+        logger.info(`[Executor] Fallback starter output:`, JSON.stringify(starterOutput, null, 2))
 
         context.blockStates.set(starterBlock.id, {
           output: starterOutput,
@@ -493,8 +498,8 @@ export class Executor {
         })
       }
       // Ensure the starter block is in the active execution path
-      context.activeExecutionPath.add(starterBlock.id);
-      // Mark the starter block as executed 
+      context.activeExecutionPath.add(starterBlock.id)
+      // Mark the starter block as executed
       context.executedBlocks.add(starterBlock.id)
 
       // Add all blocks connected to the starter to the active execution path
@@ -688,18 +693,24 @@ export class Executor {
       if (starterBlock) {
         const starterState = context.blockStates.get(starterBlock.id)
         if (!starterState) {
-          logger.warn(`Starter block state not found when executing ${block.metadata?.name || blockId}. This may cause reference errors.`)
+          logger.warn(
+            `Starter block state not found when executing ${block.metadata?.name || blockId}. This may cause reference errors.`
+          )
         } else {
-          logger.debug(`Starter block state available for ${block.metadata?.name || blockId}:`, 
-            JSON.stringify(starterState.output || {}, null, 2));
+          logger.debug(
+            `Starter block state available for ${block.metadata?.name || blockId}:`,
+            JSON.stringify(starterState.output || {}, null, 2)
+          )
         }
       }
 
       // Resolve inputs (which will look up references to other blocks including starter)
       const inputs = this.resolver.resolveInputs(block, context)
-      logger.debug(`Resolved inputs for ${block.metadata?.name || blockId}:`, 
-        JSON.stringify(inputs, null, 2));
-      
+      logger.debug(
+        `Resolved inputs for ${block.metadata?.name || blockId}:`,
+        JSON.stringify(inputs, null, 2)
+      )
+
       // Find the appropriate handler
       const handler = this.blockHandlers.find((h) => h.canHandle(block))
       if (!handler) {

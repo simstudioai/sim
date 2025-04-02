@@ -66,4 +66,4 @@ export interface AirtableUpdateParams {
   tableId: string
   recordId: string
   fields: Record<string, any>
-} 
+}

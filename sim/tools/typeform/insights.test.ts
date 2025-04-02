@@ -23,7 +23,7 @@ describe('Typeform Insights Tool', () => {
         ref: 'ref123',
         title: 'What is your name?',
         type: 'short_text',
-        views: 100
+        views: 100,
       },
       {
         dropoffs: 10,
@@ -32,8 +32,8 @@ describe('Typeform Insights Tool', () => {
         ref: 'ref456',
         title: 'How did you hear about us?',
         type: 'multiple_choice',
-        views: 95
-      }
+        views: 95,
+      },
     ],
     form: {
       platforms: [
@@ -43,7 +43,7 @@ describe('Typeform Insights Tool', () => {
           platform: 'desktop',
           responses_count: 80,
           total_visits: 120,
-          unique_visits: 100
+          unique_visits: 100,
         },
         {
           average_time: 180000,
@@ -51,17 +51,17 @@ describe('Typeform Insights Tool', () => {
           platform: 'mobile',
           responses_count: 40,
           total_visits: 60,
-          unique_visits: 50
-        }
+          unique_visits: 50,
+        },
       ],
       summary: {
         average_time: 140000,
         completion_rate: 72.3,
         responses_count: 120,
         total_visits: 180,
-        unique_visits: 150
-      }
-    }
+        unique_visits: 150,
+      },
+    },
   }
 
   beforeEach(() => {
@@ -77,18 +77,16 @@ describe('Typeform Insights Tool', () => {
     test('should construct correct URL for insights endpoint', () => {
       const params = {
         formId: 'form123',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
-      expect(tester.getRequestUrl(params)).toBe(
-        'https://api.typeform.com/insights/form123/summary'
-      )
+      expect(tester.getRequestUrl(params)).toBe('https://api.typeform.com/insights/form123/summary')
     })
 
     test('should handle special characters in form ID', () => {
       const params = {
         formId: 'form/with/special?chars',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
       const url = tester.getRequestUrl(params)
@@ -102,7 +100,7 @@ describe('Typeform Insights Tool', () => {
     test('should include correct authorization header', () => {
       const params = {
         formId: 'form123',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
       const headers = tester.getRequestHeaders(params)
@@ -119,21 +117,21 @@ describe('Typeform Insights Tool', () => {
       // Execute the tool
       const result = await tester.execute({
         formId: 'form123',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check the result
       expect(result.success).toBe(true)
-      
+
       // Verify form summary data
       expect(result.output.form.summary.responses_count).toBe(120)
       expect(result.output.form.summary.completion_rate).toBe(72.3)
-      
+
       // Verify platforms data
       expect(result.output.form.platforms).toHaveLength(2)
       expect(result.output.form.platforms[0].platform).toBe('desktop')
       expect(result.output.form.platforms[1].platform).toBe('mobile')
-      
+
       // Verify fields data
       expect(result.output.fields).toHaveLength(2)
       expect(result.output.fields[0].title).toBe('What is your name?')
@@ -149,7 +147,7 @@ describe('Typeform Insights Tool', () => {
       // Execute the tool
       const result = await tester.execute({
         formId: 'nonexistent',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check error handling
@@ -164,7 +162,7 @@ describe('Typeform Insights Tool', () => {
       // Execute the tool
       const result = await tester.execute({
         formId: 'form123',
-        apiKey: 'invalid-token'
+        apiKey: 'invalid-token',
       })
 
       // Check error handling
@@ -179,7 +177,7 @@ describe('Typeform Insights Tool', () => {
       // Execute the tool
       const result = await tester.execute({
         formId: 'form123',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check error handling
@@ -187,4 +185,4 @@ describe('Typeform Insights Tool', () => {
       expect(result.error).toBeDefined()
     })
   })
-}) 
+})

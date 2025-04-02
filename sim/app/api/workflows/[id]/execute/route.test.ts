@@ -260,15 +260,16 @@ describe('Workflow Execution API Route', () => {
 
     // Verify execute was called with the input body
     expect(executeMock).toHaveBeenCalledWith('workflow-id')
-    
+
     // Updated expectations to match actual implementation
     // The structure should match: serializedWorkflow, processedBlockStates, decryptedEnvVars, processedInput, workflowVariables
     expect(Executor).toHaveBeenCalledWith(
       expect.anything(), // serializedWorkflow
       expect.anything(), // processedBlockStates
       expect.anything(), // decryptedEnvVars
-      expect.objectContaining({ // processedInput
-        input: requestBody
+      expect.objectContaining({
+        // processedInput
+        input: requestBody,
       }),
       expect.anything() // workflowVariables
     )
@@ -313,8 +314,9 @@ describe('Workflow Execution API Route', () => {
       expect.anything(), // serializedWorkflow
       expect.anything(), // processedBlockStates
       expect.anything(), // decryptedEnvVars
-      expect.objectContaining({ // processedInput
-        input: structuredInput
+      expect.objectContaining({
+        // processedInput
+        input: structuredInput,
       }),
       expect.anything() // workflowVariables
     )
@@ -463,8 +465,8 @@ describe('Workflow Execution API Route', () => {
   it('should pass workflow variables to the Executor', async () => {
     // Create mock variables for the workflow
     const workflowVariables = {
-      'variable1': { id: 'var1', name: 'variable1', type: 'string', value: '"test value"' },
-      'variable2': { id: 'var2', name: 'variable2', type: 'boolean', value: 'true' }
+      variable1: { id: 'var1', name: 'variable1', type: 'string', value: '"test value"' },
+      variable2: { id: 'var2', name: 'variable2', type: 'boolean', value: 'true' },
     }
 
     // Mock workflow with variables
@@ -539,15 +541,15 @@ describe('Workflow Execution API Route', () => {
 
     // Verify the Executor was constructed with workflow variables
     expect(executorConstructorMock).toHaveBeenCalled()
-    
+
     // Check that the 5th parameter (workflow variables) was passed
     const executorCalls = executorConstructorMock.mock.calls
     expect(executorCalls.length).toBeGreaterThan(0)
-    
+
     // Each call to the constructor should have at least 5 parameters
     const lastCall = executorCalls[executorCalls.length - 1]
     expect(lastCall.length).toBeGreaterThanOrEqual(5)
-    
+
     // The 5th parameter should be the workflow variables
     expect(lastCall[4]).toEqual(workflowVariables)
   })

@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
-import { TwilioSMSBlockOutput, TwilioSendSMSParams } from './types'
+import { TwilioSendSMSParams, TwilioSMSBlockOutput } from './types'
 
-const logger = createLogger('Twilio Send SMS Tool') 
+const logger = createLogger('Twilio Send SMS Tool')
 
 export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> = {
   id: 'twilio_send_sms',
@@ -14,30 +14,30 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
     phoneNumbers: {
       type: 'string',
       required: true,
-      description: 'Phone numbers to send the message to, separated by newlines'
+      description: 'Phone numbers to send the message to, separated by newlines',
     },
     message: {
       type: 'string',
       required: true,
-      description: 'Message to send'
+      description: 'Message to send',
     },
     accountSid: {
       type: 'string',
       required: true,
       description: 'Twilio Account SID',
-      requiredForToolCall: true
+      requiredForToolCall: true,
     },
     authToken: {
       type: 'string',
       required: true,
       description: 'Twilio Auth Token',
-      requiredForToolCall: true
+      requiredForToolCall: true,
     },
     fromNumber: {
       type: 'string',
       required: true,
-      description: 'Twilio phone number to send the message from'
-    }
+      description: 'Twilio phone number to send the message from',
+    },
   },
 
   request: {
@@ -45,7 +45,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       if (!params.accountSid) {
         throw new Error('Twilio Account SID is required')
       }
-      const url = `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Messages.json`;
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${params.accountSid}/Messages.json`
       return url
     },
     method: 'POST',
@@ -57,7 +57,7 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       const authToken = Buffer.from(`${params.accountSid}:${params.authToken}`).toString('base64')
       const headers = {
         Authorization: `Basic ${authToken}`,
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
       }
       return headers
     },
@@ -74,27 +74,28 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
 
       // Get first phone number if multiple are provided
       const toNumber = params.phoneNumbers.split('\n')[0].trim()
-      
+
       // Create a URLSearchParams object and convert to string
       const formData = new URLSearchParams()
       formData.append('To', toNumber)
       formData.append('From', params.fromNumber)
       formData.append('Body', params.message)
-      
+
       const formDataString = formData.toString()
       return { body: formDataString }
-    }
+    },
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
 
     if (!response.ok) {
-      const errorMessage = data.error?.message || data.message || `Failed to send SMS (HTTP ${response.status})`
+      const errorMessage =
+        data.error?.message || data.message || `Failed to send SMS (HTTP ${response.status})`
       logger.error('Twilio API error:', data)
       throw new Error(errorMessage)
     }
-    
+
     logger.info('Twilio Response:', data)
     logger.info('Twilio Response type:', typeof data)
     return {
@@ -102,14 +103,14 @@ export const sendSMSTool: ToolConfig<TwilioSendSMSParams, TwilioSMSBlockOutput> 
       output: {
         success: true,
         messageId: data.sid,
-        status: data.status
+        status: data.status,
       },
-      error: undefined
+      error: undefined,
     }
   },
 
   transformError: (error) => {
     logger.error('Twilio tool error:', { error })
     return `SMS sending failed: ${error.message || 'Unknown error occurred'}`
-  }
+  },
 }

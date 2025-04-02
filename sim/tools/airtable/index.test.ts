@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { ToolTester } from '../__test-utils__/test-tools'
-import { airtableReadTool, airtableWriteTool, airtableUpdateTool } from './index'
+import { airtableReadTool, airtableUpdateTool, airtableWriteTool } from './index'
 
 describe('Airtable Tools Integration', () => {
   let tester: ToolTester
@@ -30,7 +30,7 @@ describe('Airtable Tools Integration', () => {
         tableId: 'table456',
         accessToken: 'token789',
         maxRecords: 100,
-        filterFormula: "Status='Active'"
+        filterFormula: "Status='Active'",
       }
 
       const url = tester.getRequestUrl(params)
@@ -46,9 +46,9 @@ describe('Airtable Tools Integration', () => {
       const mockData = {
         records: [
           { id: 'rec1', fields: { Name: 'Test 1' } },
-          { id: 'rec2', fields: { Name: 'Test 2' } }
+          { id: 'rec2', fields: { Name: 'Test 2' } },
         ],
-        offset: 'next_page_token'
+        offset: 'next_page_token',
       }
 
       tester.setup(mockData)
@@ -56,7 +56,7 @@ describe('Airtable Tools Integration', () => {
       const result = await tester.execute({
         baseId: 'base123',
         tableId: 'table456',
-        accessToken: 'token789'
+        accessToken: 'token789',
       })
 
       expect(result.success).toBe(true)
@@ -76,7 +76,7 @@ describe('Airtable Tools Integration', () => {
         baseId: 'base123',
         tableId: 'table456',
         accessToken: 'token789',
-        records: [{ fields: { Name: 'New Record' } }]
+        records: [{ fields: { Name: 'New Record' } }],
       }
 
       const url = tester.getRequestUrl(params)
@@ -90,9 +90,7 @@ describe('Airtable Tools Integration', () => {
 
     test('should handle successful write response', async () => {
       const mockData = {
-        records: [
-          { id: 'rec1', fields: { Name: 'New Record' } }
-        ]
+        records: [{ id: 'rec1', fields: { Name: 'New Record' } }],
       }
 
       tester.setup(mockData)
@@ -101,7 +99,7 @@ describe('Airtable Tools Integration', () => {
         baseId: 'base123',
         tableId: 'table456',
         accessToken: 'token789',
-        records: [{ fields: { Name: 'New Record' } }]
+        records: [{ fields: { Name: 'New Record' } }],
       })
 
       expect(result.success).toBe(true)
@@ -121,7 +119,7 @@ describe('Airtable Tools Integration', () => {
         tableId: 'table456',
         recordId: 'rec789',
         accessToken: 'token789',
-        fields: { Name: 'Updated Record' }
+        fields: { Name: 'Updated Record' },
       }
 
       const url = tester.getRequestUrl(params)
@@ -136,7 +134,7 @@ describe('Airtable Tools Integration', () => {
     test('should handle successful update response', async () => {
       const mockData = {
         id: 'rec789',
-        fields: { Name: 'Updated Record' }
+        fields: { Name: 'Updated Record' },
       }
 
       tester.setup(mockData)
@@ -146,7 +144,7 @@ describe('Airtable Tools Integration', () => {
         tableId: 'table456',
         recordId: 'rec789',
         accessToken: 'token789',
-        fields: { Name: 'Updated Record' }
+        fields: { Name: 'Updated Record' },
       })
 
       expect(result.success).toBe(true)
@@ -158,17 +156,17 @@ describe('Airtable Tools Integration', () => {
 
   test('should handle error responses', async () => {
     tester = new ToolTester(airtableReadTool)
-    
+
     const errorMessage = 'Invalid API key'
     tester.setup({ error: errorMessage }, { ok: false, status: 401 })
 
     const result = await tester.execute({
       baseId: 'base123',
       tableId: 'table456',
-      accessToken: 'invalid_token'
+      accessToken: 'invalid_token',
     })
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Failed to read Airtable records')
   })
-}) 
+})

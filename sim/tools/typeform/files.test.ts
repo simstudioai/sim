@@ -16,7 +16,7 @@ describe('Typeform Files Tool', () => {
   // Mock file response
   const mockFileResponseHeaders = {
     'content-type': 'application/pdf',
-    'content-disposition': 'attachment; filename="test-file.pdf"'
+    'content-disposition': 'attachment; filename="test-file.pdf"',
   }
 
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'test-file.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
       expect(tester.getRequestUrl(params)).toBe(
@@ -50,7 +50,7 @@ describe('Typeform Files Tool', () => {
         fieldId: 'field789',
         filename: 'test-file.pdf',
         inline: true,
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
       const url = tester.getRequestUrl(params)
@@ -63,7 +63,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp&with#chars',
         fieldId: 'field-id',
         filename: 'file name.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
       const url = tester.getRequestUrl(params)
@@ -80,7 +80,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'test-file.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       }
 
       const headers = tester.getRequestHeaders(params)
@@ -93,7 +93,7 @@ describe('Typeform Files Tool', () => {
     test('should transform file data correctly', async () => {
       // Setup mock response for binary file data
       tester.setup('file-content-binary-data', {
-        headers: mockFileResponseHeaders
+        headers: mockFileResponseHeaders,
       })
 
       // Execute the tool
@@ -102,7 +102,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'test-file.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check the result
@@ -115,7 +115,7 @@ describe('Typeform Files Tool', () => {
     test('should handle missing content-disposition header', async () => {
       // Setup mock response without content-disposition
       tester.setup('file-content-binary-data', {
-        headers: { 'content-type': 'application/pdf' }
+        headers: { 'content-type': 'application/pdf' },
       })
 
       // Execute the tool
@@ -124,7 +124,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'test-file.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check the result
@@ -147,7 +147,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'nonexistent.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check error handling
@@ -165,7 +165,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'test-file.pdf',
-        apiKey: 'invalid-token'
+        apiKey: 'invalid-token',
       })
 
       // Check error handling
@@ -183,7 +183,7 @@ describe('Typeform Files Tool', () => {
         responseId: 'resp456',
         fieldId: 'field789',
         filename: 'test-file.pdf',
-        apiKey: 'test-token'
+        apiKey: 'test-token',
       })
 
       // Check error handling
@@ -191,4 +191,4 @@ describe('Typeform Files Tool', () => {
       expect(result.error).toBeDefined()
     })
   })
-}) 
+})
