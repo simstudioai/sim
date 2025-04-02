@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import {
   Select,
   SelectContent,
@@ -54,6 +54,13 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
     // No valid value available
     return undefined
   }, [value, defaultValue, evaluatedOptions])
+
+  // Set initial default value if current value is null/undefined
+  useEffect(() => {
+    if ((value === null || value === undefined) && effectiveValue !== undefined) {
+      setValue(effectiveValue)
+    }
+  }, [value, effectiveValue, setValue])
 
   // Handle the case where evaluatedOptions changes and the current selection is no longer valid
   const isValueInOptions = useMemo(() => {
