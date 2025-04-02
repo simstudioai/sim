@@ -16,7 +16,11 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
+import {
+  MAX_VISIBLE_NOTIFICATIONS,
+  NOTIFICATION_TIMEOUT,
+  useNotificationStore,
+} from '@/stores/notifications/store'
 import { Notification } from '@/stores/notifications/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -24,7 +28,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const logger = createLogger('Notifications')
 
 // Constants
-const NOTIFICATION_TIMEOUT = 4000 // Show notification for 4 seconds
 const FADE_DURATION = 500 // Fade out over 500ms
 
 // Define keyframes for the animations in a style tag
@@ -52,12 +55,32 @@ const AnimationStyles = () => (
       }
     }
 
+    @keyframes notification-slide-up {
+      0% {
+        transform: translateY(0);
+      }
+      100% {
+        transform: translateY(-100%);
+      }
+    }
+
     .animate-notification-slide {
       animation: notification-slide 300ms ease forwards;
     }
 
     .animate-notification-fade-out {
       animation: notification-fade-out ${FADE_DURATION}ms ease forwards;
+    }
+
+    .animate-notification-slide-up {
+      animation: notification-slide-up 300ms ease forwards;
+    }
+
+    .notification-container {
+      transition:
+        height 300ms ease,
+        opacity 300ms ease,
+        transform 300ms ease;
     }
   `}</style>
 )
@@ -129,12 +152,19 @@ function DeleteApiConfirmation({
  */
 export function NotificationList() {
   // Store access
-  const { notifications, hideNotification, markAsRead, removeNotification } = useNotificationStore()
+  const {
+    notifications,
+    hideNotification,
+    markAsRead,
+    removeNotification,
+    setNotificationFading,
+    getVisibleNotificationCount,
+  } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
 
   // Local state
-  const [fadingNotifications, setFadingNotifications] = useState<Set<string>>(new Set())
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+  const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set())
 
   // Filter to only show:
   // 1. Visible notifications for the current workflow
@@ -148,6 +178,10 @@ export function NotificationList() {
       !removedIds.has(n.id)
   )
 
+  // Check if we're over the limit of visible notifications
+  const visibleCount = activeWorkflowId ? getVisibleNotificationCount(activeWorkflowId) : 0
+  const isOverLimit = visibleCount > MAX_VISIBLE_NOTIFICATIONS
+
   // Reset removedIds whenever a notification's visibility changes from false to true
   useEffect(() => {
     const newlyVisibleNotifications = notifications.filter(
@@ -160,51 +194,46 @@ export function NotificationList() {
         newlyVisibleNotifications.forEach((n) => next.delete(n.id))
         return next
       })
-
-      // Also reset fading state for these notifications
-      setFadingNotifications((prev) => {
-        const next = new Set(prev)
-        newlyVisibleNotifications.forEach((n) => next.delete(n.id))
-        return next
-      })
     }
   }, [notifications, removedIds])
 
-  // Handle auto-dismissal of non-persistent notifications
+  // Handle fading notifications created by the store
   useEffect(() => {
-    // Setup timers for each notification
-    const timers: ReturnType<typeof setTimeout>[] = []
+    // This effect watches for notifications that are fading
+    // and handles the DOM removal after animation completes
+
+    const timers: Record<string, ReturnType<typeof setTimeout>> = {}
 
     visibleNotifications.forEach((notification) => {
-      // Skip if already hidden or marked as persistent
-      if (!notification.isVisible || notification.options?.isPersistent) return
+      // For notifications that have started fading, set up cleanup timers
+      if (notification.isFading && !animatingIds.has(notification.id)) {
+        // Start slide up animation after fade animation
+        const slideTimer = setTimeout(() => {
+          setAnimatingIds((prev) => new Set([...prev, notification.id]))
 
-      // Start fade out animation
-      const fadeTimer = setTimeout(() => {
-        setFadingNotifications((prev) => new Set([...prev, notification.id]))
-      }, NOTIFICATION_TIMEOUT)
+          // After slide animation, remove from DOM
+          setTimeout(() => {
+            hideNotification(notification.id)
+            markAsRead(notification.id)
+            setRemovedIds((prev) => new Set([...prev, notification.id]))
 
-      // Hide notification after fade completes and mark for removal from DOM
-      const hideTimer = setTimeout(() => {
-        hideNotification(notification.id)
-        markAsRead(notification.id)
+            // Remove from animating set
+            setAnimatingIds((prev) => {
+              const next = new Set(prev)
+              next.delete(notification.id)
+              return next
+            })
+          }, 300)
+        }, FADE_DURATION)
 
-        // Mark this notification ID as removed to exclude it from rendering
-        setRemovedIds((prev) => new Set([...prev, notification.id]))
-
-        setFadingNotifications((prev) => {
-          const next = new Set(prev)
-          next.delete(notification.id)
-          return next
-        })
-      }, NOTIFICATION_TIMEOUT + FADE_DURATION)
-
-      timers.push(fadeTimer, hideTimer)
+        timers[notification.id] = slideTimer
+      }
     })
 
-    // Cleanup timers on unmount or when notifications change
-    return () => timers.forEach(clearTimeout)
-  }, [visibleNotifications, hideNotification, markAsRead])
+    return () => {
+      Object.values(timers).forEach(clearTimeout)
+    }
+  }, [visibleNotifications, animatingIds, hideNotification, markAsRead])
 
   // Early return if no notifications to show
   if (visibleNotifications.length === 0) return null
@@ -220,26 +249,48 @@ export function NotificationList() {
         }}
       >
         {visibleNotifications.map((notification) => (
-          <NotificationAlert
+          <div
             key={notification.id}
-            notification={notification}
-            isFading={fadingNotifications.has(notification.id)}
-            onHide={(id) => {
-              hideNotification(id)
-              markAsRead(id)
-              // Start the fade out animation
-              setFadingNotifications((prev) => new Set([...prev, id]))
-              // Remove from DOM after animation completes
-              setTimeout(() => {
-                setRemovedIds((prev) => new Set([...prev, id]))
-                setFadingNotifications((prev) => {
-                  const next = new Set(prev)
-                  next.delete(id)
-                  return next
-                })
-              }, FADE_DURATION)
-            }}
-          />
+            className={cn(
+              'notification-container',
+              animatingIds.has(notification.id) && 'animate-notification-slide-up'
+            )}
+          >
+            <NotificationAlert
+              notification={notification}
+              isFading={notification.isFading ?? false}
+              onHide={(id) => {
+                // For persistent notifications like API, just hide immediately without animations
+                if (notification.options?.isPersistent) {
+                  hideNotification(id)
+                  markAsRead(id)
+                  setRemovedIds((prev) => new Set([...prev, id]))
+                  return
+                }
+
+                // For regular notifications, use the animation sequence
+                // Start the fade out animation when manually closing
+                setNotificationFading(id)
+
+                // Start slide up animation after fade completes
+                setTimeout(() => {
+                  setAnimatingIds((prev) => new Set([...prev, id]))
+                }, FADE_DURATION)
+
+                // Remove from DOM after all animations complete
+                setTimeout(() => {
+                  hideNotification(id)
+                  markAsRead(id)
+                  setRemovedIds((prev) => new Set([...prev, id]))
+                  setAnimatingIds((prev) => {
+                    const next = new Set(prev)
+                    next.delete(id)
+                    return next
+                  })
+                }, FADE_DURATION + 300) // Fade + slide durations
+              }}
+            />
+          </div>
         ))}
       </div>
     </>

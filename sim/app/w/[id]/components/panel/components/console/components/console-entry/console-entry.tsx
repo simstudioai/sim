@@ -10,6 +10,41 @@ interface ConsoleEntryProps {
   consoleWidth: number
 }
 
+// Maximum character length for a word before it's broken up
+const MAX_WORD_LENGTH = 25
+
+const WordWrap = ({ text }: { text: string }) => {
+  if (!text) return null
+
+  // Split text into words, keeping spaces and punctuation
+  const parts = text.split(/(\s+)/g)
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        // If the part is whitespace or shorter than the max length, render it as is
+        if (part.match(/\s+/) || part.length <= MAX_WORD_LENGTH) {
+          return <span key={index}>{part}</span>
+        }
+
+        // For long words, break them up into chunks
+        const chunks = []
+        for (let i = 0; i < part.length; i += MAX_WORD_LENGTH) {
+          chunks.push(part.substring(i, i + MAX_WORD_LENGTH))
+        }
+
+        return (
+          <span key={index} className="break-all">
+            {chunks.map((chunk, chunkIndex) => (
+              <span key={chunkIndex}>{chunk}</span>
+            ))}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
 export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
   const [isExpanded, setIsExpanded] = useState(false)
 
@@ -79,20 +114,24 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
 
           {entry.error && (
             <div className="flex items-start gap-2 border rounded-md p-3 border-red-500 bg-red-50 text-destructive dark:border-border dark:text-foreground dark:bg-background">
-              <AlertCircle className="h-4 w-4 text-red-500 mt-1" />
-              <div className="flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
+              <AlertCircle className="h-4 w-4 text-red-500 mt-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
                 <div className="font-medium">Error</div>
-                <pre className="text-sm whitespace-pre-wrap">{entry.error}</pre>
+                <div className="text-sm whitespace-pre-wrap overflow-hidden w-full">
+                  <WordWrap text={entry.error} />
+                </div>
               </div>
             </div>
           )}
 
           {entry.warning && (
             <div className="flex items-start gap-2 border rounded-md p-3 border-yellow-500 bg-yellow-50 text-yellow-700 dark:border-border dark:text-yellow-500 dark:bg-background">
-              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-1" />
-              <div className="flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
+              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-1 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
                 <div className="font-medium">Warning</div>
-                <pre className="text-sm whitespace-pre-wrap">{entry.warning}</pre>
+                <div className="text-sm whitespace-pre-wrap overflow-hidden w-full">
+                  <WordWrap text={entry.warning} />
+                </div>
               </div>
             </div>
           )}

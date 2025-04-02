@@ -5,6 +5,10 @@ import { Notification, NotificationOptions, NotificationStore, NotificationType 
 const STORAGE_KEY = 'workflow-notifications'
 // Maximum number of notifications to keep across all workflows
 const MAX_NOTIFICATIONS = 50
+// Default notification display time before fading
+export const NOTIFICATION_TIMEOUT = 4000
+// Maximum number of visible notifications at once
+export const MAX_VISIBLE_NOTIFICATIONS = 5
 
 // Helper to load persisted notifications
 const loadPersistedNotifications = (): Notification[] => {
@@ -26,7 +30,7 @@ export const useNotificationStore = create<NotificationStore>()(
 
       addNotification: (type, message, workflowId, options: NotificationOptions = {}) => {
         // Only create notifications on the client side
-        if (typeof window === 'undefined') return
+        if (typeof window === 'undefined') return ''
 
         const notification: Notification = {
           id: crypto.randomUUID(),
@@ -35,25 +39,76 @@ export const useNotificationStore = create<NotificationStore>()(
           timestamp: Date.now(),
           isVisible: true,
           read: false,
+          isFading: false,
           workflowId,
           options,
         }
 
         set((state) => {
           // Add new notification at the start and limit total count
-          const newNotifications = [notification, ...state.notifications].slice(
+          let newNotifications = [notification, ...state.notifications].slice(
             0,
             MAX_NOTIFICATIONS
           )
+          
+          // Check if we need to auto-fade older notifications if we exceed the limit
+          const workflowVisibleCount = get().getVisibleNotificationCount(workflowId);
+          
+          if (workflowVisibleCount > MAX_VISIBLE_NOTIFICATIONS) {
+            // Find the oldest non-persistent visible notification from this workflow to fade out
+            newNotifications = newNotifications.map((n, index) => {
+              // Don't touch the newly added notification
+              if (index === 0) return n;
+              
+              // Only target notifications from the same workflow that are visible, not persistent, and not already fading
+              if (
+                n.workflowId === workflowId && 
+                n.isVisible && 
+                !n.options?.isPersistent && 
+                !n.isFading
+              ) {
+                // Mark it as fading - the oldest one will be the first we encounter
+                return { ...n, isFading: true };
+              }
+              
+              return n;
+            });
+          }
+          
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
         })
+
+        // If not persistent, start the fade timer immediately
+        if (!options.isPersistent) {
+          const timerId = setTimeout(() => {
+            // Start fade out animation
+            set((state) => {
+              const newNotifications = state.notifications.map((n) =>
+                n.id === notification.id ? { ...n, isFading: true } : n
+              )
+              persistNotifications(newNotifications)
+              return { notifications: newNotifications }
+            })
+          }, NOTIFICATION_TIMEOUT)
+        }
+
+        return notification.id
       },
 
       hideNotification: (id) =>
         set((state) => {
           const newNotifications = state.notifications.map((n) =>
-            n.id === id ? { ...n, isVisible: false, read: true } : n
+            n.id === id ? { ...n, isVisible: false, read: true, isFading: false } : n
+          )
+          persistNotifications(newNotifications)
+          return { notifications: newNotifications }
+        }),
+
+      setNotificationFading: (id) =>
+        set((state) => {
+          const newNotifications = state.notifications.map((n) =>
+            n.id === id ? { ...n, isFading: true } : n
           )
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
@@ -67,10 +122,36 @@ export const useNotificationStore = create<NotificationStore>()(
 
           // Bring the notification to the top and make it visible
           const filteredNotifications = state.notifications.filter((n) => n.id !== id)
-          const updatedNotification = { ...notification, isVisible: true, read: false }
-
+          const updatedNotification = { ...notification, isVisible: true, read: false, isFading: false }
+          
           // Put the notification at the top so it's easily visible in dropdowns
-          const newNotifications = [updatedNotification, ...filteredNotifications]
+          let newNotifications = [updatedNotification, ...filteredNotifications]
+          
+          // Check if we need to auto-fade older notifications due to the limit
+          const workflowId = notification.workflowId;
+          const workflowVisibleCount = get().getVisibleNotificationCount(workflowId);
+          
+          if (workflowVisibleCount > MAX_VISIBLE_NOTIFICATIONS) {
+            // Find the oldest non-persistent visible notification to fade out
+            newNotifications = newNotifications.map((n, index) => {
+              // Don't touch the newly shown notification
+              if (index === 0) return n;
+              
+              // Only target notifications from the same workflow that are visible, not persistent, and not already fading
+              if (
+                n.workflowId === workflowId && 
+                n.isVisible && 
+                !n.options?.isPersistent && 
+                !n.isFading
+              ) {
+                // Mark it as fading - the oldest one will be the first we encounter
+                return { ...n, isFading: true };
+              }
+              
+              return n;
+            });
+          }
+          
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
         }),
@@ -107,6 +188,16 @@ export const useNotificationStore = create<NotificationStore>()(
 
       getWorkflowNotifications: (workflowId) => {
         return get().notifications.filter((n) => n.workflowId === workflowId)
+      },
+      
+      getVisibleNotificationCount: (workflowId) => {
+        if (!workflowId) return 0;
+        
+        return get().notifications.filter(
+          n => n.workflowId === workflowId && 
+               n.isVisible && 
+               !n.read
+        ).length;
       },
     }),
     { name: 'notification-store' }
