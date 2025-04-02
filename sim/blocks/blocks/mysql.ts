@@ -13,11 +13,56 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
   icon: MySQLIcon,
   subBlocks: [
     {
-      id: 'connection',
-      title: 'Connection',
-      type: 'tool-input',
-      layout: 'full',
-      placeholder: 'Configure MySQL connection',
+      id: 'host',
+      title: 'Host',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'mysql',
+      value: () => 'mysql',
+    },
+    {
+      id: 'port',
+      title: 'Port',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '3306',
+      value: () => '3306',
+    },
+    {
+      id: 'username',
+      title: 'Username',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'root',
+      value: () => 'root',
+    },
+    {
+      id: 'password',
+      title: 'Password',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter password',
+      password: true,
+      value: () => 'root',
+    },
+    {
+      id: 'database',
+      title: 'Database',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'simstudio',
+      value: () => 'simstudio',
+    },
+    {
+      id: 'ssl',
+      title: 'Use SSL',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
     },
     {
       id: 'operation',
@@ -59,17 +104,32 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
     access: ['mysql'],
     config: {
       tool: () => 'mysql',
-      params: (params) => ({
-        connection: params.connection,
-        operation: params.operation,
-        query: params.query,
-        params: params.params ? JSON.parse(params.params) : undefined,
-        options: params.options ? JSON.parse(params.options) : undefined,
-      }),
+      params: (params) => {
+        const connection = {
+          host: params.host || 'mysql',
+          port: parseInt(params.port || '3306'),
+          username: params.username || 'root',
+          password: params.password || 'root',
+          database: params.database || 'simstudio',
+          ssl: params.ssl === 'true'
+        }
+        return {
+          connection,
+          operation: params.operation,
+          query: params.query,
+          params: params.params ? JSON.parse(params.params) : undefined,
+          options: params.options ? JSON.parse(params.options) : undefined,
+        }
+      },
     },
   },
   inputs: {
-    connection: { type: 'json', required: true },
+    host: { type: 'string', required: false },
+    port: { type: 'string', required: false },
+    username: { type: 'string', required: false },
+    password: { type: 'string', required: false },
+    database: { type: 'string', required: false },
+    ssl: { type: 'string', required: false },
     operation: { type: 'string', required: true },
     query: { type: 'string', required: true },
     params: { type: 'json', required: false },
