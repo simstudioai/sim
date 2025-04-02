@@ -197,24 +197,21 @@ export function CredentialSelector({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between"
+            className="w-full justify-between relative"
             disabled={disabled}
           >
-            {selectedCredential ? (
-              <div className="flex items-center gap-2">
-                {getProviderIcon(provider)}
-                <span className="font-normal">{selectedCredential.name}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                {getProviderIcon(provider)}
-                <span className="text-muted-foreground">{label}</span>
-              </div>
-            )}
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <div className="flex items-center gap-2 max-w-[calc(100%-20px)] overflow-hidden">
+              {getProviderIcon(provider)}
+              {selectedCredential ? (
+                <span className="font-normal truncate">{selectedCredential.name}</span>
+              ) : (
+                <span className="text-muted-foreground truncate">{label}</span>
+              )}
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50 absolute right-3" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="p-0" align="start">
+        <PopoverContent className="p-0 w-[250px]" align="start">
           <Command>
             <CommandInput placeholder="Search credentials..." />
             <CommandList>
