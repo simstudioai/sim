@@ -169,6 +169,13 @@
       "when": 1743024111706,
       "tag": "0023_nervous_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1743642824678,
+      "tag": "0024_next_whizzer",
+      "breakpoints": true
     }
   ]
 }
