@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Eye, Star } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Workflow } from '../marketplace'
 import { WorkflowPreview } from './workflow-preview'
 
@@ -25,6 +27,8 @@ interface WorkflowCardProps {
  */
 export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(!!workflow.workflowState)
+  const router = useRouter()
+  const { createWorkflow } = useWorkflowRegistry()
 
   // When workflow state becomes available, update preview ready state
   useEffect(() => {
@@ -44,10 +48,11 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   }
 
   /**
-   * Handle workflow card click - track views
+   * Handle workflow card click - track views and import workflow
    */
   const handleClick = async () => {
     try {
+      // Track view
       await fetch(`/api/marketplace/workflows`, {
         method: 'POST',
         headers: {
@@ -55,8 +60,23 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
         },
         body: JSON.stringify({ id: workflow.id }),
       })
+
+      // Create a local copy of the marketplace workflow
+      if (workflow.workflowState) {
+        const newWorkflowId = createWorkflow({
+          name: `${workflow.name} (Copy)`,
+          description: workflow.description,
+          marketplaceId: workflow.id,
+          marketplaceState: workflow.workflowState,
+        })
+
+        // Navigate to the new workflow
+        router.push(`/w/${newWorkflowId}`)
+      } else {
+        console.error('Cannot import workflow: state is not available')
+      }
     } catch (error) {
-      console.error('Failed to track workflow view:', error)
+      console.error('Failed to handle workflow click:', error)
     }
   }
 
