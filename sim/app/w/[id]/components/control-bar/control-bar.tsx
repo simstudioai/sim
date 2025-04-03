@@ -10,7 +10,6 @@ import {
   History,
   Loader2,
   Play,
-  Rocket,
   SkipForward,
   StepForward,
   Store,
@@ -36,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Progress } from '@/components/ui/progress'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -46,6 +45,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
+import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
@@ -63,8 +63,13 @@ export function ControlBar() {
   const router = useRouter()
 
   // Store hooks
-  const { notifications, getWorkflowNotifications, addNotification, showNotification } =
-    useNotificationStore()
+  const {
+    notifications,
+    getWorkflowNotifications,
+    addNotification,
+    showNotification,
+    removeNotification,
+  } = useNotificationStore()
   const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
     useWorkflowStore()
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
@@ -90,6 +95,7 @@ export function ControlBar() {
   // Status states
   const [isDeploying, setIsDeploying] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [needsRedeployment, setNeedsRedeployment] = useState(false)
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
@@ -134,6 +140,101 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
+  // Listen for workflow changes and check if redeployment is needed
+  useEffect(() => {
+    if (!activeWorkflowId || !isDeployed) return
+
+    // Create a debounced function to check for changes
+    let debounceTimer: NodeJS.Timeout | null = null
+    let lastCheckTime = 0
+    let pendingChanges = 0
+    const DEBOUNCE_DELAY = 1000
+    const THROTTLE_INTERVAL = 3000
+
+    // Function to check if redeployment is needed
+    const checkForChanges = async () => {
+      // Skip if we're already showing needsRedeployment
+      if (needsRedeployment) return
+
+      // Reset the pending changes counter
+      pendingChanges = 0
+      lastCheckTime = Date.now()
+
+      try {
+        // Get the deployed state from the API
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+
+          // If the API says we need redeployment, update our state and the store
+          if (data.needsRedeployment) {
+            setNeedsRedeployment(true)
+            // Also update the store state so other components can access this flag
+            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check workflow change status:', { error })
+      }
+    }
+
+    // Debounced check function
+    const debouncedCheck = () => {
+      // Increment the pending changes counter
+      pendingChanges++
+
+      // Clear any existing timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
+      // If we recently checked, and it's within throttle interval, wait longer
+      const timeElapsed = Date.now() - lastCheckTime
+      if (timeElapsed < THROTTLE_INTERVAL && lastCheckTime > 0) {
+        // Wait until the throttle interval has passed
+        const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
+
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, adjustedDelay)
+      } else {
+        // Standard debounce delay if we haven't checked recently
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, DEBOUNCE_DELAY)
+      }
+    }
+
+    // Subscribe to workflow store changes
+    const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
+
+    // Also subscribe to subblock store changes
+    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
+      // Only check for the active workflow
+      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
+
+      // Only trigger when there is an update to the current workflow's subblocks
+      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
+      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
+        debouncedCheck()
+      }
+    })
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      workflowUnsubscribe()
+      subBlockUnsubscribe()
+    }
+  }, [activeWorkflowId, isDeployed, needsRedeployment])
+
   // Check deployment and publication status on mount or when activeWorkflowId changes
   useEffect(() => {
     async function checkStatus() {
@@ -160,6 +261,8 @@ export function ControlBar() {
             data.isDeployed,
             data.deployedAt ? new Date(data.deployedAt) : undefined
           )
+          setNeedsRedeployment(data.needsRedeployment)
+          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
         }
       } catch (error) {
         logger.error('Failed to check workflow status:', { error })
@@ -167,6 +270,53 @@ export function ControlBar() {
     }
     checkStatus()
   }, [activeWorkflowId, setDeploymentStatus])
+
+  // Listen for deployment status changes
+  useEffect(() => {
+    // When deployment status changes and isDeployed becomes true,
+    // that means a deployment just occurred, so reset the needsRedeployment flag
+    if (isDeployed) {
+      setNeedsRedeployment(false)
+      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+    }
+  }, [isDeployed])
+
+  // Add a listener for the needsRedeployment flag in the workflow store
+  useEffect(() => {
+    const unsubscribe = useWorkflowStore.subscribe((state) => {
+      // Update local state when the store flag changes
+      if (state.needsRedeployment !== undefined) {
+        setNeedsRedeployment(state.needsRedeployment)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Add a manual method to update the deployment status and clear the needsRedeployment flag
+  const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
+    setDeploymentStatus(isDeployed, deployedAt)
+    setNeedsRedeployment(false)
+    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+  }
+
+  // Update existing API notifications when needsRedeployment changes
+  useEffect(() => {
+    if (!activeWorkflowId) return
+
+    const apiNotification = notifications.find(
+      (n) => n.type === 'api' && n.workflowId === activeWorkflowId && n.options?.isPersistent
+    )
+
+    if (apiNotification && apiNotification.options?.needsRedeployment !== needsRedeployment) {
+      // If there's an existing API notification and its state doesn't match, update it
+      if (apiNotification.isVisible) {
+        // Only update if it's currently showing to the user
+        removeNotification(apiNotification.id)
+        // The DeploymentControls component will handle showing the appropriate notification
+      }
+    }
+  }, [needsRedeployment, activeWorkflowId, notifications, removeNotification, addNotification])
 
   /**
    * Workflow name handlers
@@ -214,157 +364,6 @@ export function ControlBar() {
 
     // Remove the workflow from the registry
     removeWorkflow(activeWorkflowId)
-  }
-
-  /**
-   * Get an example of the input format for the workflow
-   */
-  const getInputFormatExample = () => {
-    let inputFormatExample = ''
-    try {
-      // Find the starter block in the workflow
-      const blocks = Object.values(useWorkflowStore.getState().blocks)
-      const starterBlock = blocks.find((block) => block.type === 'starter')
-
-      if (starterBlock) {
-        const inputFormat = useSubBlockStore.getState().getValue(starterBlock.id, 'inputFormat')
-
-        // If input format is defined, create an example
-        if (inputFormat && Array.isArray(inputFormat) && inputFormat.length > 0) {
-          const exampleData: Record<string, any> = {}
-
-          // Create example values for each field
-          inputFormat.forEach((field) => {
-            if (field.name) {
-              switch (field.type) {
-                case 'string':
-                  exampleData[field.name] = 'example'
-                  break
-                case 'number':
-                  exampleData[field.name] = 42
-                  break
-                case 'boolean':
-                  exampleData[field.name] = true
-                  break
-                case 'object':
-                  exampleData[field.name] = { key: 'value' }
-                  break
-                case 'array':
-                  exampleData[field.name] = [1, 2, 3]
-                  break
-              }
-            }
-          })
-
-          inputFormatExample = ` -d '${JSON.stringify(exampleData)}'`
-        }
-      }
-    } catch (error) {
-      console.error('Error generating input format example:', error)
-    }
-
-    return inputFormatExample
-  }
-
-  /**
-   * Workflow deployment handler
-   */
-  const handleDeploy = async () => {
-    if (!activeWorkflowId) return
-
-    const inputFormatExample = getInputFormatExample()
-
-    // If already deployed, show the API info
-    if (isDeployed) {
-      // Try to find an existing API notification
-      const apiNotification = notifications.find(
-        (n) => n.type === 'api' && n.workflowId === activeWorkflowId
-      )
-
-      if (apiNotification) {
-        // Show the existing notification
-        showNotification(apiNotification.id)
-        return
-      }
-
-      // If notification not found but workflow is deployed, fetch deployment info
-      try {
-        setIsDeploying(true)
-
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`)
-        if (!response.ok) throw new Error('Failed to fetch deployment info')
-
-        const { apiKey } = await response.json()
-        const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${activeWorkflowId}/execute`
-
-        // Create a new notification with the deployment info
-        addNotification('api', 'Workflow deployment information', activeWorkflowId, {
-          isPersistent: true,
-          sections: [
-            {
-              label: 'API Endpoint',
-              content: endpoint,
-            },
-            {
-              label: 'API Key',
-              content: apiKey || 'No API key found. Visit your account settings to create one.',
-            },
-            {
-              label: 'Example curl command',
-              content: apiKey
-                ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
-                : `You need an API key to call this endpoint. Visit your account settings to create one.`,
-            },
-          ],
-        })
-      } catch (error) {
-        addNotification('error', 'Failed to fetch deployment information', activeWorkflowId)
-      } finally {
-        setIsDeploying(false)
-      }
-      return
-    }
-
-    // If not deployed, proceed with deployment
-    try {
-      setIsDeploying(true)
-
-      const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) throw new Error('Failed to deploy workflow')
-
-      const { apiKey, isDeployed: newDeployStatus, deployedAt } = await response.json()
-      const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${activeWorkflowId}/execute`
-
-      // Update the store with the deployment status
-      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
-
-      addNotification('api', 'Workflow successfully deployed', activeWorkflowId, {
-        isPersistent: true,
-        sections: [
-          {
-            label: 'API Endpoint',
-            content: endpoint,
-          },
-          {
-            label: 'API Key',
-            content: apiKey || 'No API key found. Visit your account settings to create one.',
-          },
-          {
-            label: 'Example curl command',
-            content: apiKey
-              ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
-              : `You need an API key to call this endpoint. Visit your account settings to create one.`,
-          },
-        ],
-      })
-    } catch (error) {
-      addNotification('error', 'Failed to deploy workflow. Please try again.', activeWorkflowId)
-    } finally {
-      setIsDeploying(false)
-    }
   }
 
   /**
@@ -514,27 +513,11 @@ export function ControlBar() {
    * Render deploy button with tooltip
    */
   const renderDeployButton = () => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleDeploy}
-          disabled={isDeploying}
-          className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
-        >
-          {isDeploying ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Rocket className="h-5 w-5" />
-          )}
-          <span className="sr-only">Deploy API</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {isDeploying ? 'Deploying...' : isDeployed ? 'Deployed' : 'Deploy as API'}
-      </TooltipContent>
-    </Tooltip>
+    <DeploymentControls
+      activeWorkflowId={activeWorkflowId}
+      needsRedeployment={needsRedeployment}
+      setNeedsRedeployment={setNeedsRedeployment}
+    />
   )
 
   /**

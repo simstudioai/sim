@@ -45,6 +45,7 @@ export interface WorkflowState {
   lastUpdate?: number
   isDeployed?: boolean
   deployedAt?: Date
+  needsRedeployment?: boolean
 }
 
 export interface WorkflowActions {
@@ -66,6 +67,7 @@ export interface WorkflowActions {
   updateLoopForEachItems: (loopId: string, items: string) => void
   triggerUpdate: () => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
+  setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions
