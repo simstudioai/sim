@@ -297,7 +297,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
-            isPublished: currentState.isPublished,
             lastSaved: Date.now(),
           })
 
@@ -615,17 +614,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           ...get(),
           isDeployed,
           deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-        }
-
-        set(newState)
-        get().updateLastSaved()
-        workflowSync.sync()
-      },
-
-      setPublishStatus: (isPublished: boolean) => {
-        const newState = {
-          ...get(),
-          isPublished,
         }
 
         set(newState)

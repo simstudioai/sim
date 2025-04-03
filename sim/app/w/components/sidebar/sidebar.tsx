@@ -4,11 +4,13 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
-import { Anvil, HelpCircle, Plus, ScrollText, Settings, Store } from 'lucide-react'
+import { HelpCircle, Plus, ScrollText, Settings, Store } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { FolderSection } from './components/folder-section/folder-section'
 import { HelpModal } from './components/help-modal/help-modal'
 import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
@@ -20,11 +22,21 @@ export function Sidebar() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
 
-  // Sort workflows by lastModified date (which corresponds to createdAt for new workflows)
-  // Newest workflows at the top (ascending order by date)
-  const sortedWorkflows = useMemo(() => {
-    return Object.values(workflows).sort((a, b) => {
-      // Ensure we're comparing dates properly by converting to timestamps
+  // Separate regular workflows from temporary marketplace workflows
+  const { regularWorkflows, tempWorkflows } = useMemo(() => {
+    const regular: WorkflowMetadata[] = []
+    const temp: WorkflowMetadata[] = []
+
+    Object.values(workflows).forEach((workflow) => {
+      if (workflow.marketplaceData?.status === 'temp') {
+        temp.push(workflow)
+      } else {
+        regular.push(workflow)
+      }
+    })
+
+    // Sort regular workflows by last modified date (newest first)
+    regular.sort((a, b) => {
       const dateA =
         a.lastModified instanceof Date
           ? a.lastModified.getTime()
@@ -33,8 +45,23 @@ export function Sidebar() {
         b.lastModified instanceof Date
           ? b.lastModified.getTime()
           : new Date(b.lastModified).getTime()
-      return dateB - dateA // Ascending order (oldest last, newest first)
+      return dateB - dateA
     })
+
+    // Sort temp workflows by last modified date (newest first)
+    temp.sort((a, b) => {
+      const dateA =
+        a.lastModified instanceof Date
+          ? a.lastModified.getTime()
+          : new Date(a.lastModified).getTime()
+      const dateB =
+        b.lastModified instanceof Date
+          ? b.lastModified.getTime()
+          : new Date(b.lastModified).getTime()
+      return dateB - dateA
+    })
+
+    return { regularWorkflows: regular, tempWorkflows: temp }
   }, [workflows])
 
   // Create workflow
@@ -88,14 +115,11 @@ export function Sidebar() {
       {/* Scrollable workflows section */}
       <nav className="flex-1 overflow-y-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
         <div className="flex flex-col items-center gap-4">
-          {sortedWorkflows.map((workflow) => (
-            <NavItem key={workflow.id} href={`/w/${workflow.id}`} label={workflow.name}>
-              <div
-                className="h-4 w-4 rounded-full"
-                style={{ backgroundColor: workflow.color || '#3972F6' }}
-              />
-            </NavItem>
-          ))}
+          {/* My Workflows folder */}
+          <FolderSection title="My Workflows" workflows={regularWorkflows} defaultOpen={true} />
+
+          {/* Marketplace Workflows folder */}
+          <FolderSection title="Marketplace" workflows={tempWorkflows} defaultOpen={false} />
         </div>
       </nav>
 
@@ -122,29 +146,6 @@ export function Sidebar() {
           </TooltipTrigger>
           <TooltipContent side="right">Marketplace</TooltipContent>
         </Tooltip>
-
-        {/* Agents */}
-        {/* <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-                {
-                  'bg-accent': pathname === '/w/agents',
-                }
-              )}
-            >
-              <Link href="/w/agents">
-                <Anvil className="!h-5 !w-5" />
-                <span className="sr-only">Agents</span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Agents</TooltipContent>
-        </Tooltip> */}
 
         {/* Logs */}
         <Tooltip>
