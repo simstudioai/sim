@@ -16,7 +16,6 @@ export interface Workflow {
   name: string
   description: string
   author: string
-  stars: number
   views: number
   tags: string[]
   thumbnail?: string
@@ -41,7 +40,6 @@ export interface MarketplaceWorkflow {
   name: string
   description: string
   authorName: string
-  stars: number
   views: number
   category: string
   createdAt: string
@@ -94,7 +92,6 @@ export default function Marketplace() {
         name: item.name,
         description: item.description || '',
         author: item.authorName,
-        stars: item.stars,
         views: item.views,
         tags: [item.category],
         workflowState: item.workflowState,
@@ -105,7 +102,6 @@ export default function Marketplace() {
         name: item.name,
         description: item.description || '',
         author: item.authorName,
-        stars: item.stars,
         views: item.views,
         tags: [item.category],
         workflowState: item.workflowState,
@@ -121,7 +117,6 @@ export default function Marketplace() {
           name: item.name,
           description: item.description || '',
           author: item.authorName,
-          stars: item.stars,
           views: item.views,
           tags: [item.category],
           workflowState: item.workflowState,
