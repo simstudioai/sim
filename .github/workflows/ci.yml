@@ -72,5 +72,5 @@ jobs:
       - name: Apply migrations
         working-directory: ./sim
         env:
-          POSTGRES_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx drizzle-kit push 
