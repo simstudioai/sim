@@ -8,7 +8,7 @@ export type ParamType = 'string' | 'number' | 'boolean' | 'json'
 export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'any'
 
 // Block classification
-export type BlockCategory = 'blocks' | 'tools' | 'Database'
+export type BlockCategory = 'blocks' | 'tools'
 
 // SubBlock types
 export type SubBlockType =

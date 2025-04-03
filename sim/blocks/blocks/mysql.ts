@@ -1,5 +1,5 @@
 import { MySQLIcon } from '@/components/icons'
-import { MySQLResponse } from '@/tools/mysql/types'
+import { MySQLResponse } from '@/tools/databases/mysql/types'
 import { BlockConfig } from '../types'
 
 export const MySQLBlock: BlockConfig<MySQLResponse> = {

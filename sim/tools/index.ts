@@ -19,6 +19,10 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+<<<<<<< HEAD
+=======
+import mongodbTool from './databases/mongodb'
+>>>>>>> 7fd5c86 (feat(database) tools -)
 import mysqlTool from './databases/mysql'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
@@ -32,6 +36,11 @@ import {
   pineconeUpsertTextTool,
 } from './pinecone'
 import postgresqlTool from './databases/postgresql'
+<<<<<<< HEAD
+=======
+import redisTool from './databases/redis'
+import elasticsearchTool from './databases/elasticsearch'
+>>>>>>> 7fd5c86 (feat(database) tools -)
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
