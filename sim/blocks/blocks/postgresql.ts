@@ -1,5 +1,5 @@
 import { PostgreSQLIcon } from '@/components/icons'
-import { PostgreSQLResponse } from '@/tools/postgresql/types'
+import { PostgreSQLResponse } from '@/tools/databases/postgresql/types'
 import { BlockConfig } from '../types'
 
 export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
@@ -17,7 +17,8 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       title: 'Host',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'localhost',
+      placeholder: 'postgres',
+      value: () => 'postgres',
     },
     {
       id: 'port',
@@ -25,6 +26,7 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: '5432',
+      value: () => '5432',
     },
     {
       id: 'username',
@@ -32,6 +34,7 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'postgres',
+      value: () => 'postgres',
     },
     {
       id: 'password',
@@ -40,6 +43,7 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       layout: 'half',
       placeholder: 'Enter password',
       password: true,
+      value: () => 'postgres',
     },
     {
       id: 'database',
@@ -47,6 +51,7 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'postgres',
+      value: () => 'postgres',
     },
     {
       id: 'ssl',
@@ -99,28 +104,31 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
     access: ['postgresql'],
     config: {
       tool: () => 'postgresql',
-      params: (params) => ({
-        connection: {
-          host: params.host || 'localhost',
+      params: (params) => {
+        const connection = {
+          host: params.host || 'postgres',
           port: parseInt(params.port || '5432'),
           username: params.username || 'postgres',
-          password: params.password,
+          password: params.password || 'postgres',
           database: params.database || 'postgres',
-          ssl: params.ssl === 'true',
-        },
-        operation: params.operation,
-        query: params.query,
-        params: params.params ? JSON.parse(params.params) : undefined,
-        options: params.options ? JSON.parse(params.options) : undefined,
-      }),
+          ssl: params.ssl === 'true'
+        }
+        return {
+          connection,
+          operation: params.operation,
+          query: params.query,
+          params: params.params ? JSON.parse(params.params) : undefined,
+          options: params.options ? JSON.parse(params.options) : undefined,
+        }
+      },
     },
   },
   inputs: {
-    host: { type: 'string', required: true },
-    port: { type: 'string', required: true },
-    username: { type: 'string', required: true },
-    password: { type: 'string', required: true },
-    database: { type: 'string', required: true },
+    host: { type: 'string', required: false },
+    port: { type: 'string', required: false },
+    username: { type: 'string', required: false },
+    password: { type: 'string', required: false },
+    database: { type: 'string', required: false },
     ssl: { type: 'string', required: false },
     operation: { type: 'string', required: true },
     query: { type: 'string', required: true },

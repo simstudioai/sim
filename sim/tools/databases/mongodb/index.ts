@@ -1,39 +1,59 @@
 import { ToolConfig } from '../../types'
-import { PostgreSQLQueryParams, PostgreSQLResponse } from './types'
+import { MongoDBQueryParams, MongoDBResponse } from './types'
 import { getDatabaseApiUrl } from '../../utils'
 
-const API_URL = getDatabaseApiUrl('postgresql')
+const API_URL = getDatabaseApiUrl('mongodb')
 
-const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
-  id: 'postgresql',
-  name: 'PostgreSQL',
-  description: 'Execute PostgreSQL operations on your database',
+const toolConfig: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
+  id: 'mongodb',
+  name: 'MongoDB',
+  description: 'Execute MongoDB operations on your database',
   version: '1.0.0',
   params: {
     connection: {
       type: 'json',
       required: true,
-      description: 'PostgreSQL connection configuration'
+      description: 'MongoDB connection configuration'
     },
     operation: {
       type: 'string',
       required: true,
-      description: 'SQL operation to perform'
+      description: 'MongoDB operation to perform'
     },
-    query: {
+    collection: {
       type: 'string',
       required: true,
-      description: 'SQL query to execute'
+      description: 'Collection name'
     },
-    params: {
+    query: {
       type: 'json',
       required: false,
-      description: 'Query parameters for parameterized queries'
+      description: 'Query filter'
+    },
+    projection: {
+      type: 'json',
+      required: false,
+      description: 'Projection fields'
+    },
+    document: {
+      type: 'json',
+      required: false,
+      description: 'Document to insert'
+    },
+    update: {
+      type: 'json',
+      required: false,
+      description: 'Update operation'
+    },
+    pipeline: {
+      type: 'json',
+      required: false,
+      description: 'Aggregation pipeline'
     },
     options: {
       type: 'json',
       required: false,
-      description: 'Additional options for the operation'
+      description: 'Operation options'
     }
   },
   request: {
@@ -48,7 +68,7 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
     const startTime = Date.now()
     
     try {
-      console.log('[PostgreSQL Tool] Starting execution with params:', {
+      console.log('[MongoDB Tool] Starting execution with params:', {
         ...params,
         connection: {
           ...params.connection,
@@ -66,36 +86,36 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('[PostgreSQL Tool] API error response:', errorText)
+        console.error('[MongoDB Tool] API error response:', errorText)
         throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`)
       }
 
       const result = await response.json()
-      console.log('[PostgreSQL Tool] API response result:', result)
+      console.log('[MongoDB Tool] API response result:', result)
 
       return {
         success: true,
         output: {
-          rows: JSON.stringify(result.rows || []),
-          affectedRows: JSON.stringify(result.rowCount || 0),
+          result: JSON.stringify(result.data || []),
+          affectedCount: JSON.stringify(result.affectedCount || 0),
           metadata: JSON.stringify({
             operation: params.operation,
-            query: params.query,
+            collection: params.collection,
             executionTime: Date.now() - startTime,
             fields: result.fields || []
           })
         }
       }
     } catch (error) {
-      console.error('[PostgreSQL Tool] Error during execution:', error)
+      console.error('[MongoDB Tool] Error during execution:', error)
       return {
         success: false,
         output: {
-          rows: '[]',
-          affectedRows: '0',
+          result: '[]',
+          affectedCount: '0',
           metadata: JSON.stringify({
             operation: params.operation,
-            query: params.query,
+            collection: params.collection,
             executionTime: Date.now() - startTime
           })
         },

@@ -1,4 +1,4 @@
-import { ToolConfig } from '../types'
+import { ToolConfig } from '../../types'
 import { ElasticsearchResponse } from './types'
 
 const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
