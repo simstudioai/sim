@@ -1,36 +1,41 @@
-import { ToolConfig } from '../types'
-import { RedisResponse } from './types'
+import { ToolConfig } from '../../types'
+import { ElasticsearchResponse } from './types'
 
-const toolConfig: ToolConfig<any, RedisResponse> = {
-  id: 'redis',
-  name: 'Redis',
-  description: 'Execute Redis operations on your database',
+const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
+  id: 'elasticsearch',
+  name: 'Elasticsearch',
+  description: 'Execute Elasticsearch operations on your cluster',
   version: '1.0.0',
   params: {
     connection: {
       type: 'json',
       required: true,
-      description: 'Redis connection configuration'
+      description: 'Elasticsearch connection configuration'
     },
     operation: {
       type: 'string',
       required: true,
-      description: 'Redis operation to perform'
+      description: 'Elasticsearch operation to perform'
     },
-    key: {
+    index: {
       type: 'string',
       required: true,
-      description: 'Redis key for the operation'
+      description: 'Index name for the operation'
     },
-    value: {
+    id: {
       type: 'string',
       required: false,
-      description: 'Value for set operations'
+      description: 'Document ID for get/update/delete operations'
     },
-    ttl: {
-      type: 'number',
+    query: {
+      type: 'json',
       required: false,
-      description: 'Time to live in seconds'
+      description: 'Query for search operations'
+    },
+    document: {
+      type: 'json',
+      required: false,
+      description: 'Document for index/update operations'
     },
     options: {
       type: 'json',
@@ -39,7 +44,7 @@ const toolConfig: ToolConfig<any, RedisResponse> = {
     }
   },
   request: {
-    url: 'http://localhost:3000/api/redis',
+    url: 'http://localhost:3000/api/elasticsearch',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json'
@@ -50,7 +55,7 @@ const toolConfig: ToolConfig<any, RedisResponse> = {
     const startTime = Date.now()
     
     try {
-      const response = await fetch('http://localhost:3000/api/redis', {
+      const response = await fetch('http://localhost:3000/api/elasticsearch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -67,10 +72,10 @@ const toolConfig: ToolConfig<any, RedisResponse> = {
       return {
         success: true,
         output: {
-          result: JSON.stringify(result.value || null),
+          result: JSON.stringify(result.data || null),
           metadata: JSON.stringify({
             operation: params.operation,
-            key: params.key,
+            index: params.index,
             executionTime: Date.now() - startTime
           })
         }
@@ -82,7 +87,7 @@ const toolConfig: ToolConfig<any, RedisResponse> = {
           result: 'null',
           metadata: JSON.stringify({
             operation: params.operation,
-            key: params.key,
+            index: params.index,
             executionTime: Date.now() - startTime
           })
         },

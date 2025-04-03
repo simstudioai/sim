@@ -1,5 +1,5 @@
 import { RedisIcon } from '@/components/icons'
-import { RedisResponse } from '@/tools/redis/types'
+import { RedisResponse } from '@/tools/databases/redis/types'
 import { BlockConfig } from '../types'
 
 export const RedisBlock: BlockConfig<RedisResponse> = {
@@ -13,11 +13,48 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   icon: RedisIcon,
   subBlocks: [
     {
-      id: 'connection',
-      title: 'Connection',
-      type: 'tool-input',
-      layout: 'full',
-      placeholder: 'Configure Redis connection',
+      id: 'host',
+      title: 'Host',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Redis server hostname (default: redis)',
+      value: () => 'redis',
+    },
+    {
+      id: 'port',
+      title: 'Port',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Redis server port (default: 6379)',
+      value: () => '6379',
+    },
+    {
+      id: 'password',
+      title: 'Password',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Redis server password (default: redis)',
+      password: true,
+      value: () => 'redis',
+    },
+    {
+      id: 'db',
+      title: 'Database',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Redis database number (default: 0)',
+      value: () => '0',
+    },
+    {
+      id: 'tls',
+      title: 'Use TLS',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
     },
     {
       id: 'operation',
@@ -29,14 +66,6 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
         { label: 'Set', id: 'set' },
         { label: 'Delete', id: 'delete' },
         { label: 'Keys', id: 'keys' },
-        { label: 'Hash Get', id: 'hget' },
-        { label: 'Hash Set', id: 'hset' },
-        { label: 'List Push', id: 'lpush' },
-        { label: 'List Range', id: 'lrange' },
-        { label: 'Set Add', id: 'sadd' },
-        { label: 'Set Members', id: 'smembers' },
-        { label: 'Publish', id: 'publish' },
-        { label: 'Subscribe', id: 'subscribe' },
       ],
       value: () => 'get',
     },
@@ -45,32 +74,17 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
       title: 'Key',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'Enter Redis key',
-      condition: {
-        field: 'operation',
-        value: ['get', 'set', 'delete', 'hget', 'hset', 'lpush', 'lrange', 'sadd', 'smembers'],
-      },
-    },
-    {
-      id: 'pattern',
-      title: 'Pattern',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter key pattern',
-      condition: {
-        field: 'operation',
-        value: ['keys'],
-      },
+      placeholder: 'Enter Redis key to operate on',
     },
     {
       id: 'value',
       title: 'Value',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter value to set',
+      placeholder: 'Enter value to set (for SET operation)',
       condition: {
         field: 'operation',
-        value: ['set', 'hset', 'lpush', 'sadd'],
+        value: ['set'],
       },
     },
     {
@@ -78,32 +92,10 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
       title: 'TTL (seconds)',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'Enter TTL in seconds',
+      placeholder: 'Enter time to live in seconds (for SET operation)',
       condition: {
         field: 'operation',
         value: ['set'],
-      },
-    },
-    {
-      id: 'channel',
-      title: 'Channel',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter channel name',
-      condition: {
-        field: 'operation',
-        value: ['publish', 'subscribe'],
-      },
-    },
-    {
-      id: 'message',
-      title: 'Message',
-      type: 'code',
-      layout: 'full',
-      placeholder: 'Enter message to publish',
-      condition: {
-        field: 'operation',
-        value: ['publish'],
       },
     },
     {
@@ -111,35 +103,42 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
       title: 'Options',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter operation options',
+      placeholder: 'Enter additional operation options in JSON format',
     },
   ],
   tools: {
     access: ['redis'],
     config: {
       tool: () => 'redis',
-      params: (params) => ({
-        connection: params.connection,
-        operation: params.operation,
-        key: params.key,
-        pattern: params.pattern,
-        value: params.value ? JSON.parse(params.value) : undefined,
-        ttl: params.ttl ? parseInt(params.ttl) : undefined,
-        channel: params.channel,
-        message: params.message ? JSON.parse(params.message) : undefined,
-        options: params.options ? JSON.parse(params.options) : undefined,
-      }),
+      params: (params) => {
+        const connection = {
+          host: params.host || 'redis',
+          port: parseInt(params.port || '6379'),
+          password: params.password || 'redis',
+          db: parseInt(params.db || '0'),
+          tls: params.tls === 'true'
+        }
+        return {
+          connection,
+          operation: params.operation,
+          key: params.key,
+          value: params.value,
+          ttl: params.ttl ? parseInt(params.ttl) : undefined,
+          options: params.options ? JSON.parse(params.options) : undefined
+        }
+      },
     },
   },
   inputs: {
-    connection: { type: 'json', required: true },
+    host: { type: 'string', required: false },
+    port: { type: 'string', required: false },
+    password: { type: 'string', required: false },
+    db: { type: 'string', required: false },
+    tls: { type: 'string', required: false },
     operation: { type: 'string', required: true },
-    key: { type: 'string', required: false },
-    pattern: { type: 'string', required: false },
-    value: { type: 'json', required: false },
+    key: { type: 'string', required: true },
+    value: { type: 'string', required: false },
     ttl: { type: 'number', required: false },
-    channel: { type: 'string', required: false },
-    message: { type: 'json', required: false },
     options: { type: 'json', required: false },
   },
   outputs: {

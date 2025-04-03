@@ -17,6 +17,10 @@ export interface BlockState {
   horizontalHandles?: boolean
   isWide?: boolean
   height?: number
+  config?: {
+    tool: string
+    params: Record<string, any>
+  }
 }
 
 export interface SubBlockState {

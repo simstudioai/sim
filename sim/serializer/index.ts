@@ -178,6 +178,7 @@ export class Serializer {
       subBlocks,
       outputs: serializedBlock.outputs,
       enabled: true,
+      config: serializedBlock.config
     }
   }
 }

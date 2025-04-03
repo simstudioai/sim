@@ -1,5 +1,5 @@
 import { ElasticsearchIcon } from '@/components/icons'
-import { ElasticsearchResponse } from '@/tools/elasticsearch/types'
+import { ElasticsearchResponse } from '@/tools/databases/elasticsearch/types'
 import { BlockConfig } from '../types'
 
 export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
@@ -7,9 +7,9 @@ export const ElasticsearchBlock: BlockConfig<ElasticsearchResponse> = {
   name: 'Elasticsearch',
   description: 'Execute Elasticsearch operations',
   longDescription:
-    'Connect to and interact with Elasticsearch clusters. Perform search, index, update, and other operations on your indices.',
-  category: 'Database',
-  bgColor: '#343741',
+    'Connect to and interact with Elasticsearch clusters. Perform search, index, update, delete, and other operations.',
+  category: 'tools',
+  bgColor: '#00BFB3',
   icon: ElasticsearchIcon,
   subBlocks: [
     {

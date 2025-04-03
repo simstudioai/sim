@@ -1,5 +1,8 @@
-import { ToolConfig } from '../types'
+import { ToolConfig } from '../../types'
 import { MongoDBQueryParams, MongoDBResponse } from './types'
+import { getDatabaseApiUrl } from '../../utils'
+
+const API_URL = getDatabaseApiUrl('mongodb')
 
 const toolConfig: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
   id: 'mongodb',
@@ -20,26 +23,41 @@ const toolConfig: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
     collection: {
       type: 'string',
       required: true,
-      description: 'Collection name to operate on'
+      description: 'Collection name'
     },
     query: {
       type: 'json',
       required: false,
-      description: 'Query/filter for the operation'
+      description: 'Query filter'
+    },
+    projection: {
+      type: 'json',
+      required: false,
+      description: 'Projection fields'
+    },
+    document: {
+      type: 'json',
+      required: false,
+      description: 'Document to insert'
     },
     update: {
       type: 'json',
       required: false,
-      description: 'Update document for update operations'
+      description: 'Update operation'
+    },
+    pipeline: {
+      type: 'json',
+      required: false,
+      description: 'Aggregation pipeline'
     },
     options: {
       type: 'json',
       required: false,
-      description: 'Additional options for the operation'
+      description: 'Operation options'
     }
   },
   request: {
-    url: 'http://localhost:3000/api/mongodb',
+    url: API_URL,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json'
@@ -50,8 +68,15 @@ const toolConfig: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
     const startTime = Date.now()
     
     try {
-      // Instead of direct MongoDB connection, we'll make an HTTP request to your MongoDB API
-      const response = await fetch('http://localhost:3000/api/mongodb', {
+      console.log('[MongoDB Tool] Starting execution with params:', {
+        ...params,
+        connection: {
+          ...params.connection,
+          password: '[REDACTED]'
+        }
+      })
+
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -60,24 +85,29 @@ const toolConfig: ToolConfig<MongoDBQueryParams, MongoDBResponse> = {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('[MongoDB Tool] API error response:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`)
       }
 
       const result = await response.json()
+      console.log('[MongoDB Tool] API response result:', result)
 
       return {
         success: true,
         output: {
-          result: JSON.stringify(result.data),
+          result: JSON.stringify(result.data || []),
           affectedCount: JSON.stringify(result.affectedCount || 0),
           metadata: JSON.stringify({
             operation: params.operation,
             collection: params.collection,
-            executionTime: Date.now() - startTime
+            executionTime: Date.now() - startTime,
+            fields: result.fields || []
           })
         }
       }
     } catch (error) {
+      console.error('[MongoDB Tool] Error during execution:', error)
       return {
         success: false,
         output: {

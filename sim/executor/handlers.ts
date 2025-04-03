@@ -1,14 +1,16 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { BlockOutput } from '@/blocks/types'
+import { SerializedBlock } from '@/serializer/types'
+import { ExecutionContext } from './types'
+import { getTool, executeTool } from '@/tools'
+import { getBlock } from '@/blocks'
+import { useExecutionStore } from '@/stores/execution/store'
+import { PathTracker } from './path'
 import { getAllBlocks } from '@/blocks'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
-import { BlockOutput } from '@/blocks/types'
-import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { transformBlockTool } from '@/providers/utils'
-import { SerializedBlock } from '@/serializer/types'
-import { executeTool, getTool } from '@/tools'
-import { PathTracker } from './path'
-import { ExecutionContext } from './types'
+import { executeProviderRequest } from '@/providers'
 
 const logger = createLogger('Handlers')
 
@@ -975,8 +977,14 @@ export class GenericBlockHandler implements BlockHandler {
     }
 
     try {
+      // Get the block configuration to transform parameters
+      const blockConfig = getBlock(block.metadata?.id || '')
+      const transformedParams = blockConfig?.tools?.config?.params
+        ? blockConfig.tools.config.params(inputs)
+        : inputs
+
       const result = await executeTool(block.config.tool, {
-        ...inputs,
+        ...transformedParams,
         _context: { workflowId: context.workflowId },
       })
 
@@ -999,7 +1007,6 @@ export class GenericBlockHandler implements BlockHandler {
           blockId: block.id,
           blockName: block.metadata?.name || 'Unnamed Block',
           output: result.output || {},
-          timestamp: new Date().toISOString(),
         })
 
         throw error
@@ -1007,24 +1014,6 @@ export class GenericBlockHandler implements BlockHandler {
 
       return { response: result.output }
     } catch (error: any) {
-      // Ensure we have a meaningful error message
-      if (!error.message || error.message === 'undefined (undefined)') {
-        // Construct a detailed error message with available information
-        let errorMessage = `Block execution of ${tool.name || block.config.tool} failed`
-
-        // Add block name if available
-        if (block.metadata?.name) {
-          errorMessage += `: ${block.metadata.name}`
-        }
-
-        // Add status code if available
-        if (error.status) {
-          errorMessage += ` (Status: ${error.status})`
-        }
-
-        error.message = errorMessage
-      }
-
       // Add additional context to the error
       if (typeof error === 'object' && error !== null) {
         if (!error.toolId) error.toolId = block.config.tool

@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import { ToolResponse } from '../../types'
 
 export interface RedisConnectionConfig {
   host: string

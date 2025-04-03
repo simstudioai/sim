@@ -1,5 +1,8 @@
-import { ToolConfig } from '../types'
+import { ToolConfig } from '../../types'
 import { PostgreSQLQueryParams, PostgreSQLResponse } from './types'
+import { getDatabaseApiUrl } from '../../utils'
+
+const API_URL = getDatabaseApiUrl('postgresql')
 
 const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
   id: 'postgresql',
@@ -34,25 +37,12 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
     }
   },
   request: {
-    url: 'http://localhost:3000/api/postgresql',
+    url: API_URL,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json'
     }),
-    body: (params) => ({
-      connection: {
-        host: params.host || 'localhost',
-        port: parseInt(params.port || '5432'),
-        username: params.username || 'postgres',
-        password: params.password || 'postgres',
-        database: params.database || 'simstudio',
-        ssl: params.ssl === 'true'
-      },
-      operation: params.operation,
-      query: params.query,
-      params: params.params,
-      options: params.options
-    })
+    body: (params) => params
   },
   directExecution: async (params) => {
     const startTime = Date.now()
@@ -60,35 +50,19 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
     try {
       console.log('[PostgreSQL Tool] Starting execution with params:', {
         ...params,
-        password: '[REDACTED]'
+        connection: {
+          ...params.connection,
+          password: '[REDACTED]'
+        }
       })
 
-      const requestBody = {
-        connection: {
-          host: params.host || 'localhost',
-          port: parseInt(params.port || '5432'),
-          username: params.username || 'postgres',
-          password: params.password || 'postgres',
-          database: params.database || 'simstudio',
-          ssl: params.ssl === 'true'
-        },
-        operation: params.operation,
-        query: params.query,
-        params: params.params,
-        options: params.options
-      }
-
-      console.log('[PostgreSQL Tool] Making API request to:', 'http://localhost:3000/api/postgresql')
-      
-      const response = await fetch('http://localhost:3000/api/postgresql', {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(params)
       })
-
-      console.log('[PostgreSQL Tool] API response status:', response.status)
 
       if (!response.ok) {
         const errorText = await response.text()

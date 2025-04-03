@@ -11,13 +11,20 @@ interface MongoDBResult {
 export async function POST(request: Request) {
   try {
     const params = await request.json()
-    const { connection, operation, collection, query, projection, document, update, pipeline, options } = params
+    console.log('Received MongoDB API request:', {
+      ...params,
+      password: '[REDACTED]'
+    })
 
-    // Construct connection string
-    const { host, port, username, password, database, ssl, authSource } = connection
-    const authSourceParam = authSource ? `authSource=${authSource}` : ''
+    // Handle both flattened and nested connection parameters
+    const connection = params.connection || params
+    const { host, port, username, password, database, ssl } = connection
+    const { operation, collection, query, projection, document, update, pipeline, options } = params
+
     const sslParam = ssl ? 'ssl=true' : ''
-    const uri = `mongodb://${username}:${password}@${host}:${port}/${database}?${authSourceParam}&${sslParam}`
+    const uri = `mongodb://${username}:${password}@${host}:${port}/${database}?authSource=admin&${sslParam}`
+
+    console.log('Connecting to MongoDB with URI:', uri.replace(password, '[REDACTED]'))
 
     // Connect to MongoDB
     const client = new MongoClient(uri)

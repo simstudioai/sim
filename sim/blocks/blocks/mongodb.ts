@@ -1,5 +1,5 @@
 import { MongoDBIcon } from '@/components/icons'
-import { MongoDBResponse } from '@/tools/mongodb/types'
+import { MongoDBResponse } from '@/tools/databases/mongodb/types'
 import { BlockConfig } from '../types'
 
 export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
@@ -13,11 +13,56 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
   icon: MongoDBIcon,
   subBlocks: [
     {
-      id: 'connection',
-      title: 'Connection',
-      type: 'tool-input',
-      layout: 'full',
-      placeholder: 'Configure MongoDB connection',
+      id: 'host',
+      title: 'Host',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'mongodb',
+      value: () => 'mongodb',
+    },
+    {
+      id: 'port',
+      title: 'Port',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: '27017',
+      value: () => '27017',
+    },
+    {
+      id: 'username',
+      title: 'Username',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'root',
+      value: () => 'root',
+    },
+    {
+      id: 'password',
+      title: 'Password',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter password',
+      password: true,
+      value: () => 'root',
+    },
+    {
+      id: 'database',
+      title: 'Database',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'simstudio',
+      value: () => 'simstudio',
+    },
+    {
+      id: 'ssl',
+      title: 'Use SSL',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
     },
     {
       id: 'operation',
@@ -107,21 +152,37 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse> = {
     access: ['mongodb'],
     config: {
       tool: () => 'mongodb',
-      params: (params) => ({
-        connection: params.connection,
-        operation: params.operation,
-        collection: params.collection,
-        query: params.query ? JSON.parse(params.query) : undefined,
-        projection: params.projection ? JSON.parse(params.projection) : undefined,
-        document: params.document ? JSON.parse(params.document) : undefined,
-        update: params.update ? JSON.parse(params.update) : undefined,
-        pipeline: params.pipeline ? JSON.parse(params.pipeline) : undefined,
-        options: params.options ? JSON.parse(params.options) : undefined,
-      }),
+      params: (params) => {
+        const connection = {
+          host: params.host || 'mongodb',
+          port: parseInt(params.port || '27017'),
+          username: params.username || 'root',
+          password: params.password || 'root',
+          database: params.database || 'simstudio',
+          ssl: params.ssl === 'true'
+        }
+
+        return {
+          connection,
+          operation: params.operation,
+          collection: params.collection,
+          query: params.query ? JSON.parse(params.query) : undefined,
+          projection: params.projection ? JSON.parse(params.projection) : undefined,
+          document: params.document ? JSON.parse(params.document) : undefined,
+          update: params.update ? JSON.parse(params.update) : undefined,
+          pipeline: params.pipeline ? JSON.parse(params.pipeline) : undefined,
+          options: params.options ? JSON.parse(params.options) : undefined
+        }
+      },
     },
   },
   inputs: {
-    connection: { type: 'json', required: true },
+    host: { type: 'string', required: false },
+    port: { type: 'string', required: false },
+    username: { type: 'string', required: false },
+    password: { type: 'string', required: false },
+    database: { type: 'string', required: false },
+    ssl: { type: 'string', required: false },
     operation: { type: 'string', required: true },
     collection: { type: 'string', required: true },
     query: { type: 'json', required: false },

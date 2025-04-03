@@ -1,41 +1,34 @@
-import { ToolConfig } from '../types'
-import { ElasticsearchResponse } from './types'
+import { ToolConfig } from '../../types'
+import { MySQLQueryParams, MySQLResponse } from './types'
+import { getDatabaseApiUrl } from '../../utils'
 
-const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
-  id: 'elasticsearch',
-  name: 'Elasticsearch',
-  description: 'Execute Elasticsearch operations on your cluster',
+const API_URL = getDatabaseApiUrl('mysql')
+
+const toolConfig: ToolConfig<MySQLQueryParams, MySQLResponse> = {
+  id: 'mysql',
+  name: 'MySQL',
+  description: 'Execute MySQL operations on your database',
   version: '1.0.0',
   params: {
     connection: {
       type: 'json',
       required: true,
-      description: 'Elasticsearch connection configuration'
+      description: 'MySQL connection configuration'
     },
     operation: {
       type: 'string',
       required: true,
-      description: 'Elasticsearch operation to perform'
-    },
-    index: {
-      type: 'string',
-      required: true,
-      description: 'Index name for the operation'
-    },
-    id: {
-      type: 'string',
-      required: false,
-      description: 'Document ID for get/update/delete operations'
+      description: 'SQL operation to perform'
     },
     query: {
-      type: 'json',
-      required: false,
-      description: 'Query for search operations'
+      type: 'string',
+      required: true,
+      description: 'SQL query to execute'
     },
-    document: {
+    params: {
       type: 'json',
       required: false,
-      description: 'Document for index/update operations'
+      description: 'Query parameters for parameterized queries'
     },
     options: {
       type: 'json',
@@ -44,7 +37,7 @@ const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
     }
   },
   request: {
-    url: 'http://localhost:3000/api/elasticsearch',
+    url: API_URL,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json'
@@ -55,7 +48,7 @@ const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
     const startTime = Date.now()
     
     try {
-      const response = await fetch('http://localhost:3000/api/elasticsearch', {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -72,11 +65,13 @@ const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
       return {
         success: true,
         output: {
-          result: JSON.stringify(result.data || null),
+          rows: JSON.stringify(result.rows || []),
+          affectedRows: JSON.stringify(result.affectedRows || 0),
           metadata: JSON.stringify({
             operation: params.operation,
-            index: params.index,
-            executionTime: Date.now() - startTime
+            query: params.query,
+            executionTime: Date.now() - startTime,
+            fields: result.fields || []
           })
         }
       }
@@ -84,10 +79,11 @@ const toolConfig: ToolConfig<any, ElasticsearchResponse> = {
       return {
         success: false,
         output: {
-          result: 'null',
+          rows: '[]',
+          affectedRows: '0',
           metadata: JSON.stringify({
             operation: params.operation,
-            index: params.index,
+            query: params.query,
             executionTime: Date.now() - startTime
           })
         },

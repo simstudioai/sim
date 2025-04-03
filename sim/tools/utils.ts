@@ -152,3 +152,12 @@ export function validateToolRequest(
     }
   }
 }
+
+export const getDatabaseApiUrl = (path: string) => {
+  // In production, use NEXT_PUBLIC_APP_URL
+  if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL) {
+    return `${process.env.NEXT_PUBLIC_APP_URL}/api/databases/${path}`
+  }
+  // In development, use relative path
+  return `/api/databases/${path}`
+}

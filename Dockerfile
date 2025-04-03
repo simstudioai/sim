@@ -1,7 +1,7 @@
-FROM node:20-alpine
+FROM node:18-alpine
 
 # Install build dependencies
-RUN apk add --no-cache python3 make g++ postgresql-dev mysql-dev
+RUN apk add --no-cache python3 make g++
 
 # Set working directory
 WORKDIR /app
@@ -12,8 +12,8 @@ COPY sim/ ./
 # Create the .env file if it doesn't exist
 RUN touch .env
 
-# Install dependencies with node-gyp and mysql2
-RUN npm install && npm install mysql2
+# Install dependencies
+RUN npm install
 
 # Generate database schema
 RUN npx drizzle-kit generate

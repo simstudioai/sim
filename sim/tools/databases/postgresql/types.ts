@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import { ToolResponse } from '../../types'
 
 export interface PostgreSQLConnectionConfig {
   host: string
@@ -11,12 +11,7 @@ export interface PostgreSQLConnectionConfig {
 }
 
 export interface PostgreSQLQueryParams {
-  host?: string
-  port?: string
-  username?: string
-  password?: string
-  database?: string
-  ssl?: string
+  connection: PostgreSQLConnectionConfig
   operation: 'select' | 'insert' | 'update' | 'delete' | 'execute'
   query: string
   params?: any[]

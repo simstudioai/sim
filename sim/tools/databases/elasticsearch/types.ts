@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import { ToolResponse } from '../../types'
 
 export interface ElasticsearchConnectionConfig {
   node: string

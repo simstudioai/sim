@@ -69,6 +69,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.469.0",
     "mammoth": "^1.9.0",
+    "mongodb": "^6.15.0",
     "mysql2": "^3.14.0",
     "next": "^15.2.4",
     "next-themes": "^0.4.6",
