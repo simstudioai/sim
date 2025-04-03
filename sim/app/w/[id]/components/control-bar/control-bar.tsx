@@ -146,11 +146,19 @@ export function ControlBar() {
 
     // Create a debounced function to check for changes
     let debounceTimer: NodeJS.Timeout | null = null
+    let lastCheckTime = 0
+    let pendingChanges = 0
+    const DEBOUNCE_DELAY = 1000
+    const THROTTLE_INTERVAL = 3000
 
     // Function to check if redeployment is needed
     const checkForChanges = async () => {
       // Skip if we're already showing needsRedeployment
       if (needsRedeployment) return
+
+      // Reset the pending changes counter
+      pendingChanges = 0
+      lastCheckTime = Date.now()
 
       try {
         // Get the deployed state from the API
@@ -172,13 +180,35 @@ export function ControlBar() {
 
     // Debounced check function
     const debouncedCheck = () => {
+      // Increment the pending changes counter
+      pendingChanges++
+
+      // Clear any existing timer
       if (debounceTimer) {
         clearTimeout(debounceTimer)
       }
 
-      debounceTimer = setTimeout(() => {
-        checkForChanges()
-      }, 500) // Wait 500ms after changes stop before checking
+      // If we recently checked, and it's within throttle interval, wait longer
+      const timeElapsed = Date.now() - lastCheckTime
+      if (timeElapsed < THROTTLE_INTERVAL && lastCheckTime > 0) {
+        // Wait until the throttle interval has passed
+        const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
+
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, adjustedDelay)
+      } else {
+        // Standard debounce delay if we haven't checked recently
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, DEBOUNCE_DELAY)
+      }
     }
 
     // Subscribe to workflow store changes
