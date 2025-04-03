@@ -531,7 +531,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                     // Get block type from blocks
                     const blockType = Object.values(blocks).find(
                       (block) =>
-                        (block.name || block.type).replace(/\s+/g, '').toLowerCase() === blockName
+                        (block.name || block.type || '').replace(/\s+/g, '').toLowerCase() ===
+                        blockName
                     )?.type
 
                     // Get block color from block config
