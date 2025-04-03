@@ -19,7 +19,6 @@ const initialState = {
   lastSaved: undefined,
   isDeployed: false,
   deployedAt: undefined,
-  isPublished: false,
   needsRedeployment: false,
   history: {
     past: [],
