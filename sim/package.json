@@ -109,7 +109,9 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "react-email": "^3.0.7",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.7.3",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.8"
   },

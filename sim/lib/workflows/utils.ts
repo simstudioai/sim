@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { userStats, workflow as workflowTable } from '@/db/schema'
 
@@ -86,4 +87,136 @@ export async function updateWorkflowRunCounts(workflowId: string, runs: number =
     logger.error(`Error updating workflow run counts:`, error)
     throw error
   }
+}
+
+/**
+ * Compare the current workflow state with the deployed state to detect meaningful changes
+ * @param currentState - The current workflow state
+ * @param deployedState - The deployed workflow state
+ * @returns True if there are meaningful changes, false if only position changes or no changes
+ */
+export function hasWorkflowChanged(
+  currentState: WorkflowState,
+  deployedState: WorkflowState | null
+): boolean {
+  // If no deployed state exists, then the workflow has changed
+  if (!deployedState) return true
+
+  // Check edges for changes (connections between blocks)
+  const currentEdges = currentState.edges || []
+  const deployedEdges = deployedState.edges || []
+
+  if (currentEdges.length !== deployedEdges.length) {
+    return true
+  }
+
+  // Compare edges (connections between blocks)
+  // Create a map of edge IDs to make comparison easier
+  const edgeMap = new Map()
+  for (const edge of deployedEdges) {
+    const key = `${edge.source}-${edge.sourceHandle}-${edge.target}-${edge.targetHandle}`
+    edgeMap.set(key, true)
+  }
+
+  for (const edge of currentEdges) {
+    const key = `${edge.source}-${edge.sourceHandle}-${edge.target}-${edge.targetHandle}`
+    if (!edgeMap.has(key)) {
+      return true
+    }
+  }
+
+  // Check for block changes (added/removed blocks)
+  const currentBlockIds = Object.keys(currentState.blocks || {})
+  const deployedBlockIds = Object.keys(deployedState.blocks || {})
+
+  if (currentBlockIds.length !== deployedBlockIds.length) {
+    return true
+  }
+
+  // Check if any blocks were added or removed
+  for (const blockId of currentBlockIds) {
+    if (!deployedState.blocks[blockId]) {
+      return true
+    }
+  }
+
+  // Check for configuration changes within blocks (except position)
+  for (const blockId of currentBlockIds) {
+    const currentBlock = currentState.blocks[blockId]
+    const deployedBlock = deployedState.blocks[blockId]
+
+    // Skip position comparison (x, y coordinates)
+    const { position: currentPosition, ...currentBlockProps } = currentBlock
+    const { position: deployedPosition, ...deployedBlockProps } = deployedBlock
+
+    // Check subBlocks for changes
+    const currentSubBlocks = currentBlockProps.subBlocks || {}
+    const deployedSubBlocks = deployedBlockProps.subBlocks || {}
+
+    // Compare subblock IDs
+    const currentSubBlockIds = Object.keys(currentSubBlocks)
+    const deployedSubBlockIds = Object.keys(deployedSubBlocks)
+
+    if (currentSubBlockIds.length !== deployedSubBlockIds.length) {
+      return true
+    }
+
+    // Check for changes in subblock values
+    for (const subBlockId of currentSubBlockIds) {
+      if (!deployedSubBlocks[subBlockId]) {
+        return true
+      }
+
+      const currentValue = currentSubBlocks[subBlockId].value
+      const deployedValue = deployedSubBlocks[subBlockId].value
+
+      // Deep compare values - convert to JSON and back to handle complex objects
+      if (JSON.stringify(currentValue) !== JSON.stringify(deployedValue)) {
+        return true
+      }
+    }
+
+    // Check other block properties (type, data, etc.)
+    if (currentBlockProps.type !== deployedBlockProps.type) {
+      return true
+    }
+
+    // Compare other block properties by converting to JSON
+    const currentPropsJson = JSON.stringify({
+      ...currentBlockProps,
+      subBlocks: undefined,
+    })
+
+    const deployedPropsJson = JSON.stringify({
+      ...deployedBlockProps,
+      subBlocks: undefined,
+    })
+
+    if (currentPropsJson !== deployedPropsJson) {
+      return true
+    }
+  }
+
+  // Check loops for changes
+  const currentLoops = currentState.loops || {}
+  const deployedLoops = deployedState.loops || {}
+
+  if (Object.keys(currentLoops).length !== Object.keys(deployedLoops).length) {
+    return true
+  }
+
+  // Compare loop configurations
+  for (const loopId in currentLoops) {
+    if (!deployedLoops[loopId]) {
+      return true
+    }
+
+    // Compare loop properties
+    if (JSON.stringify(currentLoops[loopId]) !== JSON.stringify(deployedLoops[loopId])) {
+      return true
+    }
+  }
+
+  // No meaningful changes detected
+  return false
 }
