@@ -26,6 +26,12 @@ jobs:
         working-directory: ./sim
         run: npm ci
         
+      - name: Fix Rollup module issue
+        working-directory: ./sim
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+        
       - name: Run tests with coverage
         working-directory: ./sim
         env:
@@ -66,5 +72,5 @@ jobs:
       - name: Apply migrations
         working-directory: ./sim
         env:
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+          POSTGRES_URL: ${{ secrets.DATABASE_URL }}
         run: npx drizzle-kit push 
