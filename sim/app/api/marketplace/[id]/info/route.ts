@@ -42,7 +42,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       description: marketplaceEntry.description,
       category: marketplaceEntry.category,
       authorName: marketplaceEntry.authorName,
-      stars: marketplaceEntry.stars,
       views: marketplaceEntry.views,
       createdAt: marketplaceEntry.createdAt,
       updatedAt: marketplaceEntry.updatedAt,

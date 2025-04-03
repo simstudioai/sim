@@ -11,6 +11,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -460,7 +461,13 @@ function WorkflowContent() {
     }
   }, [setSubBlockValue])
 
-  if (!isInitialized) return null
+  if (!isInitialized) {
+    return (
+      <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
+        <LoadingAgent size="lg" />
+      </div>
+    )
+  }
 
   return (
     <>

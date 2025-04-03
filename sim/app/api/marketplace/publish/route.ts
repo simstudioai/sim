@@ -112,7 +112,6 @@ export async function POST(request: NextRequest) {
           .values({
             ...marketplaceEntry,
             createdAt: new Date(),
-            stars: 0,
             views: 0,
           })
           .returning()

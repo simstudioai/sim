@@ -78,10 +78,9 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' | 'star' }
-
+  marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' }
+  
   // These columns are kept for backward compatibility during migration
-  // and should be marked as deprecated
   // @deprecated - Use marketplaceData instead
   isPublished: boolean('is_published').notNull().default(false),
 })
@@ -189,31 +188,11 @@ export const marketplace = pgTable('marketplace', {
     .notNull()
     .references(() => user.id),
   authorName: text('author_name').notNull(),
-  stars: integer('stars').notNull().default(0),
   views: integer('views').notNull().default(0),
   category: text('category'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
-
-export const marketplaceStar = pgTable(
-  'marketplace_star',
-  {
-    id: text('id').primaryKey(),
-    marketplaceId: text('marketplace_id')
-      .notNull()
-      .references(() => marketplace.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => {
-    return {
-      userMarketplaceIdx: uniqueIndex('user_marketplace_idx').on(table.userId, table.marketplaceId),
-    }
-  }
-)
 
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),

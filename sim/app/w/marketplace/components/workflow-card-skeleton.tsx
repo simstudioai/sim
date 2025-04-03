@@ -25,13 +25,10 @@ export function WorkflowCardSkeleton() {
           <Skeleton className="h-3 w-full mb-1" />
           <Skeleton className="h-3 w-4/5" />
         </CardContent>
-        {/* Footer with author and stats skeletons */}
+        {/* Footer with author and views skeletons */}
         <CardFooter className="p-4 pt-2 mt-auto flex justify-between items-center">
           <Skeleton className="h-3 w-1/4" />
-          <div className="flex items-center space-x-3">
-            <Skeleton className="h-3 w-10" />
-            <Skeleton className="h-3 w-10" />
-          </div>
+          <Skeleton className="h-3 w-10" />
         </CardFooter>
       </div>
     </Card>

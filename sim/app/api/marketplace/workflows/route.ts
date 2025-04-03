@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
             authorId: schema.marketplace.authorId,
             authorName: schema.marketplace.authorName,
             state: schema.marketplace.state,
-            stars: schema.marketplace.stars,
             views: schema.marketplace.views,
             category: schema.marketplace.category,
             createdAt: schema.marketplace.createdAt,
@@ -77,7 +76,6 @@ export async function GET(request: NextRequest) {
             description: schema.marketplace.description,
             authorId: schema.marketplace.authorId,
             authorName: schema.marketplace.authorName,
-            stars: schema.marketplace.stars,
             views: schema.marketplace.views,
             category: schema.marketplace.category,
             createdAt: schema.marketplace.createdAt,
@@ -123,7 +121,6 @@ export async function GET(request: NextRequest) {
             authorId: schema.marketplace.authorId,
             authorName: schema.marketplace.authorName,
             state: schema.marketplace.state,
-            stars: schema.marketplace.stars,
             views: schema.marketplace.views,
             category: schema.marketplace.category,
             createdAt: schema.marketplace.createdAt,
@@ -143,7 +140,6 @@ export async function GET(request: NextRequest) {
             description: schema.marketplace.description,
             authorId: schema.marketplace.authorId,
             authorName: schema.marketplace.authorName,
-            stars: schema.marketplace.stars,
             views: schema.marketplace.views,
             category: schema.marketplace.category,
             createdAt: schema.marketplace.createdAt,
@@ -192,7 +188,6 @@ export async function GET(request: NextRequest) {
       name: schema.marketplace.name,
       description: schema.marketplace.description,
       authorName: schema.marketplace.authorName,
-      stars: schema.marketplace.stars,
       views: schema.marketplace.views,
       category: schema.marketplace.category,
       createdAt: schema.marketplace.createdAt,
@@ -212,7 +207,7 @@ export async function GET(request: NextRequest) {
       result.popular = await db
         .select(selectFields)
         .from(schema.marketplace)
-        .orderBy(desc(schema.marketplace.stars), desc(schema.marketplace.views))
+        .orderBy(desc(schema.marketplace.views))
         .limit(limit)
     }
 
@@ -262,7 +257,7 @@ export async function GET(request: NextRequest) {
             .select(selectFields)
             .from(schema.marketplace)
             .where(eq(schema.marketplace.category, categoryValue))
-            .orderBy(desc(schema.marketplace.stars), desc(schema.marketplace.views))
+            .orderBy(desc(schema.marketplace.views))
             .limit(limit)
 
           // Always add the category to the result, even if empty
@@ -277,15 +272,17 @@ export async function GET(request: NextRequest) {
     // Transform the data if state was included to match the expected format
     if (includeState) {
       const transformSection = (section: any[]) => {
-        return section.map((item) =>
-          'state' in item
-            ? {
-                ...item,
-                workflowState: item.state,
-                state: undefined,
-              }
-            : item
-        )
+        return section.map((item) => {
+          if ('state' in item) {
+            // Create a new object without the state field, but with workflowState
+            const { state, ...rest } = item;
+            return {
+              ...rest,
+              workflowState: state
+            };
+          }
+          return item;
+        });
       }
 
       if (result.popular.length > 0) {
