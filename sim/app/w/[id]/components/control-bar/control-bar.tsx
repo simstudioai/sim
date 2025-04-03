@@ -63,8 +63,13 @@ export function ControlBar() {
   const router = useRouter()
 
   // Store hooks
-  const { notifications, getWorkflowNotifications, addNotification, showNotification } =
-    useNotificationStore()
+  const {
+    notifications,
+    getWorkflowNotifications,
+    addNotification,
+    showNotification,
+    removeNotification,
+  } = useNotificationStore()
   const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
     useWorkflowStore()
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
@@ -90,6 +95,7 @@ export function ControlBar() {
   // Status states
   const [isDeploying, setIsDeploying] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [needsRedeployment, setNeedsRedeployment] = useState(false)
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
@@ -134,6 +140,71 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
+  // Listen for workflow changes and check if redeployment is needed
+  useEffect(() => {
+    if (!activeWorkflowId || !isDeployed) return
+
+    // Create a debounced function to check for changes
+    let debounceTimer: NodeJS.Timeout | null = null
+
+    // Function to check if redeployment is needed
+    const checkForChanges = async () => {
+      // Skip if we're already showing needsRedeployment
+      if (needsRedeployment) return
+
+      try {
+        // Get the deployed state from the API
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+
+          // If the API says we need redeployment, update our state and the store
+          if (data.needsRedeployment) {
+            setNeedsRedeployment(true)
+            // Also update the store state so other components can access this flag
+            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check workflow change status:', { error })
+      }
+    }
+
+    // Debounced check function
+    const debouncedCheck = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
+      debounceTimer = setTimeout(() => {
+        checkForChanges()
+      }, 500) // Wait 500ms after changes stop before checking
+    }
+
+    // Subscribe to workflow store changes
+    const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
+
+    // Also subscribe to subblock store changes
+    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
+      // Only check for the active workflow
+      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
+
+      // Only trigger when there is an update to the current workflow's subblocks
+      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
+      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
+        debouncedCheck()
+      }
+    })
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      workflowUnsubscribe()
+      subBlockUnsubscribe()
+    }
+  }, [activeWorkflowId, isDeployed, needsRedeployment])
+
   // Check deployment and publication status on mount or when activeWorkflowId changes
   useEffect(() => {
     async function checkStatus() {
@@ -160,6 +231,8 @@ export function ControlBar() {
             data.isDeployed,
             data.deployedAt ? new Date(data.deployedAt) : undefined
           )
+          setNeedsRedeployment(data.needsRedeployment)
+          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
         }
       } catch (error) {
         logger.error('Failed to check workflow status:', { error })
@@ -168,52 +241,33 @@ export function ControlBar() {
     checkStatus()
   }, [activeWorkflowId, setDeploymentStatus])
 
-  /**
-   * Workflow name handlers
-   */
-  const handleNameClick = () => {
-    if (activeWorkflowId) {
-      setEditedName(workflows[activeWorkflowId].name)
-      setIsEditing(true)
+  // Listen for deployment status changes
+  useEffect(() => {
+    // When deployment status changes and isDeployed becomes true,
+    // that means a deployment just occurred, so reset the needsRedeployment flag
+    if (isDeployed) {
+      setNeedsRedeployment(false)
+      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
     }
-  }
+  }, [isDeployed])
 
-  const handleNameSubmit = () => {
-    if (activeWorkflowId) {
-      const trimmedName = editedName.trim()
-      if (trimmedName && trimmedName !== workflows[activeWorkflowId].name) {
-        updateWorkflow(activeWorkflowId, { name: trimmedName })
+  // Add a listener for the needsRedeployment flag in the workflow store
+  useEffect(() => {
+    const unsubscribe = useWorkflowStore.subscribe((state) => {
+      // Update local state when the store flag changes
+      if (state.needsRedeployment !== undefined) {
+        setNeedsRedeployment(state.needsRedeployment)
       }
-      setIsEditing(false)
-    }
-  }
+    })
 
-  const handleNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleNameSubmit()
-    } else if (e.key === 'Escape') {
-      setIsEditing(false)
-    }
-  }
+    return () => unsubscribe()
+  }, [])
 
-  /**
-   * Workflow deletion handler
-   */
-  const handleDeleteWorkflow = () => {
-    if (!activeWorkflowId) return
-
-    // Get remaining workflow IDs
-    const remainingIds = Object.keys(workflows).filter((id) => id !== activeWorkflowId)
-
-    // Navigate before removing the workflow to avoid any state inconsistencies
-    if (remainingIds.length > 0) {
-      router.push(`/w/${remainingIds[0]}`)
-    } else {
-      router.push('/')
-    }
-
-    // Remove the workflow from the registry
-    removeWorkflow(activeWorkflowId)
+  // Add a manual method to update the deployment status and clear the needsRedeployment flag
+  const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
+    setDeploymentStatus(isDeployed, deployedAt)
+    setNeedsRedeployment(false)
+    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
   }
 
   /**
@@ -267,6 +321,117 @@ export function ControlBar() {
   }
 
   /**
+   * Helper to create API notification with consistent format
+   */
+  const createApiNotification = (
+    message: string,
+    workflowId: string,
+    apiKey: string,
+    needsRedeployment = false
+  ) => {
+    const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
+    const inputFormatExample = getInputFormatExample()
+
+    return addNotification('api', message, workflowId, {
+      isPersistent: true,
+      sections: [
+        {
+          label: 'API Endpoint',
+          content: endpoint,
+        },
+        {
+          label: 'API Key',
+          content: apiKey || 'No API key found. Visit your account settings to create one.',
+        },
+        {
+          label: 'Example curl command',
+          content: apiKey
+            ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
+            : `You need an API key to call this endpoint. Visit your account settings to create one.`,
+        },
+      ],
+      needsRedeployment,
+    })
+  }
+
+  // Update existing API notifications when needsRedeployment changes
+  useEffect(() => {
+    if (!activeWorkflowId) return
+
+    const apiNotification = notifications.find(
+      (n) => n.type === 'api' && n.workflowId === activeWorkflowId && n.options?.isPersistent
+    )
+
+    if (apiNotification && apiNotification.options?.needsRedeployment !== needsRedeployment) {
+      // If there's an existing API notification and its state doesn't match, update it
+      if (apiNotification.isVisible) {
+        // Only update if it's currently showing to the user
+        removeNotification(apiNotification.id)
+
+        const apiKey =
+          apiNotification.options?.sections?.find((s) => s.label === 'API Key')?.content || ''
+
+        createApiNotification(
+          needsRedeployment
+            ? 'Workflow changes detected - Redeploy needed'
+            : 'Workflow deployment information',
+          activeWorkflowId,
+          apiKey,
+          needsRedeployment
+        )
+      }
+    }
+  }, [needsRedeployment, activeWorkflowId, notifications, removeNotification, addNotification])
+
+  /**
+   * Workflow name handlers
+   */
+  const handleNameClick = () => {
+    if (activeWorkflowId) {
+      setEditedName(workflows[activeWorkflowId].name)
+      setIsEditing(true)
+    }
+  }
+
+  const handleNameSubmit = () => {
+    if (activeWorkflowId) {
+      const trimmedName = editedName.trim()
+      if (trimmedName && trimmedName !== workflows[activeWorkflowId].name) {
+        updateWorkflow(activeWorkflowId, { name: trimmedName })
+      }
+      setIsEditing(false)
+    }
+  }
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleNameSubmit()
+    } else if (e.key === 'Escape') {
+      setIsEditing(false)
+    }
+  }
+
+  /**
+   * Workflow deletion handler
+   */
+  const handleDeleteWorkflow = () => {
+    if (!activeWorkflowId) return
+
+    // Get remaining workflow IDs
+    const remainingIds = Object.keys(workflows).filter((id) => id !== activeWorkflowId)
+
+    // Navigate before removing the workflow to avoid any state inconsistencies
+    if (remainingIds.length > 0) {
+      router.push(`/w/${remainingIds[0]}`)
+    } else {
+      router.push('/')
+    }
+
+    // Remove the workflow from the registry
+    removeWorkflow(activeWorkflowId)
+  }
+
+  /**
    * Workflow deployment handler
    */
   const handleDeploy = async () => {
@@ -282,8 +447,27 @@ export function ControlBar() {
       )
 
       if (apiNotification) {
-        // Show the existing notification
-        showNotification(apiNotification.id)
+        // Before showing existing notification, check if we need to update it with current status
+        if (apiNotification.options?.needsRedeployment !== needsRedeployment) {
+          // Remove old notification
+          removeNotification(apiNotification.id)
+
+          // Fetch API key from the existing notification
+          const apiKey =
+            apiNotification.options?.sections?.find((s) => s.label === 'API Key')?.content || ''
+
+          createApiNotification(
+            needsRedeployment
+              ? 'Workflow changes detected - Redeploy needed'
+              : 'Workflow deployment information',
+            activeWorkflowId,
+            apiKey,
+            needsRedeployment
+          )
+        } else {
+          // Show existing notification if status hasn't changed
+          showNotification(apiNotification.id)
+        }
         return
       }
 
@@ -294,29 +478,23 @@ export function ControlBar() {
         const response = await fetch(`/api/workflows/${activeWorkflowId}/deploy`)
         if (!response.ok) throw new Error('Failed to fetch deployment info')
 
+        // Get needsRedeployment info from status endpoint
+        const statusResponse = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        const statusData = await statusResponse.json()
+        const needsRedeployment = statusData.needsRedeployment || false
+
         const { apiKey } = await response.json()
         const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${activeWorkflowId}/execute`
 
         // Create a new notification with the deployment info
-        addNotification('api', 'Workflow deployment information', activeWorkflowId, {
-          isPersistent: true,
-          sections: [
-            {
-              label: 'API Endpoint',
-              content: endpoint,
-            },
-            {
-              label: 'API Key',
-              content: apiKey || 'No API key found. Visit your account settings to create one.',
-            },
-            {
-              label: 'Example curl command',
-              content: apiKey
-                ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
-                : `You need an API key to call this endpoint. Visit your account settings to create one.`,
-            },
-          ],
-        })
+        createApiNotification(
+          needsRedeployment
+            ? 'Workflow changes detected - Redeploy needed'
+            : 'Workflow deployment information',
+          activeWorkflowId,
+          apiKey,
+          needsRedeployment
+        )
       } catch (error) {
         addNotification('error', 'Failed to fetch deployment information', activeWorkflowId)
       } finally {
@@ -341,25 +519,10 @@ export function ControlBar() {
       // Update the store with the deployment status
       setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
 
-      addNotification('api', 'Workflow successfully deployed', activeWorkflowId, {
-        isPersistent: true,
-        sections: [
-          {
-            label: 'API Endpoint',
-            content: endpoint,
-          },
-          {
-            label: 'API Key',
-            content: apiKey || 'No API key found. Visit your account settings to create one.',
-          },
-          {
-            label: 'Example curl command',
-            content: apiKey
-              ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
-              : `You need an API key to call this endpoint. Visit your account settings to create one.`,
-          },
-        ],
-      })
+      // Reset the needs redeployment flag since we just deployed
+      setNeedsRedeployment(false)
+
+      createApiNotification('Workflow successfully deployed', activeWorkflowId, apiKey)
     } catch (error) {
       addNotification('error', 'Failed to deploy workflow. Please try again.', activeWorkflowId)
     } finally {
@@ -516,23 +679,40 @@ export function ControlBar() {
   const renderDeployButton = () => (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleDeploy}
-          disabled={isDeploying}
-          className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
-        >
-          {isDeploying ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Rocket className="h-5 w-5" />
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDeploy}
+            disabled={isDeploying}
+            className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
+          >
+            {isDeploying ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Rocket className="h-5 w-5" />
+            )}
+            <span className="sr-only">Deploy API</span>
+          </Button>
+
+          {/* Improved redeploy indicator with animation */}
+          {isDeployed && needsRedeployment && (
+            <div className="absolute top-0.5 right-0.5 flex items-center justify-center">
+              <div className="relative">
+                <div className="absolute inset-0 w-2 h-2 rounded-full bg-amber-500/50 animate-ping"></div>
+                <div className="relative w-2 h-2 rounded-full bg-amber-500 ring-1 ring-background animate-in zoom-in fade-in duration-300"></div>
+              </div>
+              <span className="sr-only">Needs Redeployment</span>
+            </div>
           )}
-          <span className="sr-only">Deploy API</span>
-        </Button>
+        </div>
       </TooltipTrigger>
       <TooltipContent>
-        {isDeploying ? 'Deploying...' : isDeployed ? 'Deployed' : 'Deploy as API'}
+        {isDeploying
+          ? 'Deploying...'
+          : isDeployed && needsRedeployment
+            ? 'Workflow changes detected'
+            : 'Deployment Settings'}
       </TooltipContent>
     </Tooltip>
   )

@@ -90,6 +90,45 @@ export async function updateWorkflowRunCounts(workflowId: string, runs: number =
 }
 
 /**
+ * Normalize a value for consistent comparison by sorting object keys
+ * @param value - The value to normalize
+ * @returns A normalized version of the value
+ */
+function normalizeValue(value: any): any {
+  // If not an object or array, return as is
+  if (value === null || value === undefined || typeof value !== 'object') {
+    return value
+  }
+
+  // Handle arrays by normalizing each element
+  if (Array.isArray(value)) {
+    return value.map(normalizeValue)
+  }
+
+  // For objects, sort keys and normalize each value
+  const sortedObj: Record<string, any> = {}
+
+  // Get all keys and sort them
+  const sortedKeys = Object.keys(value).sort()
+
+  // Reconstruct object with sorted keys and normalized values
+  for (const key of sortedKeys) {
+    sortedObj[key] = normalizeValue(value[key])
+  }
+
+  return sortedObj
+}
+
+/**
+ * Generate a normalized JSON string for comparison
+ * @param value - The value to normalize and stringify
+ * @returns A normalized JSON string
+ */
+function normalizedStringify(value: any): string {
+  return JSON.stringify(normalizeValue(value))
+}
+
+/**
  * Compare the current workflow state with the deployed state to detect meaningful changes
  * @param currentState - The current workflow state
  * @param deployedState - The deployed workflow state
@@ -102,7 +141,8 @@ export function hasWorkflowChanged(
   // If no deployed state exists, then the workflow has changed
   if (!deployedState) return true
 
-  // Check edges for changes (connections between blocks)
+  // 1. Compare edges (connections between blocks)
+  // First check length
   const currentEdges = currentState.edges || []
   const deployedEdges = deployedState.edges || []
 
@@ -110,109 +150,147 @@ export function hasWorkflowChanged(
     return true
   }
 
-  // Compare edges (connections between blocks)
-  // Create a map of edge IDs to make comparison easier
-  const edgeMap = new Map()
-  for (const edge of deployedEdges) {
-    const key = `${edge.source}-${edge.sourceHandle}-${edge.target}-${edge.targetHandle}`
-    edgeMap.set(key, true)
-  }
+  // Create sorted, normalized representations of the edges for more reliable comparison
+  const normalizedCurrentEdges = currentEdges
+    .map((edge) => ({
+      source: edge.source,
+      sourceHandle: edge.sourceHandle,
+      target: edge.target,
+      targetHandle: edge.targetHandle,
+    }))
+    .sort((a, b) =>
+      `${a.source}-${a.sourceHandle}-${a.target}-${a.targetHandle}`.localeCompare(
+        `${b.source}-${b.sourceHandle}-${b.target}-${b.targetHandle}`
+      )
+    )
 
-  for (const edge of currentEdges) {
-    const key = `${edge.source}-${edge.sourceHandle}-${edge.target}-${edge.targetHandle}`
-    if (!edgeMap.has(key)) {
-      return true
-    }
-  }
+  const normalizedDeployedEdges = deployedEdges
+    .map((edge) => ({
+      source: edge.source,
+      sourceHandle: edge.sourceHandle,
+      target: edge.target,
+      targetHandle: edge.targetHandle,
+    }))
+    .sort((a, b) =>
+      `${a.source}-${a.sourceHandle}-${a.target}-${a.targetHandle}`.localeCompare(
+        `${b.source}-${b.sourceHandle}-${b.target}-${b.targetHandle}`
+      )
+    )
 
-  // Check for block changes (added/removed blocks)
-  const currentBlockIds = Object.keys(currentState.blocks || {})
-  const deployedBlockIds = Object.keys(deployedState.blocks || {})
-
-  if (currentBlockIds.length !== deployedBlockIds.length) {
+  // Compare the normalized edge arrays
+  if (
+    normalizedStringify(normalizedCurrentEdges) !== normalizedStringify(normalizedDeployedEdges)
+  ) {
     return true
   }
 
-  // Check if any blocks were added or removed
-  for (const blockId of currentBlockIds) {
-    if (!deployedState.blocks[blockId]) {
-      return true
-    }
+  // 2. Compare blocks and their configurations
+  const currentBlockIds = Object.keys(currentState.blocks || {}).sort()
+  const deployedBlockIds = Object.keys(deployedState.blocks || {}).sort()
+
+  // Check if the block IDs are different
+  if (
+    currentBlockIds.length !== deployedBlockIds.length ||
+    normalizedStringify(currentBlockIds) !== normalizedStringify(deployedBlockIds)
+  ) {
+    return true
   }
 
-  // Check for configuration changes within blocks (except position)
+  // 3. Build normalized representations of blocks for comparison
+  const normalizedCurrentBlocks: Record<string, any> = {}
+  const normalizedDeployedBlocks: Record<string, any> = {}
+
   for (const blockId of currentBlockIds) {
     const currentBlock = currentState.blocks[blockId]
     const deployedBlock = deployedState.blocks[blockId]
 
-    // Skip position comparison (x, y coordinates)
+    // Skip position as it doesn't affect functionality
     const { position: currentPosition, ...currentBlockProps } = currentBlock
     const { position: deployedPosition, ...deployedBlockProps } = deployedBlock
 
-    // Check subBlocks for changes
+    // Extract and normalize subBlocks separately for cleaner comparison
     const currentSubBlocks = currentBlockProps.subBlocks || {}
     const deployedSubBlocks = deployedBlockProps.subBlocks || {}
 
-    // Compare subblock IDs
-    const currentSubBlockIds = Object.keys(currentSubBlocks)
-    const deployedSubBlockIds = Object.keys(deployedSubBlocks)
-
-    if (currentSubBlockIds.length !== deployedSubBlockIds.length) {
-      return true
-    }
-
-    // Check for changes in subblock values
-    for (const subBlockId of currentSubBlockIds) {
-      if (!deployedSubBlocks[subBlockId]) {
-        return true
-      }
-
-      const currentValue = currentSubBlocks[subBlockId].value
-      const deployedValue = deployedSubBlocks[subBlockId].value
-
-      // Deep compare values - convert to JSON and back to handle complex objects
-      if (JSON.stringify(currentValue) !== JSON.stringify(deployedValue)) {
-        return true
-      }
-    }
-
-    // Check other block properties (type, data, etc.)
-    if (currentBlockProps.type !== deployedBlockProps.type) {
-      return true
-    }
-
-    // Compare other block properties by converting to JSON
-    const currentPropsJson = JSON.stringify({
+    // Create normalized block representations without position or subBlocks
+    normalizedCurrentBlocks[blockId] = {
       ...currentBlockProps,
       subBlocks: undefined,
-    })
+    }
 
-    const deployedPropsJson = JSON.stringify({
+    normalizedDeployedBlocks[blockId] = {
       ...deployedBlockProps,
       subBlocks: undefined,
-    })
+    }
 
-    if (currentPropsJson !== deployedPropsJson) {
+    // Handle subBlocks separately
+    const normalizedCurrentSubBlocks: Record<string, any> = {}
+    const normalizedDeployedSubBlocks: Record<string, any> = {}
+
+    // Get all subBlock IDs from both states
+    const allSubBlockIds = [
+      ...new Set([...Object.keys(currentSubBlocks), ...Object.keys(deployedSubBlocks)]),
+    ].sort()
+
+    // Check if any subBlocks are missing in either state
+    if (Object.keys(currentSubBlocks).length !== Object.keys(deployedSubBlocks).length) {
+      return true
+    }
+
+    // Normalize and compare each subBlock
+    for (const subBlockId of allSubBlockIds) {
+      // If the subBlock doesn't exist in either state, there's a difference
+      if (!currentSubBlocks[subBlockId] || !deployedSubBlocks[subBlockId]) {
+        return true
+      }
+
+      normalizedCurrentSubBlocks[subBlockId] = {
+        ...currentSubBlocks[subBlockId],
+        value: normalizeValue(currentSubBlocks[subBlockId].value),
+      }
+
+      normalizedDeployedSubBlocks[subBlockId] = {
+        ...deployedSubBlocks[subBlockId],
+        value: normalizeValue(deployedSubBlocks[subBlockId].value),
+      }
+    }
+
+    // Compare the normalized blocks and subBlocks
+    const blocksEqual =
+      normalizedStringify(normalizedCurrentBlocks[blockId]) ===
+      normalizedStringify(normalizedDeployedBlocks[blockId])
+
+    const subBlocksEqual =
+      normalizedStringify(normalizedCurrentSubBlocks) ===
+      normalizedStringify(normalizedDeployedSubBlocks)
+
+    if (!blocksEqual || !subBlocksEqual) {
       return true
     }
   }
 
-  // Check loops for changes
+  // 4. Compare loops
   const currentLoops = currentState.loops || {}
   const deployedLoops = deployedState.loops || {}
 
-  if (Object.keys(currentLoops).length !== Object.keys(deployedLoops).length) {
+  const currentLoopIds = Object.keys(currentLoops).sort()
+  const deployedLoopIds = Object.keys(deployedLoops).sort()
+
+  if (
+    currentLoopIds.length !== deployedLoopIds.length ||
+    normalizedStringify(currentLoopIds) !== normalizedStringify(deployedLoopIds)
+  ) {
     return true
   }
 
-  // Compare loop configurations
-  for (const loopId in currentLoops) {
-    if (!deployedLoops[loopId]) {
-      return true
-    }
+  // Compare each loop with normalized values
+  for (const loopId of currentLoopIds) {
+    const normalizedCurrentLoop = normalizeValue(currentLoops[loopId])
+    const normalizedDeployedLoop = normalizeValue(deployedLoops[loopId])
 
-    // Compare loop properties
-    if (JSON.stringify(currentLoops[loopId]) !== JSON.stringify(deployedLoops[loopId])) {
+    if (
+      normalizedStringify(normalizedCurrentLoop) !== normalizedStringify(normalizedDeployedLoop)
+    ) {
       return true
     }
   }

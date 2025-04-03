@@ -21,6 +21,7 @@ export interface NotificationOptions {
   copyableContent?: string
   isPersistent?: boolean
   sections?: NotificationSection[]
+  needsRedeployment?: boolean
 }
 
 export interface NotificationStore {
