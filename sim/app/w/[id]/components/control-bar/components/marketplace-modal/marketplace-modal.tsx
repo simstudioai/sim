@@ -17,7 +17,6 @@ import {
   LineChart,
   MailIcon,
   NotebookPen,
-  Star,
   Store,
   TimerIcon,
   Trash,
@@ -38,6 +37,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import {
   Select,
   SelectContent,
@@ -131,7 +131,6 @@ interface MarketplaceInfo {
   description: string
   category: string
   authorName: string
-  stars: number
   views: number
   createdAt: string
   updatedAt: string
@@ -183,14 +182,25 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
       try {
         setIsLoading(true)
-        const response = await fetch(`/api/marketplace/${activeWorkflowId}/info`)
+
+        // Get marketplace ID from the workflow's marketplaceData
+        const marketplaceData = getMarketplaceData()
+        if (!marketplaceData?.id) {
+          throw new Error('No marketplace ID found in workflow data')
+        }
+
+        // Use the marketplace ID to fetch details instead of workflow ID
+        const response = await fetch(
+          `/api/marketplace/workflows?marketplaceId=${marketplaceData.id}`
+        )
 
         if (!response.ok) {
           throw new Error('Failed to fetch marketplace information')
         }
 
-        const data = await response.json()
-        setMarketplaceInfo(data)
+        // The API returns the data directly without wrapping
+        const marketplaceEntry = await response.json()
+        setMarketplaceInfo(marketplaceEntry)
       } catch (error) {
         console.error('Error fetching marketplace info:', error)
         addNotification('error', 'Failed to fetch marketplace information', activeWorkflowId)
@@ -270,9 +280,13 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         throw new Error(errorData.error || 'Failed to publish workflow')
       }
 
+      // Get the marketplace ID from the response
+      const responseData = await response.json()
+      const marketplaceId = responseData.data.id
+
       // Update the marketplace data in the workflow registry
       updateWorkflow(activeWorkflowId, {
-        marketplaceData: { id: activeWorkflowId, status: 'owner' },
+        marketplaceData: { id: marketplaceId, status: 'owner' },
       })
 
       // Add a marketplace notification with detailed information
@@ -301,29 +315,46 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     try {
       setIsUnpublishing(true)
 
-      const response = await fetch(`/api/marketplace/${activeWorkflowId}/unpublish`, {
+      // Get marketplace ID from the workflow's marketplaceData
+      const marketplaceData = getMarketplaceData()
+      if (!marketplaceData?.id) {
+        throw new Error('No marketplace ID found in workflow data')
+      }
+
+      logger.info('Attempting to unpublish marketplace entry', {
+        marketplaceId: marketplaceData.id,
+        workflowId: activeWorkflowId,
+        status: marketplaceData.status,
+      })
+
+      const response = await fetch(`/api/marketplace/${marketplaceData.id}/unpublish`, {
         method: 'POST',
       })
 
       if (!response.ok) {
         const errorData = await response.json()
+        logger.error('Error response from unpublish endpoint', {
+          status: response.status,
+          data: errorData,
+        })
         throw new Error(errorData.error || 'Failed to unpublish workflow')
       }
 
-      // Remove the marketplace data from the workflow registry
-      updateWorkflow(activeWorkflowId, {
-        marketplaceData: null,
+      logger.info('Successfully unpublished workflow from marketplace', {
+        marketplaceId: marketplaceData.id,
+        workflowId: activeWorkflowId,
       })
 
-      // Add a notification
-      addNotification(
-        'marketplace',
-        `"${marketplaceInfo?.name || 'Workflow'}" successfully unpublished from marketplace`,
-        activeWorkflowId
-      )
-
-      // Close the modal after successful unpublishing
+      // First close the modal to prevent any flashing
       onOpenChange(false)
+
+      // Then update the workflow state after modal is closed
+      setTimeout(() => {
+        // Remove the marketplace data from the workflow registry
+        updateWorkflow(activeWorkflowId, {
+          marketplaceData: null,
+        })
+      }, 100)
     } catch (error: any) {
       console.error('Error unpublishing workflow:', error)
       addNotification('error', `Failed to unpublish workflow: ${error.message}`, activeWorkflowId)
@@ -350,13 +381,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderMarketplaceInfo = () => {
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <div className="flex flex-col items-center gap-2">
-            <div className="animate-spin">
-              <BrainCircuit className="h-5 w-5" />
-            </div>
-            <p className="text-sm">Loading marketplace information...</p>
-          </div>
+        <div className="flex items-center justify-center py-12">
+          <LoadingAgent size="md" />
         </div>
       )
     }
@@ -379,12 +405,6 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
           <div className="flex items-start justify-between">
             <h3 className="text-xl font-medium leading-tight">{marketplaceInfo.name}</h3>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 rounded-md px-2 py-1">
-                <Star className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {marketplaceInfo.stars}
-                </span>
-              </div>
               <div className="flex items-center gap-1.5 rounded-md px-2 py-1">
                 <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground">
