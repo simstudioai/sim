@@ -52,6 +52,7 @@ export function getWorkflowWithValues(workflowId: string) {
     name: metadata.name,
     description: metadata.description,
     color: metadata.color || '#3972F6',
+    marketplaceData: metadata.marketplaceData || null,
     state: {
       blocks: mergedBlocks,
       edges: workflowState.edges,
@@ -114,6 +115,7 @@ export function getAllWorkflowsWithValues() {
       name: metadata.name,
       description: metadata.description,
       color: metadata.color || '#3972F6',
+      marketplaceData: metadata.marketplaceData || null,
       state: {
         blocks: mergedBlocks,
         edges: workflowState.edges,

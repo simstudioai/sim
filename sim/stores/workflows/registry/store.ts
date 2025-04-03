@@ -142,8 +142,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           lastModified: new Date(),
           description: options.description || 'New workflow',
           color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows), // Gray for marketplace imports
-          marketplaceStatus: options.marketplaceId ? 'temp' : undefined,
-          marketplaceId: options.marketplaceId,
+          marketplaceData: options.marketplaceId 
+            ? { id: options.marketplaceId, status: 'temp' as const } 
+            : undefined,
         }
 
         let initialState;
@@ -350,8 +351,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           lastModified: new Date(),
           description: metadata.description || 'Imported from marketplace',
           color: metadata.color || getNextWorkflowColor(workflows),
-          marketplaceStatus: 'temp',  // Initial status is temp, user can star it later
-          marketplaceId: marketplaceId, // Reference to original marketplace workflow
+          marketplaceData: { id: marketplaceId, status: 'temp' as const },
         }
 
         // Prepare workflow state based on the marketplace workflow state
