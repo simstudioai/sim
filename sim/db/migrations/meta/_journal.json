@@ -183,6 +183,13 @@
       "when": 1743643010845,
       "tag": "0025_curved_jubilee",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1743654486007,
+      "tag": "0026_daily_killraven",
+      "breakpoints": true
     }
   ]
 }

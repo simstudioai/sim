@@ -32,6 +32,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         isDeployed: workflow.isDeployed,
         deployedAt: workflow.deployedAt,
         userId: workflow.userId,
+        state: workflow.state,
+        deployedState: workflow.deployedState,
       })
       .from(workflow)
       .where(eq(workflow.id, id))
@@ -51,6 +53,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         isDeployed: false,
         deployedAt: null,
         apiKey: null,
+        needsRedeployment: false,
       })
     }
 
@@ -63,11 +66,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(apiKey.userId, workflowData.userId))
       .limit(1)
 
+    // Check if the workflow has meaningful changes that would require redeployment
+    let needsRedeployment = false
+    if (workflowData.deployedState) {
+      const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
+      needsRedeployment = hasWorkflowChanged(
+        workflowData.state as any,
+        workflowData.deployedState as any
+      )
+    }
+
     logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
     return createSuccessResponse({
       apiKey: userApiKey.length > 0 ? userApiKey[0].key : null,
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt,
+      needsRedeployment,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployment info: ${id}`, error)
@@ -88,10 +102,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Get the workflow to find the user
+    // Get the workflow to find the user and current state
     const workflowData = await db
       .select({
         userId: workflow.userId,
+        state: workflow.state,
       })
       .from(workflow)
       .where(eq(workflow.id, id))
@@ -103,6 +118,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const userId = workflowData[0].userId
+    const currentState = workflowData[0].state
     const deployedAt = new Date()
 
     // Check if the user already has an API key
@@ -132,12 +148,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       userKey = userApiKey[0].key
     }
 
-    // Update the workflow deployment status
+    // Update the workflow deployment status and save current state as deployed state
     await db
       .update(workflow)
       .set({
         isDeployed: true,
         deployedAt,
+        deployedState: currentState,
       })
       .where(eq(workflow.id, id))
 
@@ -165,12 +182,13 @@ export async function DELETE(
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Update the workflow to remove deployment status
+    // Update the workflow to remove deployment status and deployed state
     await db
       .update(workflow)
       .set({
         isDeployed: false,
         deployedAt: null,
+        deployedState: null,
       })
       .where(eq(workflow.id, id))
 

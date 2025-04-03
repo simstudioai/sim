@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Copy, Eye, EyeOff, Info, Rocket, Store, Terminal, X } from 'lucide-react'
+import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -16,11 +16,7 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import {
-  MAX_VISIBLE_NOTIFICATIONS,
-  NOTIFICATION_TIMEOUT,
-  useNotificationStore,
-} from '@/stores/notifications/store'
+import { MAX_VISIBLE_NOTIFICATIONS, useNotificationStore } from '@/stores/notifications/store'
 import { Notification } from '@/stores/notifications/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -306,7 +302,7 @@ interface NotificationAlertProps {
   onHide: (id: string) => void
 }
 
-function NotificationAlert({ notification, isFading, onHide }: NotificationAlertProps) {
+export function NotificationAlert({ notification, isFading, onHide }: NotificationAlertProps) {
   const { id, type, message, options, workflowId } = notification
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
@@ -314,6 +310,15 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
   const { isDeployed } = useWorkflowStore((state) => ({
     isDeployed: state.isDeployed,
   }))
+
+  // Create a function to clear the redeployment flag and update deployment status
+  const updateDeploymentStatus = (isDeployed: boolean, deployedAt?: Date) => {
+    // Update deployment status in workflow store
+    setDeploymentStatus(isDeployed, deployedAt)
+
+    // Manually update the needsRedeployment flag in workflow store
+    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+  }
 
   const Icon = NotificationIcon[type]
 
@@ -328,7 +333,7 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
       if (!response.ok) throw new Error('Failed to delete API deployment')
 
       // Update deployment status in the store
-      setDeploymentStatus(false)
+      updateDeploymentStatus(false)
 
       // Close the notification
       onHide(id)
@@ -444,10 +449,17 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
                     <div className="flex items-center gap-1.5">
                       <div className="relative flex items-center justify-center">
                         {isDeployed ? (
-                          <>
-                            <div className="absolute h-3 w-3 rounded-full bg-green-500/20 animate-ping"></div>
-                            <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
-                          </>
+                          options?.needsRedeployment ? (
+                            <>
+                              <div className="absolute h-3 w-3 rounded-full bg-amber-500/20 animate-ping"></div>
+                              <div className="relative h-2 w-2 rounded-full bg-amber-500"></div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="absolute h-3 w-3 rounded-full bg-green-500/20 animate-ping"></div>
+                              <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
+                            </>
+                          )
                         ) : (
                           <>
                             <div className="absolute h-3 w-3 rounded-full bg-red-500/20 animate-ping"></div>
@@ -458,22 +470,86 @@ function NotificationAlert({ notification, isFading, onHide }: NotificationAlert
                       <span
                         className={cn(
                           'text-xs font-medium',
-                          isDeployed ? ApiStatusStyles.active : ApiStatusStyles.inactive
+                          isDeployed
+                            ? options?.needsRedeployment
+                              ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400'
+                              : ApiStatusStyles.active
+                            : ApiStatusStyles.inactive
                         )}
                       >
-                        {isDeployed ? 'Active' : 'Inactive'}
+                        {isDeployed
+                          ? options?.needsRedeployment
+                            ? 'Changes Detected'
+                            : 'Active'
+                          : 'Inactive'}
                       </span>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    disabled={!isDeployed}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex gap-2">
+                    {options?.needsRedeployment && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                        onClick={async () => {
+                          if (!workflowId) return
+
+                          try {
+                            // Call the deploy endpoint to redeploy the workflow
+                            const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+                              method: 'POST',
+                            })
+
+                            if (!response.ok) throw new Error('Failed to redeploy workflow')
+
+                            // Get the response data
+                            const data = await response.json()
+
+                            // Get the API key from the existing notification sections
+                            const apiKey =
+                              options?.sections?.find((s) => s.label === 'API Key')?.content || ''
+                            const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
+
+                            // Get input format example for curl command
+                            const inputFormatExample = ''
+
+                            // Update deployment status in the store (resets needsRedeployment flag)
+                            updateDeploymentStatus(
+                              data.isDeployed,
+                              data.deployedAt ? new Date(data.deployedAt) : undefined
+                            )
+
+                            // First close this notification
+                            onHide(id)
+
+                            // Show a temporary success notification without creating another API notification
+                            useNotificationStore
+                              .getState()
+                              .addNotification(
+                                'info',
+                                'Workflow successfully redeployed',
+                                workflowId,
+                                { isPersistent: false }
+                              )
+                          } catch (error) {
+                            logger.error('Error redeploying workflow:', { error })
+                          }
+                        }}
+                      >
+                        Redeploy
+                      </Button>
+                    )}
+                    {isDeployed && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setIsDeleteDialogOpen(true)}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </AlertDescription>
             </div>

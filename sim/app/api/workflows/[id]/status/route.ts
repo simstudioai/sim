@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { hasWorkflowChanged } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -17,15 +18,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
+    // Check if the workflow has meaningful changes that would require redeployment
+    let needsRedeployment = false
+    if (validation.workflow.isDeployed && validation.workflow.deployedState) {
+      needsRedeployment = hasWorkflowChanged(
+        validation.workflow.state as any,
+        validation.workflow.deployedState as any
+      )
+    }
+
     logger.info(`[${requestId}] Retrieved status for workflow: ${id}`, {
       isDeployed: validation.workflow.isDeployed,
       isPublished: validation.workflow.isPublished,
+      needsRedeployment,
     })
 
     return createSuccessResponse({
       isDeployed: validation.workflow.isDeployed,
       deployedAt: validation.workflow.deployedAt,
       isPublished: validation.workflow.isPublished,
+      needsRedeployment,
     })
   } catch (error) {
     logger.error(`[${requestId}] Error getting status for workflow: ${(await params).id}`, error)

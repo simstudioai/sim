@@ -19,7 +19,7 @@ const initialState = {
   lastSaved: undefined,
   isDeployed: false,
   deployedAt: undefined,
-  isPublished: false,
+  needsRedeployment: false,
   history: {
     past: [],
     present: {
@@ -41,6 +41,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       canUndo: () => false,
       canRedo: () => false,
       revertToHistoryState: () => {},
+
+      setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
+        set({ needsRedeployment })
+      },
 
       addBlock: (id: string, type: string, name: string, position: Position) => {
         const blockConfig = getBlock(type)
@@ -614,6 +618,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           ...get(),
           isDeployed,
           deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+          needsRedeployment: isDeployed ? false : get().needsRedeployment,
         }
 
         set(newState)

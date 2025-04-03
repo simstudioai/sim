@@ -1,6 +1,6 @@
 {
-  "id": "e80af3b3-8eef-45fd-b4d1-749b50f1889d",
-  "prevId": "2df7e46c-e8b8-4fb2-8d97-f7e5dbc23519",
+  "id": "e09a23de-78f7-48a9-b26c-6f98fa5bb601",
+  "prevId": "e80af3b3-8eef-45fd-b4d1-749b50f1889d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -963,6 +963,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "deployed_state": {
+          "name": "deployed_state",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
         },
         "deployed_at": {
           "name": "deployed_at",

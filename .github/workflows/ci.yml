@@ -26,6 +26,12 @@ jobs:
         working-directory: ./sim
         run: npm ci
         
+      - name: Fix Rollup module issue
+        working-directory: ./sim
+        run: |
+          rm -rf node_modules package-lock.json
+          npm install
+        
       - name: Run tests with coverage
         working-directory: ./sim
         env:
@@ -42,3 +48,29 @@ jobs:
           directory: ./sim/coverage
           fail_ci_if_error: false
           verbose: true 
+
+  migrations:
+    name: Apply Database Migrations
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './sim/package-lock.json'
+          
+      - name: Install dependencies
+        working-directory: ./sim
+        run: npm ci
+        
+      - name: Apply migrations
+        working-directory: ./sim
+        env:
+          POSTGRES_URL: ${{ secrets.DATABASE_URL }}
+        run: npx drizzle-kit push 
