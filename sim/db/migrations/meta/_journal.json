@@ -176,6 +176,13 @@
       "when": 1743642824678,
       "tag": "0024_next_whizzer",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1743643010845,
+      "tag": "0025_curved_jubilee",
+      "breakpoints": true
     }
   ]
 }

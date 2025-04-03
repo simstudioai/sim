@@ -1,11 +1,15 @@
+export interface MarketplaceData {
+  id: string
+  status: 'owner' | 'temp' | 'star'
+}
+
 export interface WorkflowMetadata {
   id: string
   name: string
   lastModified: Date
   description?: string
   color: string
-  marketplaceStatus?: 'temp' | 'star' | null
-  marketplaceId?: string
+  marketplaceData?: MarketplaceData | null
 }
 
 export interface WorkflowRegistryState {

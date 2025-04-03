@@ -77,7 +77,7 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  marketplaceData: json('marketplace_data').default(null), // Format: { id: string, status: 'owner' | 'temp' | 'star' }
+  marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' | 'star' }
   
   // These columns are kept for backward compatibility during migration
   // and should be marked as deprecated

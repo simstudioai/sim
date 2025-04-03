@@ -65,15 +65,8 @@ export function ControlBar() {
   // Store hooks
   const { notifications, getWorkflowNotifications, addNotification, showNotification } =
     useNotificationStore()
-  const {
-    history,
-    revertToHistoryState,
-    lastSaved,
-    isDeployed,
-    isPublished,
-    setDeploymentStatus,
-    setPublishStatus,
-  } = useWorkflowStore()
+  const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
+    useWorkflowStore()
   const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
 
@@ -112,6 +105,24 @@ export function ControlBar() {
     ? getWorkflowNotifications(activeWorkflowId)
     : notifications // Show all if no workflow is active
 
+  // Get the marketplace data from the workflow registry if available
+  const getMarketplaceData = () => {
+    if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
+    return workflows[activeWorkflowId].marketplaceData
+  }
+
+  // Check if the current workflow is published to marketplace
+  const isPublishedToMarketplace = () => {
+    const marketplaceData = getMarketplaceData()
+    return !!marketplaceData
+  }
+
+  // Check if the current user is the owner of the published workflow
+  const isWorkflowOwner = () => {
+    const marketplaceData = getMarketplaceData()
+    return marketplaceData?.status === 'owner'
+  }
+
   // Client-side only rendering for the timestamp
   useEffect(() => {
     setMounted(true)
@@ -149,14 +160,13 @@ export function ControlBar() {
             data.isDeployed,
             data.deployedAt ? new Date(data.deployedAt) : undefined
           )
-          setPublishStatus(data.isPublished)
         }
       } catch (error) {
         logger.error('Failed to check workflow status:', { error })
       }
     }
     checkStatus()
-  }, [activeWorkflowId, setDeploymentStatus, setPublishStatus])
+  }, [activeWorkflowId, setDeploymentStatus])
 
   /**
    * Workflow name handlers
@@ -364,6 +374,7 @@ export function ControlBar() {
     if (!activeWorkflowId) return
 
     // If already published, show marketplace modal with info instead of notifications
+    const isPublished = isPublishedToMarketplace()
     if (isPublished) {
       setIsMarketplaceModalOpen(true)
       return
@@ -488,7 +499,10 @@ export function ControlBar() {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDeleteWorkflow} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogAction
+            onClick={handleDeleteWorkflow}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -636,33 +650,37 @@ export function ControlBar() {
   /**
    * Render publish button
    */
-  const renderPublishButton = () => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handlePublishWorkflow}
-          disabled={isPublishing}
-          className={cn('hover:text-[#802FFF]', isPublished && 'text-[#802FFF]')}
-        >
-          {isPublishing ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <Store className="h-5 w-5" />
-          )}
-          <span className="sr-only">Publish to Marketplace</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {isPublishing
-          ? 'Publishing...'
-          : isPublished
-            ? 'Published to Marketplace'
-            : 'Publish to Marketplace'}
-      </TooltipContent>
-    </Tooltip>
-  )
+  const renderPublishButton = () => {
+    const isPublished = isPublishedToMarketplace()
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handlePublishWorkflow}
+            disabled={isPublishing}
+            className={cn('hover:text-[#802FFF]', isPublished && 'text-[#802FFF]')}
+          >
+            {isPublishing ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Store className="h-5 w-5" />
+            )}
+            <span className="sr-only">Publish to Marketplace</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isPublishing
+            ? 'Publishing...'
+            : isPublished
+              ? 'Published to Marketplace'
+              : 'Publish to Marketplace'}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
 
   /**
    * Render debug mode controls
