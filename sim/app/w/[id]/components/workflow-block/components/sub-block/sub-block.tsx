@@ -15,6 +15,7 @@ import { FileSelectorInput } from './components/file-selector/file-selector-inpu
 import { FileUpload } from './components/file-upload'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
+import { Messages } from './components/messages'
 import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -50,6 +51,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
 
   const renderInput = () => {
     switch (config.type) {
+      case 'messages':
+        return <Messages blockId={blockId} subBlockId={config.id} />
       case 'short-input':
         return (
           <ShortInput

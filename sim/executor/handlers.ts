@@ -225,23 +225,31 @@ export class AgentBlockHandler implements BlockHandler {
     // Debug request before sending to provider
     const providerRequest = {
       model,
+      /*
       systemPrompt: inputs.systemPrompt,
       context: Array.isArray(inputs.context)
         ? JSON.stringify(inputs.context, null, 2)
         : typeof inputs.context === 'string'
           ? inputs.context
           : JSON.stringify(inputs.context, null, 2),
+          */
+      messages: inputs.chatHistory || [],
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
       apiKey: inputs.apiKey,
       responseFormat,
+      systemPrompt: '',
+      context: '',
     }
 
     logger.info(`Provider request prepared`, {
       model: providerRequest.model,
+      /*
       hasSystemPrompt: !!providerRequest.systemPrompt,
       hasContext: !!providerRequest.context,
+      */
+      messageCount: providerRequest.messages?.length || 0,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
     })
