@@ -119,7 +119,12 @@ export function Sidebar() {
           <FolderSection title="My Workflows" workflows={regularWorkflows} defaultOpen={true} />
 
           {/* Marketplace Workflows folder */}
-          <FolderSection title="Marketplace" workflows={tempWorkflows} defaultOpen={false} />
+          <FolderSection
+            title="Marketplace"
+            workflows={tempWorkflows}
+            defaultOpen={true}
+            icon={Store}
+          />
         </div>
       </nav>
 

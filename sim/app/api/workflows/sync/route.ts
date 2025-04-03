@@ -11,7 +11,7 @@ const logger = createLogger('WorkflowAPI')
 // Define marketplace data schema
 const MarketplaceDataSchema = z.object({
   id: z.string(),
-  status: z.enum(['owner', 'temp', 'star'])
+  status: z.enum(['owner', 'temp'])
 }).nullable().optional()
 
 // Schema for workflow data

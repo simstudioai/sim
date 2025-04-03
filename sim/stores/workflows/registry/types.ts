@@ -1,6 +1,6 @@
 export interface MarketplaceData {
-  id: string
-  status: 'owner' | 'temp' | 'star'
+  id: string  // Marketplace entry ID to track original marketplace source
+  status: 'owner' | 'temp'
 }
 
 export interface WorkflowMetadata {
