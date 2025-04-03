@@ -146,10 +146,6 @@ export function hasWorkflowChanged(
   const currentEdges = currentState.edges || []
   const deployedEdges = deployedState.edges || []
 
-  if (currentEdges.length !== deployedEdges.length) {
-    return true
-  }
-
   // Create sorted, normalized representations of the edges for more reliable comparison
   const normalizedCurrentEdges = currentEdges
     .map((edge) => ({
@@ -244,27 +240,47 @@ export function hasWorkflowChanged(
         return true
       }
 
-      normalizedCurrentSubBlocks[subBlockId] = {
-        ...currentSubBlocks[subBlockId],
-        value: normalizeValue(currentSubBlocks[subBlockId].value),
+      // Get values with special handling for null/undefined
+      const currentValue = currentSubBlocks[subBlockId].value ?? null
+      const deployedValue = deployedSubBlocks[subBlockId].value ?? null
+
+      // For string values, compare directly to catch even small text changes
+      if (typeof currentValue === 'string' && typeof deployedValue === 'string') {
+        if (currentValue !== deployedValue) {
+          return true
+        }
+      } else {
+        // For other types, use normalized comparison
+        const normalizedCurrentValue = normalizeValue(currentValue)
+        const normalizedDeployedValue = normalizeValue(deployedValue)
+
+        if (
+          normalizedStringify(normalizedCurrentValue) !==
+          normalizedStringify(normalizedDeployedValue)
+        ) {
+          return true
+        }
       }
 
-      normalizedDeployedSubBlocks[subBlockId] = {
-        ...deployedSubBlocks[subBlockId],
-        value: normalizeValue(deployedSubBlocks[subBlockId].value),
+      // Compare type and other properties
+      const currentSubBlockWithoutValue = { ...currentSubBlocks[subBlockId], value: undefined }
+      const deployedSubBlockWithoutValue = { ...deployedSubBlocks[subBlockId], value: undefined }
+
+      if (
+        normalizedStringify(currentSubBlockWithoutValue) !==
+        normalizedStringify(deployedSubBlockWithoutValue)
+      ) {
+        return true
       }
     }
 
-    // Compare the normalized blocks and subBlocks
+    // Skip the normalization of subBlocks since we've already done detailed comparison above
     const blocksEqual =
       normalizedStringify(normalizedCurrentBlocks[blockId]) ===
       normalizedStringify(normalizedDeployedBlocks[blockId])
 
-    const subBlocksEqual =
-      normalizedStringify(normalizedCurrentSubBlocks) ===
-      normalizedStringify(normalizedDeployedSubBlocks)
-
-    if (!blocksEqual || !subBlocksEqual) {
+    // We've already compared subBlocks in detail
+    if (!blocksEqual) {
       return true
     }
   }
