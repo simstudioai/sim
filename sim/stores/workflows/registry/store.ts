@@ -138,126 +138,241 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Generate workflow metadata with appropriate name and color
         const newWorkflow: WorkflowMetadata = {
           id,
-          name: generateUniqueName(workflows),
+          name: options.name || generateUniqueName(workflows),
           lastModified: new Date(),
-          description: 'New workflow',
-          color: getNextWorkflowColor(workflows),
+          description: options.description || 'New workflow',
+          color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows), // Gray for marketplace imports
+          marketplaceStatus: options.marketplaceId ? 'temp' : undefined,
+          marketplaceId: options.marketplaceId,
         }
 
-        // Create starter block for new workflow
-        const starterId = crypto.randomUUID()
-        const starterBlock = {
-          id: starterId,
-          type: 'starter' as const,
-          name: 'Start',
-          position: { x: 100, y: 100 },
-          subBlocks: {
-            startWorkflow: {
-              id: 'startWorkflow',
-              type: 'dropdown' as const,
-              value: 'manual',
+        let initialState;
+
+        // If this is a marketplace import with existing state
+        if (options.marketplaceId && options.marketplaceState) {
+          initialState = {
+            blocks: options.marketplaceState.blocks || {},
+            edges: options.marketplaceState.edges || [],
+            loops: options.marketplaceState.loops || {},
+            isDeployed: false,
+            deployedAt: undefined,
+            history: {
+              past: [],
+              present: {
+                state: {
+                  blocks: options.marketplaceState.blocks || {},
+                  edges: options.marketplaceState.edges || [],
+                  loops: options.marketplaceState.loops || {},
+                  isDeployed: false,
+                  deployedAt: undefined,
+                },
+                timestamp: Date.now(),
+                action: 'Imported from marketplace',
+                subblockValues: {},
+              },
+              future: [],
             },
-            webhookPath: {
-              id: 'webhookPath',
-              type: 'short-input' as const,
-              value: '',
-            },
-            webhookSecret: {
-              id: 'webhookSecret',
-              type: 'short-input' as const,
-              value: '',
-            },
-            scheduleType: {
-              id: 'scheduleType',
-              type: 'dropdown' as const,
-              value: 'daily',
-            },
-            minutesInterval: {
-              id: 'minutesInterval',
-              type: 'short-input' as const,
-              value: '',
-            },
-            minutesStartingAt: {
-              id: 'minutesStartingAt',
-              type: 'short-input' as const,
-              value: '',
-            },
-            hourlyMinute: {
-              id: 'hourlyMinute',
-              type: 'short-input' as const,
-              value: '',
-            },
-            dailyTime: {
-              id: 'dailyTime',
-              type: 'short-input' as const,
-              value: '',
-            },
-            weeklyDay: {
-              id: 'weeklyDay',
-              type: 'dropdown' as const,
-              value: 'MON',
-            },
-            weeklyDayTime: {
-              id: 'weeklyDayTime',
-              type: 'short-input' as const,
-              value: '',
-            },
-            monthlyDay: {
-              id: 'monthlyDay',
-              type: 'short-input' as const,
-              value: '',
-            },
-            monthlyTime: {
-              id: 'monthlyTime',
-              type: 'short-input' as const,
-              value: '',
-            },
-            cronExpression: {
-              id: 'cronExpression',
-              type: 'short-input' as const,
-              value: '',
-            },
-            timezone: {
-              id: 'timezone',
-              type: 'dropdown' as const,
-              value: 'UTC',
-            },
-          },
-          outputs: {
-            response: {
-              type: {
-                input: 'any',
+            lastSaved: Date.now(),
+          }
+          
+          logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
+        } else {
+          // Create starter block for new workflow
+          const starterId = crypto.randomUUID()
+          const starterBlock = {
+            id: starterId,
+            type: 'starter' as const,
+            name: 'Start',
+            position: { x: 100, y: 100 },
+            subBlocks: {
+              startWorkflow: {
+                id: 'startWorkflow',
+                type: 'dropdown' as const,
+                value: 'manual',
+              },
+              webhookPath: {
+                id: 'webhookPath',
+                type: 'short-input' as const,
+                value: '',
+              },
+              webhookSecret: {
+                id: 'webhookSecret',
+                type: 'short-input' as const,
+                value: '',
+              },
+              scheduleType: {
+                id: 'scheduleType',
+                type: 'dropdown' as const,
+                value: 'daily',
+              },
+              minutesInterval: {
+                id: 'minutesInterval',
+                type: 'short-input' as const,
+                value: '',
+              },
+              minutesStartingAt: {
+                id: 'minutesStartingAt',
+                type: 'short-input' as const,
+                value: '',
+              },
+              hourlyMinute: {
+                id: 'hourlyMinute',
+                type: 'short-input' as const,
+                value: '',
+              },
+              dailyTime: {
+                id: 'dailyTime',
+                type: 'short-input' as const,
+                value: '',
+              },
+              weeklyDay: {
+                id: 'weeklyDay',
+                type: 'dropdown' as const,
+                value: 'MON',
+              },
+              weeklyDayTime: {
+                id: 'weeklyDayTime',
+                type: 'short-input' as const,
+                value: '',
+              },
+              monthlyDay: {
+                id: 'monthlyDay',
+                type: 'short-input' as const,
+                value: '',
+              },
+              monthlyTime: {
+                id: 'monthlyTime',
+                type: 'short-input' as const,
+                value: '',
+              },
+              cronExpression: {
+                id: 'cronExpression',
+                type: 'short-input' as const,
+                value: '',
+              },
+              timezone: {
+                id: 'timezone',
+                type: 'dropdown' as const,
+                value: 'UTC',
               },
             },
-          },
-          enabled: true,
-          horizontalHandles: true,
-          isWide: false,
-          height: 0,
+            outputs: {
+              response: {
+                type: {
+                  input: 'any',
+                },
+              },
+            },
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+          }
+
+          initialState = {
+            blocks: {
+              [starterId]: starterBlock,
+            },
+            edges: [],
+            loops: {},
+            isDeployed: false,
+            deployedAt: undefined,
+            history: {
+              past: [],
+              present: {
+                state: {
+                  blocks: {
+                    [starterId]: starterBlock,
+                  },
+                  edges: [],
+                  loops: {},
+                  isDeployed: false,
+                  deployedAt: undefined,
+                },
+                timestamp: Date.now(),
+                action: 'Initial state',
+                subblockValues: {},
+              },
+              future: [],
+            },
+            lastSaved: Date.now(),
+          }
         }
 
-        const initialState = {
-          blocks: {
-            [starterId]: starterBlock,
+        // Add workflow to registry
+        set((state) => ({
+          workflows: {
+            ...state.workflows,
+            [id]: newWorkflow,
           },
-          edges: [],
-          loops: {},
+          error: null,
+        }))
+
+        // Save workflow list to localStorage
+        const updatedWorkflows = get().workflows
+        saveRegistry(updatedWorkflows)
+
+        // Save initial workflow state to localStorage
+        saveWorkflowState(id, initialState)
+
+        // Initialize subblock values if this is a marketplace import
+        if (options.marketplaceId && options.marketplaceState?.blocks) {
+          useSubBlockStore.getState().initializeFromWorkflow(id, options.marketplaceState.blocks)
+        }
+
+        // If this is the first workflow or it's an initial workflow, set it as active
+        if (options.isInitial || Object.keys(updatedWorkflows).length === 1) {
+          set({ activeWorkflowId: id })
+          useWorkflowStore.setState(initialState)
+        }
+
+        // Trigger sync
+        workflowSync.sync()
+
+        return id
+      },
+
+      /**
+       * Creates a new workflow from a marketplace workflow
+       * @param marketplaceId - The ID of the marketplace workflow to import
+       * @param state - The state of the marketplace workflow (blocks, edges, loops)
+       * @param metadata - Additional metadata like name, description from marketplace
+       * @returns The ID of the newly created workflow
+       */
+      createMarketplaceWorkflow: (marketplaceId: string, state: any, metadata: Partial<WorkflowMetadata>) => {
+        const { workflows } = get()
+        const id = crypto.randomUUID()
+
+        // Generate workflow metadata with marketplace properties
+        const newWorkflow: WorkflowMetadata = {
+          id,
+          name: metadata.name || `Marketplace workflow`,
+          lastModified: new Date(),
+          description: metadata.description || 'Imported from marketplace',
+          color: metadata.color || getNextWorkflowColor(workflows),
+          marketplaceStatus: 'temp',  // Initial status is temp, user can star it later
+          marketplaceId: marketplaceId, // Reference to original marketplace workflow
+        }
+
+        // Prepare workflow state based on the marketplace workflow state
+        const initialState = {
+          blocks: state.blocks || {},
+          edges: state.edges || [],
+          loops: state.loops || {},
           isDeployed: false,
           deployedAt: undefined,
           history: {
             past: [],
             present: {
               state: {
-                blocks: {
-                  [starterId]: starterBlock,
-                },
-                edges: [],
-                loops: {},
+                blocks: state.blocks || {},
+                edges: state.edges || [],
+                loops: state.loops || {},
                 isDeployed: false,
                 deployedAt: undefined,
               },
               timestamp: Date.now(),
-              action: 'Initial state',
+              action: 'Imported from marketplace',
               subblockValues: {},
             },
             future: [],
@@ -278,17 +393,18 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const updatedWorkflows = get().workflows
         saveRegistry(updatedWorkflows)
 
-        // Save initial workflow state to localStorage
+        // Save workflow state to localStorage
         saveWorkflowState(id, initialState)
 
-        // If this is the first workflow or it's an initial workflow, set it as active
-        if (options.isInitial || Object.keys(updatedWorkflows).length === 1) {
-          set({ activeWorkflowId: id })
-          useWorkflowStore.setState(initialState)
+        // Initialize subblock values from state blocks
+        if (state.blocks) {
+          useSubBlockStore.getState().initializeFromWorkflow(id, state.blocks)
         }
 
-        // Trigger sync
+        // Trigger sync to save to the database with marketplace attributes
         workflowSync.sync()
+
+        logger.info(`Created marketplace workflow ${id} imported from ${marketplaceId}`)
 
         return id
       },

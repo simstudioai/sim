@@ -4,6 +4,8 @@ export interface WorkflowMetadata {
   lastModified: Date
   description?: string
   color: string
+  marketplaceStatus?: 'temp' | 'star' | null
+  marketplaceId?: string
 }
 
 export interface WorkflowRegistryState {
@@ -17,7 +19,13 @@ export interface WorkflowRegistryActions {
   setActiveWorkflow: (id: string) => Promise<void>
   removeWorkflow: (id: string) => void
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
-  createWorkflow: (options?: { isInitial?: boolean }) => string
+  createWorkflow: (options?: { 
+    isInitial?: boolean, 
+    marketplaceId?: string, 
+    marketplaceState?: any,
+    name?: string,
+    description?: string
+  }) => string
 }
 
 export type WorkflowRegistry = WorkflowRegistryState & WorkflowRegistryActions
