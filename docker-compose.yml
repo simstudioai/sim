@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # image: ghcr.io/{{ github.repository }}:{{ branch }} # Uncomment this line to specify the image name dynamically instead of building it locally
     ports:
       - "3000:3000"
     volumes:
