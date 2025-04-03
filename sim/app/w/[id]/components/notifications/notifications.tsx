@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import { Copy, Eye, EyeOff, Info, Rocket, Store, Terminal, X } from 'lucide-react'
+import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -17,11 +16,7 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import {
-  MAX_VISIBLE_NOTIFICATIONS,
-  NOTIFICATION_TIMEOUT,
-  useNotificationStore,
-} from '@/stores/notifications/store'
+import { MAX_VISIBLE_NOTIFICATIONS, useNotificationStore } from '@/stores/notifications/store'
 import { Notification } from '@/stores/notifications/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
