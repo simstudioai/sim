@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -105,6 +105,8 @@ export function ControlBar() {
   const [completedRuns, setCompletedRuns] = useState(0)
   const [isMultiRunning, setIsMultiRunning] = useState(false)
   const [showRunProgress, setShowRunProgress] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const cancelFlagRef = useRef(false)
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -389,23 +391,35 @@ export function ControlBar() {
   const handleMultipleRuns = async () => {
     if (isExecuting || isMultiRunning || runCount <= 0) return
 
-    // Reset state for a new batch of runs
+    // Reset state and ref for a new batch of runs
     setCompletedRuns(0)
     setIsMultiRunning(true)
+    setIsCancelling(false)
+    cancelFlagRef.current = false
     setShowRunProgress(runCount > 1)
 
     let result = null
     let workflowError = null
+    let wasCancelled = false
 
     try {
       // Run the workflow multiple times sequentially
       for (let i = 0; i < runCount; i++) {
+        // Check for cancellation before starting the next run using the ref
+        if (cancelFlagRef.current) {
+          logger.info('Multi-run cancellation requested by user.')
+          wasCancelled = true
+          break
+        }
         await handleRunWorkflow()
         setCompletedRuns(i + 1)
       }
 
-      // Update workflow stats after all runs are complete
-      if (activeWorkflowId) {
+      // Set multi-running to false immediately after the loop finishes or breaks
+      setIsMultiRunning(false)
+
+      // Update workflow stats only if the run wasn't cancelled and completed normally
+      if (!wasCancelled && activeWorkflowId) {
         const response = await fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
           method: 'POST',
         })
@@ -419,15 +433,19 @@ export function ControlBar() {
     } catch (error) {
       workflowError = error
       logger.error('Error during multiple workflow runs:', { error })
-    } finally {
       setIsMultiRunning(false)
-      // Keep progress visible for a moment after completion
+    } finally {
+      // Keep progress visible for a moment after completion/cancellation
       if (runCount > 1) {
         setTimeout(() => setShowRunProgress(false), 2000)
       }
+      setIsCancelling(false)
+      cancelFlagRef.current = false
 
       // Show notification after state is updated
-      if (workflowError) {
+      if (wasCancelled) {
+        addNotification('info', 'Workflow run cancelled', activeWorkflowId)
+      } else if (workflowError) {
         addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
       }
     }
@@ -765,7 +783,7 @@ export function ControlBar() {
   }
 
   /**
-   * Render run workflow button with multi-run dropdown
+   * Render run workflow button with multi-run dropdown and cancel button
    */
   const renderRunButton = () => (
     <div className="flex items-center">
@@ -790,7 +808,7 @@ export function ControlBar() {
       {renderDebugControls()}
 
       <div className="flex ml-1">
-        {/* Main Run Button */}
+        {/* Main Run/Debug Button */}
         <Button
           className={cn(
             'gap-2 font-medium',
@@ -798,35 +816,40 @@ export function ControlBar() {
             'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
             'text-white transition-all duration-200',
             (isExecuting || isMultiRunning) &&
+              !isCancelling &&
               'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
             'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
-            isDebugModeEnabled
+            isDebugModeEnabled || isMultiRunning
               ? 'rounded py-2 px-4 h-10'
               : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
           )}
           onClick={isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns}
-          disabled={isExecuting || isMultiRunning}
+          disabled={isExecuting || isMultiRunning || isCancelling}
         >
-          {isDebugModeEnabled ? (
+          {isCancelling ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+          ) : isDebugModeEnabled ? (
             <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
           ) : (
             <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
           )}
-          {isMultiRunning
-            ? `Running ${completedRuns}/${runCount}`
-            : isExecuting
-              ? isDebugging
-                ? 'Debugging'
-                : 'Running'
-              : isDebugModeEnabled
-                ? 'Debug'
-                : runCount === 1
-                  ? 'Run'
-                  : `Run (${runCount})`}
+          {isCancelling
+            ? 'Cancelling...'
+            : isMultiRunning
+              ? `Running`
+              : isExecuting
+                ? isDebugging
+                  ? 'Debugging'
+                  : 'Running'
+                : isDebugModeEnabled
+                  ? 'Debug'
+                  : runCount === 1
+                    ? 'Run'
+                    : `Run (${runCount})`}
         </Button>
 
-        {/* Dropdown Trigger - Only show when not in debug mode */}
-        {!isDebugModeEnabled && (
+        {/* Dropdown Trigger - Only show when not in debug mode and not multi-running */}
+        {!isDebugModeEnabled && !isMultiRunning && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -835,12 +858,10 @@ export function ControlBar() {
                   'bg-[#802FFF] hover:bg-[#7028E6]',
                   'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                   'text-white transition-all duration-200',
-                  (isExecuting || isMultiRunning) &&
-                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
                   'rounded-l-none h-10'
                 )}
-                disabled={isExecuting || isMultiRunning}
+                disabled={isExecuting || isMultiRunning || isCancelling}
               >
                 <ChevronDown className="h-4 w-4" />
               </Button>
@@ -857,6 +878,29 @@ export function ControlBar() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {/* Cancel Button - Only show when multi-running */}
+        {isMultiRunning && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  logger.info('Cancel button clicked - setting ref and state')
+                  cancelFlagRef.current = true
+                  setIsCancelling(true)
+                }}
+                disabled={isCancelling}
+                className="ml-2 h-10 w-10"
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Cancel Runs</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{runCount > 1 ? 'Cancel Runs' : 'Cancel Run'}</TooltipContent>
+          </Tooltip>
         )}
       </div>
     </div>

@@ -159,6 +159,7 @@ export function useWorkflowExecution() {
       } else {
         // Normal execution completed
         setExecutionResult(result)
+        setIsExecuting(false)
 
         // Show notification
         addNotification(
@@ -171,7 +172,6 @@ export function useWorkflowExecution() {
 
         // In non-debug mode, persist logs
         await persistLogs(executionId, result)
-        setIsExecuting(false)
         setIsDebugging(false)
       }
     } catch (error: any) {
@@ -225,6 +225,7 @@ export function useWorkflowExecution() {
       }
 
       setExecutionResult(errorResult)
+      setIsExecuting(false)
 
       // Create a more user-friendly notification message
       let notificationMessage = `Workflow execution failed`
@@ -256,7 +257,6 @@ export function useWorkflowExecution() {
 
       // Also send the error result to the API
       await persistLogs(executionId, errorResult)
-      setIsExecuting(false)
       setIsDebugging(false)
     }
   }, [
