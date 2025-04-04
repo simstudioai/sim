@@ -404,6 +404,9 @@ export function ControlBar() {
         setCompletedRuns(i + 1)
       }
 
+      // Set multi-running to false immediately after the loop finishes
+      setIsMultiRunning(false)
+
       // Update workflow stats after all runs are complete
       if (activeWorkflowId) {
         const response = await fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
@@ -419,8 +422,8 @@ export function ControlBar() {
     } catch (error) {
       workflowError = error
       logger.error('Error during multiple workflow runs:', { error })
-    } finally {
       setIsMultiRunning(false)
+    } finally {
       // Keep progress visible for a moment after completion
       if (runCount > 1) {
         setTimeout(() => setShowRunProgress(false), 2000)
