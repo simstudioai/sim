@@ -22,17 +22,17 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   icon: GoogleDriveIcon,
   subBlocks: [
     // Operation selector
-    {
-      id: 'operation',
-      title: 'Operation',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        // { label: 'Upload File', id: 'upload' },
-        // { label: 'Download File', id: 'download' },
-        { label: 'List Files', id: 'list' },
-      ],
-    },
+    // {
+    //   id: 'operation',
+    //   title: 'Operation',
+    //   type: 'dropdown',
+    //   layout: 'full',
+    //   options: [
+    //     // { label: 'Upload File', id: 'upload' },
+    //     // { label: 'Download File', id: 'download' },
+    //     { label: 'List Files', id: 'list' },
+    //   ],
+    // },
     // Google Drive Credentials
     {
       id: 'credential',
@@ -98,7 +98,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       requiredScopes: [],
       mimeType: 'application/vnd.google-apps.folder',
       placeholder: 'Select a folder',
-      condition: { field: 'operation', value: 'list' },
+      // condition: { field: 'operation', value: 'list' },
     },
     // Manual Folder ID input (shown only when no folder is selected)
     {
@@ -108,9 +108,11 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       layout: 'full',
       placeholder: 'ID of the folder to list (leave empty for root folder)',
       condition: {
-        field: 'operation',
-        value: 'list',
-        and: { field: 'folderId', value: '' },
+        // field: 'operation',
+        // value: 'list',
+        // and: { 
+          field: 'folderId', value: '' 
+        // },
       },
     },
     {
@@ -119,7 +121,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Search for specific files (e.g., name contains "report")',
-      condition: { field: 'operation', value: 'list' },
+      // condition: { field: 'operation', value: 'list' },
     },
     {
       id: 'pageSize',
@@ -127,23 +129,26 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Number of results (default: 100, max: 1000)',
-      condition: { field: 'operation', value: 'list' },
+      // condition: { field: 'operation', value: 'list' },
     },
   ],
   tools: {
     access: ['google_drive_upload', 'google_drive_download', 'google_drive_list'],
     config: {
       tool: (params) => {
-        switch (params.operation) {
-          case 'upload':
-            return 'google_drive_upload'
-          case 'download':
-            return 'google_drive_download'
-          case 'list':
-            return 'google_drive_list'
-          default:
-            throw new Error(`Invalid Google Drive operation: ${params.operation}`)
-        }
+        // Since we only have 'list' now, we can simplify this
+        return 'google_drive_list';
+        
+        // switch (params.operation) {
+        //   case 'upload':
+        //     return 'google_drive_upload'
+        //   case 'download':
+        //     return 'google_drive_download'
+        //   case 'list':
+        //     return 'google_drive_list'
+        //   default:
+        //     throw new Error(`Invalid Google Drive operation: ${params.operation}`)
+        // }
       },
       params: (params) => {
         const { credential, folderId, ...rest } = params
@@ -158,7 +163,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
+    // operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     // Upload operation inputs
     fileName: { type: 'string', required: false },
