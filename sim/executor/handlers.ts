@@ -41,62 +41,6 @@ export interface BlockHandler {
 }
 
 /**
- * Shared helper for executing code with WebContainer and VM fallback
- * @param code - The code to execute
- * @param params - Parameters to pass to the code
- * @param timeout - Execution timeout in milliseconds
- * @returns Execution result
- */
-async function executeCodeWithFallback(
-  code: string,
-  params: Record<string, any> = {},
-  timeout: number = 5000
-): Promise<{ success: boolean; output: any; error?: string }> {
-  // Only try WebContainer in browser environment with direct execution
-  const isBrowser = typeof window !== 'undefined'
-  if (isBrowser && window.crossOriginIsolated) {
-    try {
-      // Dynamically import WebContainer to prevent server-side import
-      const { executeCode } = await import('@/lib/webcontainer')
-
-      // Execute directly in the browser
-      const result = await executeCode(code, params, timeout)
-
-      if (!result.success) {
-        logger.warn(`WebContainer API execution failed: ${result.error}`)
-        throw new Error(result.error || `WebContainer execution failed with no error message`)
-      }
-
-      return { success: true, output: result.output }
-    } catch (error: any) {
-      logger.warn('WebContainer execution failed, falling back to VM:', error)
-      logger.error('WebContainer error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      })
-    }
-  }
-
-  // Fall back to VM execution if WebContainer fails or not available
-  try {
-    const vmResult = await executeTool('function_execute', { code, ...params }, true)
-
-    if (!vmResult.success) {
-      throw new Error(vmResult.error || `Function execution failed with no error message`)
-    }
-
-    return { success: true, output: vmResult.output }
-  } catch (vmError: any) {
-    return {
-      success: false,
-      output: null,
-      error: `Function execution failed: ${vmError.message}`,
-    }
-  }
-}
-
-/**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
 export class AgentBlockHandler implements BlockHandler {
@@ -178,12 +122,13 @@ export class AgentBlockHandler implements BlockHandler {
                     },
                     executeFunction: async (callParams: Record<string, any>) => {
                       try {
-                        // Execute the code with WebContainer fallback
-                        const result = await executeCodeWithFallback(
-                          tool.code,
-                          { ...params, ...callParams },
-                          tool.timeout || 5000
-                        )
+                        // Execute the code using the function_execute tool
+                        const result = await executeTool('function_execute', {
+                          code: tool.code,
+                          ...params,
+                          ...callParams,
+                          timeout: tool.timeout || 5000,
+                        })
 
                         if (!result.success) {
                           throw new Error(result.error || 'Function execution failed')
@@ -466,10 +411,13 @@ export class ConditionBlockHandler implements BlockHandler {
     inputs: Record<string, any>,
     context: ExecutionContext
   ): Promise<BlockOutput> {
+    logger.info(`Executing condition block: ${block.id}`, {
+      inputs,
+    })
     const conditions = Array.isArray(inputs.conditions)
       ? inputs.conditions
       : JSON.parse(inputs.conditions || '[]')
-
+    logger.info(`Conditions: ${JSON.stringify(conditions)}`)
     // Find source block for the condition
     const sourceBlockId = context.workflow?.connections.find(
       (conn) => conn.target === block.id
@@ -504,6 +452,7 @@ export class ConditionBlockHandler implements BlockHandler {
       ...(typeof sourceOutput === 'object' && sourceOutput !== null ? sourceOutput : {}),
       [sourceKey]: sourceOutput,
     }
+    logger.info(`Eval context: ${JSON.stringify(evalContext)}`)
 
     // Evaluate conditions in order (if, else if, else)
     let selectedConnection: { target: string; sourceHandle?: string } | null = null
@@ -512,6 +461,9 @@ export class ConditionBlockHandler implements BlockHandler {
     for (const condition of conditions) {
       try {
         // Evaluate the condition based on the resolved condition string
+        logger.info(`Evaluating condition: ${condition.value}`, {
+          evalContext,
+        })
         const conditionMet = new Function('context', `with(context) { return ${condition.value} }`)(
           evalContext
         )
@@ -968,15 +920,13 @@ export class FunctionBlockHandler implements BlockHandler {
       ? inputs.code.map((c: { content: string }) => c.content).join('\n')
       : inputs.code
 
-    // Use the shared helper function
-    const result = await executeCodeWithFallback(
-      codeContent,
-      {
-        ...inputs,
-        _context: { workflowId: context.workflowId },
-      },
-      inputs.timeout || 5000
-    )
+    // Directly use the function_execute tool which calls the API route
+    logger.info(`Executing function block via API route: ${block.id}`)
+    const result = await executeTool('function_execute', {
+      code: codeContent,
+      timeout: inputs.timeout || 5000,
+      _context: { workflowId: context.workflowId },
+    })
 
     if (!result.success) {
       throw new Error(result.error || 'Function execution failed')

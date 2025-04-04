@@ -1,5 +1,5 @@
 import { CodeIcon } from '@/components/icons'
-import { CodeExecutionOutput } from '@/tools/function/execute'
+import { CodeExecutionOutput } from '@/tools/function/types'
 import { BlockConfig } from '../types'
 
 export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
@@ -19,7 +19,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     },
   ],
   tools: {
-    access: ['webcontainer_execute'],
+    access: ['function_execute'],
   },
   inputs: {
     code: { type: 'string', required: false },
