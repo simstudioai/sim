@@ -63,7 +63,7 @@ export class Executor {
     this.blockHandlers = [
       new AgentBlockHandler(),
       new RouterBlockHandler(this.pathTracker),
-      new ConditionBlockHandler(this.pathTracker),
+      new ConditionBlockHandler(this.pathTracker, this.resolver),
       new EvaluatorBlockHandler(),
       new FunctionBlockHandler(),
       new ApiBlockHandler(),

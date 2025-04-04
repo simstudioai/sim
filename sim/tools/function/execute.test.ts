@@ -42,13 +42,11 @@ describe('Function Execute Tool', () => {
       const body = tester.getRequestBody({
         code: 'return 42',
         timeout: 5000,
-        memoryLimit: 256,
       })
 
       expect(body).toEqual({
         code: 'return 42',
         timeout: 5000,
-        memoryLimit: 256,
       })
     })
 
@@ -63,8 +61,7 @@ describe('Function Execute Tool', () => {
 
       expect(body).toEqual({
         code: 'const x = 40;\nconst y = 2;\nreturn x + y;',
-        timeout: 3000,
-        memoryLimit: 512,
+        timeout: 10000,
       })
     })
 
@@ -75,8 +72,7 @@ describe('Function Execute Tool', () => {
 
       expect(body).toEqual({
         code: 'return 42',
-        timeout: 3000,
-        memoryLimit: 512,
+        timeout: 10000,
       })
     })
   })
