@@ -99,7 +99,7 @@ const NotificationColors = {
   api: 'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
   marketplace:
     'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
-  info: 'border-blue-500 bg-blue-50 text-blue-800 dark:border-border dark:bg-blue-900/20 dark:text-blue-400',
+  info: 'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
 }
 
 // API deployment status styling
