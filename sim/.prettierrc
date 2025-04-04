@@ -17,6 +17,8 @@
   "singleAttributePerLine": false,
   "plugins": ["prettier-plugin-tailwindcss", "@trivago/prettier-plugin-sort-imports"],
   "importOrder": [
+    "^(.*)/__test-utils__/mock-dependencies$",
+    "^(vitest|jest)$",
     "^(react/(.*)$)|^(react$)",
     "^(next/(.*)$)|^(next$)",
     "<THIRD_PARTY_MODULES>",

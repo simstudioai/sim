@@ -32,7 +32,7 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
     },
   ],
   tools: {
-    access: ['function_execute'],
+    access: [],
   },
   inputs: {},
   outputs: {

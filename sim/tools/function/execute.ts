@@ -1,21 +1,7 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { CodeExecutionInput, CodeExecutionOutput } from './types'
 
-export interface CodeExecutionInput {
-  code: Array<{ content: string; id: string }> | string
-  timeout?: number
-  memoryLimit?: number
-}
-
-export interface CodeExecutionOutput extends ToolResponse {
-  output: {
-    result: any
-    stdout: string
-    executionTime: number
-  }
-}
-
-const DEFAULT_TIMEOUT = 3000 // 3 seconds
-const DEFAULT_MEMORY_LIMIT = 512 // 512MB
+const DEFAULT_TIMEOUT = 10000 // 10 seconds
 
 export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
@@ -36,12 +22,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Execution timeout in milliseconds',
       default: DEFAULT_TIMEOUT,
     },
-    memoryLimit: {
-      type: 'number',
-      required: false,
-      description: 'Memory limit in MB',
-      default: DEFAULT_MEMORY_LIMIT,
-    },
   },
 
   request: {
@@ -58,7 +38,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       return {
         code: codeContent,
         timeout: params.timeout || DEFAULT_TIMEOUT,
-        memoryLimit: params.memoryLimit || DEFAULT_MEMORY_LIMIT,
       }
     },
     isInternalRoute: true,

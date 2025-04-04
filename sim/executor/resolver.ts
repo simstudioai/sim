@@ -67,8 +67,10 @@ export class InputResolver {
         // First check for variable references
         let resolvedValue = this.resolveVariableReferences(value, block)
 
-        // Then resolve block references
-        resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
+        // Resolve block references UNLESS it's the 'conditions' input for a 'condition' block
+        if (!(block.metadata?.id === 'condition' && key === 'conditions')) {
+          resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
+        }
 
         // Check if this is an API key field
         const isApiKey =

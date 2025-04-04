@@ -7,17 +7,22 @@ import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
-  BlockHandler,
   ConditionBlockHandler,
   EvaluatorBlockHandler,
   FunctionBlockHandler,
   GenericBlockHandler,
   RouterBlockHandler,
-} from './handlers'
+} from './handlers/index'
 import { LoopManager } from './loops'
 import { PathTracker } from './path'
 import { InputResolver } from './resolver'
-import { BlockLog, ExecutionContext, ExecutionResult, NormalizedBlockOutput } from './types'
+import {
+  BlockHandler,
+  BlockLog,
+  ExecutionContext,
+  ExecutionResult,
+  NormalizedBlockOutput,
+} from './types'
 
 const logger = createLogger('Executor')
 
@@ -63,7 +68,7 @@ export class Executor {
     this.blockHandlers = [
       new AgentBlockHandler(),
       new RouterBlockHandler(this.pathTracker),
-      new ConditionBlockHandler(this.pathTracker),
+      new ConditionBlockHandler(this.pathTracker, this.resolver),
       new EvaluatorBlockHandler(),
       new FunctionBlockHandler(),
       new ApiBlockHandler(),

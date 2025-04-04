@@ -8,7 +8,7 @@ import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl/scrape'
-import { functionExecuteTool, webcontainerExecuteTool } from './function'
+import { functionExecuteTool } from './function'
 import {
   githubCommentTool,
   githubLatestCommitTool,
@@ -57,7 +57,6 @@ export const tools: Record<string, ToolConfig> = {
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
-  webcontainer_execute: webcontainerExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
@@ -139,8 +138,8 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined'
 }
 
-// Check if WebContainer is available
-function isWebContainerAvailable(): boolean {
+// Check if Freestyle is available
+function isFreestyleAvailable(): boolean {
   return isBrowser() && !!window.crossOriginIsolated
 }
 
@@ -217,7 +216,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       isInternalRoute: true,
     },
 
-    // Direct execution support for browser environment with WebContainer
+    // Direct execution support for browser environment with Freestyle
     directExecution: async (params: Record<string, any>) => {
       // If there's no code, we can't execute directly
       if (!customTool.code) {
@@ -228,8 +227,8 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
         }
       }
 
-      // If we're in a browser with WebContainer available, use it
-      if (isWebContainerAvailable()) {
+      // If we're in a browser with Freestyle available, use it
+      if (isFreestyleAvailable()) {
         try {
           // Get environment variables from the store
           const envStore = useEnvironmentStore.getState()
@@ -266,18 +265,13 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             resolvedCode = resolvedCode.replace(match, tagValue)
           }
 
-          // Dynamically import the executeCode function
-          const { executeCode } = await import('@/lib/webcontainer')
+          // Dynamically import Freestyle to execute code
+          const { executeCode } = await import('@/lib/freestyle')
 
-          // Execute the code with resolved variables
-          const result = await executeCode(
-            resolvedCode,
-            mergedParams, // Use the merged params that include env vars
-            5000 // Default timeout
-          )
+          const result = await executeCode(resolvedCode, mergedParams)
 
           if (!result.success) {
-            throw new Error(result.error || 'WebContainer execution failed')
+            throw new Error(result.error || 'Freestyle execution failed')
           }
 
           return {
@@ -286,13 +280,13 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             error: undefined,
           }
         } catch (error: any) {
-          logger.warn('WebContainer execution failed, falling back to API:', error.message)
-          // Fall back to API route if WebContainer fails
+          logger.warn('Freestyle execution failed, falling back to API:', error.message)
+          // Fall back to API route if Freestyle fails
           return undefined
         }
       }
 
-      // No WebContainer or not in browser, return undefined to use regular API route
+      // No Freestyle or not in browser, return undefined to use regular API route
       return undefined
     },
 

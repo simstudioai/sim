@@ -42,13 +42,11 @@ describe('Function Execute Tool', () => {
       const body = tester.getRequestBody({
         code: 'return 42',
         timeout: 5000,
-        memoryLimit: 256,
       })
 
       expect(body).toEqual({
         code: 'return 42',
         timeout: 5000,
-        memoryLimit: 256,
       })
     })
 
@@ -63,8 +61,7 @@ describe('Function Execute Tool', () => {
 
       expect(body).toEqual({
         code: 'const x = 40;\nconst y = 2;\nreturn x + y;',
-        timeout: 3000,
-        memoryLimit: 512,
+        timeout: 10000,
       })
     })
 
@@ -75,8 +72,7 @@ describe('Function Execute Tool', () => {
 
       expect(body).toEqual({
         code: 'return 42',
-        timeout: 3000,
-        memoryLimit: 512,
+        timeout: 10000,
       })
     })
   })
@@ -106,10 +102,6 @@ describe('Function Execute Tool', () => {
     })
 
     test('should handle execution errors', async () => {
-      // Temporarily mock transformError
-      const originalTransformError = tester.tool.transformError
-      tester.tool.transformError = vi.fn().mockReturnValue('Syntax error in code')
-
       // Setup error response
       tester.setup(
         {
@@ -124,23 +116,13 @@ describe('Function Execute Tool', () => {
         code: 'invalid javascript code!!!',
       })
 
-      // Verify the mock was called
-      expect(tester.tool.transformError).toHaveBeenCalled()
-
       // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
       expect(result.error).toBe('Syntax error in code')
-
-      // Restore original
-      tester.tool.transformError = originalTransformError
     })
 
     test('should handle timeout errors', async () => {
-      // Temporarily mock transformError
-      const originalTransformError = tester.tool.transformError
-      tester.tool.transformError = vi.fn().mockReturnValue('Code execution timed out')
-
       // Setup timeout error response
       tester.setup(
         {
@@ -156,15 +138,9 @@ describe('Function Execute Tool', () => {
         timeout: 1000,
       })
 
-      // Verify the mock was called
-      expect(tester.tool.transformError).toHaveBeenCalled()
-
       // Check error handling
       expect(result.success).toBe(false)
       expect(result.error).toBe('Code execution timed out')
-
-      // Restore original
-      tester.tool.transformError = originalTransformError
     })
   })
 
