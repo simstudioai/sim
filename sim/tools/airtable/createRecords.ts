@@ -1,9 +1,11 @@
 import { ToolConfig } from '../types'
-import { AirtableWriteParams, AirtableWriteResponse } from './types'
+import { AirtableCreateParams, AirtableCreateResponse } from './types'
 
-export const writeTool: ToolConfig<AirtableWriteParams, AirtableWriteResponse> = {
-  id: 'airtable_write',
-  name: 'Airtable Write Records',
+// import { logger } from '@/utils/logger' // Removed logger due to import issues
+
+export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, AirtableCreateResponse> = {
+  id: 'airtable_create_records',
+  name: 'Airtable Create Records',
   description: 'Write new records to an Airtable table',
   version: '1.0.0',
 
@@ -31,7 +33,8 @@ export const writeTool: ToolConfig<AirtableWriteParams, AirtableWriteResponse> =
     records: {
       type: 'json',
       required: true,
-      description: 'Array of records to create',
+      description: 'Array of records to create, each with a `fields` object',
+      // Example: [{ fields: { "Field 1": "Value1", "Field 2": "Value2" } }]
     },
   },
 
@@ -42,23 +45,29 @@ export const writeTool: ToolConfig<AirtableWriteParams, AirtableWriteResponse> =
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
+    // Body should contain { records: [...] } and optionally { typecast: true }
     body: (params) => ({ records: params.records }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (!response.ok) {
+      // logger.error('Airtable API error:', data)
+      throw new Error(data.error?.message || 'Failed to create Airtable records')
+    }
     return {
       success: true,
       output: {
-        records: data.records,
+        records: data.records || [],
         metadata: {
-          recordCount: data.records.length,
+          recordCount: (data.records || []).length,
         },
       },
     }
   },
 
-  transformError: (error) => {
-    return `Failed to write Airtable records: ${error.message}`
+  transformError: (error: any) => {
+    // logger.error('Airtable tool error:', error)
+    return `Failed to create Airtable records: ${error.message || 'Unknown error'}`
   },
 }

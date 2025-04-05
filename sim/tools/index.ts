@@ -1,7 +1,12 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { airtableReadTool, airtableUpdateTool, airtableWriteTool } from './airtable'
+import {
+  airtableCreateRecordsTool,
+  airtableGetRecordTool,
+  airtableListRecordsTool,
+  airtableUpdateRecordTool,
+} from '@/tools/airtable'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
@@ -113,9 +118,10 @@ export const tools: Record<string, ToolConfig> = {
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
   dalle_generate: dalleTool,
-  airtable_read: airtableReadTool,
-  airtable_write: airtableWriteTool,
-  airtable_update: airtableUpdateTool,
+  airtable_create_records: airtableCreateRecordsTool,
+  airtable_get_record: airtableGetRecordTool,
+  airtable_list_records: airtableListRecordsTool,
+  airtable_update_record: airtableUpdateRecordTool,
   mistral_parser: mistralParserTool,
 }
 

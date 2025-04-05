@@ -1,15 +1,16 @@
 import { ToolConfig } from '../types'
-import { AirtableReadParams, AirtableReadResponse } from './types'
+import { AirtableListParams, AirtableListResponse } from './types'
 
-export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
-  id: 'airtable_read',
-  name: 'Airtable Read Records',
+export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableListResponse> = {
+  id: 'airtable_list_records',
+  name: 'Airtable List Records',
   description: 'Read records from an Airtable table',
   version: '1.0.0',
 
   oauth: {
     required: true,
     provider: 'airtable',
+    // Define required scopes if different from default write/read
   },
 
   params: {
@@ -26,7 +27,7 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
     tableId: {
       type: 'string',
       required: true,
-      description: 'ID or name of the table',
+      description: 'ID of the table',
     },
     maxRecords: {
       type: 'number',
@@ -36,8 +37,9 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
     filterFormula: {
       type: 'string',
       required: false,
-      description: 'Formula to filter records',
+      description: 'Formula to filter records (e.g., "({Field Name} = \'Value\')")',
     },
+    // TODO: Add other list parameters like pageSize, offset, view, sort, fields, returnFieldsByFieldId, recordMetadata
   },
 
   request: {
@@ -46,11 +48,16 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
       const queryParams = new URLSearchParams()
       if (params.maxRecords) queryParams.append('maxRecords', params.maxRecords.toString())
       if (params.filterFormula) {
-        const encodedFormula = encodeURIComponent(params.filterFormula).replace(/'/g, '%27')
+        // Airtable formulas often contain characters needing encoding,
+        // but standard encodeURIComponent might over-encode.
+        // Simple replacement for single quotes is often sufficient.
+        // More complex formulas might need careful encoding.
+        const encodedFormula = params.filterFormula.replace(/'/g, "\'")
         queryParams.append('filterByFormula', encodedFormula)
       }
       const queryString = queryParams.toString()
-      return queryString ? `${url}?${queryString}` : url
+      const finalUrl = queryString ? `${url}?${queryString}` : url
+      return finalUrl
     },
     method: 'GET',
     headers: (params) => ({
@@ -61,19 +68,22 @@ export const readTool: ToolConfig<AirtableReadParams, AirtableReadResponse> = {
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error?.message || 'Failed to fetch Airtable records')
+    }
     return {
       success: true,
       output: {
-        records: data.records,
+        records: data.records || [],
         metadata: {
           offset: data.offset,
-          totalRecords: data.records.length,
+          totalRecords: (data.records || []).length,
         },
       },
     }
   },
 
-  transformError: (error) => {
-    return `Failed to read Airtable records: ${error.message}`
+  transformError: (error: any) => {
+    return `Failed to list Airtable records: ${error.message || 'Unknown error'}`
   },
 }
