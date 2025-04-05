@@ -31,11 +31,14 @@ interface EvaluatorResponse extends ToolResponse {
 }
 
 export const generateEvaluatorPrompt = (metrics: Metric[], content: string): string => {
+  // Filter out invalid/incomplete metrics first
+  const validMetrics = metrics.filter((m) => m && m.name && m.range)
+
   // Create a clear metrics description with name, range, and description
-  const metricsDescription = metrics
+  const metricsDescription = validMetrics
     .map(
       (metric) =>
-        `"${metric.name}" (${metric.range.min}-${metric.range.max}): ${metric.description}`
+        `"${metric.name}" (${metric.range.min}-${metric.range.max}): ${metric.description || ''}` // Handle potentially missing description
     )
     .join('\n')
 
@@ -60,10 +63,15 @@ export const generateEvaluatorPrompt = (metrics: Metric[], content: string): str
     formattedContent = content
   }
 
-  // Generate an example of the expected output format
-  const exampleOutput = metrics.reduce(
+  // Generate an example of the expected output format using only valid metrics
+  const exampleOutput = validMetrics.reduce(
     (acc, metric) => {
-      acc[metric.name.toLowerCase()] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
+      // Ensure metric and name are valid before using them
+      if (metric && metric.name) {
+        acc[metric.name.toLowerCase()] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
+      } else {
+        logger.warn('Skipping invalid metric during example generation:', metric)
+      }
       return acc
     },
     {} as Record<string, number>
@@ -95,14 +103,22 @@ Remember: Your response MUST be a valid JSON object containing only the lowercas
 
 // Simplified response format generator that matches the agent block schema structure
 const generateResponseFormat = (metrics: Metric[]) => {
+  // Filter out invalid/incomplete metrics first
+  const validMetrics = metrics.filter((m) => m && m.name)
+
   // Create properties for each metric
   const properties: Record<string, any> = {}
 
   // Add each metric as a property
-  metrics.forEach((metric) => {
-    properties[metric.name.toLowerCase()] = {
-      type: 'number',
-      description: `${metric.description} (Score between ${metric.range.min}-${metric.range.max})`,
+  validMetrics.forEach((metric) => {
+    // We've already filtered, but double-check just in case
+    if (metric && metric.name) {
+      properties[metric.name.toLowerCase()] = {
+        type: 'number',
+        description: `${metric.description || ''} (Score between ${metric.range?.min ?? 0}-${metric.range?.max ?? 'N/A'})`, // Safely access range
+      }
+    } else {
+      logger.warn('Skipping invalid metric during response format property generation:', metric)
     }
   })
 
@@ -112,7 +128,10 @@ const generateResponseFormat = (metrics: Metric[]) => {
     schema: {
       type: 'object',
       properties,
-      required: metrics.map((metric) => metric.name.toLowerCase()),
+      // Use only valid, lowercase metric names for the required array
+      required: validMetrics
+        .filter((metric) => metric && metric.name)
+        .map((metric) => metric.name.toLowerCase()),
       additionalProperties: false,
     },
     strict: true,
