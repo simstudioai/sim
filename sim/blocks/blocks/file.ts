@@ -19,6 +19,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       layout: 'full',
       acceptedTypes: '.pdf,.csv,.docx',
       multiple: true,
+      maxSize: 100,
     },
   ],
   tools: {

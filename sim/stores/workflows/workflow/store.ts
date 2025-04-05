@@ -625,6 +625,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().updateLastSaved()
         workflowSync.sync()
       },
+
+      setScheduleStatus: (hasActiveSchedule: boolean) => {
+        // Only update if the status has changed to avoid unnecessary rerenders
+        if (get().hasActiveSchedule !== hasActiveSchedule) {
+          set({ hasActiveSchedule })
+          get().updateLastSaved()
+        }
+      },
     })),
     { name: 'workflow-store' }
   )

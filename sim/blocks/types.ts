@@ -115,6 +115,7 @@ export interface SubBlockConfig {
   // File upload specific properties
   acceptedTypes?: string
   multiple?: boolean
+  maxSize?: number
 }
 
 // Main block definition

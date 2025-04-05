@@ -113,6 +113,14 @@ export default {
           '0%,70%,100%': { opacity: '1' },
           '20%,50%': { opacity: '0' },
         },
+        'pulse-slow': {
+          '0%, 100%': {
+            opacity: '1',
+          },
+          '50%': {
+            opacity: '0.7',
+          },
+        },
       },
       animation: {
         'slide-down': 'slide-down 0.3s ease-out',
@@ -122,6 +130,7 @@ export default {
         'rocket-pulse': 'rocket-pulse 1.5s ease-in-out infinite',
         'run-glow': 'run-glow 2s ease-in-out infinite',
         'caret-blink': 'caret-blink 1.25s ease-out infinite',
+        'pulse-slow': 'pulse-slow 3s ease-in-out infinite',
       },
     },
   },

@@ -12,9 +12,10 @@ interface TimeInputProps {
   blockId: string
   subBlockId: string
   placeholder?: string
+  className?: string
 }
 
-export function TimeInput({ blockId, subBlockId, placeholder }: TimeInputProps) {
+export function TimeInput({ blockId, subBlockId, placeholder, className }: TimeInputProps) {
   const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true)
   const [isOpen, setIsOpen] = React.useState(false)
 
@@ -79,7 +80,8 @@ export function TimeInput({ blockId, subBlockId, placeholder }: TimeInputProps) 
           variant="outline"
           className={cn(
             'w-full justify-start text-left font-normal',
-            !value && 'text-muted-foreground'
+            !value && 'text-muted-foreground',
+            className
           )}
         >
           <Clock className="mr-1 h-4 w-4" />

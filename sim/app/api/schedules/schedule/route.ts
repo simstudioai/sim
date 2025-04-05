@@ -54,17 +54,54 @@ export async function POST(req: NextRequest) {
     }
 
     const startWorkflow = getSubBlockValue(starterBlock, 'startWorkflow')
+    const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
 
-    // If the workflow is not scheduled, delete any existing schedule
-    if (startWorkflow !== 'schedule') {
-      logger.info(`[${requestId}] Removing schedule for workflow ${workflowId}`)
+    // Check if there's a valid schedule configuration
+    const hasScheduleConfig = (() => {
+      const getValue = (id: string): string => {
+        const value = getSubBlockValue(starterBlock, id);
+        return value && value.trim() !== '' ? value : '';
+      };
+      
+      if (scheduleType === 'minutes' && getValue('minutesInterval')) {
+        return true;
+      }
+      if (scheduleType === 'hourly' && getValue('hourlyMinute') !== '') {
+        return true;
+      }
+      if (scheduleType === 'daily' && getValue('dailyTime')) {
+        return true;
+      }
+      if (scheduleType === 'weekly' && getValue('weeklyDay') && 
+          getValue('weeklyDayTime')) {
+        return true;
+      }
+      if (scheduleType === 'monthly' && getValue('monthlyDay') && 
+          getValue('monthlyTime')) {
+        return true;
+      }
+      if (scheduleType === 'custom' && getValue('cronExpression')) {
+        return true;
+      }
+      return false;
+    })();
+
+    // If the workflow is not configured for scheduling, delete any existing schedule
+    if (startWorkflow !== 'schedule' && !hasScheduleConfig) {
+      logger.info(`[${requestId}] Removing schedule for workflow ${workflowId} - no valid configuration found`)
       await db.delete(workflowSchedule).where(eq(workflowSchedule.workflowId, workflowId))
 
       return NextResponse.json({ message: 'Schedule removed' })
     }
 
+    // If we're here, we either have startWorkflow === 'schedule' or hasScheduleConfig is true
+    if (startWorkflow !== 'schedule') {
+      logger.info(`[${requestId}] Setting workflow to scheduled mode based on schedule configuration`)
+      // The UI should handle this, but as a fallback we'll assume the user intended to schedule
+      // the workflow even if startWorkflow wasn't set properly
+    }
+
     // Get schedule configuration from starter block
-    const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
     logger.debug(`[${requestId}] Schedule type for workflow ${workflowId}: ${scheduleType}`)
 
     // Calculate cron expression based on schedule type
