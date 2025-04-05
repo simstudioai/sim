@@ -31,7 +31,8 @@ export function WebhookDialogFooter({
     webhookId &&
     (webhookProvider === 'whatsapp' ||
       webhookProvider === 'generic' ||
-      webhookProvider === 'slack') &&
+      webhookProvider === 'slack' ||
+      webhookProvider === 'airtable') &&
     onTest
 
   return (

@@ -67,7 +67,7 @@ export async function persistExecutionLogs(
   workflowId: string,
   executionId: string,
   result: ExecutorResult,
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'webhook-poll'
 ) {
   try {
     // Get the workflow record to get the userId
@@ -592,7 +592,14 @@ export async function persistExecutionError(
   workflowId: string,
   executionId: string,
   error: Error,
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
+  triggerType:
+    | 'api'
+    | 'webhook'
+    | 'schedule'
+    | 'manual'
+    | 'webhook-poll'
+    | 'webhook-generic'
+    | 'webhook-setup'
 ) {
   try {
     const errorPrefix = getTriggerErrorPrefix(triggerType)
@@ -614,288 +621,195 @@ export async function persistExecutionError(
   }
 }
 
-// Helper functions for trigger-specific messages
-function getTriggerSuccessMessage(triggerType: 'api' | 'webhook' | 'schedule' | 'manual'): string {
-  switch (triggerType) {
-    case 'api':
-      return 'API workflow executed successfully'
-    case 'webhook':
-      return 'Webhook workflow executed successfully'
-    case 'schedule':
-      return 'Scheduled workflow executed successfully'
-    case 'manual':
-      return 'Manual workflow executed successfully'
-    default:
-      return 'Workflow executed successfully'
-  }
-}
-
-function getTriggerErrorPrefix(triggerType: 'api' | 'webhook' | 'schedule' | 'manual'): string {
-  switch (triggerType) {
-    case 'api':
-      return 'API workflow'
-    case 'webhook':
-      return 'Webhook workflow'
-    case 'schedule':
-      return 'Scheduled workflow'
-    case 'manual':
-      return 'Manual workflow'
-    default:
-      return 'Workflow'
-  }
-}
-
 /**
- * Extracts duration information for tool calls
- * This function preserves actual timing data while ensuring duration is calculated
+ * Helper function to get trigger-specific success message
  */
-function estimateToolCallTimings(
-  toolCalls: any[],
-  blockStart: string,
-  blockEnd: string,
-  totalDuration: number
-): any[] {
-  if (!toolCalls || toolCalls.length === 0) return []
-
-  logger.debug('Estimating tool call timings', {
-    toolCallCount: toolCalls.length,
-    blockStartTime: blockStart,
-    blockEndTime: blockEnd,
-    totalDuration,
-  })
-
-  // First, try to preserve any existing timing data
-  const result = toolCalls.map((toolCall, index) => {
-    // Start with the original tool call
-    const enhancedToolCall = { ...toolCall }
-
-    // If we don't have timing data, set it from the block timing info
-    // Divide block duration evenly among tools as a fallback
-    const toolDuration = totalDuration / toolCalls.length
-    const toolStartOffset = index * toolDuration
-
-    // Force a minimum duration of 1000ms if none exists
-    if (!enhancedToolCall.duration || enhancedToolCall.duration === 0) {
-      enhancedToolCall.duration = Math.max(1000, toolDuration)
-      logger.debug(`Setting minimum duration for tool ${toolCall.name}`, {
-        duration: enhancedToolCall.duration,
-      })
-    }
-
-    // Force reasonable startTime and endTime if missing
-    if (!enhancedToolCall.startTime) {
-      const startTimestamp = new Date(blockStart).getTime() + toolStartOffset
-      enhancedToolCall.startTime = new Date(startTimestamp).toISOString()
-      logger.debug(`Setting startTime for tool ${toolCall.name}`, {
-        startTime: enhancedToolCall.startTime,
-      })
-    }
-
-    if (!enhancedToolCall.endTime) {
-      const endTimestamp =
-        new Date(enhancedToolCall.startTime).getTime() + enhancedToolCall.duration
-      enhancedToolCall.endTime = new Date(endTimestamp).toISOString()
-      logger.debug(`Setting endTime for tool ${toolCall.name}`, {
-        endTime: enhancedToolCall.endTime,
-      })
-    }
-
-    return enhancedToolCall
-  })
-
-  logger.debug('Finished estimating tool call timings', {
-    originalTools: toolCalls.map((t) => ({
-      name: t.name,
-      hadDuration: !!t.duration,
-      hadStartTime: !!t.startTime,
-      hadEndTime: !!t.endTime,
-    })),
-    enhancedTools: result.map((t) => ({
-      name: t.name,
-      duration: t.duration,
-      startTime: t.startTime,
-      endTime: t.endTime,
-    })),
-  })
-
-  return result
+function getTriggerSuccessMessage(triggerType: string): string {
+  switch (triggerType) {
+    case 'api':
+      return 'API execution completed successfully'
+    case 'webhook':
+    case 'webhook-poll':
+      return 'Webhook execution completed successfully'
+    case 'schedule':
+      return 'Scheduled execution completed successfully'
+    case 'manual':
+      return 'Manual execution completed successfully'
+    default:
+      return 'Execution completed successfully'
+  }
 }
 
 /**
- * Extracts the duration from a tool call object, trying various property formats
- * that different agent providers might use
+ * Helper function to get trigger-specific error prefix
+ */
+function getTriggerErrorPrefix(triggerType: string): string {
+  switch (triggerType) {
+    case 'api':
+      return 'API'
+    case 'webhook':
+    case 'webhook-poll':
+    case 'webhook-generic':
+    case 'webhook-setup':
+      return 'Webhook'
+    case 'schedule':
+      return 'Scheduled'
+    case 'manual':
+      return 'Manual'
+    default:
+      return 'Execution'
+  }
+}
+
+/**
+ * Tries various ways to extract duration from tool call data
  */
 function extractDuration(toolCall: any): number {
-  if (!toolCall) return 0
-
-  // Direct duration fields (various formats providers might use)
-  if (typeof toolCall.duration === 'number' && toolCall.duration > 0) return toolCall.duration
-  if (typeof toolCall.durationMs === 'number' && toolCall.durationMs > 0) return toolCall.durationMs
-  if (typeof toolCall.duration_ms === 'number' && toolCall.duration_ms > 0)
-    return toolCall.duration_ms
-  if (typeof toolCall.executionTime === 'number' && toolCall.executionTime > 0)
-    return toolCall.executionTime
-  if (typeof toolCall.execution_time === 'number' && toolCall.execution_time > 0)
-    return toolCall.execution_time
-  if (typeof toolCall.timing?.duration === 'number' && toolCall.timing.duration > 0)
+  // Check for `duration`, `duration_ms`, `timing.duration`
+  if (typeof toolCall.duration === 'number') return toolCall.duration
+  if (typeof toolCall.durationMs === 'number') return toolCall.durationMs
+  if (typeof toolCall.duration_ms === 'number') return toolCall.duration_ms
+  if (toolCall.timing && typeof toolCall.timing.duration === 'number') {
     return toolCall.timing.duration
-
-  // Try to calculate from timestamps if available
-  if (toolCall.startTime && toolCall.endTime) {
-    try {
-      const start = new Date(toolCall.startTime).getTime()
-      const end = new Date(toolCall.endTime).getTime()
-      if (!isNaN(start) && !isNaN(end) && end >= start) {
-        return end - start
-      }
-    } catch (e) {
-      // Silently fail if date parsing fails
-    }
   }
 
-  // Also check for startedAt/endedAt format
-  if (toolCall.startedAt && toolCall.endedAt) {
-    try {
-      const start = new Date(toolCall.startedAt).getTime()
-      const end = new Date(toolCall.endedAt).getTime()
-      if (!isNaN(start) && !isNaN(end) && end >= start) {
-        return end - start
-      }
-    } catch (e) {
-      // Silently fail if date parsing fails
-    }
-  }
-
-  // For some providers, timing info might be in a separate object
-  if (toolCall.timing) {
-    if (toolCall.timing.startTime && toolCall.timing.endTime) {
-      try {
-        const start = new Date(toolCall.timing.startTime).getTime()
-        const end = new Date(toolCall.timing.endTime).getTime()
-        if (!isNaN(start) && !isNaN(end) && end >= start) {
-          return end - start
-        }
-      } catch (e) {
-        // Silently fail if date parsing fails
+  // Calculate from startTime and endTime if possible
+  try {
+    const start = toolCall.startTime || toolCall.timing?.startTime
+    const end = toolCall.endTime || toolCall.timing?.endTime
+    if (start && end) {
+      const startTime = new Date(start)
+      const endTime = new Date(end)
+      if (!isNaN(startTime.getTime()) && !isNaN(endTime.getTime())) {
+        return endTime.getTime() - startTime.getTime()
       }
     }
+  } catch (e) {
+    /* Ignore parsing errors */
   }
 
-  // No duration info found
-  return 0
+  return 0 // Default to 0 if no duration found
 }
 
 /**
- * Extract timing information from a tool call object
- * @param toolCall The tool call object
- * @param blockStartTime Optional block start time (for reference, not used as fallback anymore)
- * @param blockEndTime Optional block end time (for reference, not used as fallback anymore)
- * @returns Object with startTime and endTime properties
+ * Tries various ways to extract startTime and endTime from tool call data
  */
 function extractTimingInfo(
   toolCall: any,
-  blockStartTime?: Date,
-  blockEndTime?: Date
-): { startTime?: Date; endTime?: Date } {
-  logger.debug('Extracting timing info from tool call', {
-    tool: toolCall.name,
-    hasStartTime: !!toolCall.startTime,
-    hasEndTime: !!toolCall.endTime,
-    hasTiming: !!toolCall.timing,
-    blockStartRef: blockStartTime?.toISOString(),
-    blockEndRef: blockEndTime?.toISOString(),
-  })
+  defaultStartTime?: Date,
+  defaultEndTime?: Date
+): { startTime: string; endTime: string } {
+  let startTime = defaultStartTime ? defaultStartTime.toISOString() : new Date().toISOString()
+  let endTime = defaultEndTime ? defaultEndTime.toISOString() : new Date().toISOString()
 
-  let startTime: Date | undefined = undefined
-  let endTime: Date | undefined = undefined
+  try {
+    const start = toolCall.startTime || toolCall.timing?.startTime
+    const end = toolCall.endTime || toolCall.timing?.endTime
 
-  // Try to get direct timing properties
-  if (toolCall.startTime && isValidDate(toolCall.startTime)) {
-    startTime = new Date(toolCall.startTime)
-  } else if (toolCall.timing?.startTime && isValidDate(toolCall.timing.startTime)) {
-    startTime = new Date(toolCall.timing.startTime)
-  } else if (toolCall.timing?.start && isValidDate(toolCall.timing.start)) {
-    startTime = new Date(toolCall.timing.start)
-  } else if (toolCall.startedAt && isValidDate(toolCall.startedAt)) {
-    startTime = new Date(toolCall.startedAt)
-  }
-
-  if (toolCall.endTime && isValidDate(toolCall.endTime)) {
-    endTime = new Date(toolCall.endTime)
-  } else if (toolCall.timing?.endTime && isValidDate(toolCall.timing.endTime)) {
-    endTime = new Date(toolCall.timing.endTime)
-  } else if (toolCall.timing?.end && isValidDate(toolCall.timing.end)) {
-    endTime = new Date(toolCall.timing.end)
-  } else if (toolCall.completedAt && isValidDate(toolCall.completedAt)) {
-    endTime = new Date(toolCall.completedAt)
-  }
-
-  // If we have start time but no end time, calculate end time from duration
-  if (startTime && !endTime) {
-    const duration = extractDuration(toolCall)
-    if (duration > 0) {
-      endTime = new Date(startTime.getTime() + duration)
-      logger.debug('Calculated end time from start time and duration', {
-        tool: toolCall.name,
-        startTime: startTime.toISOString(),
-        duration,
-        calculatedEndTime: endTime.toISOString(),
-      })
+    if (start && !isNaN(new Date(start).getTime())) {
+      startTime = new Date(start).toISOString()
     }
-  }
 
-  // Log the final timing information
-  logger.debug('Final extracted timing info', {
-    tool: toolCall.name,
-    startTime: startTime?.toISOString(),
-    endTime: endTime?.toISOString(),
-    hasStartTime: !!startTime,
-    hasEndTime: !!endTime,
-  })
+    if (end && !isNaN(new Date(end).getTime())) {
+      endTime = new Date(end).toISOString()
+    } else if (start && toolCall.duration && typeof toolCall.duration === 'number') {
+      // Calculate end time from start and duration
+      const startMs = new Date(start).getTime()
+      if (!isNaN(startMs)) {
+        endTime = new Date(startMs + toolCall.duration).toISOString()
+      }
+    }
+  } catch (e) {
+    logger.warn('Error parsing timing info from tool call', {
+      error: e,
+      toolCallName: toolCall.name,
+    })
+  }
 
   return { startTime, endTime }
 }
 
 /**
- * Helper function to check if a string is a valid date
+ * Estimates missing start and end times for sequential tool calls within a block.
  */
-function isValidDate(dateString: string): boolean {
-  if (!dateString) return false
+function estimateToolCallTimings(
+  toolCalls: ToolCall[],
+  blockStartTimeStr: string | null | undefined,
+  blockEndTimeStr: string | null | undefined,
+  blockDurationMs: number
+): ToolCall[] {
+  // Ensure valid block start and end times
+  const blockStartTime = blockStartTimeStr ? new Date(blockStartTimeStr) : null
+  const blockEndTime = blockEndTimeStr ? new Date(blockEndTimeStr) : null
+  const validBlockStart =
+    blockStartTime && !isNaN(blockStartTime.getTime()) ? blockStartTime.getTime() : null
+  const validBlockEnd =
+    blockEndTime && !isNaN(blockEndTime.getTime()) ? blockEndTime.getTime() : null
 
-  try {
-    const timestamp = Date.parse(dateString)
-    return !isNaN(timestamp)
-  } catch (e) {
-    return false
+  if (!validBlockStart || !validBlockEnd) {
+    logger.warn('Cannot estimate tool call timings: Invalid block start/end time.')
+    return toolCalls // Return original if block times are invalid
   }
+
+  let currentTime = validBlockStart
+  const estimatedCalls: ToolCall[] = []
+
+  for (const call of toolCalls) {
+    const duration = call.duration || 0 // Ensure duration is a number
+    const startTime = new Date(currentTime).toISOString()
+    const endTime = new Date(currentTime + duration).toISOString()
+
+    estimatedCalls.push({
+      ...call,
+      startTime,
+      endTime,
+    })
+
+    currentTime += duration // Move current time forward
+  }
+
+  // Optional: Distribute any remaining time if the sum of durations is less than block duration
+  // (This is complex and might not be accurate, skipping for now)
+
+  return estimatedCalls
 }
 
-// Add this utility function for redacting API keys in tool call inputs
-function redactApiKeys(obj: any): any {
-  if (!obj || typeof obj !== 'object') {
-    return obj
+/**
+ * Redacts potential API keys from tool call inputs.
+ */
+function redactApiKeys(input: any): any {
+  if (!input || typeof input !== 'object') {
+    return input
   }
 
-  if (Array.isArray(obj)) {
-    return obj.map(redactApiKeys)
-  }
+  const redactedInput = JSON.parse(JSON.stringify(input)) // Deep clone
+  const apiKeyPatterns = [
+    /(sk-[a-zA-Z0-9]{20}T3BlbkFJ[a-zA-Z0-9]{20})/, // OpenAI style
+    /([a-zA-Z0-9_-]{30,})/, // General long alphanumeric strings (potential keys)
+    /(key|token|secret)/i, // Keys containing common keywords
+  ]
 
-  const result: Record<string, any> = {}
-
-  for (const [key, value] of Object.entries(obj)) {
-    // Check if the key is 'apiKey' (case insensitive) or related keys
-    if (
-      key.toLowerCase() === 'apikey' ||
-      key.toLowerCase() === 'api_key' ||
-      key.toLowerCase() === 'access_token'
-    ) {
-      result[key] = '***REDACTED***'
-    } else if (typeof value === 'object' && value !== null) {
-      result[key] = redactApiKeys(value)
-    } else {
-      result[key] = value
+  function traverseAndRedact(obj: any) {
+    for (const key in obj) {
+      if (typeof obj[key] === 'string') {
+        apiKeyPatterns.forEach((pattern) => {
+          if (pattern.test(obj[key])) {
+            // Check if the key itself suggests it's an API key
+            if (/(key|token|secret|password|credential)/i.test(key)) {
+              obj[key] = '[REDACTED]'
+            }
+            // Simple length check as a fallback
+            else if (obj[key].length > 20) {
+              obj[key] = '[REDACTED]'
+            }
+          }
+        })
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        traverseAndRedact(obj[key])
+      }
     }
   }
 
-  return result
+  traverseAndRedact(redactedInput)
+  return redactedInput
 }
