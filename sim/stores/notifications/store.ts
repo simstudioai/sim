@@ -120,22 +120,31 @@ export const useNotificationStore = create<NotificationStore>()(
           const notification = state.notifications.find((n) => n.id === id)
           if (!notification) return { notifications: state.notifications }
 
-          // Bring the notification to the top and make it visible
-          const filteredNotifications = state.notifications.filter((n) => n.id !== id)
-          const updatedNotification = { ...notification, isVisible: true, read: false, isFading: false }
-          
-          // Put the notification at the top so it's easily visible in dropdowns
-          let newNotifications = [updatedNotification, ...filteredNotifications]
+          // Update the notification in place without changing its position
+          const newNotifications = state.notifications.map((n) => {
+            if (n.id === id) {
+              // Only update visibility state, preserve timestamp and position
+              return { 
+                ...n, 
+                isVisible: true, 
+                read: false, 
+                isFading: false
+              }
+            }
+            return n
+          })
           
           // Check if we need to auto-fade older notifications due to the limit
           const workflowId = notification.workflowId;
           const workflowVisibleCount = get().getVisibleNotificationCount(workflowId);
           
+          let updatedNotifications = [...newNotifications];
+          
           if (workflowVisibleCount > MAX_VISIBLE_NOTIFICATIONS) {
             // Find the oldest non-persistent visible notification to fade out
-            newNotifications = newNotifications.map((n, index) => {
+            updatedNotifications = updatedNotifications.map((n) => {
               // Don't touch the newly shown notification
-              if (index === 0) return n;
+              if (n.id === id) return n;
               
               // Only target notifications from the same workflow that are visible, not persistent, and not already fading
               if (
@@ -152,8 +161,22 @@ export const useNotificationStore = create<NotificationStore>()(
             });
           }
           
-          persistNotifications(newNotifications)
-          return { notifications: newNotifications }
+          // If notification is not persistent, restart the fade timer
+          if (!notification.options?.isPersistent) {
+            setTimeout(() => {
+              // Start fade out animation
+              set((state) => {
+                const newNotifications = state.notifications.map((n) =>
+                  n.id === id ? { ...n, isFading: true } : n
+                )
+                persistNotifications(newNotifications)
+                return { notifications: newNotifications }
+              })
+            }, NOTIFICATION_TIMEOUT)
+          }
+          
+          persistNotifications(updatedNotifications)
+          return { notifications: updatedNotifications }
         }),
 
       markAsRead: (id) =>
