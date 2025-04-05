@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { Calendar, Trash2 } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -14,13 +14,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
-import {
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -31,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
 import { UnsavedChangesDialog } from '../../../components/webhook/components/ui/confirmation'
 import { useSubBlockValue } from '../../../hooks/use-sub-block-value'
 import { TimeInput } from '../../time-input'
@@ -69,6 +64,9 @@ export function ScheduleModal({
   const [monthlyTime, setMonthlyTime] = useSubBlockValue(blockId, 'monthlyTime')
   const [cronExpression, setCronExpression] = useSubBlockValue(blockId, 'cronExpression')
   const [timezone, setTimezone] = useSubBlockValue(blockId, 'timezone')
+
+  // Get the startWorkflow value at the component level
+  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
 
   // UI states
   const [isSaving, setIsSaving] = useState(false)
@@ -254,6 +252,18 @@ export function ScheduleModal({
         return
       }
 
+      // Make sure the block's startWorkflow field is set to 'schedule'
+      // This is critical to ensure the schedule is actually enabled
+      logger.debug('Current startWorkflow value:', startWorkflow)
+
+      if (startWorkflow !== 'schedule') {
+        logger.debug('Setting startWorkflow to schedule')
+        setStartWorkflow('schedule')
+
+        // Give the state time to update
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
       const success = await onSave()
 
       if (success) {
@@ -272,6 +282,7 @@ export function ScheduleModal({
           timezone: timezone || 'UTC',
           cronExpression: cronExpression || '',
         }
+        logger.debug('Schedule saved successfully, updating initial values', updatedValues)
         setInitialValues(updatedValues)
         setHasChanges(false)
         onClose()
@@ -320,263 +331,291 @@ export function ScheduleModal({
 
   return (
     <>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 mr-3 text-blue-500" />
-            <div>
-              <DialogTitle>Schedule Configuration</DialogTitle>
-              <DialogDescription>
-                Configure when your workflow should run automatically
-              </DialogDescription>
-            </div>
+      <DialogContent className="sm:max-w-[600px] flex flex-col p-0 gap-0" hideCloseButton>
+        <DialogHeader className="px-6 py-4 border-b">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-lg font-medium">Schedule Configuration</DialogTitle>
+            <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
           </div>
         </DialogHeader>
 
-        {errorMessage && (
-          <Alert variant="destructive" className="my-2">
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        <div className="grid gap-4 py-4">
-          {/* Common date and time fields */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <label htmlFor="scheduleStartAt" className="text-sm font-medium">
-                Start At
-              </label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="scheduleStartAt"
-                    variant="outline"
-                    className="justify-start text-left font-normal"
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {formatDate(scheduleStartAt || '')}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={scheduleStartAt ? new Date(scheduleStartAt) : undefined}
-                    onSelect={(date) => setScheduleStartAt(date ? date.toISOString() : '')}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            <div className="grid gap-2">
-              <label htmlFor="scheduleTime" className="text-sm font-medium">
-                Time
-              </label>
-              <TimeInput blockId={blockId} subBlockId="scheduleTime" placeholder="Select time" />
-            </div>
-          </div>
-
-          {/* Frequency selector */}
-          <div className="grid gap-2">
-            <label htmlFor="scheduleType" className="text-sm font-medium">
-              Frequency
-            </label>
-            <Select
-              value={scheduleType || 'daily'}
-              onValueChange={(value) => setScheduleType(value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select frequency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="minutes">Every X Minutes</SelectItem>
-                <SelectItem value="hourly">Hourly</SelectItem>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="custom">Custom Cron</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Minutes schedule options */}
-          {scheduleType === 'minutes' && (
-            <div className="grid gap-2">
-              <label htmlFor="minutesInterval" className="text-sm font-medium">
-                Run Every (minutes)
-              </label>
-              <Input
-                id="minutesInterval"
-                value={minutesInterval || ''}
-                onChange={(e) => setMinutesInterval(e.target.value)}
-                placeholder="15"
-                type="number"
-                min="1"
-              />
-            </div>
+        <div className="pt-4 px-6 pb-6 overflow-y-auto">
+          {errorMessage && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
           )}
 
-          {/* Hourly schedule options */}
-          {scheduleType === 'hourly' && (
-            <div className="grid gap-2">
-              <label htmlFor="hourlyMinute" className="text-sm font-medium">
-                Minute of the Hour
-              </label>
-              <Input
-                id="hourlyMinute"
-                value={hourlyMinute || ''}
-                onChange={(e) => setHourlyMinute(e.target.value)}
-                placeholder="0"
-                type="number"
-                min="0"
-                max="59"
-              />
-              <p className="text-xs text-muted-foreground">
-                Specify which minute of each hour the workflow should run (0-59)
-              </p>
-            </div>
-          )}
-
-          {/* Daily schedule options */}
-          {scheduleType === 'daily' && (
-            <div className="grid gap-2">
-              <label htmlFor="dailyTime" className="text-sm font-medium">
-                Time of Day
-              </label>
-              <TimeInput blockId={blockId} subBlockId="dailyTime" placeholder="Select time" />
-            </div>
-          )}
-
-          {/* Weekly schedule options */}
-          {scheduleType === 'weekly' && (
-            <>
-              <div className="grid gap-2">
-                <label htmlFor="weeklyDay" className="text-sm font-medium">
-                  Day of Week
+          <div className="space-y-6">
+            {/* Common date and time fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label htmlFor="scheduleStartAt" className="text-sm font-medium">
+                  Start At
                 </label>
-                <Select value={weeklyDay || 'MON'} onValueChange={(value) => setWeeklyDay(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select day" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MON">Monday</SelectItem>
-                    <SelectItem value="TUE">Tuesday</SelectItem>
-                    <SelectItem value="WED">Wednesday</SelectItem>
-                    <SelectItem value="THU">Thursday</SelectItem>
-                    <SelectItem value="FRI">Friday</SelectItem>
-                    <SelectItem value="SAT">Saturday</SelectItem>
-                    <SelectItem value="SUN">Sunday</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="scheduleStartAt"
+                      variant="outline"
+                      className="justify-start text-left font-normal w-full h-10"
+                    >
+                      {formatDate(scheduleStartAt || '')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={scheduleStartAt ? new Date(scheduleStartAt) : undefined}
+                      onSelect={(date) => setScheduleStartAt(date ? date.toISOString() : '')}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              <div className="grid gap-2">
-                <label htmlFor="weeklyDayTime" className="text-sm font-medium">
-                  Time of Day
+              <div className="space-y-1">
+                <label htmlFor="scheduleTime" className="text-sm font-medium">
+                  Time
                 </label>
-                <TimeInput blockId={blockId} subBlockId="weeklyDayTime" placeholder="Select time" />
+                <TimeInput
+                  blockId={blockId}
+                  subBlockId="scheduleTime"
+                  placeholder="Select time"
+                  className="h-10"
+                />
               </div>
-            </>
-          )}
+            </div>
 
-          {/* Monthly schedule options */}
-          {scheduleType === 'monthly' && (
-            <>
-              <div className="grid gap-2">
-                <label htmlFor="monthlyDay" className="text-sm font-medium">
-                  Day of Month
+            {/* Frequency selector */}
+            <div className="space-y-1">
+              <label htmlFor="scheduleType" className="text-sm font-medium">
+                Frequency
+              </label>
+              <Select
+                value={scheduleType || 'daily'}
+                onValueChange={(value) => setScheduleType(value)}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Select frequency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="minutes">Every X Minutes</SelectItem>
+                  <SelectItem value="hourly">Hourly</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="custom">Custom Cron</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Minutes schedule options */}
+            {scheduleType === 'minutes' && (
+              <div className="space-y-1">
+                <label htmlFor="minutesInterval" className="text-sm font-medium">
+                  Run Every (minutes)
                 </label>
                 <Input
-                  id="monthlyDay"
-                  value={monthlyDay || ''}
-                  onChange={(e) => setMonthlyDay(e.target.value)}
-                  placeholder="1"
+                  id="minutesInterval"
+                  value={minutesInterval || ''}
+                  onChange={(e) => setMinutesInterval(e.target.value)}
+                  placeholder="15"
                   type="number"
                   min="1"
-                  max="31"
+                  className="h-10"
+                />
+              </div>
+            )}
+
+            {/* Hourly schedule options */}
+            {scheduleType === 'hourly' && (
+              <div className="space-y-1">
+                <label htmlFor="hourlyMinute" className="text-sm font-medium">
+                  Minute of the Hour
+                </label>
+                <Input
+                  id="hourlyMinute"
+                  value={hourlyMinute || ''}
+                  onChange={(e) => setHourlyMinute(e.target.value)}
+                  placeholder="0"
+                  type="number"
+                  min="0"
+                  max="59"
+                  className="h-10"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Specify which day of the month the workflow should run (1-31)
+                  Specify which minute of each hour the workflow should run (0-59)
                 </p>
               </div>
+            )}
 
-              <div className="grid gap-2">
-                <label htmlFor="monthlyTime" className="text-sm font-medium">
+            {/* Daily schedule options */}
+            {scheduleType === 'daily' && (
+              <div className="space-y-1">
+                <label htmlFor="dailyTime" className="text-sm font-medium">
                   Time of Day
                 </label>
-                <TimeInput blockId={blockId} subBlockId="monthlyTime" placeholder="Select time" />
+                <TimeInput
+                  blockId={blockId}
+                  subBlockId="dailyTime"
+                  placeholder="Select time"
+                  className="h-10"
+                />
               </div>
-            </>
-          )}
+            )}
 
-          {/* Custom cron options */}
-          {scheduleType === 'custom' && (
-            <div className="grid gap-2">
-              <label htmlFor="cronExpression" className="text-sm font-medium">
-                Cron Expression
+            {/* Weekly schedule options */}
+            {scheduleType === 'weekly' && (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label htmlFor="weeklyDay" className="text-sm font-medium">
+                    Day of Week
+                  </label>
+                  <Select value={weeklyDay || 'MON'} onValueChange={(value) => setWeeklyDay(value)}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Select day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MON">Monday</SelectItem>
+                      <SelectItem value="TUE">Tuesday</SelectItem>
+                      <SelectItem value="WED">Wednesday</SelectItem>
+                      <SelectItem value="THU">Thursday</SelectItem>
+                      <SelectItem value="FRI">Friday</SelectItem>
+                      <SelectItem value="SAT">Saturday</SelectItem>
+                      <SelectItem value="SUN">Sunday</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="weeklyDayTime" className="text-sm font-medium">
+                    Time of Day
+                  </label>
+                  <TimeInput
+                    blockId={blockId}
+                    subBlockId="weeklyDayTime"
+                    placeholder="Select time"
+                    className="h-10"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Monthly schedule options */}
+            {scheduleType === 'monthly' && (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label htmlFor="monthlyDay" className="text-sm font-medium">
+                    Day of Month
+                  </label>
+                  <Input
+                    id="monthlyDay"
+                    value={monthlyDay || ''}
+                    onChange={(e) => setMonthlyDay(e.target.value)}
+                    placeholder="1"
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="h-10"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Specify which day of the month the workflow should run (1-31)
+                  </p>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="monthlyTime" className="text-sm font-medium">
+                    Time of Day
+                  </label>
+                  <TimeInput
+                    blockId={blockId}
+                    subBlockId="monthlyTime"
+                    placeholder="Select time"
+                    className="h-10"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Custom cron options */}
+            {scheduleType === 'custom' && (
+              <div className="space-y-1">
+                <label htmlFor="cronExpression" className="text-sm font-medium">
+                  Cron Expression
+                </label>
+                <Input
+                  id="cronExpression"
+                  value={cronExpression || ''}
+                  onChange={(e) => setCronExpression(e.target.value)}
+                  placeholder="*/15 * * * *"
+                  className="h-10"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Use standard cron format (e.g., "*/15 * * * *" for every 15 minutes)
+                </p>
+              </div>
+            )}
+
+            {/* Timezone configuration */}
+            <div className="space-y-1">
+              <label htmlFor="timezone" className="text-sm font-medium">
+                Timezone
               </label>
-              <Input
-                id="cronExpression"
-                value={cronExpression || ''}
-                onChange={(e) => setCronExpression(e.target.value)}
-                placeholder="*/15 * * * *"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Use standard cron format (e.g., "*/15 * * * *" for every 15 minutes)
-              </p>
+              <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UTC">UTC</SelectItem>
+                  <SelectItem value="America/New_York">US Eastern (UTC-4)</SelectItem>
+                  <SelectItem value="America/Chicago">US Central (UTC-5)</SelectItem>
+                  <SelectItem value="America/Denver">US Mountain (UTC-6)</SelectItem>
+                  <SelectItem value="America/Los_Angeles">US Pacific (UTC-7)</SelectItem>
+                  <SelectItem value="Europe/London">London (UTC+1)</SelectItem>
+                  <SelectItem value="Europe/Paris">Paris (UTC+2)</SelectItem>
+                  <SelectItem value="Asia/Singapore">Singapore (UTC+8)</SelectItem>
+                  <SelectItem value="Asia/Tokyo">Tokyo (UTC+9)</SelectItem>
+                  <SelectItem value="Australia/Sydney">Sydney (UTC+10)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
-
-          {/* Timezone configuration */}
-          <div className="grid gap-2">
-            <label htmlFor="timezone" className="text-sm font-medium">
-              Timezone
-            </label>
-            <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select timezone" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="UTC">UTC</SelectItem>
-                <SelectItem value="America/New_York">US Eastern (UTC-4)</SelectItem>
-                <SelectItem value="America/Chicago">US Central (UTC-5)</SelectItem>
-                <SelectItem value="America/Denver">US Mountain (UTC-6)</SelectItem>
-                <SelectItem value="America/Los_Angeles">US Pacific (UTC-7)</SelectItem>
-                <SelectItem value="Europe/London">London (UTC+1)</SelectItem>
-                <SelectItem value="Europe/Paris">Paris (UTC+2)</SelectItem>
-                <SelectItem value="Asia/Singapore">Singapore (UTC+8)</SelectItem>
-                <SelectItem value="Asia/Tokyo">Tokyo (UTC+9)</SelectItem>
-                <SelectItem value="Australia/Sydney">Sydney (UTC+10)</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
-        <DialogFooter className="flex justify-between">
-          <div>
-            {scheduleId && onDelete && (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={openDeleteConfirm}
-                disabled={isDeleting || isSaving}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                {isDeleting ? 'Deleting...' : 'Delete Schedule'}
+        <DialogFooter className="px-6 pt-0 pb-6 w-full">
+          <div className="flex w-full justify-between">
+            <div>
+              {scheduleId && onDelete && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={openDeleteConfirm}
+                  disabled={isDeleting || isSaving}
+                  size="default"
+                  className="h-10"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {isDeleting ? 'Deleting...' : 'Delete Schedule'}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClose} size="default" className="h-10">
+                Cancel
               </Button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={!hasChanges || isSaving}
-              className={hasChanges ? 'bg-primary hover:bg-primary/90' : ''}
-            >
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </Button>
+              <Button
+                onClick={handleSave}
+                disabled={!hasChanges || isSaving}
+                className={cn('h-10', hasChanges ? 'bg-primary hover:bg-primary/90' : '')}
+                size="default"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>

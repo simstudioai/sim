@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Calendar, ExternalLink } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -24,10 +23,12 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
   const [lastRanAt, setLastRanAt] = useState<string | null>(null)
   const [cronExpression, setCronExpression] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  // Track when we need to force a refresh of schedule data
+  const [refreshCounter, setRefreshCounter] = useState(0)
 
   const params = useParams()
   const workflowId = params.id as string
@@ -36,41 +37,66 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const blocks = useWorkflowStore((state) => state.blocks)
   const edges = useWorkflowStore((state) => state.edges)
   const loops = useWorkflowStore((state) => state.loops)
+  const triggerUpdate = useWorkflowStore((state) => state.triggerUpdate)
+  const setScheduleStatus = useWorkflowStore((state) => state.setScheduleStatus)
 
   // Get the schedule type from the block state
   const [scheduleType] = useSubBlockValue(blockId, 'scheduleType')
 
-  // Check if schedule exists in the database
-  useEffect(() => {
-    const checkSchedule = async () => {
-      setIsLoading(true)
-      try {
-        // Check if there's a schedule for this workflow
-        const response = await fetch(`/api/schedules?workflowId=${workflowId}`)
-        if (response.ok) {
-          const data = await response.json()
-          if (data.schedule) {
-            setScheduleId(data.schedule.id)
-            setNextRunAt(data.schedule.nextRunAt)
-            setLastRanAt(data.schedule.lastRanAt)
-            setCronExpression(data.schedule.cronExpression)
-          } else {
-            setScheduleId(null)
-            setNextRunAt(null)
-            setLastRanAt(null)
-            setCronExpression(null)
-          }
-        }
-      } catch (error) {
-        logger.error('Error checking schedule:', { error })
-        setError('Failed to check schedule status')
-      } finally {
-        setIsLoading(false)
-      }
-    }
+  // Get the startWorkflow value to determine if scheduling is enabled
+  // and expose the setter so we can update it
+  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
+  const isScheduleEnabled = startWorkflow === 'schedule'
 
+  // Function to check if schedule exists in the database
+  const checkSchedule = async () => {
+    setIsLoading(true)
+    try {
+      // Check if there's a schedule for this workflow, passing the mode parameter
+      const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
+        // Add cache: 'no-store' to prevent caching of this request
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        logger.debug(`Schedule check response:`, data)
+
+        if (data.schedule) {
+          setScheduleId(data.schedule.id)
+          setNextRunAt(data.schedule.nextRunAt)
+          setLastRanAt(data.schedule.lastRanAt)
+          setCronExpression(data.schedule.cronExpression)
+
+          // Set active schedule flag to true since we found an active schedule
+          setScheduleStatus(true)
+        } else {
+          setScheduleId(null)
+          setNextRunAt(null)
+          setLastRanAt(null)
+          setCronExpression(null)
+
+          // Set active schedule flag to false since no schedule was found
+          setScheduleStatus(false)
+        }
+      }
+    } catch (error) {
+      logger.error('Error checking schedule:', { error })
+      setError('Failed to check schedule status')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Check for schedule on mount and when relevant dependencies change
+  useEffect(() => {
+    // Always check for schedules regardless of the UI setting
+    // This ensures we detect schedules even when the UI is set to manual
     checkSchedule()
-  }, [workflowId, scheduleType, isModalOpen]) // Re-check when modal closes
+  }, [workflowId, scheduleType, isModalOpen, refreshCounter])
 
   // Format the schedule information for display
   const getScheduleInfo = () => {
@@ -93,13 +119,13 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
     }
 
     return (
-      <div className="text-xs text-muted-foreground">
-        <div className="flex items-center">
-          <span className="font-medium">{scheduleTiming}</span>
+      <>
+        <div className="font-normal text-sm truncate">{scheduleTiming}</div>
+        <div className="text-xs text-muted-foreground">
+          <div>Next run: {formatDateTime(new Date(nextRunAt))}</div>
+          {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt))}</div>}
         </div>
-        <div>Next run: {formatDateTime(new Date(nextRunAt))}</div>
-        {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt))}</div>}
-      </div>
+      </>
     )
   }
 
@@ -109,11 +135,24 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
+    // Force a refresh when closing the modal
+    setRefreshCounter((prev) => prev + 1)
   }
 
   const handleSaveSchedule = async (): Promise<boolean> => {
     setIsSaving(true)
+    setError(null)
+
     try {
+      // Make sure that startWorkflow is set to 'schedule'
+      if (startWorkflow !== 'schedule') {
+        // Set startWorkflow to 'schedule' to enable scheduling
+        setStartWorkflow('schedule')
+
+        // Give a moment for the state to update
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
       // Send the complete workflow state to be saved/updated
       const response = await fetch(`/api/schedules/schedule`, {
         method: 'POST',
@@ -130,11 +169,42 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
         }),
       })
 
+      // Clone the response to read it as text and parse as JSON
+      const responseText = await response.text()
+      let responseData
+      try {
+        responseData = JSON.parse(responseText)
+      } catch (e) {
+        logger.error('Failed to parse response JSON', e, responseText)
+        responseData = {}
+      }
+
       if (!response.ok) {
-        const data = await response.json()
-        setError(data.error || 'Failed to save schedule')
+        setError(responseData.error || 'Failed to save schedule')
         return false
       }
+
+      logger.debug('Schedule save response:', responseData)
+
+      // Update our local state with the response data
+      // This allows showing schedule info immediately without waiting for another API call
+      if (responseData.cronExpression) {
+        setCronExpression(responseData.cronExpression)
+      }
+
+      if (responseData.nextRunAt) {
+        setNextRunAt(
+          typeof responseData.nextRunAt === 'string'
+            ? responseData.nextRunAt
+            : responseData.nextRunAt.toISOString?.() || responseData.nextRunAt
+        )
+      }
+
+      // Set schedule status to true when we've successfully saved
+      setScheduleStatus(true)
+
+      // Force a refresh after successful save
+      setRefreshCounter((prev) => prev + 1)
 
       return true
     } catch (error) {
@@ -167,6 +237,18 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       setLastRanAt(null)
       setCronExpression(null)
 
+      // Update startWorkflow value to manual to trigger re-render
+      setStartWorkflow('manual')
+
+      // Set active schedule flag to false since we deleted the schedule
+      setScheduleStatus(false)
+
+      // Trigger workflow update to refresh the UI
+      triggerUpdate()
+
+      // Force a refresh after successful delete
+      setRefreshCounter((prev) => prev + 1)
+
       return true
     } catch (error) {
       logger.error('Error deleting schedule:', { error })
@@ -181,46 +263,47 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const isScheduleActive = !!scheduleId && !!nextRunAt
 
   return (
-    <div className="mt-2 space-y-2">
+    <div className="w-full" onClick={(e) => e.stopPropagation()}>
       {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
 
       {isLoading ? (
-        <Button variant="outline" size="sm" className="w-full" disabled={true}>
-          Checking schedule...
-        </Button>
+        <div className="flex items-center justify-center py-2">
+          <div className="h-5 w-5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+        </div>
       ) : isScheduleActive ? (
-        <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md p-2 relative">
-          <div className="flex items-center mb-1">
-            <Calendar className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
-            <span className="text-sm font-medium text-green-700 dark:text-green-400">
-              Schedule Active
-            </span>
-            <Badge
-              variant="outline"
-              className="ml-auto bg-green-100 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-800"
+        <div className="flex flex-col space-y-2 mb-2">
+          <div className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="flex-1 truncate">{getScheduleInfo()}</div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={handleOpenModal}
+              disabled={isDeleting || isConnecting}
             >
-              Active
-            </Badge>
+              {isDeleting ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+              ) : (
+                <ExternalLink className="h-4 w-4" />
+              )}
+            </Button>
           </div>
-          {getScheduleInfo()}
         </div>
       ) : (
-        <Button variant="outline" size="sm" className="w-full" disabled={isConnecting}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-10 text-sm font-normal bg-background flex items-center"
+          onClick={handleOpenModal}
+          disabled={isConnecting || isSaving || isDeleting}
+        >
           <Calendar className="h-4 w-4 mr-2" />
-          No schedule configured
+          Configure Schedule
         </Button>
       )}
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full"
-        onClick={handleOpenModal}
-        disabled={isConnecting || isSaving || isDeleting}
-      >
-        <ExternalLink className="h-4 w-4 mr-2" />
-        {isSaving ? 'Saving...' : isDeleting ? 'Deleting...' : 'Configure Schedule'}
-      </Button>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <ScheduleModal
