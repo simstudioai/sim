@@ -577,9 +577,8 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
               <Icon
                 className={cn('h-4 w-4', {
                   '!text-red-500 mt-[-3px]': type === 'error',
-                  'text-foreground mt-[-3px]': type === 'console',
-                  'mt-[-4.5px] text-foreground ': type === 'marketplace',
-                  '!text-blue-500 mt-[-3px]': type === 'info',
+                  'text-foreground mt-[-4px]': type === 'console' || type === 'info',
+                  'text-foreground': type === 'marketplace',
                 })}
               />
             </div>
