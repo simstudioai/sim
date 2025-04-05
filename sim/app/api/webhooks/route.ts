@@ -4,36 +4,12 @@ import { nanoid } from 'nanoid'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { account } from '@/db/schema'
 import { webhook, workflow } from '@/db/schema'
+import { getOAuthToken } from '../auth/oauth/utils'
 
 const logger = createLogger('WebhooksAPI')
 
 export const dynamic = 'force-dynamic'
-
-// --- Placeholder Function to Get OAuth Token ---
-// NOTE: Replace this with your actual implementation for fetching stored OAuth tokens
-async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
-  logger.debug(`Attempting to fetch OAuth token for user ${userId}, provider ${providerId}`)
-  // Example query (adapt to your schema and logic)
-  const connections = await db
-    .select({ accessToken: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
-    .orderBy(account.createdAt) // Get the latest perhaps? Or filter by active/valid
-    .limit(1)
-
-  if (connections.length > 0 && connections[0].accessToken) {
-    logger.info(`Found OAuth token for user ${userId}, provider ${providerId}`)
-    // TODO: Add token decryption if necessary
-    // TODO: Add token refresh logic if necessary
-    return connections[0].accessToken
-  }
-
-  logger.warn(`No valid OAuth token found for user ${userId}, provider ${providerId}`)
-  return null
-}
-// --- End Placeholder ---
 
 // Get all webhooks for the current user
 export async function GET(request: NextRequest) {
