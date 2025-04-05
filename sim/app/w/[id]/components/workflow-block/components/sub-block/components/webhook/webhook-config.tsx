@@ -402,7 +402,6 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           onClose={handleCloseModal}
           webhookPath={webhookPath || ''}
           webhookProvider={webhookProvider || 'generic'}
-          workflowId={workflowId}
           onSave={handleSaveWebhook}
           onDelete={handleDeleteWebhook}
           webhookId={webhookId || undefined}

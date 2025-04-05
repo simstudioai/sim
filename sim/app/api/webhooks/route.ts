@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Check if a webhook with the same path already exists
     const existingWebhooks = await db
-      .select({ id: webhook.id, workflowId: webhook.workflowId }) // Select only necessary fields
+      .select({ id: webhook.id, workflowId: webhook.workflowId })
       .from(webhook)
       .where(eq(webhook.path, path))
       .limit(1)
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         .set({
           provider,
           providerConfig,
-          isActive: true, // Ensure it's active on update
+          isActive: true,
           updatedAt: new Date(),
         })
         .where(eq(webhook.id, existingWebhooks[0].id))
@@ -147,13 +147,18 @@ export async function POST(request: NextRequest) {
       logger.info(
         `[${requestId}] Airtable provider detected. Attempting to create webhook in Airtable.`
       )
-      // Run asynchronously without awaiting to avoid blocking the response to the user
-      createAirtableWebhookSubscription(request, userId, savedWebhook, requestId).catch((err) => {
-        logger.error(
-          `[${requestId}] Uncaught exception in background Airtable webhook creation`,
-          err
+      try {
+        await createAirtableWebhookSubscription(request, userId, savedWebhook, requestId)
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Airtable webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Airtable',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
         )
-      })
+      }
     }
     // --- End Airtable specific logic ---
 
@@ -164,14 +169,6 @@ export async function POST(request: NextRequest) {
       message: error.message,
       stack: error.stack,
     })
-    // Handle potential Drizzle unique constraint errors gracefully
-    if (error.code === '23505') {
-      // Postgres unique violation code
-      return NextResponse.json(
-        { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
-        { status: 409 }
-      )
-    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -199,7 +196,6 @@ async function createAirtableWebhookSubscription(
       logger.warn(
         `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
       )
-      // Optionally: Update webhookData.isActive to false or add a status indicating external creation failed?
       return
     }
 
@@ -224,8 +220,6 @@ async function createAirtableWebhookSubscription(
           dataTypes: ['tableData'], // Watch table data changes
           recordChangeScope: tableId, // Watch only the specified table
         },
-        // Add other options like 'includes' if needed based on Airtable docs
-        // includes: { includeCellValuesInPayload: true }
       },
     }
 
@@ -234,15 +228,12 @@ async function createAirtableWebhookSubscription(
       specification.options.includes = {
         includeCellValuesInFieldIds: 'all',
       }
-      logger.debug(`[${requestId}] Including full cell values in Airtable webhook payload.`)
     }
 
     const requestBody: any = {
       notificationUrl: notificationUrl,
       specification: specification,
     }
-
-    logger.info(`[${requestId}] Calling Airtable API to create webhook: ${airtableApiUrl}`)
 
     const airtableResponse = await fetch(airtableApiUrl, {
       method: 'POST',
@@ -271,7 +262,6 @@ async function createAirtableWebhookSubscription(
       )
       // Store the airtableWebhookId (responseBody.id) within the providerConfig
       try {
-        // Ensure providerConfig is treated as an object
         const currentConfig = (webhookData.providerConfig as Record<string, any>) || {}
         const updatedConfig = {
           ...currentConfig,
@@ -281,9 +271,6 @@ async function createAirtableWebhookSubscription(
           .update(webhook)
           .set({ providerConfig: updatedConfig, updatedAt: new Date() })
           .where(eq(webhook.id, webhookData.id))
-        logger.info(
-          `[${requestId}] Stored externalId ${responseBody.id} in providerConfig for webhook ${webhookData.id}.`
-        )
       } catch (dbError: any) {
         logger.error(
           `[${requestId}] Failed to store externalId in providerConfig for webhook ${webhookData.id}.`,
@@ -300,7 +287,5 @@ async function createAirtableWebhookSubscription(
         stack: error.stack,
       }
     )
-    // TODO: Consider updating webhook status in our DB to reflect failure
-    // Example: await db.update(webhook).set({ isActive: false, updatedAt: new Date() }).where(eq(webhook.id, webhookData.id));
   }
 }
