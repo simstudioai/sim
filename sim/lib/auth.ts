@@ -421,7 +421,7 @@ export const auth = betterAuth({
           authorizationUrl: 'https://airtable.com/oauth2/v1/authorize',
           tokenUrl: 'https://airtable.com/oauth2/v1/token',
           userInfoUrl: 'https://api.airtable.com/v0/meta/whoami',
-          scopes: ['data.records:read', 'data.records:write'],
+          scopes: ['data.records:read', 'data.records:write', 'user.email:read'],
           responseType: 'code',
           pkce: true,
           accessType: 'offline',
