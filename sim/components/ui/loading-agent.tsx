@@ -9,7 +9,7 @@ export interface LoadingAgentProps {
 }
 
 export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
-  const pathLength = 40
+  const pathLength = 120
 
   // Size mappings for width and height
   const sizes = {
@@ -38,7 +38,7 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1s linear forwards',
+          animation: 'dash 1.5s linear forwards',
         }}
       />
       <path
@@ -50,7 +50,7 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1s linear forwards',
+          animation: 'dash 1.5s linear forwards',
           animationDelay: '0.5s', // if you want to stagger it
         }}
       />
@@ -63,7 +63,7 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1s linear forwards',
+          animation: 'dash 1.5s linear forwards',
           animationDelay: '1s',
         }}
       />
