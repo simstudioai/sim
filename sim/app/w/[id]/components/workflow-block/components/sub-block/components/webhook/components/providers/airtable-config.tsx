@@ -5,6 +5,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
 
+export interface AirtableWebhookConfig {
+  baseId: string
+  tableId: string
+  externalId?: string // To store the ID returned by Airtable
+  includeCellValuesInFieldIds?: 'all' | undefined
+}
+
 interface AirtableConfigProps {
   baseId: string
   setBaseId: (value: string) => void

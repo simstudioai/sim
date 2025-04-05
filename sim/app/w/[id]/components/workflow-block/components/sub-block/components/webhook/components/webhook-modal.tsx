@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
-import { AirtableWebhookConfig, ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
+import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
 import { AirtableConfig } from './providers/airtable-config'
 import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
@@ -22,7 +22,6 @@ interface WebhookModalProps {
   onClose: () => void
   webhookPath: string
   webhookProvider: string
-  workflowId: string
   onSave?: (path: string, providerConfig: ProviderConfig) => Promise<boolean>
   onDelete?: () => Promise<boolean>
   webhookId?: string
@@ -33,7 +32,6 @@ export function WebhookModal({
   onClose,
   webhookPath,
   webhookProvider,
-  workflowId,
   onSave,
   onDelete,
   webhookId,
@@ -193,10 +191,9 @@ export function WebhookModal({
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
               } else if (webhookProvider === 'airtable') {
-                const airtableConfig = config as AirtableWebhookConfig
-                const baseIdVal = airtableConfig.baseId || ''
-                const tableIdVal = airtableConfig.tableId || ''
-                const includeCells = airtableConfig.includeCellValuesInFieldIds === 'all'
+                const baseIdVal = config.baseId || ''
+                const tableIdVal = config.tableId || ''
+                const includeCells = config.includeCellValuesInFieldIds === 'all'
 
                 setAirtableBaseId(baseIdVal)
                 setAirtableTableId(tableIdVal)
@@ -319,7 +316,7 @@ export function WebhookModal({
           baseId: airtableBaseId,
           tableId: airtableTableId,
           includeCellValuesInFieldIds: airtableIncludeCellValues ? 'all' : undefined,
-        } as AirtableWebhookConfig
+        }
       default:
         return {}
     }
