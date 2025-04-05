@@ -369,6 +369,16 @@ export async function refreshOAuthToken(
         clientId = process.env.CONFLUENCE_CLIENT_ID
         clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
         break
+      case 'airtable':
+        tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
+        clientId = process.env.AIRTABLE_CLIENT_ID
+        clientSecret = process.env.AIRTABLE_CLIENT_SECRET
+        break
+      case 'supabase':
+        tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
+        clientId = process.env.SUPABASE_CLIENT_ID
+        clientSecret = process.env.SUPABASE_CLIENT_SECRET
+        break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
     }

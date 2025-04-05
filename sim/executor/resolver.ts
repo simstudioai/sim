@@ -69,7 +69,6 @@ export class InputResolver {
       if (isConditionBlock && isConditionsKey && typeof value === 'string') {
         // Pass the raw string directly without resolving refs or parsing JSON
         result[key] = value
-        logger.debug(`[resolveInputs] Passing raw 'conditions' string for Condition block`)
         continue // Skip further processing for this key
       }
       // *** End of early check ***
@@ -98,21 +97,17 @@ export class InputResolver {
         // For function blocks, we need special handling for code input
         if (isFunctionBlock && key === 'code') {
           result[key] = resolvedValue
-          logger.debug(`[resolveInputs] Function block code input preserved as string`)
         }
         // For API blocks, handle body input specially
         else if (isApiBlock && key === 'body') {
           try {
             if (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('[')) {
               result[key] = JSON.parse(resolvedValue)
-              logger.debug(`[resolveInputs] API block body parsed as JSON object`)
             } else {
               result[key] = resolvedValue
-              logger.debug(`[resolveInputs] API block body preserved as string`)
             }
           } catch {
             result[key] = resolvedValue
-            logger.debug(`[resolveInputs] API block body JSON parsing failed, keeping as string`)
           }
         }
         // For other inputs, try to convert JSON strings to objects
@@ -125,7 +120,6 @@ export class InputResolver {
               (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('['))
             ) {
               result[key] = JSON.parse(resolvedValue)
-              logger.debug(`[resolveInputs] Parsed JSON value for ${key}`)
             } else {
               // If not JSON-like or empty, keep as string (or potentially null/undefined if resolvedValue became that)
               result[key] = resolvedValue
@@ -317,14 +311,6 @@ export class InputResolver {
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
 
-      // Log the reference being processed
-      logger.debug(`[resolveBlockReferences] Processing block reference: ${match}`, {
-        blockRef,
-        pathParts,
-        currentBlock: currentBlock.id,
-        currentBlockType: currentBlock.metadata?.id,
-      })
-
       // Special case for "start" references
       // This allows users to reference the starter block using <start.response.type.input>
       // regardless of the actual name of the starter block
@@ -332,32 +318,12 @@ export class InputResolver {
         // Find the starter block
         const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
         if (starterBlock) {
-          logger.debug(`[resolveBlockReferences] Found starter block with ID: ${starterBlock.id}`)
-
           const blockState = context.blockStates.get(starterBlock.id)
           if (blockState) {
-            logger.debug(
-              `[resolveBlockReferences] Starter block state:`,
-              JSON.stringify(blockState, null, 2)
-            )
-
             // Navigate through the path parts
             let replacementValue: any = blockState.output
 
-            // Log the initial output value from the starter block
-            logger.debug(
-              `[resolveBlockReferences] Initial starter output:`,
-              JSON.stringify(replacementValue, null, 2)
-            )
-
             for (const part of pathParts) {
-              logger.debug(`[resolveBlockReferences] Navigating path part: ${part}`, {
-                currentValue:
-                  typeof replacementValue === 'object'
-                    ? JSON.stringify(replacementValue)
-                    : replacementValue,
-              })
-
               if (!replacementValue || typeof replacementValue !== 'object') {
                 logger.warn(
                   `[resolveBlockReferences] Invalid path "${part}" - replacementValue is not an object:`,
@@ -387,26 +353,14 @@ export class InputResolver {
               if (typeof replacementValue === 'object' && replacementValue !== null) {
                 // For function blocks, preserve the object structure for code usage
                 if (blockType === 'function') {
-                  logger.debug(
-                    `[resolveBlockReferences] Special handling for function input:`,
-                    JSON.stringify(replacementValue, null, 2)
-                  )
                   formattedValue = JSON.stringify(replacementValue)
                 }
                 // For API blocks, handle body special case
                 else if (blockType === 'api') {
-                  logger.debug(
-                    `[resolveBlockReferences] Special handling for API input:`,
-                    JSON.stringify(replacementValue, null, 2)
-                  )
                   formattedValue = JSON.stringify(replacementValue)
                 }
                 // For condition blocks, ensure proper formatting
                 else if (blockType === 'condition') {
-                  logger.debug(
-                    `[resolveBlockReferences] Special handling for condition input:`,
-                    JSON.stringify(replacementValue, null, 2)
-                  )
                   formattedValue = this.stringifyForCondition(replacementValue)
                 }
                 // For all other blocks, stringify objects
@@ -425,7 +379,6 @@ export class InputResolver {
                   : String(replacementValue)
             }
 
-            logger.debug(`[resolveBlockReferences] Resolved value:`, formattedValue)
             resolvedValue = resolvedValue.replace(match, formattedValue)
             continue
           }
