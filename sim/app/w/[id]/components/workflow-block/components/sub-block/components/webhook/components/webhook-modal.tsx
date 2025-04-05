@@ -56,7 +56,7 @@ export function WebhookModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
-  const isConfigured = Boolean(webhookId)
+  const [isCurrentConfigValid, setIsCurrentConfigValid] = useState(true)
 
   // Generic webhook state
   const [generalToken, setGeneralToken] = useState('')
@@ -263,6 +263,36 @@ export function WebhookModal({
     airtableIncludeCellValues,
   ])
 
+  // Validate required fields for current provider
+  useEffect(() => {
+    let isValid = true
+    switch (webhookProvider) {
+      case 'airtable':
+        isValid = airtableBaseId.trim() !== '' && airtableTableId.trim() !== ''
+        break
+      case 'slack':
+        isValid = slackSigningSecret.trim() !== ''
+        break
+      case 'whatsapp':
+        // Although we auto-generate a token on creation, user could clear it when editing
+        isValid = whatsappVerificationToken.trim() !== ''
+        break
+      case 'github':
+        isValid = generalToken.trim() !== ''
+        break
+      case 'discord':
+        isValid = discordWebhookName.trim() !== ''
+        break
+    }
+    setIsCurrentConfigValid(isValid)
+  }, [
+    webhookProvider,
+    airtableBaseId,
+    airtableTableId,
+    slackSigningSecret,
+    whatsappVerificationToken,
+  ])
+
   // Use the provided path or generate a UUID-based path
   const formattedPath = webhookPath && webhookPath.trim() !== '' ? webhookPath : crypto.randomUUID()
 
@@ -323,6 +353,11 @@ export function WebhookModal({
   }
 
   const handleSave = async () => {
+    if (!isCurrentConfigValid) {
+      logger.warn('Attempted to save with invalid configuration')
+      return
+    }
+
     setIsSaving(true)
     try {
       // Call the onSave callback with the path and provider-specific config
@@ -334,26 +369,27 @@ export function WebhookModal({
           : formattedPath
 
         await new Promise((resolve) => setTimeout(resolve, 100))
-        await onSave(pathToSave, providerConfig)
+        const saveSuccessful = await onSave(pathToSave, providerConfig)
         await new Promise((resolve) => setTimeout(resolve, 100))
 
-        // Update original values to match current values after successful save
-        setOriginalValues({
-          whatsappVerificationToken,
-          githubContentType,
-          generalToken,
-          secretHeaderName,
-          requireAuth,
-          allowedIps,
-          discordWebhookName,
-          discordAvatarUrl,
-          slackSigningSecret,
-          airtableWebhookSecret,
-          airtableBaseId,
-          airtableTableId,
-          airtableIncludeCellValues,
-        })
-        setHasUnsavedChanges(false)
+        if (saveSuccessful) {
+          setOriginalValues({
+            whatsappVerificationToken,
+            githubContentType,
+            generalToken,
+            secretHeaderName,
+            requireAuth,
+            allowedIps,
+            discordWebhookName,
+            discordAvatarUrl,
+            slackSigningSecret,
+            airtableWebhookSecret,
+            airtableBaseId,
+            airtableTableId,
+            airtableIncludeCellValues,
+          })
+          setHasUnsavedChanges(false)
+        }
       }
     } catch (error) {
       logger.error('Error saving webhook:', { error })
@@ -405,14 +441,12 @@ export function WebhookModal({
       const testEndpoint = `/api/webhooks/test?id=${webhookId}`
 
       const response = await fetch(testEndpoint)
-      if (!response.ok) {
-        throw new Error('Failed to test webhook')
-      }
-
       const data = await response.json()
 
-      // Add a slight delay before showing the result for smoother animation
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      if (!response.ok) {
+        // Use error from body if available, otherwise default
+        throw new Error(data?.message || data?.error || 'Failed to test webhook')
+      }
 
       // If the test was successful, show a success message
       if (data.success) {
@@ -424,7 +458,7 @@ export function WebhookModal({
       } else {
         setTestResult({
           success: false,
-          message: data.message || data.error || 'Failed to validate webhook configuration',
+          message: data.message || data.error || 'Webhook test failed with success=false',
         })
       }
     } catch (error: any) {
@@ -566,6 +600,7 @@ export function WebhookModal({
             isDeleting={isDeleting}
             isLoadingToken={isLoadingToken}
             isTesting={isTesting}
+            isCurrentConfigValid={isCurrentConfigValid} // <-- Pass down validation state
             onSave={handleSave}
             onDelete={() => setShowDeleteConfirm(true)}
             onTest={testWebhook}
