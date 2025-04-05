@@ -94,7 +94,6 @@ export class InputResolver {
         // Special handling for different block types
         const isFunctionBlock = block.metadata?.id === 'function'
         const isApiBlock = block.metadata?.id === 'api'
-        // No need for isConditionBlock check here anymore due to early exit
 
         // For function blocks, we need special handling for code input
         if (isFunctionBlock && key === 'code') {
