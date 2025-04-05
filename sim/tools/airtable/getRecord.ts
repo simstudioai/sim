@@ -1,10 +1,12 @@
 import { ToolConfig } from '../types'
-import { AirtableUpdateParams, AirtableUpdateResponse } from './types'
+import { AirtableGetParams, AirtableGetResponse } from './types'
 
-export const updateTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse> = {
-  id: 'airtable_update',
-  name: 'Airtable Update Records',
-  description: 'Update existing records in an Airtable table',
+// import { logger } from '@/utils/logger' // Removed logger due to import issues
+
+export const airtableGetRecordTool: ToolConfig<AirtableGetParams, AirtableGetResponse> = {
+  id: 'airtable_get_record',
+  name: 'Airtable Get Record',
+  description: 'Retrieve a single record from an Airtable table by its ID',
   version: '1.0.0',
 
   oauth: {
@@ -31,41 +33,39 @@ export const updateTool: ToolConfig<AirtableUpdateParams, AirtableUpdateResponse
     recordId: {
       type: 'string',
       required: true,
-      description: 'ID of the record to update',
-    },
-    fields: {
-      type: 'json',
-      required: true,
-      description: 'Fields to update',
+      description: 'ID of the record to retrieve',
     },
   },
 
   request: {
     url: (params) =>
       `https://api.airtable.com/v0/${params.baseId}/${params.tableId}/${params.recordId}`,
-    method: 'PATCH',
+    method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({ fields: params.fields }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
+    if (!response.ok) {
+      // logger.error('Airtable API error:', data)
+      throw new Error(data.error?.message || 'Failed to get Airtable record')
+    }
     return {
       success: true,
       output: {
-        records: [data],
+        record: data, // API returns the single record object
         metadata: {
           recordCount: 1,
-          updatedFields: Object.keys(data.fields),
         },
       },
     }
   },
 
-  transformError: (error) => {
-    return `Failed to update Airtable record: ${error.message}`
+  transformError: (error: any) => {
+    // logger.error('Airtable tool error:', error)
+    return `Failed to get Airtable record: ${error.message || 'Unknown error'}`
   },
 }
