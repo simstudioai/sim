@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         })
 
         // Wrap code in export default to match Freestyle's expectations
-        const wrappedCode = `export default async () => {${resolvedCode}}`
+        const wrappedCode = `export default async () => { ${resolvedCode} }`
 
         // Execute the code with Freestyle
         const res = await freestyle.executeScript(wrappedCode, {
@@ -106,18 +106,47 @@ export async function POST(req: NextRequest) {
           envVars: envVars,
         })
 
-        result = res.result
-        logger.info(`[${requestId}] Freestyle execution result`, {
-          result,
-          stdout,
-        })
+        // Check for direct API error response
+        // Type assertion since the library types don't include error response
+        const response = res as { _type?: string; error?: string }
+        if (response._type === 'error' && response.error) {
+          logger.error(`[${requestId}] Freestyle returned error response`, {
+            error: response.error,
+          })
+          throw response.error
+        }
+
+        // Capture stdout/stderr from Freestyle logs
         stdout =
           res.logs
             ?.map((log) => (log.type === 'error' ? 'ERROR: ' : '') + log.message)
             .join('\n') || ''
+
+        // Check for errors reported within Freestyle logs
+        const freestyleErrors = res.logs?.filter((log) => log.type === 'error') || []
+        if (freestyleErrors.length > 0) {
+          const errorMessage = freestyleErrors.map((log) => log.message).join('\n')
+          logger.error(`[${requestId}] Freestyle execution completed with script errors`, {
+            errorMessage,
+            stdout,
+          })
+          throw errorMessage
+        }
+
+        // If no errors, execution was successful
+        result = res.result
+        logger.info(`[${requestId}] Freestyle execution successful`, {
+          result,
+          stdout,
+        })
       } catch (error: any) {
-        // Log freestyle error and fall back to VM execution
-        logger.error(`[${requestId}] Freestyle execution failed, falling back to VM:`, {
+        // Check if the error came from our explicit throw above due to script errors
+        if (error instanceof Error) {
+          throw error // Re-throw to be caught by the outer handler
+        }
+
+        // Otherwise, it's likely a Freestyle API call error (network, auth, config, etc.) -> Fallback to VM
+        logger.error(`[${requestId}] Freestyle API call failed, falling back to VM:`, {
           error: error.message,
           stack: error.stack,
         })

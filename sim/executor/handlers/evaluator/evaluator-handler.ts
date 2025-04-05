@@ -54,15 +54,23 @@ export class EvaluatorBlockHandler implements BlockHandler {
       responseFormat: null,
     }
 
+    logger.info('Inputs for evaluator:', inputs)
     const metrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
+    logger.info('Metrics for evaluator:', metrics)
     const metricDescriptions = metrics
-      .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description}`)
+      .filter((m: any) => m && m.name && m.range) // Filter out invalid/incomplete metrics
+      .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description || ''}`)
       .join('\n')
 
     // Create a response format structure
     const responseProperties: Record<string, any> = {}
     metrics.forEach((m: any) => {
-      responseProperties[m.name] = { type: 'number' }
+      // Ensure metric and name are valid before using them
+      if (m && m.name) {
+        responseProperties[m.name.toLowerCase()] = { type: 'number' } // Use lowercase for consistency
+      } else {
+        logger.warn('Skipping invalid metric entry during response format generation:', m)
+      }
     })
 
     systemPromptObj = {
@@ -80,7 +88,8 @@ export class EvaluatorBlockHandler implements BlockHandler {
         schema: {
           type: 'object',
           properties: responseProperties,
-          required: metrics.map((m: any) => m.name),
+          // Filter out invalid names before creating the required array
+          required: metrics.filter((m: any) => m && m.name).map((m: any) => m.name.toLowerCase()),
           additionalProperties: false,
         },
         strict: true,
@@ -95,7 +104,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     // Make sure we force JSON output in the request
     const response = await executeProviderRequest(providerId, {
-      model: inputs.model,
+      model: model,
       systemPrompt: systemPromptObj.systemPrompt,
       responseFormat: systemPromptObj.responseFormat,
       messages: [
@@ -150,11 +159,18 @@ export class EvaluatorBlockHandler implements BlockHandler {
     const metricScores: Record<string, any> = {}
 
     try {
-      const metrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
+      // Ensure metrics is an array before processing
+      const validMetrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
 
       // If we have a successful parse, extract the metrics
       if (Object.keys(parsedContent).length > 0) {
-        metrics.forEach((metric: { name: string }) => {
+        validMetrics.forEach((metric: any) => {
+          // Check if metric and name are valid before proceeding
+          if (!metric || !metric.name) {
+            logger.warn('Skipping invalid metric entry during score extraction:', metric)
+            return // Skip this iteration
+          }
+
           const metricName = metric.name
           const lowerCaseMetricName = metricName.toLowerCase()
 
@@ -167,9 +183,10 @@ export class EvaluatorBlockHandler implements BlockHandler {
             metricScores[lowerCaseMetricName] = Number(parsedContent[metricName.toUpperCase()])
           } else {
             // Last resort - try to find any key that might contain this metric name
-            const matchingKey = Object.keys(parsedContent).find((key) =>
-              key.toLowerCase().includes(metricName.toLowerCase())
-            )
+            const matchingKey = Object.keys(parsedContent).find((key) => {
+              // Add check for key validity before calling toLowerCase()
+              return typeof key === 'string' && key.toLowerCase().includes(lowerCaseMetricName)
+            })
 
             if (matchingKey) {
               metricScores[lowerCaseMetricName] = Number(parsedContent[matchingKey])
@@ -181,8 +198,13 @@ export class EvaluatorBlockHandler implements BlockHandler {
         })
       } else {
         // If we couldn't parse any content, set all metrics to 0
-        metrics.forEach((metric: { name: string }) => {
-          metricScores[metric.name.toLowerCase()] = 0
+        validMetrics.forEach((metric: any) => {
+          // Ensure metric and name are valid before setting default score
+          if (metric && metric.name) {
+            metricScores[metric.name.toLowerCase()] = 0
+          } else {
+            logger.warn('Skipping invalid metric entry when setting default scores:', metric)
+          }
         })
       }
     } catch (e) {

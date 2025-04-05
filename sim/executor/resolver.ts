@@ -62,15 +62,25 @@ export class InputResolver {
         continue
       }
 
+      // *** Add check for Condition Block's 'conditions' key early ***
+      const isConditionBlock = block.metadata?.id === 'condition'
+      const isConditionsKey = key === 'conditions'
+
+      if (isConditionBlock && isConditionsKey && typeof value === 'string') {
+        // Pass the raw string directly without resolving refs or parsing JSON
+        result[key] = value
+        logger.debug(`[resolveInputs] Passing raw 'conditions' string for Condition block`)
+        continue // Skip further processing for this key
+      }
+      // *** End of early check ***
+
       // Handle string values that may contain references
       if (typeof value === 'string') {
         // First check for variable references
         let resolvedValue = this.resolveVariableReferences(value, block)
 
-        // Resolve block references UNLESS it's the 'conditions' input for a 'condition' block
-        if (!(block.metadata?.id === 'condition' && key === 'conditions')) {
-          resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
-        }
+        // Then resolve block references
+        resolvedValue = this.resolveBlockReferences(resolvedValue, context, block)
 
         // Check if this is an API key field
         const isApiKey =
@@ -87,14 +97,12 @@ export class InputResolver {
 
         // For function blocks, we need special handling for code input
         if (isFunctionBlock && key === 'code') {
-          // For code input in function blocks, we don't want to parse JSON
           result[key] = resolvedValue
           logger.debug(`[resolveInputs] Function block code input preserved as string`)
         }
         // For API blocks, handle body input specially
         else if (isApiBlock && key === 'body') {
           try {
-            // If it's JSON-looking, preserve its structure
             if (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('[')) {
               result[key] = JSON.parse(resolvedValue)
               logger.debug(`[resolveInputs] API block body parsed as JSON object`)
@@ -103,7 +111,6 @@ export class InputResolver {
               logger.debug(`[resolveInputs] API block body preserved as string`)
             }
           } catch {
-            // If parsing fails, keep as string
             result[key] = resolvedValue
             logger.debug(`[resolveInputs] API block body JSON parsing failed, keeping as string`)
           }
@@ -111,10 +118,16 @@ export class InputResolver {
         // For other inputs, try to convert JSON strings to objects
         else {
           try {
-            if (resolvedValue.startsWith('{') || resolvedValue.startsWith('[')) {
+            // Check if it looks like JSON and is not empty
+            if (
+              resolvedValue && // Ensure resolvedValue is not null/undefined before trim
+              resolvedValue.trim().length > 0 &&
+              (resolvedValue.trim().startsWith('{') || resolvedValue.trim().startsWith('['))
+            ) {
               result[key] = JSON.parse(resolvedValue)
               logger.debug(`[resolveInputs] Parsed JSON value for ${key}`)
             } else {
+              // If not JSON-like or empty, keep as string (or potentially null/undefined if resolvedValue became that)
               result[key] = resolvedValue
             }
           } catch {
@@ -125,6 +138,8 @@ export class InputResolver {
       }
       // Handle objects and arrays recursively
       else if (typeof value === 'object') {
+        // *** Note: If conditions is ever stored as an object, this needs adjustment ***
+        // Assuming conditions is always passed as string from UI initially.
         result[key] = this.resolveNestedStructure(value, context, block)
       }
       // Pass through other value types
