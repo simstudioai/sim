@@ -48,13 +48,11 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const prevStoreValueRef = useRef<string | null>(null)
   // Use a ref to track if we're currently syncing from store to prevent loops
   const isSyncingFromStoreRef = useRef(false)
-  // Flag to indicate if the initial load from storeValue is complete
-  const isInitialLoadCompleteRef = useRef(false)
 
-  // Initialize conditional blocks with stable IDs that include the blockId
+  // Initialize conditional blocks with if and else blocks
   const [conditionalBlocks, setConditionalBlocks] = useState<ConditionalBlock[]>([
     {
-      id: `if-${blockId}`,
+      id: crypto.randomUUID(),
       title: 'if',
       value: '',
       showTags: false,
@@ -64,7 +62,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       activeSourceBlockId: null,
     },
     {
-      id: `else-${blockId}`,
+      id: crypto.randomUUID(),
       title: 'else',
       value: '',
       showTags: false,
@@ -74,11 +72,6 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       activeSourceBlockId: null,
     },
   ])
-
-  // Make sure node internals are updated when blocks change
-  useEffect(() => {
-    updateNodeInternals(`${blockId}-${subBlockId}`)
-  }, [conditionalBlocks, blockId, subBlockId, updateNodeInternals])
 
   // Sync store value with conditional blocks when storeValue changes
   useEffect(() => {
@@ -98,22 +91,13 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     try {
       const parsedValue = JSON.parse(storeValueStr)
       if (Array.isArray(parsedValue)) {
-        // Ensure IDs are stable by incorporating blockId
-        const processedBlocks = parsedValue.map((block, index) => {
-          const prefix = block.title.toLowerCase().replace(/\s+/g, '')
-          return {
-            ...block,
-            // Create a stable ID based on blockId and the block's title/position
-            id: `${prefix}-${blockId}-${index}`,
-          }
-        })
-        setConditionalBlocks(processedBlocks)
+        setConditionalBlocks(parsedValue)
       }
     } catch (error) {
-      // If parsing fails, set default blocks with stable IDs
+      // If parsing fails, set default blocks
       setConditionalBlocks([
         {
-          id: `if-${blockId}`,
+          id: crypto.randomUUID(),
           title: 'if',
           value: '',
           showTags: false,
@@ -123,7 +107,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
           activeSourceBlockId: null,
         },
         {
-          id: `else-${blockId}`,
+          id: crypto.randomUUID(),
           title: 'else',
           value: '',
           showTags: false,
@@ -134,24 +118,17 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         },
       ])
     } finally {
-      // Reset the syncing flag and update node internals
+      // Reset the syncing flag
       setTimeout(() => {
         isSyncingFromStoreRef.current = false
-        updateNodeInternals(`${blockId}-${subBlockId}`)
-        // Mark initial load as complete after attempting to load from store
-        if (!isInitialLoadCompleteRef.current) {
-          isInitialLoadCompleteRef.current = true
-        }
       }, 0)
     }
-  }, [storeValue, blockId, subBlockId, updateNodeInternals])
+  }, [storeValue])
 
   // Update store whenever conditional blocks change
   useEffect(() => {
     // Skip if we're currently syncing from store to prevent loops
     if (isSyncingFromStoreRef.current) return
-    // Skip if initial load from storeValue is not yet complete
-    if (!isInitialLoadCompleteRef.current) return
 
     const newValue = JSON.stringify(conditionalBlocks)
 
@@ -161,7 +138,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       setStoreValue(newValue)
       updateNodeInternals(`${blockId}-${subBlockId}`)
     }
-  }, [conditionalBlocks, blockId, subBlockId, setStoreValue, updateNodeInternals])
+  }, [conditionalBlocks, blockId, subBlockId])
 
   // Update block value with trigger checks - handle both tag and env var triggers consistently
   const updateBlockValue = (
@@ -373,17 +350,14 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     return blocks.map((block, index) => ({
       ...block,
       title: index === 0 ? 'if' : index === blocks.length - 1 ? 'else' : 'else if',
-      // Ensure ID has stable format: type-blockId-index
-      id: `${index === 0 ? 'if' : index === blocks.length - 1 ? 'else' : 'elseif'}-${blockId}-${index}`,
     }))
   }
 
-  // Update these functions to use updateBlockTitles and maintain stable IDs
+  // Update these functions to use updateBlockTitles
   const addBlock = (afterId: string) => {
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
     const newBlock: ConditionalBlock = {
-      // Create a temporary ID that will be replaced by updateBlockTitles
-      id: `elseif-${blockId}-temp`,
+      id: crypto.randomUUID(),
       title: '', // Will be set by updateBlockTitles
       value: '',
       showTags: false,
@@ -397,9 +371,14 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     newBlocks.splice(blockIndex + 1, 0, newBlock)
     setConditionalBlocks(updateBlockTitles(newBlocks))
 
-    // Update node internals to register the new handle
+    // Focus the new block's editor after a short delay
     setTimeout(() => {
-      updateNodeInternals(`${blockId}-${subBlockId}`)
+      const textarea: any = editorRef.current?.querySelector(
+        `[data-block-id="${newBlock.id}"] textarea`
+      )
+      if (textarea) {
+        textarea.focus()
+      }
     }, 0)
   }
 
@@ -412,17 +391,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     })
 
     if (conditionalBlocks.length === 1) return
-
-    setConditionalBlocks((blocks) => {
-      const updatedBlocks = updateBlockTitles(blocks.filter((block) => block.id !== id))
-
-      // Update node internals after removing a block
-      setTimeout(() => {
-        updateNodeInternals(`${blockId}-${subBlockId}`)
-      }, 0)
-
-      return updatedBlocks
-    })
+    setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
   }
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
@@ -439,13 +408,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       newBlocks[targetIndex],
       newBlocks[blockIndex],
     ]
-
     setConditionalBlocks(updateBlockTitles(newBlocks))
-
-    // Update node internals after rearranging blocks
-    setTimeout(() => {
-      updateNodeInternals(`${blockId}-${subBlockId}`)
-    }, 0)
   }
 
   // Add useEffect to handle keyboard events for both dropdowns
@@ -491,7 +454,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               type="source"
               position={Position.Right}
               id={`condition-${block.id}`}
-              key={`handle-${block.id}`}
+              key={`${block.id}-${index}`}
               className={cn(
                 '!w-[7px] !h-5',
                 '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
