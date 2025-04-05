@@ -425,6 +425,7 @@ export const auth = betterAuth({
           responseType: 'code',
           pkce: true,
           accessType: 'offline',
+          authentication: 'basic',
           prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
         },
