@@ -72,6 +72,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             loops,
             isDeployed: isDeployed !== undefined ? isDeployed : false,
             deployedAt: deployedAt ? new Date(deployedAt) : undefined,
+            hasActiveSchedule: false,
             history: history || {
               past: [],
               present: {
@@ -100,6 +101,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             loops: {},
             isDeployed: false,
             deployedAt: undefined,
+            hasActiveSchedule: false,
             history: {
               past: [],
               present: {
@@ -451,6 +453,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 loops,
                 isDeployed: isDeployed || false,
                 deployedAt: deployedAt ? new Date(deployedAt) : undefined,
+                hasActiveSchedule: false,
                 history: history || {
                   past: [],
                   present: {
@@ -475,6 +478,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 loops: {},
                 isDeployed: false,
                 deployedAt: undefined,
+                hasActiveSchedule: false,
                 history: {
                   past: [],
                   present: {

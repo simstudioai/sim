@@ -20,6 +20,7 @@ const initialState = {
   isDeployed: false,
   deployedAt: undefined,
   needsRedeployment: false,
+  hasActiveSchedule: false,
   history: {
     past: [],
     present: {
@@ -280,6 +281,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
           isDeployed: false,
           isPublished: false,
+          hasActiveSchedule: false,
         }
         set(newState)
         workflowSync.sync()

@@ -5,12 +5,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { cn, formatDateTime } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { parseCronToHumanReadable } from '../../../../../lib/schedule-utils'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
@@ -31,6 +32,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const [scheduleInfo, setScheduleInfo] = useState<{
+    scheduleTiming: string
+    nextRunAt: string | null
+    lastRanAt: string | null
+  } | null>(null)
 
   // Refs
   const blockRef = useRef<HTMLDivElement>(null)
@@ -55,6 +61,47 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   // Execution store
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
   const isActive = dataIsActive || isActiveBlock
+
+  // Get schedule information for the tooltip
+  useEffect(() => {
+    if (type === 'starter' && hasActiveSchedule) {
+      // Fetch schedule information
+      const fetchScheduleInfo = async () => {
+        try {
+          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!workflowId) return
+
+          const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache',
+            },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+
+            if (data.schedule) {
+              let scheduleTiming = 'Unknown schedule'
+              if (data.schedule.cronExpression) {
+                scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
+              }
+
+              setScheduleInfo({
+                scheduleTiming,
+                nextRunAt: data.schedule.nextRunAt,
+                lastRanAt: data.schedule.lastRanAt,
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching schedule info:', error)
+        }
+      }
+
+      fetchScheduleInfo()
+    }
+  }, [type, hasActiveSchedule])
 
   // Update node internals when handles change
   useEffect(() => {
@@ -298,13 +345,43 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 <TooltipTrigger asChild>
                   <Badge
                     variant="outline"
-                    className="bg-green-50 text-green-600 border-green-200 animate-pulse-slow"
+                    className="flex items-center gap-1 text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400 font-normal text-xs"
                   >
-                    <Calendar className="h-3 w-3 mr-1" />
+                    <div className="relative flex items-center justify-center mr-0.5">
+                      <div className="absolute h-3 w-3 rounded-full bg-green-500/20"></div>
+                      <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
+                    </div>
                     Scheduled
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent side="top">This workflow is running on a schedule</TooltipContent>
+                <TooltipContent side="top" className="max-w-[300px] p-4">
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-medium mb-1">Schedule Information</p>
+                      {scheduleInfo ? (
+                        <>
+                          <p className="text-sm mb-1">{scheduleInfo.scheduleTiming}</p>
+                          <div className="text-xs text-muted-foreground">
+                            {scheduleInfo.nextRunAt && (
+                              <div>
+                                Next run: {formatDateTime(new Date(scheduleInfo.nextRunAt))}
+                              </div>
+                            )}
+                            {scheduleInfo.lastRanAt && (
+                              <div>
+                                Last run: {formatDateTime(new Date(scheduleInfo.lastRanAt))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          This workflow is running on a schedule.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </TooltipContent>
               </Tooltip>
             )}
             {config.longDescription && (

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { UnsavedChangesDialog } from '../../../components/webhook/components/ui/confirmation'
 import { useSubBlockValue } from '../../../hooks/use-sub-block-value'
 import { TimeInput } from '../../time-input'
@@ -253,17 +254,25 @@ export function ScheduleModal({
       }
 
       // Make sure the block's startWorkflow field is set to 'schedule'
-      // This is critical to ensure the schedule is actually enabled
       logger.debug('Current startWorkflow value:', startWorkflow)
 
+      // Important: Set startWorkflow to 'schedule' in two ways for maximum reliability
+      // 1. Via the hook which will trigger a state update
       if (startWorkflow !== 'schedule') {
-        logger.debug('Setting startWorkflow to schedule')
+        logger.debug('Setting startWorkflow to schedule via hook')
         setStartWorkflow('schedule')
-
-        // Give the state time to update
-        await new Promise((resolve) => setTimeout(resolve, 100))
       }
 
+      // 2. Also directly set the value in the subblock store for immediate effect
+      // This provides a more reliable way to ensure the value is set
+      logger.debug('Setting startWorkflow to schedule directly in store')
+      useSubBlockStore.getState().setValue(blockId, 'startWorkflow', 'schedule')
+
+      // Give time for the state updates to propagate
+      await new Promise((resolve) => setTimeout(resolve, 150))
+
+      // Call the onSave function passed from the parent component
+      // This will handle the actual API call and store update
       const success = await onSave()
 
       if (success) {
