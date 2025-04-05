@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { FolderSection } from './components/folder-section/folder-section'
 import { HelpModal } from './components/help-modal/help-modal'
 import { NavItem } from './components/nav-item/nav-item'
 import { SettingsModal } from './components/settings-modal/settings-modal'
+import { WorkflowFolders } from './components/workflow-folders/workflow-folders'
 
 export function Sidebar() {
   const { workflows, createWorkflow } = useWorkflowRegistry()
@@ -85,7 +85,8 @@ export function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
-      <nav className="flex flex-col items-center gap-4 px-2 py-5">
+      {/* Top navigation - Logo and Add button */}
+      <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-5">
         {/* Sim Studio Logo */}
         <Link
           href="/w/1"
@@ -112,23 +113,18 @@ export function Sidebar() {
         </Tooltip>
       </nav>
 
-      {/* Scrollable workflows section */}
-      <nav className="flex-1 overflow-y-auto px-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-        <div className="flex flex-col items-center gap-4">
-          {/* My Workflows folder */}
-          <FolderSection title="My Workflows" workflows={regularWorkflows} defaultOpen={true} />
-
-          {/* Marketplace Workflows folder */}
-          <FolderSection
-            title="Marketplace"
-            workflows={tempWorkflows}
-            defaultOpen={true}
-            icon={Store}
+      {/* Workflow sections - This area scrolls */}
+      <div className="flex-1 overflow-y-auto px-2 scrollbar-none">
+        <div className="pb-2">
+          <WorkflowFolders
+            regularWorkflows={regularWorkflows}
+            marketplaceWorkflows={tempWorkflows}
           />
         </div>
-      </nav>
+      </div>
 
-      <nav className="flex flex-col items-center gap-4 px-2 py-[18px]">
+      {/* Bottom navigation - Always visible */}
+      <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-[18px]">
         {/* Marketplace */}
         <Tooltip>
           <TooltipTrigger asChild>
