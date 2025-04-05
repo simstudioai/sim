@@ -151,6 +151,7 @@ export class AgentBlockHandler implements BlockHandler {
       apiKey: inputs.apiKey,
       responseFormat,
     }
+    logger.info(`Provider request`, { providerRequest })
 
     logger.info(`Provider request prepared`, {
       model: providerRequest.model,

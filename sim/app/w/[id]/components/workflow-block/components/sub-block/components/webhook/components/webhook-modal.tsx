@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
-import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
+import { AirtableWebhookConfig, ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
+import { AirtableConfig } from './providers/airtable-config'
 import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
@@ -72,6 +73,12 @@ export function WebhookModal({
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
 
+  // Airtable-specific state
+  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
+  const [airtableBaseId, setAirtableBaseId] = useState('')
+  const [airtableTableId, setAirtableTableId] = useState('')
+  const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
+
   // Original values to track changes
   const [originalValues, setOriginalValues] = useState({
     whatsappVerificationToken: '',
@@ -83,6 +90,10 @@ export function WebhookModal({
     discordWebhookName: '',
     discordAvatarUrl: '',
     slackSigningSecret: '',
+    airtableWebhookSecret: '',
+    airtableBaseId: '',
+    airtableTableId: '',
+    airtableIncludeCellValues: false,
   })
 
   // Get the current provider configuration
@@ -181,6 +192,22 @@ export function WebhookModal({
                 const signingSecret = config.signingSecret || ''
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
+              } else if (webhookProvider === 'airtable') {
+                const airtableConfig = config as AirtableWebhookConfig
+                const baseIdVal = airtableConfig.baseId || ''
+                const tableIdVal = airtableConfig.tableId || ''
+                const includeCells = airtableConfig.includeCellValuesInFieldIds === 'all'
+
+                setAirtableBaseId(baseIdVal)
+                setAirtableTableId(tableIdVal)
+                setAirtableIncludeCellValues(includeCells)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  airtableBaseId: baseIdVal,
+                  airtableTableId: tableIdVal,
+                  airtableIncludeCellValues: includeCells,
+                }))
               }
             }
           }
@@ -213,7 +240,12 @@ export function WebhookModal({
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
-      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret)
+      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
+      (webhookProvider === 'airtable' &&
+        (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
+          airtableBaseId !== originalValues.airtableBaseId ||
+          airtableTableId !== originalValues.airtableTableId ||
+          airtableIncludeCellValues !== originalValues.airtableIncludeCellValues))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -228,6 +260,10 @@ export function WebhookModal({
     allowedIps,
     originalValues,
     slackSigningSecret,
+    airtableWebhookSecret,
+    airtableBaseId,
+    airtableTableId,
+    airtableIncludeCellValues,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -277,6 +313,13 @@ export function WebhookModal({
         }
       case 'slack':
         return { signingSecret: slackSigningSecret }
+      case 'airtable':
+        return {
+          webhookSecret: airtableWebhookSecret || undefined,
+          baseId: airtableBaseId,
+          tableId: airtableTableId,
+          includeCellValuesInFieldIds: airtableIncludeCellValues ? 'all' : undefined,
+        } as AirtableWebhookConfig
       default:
         return {}
     }
@@ -308,6 +351,10 @@ export function WebhookModal({
           discordWebhookName,
           discordAvatarUrl,
           slackSigningSecret,
+          airtableWebhookSecret,
+          airtableBaseId,
+          airtableTableId,
+          airtableIncludeCellValues,
         })
         setHasUnsavedChanges(false)
       }
@@ -457,6 +504,23 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+          />
+        )
+      case 'airtable':
+        return (
+          <AirtableConfig
+            baseId={airtableBaseId}
+            setBaseId={setAirtableBaseId}
+            tableId={airtableTableId}
+            setTableId={setAirtableTableId}
+            includeCellValues={airtableIncludeCellValues}
+            setIncludeCellValues={setAirtableIncludeCellValues}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
+            webhookId={webhookId}
           />
         )
       case 'generic':
