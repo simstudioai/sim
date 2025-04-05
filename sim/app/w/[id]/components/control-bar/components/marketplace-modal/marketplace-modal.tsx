@@ -451,6 +451,11 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
               disabled={isUnpublishing}
               className="gap-2"
             >
+              {isUnpublishing ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+              ) : (
+                <Trash className="h-4 w-4 mr-2" />
+              )}
               {isUnpublishing ? 'Unpublishing...' : 'Unpublish'}
             </Button>
           </div>

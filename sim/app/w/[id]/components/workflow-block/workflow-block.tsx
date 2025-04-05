@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { Calendar, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,6 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { ActionBar } from './components/action-bar/action-bar'
-import { ScheduleStatus } from './components/action-bar/schedule-status'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
 
@@ -46,6 +45,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
+  const hasActiveSchedule = useWorkflowStore((state) => state.hasActiveSchedule ?? false)
 
   // Workflow store actions
   const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
@@ -194,6 +194,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
+  // Check if this is a starter block and has an active schedule
+  const isStarterBlock = type === 'starter'
+  const showScheduleIndicator = isStarterBlock && hasActiveSchedule
+
   return (
     <div className="relative group">
       <Card
@@ -288,7 +292,21 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 Disabled
               </Badge>
             )}
-            {type === 'starter' && <ScheduleStatus blockId={id} />}
+            {/* Schedule indicator badge - displayed for starter blocks with active schedules */}
+            {showScheduleIndicator && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="bg-green-50 text-green-600 border-green-200 animate-pulse-slow"
+                  >
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Scheduled
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top">This workflow is running on a schedule</TooltipContent>
+              </Tooltip>
+            )}
             {config.longDescription && (
               <Tooltip>
                 <TooltipTrigger asChild>

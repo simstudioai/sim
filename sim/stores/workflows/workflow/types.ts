@@ -46,6 +46,7 @@ export interface WorkflowState {
   isDeployed?: boolean
   deployedAt?: Date
   needsRedeployment?: boolean
+  hasActiveSchedule?: boolean
 }
 
 export interface WorkflowActions {
@@ -54,7 +55,7 @@ export interface WorkflowActions {
   removeBlock: (id: string) => void
   addEdge: (edge: Edge) => void
   removeEdge: (edgeId: string) => void
-  clear: () => void
+  clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   toggleBlockEnabled: (id: string) => void
   duplicateBlock: (id: string) => void
@@ -62,12 +63,13 @@ export interface WorkflowActions {
   updateBlockName: (id: string, name: string) => void
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
+  triggerUpdate: () => void
   updateLoopIterations: (loopId: string, iterations: number) => void
   updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
   updateLoopForEachItems: (loopId: string, items: string) => void
-  triggerUpdate: () => void
-  setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
+  setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
+  setScheduleStatus: (hasActiveSchedule: boolean) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions
