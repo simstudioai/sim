@@ -427,39 +427,6 @@ export const auth = betterAuth({
           accessType: 'offline',
           prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
-          getUserInfo: async (tokens) => {
-            try {
-              const response = await fetch('https://api.airtable.com/v0/meta/whoami', {
-                headers: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                },
-              })
-
-              if (!response.ok) {
-                logger.error('Error fetching Airtable user info:', {
-                  status: response.status,
-                  statusText: response.statusText,
-                })
-                return null
-              }
-
-              const profile = await response.json()
-              const now = new Date()
-
-              return {
-                id: profile.id,
-                name: profile.name || 'Airtable User',
-                email: profile.email,
-                image: null,
-                emailVerified: true,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (error) {
-              logger.error('Error in Airtable getUserInfo:', { error })
-              return null
-            }
-          },
         },
       ],
     }),
