@@ -34,6 +34,11 @@ interface ConditionInputProps {
   isConnecting: boolean
 }
 
+// Generate a stable ID based on the blockId and a suffix
+const generateStableId = (blockId: string, suffix: string): string => {
+  return `${blockId}-${suffix}`
+}
+
 export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -48,11 +53,13 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const prevStoreValueRef = useRef<string | null>(null)
   // Use a ref to track if we're currently syncing from store to prevent loops
   const isSyncingFromStoreRef = useRef(false)
+  // Use a ref to track if we've already initialized from store
+  const hasInitializedRef = useRef(false)
 
-  // Initialize conditional blocks with if and else blocks
-  const [conditionalBlocks, setConditionalBlocks] = useState<ConditionalBlock[]>([
+  // Create default blocks with stable IDs
+  const createDefaultBlocks = (): ConditionalBlock[] => [
     {
-      id: crypto.randomUUID(),
+      id: generateStableId(blockId, 'if'),
       title: 'if',
       value: '',
       showTags: false,
@@ -62,7 +69,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       activeSourceBlockId: null,
     },
     {
-      id: crypto.randomUUID(),
+      id: generateStableId(blockId, 'else'),
       title: 'else',
       value: '',
       showTags: false,
@@ -71,15 +78,53 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       cursorPosition: 0,
       activeSourceBlockId: null,
     },
-  ])
+  ]
+
+  // Initialize with default blocks but we'll update from store immediately if available
+  const [conditionalBlocks, setConditionalBlocks] =
+    useState<ConditionalBlock[]>(createDefaultBlocks)
+
+  // Safely parse JSON with fallback
+  const safeParseJSON = (jsonString: string | null): ConditionalBlock[] | null => {
+    if (!jsonString) return null
+    try {
+      const parsed = JSON.parse(jsonString)
+      if (!Array.isArray(parsed)) return null
+
+      // Validate that the parsed data has the expected structure
+      if (
+        parsed.length === 0 ||
+        !parsed[0].hasOwnProperty('id') ||
+        !parsed[0].hasOwnProperty('title')
+      ) {
+        return null
+      }
+
+      return parsed
+    } catch (error) {
+      logger.error('Failed to parse JSON:', { error, jsonString })
+      return null
+    }
+  }
 
   // Sync store value with conditional blocks when storeValue changes
   useEffect(() => {
-    // Skip if we don't have a store value
-    if (storeValue === null) return
+    // Skip if syncing is already in progress
+    if (isSyncingFromStoreRef.current) return
+
+    // Convert storeValue to string if it's not null
+    const storeValueStr = storeValue !== null ? storeValue.toString() : null
+
+    // If store value is null, and we've already initialized, keep current state
+    if (storeValueStr === null) {
+      if (hasInitializedRef.current) return
+      // If we haven't initialized yet, set default blocks
+      setConditionalBlocks(createDefaultBlocks())
+      hasInitializedRef.current = true
+      return
+    }
 
     // Skip if the store value hasn't changed
-    const storeValueStr = storeValue.toString()
     if (storeValueStr === prevStoreValueRef.current) return
 
     // Update the previous store value ref
@@ -88,42 +133,29 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     // Set that we're syncing from store to prevent loops
     isSyncingFromStoreRef.current = true
 
-    try {
-      const parsedValue = JSON.parse(storeValueStr)
-      if (Array.isArray(parsedValue)) {
-        setConditionalBlocks(parsedValue)
-      }
-    } catch (error) {
-      // If parsing fails, set default blocks
-      setConditionalBlocks([
-        {
-          id: crypto.randomUUID(),
-          title: 'if',
-          value: '',
-          showTags: false,
-          showEnvVars: false,
-          searchTerm: '',
-          cursorPosition: 0,
-          activeSourceBlockId: null,
-        },
-        {
-          id: crypto.randomUUID(),
-          title: 'else',
-          value: '',
-          showTags: false,
-          showEnvVars: false,
-          searchTerm: '',
-          cursorPosition: 0,
-          activeSourceBlockId: null,
-        },
-      ])
-    } finally {
-      // Reset the syncing flag
-      setTimeout(() => {
-        isSyncingFromStoreRef.current = false
-      }, 0)
+    // Parse the store value
+    const parsedBlocks = safeParseJSON(storeValueStr)
+
+    if (parsedBlocks) {
+      // Use the parsed blocks, but ensure titles are correct based on position
+      const blocksWithCorrectTitles = parsedBlocks.map((block, index) => ({
+        ...block,
+        title: index === 0 ? 'if' : index === parsedBlocks.length - 1 ? 'else' : 'else if',
+      }))
+
+      setConditionalBlocks(blocksWithCorrectTitles)
+      hasInitializedRef.current = true
+    } else if (!hasInitializedRef.current) {
+      // Only set default blocks if we haven't initialized yet
+      setConditionalBlocks(createDefaultBlocks())
+      hasInitializedRef.current = true
     }
-  }, [storeValue])
+
+    // Reset the syncing flag after a short delay
+    setTimeout(() => {
+      isSyncingFromStoreRef.current = false
+    }, 0)
+  }, [storeValue, blockId])
 
   // Update store whenever conditional blocks change
   useEffect(() => {
@@ -138,7 +170,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       setStoreValue(newValue)
       updateNodeInternals(`${blockId}-${subBlockId}`)
     }
-  }, [conditionalBlocks, blockId, subBlockId])
+  }, [conditionalBlocks, blockId, subBlockId, setStoreValue, updateNodeInternals])
 
   // Update block value with trigger checks - handle both tag and env var triggers consistently
   const updateBlockValue = (
@@ -353,11 +385,15 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     }))
   }
 
-  // Update these functions to use updateBlockTitles
+  // Update these functions to use updateBlockTitles and stable IDs
   const addBlock = (afterId: string) => {
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
+
+    // Generate a stable ID using the blockId and a timestamp
+    const newBlockId = generateStableId(blockId, `else-if-${Date.now()}`)
+
     const newBlock: ConditionalBlock = {
-      id: crypto.randomUUID(),
+      id: newBlockId,
       title: '', // Will be set by updateBlockTitles
       value: '',
       showTags: false,
