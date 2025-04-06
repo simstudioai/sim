@@ -22,6 +22,9 @@ interface TableRow {
 export function Table({ columns, blockId, subBlockId }: TableProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
 
+  // Create refs for input elements
+  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+
   // Ensure value is properly typed and initialized
   const rows = useMemo(() => {
     if (!Array.isArray(value)) {
@@ -46,6 +49,26 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
     activeSourceBlockId: string | null
     element?: HTMLElement | null
   } | null>(null)
+
+  // Sync overlay scroll with input scroll
+  useEffect(() => {
+    if (activeCell) {
+      const cellKey = `${activeCell.rowIndex}-${activeCell.column}`
+      const input = inputRefs.current.get(cellKey)
+      const overlay = document.querySelector(`[data-overlay="${cellKey}"]`) as HTMLElement
+
+      if (input && overlay) {
+        const handleScroll = () => {
+          overlay.scrollLeft = input.scrollLeft
+        }
+
+        input.addEventListener('scroll', handleScroll)
+        return () => {
+          input.removeEventListener('scroll', handleScroll)
+        }
+      }
+    }
+  }, [activeCell])
 
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     const updatedRows = [...rows].map((row, idx) =>
@@ -92,14 +115,18 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
 
   const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
     const cellValue = row.cells[column] || ''
+    const cellKey = `${rowIndex}-${column}`
 
     return (
       <td
         key={`${row.id}-${column}`}
         className={cn('p-1 relative', cellIndex < columns.length - 1 && 'border-r')}
       >
-        <div className="relative">
+        <div className="relative w-full">
           <Input
+            ref={(el) => {
+              if (el) inputRefs.current.set(cellKey, el)
+            }}
             value={cellValue}
             placeholder={column}
             onChange={(e) => {
@@ -145,10 +172,13 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 setActiveCell(null)
               }
             }}
-            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50"
+            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 w-full"
           />
-          <div className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre text-sm bg-transparent">
-            {formatDisplayText(cellValue)}
+          <div
+            data-overlay={cellKey}
+            className="absolute inset-0 pointer-events-none px-3 flex items-center text-sm bg-transparent overflow-hidden"
+          >
+            <div className="whitespace-pre">{formatDisplayText(cellValue)}</div>
           </div>
         </div>
       </td>
