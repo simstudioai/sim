@@ -1,40 +1,20 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { createLogger } from '@/lib/logs/console-logger'
+import { ToolConfig } from '../types'
+import { FileParseResult, FileParserInput, FileParserOutput, FileParserOutputData } from './types'
 
-export interface FileParserInput {
-  filePath: string | string[]
-  fileType?: string
-}
-
-export interface FileParseResult {
-  content: string
-  fileType: string
-  size: number
-  name: string
-  binary: boolean
-  metadata?: Record<string, any>
-}
-
-export interface FileParserOutputData {
-  files: FileParseResult[]
-  combinedContent: string
-  [key: string]: any
-}
-
-export interface FileParserOutput extends ToolResponse {
-  output: FileParserOutputData
-}
+const logger = createLogger('FileParserTool')
 
 export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
   id: 'file_parser',
   name: 'File Parser',
-  description: 'Parse one or more uploaded files (text, PDF, CSV, images, etc.)',
+  description: 'Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)',
   version: '1.0.0',
 
   params: {
     filePath: {
       type: 'string',
       required: true,
-      description: 'Path to the uploaded file(s). Can be a single path or an array of paths.',
+      description: 'Path to the file(s). Can be a single path, URL, or an array of paths.',
     },
     fileType: {
       type: 'string',
@@ -50,77 +30,80 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       'Content-Type': 'application/json',
     }),
     body: (params: any) => {
-      console.log('[fileParserTool] Request parameters:', params)
+      logger.info('Request parameters received by tool body:', params)
 
-      // Check for valid input
       if (!params) {
-        console.error('[fileParserTool] No parameters provided')
-        throw new Error('No parameters provided')
+        logger.error('Tool body received no parameters')
+        throw new Error('No parameters provided to tool body')
       }
 
-      // Handle various input formats
-      let filePath = null
+      let determinedFilePath: string | string[] | null = null
+      let determinedFileType: string | undefined = params.fileType
 
-      // Handle multiple files case from block output
-      if (params.files && Array.isArray(params.files)) {
-        console.log('[fileParserTool] Processing multiple files:', params.files.length)
-        filePath = params.files.map((file: any) => file.path)
+      // Determine the file path(s) based on input parameters.
+      // Precedence: direct filePath > file array > single file object > legacy files array
+      // 1. Check for direct filePath (URL or single path from upload)
+      if (params.filePath) {
+        logger.info('Tool body found direct filePath:', params.filePath)
+        determinedFilePath = params.filePath
       }
-      // Handle the case where params is an object with file property
-      else if (params.file) {
-        if (Array.isArray(params.file)) {
-          console.log(
-            '[fileParserTool] Processing multiple files from file array:',
-            params.file.length
-          )
-          filePath = params.file.map((file: any) => file.path)
-        } else if (params.file.path) {
-          console.log('[fileParserTool] Extracted file path from file object:', params.file.path)
-          filePath = params.file.path
+      // 2. Check for file upload (array)
+      else if (params.file && Array.isArray(params.file) && params.file.length > 0) {
+        logger.info('Tool body processing file array upload')
+        const filePaths = params.file.map((file: any) => file.path)
+        determinedFilePath = filePaths // Always send as array
+      }
+      // 3. Check for file upload (single object)
+      else if (params.file && params.file.path) {
+        logger.info('Tool body processing single file object upload')
+        determinedFilePath = params.file.path
+      }
+      // 4. Check for deprecated multiple files case (from older blocks?)
+      else if (params.files && Array.isArray(params.files)) {
+        logger.info('Tool body processing legacy files array:', params.files.length)
+        if (params.files.length > 0) {
+          determinedFilePath = params.files.map((file: any) => file.path)
+        } else {
+          logger.warn('Legacy files array provided but is empty')
         }
       }
-      // Handle direct filePath parameter
-      else if (params.filePath) {
-        console.log('[fileParserTool] Using direct filePath parameter:', params.filePath)
-        filePath = params.filePath
-      }
 
-      if (!filePath) {
-        console.error('[fileParserTool] Missing required parameter: filePath')
+      // Final check if filePath was determined
+      if (!determinedFilePath) {
+        logger.error('Tool body could not determine filePath from parameters:', params)
         throw new Error('Missing required parameter: filePath')
       }
 
+      logger.info('Tool body determined filePath:', determinedFilePath)
       return {
-        filePath,
-        fileType: params.fileType,
+        filePath: determinedFilePath,
+        fileType: determinedFileType,
       }
     },
     isInternalRoute: true,
   },
 
   transformResponse: async (response: Response): Promise<FileParserOutput> => {
-    console.log('[fileParserTool] Received response status:', response.status)
+    logger.info('Received response status:', response.status)
 
     try {
       const result = await response.json()
-      console.log('[fileParserTool] Response parsed successfully')
+      logger.info('Response parsed successfully')
 
       if (!response.ok) {
         const errorMsg = result.error || 'File parsing failed'
-        console.error('[fileParserTool] Error in response:', errorMsg)
+        logger.error('Error in response:', errorMsg)
         throw new Error(errorMsg)
       }
 
       // Handle multiple files response
       if (result.results) {
-        console.log('[fileParserTool] Processing multiple files response')
+        logger.info('Processing multiple files response')
 
         // Extract individual file results
         const fileResults = result.results.map((fileResult: any) => {
           if (!fileResult.success) {
-            console.warn(
-              `[fileParserTool] Error parsing file ${fileResult.filePath}: ${fileResult.error}`
-            )
+            logger.warn(`Error parsing file ${fileResult.filePath}: ${fileResult.error}`)
             return {
               content: `Error parsing file: ${fileResult.error || 'Unknown error'}`,
               fileType: 'text/plain',
@@ -161,7 +144,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
 
       // Handle single file response
       if (result.success) {
-        console.log('[fileParserTool] Successfully parsed file:', result.output.name)
+        logger.info('Successfully parsed file:', result.output.name)
 
         // For a single file, create the output with both array and named property
         const output: FileParserOutputData = {
@@ -179,13 +162,13 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       // Handle error response
       throw new Error(result.error || 'File parsing failed')
     } catch (error) {
-      console.error('[fileParserTool] Error processing response:', error)
+      logger.error('Error processing response:', error)
       throw error
     }
   },
 
   transformError: (error: any) => {
-    console.error('[fileParserTool] Error occurred:', error)
+    logger.error('Error occurred:', error)
     return error.message || 'File parsing failed'
   },
 }
