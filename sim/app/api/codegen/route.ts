@@ -18,11 +18,18 @@ if (process.env.OPENAI_API_KEY) {
 
 type GenerationType = 'json-schema' | 'javascript-function-body' | 'typescript-function-body'
 
+// Define the structure for a single message in the history
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system' // System role might be needed if we include the initial system prompt in history
+  content: string
+}
+
 interface RequestBody {
   prompt: string
   generationType: GenerationType
   context?: string
   stream?: boolean
+  history?: ChatMessage[] // Optional conversation history
 }
 
 const systemPrompts: Record<GenerationType, string> = {
@@ -187,7 +194,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as RequestBody
 
-    const { prompt, generationType, context, stream = false } = body
+    // Destructure history along with other fields
+    const { prompt, generationType, context, stream = false, history = [] } = body
 
     if (!prompt || !generationType) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt or generationType.`)
@@ -206,11 +214,28 @@ export async function POST(req: NextRequest) {
     }
 
     const systemPrompt = systemPrompts[generationType]
-    const userMessage = context
-      ? `Prompt: ${prompt}\n\nExisting Content/Context:\n${context}`
-      : `Prompt: ${prompt}`
 
-    logger.debug(`[${requestId}] Calling OpenAI API`, { generationType, stream })
+    // Construct the user message, potentially including context
+    const currentUserMessageContent = context
+      ? `Prompt: ${prompt}\\n\\nExisting Content/Context:\\n${context}`
+      : `${prompt}` // Keep it simple for follow-ups, context is in history
+
+    // Prepare messages for OpenAI API
+    // Start with the system prompt
+    const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }]
+
+    // Add previous messages from history
+    // Filter out any potential system messages from history if we always prepend a fresh one
+    messages.push(...history.filter((msg) => msg.role !== 'system'))
+
+    // Add the current user prompt
+    messages.push({ role: 'user', content: currentUserMessageContent })
+
+    logger.debug(`[${requestId}] Calling OpenAI API`, {
+      generationType,
+      stream,
+      historyLength: history.length,
+    })
 
     // For streaming responses
     if (stream) {
@@ -221,12 +246,11 @@ export async function POST(req: NextRequest) {
       // Start streaming response
       const streamOpenAI = async () => {
         try {
-          const stream = await openai.chat.completions.create({
+          const streamCompletion = await openai!.chat.completions.create({
+            // Use non-null assertion as openai is checked above
             model: 'gpt-4o',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userMessage },
-            ],
+            // Pass the constructed messages array
+            messages: messages,
             temperature: 0.2,
             max_tokens: 1500,
             stream: true,
@@ -235,7 +259,7 @@ export async function POST(req: NextRequest) {
           let fullContent = ''
 
           // Process each chunk
-          for await (const chunk of stream) {
+          for await (const chunk of streamCompletion) {
             const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
               fullContent += content
@@ -323,12 +347,11 @@ export async function POST(req: NextRequest) {
     }
 
     // For non-streaming responses (original implementation)
-    const completion = await openai.chat.completions.create({
+    const completion = await openai!.chat.completions.create({
+      // Use non-null assertion
       model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage },
-      ],
+      // Pass the constructed messages array
+      messages: messages,
       temperature: 0.2,
       max_tokens: 1500,
       response_format: generationType === 'json-schema' ? { type: 'json_object' } : undefined,

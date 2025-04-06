@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import { SparklesIcon } from 'lucide-react'
+import { RefreshCcw, SparklesIcon } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -72,6 +72,13 @@ export function Code({
   const editorRef = useRef<HTMLDivElement>(null)
 
   // AI Code Generation Hook
+  const handleStreamStart = () => {
+    logger.debug('Clearing code editor for new stream', { blockId, subBlockId })
+    setCode('')
+    // Optionally clear the store value too, though handleStreamChunk will update it
+    // setStoreValue('')
+  }
+
   const handleGeneratedContent = (generatedCode: string) => {
     logger.debug('Applying generated code', { blockId, subBlockId })
     setCode(generatedCode)
@@ -102,11 +109,14 @@ export function Code({
     hidePromptInline,
     promptInputValue,
     updatePromptValue,
+    conversationHistory,
+    clearHistory,
   } = useCodeGeneration({
     generationType: generationType,
     initialContext: code,
     onGeneratedContent: handleGeneratedContent,
     onStreamChunk: handleStreamChunk,
+    onStreamStart: handleStreamStart,
   })
 
   // Effects
@@ -327,7 +337,8 @@ export function Code({
         <div
           className={cn(
             'pl-[30px] pt-0 mt-0 relative',
-            isCollapsed && 'max-h-[126px] overflow-hidden'
+            isCollapsed && 'max-h-[126px] overflow-hidden',
+            isAiStreaming && 'streaming-effect'
           )}
           ref={editorRef}
         >
