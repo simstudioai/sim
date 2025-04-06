@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshOAuthToken } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+import { refreshAccessTokenIfNeeded } from '../../utils'
 
 const logger = createLogger('GoogleDriveFilesAPI')
 
@@ -55,12 +55,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Check if the access token is valid
-    if (!credential.accessToken) {
-      logger.warn(`[${requestId}] No access token available for credential`, {
-        credentialId,
-      })
-      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
+    // Refresh access token if needed using the utility function
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
     // Build the query parameters for Google Drive API
@@ -86,54 +85,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Function to fetch files with a given token
-    const fetchFilesWithToken = async (token: string) => {
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files?${queryParams}&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners)`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-      return response
-    }
-
-    // First attempt with current token
-    let response = await fetchFilesWithToken(credential.accessToken)
-
-    // If unauthorized, try to refresh the token
-    if (response.status === 401 && credential.refreshToken) {
-      logger.info(`[${requestId}] Access token expired, attempting to refresh`)
-
-      try {
-        // Refresh the token using the centralized utility
-        const refreshedToken = await refreshOAuthToken(
-          credential.providerId,
-          credential.refreshToken
-        )
-
-        if (refreshedToken) {
-          logger.info(`[${requestId}] Token refreshed successfully`)
-
-          // Update the token in the database
-          await db
-            .update(account)
-            .set({
-              accessToken: refreshedToken,
-              accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
-              updatedAt: new Date(),
-            })
-            .where(eq(account.id, credentialId))
-
-          // Retry the request with the new token
-          response = await fetchFilesWithToken(refreshedToken)
-        }
-      } catch (refreshError) {
-        logger.error(`[${requestId}] Error refreshing token`, refreshError)
-        return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+    // Fetch files from Google Drive API
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files?${queryParams}&fields=files(id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners)`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       }
-    }
+    )
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))

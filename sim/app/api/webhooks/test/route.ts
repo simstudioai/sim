@@ -273,6 +273,82 @@ export async function GET(request: NextRequest) {
           },
         })
       }
+
+      // Add the Airtable test case
+      case 'airtable': {
+        const baseId = providerConfig.baseId
+        const tableId = providerConfig.tableId
+        const webhookSecret = providerConfig.webhookSecret
+
+        if (!baseId || !tableId) {
+          logger.warn(`[${requestId}] Airtable webhook missing Base ID or Table ID: ${webhookId}`)
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Webhook configuration is incomplete (missing Base ID or Table ID)',
+            },
+            { status: 400 }
+          )
+        }
+
+        // Define a sample payload structure
+        const samplePayload = {
+          webhook: {
+            id: 'whiYOUR_WEBHOOK_ID',
+          },
+          base: {
+            id: baseId,
+          },
+          payloadFormat: 'v0',
+          actionMetadata: {
+            source: 'tableOrViewChange', // Example source
+            sourceMetadata: {},
+          },
+          payloads: [
+            {
+              timestamp: new Date().toISOString(),
+              baseTransactionNumber: Date.now(), // Example transaction number
+              changedTablesById: {
+                [tableId]: {
+                  // Example changes - structure may vary based on actual event
+                  changedRecordsById: {
+                    recSAMPLEID1: {
+                      current: { cellValuesByFieldId: { fldSAMPLEID: 'New Value' } },
+                      previous: { cellValuesByFieldId: { fldSAMPLEID: 'Old Value' } },
+                    },
+                  },
+                  changedFieldsById: {},
+                  changedViewsById: {},
+                },
+              },
+            },
+          ],
+        }
+
+        // Generate sample curl command
+        let curlCommand = `curl -X POST "${webhookUrl}" -H "Content-Type: application/json"`
+        curlCommand += ` -d '${JSON.stringify(samplePayload, null, 2)}'`
+
+        logger.info(`[${requestId}] Airtable webhook test successful: ${webhookId}`)
+        return NextResponse.json({
+          success: true,
+          webhook: {
+            id: foundWebhook.id,
+            url: webhookUrl,
+            baseId: baseId,
+            tableId: tableId,
+            secretConfigured: !!webhookSecret,
+            isActive: foundWebhook.isActive,
+          },
+          message:
+            'Airtable webhook configuration appears valid. Use the sample curl command to manually send a test payload to your webhook URL.',
+          test: {
+            curlCommand: curlCommand,
+            samplePayload: samplePayload,
+          },
+        })
+      }
+
       default: {
         // Generic webhook test
         logger.info(`[${requestId}] Generic webhook test successful: ${webhookId}`)

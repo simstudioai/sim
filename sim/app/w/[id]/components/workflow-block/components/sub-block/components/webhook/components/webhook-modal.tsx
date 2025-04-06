@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
+import { AirtableConfig } from './providers/airtable-config'
 import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
@@ -21,7 +22,6 @@ interface WebhookModalProps {
   onClose: () => void
   webhookPath: string
   webhookProvider: string
-  workflowId: string
   onSave?: (path: string, providerConfig: ProviderConfig) => Promise<boolean>
   onDelete?: () => Promise<boolean>
   webhookId?: string
@@ -32,7 +32,6 @@ export function WebhookModal({
   onClose,
   webhookPath,
   webhookProvider,
-  workflowId,
   onSave,
   onDelete,
   webhookId,
@@ -57,7 +56,7 @@ export function WebhookModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
-  const isConfigured = Boolean(webhookId)
+  const [isCurrentConfigValid, setIsCurrentConfigValid] = useState(true)
 
   // Generic webhook state
   const [generalToken, setGeneralToken] = useState('')
@@ -72,6 +71,12 @@ export function WebhookModal({
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
 
+  // Airtable-specific state
+  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
+  const [airtableBaseId, setAirtableBaseId] = useState('')
+  const [airtableTableId, setAirtableTableId] = useState('')
+  const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
+
   // Original values to track changes
   const [originalValues, setOriginalValues] = useState({
     whatsappVerificationToken: '',
@@ -83,6 +88,10 @@ export function WebhookModal({
     discordWebhookName: '',
     discordAvatarUrl: '',
     slackSigningSecret: '',
+    airtableWebhookSecret: '',
+    airtableBaseId: '',
+    airtableTableId: '',
+    airtableIncludeCellValues: false,
   })
 
   // Get the current provider configuration
@@ -181,6 +190,21 @@ export function WebhookModal({
                 const signingSecret = config.signingSecret || ''
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
+              } else if (webhookProvider === 'airtable') {
+                const baseIdVal = config.baseId || ''
+                const tableIdVal = config.tableId || ''
+                const includeCells = config.includeCellValuesInFieldIds === 'all'
+
+                setAirtableBaseId(baseIdVal)
+                setAirtableTableId(tableIdVal)
+                setAirtableIncludeCellValues(includeCells)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  airtableBaseId: baseIdVal,
+                  airtableTableId: tableIdVal,
+                  airtableIncludeCellValues: includeCells,
+                }))
               }
             }
           }
@@ -213,7 +237,12 @@ export function WebhookModal({
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
-      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret)
+      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
+      (webhookProvider === 'airtable' &&
+        (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
+          airtableBaseId !== originalValues.airtableBaseId ||
+          airtableTableId !== originalValues.airtableTableId ||
+          airtableIncludeCellValues !== originalValues.airtableIncludeCellValues))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -228,6 +257,40 @@ export function WebhookModal({
     allowedIps,
     originalValues,
     slackSigningSecret,
+    airtableWebhookSecret,
+    airtableBaseId,
+    airtableTableId,
+    airtableIncludeCellValues,
+  ])
+
+  // Validate required fields for current provider
+  useEffect(() => {
+    let isValid = true
+    switch (webhookProvider) {
+      case 'airtable':
+        isValid = airtableBaseId.trim() !== '' && airtableTableId.trim() !== ''
+        break
+      case 'slack':
+        isValid = slackSigningSecret.trim() !== ''
+        break
+      case 'whatsapp':
+        // Although we auto-generate a token on creation, user could clear it when editing
+        isValid = whatsappVerificationToken.trim() !== ''
+        break
+      case 'github':
+        isValid = generalToken.trim() !== ''
+        break
+      case 'discord':
+        isValid = discordWebhookName.trim() !== ''
+        break
+    }
+    setIsCurrentConfigValid(isValid)
+  }, [
+    webhookProvider,
+    airtableBaseId,
+    airtableTableId,
+    slackSigningSecret,
+    whatsappVerificationToken,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -277,12 +340,29 @@ export function WebhookModal({
         }
       case 'slack':
         return { signingSecret: slackSigningSecret }
+      case 'airtable':
+        return {
+          webhookSecret: airtableWebhookSecret || undefined,
+          baseId: airtableBaseId,
+          tableId: airtableTableId,
+          includeCellValuesInFieldIds: airtableIncludeCellValues ? 'all' : undefined,
+        }
       default:
         return {}
     }
   }
 
   const handleSave = async () => {
+    if (!isCurrentConfigValid) {
+      logger.warn('Attempted to save with invalid configuration')
+      // Add user feedback for invalid configuration
+      setTestResult({
+        success: false,
+        message: 'Cannot save: Please fill in all required fields for the selected provider.',
+      })
+      return
+    }
+
     setIsSaving(true)
     try {
       // Call the onSave callback with the path and provider-specific config
@@ -294,25 +374,44 @@ export function WebhookModal({
           : formattedPath
 
         await new Promise((resolve) => setTimeout(resolve, 100))
-        await onSave(pathToSave, providerConfig)
+        const saveSuccessful = await onSave(pathToSave, providerConfig)
         await new Promise((resolve) => setTimeout(resolve, 100))
 
-        // Update original values to match current values after successful save
-        setOriginalValues({
-          whatsappVerificationToken,
-          githubContentType,
-          generalToken,
-          secretHeaderName,
-          requireAuth,
-          allowedIps,
-          discordWebhookName,
-          discordAvatarUrl,
-          slackSigningSecret,
-        })
-        setHasUnsavedChanges(false)
+        if (saveSuccessful) {
+          setOriginalValues({
+            whatsappVerificationToken,
+            githubContentType,
+            generalToken,
+            secretHeaderName,
+            requireAuth,
+            allowedIps,
+            discordWebhookName,
+            discordAvatarUrl,
+            slackSigningSecret,
+            airtableWebhookSecret,
+            airtableBaseId,
+            airtableTableId,
+            airtableIncludeCellValues,
+          })
+          setHasUnsavedChanges(false)
+          setTestResult({
+            success: true,
+            message: 'Webhook configuration saved successfully.',
+          })
+        } else {
+          setTestResult({
+            success: false,
+            message: 'Failed to save webhook configuration. Please try again.',
+          })
+        }
       }
     } catch (error) {
       logger.error('Error saving webhook:', { error })
+      setTestResult({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'An error occurred while saving the webhook',
+      })
     } finally {
       setIsSaving(false)
     }
@@ -361,14 +460,26 @@ export function WebhookModal({
       const testEndpoint = `/api/webhooks/test?id=${webhookId}`
 
       const response = await fetch(testEndpoint)
+
+      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
-        throw new Error('Failed to test webhook')
+        const errorText = await response.text()
+        let errorMessage = 'Failed to test webhook'
+
+        try {
+          // Try to parse as JSON, but handle case where it's not valid JSON
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch (parseError) {
+          // If JSON parsing fails, use the raw text if it exists
+          errorMessage = errorText || errorMessage
+        }
+
+        throw new Error(errorMessage)
       }
 
+      // Parse JSON only after confirming response is ok
       const data = await response.json()
-
-      // Add a slight delay before showing the result for smoother animation
-      await new Promise((resolve) => setTimeout(resolve, 300))
 
       // If the test was successful, show a success message
       if (data.success) {
@@ -380,7 +491,7 @@ export function WebhookModal({
       } else {
         setTestResult({
           success: false,
-          message: data.message || data.error || 'Failed to validate webhook configuration',
+          message: data.message || data.error || 'Webhook test failed with success=false',
         })
       }
     } catch (error: any) {
@@ -459,6 +570,23 @@ export function WebhookModal({
             testWebhook={testWebhook}
           />
         )
+      case 'airtable':
+        return (
+          <AirtableConfig
+            baseId={airtableBaseId}
+            setBaseId={setAirtableBaseId}
+            tableId={airtableTableId}
+            setTableId={setAirtableTableId}
+            includeCellValues={airtableIncludeCellValues}
+            setIncludeCellValues={setAirtableIncludeCellValues}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
+            webhookId={webhookId}
+          />
+        )
       case 'generic':
       default:
         return (
@@ -505,6 +633,7 @@ export function WebhookModal({
             isDeleting={isDeleting}
             isLoadingToken={isLoadingToken}
             isTesting={isTesting}
+            isCurrentConfigValid={isCurrentConfigValid} // <-- Pass down validation state
             onSave={handleSave}
             onDelete={() => setShowDeleteConfirm(true)}
             onTest={testWebhook}

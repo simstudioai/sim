@@ -442,14 +442,14 @@ export async function persistExecutionLogs(
 
         // Fill in missing timing information
         if (toolCallData.length > 0) {
-          const estimatedToolCalls = estimateToolCallTimings(
+          const getToolCalls = getToolCallTimings(
             toolCallData,
             blockStartTime,
             blockEndTime,
             blockDuration
           )
 
-          const redactedToolCalls = estimatedToolCalls.map((toolCall) => ({
+          const redactedToolCalls = getToolCalls.map((toolCall) => ({
             ...toolCall,
             input: redactApiKeys(toolCall.input),
           }))
@@ -649,7 +649,7 @@ function getTriggerErrorPrefix(triggerType: 'api' | 'webhook' | 'schedule' | 'ma
  * Extracts duration information for tool calls
  * This function preserves actual timing data while ensuring duration is calculated
  */
-function estimateToolCallTimings(
+function getToolCallTimings(
   toolCalls: any[],
   blockStart: string,
   blockEnd: string,

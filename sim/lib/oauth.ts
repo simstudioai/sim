@@ -333,12 +333,12 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
- * @returns The new access token, or null if refresh failed
+ * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
-): Promise<string | null> {
+): Promise<{ accessToken: string; expiresIn: number } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
@@ -368,6 +368,16 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = process.env.CONFLUENCE_CLIENT_ID
         clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
+        break
+      case 'airtable':
+        tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
+        clientId = process.env.AIRTABLE_CLIENT_ID
+        clientSecret = process.env.AIRTABLE_CLIENT_SECRET
+        break
+      case 'supabase':
+        tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
+        clientId = process.env.SUPABASE_CLIENT_ID
+        clientSecret = process.env.SUPABASE_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
@@ -404,7 +414,21 @@ export async function refreshOAuthToken(
     }
 
     const data = await response.json()
-    return data.access_token || null
+
+    // Extract token and expiration (different providers may use different field names)
+    const accessToken = data.access_token
+
+    // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
+    // Different providers use different names for this field
+    const expiresIn = data.expires_in || data.expiresIn || 3600
+
+    if (!accessToken) {
+      logger.warn('No access token found in refresh response', data)
+      return null
+    }
+
+    logger.info('Token refreshed successfully with expiration', { expiresIn })
+    return { accessToken, expiresIn }
   } catch (error) {
     logger.error('Error refreshing token:', { error })
     return null

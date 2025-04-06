@@ -9,6 +9,7 @@ interface WebhookDialogFooterProps {
   isDeleting: boolean
   isLoadingToken: boolean
   isTesting: boolean
+  isCurrentConfigValid: boolean
   onSave: () => void
   onDelete: () => void
   onTest?: () => void
@@ -22,6 +23,7 @@ export function WebhookDialogFooter({
   isDeleting,
   isLoadingToken,
   isTesting,
+  isCurrentConfigValid,
   onSave,
   onDelete,
   onTest,
@@ -31,7 +33,8 @@ export function WebhookDialogFooter({
     webhookId &&
     (webhookProvider === 'whatsapp' ||
       webhookProvider === 'generic' ||
-      webhookProvider === 'slack') &&
+      webhookProvider === 'slack' ||
+      webhookProvider === 'airtable') &&
     onTest
 
   return (
@@ -78,7 +81,7 @@ export function WebhookDialogFooter({
         <Button
           variant="default"
           onClick={onSave}
-          disabled={isSaving || isLoadingToken}
+          disabled={isSaving || isLoadingToken || !isCurrentConfigValid}
           className="bg-primary"
         >
           {isSaving ? (

@@ -78,20 +78,22 @@ export async function POST(request: NextRequest) {
 
     if (needsRefresh && credential.refreshToken) {
       try {
-        const refreshedToken = await refreshOAuthToken(
+        const refreshResult = await refreshOAuthToken(
           credential.providerId,
           credential.refreshToken
         )
 
-        if (!refreshedToken) {
+        if (!refreshResult) {
           throw new Error('Failed to refresh token')
         }
+
+        const { accessToken: refreshedToken, expiresIn } = refreshResult
 
         await db
           .update(account)
           .set({
             accessToken: refreshedToken,
-            accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
+            accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Use provider's expiry
             updatedAt: new Date(),
           })
           .where(eq(account.id, credentialId))
@@ -169,26 +171,29 @@ export async function GET(request: NextRequest) {
 
       try {
         // Refresh the token using the centralized utility
-        const refreshedToken = await refreshOAuthToken(
+        const refreshResult = await refreshOAuthToken(
           credential.providerId,
           credential.refreshToken
         )
 
-        if (refreshedToken) {
-          logger.info(`[${requestId}] Token refreshed successfully`)
-
-          // Update the token in the database
-          await db
-            .update(account)
-            .set({
-              accessToken: refreshedToken,
-              accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
-              updatedAt: new Date(),
-            })
-            .where(eq(account.id, credentialId))
-
-          accessToken = refreshedToken
+        if (!refreshResult) {
+          throw new Error('Failed to refresh token')
         }
+
+        const { accessToken: refreshedToken, expiresIn } = refreshResult
+        logger.info(`[${requestId}] Token refreshed successfully`)
+
+        // Update the token in the database with the correct expiration time
+        await db
+          .update(account)
+          .set({
+            accessToken: refreshedToken,
+            accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Use provider's expiry
+            updatedAt: new Date(),
+          })
+          .where(eq(account.id, credentialId))
+
+        accessToken = refreshedToken
       } catch (refreshError) {
         logger.error(`[${requestId}] Error refreshing token`, refreshError)
         return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })

@@ -1,7 +1,13 @@
-import { readTool } from './read'
-import { updateTool } from './update'
-import { writeTool } from './write'
+import { airtableCreateRecordsTool } from './createRecords'
+import { airtableGetRecordTool } from './getRecord'
+import { airtableListRecordsTool } from './listRecords'
+import { airtableUpdateMultipleRecordsTool } from './updateMultipleRecords'
+import { airtableUpdateRecordTool } from './updateRecord'
 
-export const airtableReadTool = readTool
-export const airtableWriteTool = writeTool
-export const airtableUpdateTool = updateTool
+export {
+  airtableCreateRecordsTool,
+  airtableGetRecordTool,
+  airtableListRecordsTool,
+  airtableUpdateMultipleRecordsTool,
+  airtableUpdateRecordTool,
+}

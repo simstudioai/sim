@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshOAuthToken } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+import { refreshAccessTokenIfNeeded } from '../../utils'
 
 const logger = createLogger('GmailLabelAPI')
 
@@ -52,45 +52,11 @@ export async function GET(request: NextRequest) {
       `[${requestId}] Using credential: ${credential.id}, provider: ${credential.providerId}`
     )
 
-    // Check if we need to refresh the token
-    const expiresAt = credential.accessTokenExpiresAt
-    const now = new Date()
-    const needsRefresh = !expiresAt || expiresAt <= now
+    // Refresh access token if needed using the utility function
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
-    let accessToken = credential.accessToken
-
-    if (needsRefresh && credential.refreshToken) {
-      logger.info(`[${requestId}] Token expired, attempting to refresh`)
-      try {
-        const refreshedToken = await refreshOAuthToken(
-          credential.providerId,
-          credential.refreshToken
-        )
-
-        if (!refreshedToken) {
-          logger.error(`[${requestId}] Failed to refresh token`)
-          return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
-        }
-
-        // Update the token in the database
-        await db
-          .update(account)
-          .set({
-            accessToken: refreshedToken,
-            accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
-            updatedAt: new Date(),
-          })
-          .where(eq(account.id, credentialId))
-
-        logger.info(`[${requestId}] Successfully refreshed access token`)
-        accessToken = refreshedToken
-      } catch (error) {
-        logger.error(`[${requestId}] Error refreshing token:`, error)
-        return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
-      }
-    } else if (!accessToken) {
-      logger.error(`[${requestId}] Missing access token for credential: ${credential.id}`)
-      return NextResponse.json({ error: 'Missing access token' }, { status: 401 })
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
     // Fetch specific label from Gmail API
