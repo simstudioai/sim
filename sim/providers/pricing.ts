@@ -92,6 +92,12 @@ const modelPricing: ModelPricingMap = {
     output: 0.99,
     updatedAt: '2025-03-21',
   },
+  'groq/meta-llama/llama-4-scout-17b-16e-instruct': {
+    input: 0.4,
+    cachedInput: 0.2,
+    output: 0.6,
+    updatedAt: '2025-04-06',
+  },
   'groq/deepseek-r1-distill-llama-70b': {
     input: 0.75,
     cachedInput: 0.38,
