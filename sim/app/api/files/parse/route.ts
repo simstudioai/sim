@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { existsSync } from 'fs'
 import fs from 'fs'
 import { readFile, unlink, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
 import { join } from 'path'
 import path from 'path'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
@@ -140,6 +142,11 @@ export async function POST(request: NextRequest) {
 async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
+  // Check if this is an external URL
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return handleExternalUrl(filePath, fileType)
+  }
+
   // Check if this is an S3 path
   const isS3Path = filePath.includes('/api/files/serve/s3/')
 
@@ -150,6 +157,98 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
 
   // Use local handler for local files
   return handleLocalFile(filePath, fileType)
+}
+
+/**
+ * Handle an external URL by downloading the file first
+ */
+async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
+  logger.info(`Handling external URL: ${url}`)
+
+  try {
+    // Create a unique filename for the temporary file
+    const urlHash = createHash('md5').update(url).digest('hex')
+    const urlObj = new URL(url)
+    const originalFilename = urlObj.pathname.split('/').pop() || 'download'
+    const tmpFilename = `${urlHash}-${originalFilename}`
+    const tmpFilePath = path.join(tmpdir(), tmpFilename)
+
+    // Download the file using native fetch
+    logger.info(`Downloading file from URL to ${tmpFilePath}`)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'SimStudio/1.0',
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.status} ${response.statusText}`)
+    }
+
+    // Get the file buffer from response
+    const arrayBuffer = await response.arrayBuffer()
+    const fileBuffer = Buffer.from(arrayBuffer)
+
+    // Write to temporary file
+    await writeFile(tmpFilePath, fileBuffer)
+    logger.info(`Downloaded ${fileBuffer.length} bytes to ${tmpFilePath}`)
+
+    // Determine file extension and type
+    const contentType = response.headers.get('content-type') || ''
+    const extension =
+      path.extname(originalFilename).toLowerCase().substring(1) ||
+      (contentType ? contentType.split('/').pop() || 'unknown' : 'unknown')
+
+    try {
+      // Process based on file type
+      let result: ParseResult
+
+      if (extension === 'pdf') {
+        result = await handlePdfBuffer(fileBuffer, originalFilename, fileType, url)
+      } else if (extension === 'csv') {
+        result = await handleCsvBuffer(fileBuffer, originalFilename, fileType, url)
+      } else if (isSupportedFileType(extension)) {
+        result = await handleGenericTextBuffer(
+          fileBuffer,
+          originalFilename,
+          extension,
+          fileType,
+          url
+        )
+      } else {
+        result = handleGenericBuffer(fileBuffer, originalFilename, extension, fileType)
+      }
+
+      // Clean up temporary file
+      try {
+        await unlink(tmpFilePath)
+        logger.info(`Deleted temporary file: ${tmpFilePath}`)
+      } catch (cleanupError) {
+        logger.warn(`Failed to delete temporary file ${tmpFilePath}:`, cleanupError)
+      }
+
+      return result
+    } catch (parseError) {
+      logger.error(`Error parsing downloaded file: ${url}`, parseError)
+
+      // Clean up temporary file on error
+      try {
+        await unlink(tmpFilePath)
+      } catch (cleanupError) {
+        // Ignore cleanup errors on parse failure
+      }
+
+      throw parseError
+    }
+  } catch (error) {
+    logger.error(`Error handling external URL ${url}:`, error)
+    return {
+      success: false,
+      error: `Failed to download or process file from URL: ${(error as Error).message}`,
+      filePath: url,
+    }
+  }
 }
 
 /**
