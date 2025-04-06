@@ -53,16 +53,15 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
           message: `Successfully queried data from ${params.table}`,
           results: data,
         },
-        data: data,
-        error: null,
+        error: undefined,
       }
     } catch (error) {
       return {
         success: false,
         output: {
           message: `Error querying Supabase: ${error instanceof Error ? error.message : String(error)}`,
+          results: [],
         },
-        data: [],
         error: error instanceof Error ? error.message : String(error),
       }
     }
@@ -81,9 +80,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
         message: 'Successfully queried data from Supabase',
         results: data,
       },
-      severity: 'info',
-      data: data,
-      error: null,
+      error: undefined,
     }
   },
   transformError: (error: any) => {

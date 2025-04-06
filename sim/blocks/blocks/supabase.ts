@@ -3,8 +3,11 @@ import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
 interface SupabaseResponse extends ToolResponse {
-  data: any
-  error: any
+  output: {
+    message: string
+    results: any
+  }
+  error?: string
 }
 
 export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
@@ -107,12 +110,9 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   outputs: {
     response: {
       type: {
-        success: 'boolean',
-        output: 'json',
-        severity: 'string',
-        data: 'json',
-        error: 'json',
-      },
+        message: 'string',
+        results: 'json'
+      }
     },
   },
 }
