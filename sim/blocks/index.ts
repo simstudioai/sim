@@ -8,7 +8,6 @@ import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
-import { MistralParseBlock } from './blocks/mistral-parse'
 import { FileBlock } from './blocks/file'
 import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
@@ -17,7 +16,7 @@ import { GmailBlock } from './blocks/gmail'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
-import { MySQLBlock } from './blocks/mysql'
+import { MistralParseBlock } from './blocks/mistral-parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
 import { PerplexityBlock } from './blocks/perplexity'
@@ -31,6 +30,7 @@ import { SlackBlock } from './blocks/slack'
 import { StarterBlock } from './blocks/starter'
 import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
+import { ThinkingBlock } from './blocks/thinking'
 import { TranslateBlock } from './blocks/translate'
 import { TwilioSMSBlock } from './blocks/twilio'
 import { TypeformBlock } from './blocks/typeform'
@@ -81,6 +81,7 @@ export {
   TwilioSMSBlock,
   ImageGeneratorBlock,
   TypeformBlock,
+  ThinkingBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -92,7 +93,6 @@ const blocks: Record<string, BlockConfig> = {
   confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
-  mistral_parse: MistralParseBlock,
   firecrawl: FirecrawlBlock,
   file: FileBlock,
   function: FunctionBlock,
@@ -104,7 +104,7 @@ const blocks: Record<string, BlockConfig> = {
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
-  mysql: MySQLBlock,
+  mistral_parse: MistralParseBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
   perplexity: PerplexityBlock,
@@ -117,6 +117,7 @@ const blocks: Record<string, BlockConfig> = {
   starter: StarterBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
+  thinking: ThinkingBlock,
   translate: TranslateBlock,
   twilio_sms: TwilioSMSBlock,
   typeform: TypeformBlock,
