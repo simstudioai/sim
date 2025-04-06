@@ -1,6 +1,5 @@
 import { BrainIcon } from '@/components/icons'
 import { ToolResponse } from '@/tools/types'
-// Assuming BrainIcon will be created
 import { BlockConfig } from '../types'
 
 interface ThinkingToolResponse extends ToolResponse {
@@ -11,13 +10,14 @@ interface ThinkingToolResponse extends ToolResponse {
 
 export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   type: 'thinking',
-  name: 'Thinking Step',
+  name: 'Thinking',
   description: 'Forces model to outline its thought process.',
   longDescription:
     'Adds a step where the model explicitly outlines its thought process before proceeding. This can improve reasoning quality by encouraging step-by-step analysis.',
   category: 'tools',
-  bgColor: '#E0E0E0',
+  bgColor: '#181C1E',
   icon: BrainIcon,
+  hiddenFromSidebar: true,
 
   subBlocks: [
     {
@@ -47,6 +47,6 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   },
 
   tools: {
-    access: [],
+    access: ['thinking_tool'],
   },
 }
