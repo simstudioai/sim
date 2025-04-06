@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Select,
   SelectContent,
@@ -19,6 +19,7 @@ interface DropdownProps {
 
 export function Dropdown({ options, defaultValue, blockId, subBlockId }: DropdownProps) {
   const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true)
+  const [storeInitialized, setStoreInitialized] = useState(false)
 
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
@@ -33,33 +34,57 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
     return typeof option === 'string' ? option : option.label
   }
 
+  // Get the default option value (first option or provided defaultValue)
+  const defaultOptionValue = useMemo(() => {
+    if (defaultValue !== undefined) {
+      return defaultValue
+    }
+
+    if (evaluatedOptions.length > 0) {
+      return getOptionValue(evaluatedOptions[0])
+    }
+
+    return undefined
+  }, [defaultValue, evaluatedOptions, getOptionValue])
+
+  // Mark store as initialized on first render
+  useEffect(() => {
+    setStoreInitialized(true)
+  }, [])
+
+  // Only set default value once the store is confirmed to be initialized
+  // and we know the actual value is null/undefined (not just loading)
+  useEffect(() => {
+    if (
+      storeInitialized &&
+      (value === null || value === undefined) &&
+      defaultOptionValue !== undefined
+    ) {
+      setValue(defaultOptionValue)
+    }
+  }, [storeInitialized, value, defaultOptionValue, setValue])
+
   // Calculate the effective value to use in the dropdown
-  // Priority: 1. Stored value (value) > 2. Provided defaultValue > 3. First option
   const effectiveValue = useMemo(() => {
     // If we have a value from the store, use that
     if (value !== null && value !== undefined) {
       return value
     }
 
-    // Fall back to provided defaultValue
-    if (defaultValue !== undefined) {
-      return defaultValue
+    // Only return defaultOptionValue if store is initialized
+    if (storeInitialized) {
+      return defaultOptionValue
     }
 
-    // Last resort: use first option value if available
-    if (evaluatedOptions.length > 0) {
-      return getOptionValue(evaluatedOptions[0])
-    }
-
-    // No valid value available
+    // While store is loading, don't use any value
     return undefined
-  }, [value, defaultValue, evaluatedOptions])
+  }, [value, defaultOptionValue, storeInitialized])
 
   // Handle the case where evaluatedOptions changes and the current selection is no longer valid
   const isValueInOptions = useMemo(() => {
     if (!effectiveValue || evaluatedOptions.length === 0) return false
     return evaluatedOptions.some((opt) => getOptionValue(opt) === effectiveValue)
-  }, [effectiveValue, evaluatedOptions])
+  }, [effectiveValue, evaluatedOptions, getOptionValue])
 
   return (
     <Select

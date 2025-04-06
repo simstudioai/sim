@@ -12,7 +12,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
   name: 'Supabase',
   description: 'Use Supabase database',
   longDescription:
-    'Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services using OAuth authentication.',
+    'Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.',
   category: 'tools',
   bgColor: '#1C1C1C',
   icon: SupabaseIcon,
@@ -24,21 +24,9 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Query Data', id: 'query' },
-        { label: 'Insert Data', id: 'insert' },
-        { label: 'Update Data', id: 'update' },
+        { label: 'Read All Rows', id: 'query' },
+        { label: 'Insert Rows', id: 'insert' },
       ],
-    },
-    // Supabase Credentials
-    {
-      id: 'credential',
-      title: 'Supabase Account',
-      type: 'oauth-input',
-      layout: 'full',
-      provider: 'supabase',
-      serviceId: 'supabase',
-      requiredScopes: ['database.read', 'database.write', 'projects.read'],
-      placeholder: 'Select Supabase account',
     },
     // Common Fields
     {
@@ -46,7 +34,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       title: 'Project ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the Supabase project',
+      placeholder: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
     },
     {
       id: 'table',
@@ -55,56 +43,26 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
       layout: 'full',
       placeholder: 'Name of the table',
     },
-    // Query-specific Fields
     {
-      id: 'select',
-      title: 'Select',
+      id: 'apiKey',
+      title: 'Client Anon Key',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Columns to select (e.g., id, name, email)',
-      condition: { field: 'operation', value: 'query' },
+      placeholder: 'Your Supabase client anon key',
+      password: true,
     },
-    {
-      id: 'filter',
-      title: 'Filter',
-      type: 'long-input',
-      layout: 'full',
-      placeholder:
-        'Filter conditions as JSON (e.g., {"column": "name", "operator": "eq", "value": "John"})',
-      condition: { field: 'operation', value: 'query' },
-    },
-    // Insert/Update-specific Fields
+    // Insert-specific Fields
     {
       id: 'data',
       title: 'Data',
-      type: 'long-input',
+      type: 'code',
       layout: 'full',
-      placeholder:
-        'Data to insert/update as JSON (e.g., {"name": "John", "email": "john@example.com"})',
+      placeholder: '{\n  "column1": "value1",\n  "column2": "value2"\n}',
       condition: { field: 'operation', value: 'insert' },
-    },
-    {
-      id: 'data',
-      title: 'Data',
-      type: 'long-input',
-      layout: 'full',
-      placeholder:
-        'Data to insert/update as JSON (e.g., {"name": "John", "email": "john@example.com"})',
-      condition: { field: 'operation', value: 'update' },
-    },
-    // Update-specific Fields
-    {
-      id: 'filter',
-      title: 'Filter',
-      type: 'long-input',
-      layout: 'full',
-      placeholder:
-        'Filter conditions as JSON (e.g., {"column": "id", "operator": "eq", "value": 123})',
-      condition: { field: 'operation', value: 'update' },
     },
   ],
   tools: {
-    access: ['supabase_query', 'supabase_insert', 'supabase_update'],
+    access: ['supabase_query', 'supabase_insert'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -112,37 +70,38 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
             return 'supabase_query'
           case 'insert':
             return 'supabase_insert'
-          case 'update':
-            return 'supabase_update'
           default:
             throw new Error(`Invalid Supabase operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, data, filter, ...rest } = params
+        const { data, ...rest } = params
 
-        // Parse JSON strings to objects if they exist
-        const parsedData = data ? JSON.parse(data as string) : undefined
-        const parsedFilter = filter ? JSON.parse(filter as string) : undefined
+        // Parse JSON data if it's a string
+        let parsedData;
+        if (data && typeof data === 'string') {
+          try {
+            parsedData = JSON.parse(data);
+          } catch (e) {
+            throw new Error('Invalid JSON data format');
+          }
+        } else {
+          parsedData = data;
+        }
 
         return {
           ...rest,
           data: parsedData,
-          filter: parsedFilter,
-          credential,
         }
       },
     },
   },
   inputs: {
     operation: { type: 'string', required: true },
-    credential: { type: 'string', required: true },
     projectId: { type: 'string', required: true },
     table: { type: 'string', required: true },
-    // Query operation inputs
-    select: { type: 'string', required: false },
-    filter: { type: 'string', required: false },
-    // Insert/Update operation inputs
+    apiKey: { type: 'string', required: true },
+    // Insert operation inputs
     data: { type: 'string', required: false },
   },
   outputs: {
