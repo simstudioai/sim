@@ -70,6 +70,137 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     },
   },
 
+  // Direct execution to bypass server for HTTP requests
+  directExecution: async (params: RequestParams): Promise<RequestResponse | undefined> => {
+    try {
+      // Prepare fetch options
+      const fetchOptions: RequestInit = {
+        method: params.method || 'GET',
+        headers: transformTable(params.headers || null),
+      }
+      
+      // Add body for non-GET requests
+      if (params.method && params.method !== 'GET' && params.body) {
+        if (typeof params.body === 'object') {
+          fetchOptions.body = JSON.stringify(params.body)
+          // Ensure Content-Type is set
+          if (fetchOptions.headers) {
+            (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
+          } else {
+            fetchOptions.headers = { 'Content-Type': 'application/json' }
+          }
+        } else {
+          fetchOptions.body = params.body
+        }
+      }
+      
+      // Handle form data
+      if (params.formData) {
+        const formData = new FormData()
+        Object.entries(params.formData).forEach(([key, value]) => {
+          formData.append(key, value)
+        })
+        fetchOptions.body = formData
+      }
+      
+      // Handle timeout
+      const controller = new AbortController()
+      const timeout = params.timeout || 50000
+      const timeoutId = setTimeout(() => controller.abort(), timeout)
+      fetchOptions.signal = controller.signal
+      
+      try {
+        // Process URL with path parameters and query params
+        let url = params.url
+        
+        // Replace path parameters
+        if (params.pathParams) {
+          Object.entries(params.pathParams).forEach(([key, value]) => {
+            url = url.replace(`:${key}`, encodeURIComponent(value))
+          })
+        }
+        
+        // Handle query parameters
+        const queryParamsObj = transformTable(params.params || null)
+        const queryString = Object.entries(queryParamsObj)
+          .filter(([_, value]) => value !== undefined && value !== null)
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .join('&')
+        
+        if (queryString) {
+          url += (url.includes('?') ? '&' : '?') + queryString
+        }
+        
+        // Make the actual fetch request
+        const response = await fetch(url, fetchOptions)
+        clearTimeout(timeoutId)
+        
+        // Convert Headers to a plain object
+        const headers: Record<string, string> = {}
+        response.headers.forEach((value, key) => {
+          headers[key] = value
+        })
+        
+        // Parse response based on content type
+        let data
+        try {
+          if (response.headers.get('content-type')?.includes('application/json')) {
+            data = await response.json()
+          } else {
+            data = await response.text()
+          }
+        } catch (error) {
+          data = await response.text()
+        }
+        
+        return {
+          success: response.ok,
+          output: {
+            data,
+            status: response.status,
+            headers,
+          },
+          error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`
+        }
+      } catch (error: any) {
+        clearTimeout(timeoutId)
+        
+        // Handle specific abort error
+        if (error.name === 'AbortError') {
+          return {
+            success: false,
+            output: {
+              data: null,
+              status: 0,
+              headers: {},
+            },
+            error: `Request timeout after ${timeout}ms`
+          }
+        }
+        
+        return {
+          success: false,
+          output: {
+            data: null,
+            status: 0,
+            headers: {},
+          },
+          error: error.message || 'Failed to fetch'
+        }
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        output: {
+          data: null,
+          status: 0,
+          headers: {},
+        },
+        error: error.message || 'Error preparing HTTP request'
+      }
+    }
+  },
+
   request: {
     url: (params: RequestParams) => {
       let url = params.url

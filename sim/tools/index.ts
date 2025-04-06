@@ -42,7 +42,7 @@ import { opportunitiesTool as salesforceOpportunities } from './salesforce/oppor
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
-import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase'
+import { supabaseInsertTool, supabaseQueryTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
 import { sendSMSTool } from './twilio/send'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
@@ -74,7 +74,6 @@ export const tools: Record<string, ToolConfig> = {
   tavily_extract: tavilyExtractTool,
   supabase_query: supabaseQueryTool,
   supabase_insert: supabaseInsertTool,
-  supabase_update: supabaseUpdateTool,
   typeform_responses: typeformResponsesTool,
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,
@@ -337,24 +336,55 @@ export async function executeTool(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    // For custom tools, try direct execution in browser first if available
-    if (toolId.startsWith('custom_') && tool.directExecution) {
-      const directResult = await tool.directExecution(params)
-      if (directResult) {
-        // Add timing data to the result
-        const endTime = new Date()
-        const endTimeISO = endTime.toISOString()
-        const duration = endTime.getTime() - startTime.getTime()
-        return {
-          ...directResult,
-          timing: {
-            startTime: startTimeISO,
-            endTime: endTimeISO,
-            duration,
-          },
+    // For any tool with direct execution capability, try it first
+    if (tool.directExecution) {
+      try {
+        const directResult = await tool.directExecution(params)
+        if (directResult) {
+          // Add timing data to the result
+          const endTime = new Date()
+          const endTimeISO = endTime.toISOString()
+          const duration = endTime.getTime() - startTime.getTime()
+          
+          // Apply post-processing if available and not skipped
+          if (tool.postProcess && directResult.success && !skipPostProcess) {
+            try {
+              const postProcessResult = await tool.postProcess(directResult, params, executeTool)
+              return {
+                ...postProcessResult,
+                timing: {
+                  startTime: startTimeISO,
+                  endTime: endTimeISO,
+                  duration,
+                },
+              }
+            } catch (error) {
+              logger.error(`Error in post-processing for tool ${toolId}:`, { error })
+              return {
+                ...directResult,
+                timing: {
+                  startTime: startTimeISO,
+                  endTime: endTimeISO,
+                  duration,
+                },
+              }
+            }
+          }
+          
+          return {
+            ...directResult,
+            timing: {
+              startTime: startTimeISO,
+              endTime: endTimeISO,
+              duration,
+            },
+          }
         }
+        // If directExecution returns undefined, fall back to API route
+      } catch (error) {
+        logger.warn(`Direct execution failed for tool ${toolId}, falling back to API:`, error)
+        // Fall back to API route if direct execution fails
       }
-      // If directExecution returns undefined, fall back to API route
     }
 
     // For internal routes or when skipProxy is true, call the API directly
@@ -559,109 +589,6 @@ async function handleInternalRequest(
   const requestParams = formatRequestParams(tool, params)
 
   try {
-    // Special handling for HTTP request tool - direct fetch
-    if (toolId === 'http_request') {
-      logger.info(`Direct fetch for HTTP request to: ${params.url}`)
-      
-      // Prepare fetch options
-      const fetchOptions: RequestInit = {
-        method: params.method || 'GET',
-        headers: transformTable(params.headers || null),
-      }
-      
-      // Add body for non-GET requests
-      if (params.method && params.method !== 'GET' && params.method !== 'HEAD' && params.body) {
-        if (typeof params.body === 'object') {
-          fetchOptions.body = JSON.stringify(params.body)
-          // Ensure Content-Type is set
-          if (fetchOptions.headers) {
-            (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
-          } else {
-            fetchOptions.headers = { 'Content-Type': 'application/json' }
-          }
-        } else {
-          fetchOptions.body = params.body
-        }
-      }
-      
-      // Handle timeout
-      const controller = new AbortController()
-      const timeout = params.timeout || 50000
-      const timeoutId = setTimeout(() => controller.abort(), timeout)
-      fetchOptions.signal = controller.signal
-      
-      try {
-        // Make the actual fetch request
-        const response = await fetch(params.url, fetchOptions)
-        clearTimeout(timeoutId)
-        
-        // Use the tool's response transformer if available
-        if (tool.transformResponse) {
-          return await tool.transformResponse(response, params)
-        }
-        
-        // Default response handling
-        const headers: Record<string, string> = {}
-        response.headers.forEach((value, key) => {
-          headers[key] = value
-        })
-        
-        let data
-        try {
-          // Try to parse as JSON first
-          if (response.headers.get('content-type')?.includes('application/json')) {
-            data = await response.json()
-          } else {
-            data = await response.text()
-          }
-        } catch (error) {
-          data = await response.text()
-        }
-        
-        return {
-          success: response.ok,
-          output: {
-            data,
-            status: response.status,
-            headers,
-          },
-          error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`
-        }
-      } catch (error: any) {
-        clearTimeout(timeoutId)
-        
-        // Handle specific abort error
-        if (error.name === 'AbortError') {
-          return {
-            success: false,
-            output: {},
-            error: `Request timeout after ${timeout}ms`
-          }
-        }
-        
-        // Use the tool's error transformer if available
-        if (tool.transformError) {
-          try {
-            const errorResult = tool.transformError(error)
-            if (typeof errorResult === 'string') {
-              return {
-                success: false,
-                output: {},
-                error: errorResult,
-              }
-            }
-          } catch {} // Fallthrough to default error handling
-        }
-        
-        return {
-          success: false,
-          output: {},
-          error: error.message || 'Failed to fetch'
-        }
-      }
-    }
-    
-    // Standard handling for other tools (existing code)
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
     // Handle the case where url may be a function or string
     const endpointUrl =

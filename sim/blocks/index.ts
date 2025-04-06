@@ -27,7 +27,7 @@ import { SerperBlock } from './blocks/serper'
 import { GoogleSheetsBlock } from './blocks/sheets'
 import { SlackBlock } from './blocks/slack'
 import { StarterBlock } from './blocks/starter'
-// import { SupabaseBlock } from './blocks/supabase'
+import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
 import { TranslateBlock } from './blocks/translate'
 import { TwilioSMSBlock } from './blocks/twilio'
@@ -61,7 +61,7 @@ export {
   YouTubeBlock,
   NotionBlock,
   GmailBlock,
-  // SupabaseBlock,
+  SupabaseBlock,
   XBlock,
   StarterBlock,
   PineconeBlock,
@@ -109,7 +109,7 @@ const blocks: Record<string, BlockConfig> = {
   serper: SerperBlock,
   slack: SlackBlock,
   starter: StarterBlock,
-  // supabase: SupabaseBlock,
+  supabase: SupabaseBlock,
   tavily: TavilyBlock,
   translate: TranslateBlock,
   twilio_sms: TwilioSMSBlock,

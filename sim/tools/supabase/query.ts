@@ -7,45 +7,53 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   description: 'Query data from a Supabase table',
   version: '1.0',
   oauth: {
-    required: true,
+    required: false,
     provider: 'supabase',
     additionalScopes: ['database.read', 'projects.read'],
   },
   params: {
-    credential: { type: 'string', required: true },
+    apiKey: { type: 'string', required: true },
     projectId: { type: 'string', required: true },
     table: { type: 'string', required: true },
-    select: { type: 'string', required: false },
     filter: { type: 'object', required: false },
   },
   request: {
     url: (params) =>
-      `https://api.supabase.com/v1/projects/${params.projectId}/tables/${params.table}/query`,
-    method: 'POST',
+      `https://${params.projectId}.supabase.co/rest/v1/${params.table}`,
+    method: 'GET',
     headers: (params) => ({
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.credential}`,
-    }),
-    body: (params) => ({
-      select: params.select || '*',
-      filter: params.filter,
+      'apikey': params.apiKey,
+      'Authorization': `Bearer ${params.apiKey}`,
     }),
   },
   directExecution: async (params: SupabaseQueryParams) => {
     try {
-      // Mock response
-      const mockData = [
-        { id: 1, name: 'Item 1', description: 'Description 1' },
-        { id: 2, name: 'Item 2', description: 'Description 2' },
-      ]
+      // Construct the URL for the Supabase REST API
+      const url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`;
+      
+      // Fetch the data
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'apikey': params.apiKey,
+          'Authorization': `Bearer ${params.apiKey}`,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error from Supabase: ${response.status} ${errorText}`);
+      }
+      
+      const data = await response.json();
 
       return {
         success: true,
         output: {
           message: `Successfully queried data from ${params.table}`,
-          results: mockData,
+          results: data,
         },
-        data: mockData,
+        data: data,
         error: null,
       }
     } catch (error) {
@@ -61,11 +69,11 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to query data from Supabase')
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to query data from Supabase');
     }
 
-    const data = await response.json()
+    const data = await response.json();
 
     return {
       success: true,
