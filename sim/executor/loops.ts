@@ -257,7 +257,14 @@ export class LoopManager {
         if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
           try {
             // Try to parse as JSON first
-            return JSON.parse(trimmedExpression)
+            // Handle both JSON format (double quotes) and JS format (single quotes)
+            const normalizedExpression = trimmedExpression
+              .replace(/'/g, '"')                // Replace all single quotes with double quotes
+              .replace(/(\w+):/g, '"$1":')       // Convert property names to double-quoted strings
+              .replace(/,\s*]/g, ']')            // Remove trailing commas before closing brackets
+              .replace(/,\s*}/g, '}')            // Remove trailing commas before closing braces
+            
+            return JSON.parse(normalizedExpression)
           } catch (jsonError) {
             console.error(`Error parsing JSON for loop ${loopId}:`, jsonError)
             // If JSON parsing fails, continue with expression evaluation
@@ -311,11 +318,17 @@ export class LoopManager {
    * @returns ID of the entry block
    */
   private findEntryBlock(nodeIds: string[], context: ExecutionContext): string | undefined {
+    // If there's only one node in the loop, it's the entry block
+    if (nodeIds.length === 1) {
+      return nodeIds[0];
+    }
+
     const blockConnectionCounts = new Map<string, number>()
 
     for (const nodeId of nodeIds) {
+      // For self-loops, count connections that aren't self-connections
       const incomingCount = context.workflow!.connections.filter(
-        (conn) => conn.target === nodeId
+        (conn) => conn.target === nodeId && conn.source !== nodeId
       ).length
       blockConnectionCounts.set(nodeId, incomingCount)
     }
@@ -335,7 +348,13 @@ export class LoopManager {
    * @returns Whether all blocks have been executed
    */
   private allBlocksExecuted(nodeIds: string[], context: ExecutionContext): boolean {
-    return nodeIds.every((nodeId) => context.executedBlocks.has(nodeId))
+    // For single-node loops, ensure the node has been executed at least once
+    if (nodeIds.length === 1 && context.executedBlocks.has(nodeIds[0])) {
+      return true;
+    }
+    
+    // For multi-node loops, ensure all nodes have been executed
+    return nodeIds.every((nodeId) => context.executedBlocks.has(nodeId));
   }
 
   /**
@@ -347,8 +366,18 @@ export class LoopManager {
    * @returns Whether the connection forms a feedback path
    */
   isFeedbackPath(connection: SerializedConnection, blocks: SerializedBlock[]): boolean {
+    // Self-loops are always feedback paths
+    if (connection.source === connection.target) {
+      return true;
+    }
+
     for (const [loopId, loop] of Object.entries(this.loops)) {
       if (loop.nodes.includes(connection.source) && loop.nodes.includes(connection.target)) {
+        // For single-node loops, any connection to itself is a feedback path
+        if (loop.nodes.length === 1 && loop.nodes[0] === connection.source && connection.source === connection.target) {
+          return true;
+        }
+
         const sourceIndex = loop.nodes.indexOf(connection.source)
         const targetIndex = loop.nodes.indexOf(connection.target)
 

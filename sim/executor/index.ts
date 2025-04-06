@@ -293,10 +293,6 @@ export class Executor {
         }
       }
 
-      if (loop.nodes.length < 2) {
-        throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
-      }
-
       if (loop.iterations <= 0) {
         throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
@@ -545,11 +541,32 @@ export class Executor {
         (conn) => conn.target === block.id
       )
 
-      const isInLoop = Object.values(this.workflow.loops || {}).some((loop) =>
+      // Find all loops that this block is a part of
+      const containingLoops = Object.values(this.workflow.loops || {}).filter(loop => 
         loop.nodes.includes(block.id)
       )
+      
+      const isInLoop = containingLoops.length > 0
 
       if (isInLoop) {
+        // Check if this block is part of a self-loop (single-node loop)
+        const isInSelfLoop = containingLoops.some(loop => 
+          loop.nodes.length === 1 && loop.nodes[0] === block.id
+        )
+        
+        // Check if there's a direct self-connection
+        const hasSelfConnection = this.workflow.connections.some(
+          conn => conn.source === block.id && conn.target === block.id
+        )
+
+        if (isInSelfLoop || hasSelfConnection) {
+          // For self-loops, we only need the node to be in the active execution path
+          // It will be reset after each iteration by the loop manager
+          pendingBlocks.add(block.id)
+          continue
+        }
+        
+        // For regular multi-node loops
         const hasValidPath = incomingConnections.some((conn) => {
           return executedBlocks.has(conn.source)
         })
@@ -558,6 +575,7 @@ export class Executor {
           pendingBlocks.add(block.id)
         }
       } else {
+        // Regular non-loop block handling (unchanged)
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
           const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)

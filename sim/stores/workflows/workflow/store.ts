@@ -135,7 +135,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Clean up loops
         Object.entries(newState.loops).forEach(([loopId, loop]) => {
           if (loop.nodes.includes(id)) {
-            if (loop.nodes.length <= 2) {
+            // If removing this node would leave the loop empty, delete the loop
+            if (loop.nodes.length <= 1) {
               delete newState.loops[loopId]
             } else {
               newState.loops[loopId] = {
@@ -183,6 +184,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Recalculate all loops after adding the edge
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
+        const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -192,15 +194,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             // Create a canonical path representation for deduplication
             const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
-              const loopId = crypto.randomUUID()
-              newLoops[loopId] = {
-                id: loopId,
-                nodes: path,
-                iterations: 5,
-                loopType: 'for', // Default to 'for' loop
-                forEachItems: '',
-              }
               processedPaths.add(canonicalPath)
+              
+              // Check if this path matches an existing loop
+              let existingLoop: Loop | undefined
+              Object.values(existingLoops).forEach((loop) => {
+                const loopCanonicalPath = [...loop.nodes].sort().join(',')
+                if (loopCanonicalPath === canonicalPath) {
+                  existingLoop = loop
+                }
+              })
+              
+              if (existingLoop) {
+                // Preserve the existing loop's properties
+                newLoops[existingLoop.id] = {
+                  ...existingLoop,
+                  nodes: path // Update nodes in case order changed
+                }
+              } else {
+                // Create a new loop with default settings
+                const loopId = crypto.randomUUID()
+                newLoops[loopId] = {
+                  id: loopId,
+                  nodes: path,
+                  iterations: 5,
+                  loopType: 'for',
+                  forEachItems: '',
+                }
+              }
             }
           })
         })
@@ -223,6 +244,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Recalculate all loops after edge removal
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
+        const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -232,15 +254,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             // Create a canonical path representation for deduplication
             const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
-              const loopId = crypto.randomUUID()
-              newLoops[loopId] = {
-                id: loopId,
-                nodes: path,
-                iterations: 5,
-                loopType: 'for', // Default to 'for' loop
-                forEachItems: '',
-              }
               processedPaths.add(canonicalPath)
+              
+              // Check if this path matches an existing loop
+              let existingLoop: Loop | undefined
+              Object.values(existingLoops).forEach((loop) => {
+                const loopCanonicalPath = [...loop.nodes].sort().join(',')
+                if (loopCanonicalPath === canonicalPath) {
+                  existingLoop = loop
+                }
+              })
+              
+              if (existingLoop) {
+                // Preserve the existing loop's properties
+                newLoops[existingLoop.id] = {
+                  ...existingLoop,
+                  nodes: path // Update nodes in case order changed
+                }
+              } else {
+                // Create a new loop with default settings
+                const loopId = crypto.randomUUID()
+                newLoops[loopId] = {
+                  id: loopId,
+                  nodes: path,
+                  iterations: 5,
+                  loopType: 'for',
+                  forEachItems: '',
+                }
+              }
             }
           })
         })
@@ -570,7 +611,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       updateLoopForEachItems: (loopId: string, items: string) => {
         let parsedItems: any = items
 
-        // Try to parse the string as JSON if it looks like JSON
+        // Try to parse the string as JSON or JS array/object if it looks like one
         if (
           typeof items === 'string' &&
           ((items.trim().startsWith('[') && items.trim().endsWith(']')) ||
@@ -578,14 +619,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         ) {
           try {
             // First try to parse to validate it's valid JSON
-            const parsed = JSON.parse(items)
+            // If it uses single quotes, convert to double quotes first
+            const normalizedItems = items
+              .replace(/'/g, '"')                // Replace all single quotes with double quotes
+              .replace(/(\w+):/g, '"$1":')       // Convert property names to double-quoted strings
+              .replace(/,\s*]/g, ']')            // Remove trailing commas before closing brackets
+              .replace(/,\s*}/g, '}')            // Remove trailing commas before closing braces
+            
+            // Try parsing the normalized string
+            const parsed = JSON.parse(normalizedItems)
 
-            // If parsing succeeds, store the original string to preserve formatting
-            // This way we keep the user's exact formatting (spacing, line breaks, etc.)
+            // If parsing succeeds, use the original string to preserve formatting
             parsedItems = items
           } catch (e) {
             // If parsing fails, keep it as a string expression
-            console.error('Invalid JSON format for forEach items:', e)
+            console.error('Invalid format for forEach items:', e)
             parsedItems = items
           }
         }
