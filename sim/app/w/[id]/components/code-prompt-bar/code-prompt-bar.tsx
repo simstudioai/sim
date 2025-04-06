@@ -1,4 +1,4 @@
-import { SendIcon, SparklesIcon, XIcon } from 'lucide-react'
+import { SendIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -40,12 +40,7 @@ export function CodePromptBar({
       )}
     >
       <div className="flex items-center gap-2 p-2">
-        <SparklesIcon
-          className={cn(
-            'h-4 w-4 ml-1',
-            isStreaming ? 'text-primary animate-pulse' : 'text-primary'
-          )}
-        />
+        <div className={cn('status-indicator ml-1', isStreaming && 'streaming')} />
 
         <div className="flex-1 relative">
           <Input
@@ -103,6 +98,46 @@ export function CodePromptBar({
           100% {
             transform: translateX(100%);
           }
+        }
+
+        @keyframes smoke-pulse {
+          0%,
+          100% {
+            transform: scale(0.8);
+            opacity: 0.4;
+          }
+          50% {
+            transform: scale(1.1);
+            opacity: 0.8;
+          }
+        }
+
+        .status-indicator {
+          position: relative;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          overflow: hidden;
+          background-color: hsl(var(--muted-foreground) / 0.5);
+          transition: background-color 0.3s ease;
+        }
+
+        .status-indicator.streaming {
+          background-color: transparent;
+        }
+
+        .status-indicator.streaming::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: radial-gradient(
+            circle,
+            hsl(var(--primary) / 0.7) 0%,
+            hsl(var(--primary) / 0.2) 60%,
+            transparent 80%
+          );
+          animation: smoke-pulse 1.8s ease-in-out infinite;
         }
 
         .shimmer-effect {

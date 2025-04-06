@@ -73,21 +73,18 @@ export function Code({
 
   // AI Code Generation Hook
   const handleStreamStart = () => {
-    logger.debug('Clearing code editor for new stream', { blockId, subBlockId })
     setCode('')
     // Optionally clear the store value too, though handleStreamChunk will update it
     // setStoreValue('')
   }
 
   const handleGeneratedContent = (generatedCode: string) => {
-    logger.debug('Applying generated code', { blockId, subBlockId })
     setCode(generatedCode)
     setStoreValue(generatedCode)
   }
 
   // Handle streaming chunks directly into the editor
   const handleStreamChunk = (chunk: string) => {
-    logger.debug('Received code chunk', { blockId, subBlockId, chunkLength: chunk.length })
     setCode((currentCode) => {
       const newCode = currentCode + chunk
       setStoreValue(newCode)
@@ -101,16 +98,11 @@ export function Code({
     generate: generateCode,
     generateStream: generateCodeStream,
     cancelGeneration,
-    isPromptOpen,
-    openPrompt,
-    closePrompt,
     isPromptVisible,
     showPromptInline,
     hidePromptInline,
     promptInputValue,
     updatePromptValue,
-    conversationHistory,
-    clearHistory,
   } = useCodeGeneration({
     generationType: generationType,
     initialContext: code,
