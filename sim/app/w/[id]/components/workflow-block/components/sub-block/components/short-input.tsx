@@ -119,18 +119,23 @@ export function ShortInput({
     }
   }
 
-  // Update the auto-scroll effect to handle both input and overlay
+  // Remove the auto-scroll effect that forces cursor position and replace with natural scrolling
   useEffect(() => {
-    if (inputRef.current && isFocused) {
-      const input = inputRef.current
-      const scrollPosition = (input.selectionStart ?? 0) * 8
-      input.scrollLeft = scrollPosition - input.offsetWidth / 2
-
-      if (overlayRef.current) {
-        overlayRef.current.scrollLeft = input.scrollLeft
-      }
+    if (inputRef.current && overlayRef.current) {
+      overlayRef.current.scrollLeft = inputRef.current.scrollLeft
     }
-  }, [value, isFocused])
+  }, [value])
+
+  // Handle paste events to ensure long values are handled correctly
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    // Let the paste happen normally
+    // Then ensure scroll positions are synced after the content is updated
+    setTimeout(() => {
+      if (inputRef.current && overlayRef.current) {
+        overlayRef.current.scrollLeft = inputRef.current.scrollLeft
+      }
+    }, 0)
+  }
 
   // Handle wheel events to control ReactFlow zoom
   const handleWheel = (e: React.WheelEvent<HTMLInputElement>) => {
@@ -176,9 +181,8 @@ export function ShortInput({
     }
 
     // For regular scrolling (without Ctrl/Cmd), let the default behavior happen
-    if (overlayRef.current) {
-      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
+    // Don't interfere with normal scrolling
+    return true
   }
 
   // Drag and Drop handlers
@@ -271,7 +275,7 @@ export function ShortInput({
       <Input
         ref={inputRef}
         className={cn(
-          'w-full placeholder:text-muted-foreground/50 allow-scroll text-transparent caret-foreground',
+          'w-full placeholder:text-muted-foreground/50 allow-scroll text-transparent caret-foreground overflow-auto',
           isConnecting &&
             config?.connectionDroppable !== false &&
             'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
@@ -304,17 +308,25 @@ export function ShortInput({
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onScroll={handleScroll}
+        onPaste={handlePaste}
         onWheel={handleWheel}
         onKeyDown={handleKeyDown}
         autoComplete="off"
+        style={{ overflowX: 'auto' }}
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto whitespace-pre text-sm bg-transparent"
+        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto text-sm bg-transparent"
+        style={{ overflowX: 'auto' }}
       >
-        {password && !isFocused
-          ? '•'.repeat(value?.toString().length ?? 0)
-          : formatDisplayText(value?.toString() ?? '')}
+        <div
+          className="whitespace-pre w-full"
+          style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+        >
+          {password && !isFocused
+            ? '•'.repeat(value?.toString().length ?? 0)
+            : formatDisplayText(value?.toString() ?? '')}
+        </div>
       </div>
       <EnvVarDropdown
         visible={showEnvVars}
