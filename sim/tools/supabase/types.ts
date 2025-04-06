@@ -14,11 +14,17 @@ export interface SupabaseInsertParams {
 }
 
 export interface SupabaseQueryResponse extends ToolResponse {
-  data: any[]
-  error: any
+  error?: string
+  output: {
+    message: string
+    results: any
+  }
 }
 
 export interface SupabaseInsertResponse extends ToolResponse {
-  data: any[]
-  error: any
+  error?: string
+  output: {
+    message: string
+    results: any
+  }
 }
