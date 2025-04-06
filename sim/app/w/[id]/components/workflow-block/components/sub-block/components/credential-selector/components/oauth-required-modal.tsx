@@ -61,6 +61,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'offline.access': 'Access your account when you are not using the application',
   'data.records:read': 'Read your records',
   'data.records:write': 'Write to your records',
+  'webhook:manage': 'Manage your webhooks',
 }
 
 // Convert OAuth scope to user-friendly description

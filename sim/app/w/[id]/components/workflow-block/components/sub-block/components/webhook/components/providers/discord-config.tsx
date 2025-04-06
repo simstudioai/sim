@@ -1,6 +1,10 @@
+import { Terminal } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { CodeBlock } from '@/components/ui/code-block'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { CopyableField } from '../ui/copyable'
+import { ConfigField } from '../ui/config-field'
+import { ConfigSection } from '../ui/config-section'
+import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'
 
 interface DiscordConfigProps {
@@ -19,6 +23,16 @@ interface DiscordConfigProps {
   testWebhook: () => Promise<void>
 }
 
+const examplePayload = JSON.stringify(
+  {
+    content: 'Hello from Sim Studio!',
+    username: 'Optional Custom Name',
+    avatar_url: 'https://example.com/avatar.png',
+  },
+  null,
+  2
+)
+
 export function DiscordConfig({
   webhookName,
   setWebhookName,
@@ -28,109 +42,84 @@ export function DiscordConfig({
   testResult,
   copied,
   copyToClipboard,
-  testWebhook,
+  testWebhook, // Passed to TestResultDisplay
 }: DiscordConfigProps) {
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="discord-webhook-name">Webhook Name (Optional)</Label>
-        <Input
+      <ConfigSection title="Discord Appearance (Optional)">
+        <ConfigField
           id="discord-webhook-name"
-          value={webhookName}
-          onChange={(e) => setWebhookName(e.target.value)}
-          placeholder="Enter a name for your webhook"
-          disabled={isLoadingToken}
-        />
-        <p className="text-xs text-muted-foreground">
-          This name will be displayed as the sender of messages in Discord.
-        </p>
-      </div>
+          label="Webhook Name"
+          description="This name will be displayed as the sender of messages in Discord."
+        >
+          <Input
+            id="discord-webhook-name"
+            value={webhookName}
+            onChange={(e) => setWebhookName(e.target.value)}
+            placeholder="Sim Studio Bot"
+            disabled={isLoadingToken}
+          />
+        </ConfigField>
 
-      <div className="space-y-2">
-        <Label htmlFor="discord-avatar-url">Avatar URL (Optional)</Label>
-        <Input
+        <ConfigField
           id="discord-avatar-url"
-          value={avatarUrl}
-          onChange={(e) => setAvatarUrl(e.target.value)}
-          placeholder="https://example.com/avatar.png"
-          disabled={isLoadingToken}
-        />
-        <p className="text-xs text-muted-foreground">
-          URL to an image that will be used as the webhook's avatar.
-        </p>
-      </div>
+          label="Avatar URL"
+          description="URL to an image that will be used as the webhook's avatar."
+        >
+          <Input
+            id="discord-avatar-url"
+            value={avatarUrl}
+            onChange={(e) => setAvatarUrl(e.target.value)}
+            placeholder="https://example.com/avatar.png"
+            disabled={isLoadingToken}
+            type="url"
+          />
+        </ConfigField>
+      </ConfigSection>
 
       <TestResultDisplay
         testResult={testResult}
         copied={copied}
         copyToClipboard={copyToClipboard}
-        showCurlCommand={true}
+        showCurlCommand={true} // Discord can be tested via curl
       />
 
-      <div className="space-y-2">
-        <h4 className="font-medium">Setup Instructions</h4>
-        <ol className="list-decimal list-inside space-y-1 text-sm">
-          <li>Open Discord and go to the server where you want to add the webhook</li>
-          <li>Click the gear icon next to a channel to open Channel Settings</li>
-          <li>Navigate to "Integrations" {'>'} "Webhooks"</li>
-          <li>Click "New Webhook"</li>
-          <li>Give your webhook a name and choose an avatar (optional)</li>
-          <li>Select the channel the webhook will post to</li>
-          <li>Click "Copy Webhook URL" and save it for your records</li>
-          <li>Click "Save"</li>
-          <li>Use the Webhook URL above to receive messages from Discord</li>
+      <InstructionsSection
+        title="Receiving Events from Discord (Incoming Webhook)"
+        tip="Create a webhook in Discord and paste its URL into the Webhook URL field above."
+      >
+        <ol className="list-decimal list-inside space-y-1">
+          <li>Go to Discord Server Settings {'>'} Integrations.</li>
+          <li>Click "Webhooks" then "New Webhook".</li>
+          <li>Customize the name and channel.</li>
+          <li>Click "Copy Webhook URL".</li>
+          <li>
+            Paste the copied Discord URL into the main <strong>Webhook URL</strong> field above.
+          </li>
+          <li>Your workflow triggers when Discord sends an event to that URL.</li>
         </ol>
-      </div>
+      </InstructionsSection>
 
-      <div className="bg-indigo-50 dark:bg-indigo-950 p-3 rounded-md mt-3 border border-indigo-200 dark:border-indigo-800">
-        <h5 className="text-sm font-medium text-indigo-800 dark:text-indigo-300">
-          Discord Webhook Features
-        </h5>
-        <ul className="mt-1 space-y-1">
-          <li className="flex items-start">
-            <span className="text-indigo-500 dark:text-indigo-400 mr-2">•</span>
-            <span className="text-sm text-indigo-700 dark:text-indigo-300">
-              Customize message appearance with embeds and formatting
-            </span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-indigo-500 dark:text-indigo-400 mr-2">•</span>
-            <span className="text-sm text-indigo-700 dark:text-indigo-300">
-              Send messages with different usernames and avatars per request
-            </span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-indigo-500 dark:text-indigo-400 mr-2">•</span>
-            <span className="text-sm text-indigo-700 dark:text-indigo-300">
-              Discord secures webhooks by keeping URLs private - protect your webhook URL
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
-        <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
-          <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
-          You can use this webhook to receive notifications from Discord or to send messages to your
-          Discord channel.
+      <InstructionsSection title="Sending Messages to Discord (Outgoing via this URL)">
+        <p>
+          To send messages <i>to</i> Discord using the Sim Studio Webhook URL (above), make a POST
+          request with a JSON body like this:
         </p>
-      </div>
+        <CodeBlock language="json" code={examplePayload} className="mt-2 text-sm" />
+        <ul className="list-disc list-outside space-y-1 pl-4 mt-3">
+          <li>Customize message appearance with embeds (see Discord docs).</li>
+          <li>Override the default username/avatar per request if needed.</li>
+        </ul>
+      </InstructionsSection>
 
-      <div className="bg-purple-50 dark:bg-purple-950 p-3 rounded-md mt-3 border border-purple-200 dark:border-purple-800">
-        <h5 className="text-sm font-medium text-purple-800 dark:text-purple-300">
-          Example POST Request
-        </h5>
-        <pre className="mt-2 text-xs bg-black/5 dark:bg-white/5 p-2 rounded overflow-x-auto">
-          {`POST /api/webhooks/{your-webhook-id} HTTP/1.1
-Content-Type: application/json
-
-{
-  "content": "Hello from Sim Studio!",
-  "username": "Custom Bot Name",
-  "avatar_url": "https://example.com/avatar.png"
-}`}
-        </pre>
-      </div>
+      <Alert>
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Security Note</AlertTitle>
+        <AlertDescription>
+          The Sim Studio Webhook URL allows sending messages <i>to</i> Discord. Treat it like a
+          password. Don't share it publicly.
+        </AlertDescription>
+      </Alert>
     </div>
   )
 }
