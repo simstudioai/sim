@@ -130,6 +130,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
 
@@ -346,7 +347,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
           </PopoverTrigger>
           <PopoverContent className="p-0 w-[200px]" align="start">
             <ToolCommand.Root filter={customFilter}>
-              <ToolCommand.Input placeholder="Search tools..." />
+              <ToolCommand.Input placeholder="Search tools..." onValueChange={setSearchQuery} />
               <ToolCommand.List>
                 <ToolCommand.Empty>No tools found</ToolCommand.Empty>
                 <ToolCommand.Group>
@@ -421,27 +422,31 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                   )}
 
                   {/* Display built-in tools */}
-                  <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
-                    Built-in Tools
-                  </div>
-                  <ToolCommand.Group className="-mx-1 -px-1">
-                    {toolBlocks.map((block) => (
-                      <ToolCommand.Item
-                        key={block.type}
-                        value={block.name}
-                        onSelect={() => handleSelectTool(block)}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
-                        <div
-                          className="flex items-center justify-center w-6 h-6 rounded"
-                          style={{ backgroundColor: block.bgColor }}
-                        >
-                          <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="truncate max-w-[140px]">{block.name}</span>
-                      </ToolCommand.Item>
-                    ))}
-                  </ToolCommand.Group>
+                  {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
+                    <>
+                      <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                        Built-in Tools
+                      </div>
+                      <ToolCommand.Group className="-mx-1 -px-1">
+                        {toolBlocks.map((block) => (
+                          <ToolCommand.Item
+                            key={block.type}
+                            value={block.name}
+                            onSelect={() => handleSelectTool(block)}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <div
+                              className="flex items-center justify-center w-6 h-6 rounded"
+                              style={{ backgroundColor: block.bgColor }}
+                            >
+                              <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
+                            </div>
+                            <span className="truncate max-w-[140px]">{block.name}</span>
+                          </ToolCommand.Item>
+                        ))}
+                      </ToolCommand.Group>
+                    </>
+                  )}
                 </ToolCommand.Group>
               </ToolCommand.List>
             </ToolCommand.Root>
@@ -577,7 +582,15 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       {requiredParams.map((param) => (
                         <div key={param.id} className="space-y-1.5 relative">
                           <div className="text-xs font-medium text-muted-foreground">
-                            {param.id === 'apiKey' ? 'API Key' : param.id}
+                            {param.id === 'apiKey'
+                              ? 'API Key'
+                              : param.id.length === 1 ||
+                                  param.id.includes('_') ||
+                                  param.id.includes('-')
+                                ? param.id.toUpperCase()
+                                : param.id.match(/^[a-z]+$/)
+                                  ? param.id.charAt(0).toUpperCase() + param.id.slice(1)
+                                  : param.id}
                           </div>
                           <div className="relative">
                             <ShortInput
@@ -616,7 +629,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
             </PopoverTrigger>
             <PopoverContent className="p-0 w-[200px]" align="start">
               <ToolCommand.Root filter={customFilter}>
-                <ToolCommand.Input placeholder="Search tools..." />
+                <ToolCommand.Input placeholder="Search tools..." onValueChange={setSearchQuery} />
                 <ToolCommand.List>
                   <ToolCommand.Empty>No tools found.</ToolCommand.Empty>
                   <ToolCommand.Group>
@@ -691,27 +704,33 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     )}
 
                     {/* Display built-in tools */}
-                    <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
-                      Built-in Tools
-                    </div>
-                    <ToolCommand.Group className="-mx-1 -px-1">
-                      {toolBlocks.map((block) => (
-                        <ToolCommand.Item
-                          key={block.type}
-                          value={block.name}
-                          onSelect={() => handleSelectTool(block)}
-                          className="flex items-center gap-2 cursor-pointer"
-                        >
-                          <div
-                            className="flex items-center justify-center w-6 h-6 rounded"
-                            style={{ backgroundColor: block.bgColor }}
-                          >
-                            <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
-                          </div>
-                          <span className="truncate max-w-[140px]">{block.name}</span>
-                        </ToolCommand.Item>
-                      ))}
-                    </ToolCommand.Group>
+                    {toolBlocks.some(
+                      (block) => customFilter(block.name, searchQuery || '') > 0
+                    ) && (
+                      <>
+                        <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                          Built-in Tools
+                        </div>
+                        <ToolCommand.Group className="-mx-1 -px-1">
+                          {toolBlocks.map((block) => (
+                            <ToolCommand.Item
+                              key={block.type}
+                              value={block.name}
+                              onSelect={() => handleSelectTool(block)}
+                              className="flex items-center gap-2 cursor-pointer"
+                            >
+                              <div
+                                className="flex items-center justify-center w-6 h-6 rounded"
+                                style={{ backgroundColor: block.bgColor }}
+                              >
+                                <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
+                              </div>
+                              <span className="truncate max-w-[140px]">{block.name}</span>
+                            </ToolCommand.Item>
+                          ))}
+                        </ToolCommand.Group>
+                      </>
+                    )}
                   </ToolCommand.Group>
                 </ToolCommand.List>
               </ToolCommand.Root>

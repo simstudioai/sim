@@ -100,12 +100,12 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
-    projectId: { type: 'string', required: true },
-    table: { type: 'string', required: true },
-    apiKey: { type: 'string', required: true },
+    operation: { type: 'string', required: true, requiredForToolCall: true },
+    projectId: { type: 'string', required: true, requiredForToolCall: true },
+    table: { type: 'string', required: true, requiredForToolCall: true },
+    apiKey: { type: 'string', required: true, requiredForToolCall: true },
     // Insert operation inputs
-    data: { type: 'string', required: false },
+    data: { type: 'string', required: false, requiredForToolCall: true },
   },
   outputs: {
     response: {
