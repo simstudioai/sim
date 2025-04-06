@@ -40,6 +40,8 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       let determinedFilePath: string | string[] | null = null
       let determinedFileType: string | undefined = params.fileType
 
+      // Determine the file path(s) based on input parameters.
+      // Precedence: direct filePath > file array > single file object > legacy files array
       // 1. Check for direct filePath (URL or single path from upload)
       if (params.filePath) {
         logger.info('Tool body found direct filePath:', params.filePath)
@@ -49,7 +51,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       else if (params.file && Array.isArray(params.file) && params.file.length > 0) {
         logger.info('Tool body processing file array upload')
         const filePaths = params.file.map((file: any) => file.path)
-        determinedFilePath = filePaths.length === 1 ? filePaths[0] : filePaths
+        determinedFilePath = filePaths // Always send as array
       }
       // 3. Check for file upload (single object)
       else if (params.file && params.file.path) {
@@ -59,7 +61,11 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       // 4. Check for deprecated multiple files case (from older blocks?)
       else if (params.files && Array.isArray(params.files)) {
         logger.info('Tool body processing legacy files array:', params.files.length)
-        determinedFilePath = params.files.map((file: any) => file.path)
+        if (params.files.length > 0) {
+          determinedFilePath = params.files.map((file: any) => file.path)
+        } else {
+          logger.warn('Legacy files array provided but is empty')
+        }
       }
 
       // Final check if filePath was determined

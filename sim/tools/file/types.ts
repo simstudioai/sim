@@ -3,7 +3,6 @@ import { ToolResponse } from '../types'
 export interface FileParserInput {
   filePath: string | string[]
   fileType?: string
-  fileUrl?: string
 }
 
 export interface FileParseResult {
