@@ -44,10 +44,11 @@ import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
 import { supabaseInsertTool, supabaseQueryTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
+import { thinkingTool } from './thinking/thinking'
 import { sendSMSTool } from './twilio/send'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, validateToolRequest, transformTable } from './utils'
+import { formatRequestParams, transformTable, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
@@ -122,6 +123,7 @@ export const tools: Record<string, ToolConfig> = {
   airtable_list_records: airtableListRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
   mistral_parser: mistralParserTool,
+  thinking_tool: thinkingTool,
 }
 
 // Get a tool by its ID
@@ -345,7 +347,7 @@ export async function executeTool(
           const endTime = new Date()
           const endTimeISO = endTime.toISOString()
           const duration = endTime.getTime() - startTime.getTime()
-          
+
           // Apply post-processing if available and not skipped
           if (tool.postProcess && directResult.success && !skipPostProcess) {
             try {
@@ -370,7 +372,7 @@ export async function executeTool(
               }
             }
           }
-          
+
           return {
             ...directResult,
             timing: {
