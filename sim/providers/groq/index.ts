@@ -10,7 +10,12 @@ export const groqProvider: ProviderConfig = {
   name: 'Groq',
   description: "Groq's LLM models with high-performance inference",
   version: '1.0.0',
-  models: ['groq/llama-3.3-70b-specdec', 'groq/deepseek-r1-distill-llama-70b', 'groq/qwen-2.5-32b'],
+  models: [
+    'groq/llama-3.3-70b-specdec',
+    'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+    'groq/deepseek-r1-distill-llama-70b',
+    'groq/qwen-2.5-32b',
+  ],
   defaultModel: 'groq/llama-3.3-70b-specdec',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
