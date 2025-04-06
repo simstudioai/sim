@@ -1,14 +1,9 @@
 import { SendIcon, SparklesIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 
-const logger = createLogger('CodePromptBar')
-
 interface CodePromptBarProps {
-  blockId: string
-  subBlockId: string
   isVisible: boolean
   isLoading: boolean
   isStreaming: boolean
@@ -17,11 +12,10 @@ interface CodePromptBarProps {
   onCancel: () => void
   onChange: (value: string) => void
   placeholder?: string
+  className?: string
 }
 
 export function CodePromptBar({
-  blockId,
-  subBlockId,
   isVisible,
   isLoading,
   isStreaming,
@@ -30,6 +24,7 @@ export function CodePromptBar({
   onCancel,
   onChange,
   placeholder = 'Describe the JavaScript code you want to generate...',
+  className,
 }: CodePromptBarProps) {
   if (!isVisible && !isStreaming) {
     return null
@@ -40,7 +35,8 @@ export function CodePromptBar({
       className={cn(
         'absolute -top-20 left-0 right-0',
         'bg-background rounded-xl shadow-lg border',
-        'transition-all duration-200 z-9999999'
+        'transition-all duration-200 z-9999999',
+        className
       )}
     >
       <div className="flex items-center gap-2 p-2">

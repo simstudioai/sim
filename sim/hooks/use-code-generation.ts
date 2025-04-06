@@ -214,11 +214,13 @@ export function useCodeGeneration({
   }
 
   const showPromptInline = () => {
+    logger.debug('showPromptInline called', { generationType })
     setIsPromptVisible(true)
     setPromptInputValue('')
   }
 
   const hidePromptInline = () => {
+    logger.debug('hidePromptInline called', { generationType })
     if (isLoading) return
     setIsPromptVisible(false)
     setPromptInputValue('')

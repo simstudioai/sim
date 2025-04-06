@@ -100,6 +100,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             subBlockId={config.id}
             isConnecting={isConnecting}
             placeholder={config.placeholder}
+            language={config.language}
+            generationType={config.generationType}
           />
         )
       case 'switch':

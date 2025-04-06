@@ -11,8 +11,8 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useCodeGeneration } from '@/hooks/use-code-generation'
+import { CodePromptBar } from '../../../../code-prompt-bar/code-prompt-bar'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
-import { CodePromptBar } from './code-prompt-bar'
 
 const logger = createLogger('Code')
 
@@ -21,6 +21,8 @@ interface CodeProps {
   subBlockId: string
   isConnecting: boolean
   placeholder?: string
+  language?: 'javascript' | 'json'
+  generationType?: 'javascript-function-body' | 'json-schema'
 }
 
 if (typeof document !== 'undefined') {
@@ -46,7 +48,15 @@ export function Code({
   subBlockId,
   isConnecting,
   placeholder = 'Write JavaScript...',
+  language = 'javascript',
+  generationType = 'javascript-function-body',
 }: CodeProps) {
+  // Determine the AI prompt placeholder based on language
+  const aiPromptPlaceholder =
+    language === 'json'
+      ? 'Describe the JSON schema you want to generate...'
+      : 'Describe the JavaScript code you want to generate...'
+
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [code, setCode] = useState<string>('')
@@ -93,7 +103,7 @@ export function Code({
     promptInputValue,
     updatePromptValue,
   } = useCodeGeneration({
-    generationType: 'javascript-function-body',
+    generationType: generationType,
     initialContext: code,
     onGeneratedContent: handleGeneratedContent,
     onStreamChunk: handleStreamChunk,
@@ -262,8 +272,6 @@ export function Code({
   return (
     <>
       <CodePromptBar
-        blockId={blockId}
-        subBlockId={subBlockId}
         isVisible={isPromptVisible}
         isLoading={isAiLoading}
         isStreaming={isAiStreaming}
@@ -271,7 +279,7 @@ export function Code({
         onSubmit={(prompt: string) => generateCodeStream({ prompt, context: code })}
         onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
         onChange={updatePromptValue}
-        placeholder="Describe the JavaScript code you want to generate..."
+        placeholder={aiPromptPlaceholder}
       />
 
       <div
@@ -363,7 +371,7 @@ export function Code({
               }
             }}
             highlight={(codeToHighlight) =>
-              highlight(codeToHighlight, languages.javascript, 'javascript')
+              highlight(codeToHighlight, languages[language], language)
             }
             padding={12}
             style={{
