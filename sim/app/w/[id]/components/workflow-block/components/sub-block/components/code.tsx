@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
+import { SparklesIcon } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 import Editor from 'react-simple-code-editor'
+import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useCodeGeneration } from '@/hooks/use-code-generation'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { CodePromptBar } from './code-prompt-bar'
 
 const logger = createLogger('Code')
 
@@ -45,7 +49,7 @@ export function Code({
 }: CodeProps) {
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState<string>('')
   const [lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -57,10 +61,49 @@ export function Code({
 
   const editorRef = useRef<HTMLDivElement>(null)
 
+  // AI Code Generation Hook
+  const handleGeneratedContent = (generatedCode: string) => {
+    logger.debug('Applying generated code', { blockId, subBlockId })
+    setCode(generatedCode)
+    setStoreValue(generatedCode)
+  }
+
+  // Handle streaming chunks directly into the editor
+  const handleStreamChunk = (chunk: string) => {
+    logger.debug('Received code chunk', { blockId, subBlockId, chunkLength: chunk.length })
+    setCode((currentCode) => {
+      const newCode = currentCode + chunk
+      setStoreValue(newCode)
+      return newCode
+    })
+  }
+
+  const {
+    isLoading: isAiLoading,
+    isStreaming: isAiStreaming,
+    generate: generateCode,
+    generateStream: generateCodeStream,
+    cancelGeneration,
+    isPromptOpen,
+    openPrompt,
+    closePrompt,
+    isPromptVisible,
+    showPromptInline,
+    hidePromptInline,
+    promptInputValue,
+    updatePromptValue,
+  } = useCodeGeneration({
+    generationType: 'javascript-function-body',
+    initialContext: code,
+    onGeneratedContent: handleGeneratedContent,
+    onStreamChunk: handleStreamChunk,
+  })
+
   // Effects
   useEffect(() => {
-    if (storeValue !== null) {
-      setCode(storeValue.toString())
+    const valueString = storeValue?.toString() ?? ''
+    if (valueString !== code) {
+      setCode(valueString)
     }
   }, [storeValue])
 
@@ -74,18 +117,21 @@ export function Code({
       const lines = code.split('\n')
       const newVisualLineHeights: number[] = []
 
-      const container = document.createElement('div')
-      container.style.cssText = `
+      const tempContainer = document.createElement('div')
+      tempContainer.style.cssText = `
         position: absolute;
         visibility: hidden;
+        height: auto;
         width: ${preElement.clientWidth}px;
         font-family: ${window.getComputedStyle(preElement).fontFamily};
         font-size: ${window.getComputedStyle(preElement).fontSize};
+        line-height: 21px;
         padding: 12px;
         white-space: pre-wrap;
         word-break: break-word;
+        box-sizing: border-box;
       `
-      document.body.appendChild(container)
+      document.body.appendChild(tempContainer)
 
       lines.forEach((line) => {
         const lineDiv = document.createElement('div')
@@ -96,7 +142,6 @@ export function Code({
             const span = document.createElement('span')
             span.textContent = part
             if (part.startsWith('<') && part.endsWith('>')) {
-              span.style.color = 'rgb(153, 0, 85)'
             }
             lineDiv.appendChild(span)
           })
@@ -104,22 +149,29 @@ export function Code({
           lineDiv.textContent = line || ' '
         }
 
-        container.appendChild(lineDiv)
+        tempContainer.appendChild(lineDiv)
         const actualHeight = lineDiv.getBoundingClientRect().height
-        const lineUnits = Math.ceil(actualHeight / 21)
+        const lineUnits = Math.max(1, Math.ceil(actualHeight / 21))
         newVisualLineHeights.push(lineUnits)
-        container.removeChild(lineDiv)
+        tempContainer.removeChild(lineDiv)
       })
 
-      document.body.removeChild(container)
+      document.body.removeChild(tempContainer)
       setVisualLineHeights(newVisualLineHeights)
       setLineCount(newVisualLineHeights.reduce((sum, height) => sum + height, 0))
     }
 
-    const resizeObserver = new ResizeObserver(calculateVisualLines)
-    resizeObserver.observe(editorRef.current)
+    const timeoutId = setTimeout(calculateVisualLines, 50)
 
-    return () => resizeObserver.disconnect()
+    const resizeObserver = new ResizeObserver(calculateVisualLines)
+    if (editorRef.current) {
+      resizeObserver.observe(editorRef.current)
+    }
+
+    return () => {
+      clearTimeout(timeoutId)
+      resizeObserver.disconnect()
+    }
   }, [code])
 
   // Handlers
@@ -131,22 +183,19 @@ export function Code({
 
       const textarea = editorRef.current?.querySelector('textarea')
       const dropPosition = textarea?.selectionStart ?? code.length
-      const newValue = code.slice(0, dropPosition) + '<' + code.slice(dropPosition)
+      const tagToInsert = `<${data.connectionData.sourceBlockId}.${data.connectionData.sourceHandleId}>`
+      const newValue = code.slice(0, dropPosition) + tagToInsert + code.slice(dropPosition)
 
       setCode(newValue)
       setStoreValue(newValue)
-      setCursorPosition(dropPosition + 1)
-      setShowTags(true)
-
-      if (data.connectionData?.sourceBlockId) {
-        setActiveSourceBlockId(data.connectionData.sourceBlockId)
-      }
+      const newCursorPosition = dropPosition + tagToInsert.length
+      setCursorPosition(newCursorPosition)
 
       setTimeout(() => {
         if (textarea) {
-          textarea.selectionStart = dropPosition + 1
-          textarea.selectionEnd = dropPosition + 1
           textarea.focus()
+          textarea.selectionStart = newCursorPosition
+          textarea.selectionEnd = newCursorPosition
         }
       }, 0)
     } catch (error) {
@@ -159,12 +208,20 @@ export function Code({
     setStoreValue(newValue)
     setShowTags(false)
     setActiveSourceBlockId(null)
+
+    setTimeout(() => {
+      editorRef.current?.querySelector('textarea')?.focus()
+    }, 0)
   }
 
   const handleEnvVarSelect = (newValue: string) => {
     setCode(newValue)
     setStoreValue(newValue)
     setShowEnvVars(false)
+
+    setTimeout(() => {
+      editorRef.current?.querySelector('textarea')?.focus()
+    }, 0)
   }
 
   // Render helpers
@@ -172,12 +229,17 @@ export function Code({
     const numbers: ReactElement[] = []
     let lineNumber = 1
 
-    visualLineHeights.forEach((height) => {
-      for (let i = 0; i < height; i++) {
+    visualLineHeights.forEach((height, index) => {
+      numbers.push(
+        <div key={`${lineNumber}-0`} className={cn('text-xs text-muted-foreground leading-[21px]')}>
+          {lineNumber}
+        </div>
+      )
+      for (let i = 1; i < height; i++) {
         numbers.push(
           <div
             key={`${lineNumber}-${i}`}
-            className={cn('text-xs text-muted-foreground leading-[21px]', i > 0 && 'invisible')}
+            className={cn('text-xs text-muted-foreground leading-[21px] invisible')}
           >
             {lineNumber}
           </div>
@@ -186,125 +248,172 @@ export function Code({
       lineNumber++
     })
 
+    if (numbers.length === 0) {
+      numbers.push(
+        <div key="1-0" className={cn('text-xs text-muted-foreground leading-[21px]')}>
+          1
+        </div>
+      )
+    }
+
     return numbers
   }
 
   return (
-    <div
-      className={cn(
-        'relative min-h-[100px] rounded-md border bg-background font-mono text-sm group',
-        isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
-      )}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={handleDrop}
-    >
-      {code.split('\n').length > 5 && (
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className={cn(
-            'absolute right-2 top-2 z-10 p-1.5 rounded-md',
-            'bg-accent/50 hover:bg-accent text-muted-foreground hover:text-foreground',
-            'opacity-0 group-hover:opacity-100 transition-opacity',
-            'text-xs font-medium'
-          )}
-        >
-          {isCollapsed ? 'Expand' : 'Collapse'}
-        </button>
-      )}
-
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[30px] bg-muted/30 flex flex-col items-end pr-3 pt-3 select-none overflow-hidden"
-        aria-hidden="true"
-      >
-        {renderLineNumbers()}
-      </div>
+    <>
+      <CodePromptBar
+        blockId={blockId}
+        subBlockId={subBlockId}
+        isVisible={isPromptVisible}
+        isLoading={isAiLoading}
+        isStreaming={isAiStreaming}
+        promptValue={promptInputValue}
+        onSubmit={(prompt: string) => generateCodeStream({ prompt, context: code })}
+        onCancel={isAiStreaming ? cancelGeneration : hidePromptInline}
+        onChange={updatePromptValue}
+        placeholder="Describe the JavaScript code you want to generate..."
+      />
 
       <div
         className={cn(
-          'pl-[30px] pt-0 mt-0 relative',
-          isCollapsed && 'max-h-[126px] overflow-hidden'
+          'relative min-h-[100px] rounded-md border bg-background font-mono text-sm group',
+          isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
         )}
-        ref={editorRef}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
       >
-        {code.length === 0 && (
-          <div className="absolute left-[42px] top-[12px] text-muted-foreground/50 select-none pointer-events-none">
-            {placeholder}
-          </div>
-        )}
-
-        <Editor
-          value={code}
-          onValueChange={(newCode) => {
-            if (!isCollapsed) {
-              setCode(newCode)
-              setStoreValue(newCode)
-
-              const textarea = editorRef.current?.querySelector('textarea')
-              if (textarea) {
-                const pos = textarea.selectionStart
-                setCursorPosition(pos)
-
-                const tagTrigger = checkTagTrigger(newCode, pos)
-                setShowTags(tagTrigger.show)
-                if (!tagTrigger.show) {
-                  setActiveSourceBlockId(null)
-                }
-
-                const envVarTrigger = checkEnvVarTrigger(newCode, pos)
-                setShowEnvVars(envVarTrigger.show)
-                setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
-              }
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setShowTags(false)
-              setShowEnvVars(false)
-            }
-          }}
-          highlight={(code) => highlight(code, languages.javascript, 'javascript')}
-          padding={12}
-          style={{
-            fontFamily: 'inherit',
-            minHeight: '46px',
-            lineHeight: '21px',
-          }}
-          className={cn('focus:outline-none', isCollapsed && 'pointer-events-none select-none')}
-          textareaClassName={cn(
-            'focus:outline-none focus:ring-0 bg-transparent',
-            isCollapsed && 'pointer-events-none'
+        <div className="absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {!isCollapsed && !isAiStreaming && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={isPromptVisible ? hidePromptInline : showPromptInline}
+              disabled={isAiLoading || isAiStreaming}
+              aria-label="Generate code with AI"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <SparklesIcon className="h-4 w-4" />
+            </Button>
           )}
-        />
 
-        {showEnvVars && (
-          <EnvVarDropdown
-            visible={showEnvVars}
-            onSelect={handleEnvVarSelect}
-            searchTerm={searchTerm}
-            inputValue={code}
-            cursorPosition={cursorPosition}
-            onClose={() => {
-              setShowEnvVars(false)
-              setSearchTerm('')
-            }}
-          />
-        )}
+          {code.split('\n').length > 5 && !isAiStreaming && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              aria-label={isCollapsed ? 'Expand code' : 'Collapse code'}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <span className="text-xs">{isCollapsed ? 'Expand' : 'Collapse'}</span>
+            </Button>
+          )}
+        </div>
 
-        {showTags && (
-          <TagDropdown
-            visible={showTags}
-            onSelect={handleTagSelect}
-            blockId={blockId}
-            activeSourceBlockId={activeSourceBlockId}
-            inputValue={code}
-            cursorPosition={cursorPosition}
-            onClose={() => {
-              setShowTags(false)
-              setActiveSourceBlockId(null)
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[30px] bg-muted/30 flex flex-col items-end pr-3 pt-3 select-none overflow-hidden"
+          aria-hidden="true"
+        >
+          {renderLineNumbers()}
+        </div>
+
+        <div
+          className={cn(
+            'pl-[30px] pt-0 mt-0 relative',
+            isCollapsed && 'max-h-[126px] overflow-hidden'
+          )}
+          ref={editorRef}
+        >
+          {code.length === 0 && !isCollapsed && (
+            <div className="absolute left-[42px] top-[12px] text-muted-foreground/50 select-none pointer-events-none">
+              {placeholder}
+            </div>
+          )}
+
+          <Editor
+            value={code}
+            onValueChange={(newCode) => {
+              if (!isCollapsed && !isAiStreaming) {
+                setCode(newCode)
+                setStoreValue(newCode)
+
+                const textarea = editorRef.current?.querySelector('textarea')
+                if (textarea) {
+                  const pos = textarea.selectionStart
+                  setCursorPosition(pos)
+
+                  const tagTrigger = checkTagTrigger(newCode, pos)
+                  setShowTags(tagTrigger.show)
+                  if (!tagTrigger.show) {
+                    setActiveSourceBlockId(null)
+                  }
+
+                  const envVarTrigger = checkEnvVarTrigger(newCode, pos)
+                  setShowEnvVars(envVarTrigger.show)
+                  setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+                }
+              }
             }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setShowTags(false)
+                setShowEnvVars(false)
+              }
+              if (isAiStreaming) {
+                e.preventDefault()
+              }
+            }}
+            highlight={(codeToHighlight) =>
+              highlight(codeToHighlight, languages.javascript, 'javascript')
+            }
+            padding={12}
+            style={{
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              minHeight: isCollapsed ? '0px' : '106px',
+              lineHeight: '21px',
+              outline: 'none',
+            }}
+            className={cn(
+              'code-editor-area caret-primary',
+              'bg-transparent focus:outline-none',
+              (isCollapsed || isAiStreaming) && 'opacity-50 cursor-not-allowed'
+            )}
+            textareaClassName={cn(
+              'focus:outline-none focus:ring-0 border-none bg-transparent resize-none',
+              (isCollapsed || isAiStreaming) && 'pointer-events-none'
+            )}
           />
-        )}
+
+          {showEnvVars && !isCollapsed && !isAiStreaming && (
+            <EnvVarDropdown
+              visible={showEnvVars}
+              onSelect={handleEnvVarSelect}
+              searchTerm={searchTerm}
+              inputValue={code}
+              cursorPosition={cursorPosition}
+              onClose={() => {
+                setShowEnvVars(false)
+                setSearchTerm('')
+              }}
+            />
+          )}
+
+          {showTags && !isCollapsed && !isAiStreaming && (
+            <TagDropdown
+              visible={showTags}
+              onSelect={handleTagSelect}
+              blockId={blockId}
+              activeSourceBlockId={activeSourceBlockId}
+              inputValue={code}
+              cursorPosition={cursorPosition}
+              onClose={() => {
+                setShowTags(false)
+                setActiveSourceBlockId(null)
+              }}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
