@@ -19,12 +19,13 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   },
   request: {
     url: (params) =>
-      `https://${params.projectId}.supabase.co/rest/v1/${params.table}`,
+      `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
     method: 'POST',
     headers: (params) => ({
       'apikey': params.apiKey,
       'Authorization': `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
     }),
     body: (params) => {
       // If data is an object but not an array, wrap it in an array
@@ -37,8 +38,8 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   },
   directExecution: async (params: SupabaseInsertParams) => {
     try {
-      // Construct the URL for the Supabase REST API
-      const url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}`;
+      // Construct the URL for the Supabase REST API with select=* to return inserted data
+      const url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`;
       
       // Prepare the data - if it's an object but not an array, wrap it in an array
       const dataToSend = typeof params.data === 'object' && !Array.isArray(params.data)
@@ -52,6 +53,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
           'apikey': params.apiKey,
           'Authorization': `Bearer ${params.apiKey}`,
           'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
         },
         body: JSON.stringify(dataToSend),
       });
@@ -69,16 +71,15 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
           message: `Successfully inserted data into ${params.table}`,
           results: data,
         },
-        data: data,
-        error: null,
+        error: undefined,
       }
     } catch (error) {
       return {
         success: false,
         output: {
           message: `Error inserting into Supabase: ${error instanceof Error ? error.message : String(error)}`,
+          results: [],
         },
-        data: [],
         error: error instanceof Error ? error.message : String(error),
       }
     }
@@ -89,7 +90,20 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       throw new Error(error.message || 'Failed to insert data into Supabase');
     }
 
-    const data = await response.json();
+    // Handle empty response case
+    const text = await response.text();
+    if (!text || text.trim() === '') {
+      return {
+        success: true,
+        output: {
+          message: 'Successfully inserted data into Supabase (no data returned)',
+          results: [],
+        },
+        error: undefined,
+      }
+    }
+
+    const data = JSON.parse(text);
 
     return {
       success: true,
@@ -97,9 +111,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
         message: 'Successfully inserted data into Supabase',
         results: data,
       },
-      severity: 'info',
-      data: data,
-      error: null,
+      error: undefined,
     }
   },
   transformError: (error: any) => {
