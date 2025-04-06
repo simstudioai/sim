@@ -152,7 +152,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
       }
     }
   }
-  hiddenFromSidebar?: boolean
+  hideFromToolbar?: boolean
 }
 
 // Output configuration rules
