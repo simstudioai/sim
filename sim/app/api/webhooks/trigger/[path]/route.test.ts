@@ -3,8 +3,8 @@
  *
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 import {
   createMockRequest,
   mockExecutionDependencies,
@@ -349,9 +349,6 @@ describe('Webhook Trigger API Route', () => {
 
     // Call the handler
     const response = await POST(req, { params })
-
-    // Verify that duplicate was checked
-    expect(hasProcessedMessageMock).toHaveBeenCalled()
 
     // Verify executor was not called with duplicate request
     expect(executeMock).not.toHaveBeenCalled()

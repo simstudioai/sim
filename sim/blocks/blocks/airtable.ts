@@ -181,7 +181,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     baseId: { type: 'string', required: true },
     tableId: { type: 'string', required: true },
     // Conditional inputs
-    recordId: { type: 'string', required: true }, // Required for get/update
+    recordId: { type: 'string', required: false }, // Required for get/update
     maxRecords: { type: 'number', required: false }, // Optional for list
     filterFormula: { type: 'string', required: false }, // Optional for list
     records: { type: 'json', required: false }, // Required for create/updateMultiple

@@ -44,25 +44,27 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
     try {
       // Use the existing refreshOAuthToken function
-      const refreshedToken = await refreshOAuthToken(providerId, credential.refreshToken!)
+      const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
 
-      if (!refreshedToken) {
+      if (!refreshResult) {
         logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`)
         return null
       }
 
-      // Update the token in the database
+      const { accessToken, expiresIn } = refreshResult
+
+      // Update the token in the database with the actual expiration time from the provider
       await db
         .update(account)
         .set({
-          accessToken: refreshedToken,
-          accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
+          accessToken,
+          accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Convert seconds to milliseconds
           updatedAt: new Date(),
         })
         .where(eq(account.id, credential.id))
 
       logger.info(`Successfully refreshed token for user ${userId}, provider ${providerId}`)
-      return refreshedToken
+      return accessToken
     } catch (error) {
       logger.error(`Error refreshing token for user ${userId}, provider ${providerId}`, error)
       return null
@@ -71,4 +73,78 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
 
   logger.info(`Found valid OAuth token for user ${userId}, provider ${providerId}`)
   return credential.accessToken
+}
+
+/**
+ * Refreshes an OAuth token if needed based on credential information
+ * @param credentialId The ID of the credential to check and potentially refresh
+ * @param userId The user ID who owns the credential (for security verification)
+ * @param requestId Optional request ID for log correlation
+ * @returns The valid access token or null if refresh fails
+ */
+export async function refreshAccessTokenIfNeeded(
+  credentialId: string,
+  userId: string,
+  requestId?: string
+): Promise<string | null> {
+  // Get the credential from the database
+  const credentials = await db
+    .select()
+    .from(account)
+    .where(and(eq(account.id, credentialId), eq(account.userId, userId)))
+    .limit(1)
+
+  if (!credentials.length) {
+    logger.warn(`[${requestId || ''}] Credential not found: ${credentialId}`)
+    return null
+  }
+
+  const credential = credentials[0]
+
+  // Check if we need to refresh the token
+  const expiresAt = credential.accessTokenExpiresAt
+  const now = new Date()
+  const needsRefresh = !expiresAt || expiresAt <= now
+
+  let accessToken = credential.accessToken
+
+  if (needsRefresh && credential.refreshToken) {
+    logger.info(
+      `[${requestId || ''}] Token expired, attempting to refresh for credential: ${credentialId}`
+    )
+    try {
+      const refreshedToken = await refreshOAuthToken(credential.providerId, credential.refreshToken)
+
+      if (!refreshedToken) {
+        logger.error(`[${requestId || ''}] Failed to refresh token for credential: ${credentialId}`)
+        return null
+      }
+
+      // Update the token in the database
+      await db
+        .update(account)
+        .set({
+          accessToken: refreshedToken.accessToken,
+          accessTokenExpiresAt: new Date(Date.now() + refreshedToken.expiresIn * 1000), // Default 1 hour expiry
+          updatedAt: new Date(),
+        })
+        .where(eq(account.id, credentialId))
+
+      logger.info(
+        `[${requestId || ''}] Successfully refreshed access token for credential: ${credentialId}`
+      )
+      return refreshedToken.accessToken
+    } catch (error) {
+      logger.error(
+        `[${requestId || ''}] Error refreshing token for credential: ${credentialId}`,
+        error
+      )
+      return null
+    }
+  } else if (!accessToken) {
+    logger.error(`[${requestId || ''}] Missing access token for credential: ${credential.id}`)
+    return null
+  }
+
+  return accessToken
 }

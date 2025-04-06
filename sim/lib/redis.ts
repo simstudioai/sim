@@ -1,4 +1,4 @@
-import Redis, { Callback, Result } from 'ioredis'
+import Redis from 'ioredis'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('Redis')

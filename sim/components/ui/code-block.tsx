@@ -13,7 +13,7 @@ export function CodeBlock({ code, language, className, ...props }: CodeBlockProp
       <pre className="p-4 text-sm overflow-x-auto" {...props}>
         <code>{code}</code>
       </pre>
-      <CopyButton valueToCopy={code} className="absolute top-2 right-2" />
+      <CopyButton text={code} className="absolute top-2 right-2" />
     </div>
   )
 }

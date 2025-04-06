@@ -1,34 +1,48 @@
 'use client'
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
-import { Button, ButtonProps } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
-interface CopyButtonProps extends ButtonProps {
-  valueToCopy: string
+interface CopyButtonProps {
+  text: string
+  className?: string
+  showLabel?: boolean
 }
 
-export function CopyButton({ valueToCopy, className, ...props }: CopyButtonProps) {
+export function CopyButton({ text, className = '', showLabel = true }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(valueToCopy).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000) // Reset icon after 2 seconds
-    })
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className={cn('h-7 w-7', className)}
-      onClick={handleCopy}
-      {...props}
-    >
-      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-      <span className="sr-only">{copied ? 'Copied!' : 'Copy to clipboard'}</span>
-    </Button>
+    <div className="absolute top-1 right-1 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      {showLabel && (
+        <div className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md">
+          {copied ? 'Copied!' : 'Click to copy'}
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={`h-6 w-6 p-0 ${className}`}
+        onClick={(e) => {
+          e.stopPropagation() // Prevent click from affecting parent elements
+          copyToClipboard()
+        }}
+        title="Copy to clipboard"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-green-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </Button>
+    </div>
   )
 }

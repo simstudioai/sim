@@ -355,6 +355,11 @@ export function WebhookModal({
   const handleSave = async () => {
     if (!isCurrentConfigValid) {
       logger.warn('Attempted to save with invalid configuration')
+      // Add user feedback for invalid configuration
+      setTestResult({
+        success: false,
+        message: 'Cannot save: Please fill in all required fields for the selected provider.',
+      })
       return
     }
 
@@ -389,10 +394,24 @@ export function WebhookModal({
             airtableIncludeCellValues,
           })
           setHasUnsavedChanges(false)
+          setTestResult({
+            success: true,
+            message: 'Webhook configuration saved successfully.',
+          })
+        } else {
+          setTestResult({
+            success: false,
+            message: 'Failed to save webhook configuration. Please try again.',
+          })
         }
       }
     } catch (error) {
       logger.error('Error saving webhook:', { error })
+      setTestResult({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'An error occurred while saving the webhook',
+      })
     } finally {
       setIsSaving(false)
     }
@@ -441,12 +460,26 @@ export function WebhookModal({
       const testEndpoint = `/api/webhooks/test?id=${webhookId}`
 
       const response = await fetch(testEndpoint)
-      const data = await response.json()
 
+      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
-        // Use error from body if available, otherwise default
-        throw new Error(data?.message || data?.error || 'Failed to test webhook')
+        const errorText = await response.text()
+        let errorMessage = 'Failed to test webhook'
+
+        try {
+          // Try to parse as JSON, but handle case where it's not valid JSON
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch (parseError) {
+          // If JSON parsing fails, use the raw text if it exists
+          errorMessage = errorText || errorMessage
+        }
+
+        throw new Error(errorMessage)
       }
+
+      // Parse JSON only after confirming response is ok
+      const data = await response.json()
 
       // If the test was successful, show a success message
       if (data.success) {

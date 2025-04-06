@@ -327,10 +327,6 @@ export async function GET(request: NextRequest) {
 
         // Generate sample curl command
         let curlCommand = `curl -X POST "${webhookUrl}" -H "Content-Type: application/json"`
-        // Note: Actual Airtable signature verification might use a specific header like 'X-Airtable-Content-MAC'
-        if (webhookSecret) {
-          curlCommand += ` -H "X-Webhook-Secret-Configured: true"` // Indicate secret is set, header name is placeholder
-        }
         curlCommand += ` -d '${JSON.stringify(samplePayload, null, 2)}'`
 
         logger.info(`[${requestId}] Airtable webhook test successful: ${webhookId}`)

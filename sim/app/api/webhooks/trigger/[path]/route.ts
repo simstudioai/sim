@@ -357,9 +357,6 @@ export async function POST(
     logger.error(`[${requestId}] Error in main POST handler`, error)
     // Use a generic execution ID for errors before specific handlers are reached
     const errorExecutionId = `error-${requestId}`
-    if (foundWorkflow?.id) {
-      await persistExecutionError(foundWorkflow.id, errorExecutionId, error, 'webhook-setup')
-    }
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
@@ -1037,10 +1034,6 @@ async function processWebhook(
       `[${requestId}] Error in processWebhook *before* execution for ${foundWebhook.id} (Execution: ${executionId})`,
       error
     )
-    // Log the error if we have a workflow ID
-    if (foundWorkflow?.id) {
-      await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook-setup')
-    }
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
