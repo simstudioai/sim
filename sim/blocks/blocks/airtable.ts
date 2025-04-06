@@ -1,21 +1,29 @@
 import { AirtableIcon } from '@/components/icons'
 import {
-  AirtableReadResponse,
+  AirtableCreateResponse,
+  AirtableGetResponse,
+  AirtableListResponse,
+  AirtableUpdateMultipleResponse,
   AirtableUpdateResponse,
-  AirtableWriteResponse,
 } from '@/tools/airtable/types'
 import { BlockConfig } from '../types'
 
-type AirtableResponse = AirtableReadResponse | AirtableWriteResponse | AirtableUpdateResponse
+// Union type for all possible Airtable responses
+type AirtableResponse =
+  | AirtableListResponse
+  | AirtableGetResponse
+  | AirtableCreateResponse
+  | AirtableUpdateResponse
+  | AirtableUpdateMultipleResponse
 
 export const AirtableBlock: BlockConfig<AirtableResponse> = {
   type: 'airtable',
   name: 'Airtable',
-  description: 'Read, write, and update Airtable',
+  description: 'Read, create, and update Airtable records',
   longDescription:
-    'Integrate Airtable functionality to manage table records. Read data from existing tables, ' +
-    'write new records, and update existing ones using OAuth authentication. Supports table ' +
-    'selection and record operations with custom field mapping.',
+    'Integrate Airtable functionality to manage table records. List, get, create, ' +
+    'update single, or update multiple records using OAuth authentication. ' +
+    'Requires base ID, table ID, and operation-specific parameters.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: AirtableIcon,
@@ -27,9 +35,10 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Read Records', id: 'read' },
-        { label: 'Write Records', id: 'write' },
-        { label: 'Update Records', id: 'update' },
+        { label: 'List Records', id: 'list' },
+        { label: 'Get Record', id: 'get' },
+        { label: 'Create Records', id: 'create' },
+        { label: 'Update Record', id: 'update' },
       ],
     },
     // Airtable Credentials
@@ -40,7 +49,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       provider: 'airtable',
       serviceId: 'airtable',
-      requiredScopes: ['data.records:read', 'data.records:write'],
+      requiredScopes: ['data.records:read', 'data.records:write'], // Keep both scopes
       placeholder: 'Select Airtable account',
     },
     // Base ID
@@ -49,91 +58,119 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       title: 'Base ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your base ID (found in the API documentation)',
+      placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
     },
-    // Table Name/ID
+    // Table ID
     {
       id: 'tableId',
-      title: 'Table Name/ID',
+      title: 'Table ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter table name or ID',
+      placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
     },
-    // Read Operation Fields
+    // Record ID (For Get/Update Single)
+    {
+      id: 'recordId',
+      title: 'Record ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'ID of the record (e.g., recXXXXXXXXXXXXXX)',
+      condition: { field: 'operation', value: ['get', 'update'] },
+    },
+    // List Operation Fields
     {
       id: 'maxRecords',
       title: 'Max Records',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'Maximum number of records to return',
-      condition: { field: 'operation', value: 'read' },
+      placeholder: 'Maximum records to return (optional)',
+      condition: { field: 'operation', value: 'list' },
     },
     {
       id: 'filterFormula',
       title: 'Filter Formula',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter Airtable formula to filter records',
-      condition: { field: 'operation', value: 'read' },
+      placeholder: 'Airtable formula to filter records (optional)',
+      condition: { field: 'operation', value: 'list' },
     },
-    // Write Operation Fields
+    // Create / Update Multiple Operation Field: Records (Array)
     {
       id: 'records',
-      title: 'Records',
+      title: 'Records (JSON Array)',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter records in JSON format',
-      condition: { field: 'operation', value: 'write' },
+      placeholder: 'For Create: `[{ "fields": { ... } }]`\n',
+      condition: { field: 'operation', value: ['create', 'updateMultiple'] },
     },
-    // Update Operation Fields
+    // Update Single Operation Field: Fields (Object)
     {
-      id: 'records',
-      title: 'Record Fields',
+      id: 'fields',
+      title: 'Fields (JSON Object)',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter record fields in JSON format',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'recordId',
-      title: 'Record ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'ID of the record to update',
+      placeholder: 'Fields to update: `{ "Field Name": "New Value" }`',
       condition: { field: 'operation', value: 'update' },
     },
   ],
   tools: {
-    access: ['airtable_read', 'airtable_write', 'airtable_update'],
+    access: [
+      'airtable_list_records',
+      'airtable_get_record',
+      'airtable_create_records',
+      'airtable_update_record',
+      'airtable_update_multiple_records',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
-          case 'read':
-            return 'airtable_read'
-          case 'write':
-            return 'airtable_write'
+          case 'list':
+            return 'airtable_list_records'
+          case 'get':
+            return 'airtable_get_record'
+          case 'create':
+            return 'airtable_create_records'
           case 'update':
-            return 'airtable_update'
+            return 'airtable_update_record'
+          case 'updateMultiple':
+            return 'airtable_update_multiple_records'
           default:
             throw new Error(`Invalid Airtable operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, records, ...rest } = params
+        const { credential, records, fields, ...rest } = params
+        let parsedRecords: any | undefined
+        let parsedFields: any | undefined
 
-        if (params.operation === 'update' && records) {
-          const parsedRecords = JSON.parse(records)
-          return {
-            accessToken: credential,
-            fields: parsedRecords,
-            ...rest,
+        // Parse JSON inputs safely
+        try {
+          if (records && (params.operation === 'create' || params.operation === 'updateMultiple')) {
+            parsedRecords = JSON.parse(records)
           }
+          if (fields && params.operation === 'update') {
+            parsedFields = JSON.parse(fields)
+          }
+        } catch (error: any) {
+          throw new Error(`Invalid JSON input for ${params.operation} operation: ${error.message}`)
         }
 
-        return {
+        // Construct parameters based on operation
+        const baseParams = {
           accessToken: credential,
-          records: records ? JSON.parse(records) : undefined,
           ...rest,
+        }
+
+        switch (params.operation) {
+          case 'create':
+          case 'updateMultiple':
+            return { ...baseParams, records: parsedRecords }
+          case 'update':
+            return { ...baseParams, fields: parsedFields }
+          case 'list':
+          case 'get':
+          default:
+            return baseParams // No JSON parsing needed for list/get
         }
       },
     },
@@ -143,31 +180,21 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     credential: { type: 'string', required: true },
     baseId: { type: 'string', required: true },
     tableId: { type: 'string', required: true },
-    // Read operation inputs
-    maxRecords: { type: 'number', required: false },
-    filterFormula: { type: 'string', required: false },
-    // Write/Update operation inputs
-    records: {
-      type: 'json',
-      required: false,
-      schema: {
-        type: 'object',
-        properties: {
-          fields: {
-            type: 'object',
-            additionalProperties: true,
-          },
-        },
-        required: ['fields'],
-      },
-    },
-    recordId: { type: 'string', required: false },
+    // Conditional inputs
+    recordId: { type: 'string', required: false }, // Required for get/update
+    maxRecords: { type: 'number', required: false }, // Optional for list
+    filterFormula: { type: 'string', required: false }, // Optional for list
+    records: { type: 'json', required: false }, // Required for create/updateMultiple
+    fields: { type: 'json', required: false }, // Required for update single
   },
+  // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
     response: {
+      // Define a type structure listing all potential top-level keys mapped to 'json'
       type: {
-        records: 'json',
-        metadata: 'json',
+        records: 'json', // Optional: for list, create, updateMultiple
+        record: 'json', // Optional: for get, update single
+        metadata: 'json', // Required: present in all responses
       },
     },
   },

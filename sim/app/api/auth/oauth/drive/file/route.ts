@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshOAuthToken } from '@/lib/oauth'
 import { db } from '@/db'
 import { account } from '@/db/schema'
+import { refreshAccessTokenIfNeeded } from '../../utils'
 
 const logger = createLogger('GoogleDriveFileAPI')
 
 /**
- * Get a single file from Google Drive by ID
+ * Get a single file from Google Drive
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8) // Short request ID for correlation
+  const requestId = crypto.randomUUID().slice(0, 8) // Generate a short request ID for correlation
+  logger.info(`[${requestId}] Google Drive file request received`)
 
   try {
     // Get the session
@@ -30,16 +31,8 @@ export async function GET(request: NextRequest) {
     const fileId = searchParams.get('fileId')
 
     if (!credentialId || !fileId) {
-      logger.warn(`[${requestId}] Missing required parameters`, {
-        credentialId: !!credentialId,
-        fileId: !!fileId,
-      })
-      return NextResponse.json(
-        {
-          error: !credentialId ? 'Credential ID is required' : 'File ID is required',
-        },
-        { status: 400 }
-      )
+      logger.warn(`[${requestId}] Missing required parameters`)
+      return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
     }
 
     // Get the credential from the database
@@ -54,82 +47,72 @@ export async function GET(request: NextRequest) {
 
     // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`)
+      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
+        credentialUserId: credential.userId,
+        requestUserId: session.user.id,
+      })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Check if the access token is valid
-    if (!credential.accessToken) {
-      logger.warn(`[${requestId}] No access token available for credential`)
-      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
+    // Refresh access token if needed using the utility function
+    const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Function to fetch file with a given token
-    const fetchFileWithToken = async (token: string) => {
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-      return response
-    }
-
-    // First attempt with current token
-    let response = await fetchFileWithToken(credential.accessToken)
-
-    // If unauthorized, try to refresh the token
-    if (response.status === 401 && credential.refreshToken) {
-      logger.info(`[${requestId}] Access token expired, attempting to refresh`)
-
-      try {
-        // Refresh the token using the centralized utility
-        const refreshedToken = await refreshOAuthToken(
-          credential.providerId,
-          credential.refreshToken
-        )
-
-        if (refreshedToken) {
-          logger.info(`[${requestId}] Token refreshed successfully`)
-
-          // Update the token in the database
-          await db
-            .update(account)
-            .set({
-              accessToken: refreshedToken,
-              accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // Default 1 hour expiry
-              updatedAt: new Date(),
-            })
-            .where(eq(account.id, credentialId))
-
-          // Retry the request with the new token
-          response = await fetchFileWithToken(refreshedToken)
-        }
-      } catch (refreshError) {
-        logger.error(`[${requestId}] Error refreshing token`, refreshError)
-        return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
+    // Fetch the file from Google Drive API
+    logger.info(`[${requestId}] Fetching file ${fileId} from Google Drive API`)
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,iconLink,webViewLink,thumbnailLink,createdTime,modifiedTime,size,owners,exportLinks`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       }
-    }
+    )
 
-    // Handle response
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
+      const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
       logger.error(`[${requestId}] Google Drive API error`, {
         status: response.status,
-        fileId,
+        error: errorData.error?.message || 'Failed to fetch file from Google Drive',
       })
       return NextResponse.json(
         {
-          error: error.error?.message || 'Failed to fetch file from Google Drive',
+          error: errorData.error?.message || 'Failed to fetch file from Google Drive',
         },
         { status: response.status }
       )
     }
 
     const file = await response.json()
-    logger.info(`[${requestId}] Successfully retrieved file from Google Drive`, { fileId })
+
+    // In case of Google Docs, Sheets, etc., provide the export links
+    const exportFormats: { [key: string]: string } = {
+      'application/vnd.google-apps.document': 'application/pdf', // Google Docs to PDF
+      'application/vnd.google-apps.spreadsheet':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Google Sheets to XLSX
+      'application/vnd.google-apps.presentation': 'application/pdf', // Google Slides to PDF
+    }
+
+    // If the file is a Google Docs, Sheets, or Slides file, we need to provide the export link
+    if (file.mimeType.startsWith('application/vnd.google-apps.')) {
+      const format = exportFormats[file.mimeType] || 'application/pdf'
+      if (!file.exportLinks) {
+        // If export links are not available in the response, try to construct one
+        file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent(
+          format
+        )}`
+      } else {
+        // Use the export link from the response if available
+        file.downloadUrl = file.exportLinks[format]
+      }
+    } else {
+      // For regular files, use the download link
+      file.downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`
+    }
+
     return NextResponse.json({ file }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching file from Google Drive`, error)
