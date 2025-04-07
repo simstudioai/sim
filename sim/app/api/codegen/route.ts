@@ -122,8 +122,8 @@ The code should be executable within an 'async function(params, environmentVaria
 - 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or process.env.
 
 IMPORTANT FORMATTING RULES:
-1.  Reference Environment Variables: Use the exact syntax '{{VARIABLE_NAME}}'. Our system replaces these placeholders before execution.
-2.  Reference Input Parameters/Workflow Variables: Use the exact syntax '<variable_name>'. This includes parameters defined in the block's schema and outputs from previous blocks.
+1.  Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'apiKey = {{SERVICE_API_KEY}}' not 'apiKey = "{{SERVICE_API_KEY}}"'). Our system replaces these placeholders before execution.
+2.  Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes (e.g., use 'userId = <userId>;' not 'userId = "<userId>";'). This includes parameters defined in the block's schema and outputs from previous blocks.
 3.  Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
 4.  Imports: Do NOT include import/require statements unless they are standard Node.js built-in modules (e.g., 'crypto', 'fs'). External libraries are not supported in this context.
 5.  Output: Ensure the code returns a value if the function is expected to produce output. Use 'return'.
@@ -134,8 +134,8 @@ Example Scenario:
 User Prompt: "Fetch user data from an API. Use the User ID passed in as 'userId' and an API Key stored as the 'SERVICE_API_KEY' environment variable."
 
 Generated Code:
-const userId = <userId>; // Accessing input parameter/workflow variable
-const apiKey = '{{SERVICE_API_KEY}}'; // Accessing environment variable
+const userId = <block.response.content>; // Correct: Accessing input parameter without quotes
+const apiKey = {{SERVICE_API_KEY}}; // Correct: Accessing environment variable without quotes
 const url = \`https://api.example.com/users/\${userId}\`;
 
 try {
@@ -168,8 +168,8 @@ Do not include import/require statements unless absolutely necessary and they ar
 Do not include markdown formatting or explanations.
 Output only the raw TypeScript code. Use modern TypeScript features where appropriate. Do not use semicolons.
 Example:
-const userId = params.userId as string
-const apiKey = environmentVariables.API_KEY
+const userId = <block.response.content> as string
+const apiKey = {{SERVICE_API_KEY}}
 const response = await fetch(\`https://api.example.com/users/\${userId}\`, { headers: { Authorization: \`Bearer \${apiKey}\` } })
 if (!response.ok) {
   throw new Error(\`Failed to fetch user data: \${response.statusText}\`)
@@ -256,13 +256,17 @@ export async function POST(req: NextRequest) {
             stream: true,
           })
 
-          let fullContent = ''
+          // Conditionally initialize fullContent only if needed for validation
+          let fullContent = generationType === 'json-schema' ? '' : undefined
 
           // Process each chunk
           for await (const chunk of streamCompletion) {
             const content = chunk.choices[0]?.delta?.content || ''
             if (content) {
-              fullContent += content
+              // Only append if fullContent is defined (i.e., for json-schema)
+              if (fullContent !== undefined) {
+                fullContent += content
+              }
 
               // Send the chunk to the client
               const payload = encoder.encode(
@@ -279,7 +283,7 @@ export async function POST(req: NextRequest) {
           // Check JSON validity for json-schema type when streaming is complete
           if (generationType === 'json-schema') {
             try {
-              JSON.parse(fullContent)
+              JSON.parse(fullContent!)
             } catch (parseError: any) {
               logger.error(`[${requestId}] Generated JSON schema is invalid`, {
                 error: parseError.message,
@@ -304,7 +308,7 @@ export async function POST(req: NextRequest) {
           const donePayload = encoder.encode(
             JSON.stringify({
               done: true,
-              fullContent: fullContent,
+              ...(fullContent !== undefined && { fullContent: fullContent }),
             }) + '\n'
           )
 
@@ -318,13 +322,12 @@ export async function POST(req: NextRequest) {
             stack: error.stack,
           })
 
-          const errorMessage =
-            error instanceof OpenAI.APIError ? error.message : 'Code generation streaming failed'
+          const clientErrorMessage = 'An error occurred during code generation streaming.'
 
           // Send error to client
           const errorPayload = encoder.encode(
             JSON.stringify({
-              error: errorMessage,
+              error: clientErrorMessage,
               done: true,
             }) + '\n'
           )
@@ -392,18 +395,36 @@ export async function POST(req: NextRequest) {
       stack: error.stack,
     })
 
+    // --- MODIFICATION: Use generic error message for client ---
+    let clientErrorMessage = 'Code generation failed. Please try again later.'
+    // Keep original message for server logging
+    let serverErrorMessage = error.message || 'Unknown error'
+    // --- END MODIFICATION ---
+
     let status = 500
-    let message = 'Code generation failed'
     if (error instanceof OpenAI.APIError) {
       status = error.status || 500
-      message = error.message
-      logger.error(`[${requestId}] OpenAI API Error: ${status} - ${message}`)
+      // --- MODIFICATION: Update server log message, keep client message generic ---
+      serverErrorMessage = error.message // Use specific API error for server logs
+      logger.error(`[${requestId}] OpenAI API Error: ${status} - ${serverErrorMessage}`)
+      // Optionally, customize client message based on status, but keep it generic
+      if (status === 401) {
+        clientErrorMessage = 'Authentication failed. Please check your API key configuration.'
+      } else if (status === 429) {
+        clientErrorMessage = 'Rate limit exceeded. Please try again later.'
+      } else if (status >= 500) {
+        clientErrorMessage =
+          'The code generation service is currently unavailable. Please try again later.'
+      }
+      // --- END MODIFICATION ---
     }
 
     return NextResponse.json(
       {
         success: false,
-        error: message,
+        // --- MODIFICATION: Use generic client error message ---
+        error: clientErrorMessage,
+        // --- END MODIFICATION ---
       },
       { status }
     )

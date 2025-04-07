@@ -225,3 +225,23 @@ input[type='search']::-moz-search-cancel-button {
 input[type='search']::-ms-clear {
   display: none;
 }
+
+/* Code Prompt Bar Placeholder Animation */
+@keyframes placeholder-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.loading-placeholder::placeholder {
+  animation: placeholder-pulse 1.5s ease-in-out infinite;
+}
+
+/* Dark mode error badge styling */
+.dark .bg-red-500 {
+  @apply bg-red-700;
+}

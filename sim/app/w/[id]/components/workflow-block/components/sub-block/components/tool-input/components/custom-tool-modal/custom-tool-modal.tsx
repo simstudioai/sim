@@ -484,7 +484,7 @@ export function CustomToolModal({
                       : schemaGeneration.hidePromptInline
                   }
                   onChange={schemaGeneration.updatePromptValue}
-                  placeholder="Describe the JSON schema you want to generate..."
+                  placeholder="Describe the JSON schema to generate..."
                   className="relative mb-2 !top-0"
                 />
               </>
@@ -507,7 +507,7 @@ export function CustomToolModal({
                       : codeGeneration.hidePromptInline
                   }
                   onChange={codeGeneration.updatePromptValue}
-                  placeholder="Describe the JavaScript function body you want to generate..."
+                  placeholder="Describe the JavaScript code to generate..."
                   className="relative mb-2 !top-0"
                 />
               </>

@@ -54,8 +54,8 @@ export function Code({
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder =
     language === 'json'
-      ? 'Describe the JSON schema you want to generate...'
-      : 'Describe the JavaScript code you want to generate...'
+      ? 'Describe the JSON schema to generate...'
+      : 'Describe the JavaScript code to generate...'
 
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -195,13 +195,17 @@ export function Code({
 
       const textarea = editorRef.current?.querySelector('textarea')
       const dropPosition = textarea?.selectionStart ?? code.length
-      const tagToInsert = `<${data.connectionData.sourceBlockId}.${data.connectionData.sourceHandleId}>`
-      const newValue = code.slice(0, dropPosition) + tagToInsert + code.slice(dropPosition)
+      const newValue = code.slice(0, dropPosition) + '<' + code.slice(dropPosition)
 
       setCode(newValue)
       setStoreValue(newValue)
-      const newCursorPosition = dropPosition + tagToInsert.length
+      const newCursorPosition = dropPosition + 1
       setCursorPosition(newCursorPosition)
+
+      setShowTags(true)
+      if (data.connectionData?.sourceBlockId) {
+        setActiveSourceBlockId(data.connectionData.sourceBlockId)
+      }
 
       setTimeout(() => {
         if (textarea) {
@@ -292,7 +296,7 @@ export function Code({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        <div className="absolute right-2 top-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute right-3 top-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {!isCollapsed && !isAiStreaming && (
             <Button
               variant="ghost"
@@ -300,7 +304,7 @@ export function Code({
               onClick={isPromptVisible ? hidePromptInline : showPromptInline}
               disabled={isAiLoading || isAiStreaming}
               aria-label="Generate code with AI"
-              className="text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
             >
               <SparklesIcon className="h-4 w-4" />
             </Button>
@@ -309,10 +313,10 @@ export function Code({
           {code.split('\n').length > 5 && !isAiStreaming && (
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => setIsCollapsed(!isCollapsed)}
               aria-label={isCollapsed ? 'Expand code' : 'Collapse code'}
-              className="text-muted-foreground hover:text-foreground"
+              className="h-8 px-2 text-muted-foreground hover:text-foreground"
             >
               <span className="text-xs">{isCollapsed ? 'Expand' : 'Collapse'}</span>
             </Button>

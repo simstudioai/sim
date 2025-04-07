@@ -23,7 +23,7 @@ export function CodePromptBar({
   onSubmit,
   onCancel,
   onChange,
-  placeholder = 'Describe the JavaScript code you want to generate...',
+  placeholder = 'Describe the JavaScript code to generate...',
   className,
 }: CodePromptBarProps) {
   if (!isVisible && !isStreaming) {
@@ -49,7 +49,8 @@ export function CodePromptBar({
             placeholder={placeholder}
             className={cn(
               'rounded-xl border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm text-foreground placeholder:text-muted-foreground/50',
-              isStreaming && 'text-primary'
+              isStreaming && 'text-primary',
+              (isLoading || isStreaming) && 'loading-placeholder'
             )}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !isLoading && !isStreaming && promptValue.trim()) {
