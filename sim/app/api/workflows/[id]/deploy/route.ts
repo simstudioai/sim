@@ -66,6 +66,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .where(eq(apiKey.userId, workflowData.userId))
       .limit(1)
 
+    let userKey = null
+
+    // If no API key exists, create one automatically
+    if (userApiKey.length === 0) {
+      try {
+        const newApiKey = generateApiKey()
+        await db.insert(apiKey).values({
+          id: uuidv4(),
+          userId: workflowData.userId,
+          name: 'Default API Key',
+          key: newApiKey,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        userKey = newApiKey
+        logger.info(`[${requestId}] Generated new API key for user: ${workflowData.userId}`)
+      } catch (keyError) {
+        // If key generation fails, log the error but continue with the request
+        logger.error(`[${requestId}] Failed to generate API key:`, keyError)
+      }
+    } else {
+      userKey = userApiKey[0].key
+    }
+
     // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
     if (workflowData.deployedState) {
@@ -78,7 +102,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
     return createSuccessResponse({
-      apiKey: userApiKey.length > 0 ? userApiKey[0].key : null,
+      apiKey: userKey,
       isDeployed: workflowData.isDeployed,
       deployedAt: workflowData.deployedAt,
       needsRedeployment,
@@ -134,16 +158,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // If no API key exists, create one
     if (userApiKey.length === 0) {
-      const newApiKey = generateApiKey()
-      await db.insert(apiKey).values({
-        id: uuidv4(),
-        userId,
-        name: 'Default API Key',
-        key: newApiKey,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-      userKey = newApiKey
+      try {
+        const newApiKey = generateApiKey()
+        await db.insert(apiKey).values({
+          id: uuidv4(),
+          userId,
+          name: 'Default API Key',
+          key: newApiKey,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        userKey = newApiKey
+        logger.info(`[${requestId}] Generated new API key for user: ${userId}`)
+      } catch (keyError) {
+        // If key generation fails, log the error but continue with the request
+        logger.error(`[${requestId}] Failed to generate API key:`, keyError)
+      }
     } else {
       userKey = userApiKey[0].key
     }

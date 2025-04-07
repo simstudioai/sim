@@ -102,13 +102,11 @@ export function DeploymentControls({
         },
         {
           label: 'API Key',
-          content: apiKey || 'No API key found. Visit your account settings to create one.',
+          content: apiKey,
         },
         {
           label: 'Example curl command',
-          content: apiKey
-            ? `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`
-            : `You need an API key to call this endpoint. Visit your account settings to create one.`,
+          content: `curl -X POST -H "X-API-Key: ${apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
         },
       ],
       needsRedeployment,
