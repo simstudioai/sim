@@ -165,6 +165,42 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  /* Code Editor Streaming Effect */
+  @keyframes code-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .streaming-effect {
+    @apply relative overflow-hidden;
+  }
+
+  .streaming-effect::after {
+    content: '';
+    @apply pointer-events-none absolute left-0 top-0 h-full w-full;
+    background: linear-gradient(
+      90deg,
+      rgba(128, 128, 128, 0) 0%,
+      rgba(128, 128, 128, 0.1) 50%,
+      rgba(128, 128, 128, 0) 100%
+    );
+    animation: code-shimmer 1.5s infinite;
+    z-index: 10;
+  }
+
+  .dark .streaming-effect::after {
+    background: linear-gradient(
+      90deg,
+      rgba(180, 180, 180, 0) 0%,
+      rgba(180, 180, 180, 0.1) 50%,
+      rgba(180, 180, 180, 0) 100%
+    );
+  }
 }
 
 /* Dark mode error badge styling */
@@ -188,4 +224,24 @@ input[type='search']::-moz-search-cancel-button {
 /* Microsoft Edge */
 input[type='search']::-ms-clear {
   display: none;
+}
+
+/* Code Prompt Bar Placeholder Animation */
+@keyframes placeholder-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.loading-placeholder::placeholder {
+  animation: placeholder-pulse 1.5s ease-in-out infinite;
+}
+
+/* Dark mode error badge styling */
+.dark .bg-red-500 {
+  @apply bg-red-700;
 }
