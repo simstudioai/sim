@@ -141,9 +141,13 @@ export class Executor {
               finalOutput = outputs[outputs.length - 1]
             }
 
-            const hasLoopReachedMaxIterations =
-              await this.loopManager.processLoopIterations(context)
-            if (hasLoopReachedMaxIterations) {
+            // Process loop iterations - this will activate external paths when loops complete
+            await this.loopManager.processLoopIterations(context)
+            
+            // Continue execution for any newly activated paths
+            // Only stop execution if there are no more blocks to execute
+            const updatedNextLayer = this.getNextExecutionLayer(context)
+            if (updatedNextLayer.length === 0) {
               hasMoreLayers = false
             }
           }
@@ -199,7 +203,6 @@ export class Executor {
       if (outputs.length > 0) {
         finalOutput = outputs[outputs.length - 1]
       }
-
       await this.loopManager.processLoopIterations(context)
       const nextLayer = this.getNextExecutionLayer(context)
       setPendingBlocks(nextLayer)

@@ -1,5 +1,8 @@
 import { SerializedWorkflow } from '@/serializer/types'
 import { ExecutionContext } from './types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('PathTracker')
 
 /**
  * Manages the active execution paths in the workflow.
@@ -106,8 +109,19 @@ export class PathTracker {
         const outgoingConnections = this.workflow.connections.filter(
           (conn) => conn.source === blockId
         )
-
         for (const conn of outgoingConnections) {
+          // Check if target is part of a loop that includes the source
+          const isInSameLoop = Object.values(context.workflow?.loops || {}).some(
+            loop => loop.nodes.includes(conn.source) && loop.nodes.includes(conn.target)
+          )
+          
+          // If this is a connection within a loop, let the LoopManager handle it
+          // This prevents regular path activation from interfering with loop control
+          if (isInSameLoop) {
+            logger.debug(`Skipping loop path activation: ${blockId} -> ${conn.target} (handled by LoopManager)`)
+            continue;
+          }
+          
           // For error connections, only activate them on error
           if (conn.sourceHandle === 'error') {
             if (hasError) {
