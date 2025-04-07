@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { DiscordIcon, GithubIcon, SlackIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
+import { DiscordIcon, GithubIcon, SlackIcon, StripeIcon, TwilioIcon, WhatsAppIcon } from '../../../../../../../../../components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -54,6 +54,10 @@ export interface SlackConfig {
   signingSecret: string
 }
 
+export interface TwilioConfig {
+  sendReply?: boolean
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -62,6 +66,7 @@ export type ProviderConfig =
   | StripeConfig
   | GeneralWebhookConfig
   | SlackConfig
+  | TwilioConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -160,6 +165,19 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Signing Secret',
         placeholder: 'Enter your Slack app signing secret',
         description: 'The signing secret from your Slack app to validate request authenticity.',
+      },
+    },
+  },
+  twilio: {
+    id: 'twilio',
+    name: 'Twilio',
+    icon: (props) => <TwilioIcon className={props.className} />,
+    configFields: {
+      sendReply: {
+        type: 'boolean',
+        label: 'Send Reply Messages',
+        defaultValue: true,
+        description: 'Whether to send automatic reply messages when SMS/MMS is received.',
       },
     },
   },

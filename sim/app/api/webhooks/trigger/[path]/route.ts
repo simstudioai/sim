@@ -119,13 +119,65 @@ export async function POST(
   try {
     const path = (await params).path
 
-    // Clone the request to get both the raw body for Slack signature verification
-    // and the parsed JSON body for processing
+    // Check content type to handle different formats properly
+    const contentType = request.headers.get('content-type') || ''
+    
+    // Clone the request to get the raw body for signature verification and content parsing
     const requestClone = request.clone()
     rawBody = await requestClone.text()
+    
+    // Parse the request body based on content type
+    let body: any
+    
+    if (contentType.includes('application/json')) {
+      try {
+        // Parse as JSON if content type is JSON
+        body = JSON.parse(rawBody || '{}')
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to parse request body as JSON, trying other formats`, error)
+        body = {}
+      }
+    } else if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+      // Handle form data (what Twilio sends)
+      try {
+        const formData = await request.formData()
+        body = Object.fromEntries(formData.entries())
+        logger.debug(`[${requestId}] Parsed form data: ${Object.keys(body).length} fields`)
+      } catch (error) {
+        logger.warn(`[${requestId}] Failed to parse form data, falling back to manual parsing`, error)
+        
+        // Fall back to manual parsing of form-urlencoded data
+        try {
+          if (rawBody) {
+            body = Object.fromEntries(
+              rawBody
+                .split('&')
+                .map(pair => {
+                  const [key, value] = pair.split('=').map(part => decodeURIComponent(part.replace(/\+/g, ' ')))
+                  return [key, value]
+                })
+            )
+          } else {
+            body = {}
+          }
+        } catch (innerError) {
+          logger.error(`[${requestId}] Failed manual form parsing`, innerError)
+          body = {}
+        }
+      }
+    } else {
+      // For other content types, try to parse as JSON first, then fall back
+      try {
+        body = JSON.parse(rawBody || '{}')
+      } catch (error) {
+        logger.warn(`[${requestId}] Unknown content type or parsing error, using raw body`, {
+          contentType,
+          bodyPreview: rawBody?.substring(0, 100)
+        })
+        body = { rawContent: rawBody }
+      }
+    }
 
-    // Parse the request body
-    const body = JSON.parse(rawBody || '{}')
     logger.info(`[${requestId}] Webhook POST request received for path: ${path}`)
 
     // Generate a unique request ID based on the request content
@@ -273,6 +325,99 @@ export async function POST(
         // This might be a different type of notification (e.g., status update)
         logger.debug(`[${requestId}] No messages in WhatsApp payload, might be a status update`)
         return new NextResponse('OK', { status: 200 })
+      }
+    } else if (foundWebhook.provider === 'twilio') {
+      // Process Twilio webhook request
+      logger.info(`[${requestId}] Processing Twilio webhook request`)
+      
+      // Check if this is from Twilio based on form fields
+      const isTwilioRequest = body && (body.MessageSid || body.AccountSid || body.From)
+      
+      if (isTwilioRequest) {
+        // Extract Twilio specific data
+        const messageBody = body.Body || ''
+        const from = body.From || ''
+        const to = body.To || ''
+        const messageId = body.MessageSid || ''
+        const numMedia = parseInt(body.NumMedia || '0', 10)
+        
+        logger.info(`[${requestId}] Received SMS from ${from} to ${to}`, {
+          messagePreview: messageBody.substring(0, 50),
+          numMedia,
+          smsMessageSid: body.SmsMessageSid || '',
+          messageSid: messageId,
+          allFormFields: Object.keys(body),
+        })
+        
+        // Store message ID in Redis to prevent duplicate processing
+        if (messageId) {
+          await markMessageAsProcessed(messageId)
+        }
+        
+        // Mark this request as processed to prevent duplicates
+        await markMessageAsProcessed(requestHash, 60 * 60 * 24)
+        
+        // Check if we need to authenticate the request
+        const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
+        const authToken = providerConfig.authToken
+                
+        // For MMS messages, extract media information
+        let mediaItems: Array<{ url: string; contentType: string }> = [];
+        if (numMedia > 0) {
+          for (let i = 0; i < numMedia; i++) {
+            const mediaUrl = body[`MediaUrl${i}`];
+            const contentType = body[`MediaContentType${i}`];
+            if (mediaUrl) {
+              mediaItems.push({
+                url: mediaUrl,
+                contentType: contentType || '',
+              });
+            }
+          }
+          
+          logger.debug(`[${requestId}] MMS received with ${mediaItems.length} media items`);
+        }
+        
+        // Enrich the body with additional Twilio-specific details
+        const enrichedBody = {
+          ...body,
+          twilio: {
+            messageType: numMedia > 0 ? 'mms' : 'sms',
+            body: messageBody,
+            from,
+            to,
+            messageId,
+            media: mediaItems
+          }
+        };
+        
+        // Process the webhook with enriched data
+        const result = await processWebhook(
+          foundWebhook,
+          foundWorkflow,
+          enrichedBody,
+          request,
+          executionId,
+          requestId
+        )
+        
+        // Check if we should send a reply
+        const sendReply = providerConfig.sendReply !== false
+        
+        // Generate TwiML response
+        const twimlResponse = generateTwiML(
+          sendReply ? `Thank you for your message: "${messageBody}". Your request is being processed.` : undefined
+        )
+
+        logger.info(`[${requestId}] TwiML response generated: ${twimlResponse}`)
+        
+        // Return TwiML response
+        return new NextResponse(twimlResponse, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+          },
+        })
       }
     }
 
@@ -700,4 +845,18 @@ async function processWebhook(
       status: 500,
     })
   }
+}
+
+/**
+ * Generate a TwiML response
+ */
+function generateTwiML(message?: string): string {
+  if (!message) {
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<Response></Response>'
+  }
+  
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Message>${message}</Message>
+</Response>`
 }

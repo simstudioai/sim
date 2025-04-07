@@ -8,6 +8,7 @@ import { GithubConfig } from './providers/github-config'
 import { SlackConfig } from './providers/slack-config'
 import { StripeConfig } from './providers/stripe-config'
 import { WhatsAppConfig } from './providers/whatsapp-config'
+import { TwilioConfig } from './providers/twilio-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
@@ -84,6 +85,10 @@ export function WebhookModal({
     discordAvatarUrl: '',
     slackSigningSecret: '',
   })
+
+  // Add Twilio specific state
+  const [authToken, setAuthToken] = useState('')
+  const [sendReply, setSendReply] = useState(true)
 
   // Get the current provider configuration
   const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
@@ -181,6 +186,10 @@ export function WebhookModal({
                 const signingSecret = config.signingSecret || ''
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
+              } else if (webhookProvider === 'twilio') {
+                const twilioConfig = config as TwilioConfig
+                setAuthToken(twilioConfig.authToken || '')
+                setSendReply(twilioConfig.sendReply !== false)
               }
             }
           }
@@ -213,7 +222,9 @@ export function WebhookModal({
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
-      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret)
+      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
+      (webhookProvider === 'twilio' &&
+        (authToken !== originalValues.authToken || sendReply !== originalValues.sendReply))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -228,6 +239,8 @@ export function WebhookModal({
     allowedIps,
     originalValues,
     slackSigningSecret,
+    authToken,
+    sendReply,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -277,6 +290,11 @@ export function WebhookModal({
         }
       case 'slack':
         return { signingSecret: slackSigningSecret }
+      case 'twilio':
+        return {
+          authToken,
+          sendReply,
+        } as TwilioConfig
       default:
         return {}
     }
@@ -308,6 +326,8 @@ export function WebhookModal({
           discordWebhookName,
           discordAvatarUrl,
           slackSigningSecret,
+          authToken,
+          sendReply,
         })
         setHasUnsavedChanges(false)
       }
@@ -364,6 +384,7 @@ export function WebhookModal({
       if (!response.ok) {
         throw new Error('Failed to test webhook')
       }
+      logger.info('response ok', response)
 
       const data = await response.json()
 
@@ -457,6 +478,17 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+          />
+        )
+      case 'twilio':
+        return (
+          <TwilioConfig
+            sendReply={sendReply}
+            setSendReply={setSendReply}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
           />
         )
       case 'generic':
