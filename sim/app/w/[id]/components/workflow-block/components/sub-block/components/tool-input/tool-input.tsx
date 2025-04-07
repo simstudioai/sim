@@ -162,12 +162,6 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       : []
 
   const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
-    // Check if tool already exists
-    if (selectedTools.some((tool) => tool.type === toolBlock.type)) {
-      setOpen(false)
-      return
-    }
-
     const hasOperations = hasMultipleOperations(toolBlock.type)
     const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
