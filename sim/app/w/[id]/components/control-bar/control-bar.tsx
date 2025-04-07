@@ -920,7 +920,7 @@ export function ControlBar() {
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
         {renderDebugModeToggle()}
-        {renderPublishButton()}
+        {/* {renderPublishButton()} */}
         {renderDeployButton()}
         {renderRunButton()}
 

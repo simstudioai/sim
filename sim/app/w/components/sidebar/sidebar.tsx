@@ -126,7 +126,7 @@ export function Sidebar() {
       {/* Bottom navigation - Always visible */}
       <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-[18px]">
         {/* Marketplace */}
-        <Tooltip>
+        {/* <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
@@ -146,7 +146,7 @@ export function Sidebar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">Marketplace</TooltipContent>
-        </Tooltip>
+        </Tooltip> */}
 
         {/* Logs */}
         <Tooltip>
