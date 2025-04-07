@@ -19,7 +19,7 @@ export function Toolbar() {
     const filteredBlocks = !searchQuery.trim() ? getBlocksByCategory(activeTab) : getAllBlocks()
 
     return filteredBlocks.filter((block) => {
-      if (block.type === 'starter' || block.hiddenFromSidebar) return false
+      if (block.type === 'starter' || block.hideFromToolbar) return false
 
       return (
         !searchQuery.trim() ||

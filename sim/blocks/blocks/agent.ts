@@ -104,6 +104,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'code',
       layout: 'full',
       placeholder: `Enter JSON schema...`,
+      language: 'json',
+      generationType: 'json-schema',
     },
   ],
   tools: {
