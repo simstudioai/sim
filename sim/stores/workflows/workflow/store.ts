@@ -609,35 +609,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateLoopForEachItems: (loopId: string, items: string) => {
-        let parsedItems: any = items
-
-        // Try to parse the string as JSON or JS array/object if it looks like one
-        if (
-          typeof items === 'string' &&
-          ((items.trim().startsWith('[') && items.trim().endsWith(']')) ||
-            (items.trim().startsWith('{') && items.trim().endsWith('}')))
-        ) {
-          try {
-            // First try to parse to validate it's valid JSON
-            // If it uses single quotes, convert to double quotes first
-            const normalizedItems = items
-              .replace(/'/g, '"')                // Replace all single quotes with double quotes
-              .replace(/(\w+):/g, '"$1":')       // Convert property names to double-quoted strings
-              .replace(/,\s*]/g, ']')            // Remove trailing commas before closing brackets
-              .replace(/,\s*}/g, '}')            // Remove trailing commas before closing braces
-            
-            // Try parsing the normalized string
-            const parsed = JSON.parse(normalizedItems)
-
-            // If parsing succeeds, use the original string to preserve formatting
-            parsedItems = items
-          } catch (e) {
-            // If parsing fails, keep it as a string expression
-            console.error('Invalid format for forEach items:', e)
-            parsedItems = items
-          }
-        }
-
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges],
@@ -645,7 +616,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...get().loops,
             [loopId]: {
               ...get().loops[loopId],
-              forEachItems: parsedItems,
+              forEachItems: items,
             },
           },
         }

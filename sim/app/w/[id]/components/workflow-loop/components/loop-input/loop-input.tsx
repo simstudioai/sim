@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, InfoIcon } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -8,7 +8,6 @@ import { NodeProps } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -27,7 +26,6 @@ export function LoopInput({ id }: NodeProps) {
   const [inputValue, setInputValue] = useState(iterations.toString())
   const [editorValue, setEditorValue] = useState('')
   const [open, setOpen] = useState(false)
-  const [validationError, setValidationError] = useState<string | null>(null)
   const editorRef = useRef<HTMLDivElement | null>(null)
 
   // Initialize editor value from the store
@@ -81,36 +79,9 @@ export function LoopInput({ id }: NodeProps) {
     }
   }
 
-  const validateArraySyntax = (value: string): boolean => {
-    try {
-      // Handle both JSON format (double quotes) and JS format (single quotes)
-      if (value.trim() === '') return true
-
-      const normalizedValue = value
-        .replace(/'/g, '"') // Replace single quotes with double quotes
-        .replace(/(\w+):/g, '"$1":') // Convert unquoted property names to quoted
-        .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
-        .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
-
-      JSON.parse(normalizedValue)
-      setValidationError(null)
-      return true
-    } catch (e) {
-      if (e instanceof Error) {
-        setValidationError(e.message)
-      } else {
-        setValidationError('Invalid format')
-      }
-      return false
-    }
-  }
-
   const handleEditorChange = (value: string) => {
     // Always set the editor value to exactly what the user typed
     setEditorValue(value)
-
-    // Validate syntax but still allow saving imperfect values
-    validateArraySyntax(value)
 
     // Save the items to the store for forEach loops
     if (loopType === 'forEach') {
@@ -165,35 +136,6 @@ export function LoopInput({ id }: NodeProps) {
             <div className="text-xs font-medium text-muted-foreground">
               {loopType === 'for' ? 'Loop Iterations' : 'Collection Items'}
             </div>
-
-            {loopType === 'forEach' && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <InfoIcon className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[300px] p-3">
-                    <div className="text-xs space-y-1.5">
-                      <p>Supports both formats:</p>
-                      <p>
-                        <code className="bg-muted/50 px-1 rounded">['item1', 'item2']</code> - JS
-                        style with single quotes
-                      </p>
-                      <p>
-                        <code className="bg-muted/50 px-1 rounded">["item1", "item2"]</code> - JSON
-                        style with double quotes
-                      </p>
-                      <p>
-                        <code className="bg-muted/50 px-1 rounded">
-                          {'{"key1": "value1", "key2": "value2"}'}
-                        </code>{' '}
-                        - Objects
-                      </p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
 
           {loopType === 'for' ? (
@@ -211,10 +153,7 @@ export function LoopInput({ id }: NodeProps) {
           ) : (
             // Code editor for 'forEach' loops
             <div
-              className={cn(
-                'relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border',
-                validationError ? 'border-red-500' : 'border-input'
-              )}
+              className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input"
               ref={editorRef}
             >
               {editorValue === '' && (
@@ -238,13 +177,9 @@ export function LoopInput({ id }: NodeProps) {
           )}
 
           <div className="text-[10px] text-muted-foreground">
-            {loopType === 'for' ? (
-              'Enter a number between 1 and 50'
-            ) : validationError ? (
-              <span className="text-red-500">{validationError}</span>
-            ) : (
-              'Array or object to iterate over'
-            )}
+            {loopType === 'for'
+              ? 'Enter a number between 1 and 50'
+              : 'Array or object to iterate over'}
           </div>
         </div>
       </PopoverContent>
