@@ -4,19 +4,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import {
-  acquireLock,
-  closeRedisConnection,
-  getLockValue,
-  hasProcessedMessage,
-  markMessageAsProcessed,
-  releaseLock,
-} from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
+import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
-import { account, environment, userStats, webhook, workflow } from '@/db/schema'
+import { environment, userStats, webhook, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { validateSlackSignature } from '../../utils'
@@ -25,29 +18,6 @@ const logger = createLogger('WebhookTriggerAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max execution time for long-running webhooks
-
-// --- Placeholder Function to Get OAuth Token (copied from webhooks/route.ts) ---
-// NOTE: Replace this with your actual implementation for fetching stored OAuth tokens
-async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {
-  logger.debug(`Attempting to fetch OAuth token for user ${userId}, provider ${providerId}`)
-  const connections = await db
-    .select({ accessToken: account.accessToken })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
-    .orderBy(account.createdAt) // Consider filtering by expiration or using a specific 'active' flag
-    .limit(1)
-
-  if (connections.length > 0 && connections[0].accessToken) {
-    logger.info(`Found OAuth token for user ${userId}, provider ${providerId}`)
-    // TODO: Add token decryption if necessary
-    // TODO: Add token refresh logic if necessary
-    return connections[0].accessToken
-  }
-
-  logger.warn(`No valid OAuth token found for user ${userId}, provider ${providerId}`)
-  return null
-}
-// --- End Placeholder ---
 
 /**
  * Consolidated webhook trigger endpoint for all providers
@@ -131,9 +101,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
-  } finally {
-    // Ensure Redis connection is properly closed in serverless environment
-    await closeRedisConnection()
   }
 }
 
@@ -182,70 +149,65 @@ export async function POST(
 
     // --- Provider Specific Logic ---
 
-    // --- Airtable Ping Handling with Debounce ---
+    // --- Airtable Ping Handling (Simplified, no locking) ---
     if (foundWebhook.provider === 'airtable') {
       logger.info(`[${requestId}] Airtable webhook ping received for webhook: ${foundWebhook.id}`)
 
-      // Define lock key and expiry (e.g., 30 seconds)
-      const lockKey = `airtable_processing:${foundWebhook.id}`
-      const lockExpirySeconds = 30
+      // Acknowledge the ping immediately - Now we process synchronously
+      // logger.debug(`[${requestId}] Acknowledging Airtable ping for webhook ${foundWebhook.id}.`)
 
-      // Attempt to acquire the lock
-      const lockAcquired = await acquireLock(lockKey, requestId, lockExpirySeconds)
-
-      if (!lockAcquired) {
-        logger.info(
-          `[${requestId}] Processing already in progress for webhook ${foundWebhook.id}. Skipping this ping.`
+      // Process the ping SYNCHRONOUSLY
+      try {
+        logger.info(`[${requestId}] Starting synchronous Airtable payload processing...`, {
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+        })
+        await fetchAndProcessAirtablePayloads(
+          foundWebhook,
+          foundWorkflow,
+          requestId // Pass the original request ID
         )
-        return new NextResponse('Processing already in progress', { status: 200 }) // Acknowledge ping but don't process
-      }
-
-      logger.info(`[${requestId}] Acquired processing lock for webhook ${foundWebhook.id}.`)
-
-      // TODO: Implement Airtable Signature Verification if needed
-      // ... (Signature verification logic) ...
-
-      // Acknowledge the ping immediately AFTER acquiring lock
-      logger.debug(`[${requestId}] Acknowledging Airtable ping for webhook ${foundWebhook.id}.`)
-      // Use request.waitUntil for Vercel edge functions to allow background tasks
-      const backgroundTaskPromise = fetchAndProcessAirtablePayloads(
-        foundWebhook,
-        foundWorkflow,
-        requestId, // Pass the original request ID
-        lockKey // Pass the lock key to release it later
-      )
-      if (typeof (request as any).waitUntil === 'function') {
-        ;(request as any).waitUntil(backgroundTaskPromise)
-        logger.info(`[${requestId}] Scheduled Airtable payload fetch via waitUntil.`)
-      } else {
-        // For non-edge environments, run async but don't await the main handler
-        logger.info(`[${requestId}] Running Airtable payload fetch asynchronously (non-edge).`)
-        backgroundTaskPromise.catch((err) => {
-          logger.error(`[${requestId}] Uncaught error in background Airtable processing.`, err)
-          // Persist internal polling error - use original requestId as a prefix
-          persistExecutionError(foundWorkflow.id, `poll-${requestId}-uncaught`, err, 'webhook')
-          // Ensure lock is released even on uncaught error
-          releaseLock(lockKey).catch((releaseErr) =>
-            logger.error(`Failed to release lock on uncaught error for ${lockKey}`, releaseErr)
-          )
+        logger.info(`[${requestId}] Synchronous Airtable payload processing finished.`, {
+          webhookId: foundWebhook.id,
+        })
+        // Return success after processing is complete
+        return new NextResponse('Airtable ping processed successfully', { status: 200 })
+      } catch (error: any) {
+        logger.error(`[${requestId}] Error during synchronous Airtable processing`, {
+          webhookId: foundWebhook.id,
+          error: error.message,
+          stack: error.stack,
+        })
+        // Persist the error if processing fails
+        await persistExecutionError(
+          foundWorkflow.id,
+          `airtable-sync-process-${requestId}`,
+          error,
+          'webhook'
+        )
+        return new NextResponse(`Error processing Airtable webhook: ${error.message}`, {
+          status: 500,
         })
       }
 
-      // Return immediately after scheduling the background task
-      return new NextResponse('Airtable ping acknowledged, processing started', { status: 200 })
+      // REMOVED Asynchronous handling logic:
+      // const backgroundTaskPromise = fetchAndProcessAirtablePayloads(...)
+      // if (typeof (request as any).waitUntil === 'function') { ... }
+      // else { ... }
+      // return new NextResponse('Airtable ping acknowledged, processing started', { status: 200 })
     }
 
     // --- Existing Deduplication and Processing for other providers ---
     // Generate hash *only* for non-Airtable requests now
-    const requestHash = await generateRequestHash(path, body)
-    if (await hasProcessedMessage(requestHash)) {
-      logger.info(
-        `[${requestId}] Duplicate webhook request detected (non-Airtable) with hash: ${requestHash}`
-      )
-      return new NextResponse('Duplicate request', { status: 200 })
-    }
+    // const requestHash = await generateRequestHash(path, body) // Commented out or removed hash generation
+    // if (await hasProcessedMessage(requestHash)) { // Removed check
+    //   logger.info(
+    //     `[${requestId}] Duplicate webhook request detected (non-Airtable) with hash: ${requestHash}`
+    //   )
+    //   return new NextResponse('Duplicate request', { status: 200 })
+    // }
     // Mark as processed *only* for non-Airtable requests needing this body-based dedup
-    await markMessageAsProcessed(`req:${requestHash}`, 60 * 60 * 24) // Use prefix for clarity
+    // await markMessageAsProcessed(`req:${requestHash}`, 60 * 60 * 24) // Removed marking as processed
 
     // --- Slack Specific Handling ---
     if (foundWebhook.provider === 'slack') {
@@ -285,14 +247,14 @@ export async function POST(
       }
       const messageId = body?.event?.event_id // Slack message ID
       // Use full prefix for clarity and avoid collision with general keys
-      const slackMsgKey = `slack:msg:${messageId}`
-      if (messageId && (await hasProcessedMessage(slackMsgKey))) {
-        logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
-        return new NextResponse('Duplicate message', { status: 200 })
-      }
-      if (messageId) {
-        await markMessageAsProcessed(slackMsgKey) // Use specific key
-      }
+      // const slackMsgKey = `slack:msg:${messageId}` // Removed key generation
+      // if (messageId && (await hasProcessedMessage(slackMsgKey))) { // Removed check
+      //   logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
+      //   return new NextResponse('Duplicate message', { status: 200 })
+      // }
+      // if (messageId) {
+      //   await markMessageAsProcessed(slackMsgKey) // Removed marking as processed
+      // }
       // Process Slack webhook using the existing function
       return await processWebhook(
         foundWebhook,
@@ -314,14 +276,14 @@ export async function POST(
         const message = messages[0]
         const messageId = message.id // WhatsApp message ID
         // Use full prefix for clarity
-        const whatsappMsgKey = `whatsapp:msg:${messageId}`
-        if (messageId && (await hasProcessedMessage(whatsappMsgKey))) {
-          logger.info(`[${requestId}] Duplicate WhatsApp message detected with ID: ${messageId}`)
-          return new NextResponse('Duplicate message', { status: 200 })
-        }
-        if (messageId) {
-          await markMessageAsProcessed(whatsappMsgKey) // Use specific key
-        }
+        // const whatsappMsgKey = `whatsapp:msg:${messageId}` // Removed key generation
+        // if (messageId && (await hasProcessedMessage(whatsappMsgKey))) { // Removed check
+        //   logger.info(`[${requestId}] Duplicate WhatsApp message detected with ID: ${messageId}`)
+        //   return new NextResponse('Duplicate message', { status: 200 })
+        // }
+        // if (messageId) {
+        //   await markMessageAsProcessed(whatsappMsgKey) // Removed marking as processed
+        // }
         // Process WhatsApp webhook using the existing function
         const result = await processWebhook(
           foundWebhook,
@@ -360,12 +322,6 @@ export async function POST(
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
-  } finally {
-    // Close Redis connection ONLY if not processing Airtable in background
-    // If Airtable is handled, the background task will close it.
-    if (foundWebhook?.provider !== 'airtable') {
-      await closeRedisConnection()
-    }
   }
 }
 
@@ -374,13 +330,12 @@ export async function POST(
 /**
  * Fetches all available payloads from Airtable API after a ping
  * and triggers a single workflow execution with the batch of payloads.
- * Releases the processing lock upon completion or error.
+ * Simplified version without locking mechanism.
  */
 async function fetchAndProcessAirtablePayloads(
   webhookData: any,
   workflowData: any,
-  requestId: string, // Original request ID from the ping, used for the final execution log & lock value
-  lockKey: string // Lock key to check and release
+  requestId: string // Original request ID from the ping, used for the final execution log
 ) {
   // Use a prefix derived from requestId for *internal* polling logs/errors
   const internalPollIdPrefix = `poll-${requestId}`
@@ -391,6 +346,12 @@ async function fetchAndProcessAirtablePayloads(
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
   let localProviderConfig = { ...((webhookData.providerConfig as Record<string, any>) || {}) } // Local copy
+
+  // Add log at the very beginning of the try block
+  logger.info(`[${requestId}] Entering fetchAndProcessAirtablePayloads try block`, {
+    webhookId: webhookData.id,
+    workflowId: workflowData.id,
+  })
 
   try {
     // --- Essential IDs & Config from localProviderConfig ---
@@ -407,30 +368,92 @@ async function fetchAndProcessAirtablePayloads(
         new Error('Missing Airtable baseId or externalId in providerConfig'),
         'webhook'
       )
-      return // Exit early, lock will be released in finally block
+      return // Exit early
     }
 
     // --- Retrieve Stored Cursor from localProviderConfig ---
     const storedCursor = localProviderConfig.externalWebhookCursor
+    logger.info(`[${requestId}] Retrieved providerConfig for cursor check`, {
+      webhookId: webhookData.id,
+      storedCursorValue: storedCursor,
+      type: typeof storedCursor,
+    })
+
+    // IMPORTANT FIX: Initialize cursor in provider config if missing
+    if (storedCursor === undefined || storedCursor === null) {
+      logger.info(`[${requestId}] Cursor is missing in providerConfig, initializing it`, {
+        webhookId: webhookData.id,
+      })
+
+      // Update the local copy
+      localProviderConfig.externalWebhookCursor = null
+
+      // Add cursor to the database immediately to fix the configuration
+      try {
+        // Add log before the DB update
+        logger.info(`[${requestId}] Attempting to initialize cursor in DB`, {
+          webhookId: webhookData.id,
+          configToSave: { ...localProviderConfig, externalWebhookCursor: null },
+        })
+        await db
+          .update(webhook)
+          .set({
+            providerConfig: { ...localProviderConfig, externalWebhookCursor: null },
+            updatedAt: new Date(),
+          })
+          .where(eq(webhook.id, webhookData.id))
+
+        localProviderConfig.externalWebhookCursor = null // Update local copy too
+        logger.info(`[${requestId}] Successfully initialized cursor in DB`, {
+          webhookId: webhookData.id,
+        })
+      } catch (initError: any) {
+        logger.error(`[${requestId}] Failed to initialize cursor in DB`, {
+          webhookId: webhookData.id,
+          error: initError.message,
+          stack: initError.stack,
+        })
+        // Persist the error specifically for cursor initialization failure
+        await persistExecutionError(
+          workflowData.id,
+          `${internalPollIdPrefix}-cursor-init-error`,
+          initError,
+          'webhook'
+        )
+      }
+    }
+
     if (storedCursor && typeof storedCursor === 'number') {
       currentCursor = storedCursor
-      logger.info(
-        `[${requestId}] Retrieved stored cursor from providerConfig for Airtable webhook ${webhookData.id}: ${currentCursor}`
-      )
+      logger.info(`[${requestId}] Using stored cursor`, {
+        webhookId: webhookData.id,
+        cursor: currentCursor,
+      })
     } else {
-      logger.info(
-        `[${requestId}] No valid stored cursor in providerConfig for Airtable webhook ${webhookData.id}, starting poll.`
-      )
+      logger.info(`[${requestId}] No valid stored cursor found, starting poll`, {
+        webhookId: webhookData.id,
+      })
       currentCursor = null // Airtable API defaults to 1 if omitted
     }
 
     // --- Get OAuth Token ---
+    logger.info(`[${requestId}] Attempting to get OAuth token`, {
+      userId: workflowData.userId,
+      provider: 'airtable',
+    })
     let accessToken: string | null = null
     try {
       accessToken = await getOAuthToken(workflowData.userId, 'airtable')
       if (!accessToken) {
+        logger.error(
+          `[${requestId}] Failed to obtain valid Airtable access token. Cannot proceed.`,
+          { userId: workflowData.userId }
+        )
         throw new Error('Airtable access token not found.')
       }
+      logger.info(`[${requestId}] Successfully obtained Airtable access token`, {
+        userId: workflowData.userId,
+      })
     } catch (tokenError: any) {
       logger.error(
         `[${requestId}] Failed to get Airtable OAuth token for user ${workflowData.userId}`,
@@ -442,7 +465,7 @@ async function fetchAndProcessAirtablePayloads(
         tokenError,
         'webhook'
       )
-      return // Exit early, lock will be released in finally block
+      return // Exit early
     }
 
     const airtableApiBase = 'https://api.airtable.com/v0'
@@ -452,9 +475,10 @@ async function fetchAndProcessAirtablePayloads(
       apiCallCount++
       // Safety break
       if (apiCallCount > 10) {
-        logger.warn(
-          `[${requestId}] Reached maximum polling limit (10 calls) for webhook ${webhookData.id}. Processing ${consolidatedChangesMap.size} consolidated changes.`
-        )
+        logger.warn(`[${requestId}] Reached maximum polling limit (10 calls)`, {
+          webhookId: webhookData.id,
+          consolidatedCount: consolidatedChangesMap.size,
+        })
         mightHaveMore = false
         break
       }
@@ -483,8 +507,8 @@ async function fetchAndProcessAirtablePayloads(
             responseBody.error ||
             `Airtable API error Status ${response.status}`
           logger.error(
-            `[${requestId}] Failed to fetch Airtable payloads (Call ${apiCallCount}) for webhook ${webhookData.id}. Status: ${response.status}`,
-            { error: errorMessage }
+            `[${requestId}] Airtable API request to /payloads failed (Call ${apiCallCount})`,
+            { webhookId: webhookData.id, status: response.status, error: errorMessage }
           )
           await persistExecutionError(
             workflowData.id,
@@ -498,7 +522,12 @@ async function fetchAndProcessAirtablePayloads(
 
         const receivedPayloads = responseBody.payloads || []
         logger.info(
-          `[${requestId}] Received ${receivedPayloads.length} payloads from Airtable (Call ${apiCallCount}). mightHaveMore: ${responseBody.mightHaveMore}`
+          `[${requestId}] Received response from Airtable /payloads (Call ${apiCallCount})`,
+          {
+            payloadCount: receivedPayloads.length,
+            mightHaveMore: responseBody.mightHaveMore,
+            nextCursor: responseBody.cursor,
+          }
         )
 
         // --- Process and Consolidate Changes ---
@@ -580,22 +609,41 @@ async function fetchAndProcessAirtablePayloads(
         mightHaveMore = responseBody.mightHaveMore || false
 
         if (nextCursor && typeof nextCursor === 'number' && nextCursor !== currentCursor) {
-          logger.info(
-            `[${requestId}] Updating cursor in providerConfig for Airtable webhook ${webhookData.id} to ${nextCursor}`
-          )
+          logger.info(`[${requestId}] Updating cursor for next potential iteration`, {
+            webhookId: webhookData.id,
+            previousCursor: currentCursor,
+            newCursor: nextCursor,
+            mightHaveMore,
+          })
           currentCursor = nextCursor
+          // --- Add logging before and after DB update ---
+          const updatedConfig = { ...localProviderConfig, externalWebhookCursor: currentCursor }
+          logger.info(`[${requestId}] Attempting to persist new cursor to DB`, {
+            webhookId: webhookData.id,
+            cursor: currentCursor,
+            configToSave: updatedConfig, // Log the object being saved
+          })
           try {
-            const updatedConfig = { ...localProviderConfig, externalWebhookCursor: currentCursor }
+            // Force a complete object update to ensure consistency in serverless env
             await db
               .update(webhook)
-              .set({ providerConfig: updatedConfig, updatedAt: new Date() })
+              .set({
+                providerConfig: updatedConfig, // Use full object
+                updatedAt: new Date(),
+              })
               .where(eq(webhook.id, webhookData.id))
+
             localProviderConfig.externalWebhookCursor = currentCursor // Update local copy too
+            logger.info(`[${requestId}] Successfully persisted new cursor to DB`, {
+              webhookId: webhookData.id,
+              newCursor: currentCursor,
+            })
           } catch (dbError: any) {
-            logger.error(
-              `[${requestId}] Failed to persist updated cursor ${currentCursor} in providerConfig for Airtable webhook ${webhookData.id}`,
-              dbError
-            )
+            logger.error(`[${requestId}] Failed to persist Airtable cursor to DB`, {
+              webhookId: webhookData.id,
+              cursor: currentCursor,
+              error: dbError.message,
+            })
             await persistExecutionError(
               workflowData.id,
               `${internalPollIdPrefix}-cursor-persist-error`,
@@ -603,16 +651,21 @@ async function fetchAndProcessAirtablePayloads(
               'webhook'
             )
             mightHaveMore = false
+            throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
           }
         } else if (!nextCursor || typeof nextCursor !== 'number') {
-          logger.warn(
-            `[${requestId}] Invalid or missing cursor from Airtable API (Call ${apiCallCount}). Stopping poll. Cursor: ${nextCursor}`
-          )
+          logger.warn(`[${requestId}] Invalid or missing cursor received, stopping poll`, {
+            webhookId: webhookData.id,
+            apiCall: apiCallCount,
+            receivedCursor: nextCursor,
+          })
           mightHaveMore = false
         } else {
-          logger.debug(
-            `[${requestId}] Cursor unchanged (${currentCursor}) after call ${apiCallCount}. mightHaveMore is ${mightHaveMore}.`
+          logger.info(
+            `[${requestId}] Cursor unchanged or no new cursor, ending payload fetch loop`,
+            { webhookId: webhookData.id, finalCursor: currentCursor, apiCall: apiCallCount }
           )
+          mightHaveMore = false // Explicitly stop if cursor hasn't changed
         }
       } catch (fetchError: any) {
         logger.error(
@@ -634,46 +687,48 @@ async function fetchAndProcessAirtablePayloads(
     // Convert map values to array for final processing
     const finalConsolidatedChanges = Array.from(consolidatedChangesMap.values())
 
-    logger.info(
-      `[${requestId}] Finished polling Airtable for webhook ${webhookData.id}. Processed ${payloadsFetched} payloads into ${finalConsolidatedChanges.length} consolidated change entries.`
-    )
+    logger.info(`[${requestId}] Finished polling Airtable`, {
+      webhookId: webhookData.id,
+      totalPayloadsFetched: payloadsFetched,
+      consolidatedCount: finalConsolidatedChanges.length,
+      finalCursor: currentCursor,
+    })
 
-    // --- Verify Lock and Execute Workflow ONCE ---
+    // --- Execute Workflow if we have changes (simplified - no lock check) ---
     if (finalConsolidatedChanges.length > 0) {
-      // Check if our lock is still valid before executing
-      const currentLockValue = await getLockValue(lockKey)
-      if (currentLockValue === requestId) {
-        logger.info(
-          `[${requestId}] Lock verified. Triggering single workflow execution for ${finalConsolidatedChanges.length} consolidated Airtable changes.`
-        )
-        try {
-          // Format the input for the executor using the consolidated changes
-          const input = { airtableChanges: finalConsolidatedChanges } // Use the consolidated array
-          // Execute using the original requestId as the executionId
-          await executeWorkflowFromPayload(workflowData, input, requestId, requestId)
-        } catch (executionError: any) {
-          // Errors logged within executeWorkflowFromPayload
-          logger.error(
-            `[${requestId}] Error during the final workflow execution after polling`,
-            executionError
-          )
+      logger.info(
+        `[${requestId}] Triggering workflow execution with ${finalConsolidatedChanges.length} changes`,
+        {
+          webhookId: webhookData.id,
         }
-      } else {
-        logger.info(
-          `[${requestId}] Lock was overwritten or expired (current value: ${currentLockValue}). Aborting execution for stale data.`
+      )
+      try {
+        // Format the input for the executor using the consolidated changes
+        const input = { airtableChanges: finalConsolidatedChanges } // Use the consolidated array
+        // Execute using the original requestId as the executionId
+        await executeWorkflowFromPayload(workflowData, input, requestId, requestId)
+      } catch (executionError: any) {
+        // Errors logged within executeWorkflowFromPayload
+        logger.error(
+          `[${requestId}] Error during workflow execution triggered by Airtable polling`,
+          executionError
         )
-        // Do not execute the workflow as a newer ping likely started processing.
       }
     } else {
-      logger.info(
-        `[${requestId}] No new changes collected from Airtable for webhook ${webhookData.id}. Workflow not executed.`
-      )
+      logger.info(`[${requestId}] No new changes collected from Airtable, workflow not executed`, {
+        webhookId: webhookData.id,
+      })
     }
   } catch (error) {
     // Catch any unexpected errors during the setup/polling logic itself
     logger.error(
-      `[${requestId}] Unexpected error during Airtable payload processing for webhook ${webhookData.id}`,
-      error
+      `[${requestId}] Unexpected error during asynchronous Airtable payload processing task`,
+      {
+        webhookId: webhookData.id,
+        workflowId: workflowData.id,
+        error: (error as Error).message,
+        stack: (error as Error).stack,
+      }
     )
     // Persist this higher-level error
     await persistExecutionError(
@@ -682,21 +737,6 @@ async function fetchAndProcessAirtablePayloads(
       error as Error,
       'webhook'
     )
-  } finally {
-    // Ensure the lock is released regardless of success or failure
-    // Only release if WE still hold the lock (value matches our requestId)
-    // This prevents releasing a lock acquired by a newer process.
-    const finalLockValue = await getLockValue(lockKey)
-    if (finalLockValue === requestId) {
-      logger.info(`[${requestId}] Releasing processing lock for webhook ${webhookData.id}.`)
-      await releaseLock(lockKey)
-    } else {
-      logger.warn(
-        `[${requestId}] Did not release lock ${lockKey} as its value (${finalLockValue}) does not match our requestId.`
-      )
-    }
-    // Ensure Redis connection is closed after background task is done
-    await closeRedisConnection()
   }
 }
 
@@ -719,6 +759,12 @@ async function executeWorkflowFromPayload(
   executionId: string, // Unique ID for this specific execution
   requestId: string // Original request ID for logging context
 ): Promise<void> {
+  // Add log at the beginning of this function for clarity
+  logger.info(`[${requestId}] Preparing to execute workflow`, {
+    workflowId: foundWorkflow.id,
+    executionId,
+    triggerSource: 'webhook-payload',
+  })
   // Returns void as errors are handled internally
   try {
     // Get the workflow state
@@ -829,9 +875,10 @@ async function executeWorkflowFromPayload(
       }
     }
 
-    logger.debug(
-      `[${requestId}] Starting workflow execution ${executionId} with ${Object.keys(processedBlockStates).length} blocks`
-    )
+    logger.debug(`[${requestId}] Starting workflow execution`, {
+      executionId,
+      blockCount: Object.keys(processedBlockStates).length,
+    })
     const executor = new Executor(
       serializedWorkflow,
       processedBlockStates,
@@ -841,13 +888,11 @@ async function executeWorkflowFromPayload(
     )
     const result = await executor.execute(foundWorkflow.id)
 
-    logger.info(
-      `[${requestId}] Successfully executed workflow ${foundWorkflow.id} (Execution: ${executionId})`,
-      {
-        success: result.success,
-        executionTime: result.metadata?.duration,
-      }
-    )
+    logger.info(`[${requestId}] Workflow execution finished`, {
+      executionId,
+      success: result.success,
+      durationMs: result.metadata?.duration,
+    })
 
     // Update counts and stats if successful
     if (result.success) {
@@ -868,10 +913,12 @@ async function executeWorkflowFromPayload(
     // Persist logs for this execution using the standard 'webhook' trigger type
     await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
   } catch (error: any) {
-    logger.error(
-      `[${requestId}] Error executing workflow ${foundWorkflow.id} (Execution: ${executionId})`,
-      error
-    )
+    logger.error(`[${requestId}] Error executing workflow`, {
+      workflowId: foundWorkflow.id,
+      executionId,
+      error: error.message,
+      stack: error.stack,
+    })
     // Persist the error for this execution using the standard 'webhook' trigger type
     await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
     // Re-throw the error so the caller (fetchAndProcessAirtablePayloads) knows it failed
