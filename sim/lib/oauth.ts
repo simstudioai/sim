@@ -347,6 +347,7 @@ export async function refreshOAuthToken(
     let tokenEndpoint: string
     let clientId: string | undefined
     let clientSecret: string | undefined
+    let useBasicAuth = false
 
     switch (provider) {
       case 'google':
@@ -373,6 +374,7 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
         clientId = process.env.AIRTABLE_CLIENT_ID
         clientSecret = process.env.AIRTABLE_CLIENT_SECRET
+        useBasicAuth = true
         break
       case 'supabase':
         tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
@@ -387,21 +389,37 @@ export async function refreshOAuthToken(
       throw new Error(`Missing client credentials for provider: ${provider}`)
     }
 
+    // Prepare request headers and body
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(provider === 'github' && {
+        Accept: 'application/json',
+      }),
+    }
+
+    // For providers using Basic auth, add Authorization header
+    if (useBasicAuth) {
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+      headers['Authorization'] = `Basic ${basicAuth}`
+    }
+
+    // Prepare request body
+    const bodyParams: Record<string, string> = {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }
+
+    // Only add client_id and client_secret to body for non-Basic auth providers
+    if (!useBasicAuth) {
+      bodyParams.client_id = clientId
+      bodyParams.client_secret = clientSecret
+    }
+
     // Refresh the token
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        ...(provider === 'github' && {
-          Accept: 'application/json',
-        }),
-      },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }).toString(),
+      headers,
+      body: new URLSearchParams(bodyParams).toString(),
     })
 
     if (!response.ok) {
