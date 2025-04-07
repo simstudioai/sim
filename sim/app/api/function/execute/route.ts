@@ -29,7 +29,8 @@ function resolveCodeVariables(
     const varName = match.slice(2, -2).trim()
     // Priority: 1. Environment variables from workflow, 2. Params, 3. process.env
     const varValue = envVars[varName] || params[varName] || process.env[varName] || ''
-    resolvedCode = resolvedCode.replace(match, varValue)
+    // Wrap the value in quotes to ensure it's treated as a string literal
+    resolvedCode = resolvedCode.replace(match, JSON.stringify(varValue))
   }
 
   // Resolve tags with <tag_name> syntax

@@ -5,16 +5,15 @@ export function getBaseURL() {
   let baseURL
 
   if (process.env.VERCEL_ENV === 'preview') {
-    baseURL = `https://${process.env.VERCEL_URL}`
+    baseURL = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
   } else if (process.env.VERCEL_ENV === 'development') {
-    baseURL = `https://${process.env.VERCEL_URL}`
+    baseURL = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
   } else if (process.env.VERCEL_ENV === 'production') {
     baseURL = process.env.BETTER_AUTH_URL
   } else if (process.env.NODE_ENV === 'development') {
     baseURL = process.env.BETTER_AUTH_URL
   }
 
-  console.log('baseURL:', baseURL)
   return baseURL
 }
 
