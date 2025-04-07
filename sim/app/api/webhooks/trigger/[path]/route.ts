@@ -153,8 +153,66 @@ export async function POST(
     if (foundWebhook.provider === 'airtable') {
       logger.info(`[${requestId}] Airtable webhook ping received for webhook: ${foundWebhook.id}`)
 
-      // Acknowledge the ping immediately - Now we process synchronously
-      // logger.debug(`[${requestId}] Acknowledging Airtable ping for webhook ${foundWebhook.id}.`)
+      // Simple deduplication for Airtable webhooks in serverless environments using hash of notificationId
+      const notificationId = body.notificationId || null
+
+      if (notificationId) {
+        // Check if we've already processed this notificationId
+        try {
+          const processedKey = `airtable-webhook-${foundWebhook.id}-${notificationId}`
+
+          // Use the webhook table to store the processed IDs
+          const alreadyProcessed = await db
+            .select({ id: webhook.id })
+            .from(webhook)
+            .where(
+              and(
+                eq(webhook.id, foundWebhook.id),
+                sql`(webhook.provider_config->>'processedNotifications')::jsonb ? ${processedKey}`
+              )
+            )
+            .limit(1)
+
+          if (alreadyProcessed.length > 0) {
+            logger.info(
+              `[${requestId}] Duplicate Airtable notification detected: ${notificationId}`,
+              {
+                webhookId: foundWebhook.id,
+              }
+            )
+            return new NextResponse('Notification already processed', { status: 200 })
+          }
+
+          // Add to processed notifications
+          // Get current provider config
+          const providerConfig = foundWebhook.providerConfig || {}
+          // Get current processed notifications or create an empty array
+          const processedNotifications = providerConfig.processedNotifications || []
+          // Add the current notification
+          processedNotifications.push(processedKey)
+          // Keep only the last 100 notifications to prevent unlimited growth
+          const limitedNotifications = processedNotifications.slice(-100)
+
+          // Update the webhook with the new processed notifications
+          await db
+            .update(webhook)
+            .set({
+              providerConfig: {
+                ...providerConfig,
+                processedNotifications: limitedNotifications,
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(webhook.id, foundWebhook.id))
+        } catch (error) {
+          // If deduplication fails, log and continue processing
+          // It's better to risk duplicate processing than to drop events
+          logger.warn(`[${requestId}] Deduplication check failed, continuing with processing`, {
+            error: error instanceof Error ? error.message : String(error),
+            webhookId: foundWebhook.id,
+          })
+        }
+      }
 
       // Process the ping SYNCHRONOUSLY
       try {
@@ -189,12 +247,6 @@ export async function POST(
           status: 500,
         })
       }
-
-      // REMOVED Asynchronous handling logic:
-      // const backgroundTaskPromise = fetchAndProcessAirtablePayloads(...)
-      // if (typeof (request as any).waitUntil === 'function') { ... }
-      // else { ... }
-      // return new NextResponse('Airtable ping acknowledged, processing started', { status: 200 })
     }
 
     // --- Existing Deduplication and Processing for other providers ---
