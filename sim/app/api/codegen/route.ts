@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -196,6 +197,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as RequestBody
+    noStore()
 
     // Destructure history along with other fields
     const { prompt, generationType, context, stream = false, history = [] } = body
