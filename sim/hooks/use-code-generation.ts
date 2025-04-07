@@ -138,6 +138,7 @@ export function useCodeGeneration({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-transform',
         },
         body: JSON.stringify({
           prompt,
@@ -147,6 +148,8 @@ export function useCodeGeneration({
           history: conversationHistory, // Send history
         }),
         signal: abortControllerRef.current.signal,
+        // Ensure no caching for Edge Functions
+        cache: 'no-store',
       })
 
       if (!response.ok) {
@@ -158,69 +161,80 @@ export function useCodeGeneration({
         throw new Error('Response body is null')
       }
 
-      // Set up streaming reader
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ''
-
       // Signal the start of the stream to clear previous content
       if (onStreamStart) {
         onStreamStart()
       }
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+      // Set up streaming reader
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let fullContent = ''
 
-        // Process incoming chunks
-        const text = decoder.decode(value)
-        const lines = text.split('\n').filter((line) => line.trim() !== '')
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
 
-        for (const line of lines) {
-          try {
-            const data = JSON.parse(line)
+          // Process incoming chunks
+          const text = decoder.decode(value)
+          const lines = text.split('\n').filter((line) => line.trim() !== '')
 
-            // Check if there's an error
-            if (data.error) {
-              throw new Error(data.error)
-            }
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line)
 
-            // Process chunk
-            if (data.chunk) {
-              fullContent += data.chunk
-              if (onStreamChunk) {
-                onStreamChunk(data.chunk)
-              }
-            }
-
-            // Check if streaming is complete
-            if (data.done) {
-              // Use full content from server if available (for validation)
-              if (data.fullContent) {
-                fullContent = data.fullContent
+              // Check if there's an error
+              if (data.error) {
+                throw new Error(data.error)
               }
 
-              logger.info('Streaming code generation completed', { generationType })
-              // Update history AFTER the stream is fully complete
-              setConversationHistory((prevHistory) => [
-                ...prevHistory,
-                { role: 'user', content: currentPrompt },
-                { role: 'assistant', content: fullContent }, // Use the final full content
-              ])
-
-              // Call the main handler for the complete content
-              onGeneratedContent(fullContent)
-
-              if (onGenerationComplete) {
-                onGenerationComplete(currentPrompt, fullContent)
+              // Process chunk
+              if (data.chunk) {
+                fullContent += data.chunk
+                if (onStreamChunk) {
+                  onStreamChunk(data.chunk)
+                }
               }
-              addNotification('info', 'Content generated successfully!', null)
-              break
+
+              // Check if streaming is complete
+              if (data.done) {
+                // Use full content from server if available (for validation)
+                if (data.fullContent) {
+                  fullContent = data.fullContent
+                }
+
+                logger.info('Streaming code generation completed', { generationType })
+                // Update history AFTER the stream is fully complete
+                setConversationHistory((prevHistory) => [
+                  ...prevHistory,
+                  { role: 'user', content: currentPrompt },
+                  { role: 'assistant', content: fullContent }, // Use the final full content
+                ])
+
+                // Call the main handler for the complete content
+                onGeneratedContent(fullContent)
+
+                if (onGenerationComplete) {
+                  onGenerationComplete(currentPrompt, fullContent)
+                }
+                addNotification('info', 'Content generated successfully!', null)
+                break
+              }
+            } catch (jsonError: any) {
+              logger.error('Failed to parse streaming response', { error: jsonError.message, line })
             }
-          } catch (jsonError: any) {
-            logger.error('Failed to parse streaming response', { error: jsonError.message, line })
           }
         }
+      } catch (streamError: any) {
+        // Additional error handling for stream processing
+        if (streamError.name !== 'AbortError') {
+          logger.error('Error processing stream', { error: streamError.message })
+          throw streamError // Re-throw to be caught by outer try/catch
+        }
+      } finally {
+        // Always release the reader when done
+        reader.releaseLock()
       }
     } catch (err: any) {
       // Don't show error if it was due to an abort
