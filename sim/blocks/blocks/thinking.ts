@@ -17,7 +17,7 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   category: 'tools',
   bgColor: '#181C1E',
   icon: BrainIcon,
-  hiddenFromSidebar: true,
+  hideFromToolbar: true,
 
   subBlocks: [
     {
