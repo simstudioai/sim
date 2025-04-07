@@ -7,6 +7,7 @@ import {
   airtableListRecordsTool,
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
+import { autoblocksPromptManagerTool } from '@/tools/autoblocks'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
@@ -61,6 +62,7 @@ const logger = createLogger('Tools')
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
   browser_use_run_task: browserUseRunTaskTool,
+  autoblocks_prompt_manager: autoblocksPromptManagerTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
