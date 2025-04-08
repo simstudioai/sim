@@ -2,7 +2,6 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Google Provider')
 
@@ -87,45 +86,14 @@ export const googleProvider: ProviderConfig = {
         }
       }
 
-      // Handle tools and tool usage control
+      // Add tools if provided
       if (tools?.length) {
-        const {
-          tools: filteredTools,
-          toolChoice,
-          forcedTools,
-        } = prepareToolsWithUsageControl(tools, request.tools, logger, 'google')
-
-        if (filteredTools?.length && toolChoice) {
-          payload.tools = filteredTools
-          payload.tool_choice = toolChoice
-
-          logger.info(`Google request configuration:`, {
-            toolCount: filteredTools.length,
-            toolChoice:
-              typeof toolChoice === 'string'
-                ? toolChoice
-                : toolChoice.type === 'function'
-                  ? `force:${toolChoice.function.name}`
-                  : toolChoice.type === 'tool'
-                    ? `force:${toolChoice.name}`
-                    : `force:${toolChoice.any?.name || 'unknown'}`,
-            model: requestedModel,
-          })
-        }
+        payload.tools = tools
+        payload.tool_choice = 'auto'
       }
 
       // Make the initial API request
       const initialCallTime = Date.now()
-
-      // Track the original tool_choice for forced tool tracking
-      const originalToolChoice = payload.tool_choice
-
-      // Track forced tools and their usage
-      const forcedTools = tools?.length
-        ? prepareToolsWithUsageControl(tools, request.tools, logger, 'google').forcedTools
-        : []
-      let usedForcedTools: string[] = []
-
       let currentResponse
       let firstResponseTime = 0
 
@@ -208,9 +176,6 @@ export const googleProvider: ProviderConfig = {
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
-      // Track if a forced tool has been used
-      let hasUsedForcedTool = false
-
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -225,24 +190,6 @@ export const googleProvider: ProviderConfig = {
           duration: firstResponseTime,
         },
       ]
-
-      // Check if a forced tool was used in the first response
-      if (
-        typeof originalToolChoice === 'object' &&
-        currentResponse.choices[0]?.message?.tool_calls
-      ) {
-        const toolCallsResponse = currentResponse.choices[0].message.tool_calls
-        const result = trackForcedToolUsage(
-          toolCallsResponse,
-          originalToolChoice,
-          logger,
-          'google',
-          forcedTools,
-          usedForcedTools
-        )
-        hasUsedForcedTool = result.hasUsedForcedTool
-        usedForcedTools = result.usedForcedTools
-      }
 
       try {
         while (iterationCount < MAX_ITERATIONS) {
@@ -335,55 +282,11 @@ export const googleProvider: ProviderConfig = {
             messages: currentMessages,
           }
 
-          // Update tool_choice based on which forced tools have been used
-          if (
-            typeof originalToolChoice === 'object' &&
-            hasUsedForcedTool &&
-            forcedTools.length > 0
-          ) {
-            // If we have remaining forced tools, get the next one to force
-            const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
-
-            if (remainingTools.length > 0) {
-              // Force the next tool
-              nextPayload.tool_choice = {
-                type: 'any',
-                any: {
-                  model: 'latest',
-                  name: remainingTools[0],
-                },
-              }
-              logger.info(`Forcing next tool: ${remainingTools[0]}`)
-            } else {
-              // All forced tools have been used, switch to auto
-              nextPayload.tool_choice = 'auto'
-              logger.info('All forced tools have been used, switching to auto tool_choice')
-            }
-          }
-
           // Time the next model call
           const nextModelStartTime = Date.now()
 
           // Make the next request
           currentResponse = await openai.chat.completions.create(nextPayload)
-
-          // Check if any forced tools were used in this response
-          if (
-            typeof nextPayload.tool_choice === 'object' &&
-            currentResponse.choices[0]?.message?.tool_calls
-          ) {
-            const toolCallsResponse = currentResponse.choices[0].message.tool_calls
-            const result = trackForcedToolUsage(
-              toolCallsResponse,
-              nextPayload.tool_choice,
-              logger,
-              'google',
-              forcedTools,
-              usedForcedTools
-            )
-            hasUsedForcedTool = result.hasUsedForcedTool || hasUsedForcedTool
-            usedForcedTools = result.usedForcedTools
-          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime

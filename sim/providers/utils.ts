@@ -514,12 +514,22 @@ export function prepareToolsWithUsageControl(
     | { type: 'tool'; name: string }
     | { type: 'any'; any: { model: string; name: string } }
     | undefined
+  toolConfig?: {
+    // Add toolConfig for Google's format
+    mode: 'AUTO' | 'ANY' | 'NONE'
+    allowed_function_names?: string[]
+  }
   hasFilteredTools: boolean
   forcedTools: string[] // Return all forced tool IDs
 } {
   // If no tools, return early
   if (!tools || tools.length === 0) {
-    return { tools: undefined, toolChoice: undefined, hasFilteredTools: false, forcedTools: [] }
+    return {
+      tools: undefined,
+      toolChoice: undefined,
+      hasFilteredTools: false,
+      forcedTools: [],
+    }
   }
 
   // Filter out tools marked with usageControl='none'
@@ -540,7 +550,12 @@ export function prepareToolsWithUsageControl(
   // If all tools were filtered out, return empty
   if (filteredTools.length === 0) {
     logger.info('All tools were filtered out due to usageControl="none"')
-    return { tools: undefined, toolChoice: undefined, hasFilteredTools: true, forcedTools: [] }
+    return {
+      tools: undefined,
+      toolChoice: undefined,
+      hasFilteredTools: true,
+      forcedTools: [],
+    }
   }
 
   // Get all tools that should be forced
@@ -555,6 +570,14 @@ export function prepareToolsWithUsageControl(
     | { type: 'tool'; name: string }
     | { type: 'any'; any: { model: string; name: string } } = 'auto'
 
+  // For Google, we'll use a separate toolConfig object
+  let toolConfig:
+    | {
+        mode: 'AUTO' | 'ANY' | 'NONE'
+        allowed_function_names?: string[]
+      }
+    | undefined = undefined
+
   if (forcedTools.length > 0) {
     // Force the first tool that has usageControl='force'
     const forcedTool = forcedTools[0]
@@ -566,14 +589,16 @@ export function prepareToolsWithUsageControl(
         name: forcedTool.id,
       }
     } else if (provider === 'google') {
-      // Google Gemini format uses "any" type with tool name
-      toolChoice = {
-        type: 'any',
-        any: {
-          model: 'latest',
-          name: forcedTool.id,
-        },
+      // Google Gemini format uses a separate tool_config object
+      toolConfig = {
+        mode: 'ANY',
+        allowed_function_names:
+          forcedTools.length === 1
+            ? [forcedTool.id] // If only one tool, specify just that one
+            : forcedToolIds, // If multiple tools, include all of them
       }
+      // Keep toolChoice as 'auto' since we use toolConfig instead
+      toolChoice = 'auto'
     } else {
       // Default OpenAI format
       toolChoice = {
@@ -592,12 +617,16 @@ export function prepareToolsWithUsageControl(
   } else {
     // Default to auto if no forced tools
     toolChoice = 'auto'
+    if (provider === 'google') {
+      toolConfig = { mode: 'AUTO' }
+    }
     logger.info('Setting tool_choice to auto - letting model decide which tools to use')
   }
 
   return {
     tools: filteredTools,
     toolChoice,
+    toolConfig,
     hasFilteredTools,
     forcedTools: forcedToolIds,
   }
@@ -624,42 +653,65 @@ export function trackForcedToolUsage(
 ): {
   hasUsedForcedTool: boolean
   usedForcedTools: string[]
-  nextToolChoice:
+  nextToolChoice?:
     | 'auto'
     | { type: 'function'; function: { name: string } }
     | { type: 'tool'; name: string }
     | { type: 'any'; any: { model: string; name: string } }
     | null
+  nextToolConfig?: {
+    mode: 'AUTO' | 'ANY' | 'NONE'
+    allowed_function_names?: string[]
+  }
 } {
   // Default to keeping the original tool_choice
   let hasUsedForcedTool = false
   let nextToolChoice = originalToolChoice
+  let nextToolConfig:
+    | {
+        mode: 'AUTO' | 'ANY' | 'NONE'
+        allowed_function_names?: string[]
+      }
+    | undefined = undefined
+
   const updatedUsedForcedTools = [...usedForcedTools]
 
-  // If we're forcing a specific tool and we have tool calls in the response
-  if (
+  // Special handling for Google format
+  const isGoogleFormat = provider === 'google'
+
+  // Get the name of the current forced tool(s)
+  let forcedToolNames: string[] = []
+  if (isGoogleFormat && originalToolChoice?.allowed_function_names) {
+    // For Google format
+    forcedToolNames = originalToolChoice.allowed_function_names
+  } else if (
     typeof originalToolChoice === 'object' &&
     (originalToolChoice?.function?.name ||
       (originalToolChoice?.type === 'tool' && originalToolChoice?.name) ||
-      (originalToolChoice?.type === 'any' && originalToolChoice?.any?.name)) &&
-    toolCallsResponse &&
-    toolCallsResponse.length > 0
+      (originalToolChoice?.type === 'any' && originalToolChoice?.any?.name))
   ) {
-    // Get the name of the current forced tool
-    const forcedToolName =
+    // For other providers
+    forcedToolNames = [
       originalToolChoice?.function?.name ||
-      originalToolChoice?.name ||
-      originalToolChoice?.any?.name
+        originalToolChoice?.name ||
+        originalToolChoice?.any?.name,
+    ].filter(Boolean)
+  }
 
-    // Check if any of the tool calls used the forced tool
+  // If we're forcing specific tools and we have tool calls in the response
+  if (forcedToolNames.length > 0 && toolCallsResponse && toolCallsResponse.length > 0) {
+    // Check if any of the tool calls used the forced tools
     const toolNames = toolCallsResponse.map((tc) => tc.function?.name || tc.name || tc.id)
 
-    if (toolNames.includes(forcedToolName)) {
-      // The forced tool was used
-      hasUsedForcedTool = true
-      updatedUsedForcedTools.push(forcedToolName)
+    // Find any forced tools that were used
+    const usedTools = forcedToolNames.filter((toolName) => toolNames.includes(toolName))
 
-      // Find the next tool to force that hasn't been used yet
+    if (usedTools.length > 0) {
+      // At least one forced tool was used
+      hasUsedForcedTool = true
+      updatedUsedForcedTools.push(...usedTools)
+
+      // Find the next tools to force that haven't been used yet
       const remainingTools = forcedTools.filter((tool) => !updatedUsedForcedTools.includes(tool))
 
       if (remainingTools.length > 0) {
@@ -673,12 +725,12 @@ export function trackForcedToolUsage(
             name: nextToolToForce,
           }
         } else if (provider === 'google') {
-          nextToolChoice = {
-            type: 'any',
-            any: {
-              model: 'latest',
-              name: nextToolToForce,
-            },
+          nextToolConfig = {
+            mode: 'ANY',
+            allowed_function_names:
+              remainingTools.length === 1
+                ? [nextToolToForce] // If only one tool left, specify just that one
+                : remainingTools, // If multiple tools, include all remaining
           }
         } else {
           // Default OpenAI format
@@ -689,11 +741,17 @@ export function trackForcedToolUsage(
         }
 
         logger.info(
-          `Forced tool ${forcedToolName} was used, switching to next forced tool: ${nextToolToForce}`
+          `Forced tool(s) ${usedTools.join(', ')} used, switching to next forced tool(s): ${remainingTools.join(', ')}`
         )
       } else {
         // All forced tools have been used, switch to auto mode
-        nextToolChoice = provider === 'anthropic' ? null : 'auto'
+        if (provider === 'anthropic') {
+          nextToolChoice = null // Anthropic requires null to remove the parameter
+        } else if (provider === 'google') {
+          nextToolConfig = { mode: 'AUTO' }
+        } else {
+          nextToolChoice = 'auto'
+        }
 
         logger.info(`All forced tools have been used, switching to auto mode for future iterations`)
       }
@@ -704,5 +762,10 @@ export function trackForcedToolUsage(
     hasUsedForcedTool,
     usedForcedTools: updatedUsedForcedTools,
     nextToolChoice: hasUsedForcedTool ? nextToolChoice : originalToolChoice,
+    nextToolConfig: isGoogleFormat
+      ? hasUsedForcedTool
+        ? nextToolConfig
+        : originalToolChoice
+      : undefined,
   }
 }

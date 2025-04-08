@@ -27,13 +27,7 @@ export const MODELS_TEMP_RANGE_0_1 = [
 export const MODELS_WITH_TEMPERATURE_SUPPORT = [...MODELS_TEMP_RANGE_0_2, ...MODELS_TEMP_RANGE_0_1]
 
 // Models and their providers that support tool usage control (force, auto, none)
-export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = [
-  'openai',
-  'anthropic',
-  'google',
-  'deepseek',
-  'xai',
-]
+export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = ['openai', 'anthropic', 'deepseek', 'xai']
 
 /**
  * Check if a model supports temperature parameter
