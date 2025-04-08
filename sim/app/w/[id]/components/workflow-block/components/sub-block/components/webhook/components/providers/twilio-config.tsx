@@ -1,13 +1,10 @@
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CopyableField } from '../ui/copyable'
 import { TestResultDisplay } from '../ui/test-result'
 
 interface TwilioConfigProps {
   sendReply: boolean
   setSendReply: (send: boolean) => void
-  isLoadingToken: boolean
   testResult: {
     success: boolean
     message?: string
@@ -15,17 +12,14 @@ interface TwilioConfigProps {
   } | null
   copied: string | null
   copyToClipboard: (text: string, type: string) => void
-  testWebhook?: () => Promise<void>
 }
 
 export function TwilioConfig({
   sendReply,
   setSendReply,
-  isLoadingToken,
   testResult,
   copied,
   copyToClipboard,
-  testWebhook,
 }: TwilioConfigProps) {
   return (
     <div className="space-y-4">

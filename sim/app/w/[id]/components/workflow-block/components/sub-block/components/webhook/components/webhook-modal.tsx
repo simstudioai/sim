@@ -84,10 +84,10 @@ export function WebhookModal({
     discordWebhookName: '',
     discordAvatarUrl: '',
     slackSigningSecret: '',
+    sendReply: true,
   })
 
   // Add Twilio specific state
-  const [authToken, setAuthToken] = useState('')
   const [sendReply, setSendReply] = useState(true)
 
   // Get the current provider configuration
@@ -187,9 +187,7 @@ export function WebhookModal({
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
               } else if (webhookProvider === 'twilio') {
-                const twilioConfig = config as TwilioConfig
-                setAuthToken(twilioConfig.authToken || '')
-                setSendReply(twilioConfig.sendReply !== false)
+                setSendReply(config.sendReply !== false)
               }
             }
           }
@@ -224,7 +222,7 @@ export function WebhookModal({
           allowedIps !== originalValues.allowedIps)) ||
       (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
       (webhookProvider === 'twilio' &&
-        (authToken !== originalValues.authToken || sendReply !== originalValues.sendReply))
+        sendReply !== originalValues.sendReply)
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -239,7 +237,6 @@ export function WebhookModal({
     allowedIps,
     originalValues,
     slackSigningSecret,
-    authToken,
     sendReply,
   ])
 
@@ -292,9 +289,8 @@ export function WebhookModal({
         return { signingSecret: slackSigningSecret }
       case 'twilio':
         return {
-          authToken,
           sendReply,
-        } as TwilioConfig
+        }
       default:
         return {}
     }
@@ -326,7 +322,6 @@ export function WebhookModal({
           discordWebhookName,
           discordAvatarUrl,
           slackSigningSecret,
-          authToken,
           sendReply,
         })
         setHasUnsavedChanges(false)
@@ -485,7 +480,6 @@ export function WebhookModal({
           <TwilioConfig
             sendReply={sendReply}
             setSendReply={setSendReply}
-            isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}
             copyToClipboard={copyToClipboard}

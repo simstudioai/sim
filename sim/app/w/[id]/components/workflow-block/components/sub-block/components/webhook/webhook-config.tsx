@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { DiscordIcon, GithubIcon, SlackIcon, StripeIcon, TwilioIcon, WhatsAppIcon } from '../../../../../../../../../components/icons'
+import { DiscordIcon, GithubIcon, SlackIcon, StripeIcon, TwilioIcon, WhatsAppIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'

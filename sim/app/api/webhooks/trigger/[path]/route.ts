@@ -359,7 +359,6 @@ export async function POST(
         
         // Check if we need to authenticate the request
         const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-        const authToken = providerConfig.authToken
                 
         // For MMS messages, extract media information
         let mediaItems: Array<{ url: string; contentType: string }> = [];
