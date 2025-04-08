@@ -90,12 +90,11 @@ export const xAIProvider: ProviderConfig = {
 
       // Handle tools and tool usage control
       if (tools?.length) {
-        const { tools: filteredTools, toolChoice } = prepareToolsWithUsageControl(
-          tools,
-          request.tools,
-          logger,
-          'xai'
-        )
+        const {
+          tools: filteredTools,
+          toolChoice,
+          forcedTools,
+        } = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
 
         if (filteredTools?.length && toolChoice) {
           payload.tools = filteredTools
@@ -123,6 +122,12 @@ export const xAIProvider: ProviderConfig = {
 
       // Track the original tool_choice for forced tool tracking
       const originalToolChoice = payload.tool_choice
+
+      // Track forced tools and their usage
+      const forcedTools = tools?.length
+        ? prepareToolsWithUsageControl(tools, request.tools, logger, 'xai').forcedTools
+        : []
+      let usedForcedTools: string[] = []
 
       let currentResponse = await xai.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
@@ -163,8 +168,16 @@ export const xAIProvider: ProviderConfig = {
         currentResponse.choices[0]?.message?.tool_calls
       ) {
         const toolCallsResponse = currentResponse.choices[0].message.tool_calls
-        const result = trackForcedToolUsage(toolCallsResponse, originalToolChoice, logger, 'xai')
+        const result = trackForcedToolUsage(
+          toolCallsResponse,
+          originalToolChoice,
+          logger,
+          'xai',
+          forcedTools,
+          usedForcedTools
+        )
         hasUsedForcedTool = result.hasUsedForcedTool
+        usedForcedTools = result.usedForcedTools
       }
 
       try {
@@ -251,12 +264,27 @@ export const xAIProvider: ProviderConfig = {
             messages: currentMessages,
           }
 
-          // If we've used the forced tool, switch to 'auto' mode for subsequent requests
-          if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
-            nextPayload.tool_choice = 'auto'
-            logger.info(
-              'Switching to auto tool_choice for subsequent requests after forced tool was used'
-            )
+          // Update tool_choice based on which forced tools have been used
+          if (
+            typeof originalToolChoice === 'object' &&
+            hasUsedForcedTool &&
+            forcedTools.length > 0
+          ) {
+            // If we have remaining forced tools, get the next one to force
+            const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+
+            if (remainingTools.length > 0) {
+              // Force the next tool
+              nextPayload.tool_choice = {
+                type: 'function',
+                function: { name: remainingTools[0] },
+              }
+              logger.info(`Forcing next tool: ${remainingTools[0]}`)
+            } else {
+              // All forced tools have been used, switch to auto
+              nextPayload.tool_choice = 'auto'
+              logger.info('All forced tools have been used, switching to auto tool_choice')
+            }
           }
 
           // Time the next model call
@@ -264,20 +292,22 @@ export const xAIProvider: ProviderConfig = {
 
           currentResponse = await xai.chat.completions.create(nextPayload)
 
-          // Check if a forced tool was used in this response (if not already used)
+          // Check if any forced tools were used in this response
           if (
-            !hasUsedForcedTool &&
-            typeof originalToolChoice === 'object' &&
+            typeof nextPayload.tool_choice === 'object' &&
             currentResponse.choices[0]?.message?.tool_calls
           ) {
             const toolCallsResponse = currentResponse.choices[0].message.tool_calls
             const result = trackForcedToolUsage(
               toolCallsResponse,
-              originalToolChoice,
+              nextPayload.tool_choice,
               logger,
-              'xai'
+              'xai',
+              forcedTools,
+              usedForcedTools
             )
-            hasUsedForcedTool = result.hasUsedForcedTool
+            hasUsedForcedTool = result.hasUsedForcedTool || hasUsedForcedTool
+            usedForcedTools = result.usedForcedTools
           }
 
           const nextModelEndTime = Date.now()

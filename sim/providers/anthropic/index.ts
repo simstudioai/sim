@@ -104,12 +104,11 @@ export const anthropicProvider: ProviderConfig = {
 
     // Handle tools and tool usage control
     if (anthropicTools?.length) {
-      const { tools: filteredTools, toolChoice: tc } = prepareToolsWithUsageControl(
-        anthropicTools,
-        request.tools,
-        logger,
-        'anthropic'
-      )
+      const {
+        tools: filteredTools,
+        toolChoice: tc,
+        forcedTools,
+      } = prepareToolsWithUsageControl(anthropicTools, request.tools, logger, 'anthropic')
 
       if (filteredTools?.length) {
         anthropicTools = filteredTools
@@ -235,6 +234,13 @@ ${fieldDescriptions}
       // Track the original tool_choice for forced tool tracking
       const originalToolChoice = payload.tool_choice
 
+      // Track forced tools and their usage
+      const forcedTools = anthropicTools?.length
+        ? prepareToolsWithUsageControl(anthropicTools, request.tools, logger, 'anthropic')
+            .forcedTools
+        : []
+      let usedForcedTools: string[] = []
+
       let currentResponse = await anthropic.messages.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -299,9 +305,12 @@ ${fieldDescriptions}
             adaptedToolCalls,
             adaptedToolChoice,
             logger,
-            'anthropic'
+            'anthropic',
+            forcedTools,
+            usedForcedTools
           )
           hasUsedForcedTool = result.hasUsedForcedTool
+          usedForcedTools = result.usedForcedTools
         }
       }
 
@@ -398,8 +407,29 @@ ${fieldDescriptions}
             messages: currentMessages,
           }
 
-          // If we've used the forced tool, switch to 'auto' mode for subsequent requests
-          if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+          // Update tool_choice based on which forced tools have been used
+          if (
+            typeof originalToolChoice === 'object' &&
+            hasUsedForcedTool &&
+            forcedTools.length > 0
+          ) {
+            // If we have remaining forced tools, get the next one to force
+            const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+
+            if (remainingTools.length > 0) {
+              // Force the next tool - use Anthropic format
+              nextPayload.tool_choice = {
+                type: 'tool',
+                name: remainingTools[0],
+              }
+              logger.info(`Forcing next tool: ${remainingTools[0]}`)
+            } else {
+              // All forced tools have been used, switch to auto by removing tool_choice
+              delete nextPayload.tool_choice
+              logger.info('All forced tools have been used, removing tool_choice parameter')
+            }
+          } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+            // Handle the case of a single forced tool that was used
             delete nextPayload.tool_choice
             logger.info(
               'Removing tool_choice parameter for subsequent requests after forced tool was used'
@@ -412,10 +442,9 @@ ${fieldDescriptions}
           // Make the next request
           currentResponse = await anthropic.messages.create(nextPayload)
 
-          // Check if a forced tool was used in this response (if not already used)
+          // Check if any forced tools were used in this response
           if (
-            !hasUsedForcedTool &&
-            typeof originalToolChoice === 'object' &&
+            typeof nextPayload.tool_choice === 'object' &&
             Array.isArray(currentResponse.content)
           ) {
             const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
@@ -428,17 +457,20 @@ ${fieldDescriptions}
 
               // Convert Anthropic tool_choice format to match OpenAI format for tracking
               const adaptedToolChoice =
-                originalToolChoice.type === 'tool'
-                  ? { function: { name: originalToolChoice.name } }
-                  : originalToolChoice
+                nextPayload.tool_choice.type === 'tool'
+                  ? { function: { name: nextPayload.tool_choice.name } }
+                  : nextPayload.tool_choice
 
               const result = trackForcedToolUsage(
                 adaptedToolCalls,
                 adaptedToolChoice,
                 logger,
-                'anthropic'
+                'anthropic',
+                forcedTools,
+                usedForcedTools
               )
-              hasUsedForcedTool = result.hasUsedForcedTool
+              hasUsedForcedTool = result.hasUsedForcedTool || hasUsedForcedTool
+              usedForcedTools = result.usedForcedTools
             }
           }
 
