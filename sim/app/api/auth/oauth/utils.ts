@@ -55,17 +55,23 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
         return null
       }
 
-      const { accessToken, expiresIn } = refreshResult
+      const { accessToken, expiresIn, refreshToken: newRefreshToken } = refreshResult
+
+      // Update the database with new tokens
+      const updateData: any = {
+        accessToken,
+        accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Convert seconds to milliseconds
+        updatedAt: new Date(),
+      }
+
+      // If we received a new refresh token (some providers like Airtable rotate them), save it
+      if (newRefreshToken && newRefreshToken !== credential.refreshToken) {
+        logger.info(`Updating refresh token for user ${userId}, provider ${providerId}`)
+        updateData.refreshToken = newRefreshToken
+      }
 
       // Update the token in the database with the actual expiration time from the provider
-      await db
-        .update(account)
-        .set({
-          accessToken,
-          accessTokenExpiresAt: new Date(Date.now() + expiresIn * 1000), // Convert seconds to milliseconds
-          updatedAt: new Date(),
-        })
-        .where(eq(account.id, credential.id))
+      await db.update(account).set(updateData).where(eq(account.id, credential.id))
 
       logger.info(`Successfully refreshed token for user ${userId}, provider ${providerId}`)
       return accessToken
@@ -137,15 +143,21 @@ export async function refreshAccessTokenIfNeeded(
         return null
       }
 
+      // Prepare update data
+      const updateData: any = {
+        accessToken: refreshedToken.accessToken,
+        accessTokenExpiresAt: new Date(Date.now() + refreshedToken.expiresIn * 1000),
+        updatedAt: new Date(),
+      }
+
+      // If we received a new refresh token, update it
+      if (refreshedToken.refreshToken && refreshedToken.refreshToken !== credential.refreshToken) {
+        logger.info(`[${requestId || ''}] Updating refresh token for credential: ${credentialId}`)
+        updateData.refreshToken = refreshedToken.refreshToken
+      }
+
       // Update the token in the database
-      await db
-        .update(account)
-        .set({
-          accessToken: refreshedToken.accessToken,
-          accessTokenExpiresAt: new Date(Date.now() + refreshedToken.expiresIn * 1000), // Default 1 hour expiry
-          updatedAt: new Date(),
-        })
-        .where(eq(account.id, credentialId))
+      await db.update(account).set(updateData).where(eq(account.id, credentialId))
 
       logger.info(
         `[${requestId || ''}] Successfully refreshed access token for credential: ${credentialId}`

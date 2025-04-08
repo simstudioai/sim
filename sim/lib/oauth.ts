@@ -338,7 +338,7 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
-): Promise<{ accessToken: string; expiresIn: number } | null> {
+): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
@@ -397,25 +397,38 @@ export async function refreshOAuthToken(
       }),
     }
 
-    // For providers using Basic auth, add Authorization header
-    if (useBasicAuth) {
-      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-      headers['Authorization'] = `Basic ${basicAuth}`
-    }
-
     // Prepare request body
     const bodyParams: Record<string, string> = {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     }
 
-    // For Airtable specifically, include client_id in body even with Basic auth
+    // For Airtable, check if we have both client ID and secret
     if (provider === 'airtable') {
-      bodyParams.client_id = clientId
-    } else if (!useBasicAuth) {
-      // For other non-Basic auth providers, include both credentials
-      bodyParams.client_id = clientId
-      bodyParams.client_secret = clientSecret
+      // Airtable requires Basic Auth with client ID and secret in the Authorization header
+      // Do not include client_id or client_secret in the body when using Basic Auth
+      if (clientId && clientSecret) {
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+        headers['Authorization'] = `Basic ${basicAuth}`
+
+        // Make sure to include refresh_token in body params but not client_id/client_secret
+        // This ensures we're not sending credentials in both header and body
+        delete bodyParams.client_id
+        delete bodyParams.client_secret
+      } else {
+        throw new Error('Both client ID and client secret are required for Airtable OAuth')
+      }
+    } else {
+      // For other providers, use the general approach
+      if (useBasicAuth) {
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+        headers['Authorization'] = `Basic ${basicAuth}`
+      }
+
+      if (!useBasicAuth) {
+        bodyParams.client_id = clientId
+        bodyParams.client_secret = clientSecret
+      }
     }
 
     // Refresh the token
@@ -430,6 +443,12 @@ export async function refreshOAuthToken(
       logger.error('Token refresh failed:', {
         status: response.status,
         error: errorText,
+        provider,
+        headers: JSON.stringify(headers, null, 2).replace(
+          /"Authorization":"[^"]*"/,
+          '"Authorization":"[REDACTED]"'
+        ),
+        bodyParams: JSON.stringify(bodyParams),
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
@@ -438,6 +457,14 @@ export async function refreshOAuthToken(
 
     // Extract token and expiration (different providers may use different field names)
     const accessToken = data.access_token
+
+    // For Airtable, also capture the new refresh token if provided
+    // Airtable may rotate refresh tokens
+    let newRefreshToken = null
+    if (provider === 'airtable' && data.refresh_token) {
+      newRefreshToken = data.refresh_token
+      logger.info('Received new refresh token from Airtable')
+    }
 
     // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
     // Different providers use different names for this field
@@ -448,8 +475,17 @@ export async function refreshOAuthToken(
       return null
     }
 
-    logger.info('Token refreshed successfully with expiration', { expiresIn })
-    return { accessToken, expiresIn }
+    logger.info('Token refreshed successfully with expiration', {
+      expiresIn,
+      hasNewRefreshToken: !!newRefreshToken,
+      provider,
+    })
+
+    return {
+      accessToken,
+      expiresIn,
+      refreshToken: newRefreshToken || refreshToken, // Return new refresh token if available
+    }
   } catch (error) {
     logger.error('Error refreshing token:', { error })
     return null
