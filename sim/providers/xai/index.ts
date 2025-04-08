@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('XAI Provider')
 
@@ -87,13 +88,42 @@ export const xAIProvider: ProviderConfig = {
         }
       }
 
+      // Handle tools and tool usage control
       if (tools?.length) {
-        payload.tools = tools
-        payload.tool_choice = 'auto'
+        const { tools: filteredTools, toolChoice } = prepareToolsWithUsageControl(
+          tools,
+          request.tools,
+          logger,
+          'xai'
+        )
+
+        if (filteredTools?.length && toolChoice) {
+          payload.tools = filteredTools
+          payload.tool_choice = toolChoice
+
+          logger.info(`XAI request configuration:`, {
+            toolCount: filteredTools.length,
+            toolChoice:
+              typeof toolChoice === 'string'
+                ? toolChoice
+                : toolChoice.type === 'function'
+                  ? `force:${toolChoice.function.name}`
+                  : toolChoice.type === 'tool'
+                    ? `force:${toolChoice.name}`
+                    : toolChoice.type === 'any'
+                      ? `force:${toolChoice.any?.name || 'unknown'}`
+                      : 'unknown',
+            model: request.model || 'grok-2-latest',
+          })
+        }
       }
 
       // Make the initial API request
       const initialCallTime = Date.now()
+
+      // Track the original tool_choice for forced tool tracking
+      const originalToolChoice = payload.tool_choice
+
       let currentResponse = await xai.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -108,6 +138,9 @@ export const xAIProvider: ProviderConfig = {
       let currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10
+
+      // Track if a forced tool has been used
+      let hasUsedForcedTool = false
 
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
@@ -124,8 +157,19 @@ export const xAIProvider: ProviderConfig = {
         },
       ]
 
+      // Check if a forced tool was used in the first response
+      if (
+        typeof originalToolChoice === 'object' &&
+        currentResponse.choices[0]?.message?.tool_calls
+      ) {
+        const toolCallsResponse = currentResponse.choices[0].message.tool_calls
+        const result = trackForcedToolUsage(toolCallsResponse, originalToolChoice, logger, 'xai')
+        hasUsedForcedTool = result.hasUsedForcedTool
+      }
+
       try {
         while (iterationCount < MAX_ITERATIONS) {
+          // Check for tool calls
           const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
           if (!toolCallsInResponse || toolCallsInResponse.length === 0) {
             break
@@ -207,10 +251,34 @@ export const xAIProvider: ProviderConfig = {
             messages: currentMessages,
           }
 
+          // If we've used the forced tool, switch to 'auto' mode for subsequent requests
+          if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+            nextPayload.tool_choice = 'auto'
+            logger.info(
+              'Switching to auto tool_choice for subsequent requests after forced tool was used'
+            )
+          }
+
           // Time the next model call
           const nextModelStartTime = Date.now()
 
           currentResponse = await xai.chat.completions.create(nextPayload)
+
+          // Check if a forced tool was used in this response (if not already used)
+          if (
+            !hasUsedForcedTool &&
+            typeof originalToolChoice === 'object' &&
+            currentResponse.choices[0]?.message?.tool_calls
+          ) {
+            const toolCallsResponse = currentResponse.choices[0].message.tool_calls
+            const result = trackForcedToolUsage(
+              toolCallsResponse,
+              originalToolChoice,
+              logger,
+              'xai'
+            )
+            hasUsedForcedTool = result.hasUsedForcedTool
+          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime

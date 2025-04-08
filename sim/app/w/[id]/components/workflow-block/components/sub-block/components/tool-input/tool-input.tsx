@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { CircleSlashIcon, GaugeIcon, PlusIcon, WrenchIcon, XIcon, ZapIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -9,6 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Toggle } from '@/components/ui/toggle'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
@@ -36,6 +38,7 @@ interface StoredTool {
   schema?: any // For custom tools
   code?: string // For custom tools implementation
   operation?: string // For tools with multiple operations
+  usageControl?: 'auto' | 'force' | 'none' // Control how the tool is used
 }
 
 interface ToolParam {
@@ -209,6 +212,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       params: initialParams,
       isExpanded: true,
       operation: defaultOperation,
+      usageControl: 'auto',
     }
 
     // If isWide, keep tools in the same row expanded
@@ -263,6 +267,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       isExpanded: true,
       schema: customTool.schema,
       code: customTool.code || '',
+      usageControl: 'auto',
     }
 
     // If isWide, keep tools in the same row expanded
@@ -379,6 +384,19 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     )
   }
 
+  const handleUsageControlChange = (toolIndex: number, usageControl: string) => {
+    setValue(
+      selectedTools.map((tool, index) =>
+        index === toolIndex
+          ? {
+              ...tool,
+              usageControl: usageControl as 'auto' | 'force' | 'none',
+            }
+          : tool
+      )
+    )
+  }
+
   const toggleToolExpansion = (toolIndex: number) => {
     setValue(
       selectedTools.map((tool, index) =>
@@ -444,6 +462,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 isExpanded: true,
                                 schema: customTool.schema,
                                 code: customTool.code,
+                                usageControl: 'auto',
                               }
 
                               if (isWide) {
@@ -570,6 +589,85 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* TODO: CONDITIONALLY RENDER THIS BASED ON WHETHER THE PROVIDER SUPPORTS TOOL USAGE CONTROL */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Toggle
+                              className="group h-6 w-6 p-0 rounded-sm data-[state=on]:bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 flex items-center justify-center"
+                              pressed={true}
+                              onPressedChange={() => {}}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation()
+                                // Cycle through the states: auto -> force -> none -> auto
+                                const currentState = tool.usageControl || 'auto'
+                                const nextState =
+                                  currentState === 'auto'
+                                    ? 'force'
+                                    : currentState === 'force'
+                                      ? 'none'
+                                      : 'auto'
+                                handleUsageControlChange(toolIndex, nextState)
+                              }}
+                              aria-label="Toggle tool usage control"
+                            >
+                              {/* Auto - Gauge icon */}
+                              <GaugeIcon
+                                size={14}
+                                className={`absolute shrink-0 transition-all ${
+                                  tool.usageControl === 'auto'
+                                    ? 'scale-100 opacity-100 text-blue-600 dark:text-blue-400'
+                                    : 'scale-0 opacity-0'
+                                }`}
+                                aria-hidden="true"
+                              />
+
+                              {/* Force - Zap/Lightning icon */}
+                              <ZapIcon
+                                size={14}
+                                className={`absolute shrink-0 transition-all ${
+                                  tool.usageControl === 'force'
+                                    ? 'scale-100 opacity-100 text-green-600 dark:text-green-400'
+                                    : 'scale-0 opacity-0'
+                                }`}
+                                aria-hidden="true"
+                              />
+
+                              {/* None - Circle slash icon */}
+                              <CircleSlashIcon
+                                size={14}
+                                className={`absolute shrink-0 transition-all ${
+                                  tool.usageControl === 'none'
+                                    ? 'scale-100 opacity-100 text-red-600 dark:text-red-400'
+                                    : 'scale-0 opacity-0'
+                                }`}
+                                aria-hidden="true"
+                              />
+                            </Toggle>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="p-2 max-w-[240px]">
+                            <p className="text-xs">
+                              {tool.usageControl === 'auto' && (
+                                <span>
+                                  <span className="font-medium">Auto:</span> Let the agent decide
+                                  when to use the tool
+                                </span>
+                              )}
+                              {tool.usageControl === 'force' && (
+                                <span>
+                                  <span className="font-medium">Force:</span> Always use this tool
+                                  in the response
+                                </span>
+                              )}
+                              {tool.usageControl === 'none' && (
+                                <span>
+                                  <span className="font-medium">None:</span> Never use this tool
+                                </span>
+                              )}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -726,6 +824,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                   isExpanded: true,
                                   schema: customTool.schema,
                                   code: customTool.code,
+                                  usageControl: 'auto',
                                 }
 
                                 if (isWide) {

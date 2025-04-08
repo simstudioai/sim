@@ -82,12 +82,30 @@ export const cerebrasProvider: ProviderConfig = {
 
       // Add tools if provided
       if (tools?.length) {
-        payload.tools = tools
-        payload.tool_choice = 'auto'
+        // Filter out any tools with usageControl='none', but ignore 'force' since Cerebras doesn't support it
+        const filteredTools = tools.filter((tool) => {
+          const toolId = tool.function?.name
+          const toolConfig = request.tools?.find((t) => t.id === toolId)
+          // Only filter out 'none', treat 'force' as 'auto'
+          return toolConfig?.usageControl !== 'none'
+        })
+
+        if (filteredTools?.length) {
+          payload.tools = filteredTools
+          // Always use 'auto' for Cerebras, regardless of the tool_choice setting
+          payload.tool_choice = 'auto'
+
+          logger.info(`Cerebras request configuration:`, {
+            toolCount: filteredTools.length,
+            toolChoice: 'auto', // Cerebras always uses auto
+            model: request.model,
+          })
+        }
       }
 
       // Make the initial API request
       const initialCallTime = Date.now()
+
       let currentResponse = (await client.chat.completions.create(payload)) as CerebrasResponse
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -239,8 +257,10 @@ export const cerebrasProvider: ProviderConfig = {
             const finalPayload = {
               ...payload,
               messages: currentMessages,
-              tool_choice: 'none',
             }
+
+            // Use tool_choice: 'none' for the final response to avoid an infinite loop
+            finalPayload.tool_choice = 'none'
 
             const finalResponse = (await client.chat.completions.create(
               finalPayload

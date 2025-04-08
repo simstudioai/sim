@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Anthropic Provider')
 
@@ -86,7 +87,7 @@ export const anthropicProvider: ProviderConfig = {
     }
 
     // Transform tools to Anthropic format if provided
-    const tools = request.tools?.length
+    let anthropicTools = request.tools?.length
       ? request.tools.map((tool) => ({
           name: tool.id,
           description: tool.description,
@@ -97,6 +98,42 @@ export const anthropicProvider: ProviderConfig = {
           },
         }))
       : undefined
+
+    // Set tool_choice based on usage control settings
+    let toolChoice: 'none' | 'auto' | { type: 'tool'; name: string } = 'auto'
+
+    // Handle tools and tool usage control
+    if (anthropicTools?.length) {
+      const { tools: filteredTools, toolChoice: tc } = prepareToolsWithUsageControl(
+        anthropicTools,
+        request.tools,
+        logger,
+        'anthropic'
+      )
+
+      if (filteredTools?.length) {
+        anthropicTools = filteredTools
+
+        // No longer need conversion since provider-specific formatting is in prepareToolsWithUsageControl
+        if (typeof tc === 'object' && tc !== null) {
+          if (tc.type === 'tool') {
+            toolChoice = tc
+            logger.info(`Using Anthropic tool_choice format: force tool "${tc.name}"`)
+          } else {
+            // Default to auto if we got a non-Anthropic object format
+            toolChoice = 'auto'
+            logger.warn(`Received non-Anthropic tool_choice format, defaulting to auto`)
+          }
+        } else if (tc === 'auto' || tc === 'none') {
+          toolChoice = tc
+          logger.info(`Using tool_choice mode: ${tc}`)
+        } else {
+          // Default to auto if we got something unexpected
+          toolChoice = 'auto'
+          logger.warn(`Unexpected tool_choice format, defaulting to auto`)
+        }
+      }
+    }
 
     // If response format is specified, add strict formatting instructions
     if (request.responseFormat) {
@@ -178,9 +215,13 @@ ${fieldDescriptions}
       temperature: parseFloat(String(request.temperature ?? 0.7)),
     }
 
-    // Add tools if provided
-    if (tools?.length) {
-      payload.tools = tools
+    // Use the tools in the payload
+    if (anthropicTools?.length) {
+      payload.tools = anthropicTools
+      // Only set tool_choice if it's not 'auto'
+      if (toolChoice !== 'auto') {
+        payload.tool_choice = toolChoice
+      }
     }
 
     // Start execution timer for the entire provider execution
@@ -190,6 +231,10 @@ ${fieldDescriptions}
     try {
       // Make the initial API request
       const initialCallTime = Date.now()
+
+      // Track the original tool_choice for forced tool tracking
+      const originalToolChoice = payload.tool_choice
+
       let currentResponse = await anthropic.messages.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -216,6 +261,9 @@ ${fieldDescriptions}
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
+      // Track if a forced tool has been used
+      let hasUsedForcedTool = false
+
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -230,6 +278,32 @@ ${fieldDescriptions}
           duration: firstResponseTime,
         },
       ]
+
+      // Check if a forced tool was used in the first response
+      if (typeof originalToolChoice === 'object' && Array.isArray(currentResponse.content)) {
+        const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
+
+        if (toolUses.length > 0) {
+          // Convert Anthropic tool_use format to a format trackForcedToolUsage can understand
+          const adaptedToolCalls = toolUses.map((tool) => ({
+            name: tool.name,
+          }))
+
+          // Convert Anthropic tool_choice format to match OpenAI format for tracking
+          const adaptedToolChoice =
+            originalToolChoice.type === 'tool'
+              ? { function: { name: originalToolChoice.name } }
+              : originalToolChoice
+
+          const result = trackForcedToolUsage(
+            adaptedToolCalls,
+            adaptedToolChoice,
+            logger,
+            'anthropic'
+          )
+          hasUsedForcedTool = result.hasUsedForcedTool
+        }
+      }
 
       try {
         while (iterationCount < MAX_ITERATIONS) {
@@ -324,11 +398,49 @@ ${fieldDescriptions}
             messages: currentMessages,
           }
 
+          // If we've used the forced tool, switch to 'auto' mode for subsequent requests
+          if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
+            delete nextPayload.tool_choice
+            logger.info(
+              'Removing tool_choice parameter for subsequent requests after forced tool was used'
+            )
+          }
+
           // Time the next model call
           const nextModelStartTime = Date.now()
 
           // Make the next request
           currentResponse = await anthropic.messages.create(nextPayload)
+
+          // Check if a forced tool was used in this response (if not already used)
+          if (
+            !hasUsedForcedTool &&
+            typeof originalToolChoice === 'object' &&
+            Array.isArray(currentResponse.content)
+          ) {
+            const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
+
+            if (toolUses.length > 0) {
+              // Convert Anthropic tool_use format to a format trackForcedToolUsage can understand
+              const adaptedToolCalls = toolUses.map((tool) => ({
+                name: tool.name,
+              }))
+
+              // Convert Anthropic tool_choice format to match OpenAI format for tracking
+              const adaptedToolChoice =
+                originalToolChoice.type === 'tool'
+                  ? { function: { name: originalToolChoice.name } }
+                  : originalToolChoice
+
+              const result = trackForcedToolUsage(
+                adaptedToolCalls,
+                adaptedToolChoice,
+                logger,
+                'anthropic'
+              )
+              hasUsedForcedTool = result.hasUsedForcedTool
+            }
+          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime

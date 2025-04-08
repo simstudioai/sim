@@ -490,3 +490,178 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
 
   return userProvidedKey!
 }
+
+/**
+ * Prepares tool configuration for provider requests with consistent tool usage control behavior
+ *
+ * @param tools Array of tools in provider-specific format
+ * @param providerTools Original tool configurations with usage control settings
+ * @param logger Logger instance to use for logging
+ * @param provider Optional provider ID to adjust format for specific providers
+ * @returns Object with prepared tools and tool_choice settings
+ */
+export function prepareToolsWithUsageControl(
+  tools: any[] | undefined,
+  providerTools: any[] | undefined,
+  logger: any,
+  provider?: string
+): {
+  tools: any[] | undefined
+  toolChoice:
+    | 'auto'
+    | 'none'
+    | { type: 'function'; function: { name: string } }
+    | { type: 'tool'; name: string }
+    | { type: 'any'; any: { model: string; name: string } }
+    | undefined
+  hasFilteredTools: boolean
+} {
+  // If no tools, return early
+  if (!tools || tools.length === 0) {
+    return { tools: undefined, toolChoice: undefined, hasFilteredTools: false }
+  }
+
+  // Filter out tools marked with usageControl='none'
+  const filteredTools = tools.filter((tool) => {
+    const toolId = tool.function?.name || tool.name
+    const toolConfig = providerTools?.find((t) => t.id === toolId)
+    return toolConfig?.usageControl !== 'none'
+  })
+
+  // Check if any tools were filtered out
+  const hasFilteredTools = filteredTools.length < tools.length
+  if (hasFilteredTools) {
+    logger.info(
+      `Filtered out ${tools.length - filteredTools.length} tools with usageControl='none'`
+    )
+  }
+
+  // If all tools were filtered out, return empty
+  if (filteredTools.length === 0) {
+    logger.info('All tools were filtered out due to usageControl="none"')
+    return { tools: undefined, toolChoice: undefined, hasFilteredTools: true }
+  }
+
+  // Get tools that should be forced
+  const forcedTools = providerTools?.filter((tool) => tool.usageControl === 'force') || []
+
+  // Determine tool_choice setting
+  let toolChoice:
+    | 'auto'
+    | 'none'
+    | { type: 'function'; function: { name: string } }
+    | { type: 'tool'; name: string }
+    | { type: 'any'; any: { model: string; name: string } } = 'auto'
+
+  if (forcedTools.length > 0) {
+    // Force the first tool that has usageControl='force'
+    const forcedTool = forcedTools[0]
+
+    // Adjust format based on provider
+    if (provider === 'anthropic') {
+      toolChoice = {
+        type: 'tool',
+        name: forcedTool.id,
+      }
+    } else if (provider === 'google') {
+      // Google Gemini format uses "any" type with tool name
+      toolChoice = {
+        type: 'any',
+        any: {
+          model: 'latest',
+          name: forcedTool.id,
+        },
+      }
+    } else {
+      // Default OpenAI format
+      toolChoice = {
+        type: 'function',
+        function: { name: forcedTool.id },
+      }
+    }
+
+    logger.info(`Forcing use of tool: ${forcedTool.id}`)
+
+    if (forcedTools.length > 1) {
+      logger.info(
+        `Multiple tools set to 'force' mode, but only the first one (${forcedTool.id}) will be forced`
+      )
+    }
+  } else {
+    // Default to auto if no forced tools
+    toolChoice = 'auto'
+    logger.info('Setting tool_choice to auto - letting model decide which tools to use')
+  }
+
+  return {
+    tools: filteredTools,
+    toolChoice,
+    hasFilteredTools,
+  }
+}
+
+/**
+ * Checks if a forced tool has been used in a response and manages the tool_choice accordingly
+ *
+ * @param toolCallsResponse Array of tool calls in the response
+ * @param originalToolChoice The original tool_choice setting used in the request
+ * @param logger Logger instance to use for logging
+ * @param provider Optional provider ID to adjust format for specific providers
+ * @returns Object containing hasUsedForcedTool flag and toolChoice for next request
+ */
+export function trackForcedToolUsage(
+  toolCallsResponse: any[] | undefined,
+  originalToolChoice: any,
+  logger: any,
+  provider?: string
+): {
+  hasUsedForcedTool: boolean
+  nextToolChoice:
+    | 'auto'
+    | { type: 'function'; function: { name: string } }
+    | { type: 'tool'; name: string }
+    | { type: 'any'; any: { model: string; name: string } }
+    | null
+} {
+  // Default to keeping the original tool_choice
+  let hasUsedForcedTool = false
+  let nextToolChoice = originalToolChoice
+
+  // If we're forcing a specific tool and we have tool calls in the response
+  if (
+    typeof originalToolChoice === 'object' &&
+    (originalToolChoice?.function?.name ||
+      (originalToolChoice?.type === 'tool' && originalToolChoice?.name) ||
+      (originalToolChoice?.type === 'any' && originalToolChoice?.any?.name)) &&
+    toolCallsResponse &&
+    toolCallsResponse.length > 0
+  ) {
+    // Get the name of the forced tool
+    const forcedToolName =
+      originalToolChoice?.function?.name ||
+      originalToolChoice?.name ||
+      originalToolChoice?.any?.name
+
+    // Check if any of the tool calls used the forced tool
+    const toolNames = toolCallsResponse.map((tc) => tc.function?.name || tc.name || tc.id)
+
+    if (toolNames.includes(forcedToolName)) {
+      // The forced tool was used
+      hasUsedForcedTool = true
+
+      // For Anthropic, we need to return null to signal deletion of the parameter
+      // For Google/Gemini, we return 'auto'
+      // For other providers, we return 'auto'
+      nextToolChoice = provider === 'anthropic' ? null : 'auto'
+
+      logger.info(
+        `Forced tool ${forcedToolName} was used, switching to auto mode for future iterations`
+      )
+    }
+  }
+
+  return {
+    hasUsedForcedTool,
+    nextToolChoice: hasUsedForcedTool ? nextToolChoice : originalToolChoice,
+  }
+}

@@ -1,12 +1,16 @@
 import { AgentIcon } from '@/components/icons'
 import { isHostedVersion } from '@/lib/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useOllamaStore } from '@/stores/ollama/store'
+import { getAllBlocks } from '@/blocks'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
+import { getTool } from '@/tools'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
 const isHosted = isHostedVersion()
+const logger = createLogger('AgentBlock')
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -25,6 +29,13 @@ interface AgentResponse extends ToolResponse {
       count: number
     }
   }
+}
+
+// Helper function to get the tool ID from a block type
+const getToolIdFromBlock = (blockType: string): string | undefined => {
+  const blocks = getAllBlocks()
+  const block = blocks.find((b) => b.type === blockType)
+  return block?.tools?.access?.[0]
 }
 
 export const AgentBlock: BlockConfig<AgentResponse> = {
@@ -139,6 +150,52 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
           throw new Error(`Invalid model selected: ${model}`)
         }
         return tool
+      },
+      params: (params: Record<string, any>) => {
+        // If tools array is provided, handle tool usage control
+        if (params.tools && Array.isArray(params.tools)) {
+          // Transform tools to include usageControl
+          const transformedTools = params.tools
+            // Filter out tools set to 'none' - they should never be passed to the provider
+            .filter((tool: any) => {
+              const usageControl = tool.usageControl || 'auto'
+              return usageControl !== 'none'
+            })
+            .map((tool: any) => {
+              // Get the base tool configuration
+              const toolConfig = {
+                id:
+                  tool.type === 'custom-tool'
+                    ? tool.schema?.function?.name
+                    : tool.operation || getToolIdFromBlock(tool.type),
+                name: tool.title,
+                description: tool.type === 'custom-tool' ? tool.schema?.function?.description : '',
+                params: tool.params || {},
+                parameters: tool.type === 'custom-tool' ? tool.schema?.function?.parameters : {}, // We'd need to get actual parameters for non-custom tools
+                usageControl: tool.usageControl || 'auto',
+              }
+              return toolConfig
+            })
+
+          // Log which tools are being passed and which are filtered out
+          const filteredOutTools = params.tools
+            .filter((tool: any) => (tool.usageControl || 'auto') === 'none')
+            .map((tool: any) => tool.title)
+
+          if (filteredOutTools.length > 0) {
+            logger.info('Filtered out tools set to none', { tools: filteredOutTools.join(', ') })
+          }
+
+          logger.info('Transformed tools', { tools: transformedTools })
+          if (transformedTools.length === 0) {
+            logger.info('No tools will be passed to the provider after filtering')
+          } else {
+            logger.info('Tools passed to provider', { count: transformedTools.length })
+          }
+
+          return { ...params, tools: transformedTools }
+        }
+        return params
       },
     },
   },
