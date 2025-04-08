@@ -409,8 +409,11 @@ export async function refreshOAuthToken(
       refresh_token: refreshToken,
     }
 
-    // Only add client_id and client_secret to body for non-Basic auth providers
-    if (!useBasicAuth) {
+    // For Airtable specifically, include client_id in body even with Basic auth
+    if (provider === 'airtable') {
+      bodyParams.client_id = clientId
+    } else if (!useBasicAuth) {
+      // For other non-Basic auth providers, include both credentials
       bodyParams.client_id = clientId
       bodyParams.client_secret = clientSecret
     }
