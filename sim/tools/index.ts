@@ -20,11 +20,8 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
-<<<<<<< HEAD
 import { jiraUpdateTool } from './jira' //TODO: add the other jira tools, testing update for now
-=======
 import { mistralParserTool } from './mistral'
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
@@ -116,16 +113,13 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
-<<<<<<< HEAD
   jira_update: jiraUpdateTool,
-=======
   twilio_send_sms: sendSMSTool,
   dalle_generate: dalleTool,
   airtable_read: airtableReadTool,
   airtable_write: airtableWriteTool,
   airtable_update: airtableUpdateTool,
   mistral_parser: mistralParserTool,
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 }
 
 // Get a tool by its ID

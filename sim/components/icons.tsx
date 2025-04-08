@@ -1731,12 +1731,17 @@ export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
         d="M20.602 20.234c-6.584-3.183-8.507-3.66-11.281-3.66-3.255 0-6.03 1.355-8.507 5.16l-.407.622c-.333.513-.407.696-.407.915s.111.403.518.659l4.18 2.598c.221.146.406.22.591.22.222 0 .37-.11.592-.44l.666-1.024c1.035-1.574 1.96-2.086 3.144-2.086 1.035 0 2.256.293 3.772 1.025l4.365 2.049c.444.22.925.11 1.146-.403l2.072-4.537c.222-.512.074-.842-.444-1.098M1.406 12.22c6.583 3.184 8.507 3.66 11.28 3.66 3.256 0 6.03-1.354 8.508-5.16l.407-.622c.332-.512.406-.695.406-.915s-.11-.402-.518-.658L17.31 5.927c-.222-.147-.407-.22-.592-.22-.222 0-.37.11-.592.44l-.665 1.024c-1.036 1.573-1.96 2.086-3.144 2.086-1.036 0-2.257-.293-3.773-1.025L4.18 6.183c-.444-.22-.925-.11-1.147.402L.962 11.123c-.222.512-.074.841.444 1.098"
       />
     </svg>
-<<<<<<< HEAD
-  );
+  )
 }
 
 export function JiraIcon(props: SVGProps<SVGSVGElement>) {
-=======
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+        <path
+        fill="#1868DB" 
+        d="M11.034 21.99h-2.22c-3.346 0-5.747-2.05-5.747-5.052h11.932c.619 0 1.019.44 1.019 1.062v12.007c-2.983 0-4.984-2.416-4.984-5.784zm5.893-5.967h-2.219c-3.347 0-5.748-2.013-5.748-5.015h11.933c.618 0 1.055.402 1.055 1.025V24.04c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.219c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.018.439 1.018 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z"
+        />
+    </svg>
   )
 }
 
@@ -1773,13 +1778,11 @@ export function ImageIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
   return (
     <svg
       {...props}
       width="24"
       height="24"
-<<<<<<< HEAD
       viewBox="0 3 21 24"
       focusable="false"
       fill="none"
@@ -1794,18 +1797,6 @@ export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-=======
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <g transform="translate(1, 4)">
-        <rect x="0" y="0" width="5" height="16" rx="2.5" fill="currentColor" />
-        <rect x="8" y="0" width="14" height="16" rx="4" fill="currentColor" />
-      </g>
-    </svg>
-  )
-}
 
 export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -1889,4 +1880,3 @@ export function MistralIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026

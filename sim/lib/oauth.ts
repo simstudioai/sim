@@ -1,10 +1,7 @@
 import { ReactNode } from 'react'
 import {
-<<<<<<< HEAD
   JiraIcon,
-=======
   AirtableIcon,
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
   ConfluenceIcon,
   GithubIcon,
   GmailIcon,
@@ -20,10 +17,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('OAuth')
 
-// Define the base OAuth provider type
-<<<<<<< HEAD
-export type OAuthProvider = 'google' | 'github' | 'x' | 'supabase' | 'confluence' | 'jira' | string
-=======
+// Define the base OAuth provider tye
 export type OAuthProvider =
   | 'google'
   | 'github'
@@ -31,8 +25,8 @@ export type OAuthProvider =
   | 'supabase'
   | 'confluence'
   | 'airtable'
+  | 'jira'
   | string
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 export type OAuthService =
   | 'google'
   | 'google-email'
@@ -43,11 +37,9 @@ export type OAuthService =
   | 'x'
   | 'supabase'
   | 'confluence'
-<<<<<<< HEAD
   | 'jira'
-=======
   | 'airtable'
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
+
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -214,7 +206,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'confluence',
   },
-<<<<<<< HEAD
+
   jira: {
     id: 'jira',
     name: 'Jira',
@@ -238,7 +230,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'jira',
-=======
+  },
+
   airtable: {
     id: 'airtable',
     name: 'Airtable',
@@ -255,7 +248,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'airtable',
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
   },
 }
 
@@ -307,13 +299,10 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'x'
   } else if (provider === 'confluence') {
     return 'confluence'
-<<<<<<< HEAD
   } else if (provider === 'jira') {
     return 'jira'
-=======
   } else if (provider === 'airtable') {
     return 'airtable'
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
   }
 
   return providerConfig.defaultService

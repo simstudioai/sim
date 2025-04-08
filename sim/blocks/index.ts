@@ -75,13 +75,10 @@ export {
   GoogleSheetsBlock,
   PerplexityBlock,
   ConfluenceBlock,
-<<<<<<< HEAD
   JiraBlock,
-=======
   TwilioSMSBlock,
   ImageGeneratorBlock,
   TypeformBlock,
->>>>>>> 854667034d001120f067d9f5ec95a10e6e613026
 }
 
 // Registry of all block configurations, alphabetically sorted
