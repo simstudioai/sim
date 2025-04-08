@@ -74,6 +74,9 @@ export function useWorkflowExecution() {
 
   const handleRunWorkflow = useCallback(async () => {
     if (!activeWorkflowId) return
+
+    // Reset execution result and set execution state
+    setExecutionResult(null)
     setIsExecuting(true)
 
     // Set debug mode if it's enabled in settings
@@ -157,9 +160,15 @@ export function useWorkflowExecution() {
           setPendingBlocks(result.metadata.pendingBlocks)
         }
       } else {
-        // Normal execution completed
+        // Normal execution completed - start with UI updates
         setExecutionResult(result)
-        setIsExecuting(false)
+
+        // For better UI responsiveness, update state immediately
+        if (!isDebugModeEnabled) {
+          // Reset execution states right away for UI to update
+          setIsExecuting(false)
+          setIsDebugging(false)
+        }
 
         // Show notification
         addNotification(
@@ -170,9 +179,11 @@ export function useWorkflowExecution() {
           activeWorkflowId
         )
 
-        // In non-debug mode, persist logs
-        await persistLogs(executionId, result)
-        setIsDebugging(false)
+        // In non-debug mode, persist logs (no need to wait for this)
+        // We explicitly don't await this to avoid blocking UI updates
+        persistLogs(executionId, result).catch((err) => {
+          logger.error('Error persisting logs:', { error: err })
+        })
       }
     } catch (error: any) {
       logger.error('Workflow Execution Error:', error)
@@ -224,8 +235,10 @@ export function useWorkflowExecution() {
         logs: [],
       }
 
+      // Update UI state immediately for better responsiveness
       setExecutionResult(errorResult)
       setIsExecuting(false)
+      setIsDebugging(false)
 
       // Create a more user-friendly notification message
       let notificationMessage = `Workflow execution failed`
@@ -255,9 +268,10 @@ export function useWorkflowExecution() {
         console.error('Workflow execution failed:', errorMessage)
       }
 
-      // Also send the error result to the API
-      await persistLogs(executionId, errorResult)
-      setIsDebugging(false)
+      // Also send the error result to the API (don't await to keep UI responsive)
+      persistLogs(executionId, errorResult).catch((err) => {
+        logger.error('Error persisting logs:', { error: err })
+      })
     }
   }, [
     activeWorkflowId,
@@ -273,6 +287,7 @@ export function useWorkflowExecution() {
     setIsExecuting,
     setIsDebugging,
     isDebugModeEnabled,
+    isDebugging,
   ])
 
   /**

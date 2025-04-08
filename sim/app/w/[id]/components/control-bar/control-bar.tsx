@@ -398,7 +398,6 @@ export function ControlBar() {
     cancelFlagRef.current = false
     setShowRunProgress(runCount > 1)
 
-    let result = null
     let workflowError = null
     let wasCancelled = false
 
@@ -411,34 +410,41 @@ export function ControlBar() {
           wasCancelled = true
           break
         }
+
+        // Run the workflow and immediately increment counter for visual feedback
         await handleRunWorkflow()
         setCompletedRuns(i + 1)
       }
 
-      // Set multi-running to false immediately after the loop finishes or breaks
-      setIsMultiRunning(false)
-
       // Update workflow stats only if the run wasn't cancelled and completed normally
       if (!wasCancelled && activeWorkflowId) {
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
-          method: 'POST',
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          logger.error(`Failed to update workflow stats: ${JSON.stringify(errorData)}`)
-          throw new Error('Failed to update workflow stats')
+        try {
+          // Don't block UI on stats update
+          fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
+            method: 'POST',
+          }).catch((error) => {
+            logger.error(`Failed to update workflow stats: ${error.message}`)
+          })
+        } catch (error) {
+          logger.error('Error updating workflow stats:', { error })
         }
       }
     } catch (error) {
       workflowError = error
       logger.error('Error during multiple workflow runs:', { error })
-      setIsMultiRunning(false)
     } finally {
-      // Keep progress visible for a moment after completion/cancellation
+      // Always immediately update UI state
+      setIsMultiRunning(false)
+
+      // Handle progress bar visibility
       if (runCount > 1) {
-        setTimeout(() => setShowRunProgress(false), 2000)
+        // Keep progress visible briefly after completion
+        setTimeout(() => setShowRunProgress(false), 1000)
+      } else {
+        // Immediately hide progress for single runs
+        setShowRunProgress(false)
       }
+
       setIsCancelling(false)
       cancelFlagRef.current = false
 
@@ -447,6 +453,11 @@ export function ControlBar() {
         addNotification('info', 'Workflow run cancelled', activeWorkflowId)
       } else if (workflowError) {
         addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
+      } else {
+        // Success notification for batch runs
+        if (runCount > 1) {
+          addNotification('console', `Completed ${completedRuns} workflow runs`, activeWorkflowId)
+        }
       }
     }
   }
@@ -787,7 +798,7 @@ export function ControlBar() {
    */
   const renderRunButton = () => (
     <div className="flex items-center">
-      {showRunProgress && (
+      {showRunProgress && isMultiRunning && (
         <div className="mr-3 w-28">
           <Progress value={(completedRuns / runCount) * 100} className="h-2 bg-muted" />
           <p className="text-xs text-muted-foreground mt-1 text-center">
@@ -836,7 +847,7 @@ export function ControlBar() {
           {isCancelling
             ? 'Cancelling...'
             : isMultiRunning
-              ? `Running`
+              ? `Running (${completedRuns}/${runCount})`
               : isExecuting
                 ? isDebugging
                   ? 'Debugging'
