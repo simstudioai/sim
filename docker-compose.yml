@@ -13,7 +13,7 @@ services:
       - /app/.next
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/postgres
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
       - POSTGRES_URL=postgresql://postgres:postgres@db:5432/simstudio
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -96,4 +96,3 @@ services:
 
 volumes:
   postgres_data:
-
