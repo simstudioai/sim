@@ -47,7 +47,11 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       const refreshResult = await refreshOAuthToken(providerId, credential.refreshToken!)
 
       if (!refreshResult) {
-        logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`)
+        logger.error(`Failed to refresh token for user ${userId}, provider ${providerId}`, {
+          providerId,
+          userId,
+          hasRefreshToken: !!credential.refreshToken,
+        })
         return null
       }
 
@@ -66,7 +70,12 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
       logger.info(`Successfully refreshed token for user ${userId}, provider ${providerId}`)
       return accessToken
     } catch (error) {
-      logger.error(`Error refreshing token for user ${userId}, provider ${providerId}`, error)
+      logger.error(`Error refreshing token for user ${userId}, provider ${providerId}`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        providerId,
+        userId,
+      })
       return null
     }
   }
@@ -116,7 +125,15 @@ export async function refreshAccessTokenIfNeeded(
       const refreshedToken = await refreshOAuthToken(credential.providerId, credential.refreshToken)
 
       if (!refreshedToken) {
-        logger.error(`[${requestId || ''}] Failed to refresh token for credential: ${credentialId}`)
+        logger.error(
+          `[${requestId || ''}] Failed to refresh token for credential: ${credentialId}`,
+          {
+            credentialId,
+            providerId: credential.providerId,
+            userId: credential.userId,
+            hasRefreshToken: !!credential.refreshToken,
+          }
+        )
         return null
       }
 
@@ -135,10 +152,13 @@ export async function refreshAccessTokenIfNeeded(
       )
       return refreshedToken.accessToken
     } catch (error) {
-      logger.error(
-        `[${requestId || ''}] Error refreshing token for credential: ${credentialId}`,
-        error
-      )
+      logger.error(`[${requestId || ''}] Error refreshing token for credential: ${credentialId}`, {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        providerId: credential.providerId,
+        credentialId,
+        userId: credential.userId,
+      })
       return null
     }
   } else if (!accessToken) {

@@ -469,10 +469,16 @@ async function fetchAndProcessAirtablePayloads(
         )
         throw new Error('Airtable access token not found.')
       }
+
+      logger.info(`[${requestId}] Successfully obtained Airtable access token`)
     } catch (tokenError: any) {
       logger.error(
         `[${requestId}] Failed to get Airtable OAuth token for user ${workflowData.userId}`,
-        tokenError
+        {
+          error: tokenError.message,
+          stack: tokenError.stack,
+          userId: workflowData.userId,
+        }
       )
       await persistExecutionError(
         workflowData.id,
