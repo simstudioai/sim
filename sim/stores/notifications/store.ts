@@ -46,35 +46,32 @@ export const useNotificationStore = create<NotificationStore>()(
 
         set((state) => {
           // Add new notification at the start and limit total count
-          let newNotifications = [notification, ...state.notifications].slice(
-            0,
-            MAX_NOTIFICATIONS
-          )
-          
+          let newNotifications = [notification, ...state.notifications].slice(0, MAX_NOTIFICATIONS)
+
           // Check if we need to auto-fade older notifications if we exceed the limit
-          const workflowVisibleCount = get().getVisibleNotificationCount(workflowId);
-          
+          const workflowVisibleCount = get().getVisibleNotificationCount(workflowId)
+
           if (workflowVisibleCount > MAX_VISIBLE_NOTIFICATIONS) {
             // Find the oldest non-persistent visible notification from this workflow to fade out
             newNotifications = newNotifications.map((n, index) => {
               // Don't touch the newly added notification
-              if (index === 0) return n;
-              
+              if (index === 0) return n
+
               // Only target notifications from the same workflow that are visible, not persistent, and not already fading
               if (
-                n.workflowId === workflowId && 
-                n.isVisible && 
-                !n.options?.isPersistent && 
+                n.workflowId === workflowId &&
+                n.isVisible &&
+                !n.options?.isPersistent &&
                 !n.isFading
               ) {
                 // Mark it as fading - the oldest one will be the first we encounter
-                return { ...n, isFading: true };
+                return { ...n, isFading: true }
               }
-              
-              return n;
-            });
+
+              return n
+            })
           }
-          
+
           persistNotifications(newNotifications)
           return { notifications: newNotifications }
         })
@@ -124,43 +121,43 @@ export const useNotificationStore = create<NotificationStore>()(
           const newNotifications = state.notifications.map((n) => {
             if (n.id === id) {
               // Only update visibility state, preserve timestamp and position
-              return { 
-                ...n, 
-                isVisible: true, 
-                read: false, 
-                isFading: false
+              return {
+                ...n,
+                isVisible: true,
+                read: false,
+                isFading: false,
               }
             }
             return n
           })
-          
+
           // Check if we need to auto-fade older notifications due to the limit
-          const workflowId = notification.workflowId;
-          const workflowVisibleCount = get().getVisibleNotificationCount(workflowId);
-          
-          let updatedNotifications = [...newNotifications];
-          
+          const workflowId = notification.workflowId
+          const workflowVisibleCount = get().getVisibleNotificationCount(workflowId)
+
+          let updatedNotifications = [...newNotifications]
+
           if (workflowVisibleCount > MAX_VISIBLE_NOTIFICATIONS) {
             // Find the oldest non-persistent visible notification to fade out
             updatedNotifications = updatedNotifications.map((n) => {
               // Don't touch the newly shown notification
-              if (n.id === id) return n;
-              
+              if (n.id === id) return n
+
               // Only target notifications from the same workflow that are visible, not persistent, and not already fading
               if (
-                n.workflowId === workflowId && 
-                n.isVisible && 
-                !n.options?.isPersistent && 
+                n.workflowId === workflowId &&
+                n.isVisible &&
+                !n.options?.isPersistent &&
                 !n.isFading
               ) {
                 // Mark it as fading - the oldest one will be the first we encounter
-                return { ...n, isFading: true };
+                return { ...n, isFading: true }
               }
-              
-              return n;
-            });
+
+              return n
+            })
           }
-          
+
           // If notification is not persistent, restart the fade timer
           if (!notification.options?.isPersistent) {
             setTimeout(() => {
@@ -174,7 +171,7 @@ export const useNotificationStore = create<NotificationStore>()(
               })
             }, NOTIFICATION_TIMEOUT)
           }
-          
+
           persistNotifications(updatedNotifications)
           return { notifications: updatedNotifications }
         }),
@@ -212,15 +209,13 @@ export const useNotificationStore = create<NotificationStore>()(
       getWorkflowNotifications: (workflowId) => {
         return get().notifications.filter((n) => n.workflowId === workflowId)
       },
-      
+
       getVisibleNotificationCount: (workflowId) => {
-        if (!workflowId) return 0;
-        
+        if (!workflowId) return 0
+
         return get().notifications.filter(
-          n => n.workflowId === workflowId && 
-               n.isVisible && 
-               !n.read
-        ).length;
+          (n) => n.workflowId === workflowId && n.isVisible && !n.read
+        ).length
       },
     }),
     { name: 'notification-store' }

@@ -275,14 +275,14 @@ export async function GET(request: NextRequest) {
         return section.map((item) => {
           if ('state' in item) {
             // Create a new object without the state field, but with workflowState
-            const { state, ...rest } = item;
+            const { state, ...rest } = item
             return {
               ...rest,
-              workflowState: state
-            };
+              workflowState: state,
+            }
           }
-          return item;
-        });
+          return item
+        })
       }
 
       if (result.popular.length > 0) {

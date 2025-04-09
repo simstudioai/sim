@@ -3,8 +3,8 @@
  *
  * @vitest-environment node
  */
-import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import path from 'path'
 import type { FileParser, FileParseResult } from './types'
 
 // Mock file system modules

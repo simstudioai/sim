@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         startTime: startTimeISO,
         endTime: endTimeISO,
       })
-      
+
       // Return the response with CORS headers
       return NextResponse.json(responseWithTimingData, {
         headers: {
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     logger.error(`[${requestId}] Proxy request failed`, {
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     })
 
     // Add timing information even to error responses
@@ -140,19 +140,22 @@ export async function POST(request: Request) {
     const endTimeISO = endTime.toISOString()
     const duration = endTime.getTime() - startTime.getTime()
 
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-      startTime: startTimeISO,
-      endTime: endTimeISO,
-      duration,
-    }, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        duration,
       },
-    })
+      {
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        },
+      }
+    )
   }
 }
 

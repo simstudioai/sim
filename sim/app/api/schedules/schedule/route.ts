@@ -59,36 +59,36 @@ export async function POST(req: NextRequest) {
     // Check if there's a valid schedule configuration
     const hasScheduleConfig = (() => {
       const getValue = (id: string): string => {
-        const value = getSubBlockValue(starterBlock, id);
-        return value && value.trim() !== '' ? value : '';
-      };
-      
+        const value = getSubBlockValue(starterBlock, id)
+        return value && value.trim() !== '' ? value : ''
+      }
+
       if (scheduleType === 'minutes' && getValue('minutesInterval')) {
-        return true;
+        return true
       }
       if (scheduleType === 'hourly' && getValue('hourlyMinute') !== '') {
-        return true;
+        return true
       }
       if (scheduleType === 'daily' && getValue('dailyTime')) {
-        return true;
+        return true
       }
-      if (scheduleType === 'weekly' && getValue('weeklyDay') && 
-          getValue('weeklyDayTime')) {
-        return true;
+      if (scheduleType === 'weekly' && getValue('weeklyDay') && getValue('weeklyDayTime')) {
+        return true
       }
-      if (scheduleType === 'monthly' && getValue('monthlyDay') && 
-          getValue('monthlyTime')) {
-        return true;
+      if (scheduleType === 'monthly' && getValue('monthlyDay') && getValue('monthlyTime')) {
+        return true
       }
       if (scheduleType === 'custom' && getValue('cronExpression')) {
-        return true;
+        return true
       }
-      return false;
-    })();
+      return false
+    })()
 
     // If the workflow is not configured for scheduling, delete any existing schedule
     if (startWorkflow !== 'schedule' && !hasScheduleConfig) {
-      logger.info(`[${requestId}] Removing schedule for workflow ${workflowId} - no valid configuration found`)
+      logger.info(
+        `[${requestId}] Removing schedule for workflow ${workflowId} - no valid configuration found`
+      )
       await db.delete(workflowSchedule).where(eq(workflowSchedule.workflowId, workflowId))
 
       return NextResponse.json({ message: 'Schedule removed' })
@@ -96,7 +96,9 @@ export async function POST(req: NextRequest) {
 
     // If we're here, we either have startWorkflow === 'schedule' or hasScheduleConfig is true
     if (startWorkflow !== 'schedule') {
-      logger.info(`[${requestId}] Setting workflow to scheduled mode based on schedule configuration`)
+      logger.info(
+        `[${requestId}] Setting workflow to scheduled mode based on schedule configuration`
+      )
       // The UI should handle this, but as a fallback we'll assume the user intended to schedule
       // the workflow even if startWorkflow wasn't set properly
     }
