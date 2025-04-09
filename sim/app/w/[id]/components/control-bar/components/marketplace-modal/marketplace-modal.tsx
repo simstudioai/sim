@@ -17,7 +17,6 @@ import {
   LineChart,
   MailIcon,
   NotebookPen,
-  Star,
   Store,
   TimerIcon,
   Trash,
@@ -38,6 +37,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import {
   Select,
   SelectContent,
@@ -53,7 +53,6 @@ import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   CATEGORIES,
   getCategoryColor,
@@ -132,7 +131,6 @@ interface MarketplaceInfo {
   description: string
   category: string
   authorName: string
-  stars: number
   views: number
   createdAt: string
   updatedAt: string
@@ -144,8 +142,24 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const [marketplaceInfo, setMarketplaceInfo] = useState<MarketplaceInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { addNotification } = useNotificationStore()
-  const { activeWorkflowId, workflows } = useWorkflowRegistry()
-  const { isPublished, setPublishStatus } = useWorkflowStore()
+  const { activeWorkflowId, workflows, updateWorkflow } = useWorkflowRegistry()
+
+  // Get marketplace data from the registry
+  const getMarketplaceData = () => {
+    if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
+    return workflows[activeWorkflowId].marketplaceData
+  }
+
+  // Check if workflow is published to marketplace
+  const isPublished = () => {
+    return !!getMarketplaceData()
+  }
+
+  // Check if the current user is the owner of the published workflow
+  const isOwner = () => {
+    const marketplaceData = getMarketplaceData()
+    return marketplaceData?.status === 'owner'
+  }
 
   // Initialize form with react-hook-form
   const form = useForm<MarketplaceFormValues>({
@@ -161,21 +175,32 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   // Fetch marketplace information when the modal opens and the workflow is published
   useEffect(() => {
     async function fetchMarketplaceInfo() {
-      if (!open || !activeWorkflowId || !isPublished) {
+      if (!open || !activeWorkflowId || !isPublished()) {
         setMarketplaceInfo(null)
         return
       }
 
       try {
         setIsLoading(true)
-        const response = await fetch(`/api/marketplace/${activeWorkflowId}/info`)
+
+        // Get marketplace ID from the workflow's marketplaceData
+        const marketplaceData = getMarketplaceData()
+        if (!marketplaceData?.id) {
+          throw new Error('No marketplace ID found in workflow data')
+        }
+
+        // Use the marketplace ID to fetch details instead of workflow ID
+        const response = await fetch(
+          `/api/marketplace/workflows?marketplaceId=${marketplaceData.id}`
+        )
 
         if (!response.ok) {
           throw new Error('Failed to fetch marketplace information')
         }
 
-        const data = await response.json()
-        setMarketplaceInfo(data)
+        // The API returns the data directly without wrapping
+        const marketplaceEntry = await response.json()
+        setMarketplaceInfo(marketplaceEntry)
       } catch (error) {
         console.error('Error fetching marketplace info:', error)
         addNotification('error', 'Failed to fetch marketplace information', activeWorkflowId)
@@ -185,16 +210,16 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     }
 
     fetchMarketplaceInfo()
-  }, [open, activeWorkflowId, isPublished, addNotification])
+  }, [open, activeWorkflowId, addNotification])
 
   // Update form values when the active workflow changes or modal opens
   useEffect(() => {
-    if (open && activeWorkflowId && workflows[activeWorkflowId] && !isPublished) {
+    if (open && activeWorkflowId && workflows[activeWorkflowId] && !isPublished()) {
       const workflow = workflows[activeWorkflowId]
       form.setValue('name', workflow.name)
       form.setValue('description', workflow.description || '')
     }
-  }, [open, activeWorkflowId, workflows, form, isPublished])
+  }, [open, activeWorkflowId, workflows, form])
 
   // Listen for the custom event to open the marketplace modal
   useEffect(() => {
@@ -255,8 +280,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         throw new Error(errorData.error || 'Failed to publish workflow')
       }
 
-      // Update the publish status with the current date
-      setPublishStatus(true)
+      // Get the marketplace ID from the response
+      const responseData = await response.json()
+      const marketplaceId = responseData.data.id
+
+      // Update the marketplace data in the workflow registry
+      updateWorkflow(activeWorkflowId, {
+        marketplaceData: { id: marketplaceId, status: 'owner' },
+      })
 
       // Add a marketplace notification with detailed information
       addNotification(
@@ -284,27 +315,46 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     try {
       setIsUnpublishing(true)
 
-      const response = await fetch(`/api/marketplace/${activeWorkflowId}/unpublish`, {
+      // Get marketplace ID from the workflow's marketplaceData
+      const marketplaceData = getMarketplaceData()
+      if (!marketplaceData?.id) {
+        throw new Error('No marketplace ID found in workflow data')
+      }
+
+      logger.info('Attempting to unpublish marketplace entry', {
+        marketplaceId: marketplaceData.id,
+        workflowId: activeWorkflowId,
+        status: marketplaceData.status,
+      })
+
+      const response = await fetch(`/api/marketplace/${marketplaceData.id}/unpublish`, {
         method: 'POST',
       })
 
       if (!response.ok) {
         const errorData = await response.json()
+        logger.error('Error response from unpublish endpoint', {
+          status: response.status,
+          data: errorData,
+        })
         throw new Error(errorData.error || 'Failed to unpublish workflow')
       }
 
-      // Update the publish status
-      setPublishStatus(false)
+      logger.info('Successfully unpublished workflow from marketplace', {
+        marketplaceId: marketplaceData.id,
+        workflowId: activeWorkflowId,
+      })
 
-      // Add a notification
-      addNotification(
-        'marketplace',
-        `"${marketplaceInfo?.name || 'Workflow'}" successfully unpublished from marketplace`,
-        activeWorkflowId
-      )
-
-      // Close the modal after successful unpublishing
+      // First close the modal to prevent any flashing
       onOpenChange(false)
+
+      // Then update the workflow state after modal is closed
+      setTimeout(() => {
+        // Remove the marketplace data from the workflow registry
+        updateWorkflow(activeWorkflowId, {
+          marketplaceData: null,
+        })
+      }, 100)
     } catch (error: any) {
       console.error('Error unpublishing workflow:', error)
       addNotification('error', `Failed to unpublish workflow: ${error.message}`, activeWorkflowId)
@@ -331,13 +381,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderMarketplaceInfo = () => {
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <div className="flex flex-col items-center gap-2">
-            <div className="animate-spin">
-              <BrainCircuit className="h-5 w-5" />
-            </div>
-            <p className="text-sm">Loading marketplace information...</p>
-          </div>
+        <div className="flex items-center justify-center py-12">
+          <LoadingAgent size="md" />
         </div>
       )
     }
@@ -360,12 +405,6 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
           <div className="flex items-start justify-between">
             <h3 className="text-xl font-medium leading-tight">{marketplaceInfo.name}</h3>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 rounded-md px-2 py-1">
-                <Star className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {marketplaceInfo.stars}
-                </span>
-              </div>
               <div className="flex items-center gap-1.5 rounded-md px-2 py-1">
                 <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground">
@@ -402,26 +441,25 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleUnpublish}
-            disabled={isUnpublishing}
-            className="gap-2"
-          >
-            <Trash className="h-4 w-4" />
-            {isUnpublishing ? (
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-background"></span>
-                Unpublishing...
-              </span>
-            ) : (
-              'Unpublish'
-            )}
-          </Button>
-        </div>
+        {/* Action buttons - Only show unpublish if owner */}
+        {isOwner() && (
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleUnpublish}
+              disabled={isUnpublishing}
+              className="gap-2"
+            >
+              {isUnpublishing ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+              ) : (
+                <Trash className="h-4 w-4 mr-2" />
+              )}
+              {isUnpublishing ? 'Unpublishing...' : 'Unpublish'}
+            </Button>
+          </div>
+        )}
       </div>
     )
   }
@@ -551,7 +589,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         <DialogHeader className="px-6 py-4 border-b">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-medium">
-              {isPublished ? 'Marketplace Information' : 'Publish to Marketplace'}
+              {isPublished() ? 'Marketplace Information' : 'Publish to Marketplace'}
             </DialogTitle>
             <Button
               variant="ghost"
@@ -566,7 +604,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         </DialogHeader>
 
         <div className="pt-4 px-6 pb-6 overflow-y-auto">
-          {isPublished ? renderMarketplaceInfo() : renderPublishForm()}
+          {isPublished() ? renderMarketplaceInfo() : renderPublishForm()}
         </div>
       </DialogContent>
     </Dialog>

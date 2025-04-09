@@ -11,6 +11,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -22,7 +23,10 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { getBlock } from '@/blocks'
+import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
+import { Panel } from './components/panel/panel'
+import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import { LoopInput } from './components/workflow-loop/components/loop-input/loop-input'
@@ -460,11 +464,20 @@ function WorkflowContent() {
     }
   }, [setSubBlockValue])
 
-  if (!isInitialized) return null
+  if (!isInitialized) {
+    return (
+      <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
+        <LoadingAgent size="lg" />
+      </div>
+    )
+  }
 
   return (
-    <>
-      <div className="relative w-full h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-screen w-full overflow-hidden">
+      <ControlBar />
+      <Toolbar />
+      <Panel />
+      <div className="flex-1 relative w-full h-full">
         <NotificationList />
         <ReactFlow
           nodes={nodes}
@@ -502,12 +515,12 @@ function WorkflowContent() {
           noWheelClassName="allow-scroll"
           edgesFocusable={true}
           edgesUpdatable={true}
-          className="workflow-container"
+          className="workflow-container h-full"
         >
           <Background />
         </ReactFlow>
       </div>
-    </>
+    </div>
   )
 }
 

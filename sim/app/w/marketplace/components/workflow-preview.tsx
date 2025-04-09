@@ -408,7 +408,7 @@ function WorkflowPreviewContent({ workflowState }: WorkflowPreviewProps) {
       edgeTypes={edgeTypes}
       fitView
       fitViewOptions={{
-        padding: 0.2,
+        padding: 0,
         minZoom: 0.2,
         maxZoom: 3,
       }}
@@ -430,12 +430,13 @@ function WorkflowPreviewContent({ workflowState }: WorkflowPreviewProps) {
       zoomOnPinch={false}
       zoomOnDoubleClick={false}
       panOnDrag={false}
-      preventScrolling={true}
+      preventScrolling={false}
+      disableKeyboardA11y={true}
       attributionPosition="bottom-right"
-      className="w-full h-full"
-      style={{ background: 'transparent' }}
+      className="w-full h-full pointer-events-none"
+      style={{ background: 'transparent', pointerEvents: 'none' }}
     >
-      <Background gap={12} size={1} className="opacity-30" />
+      <Background gap={12} size={1} className="opacity-30 pointer-events-none" />
     </ReactFlow>
   )
 }
@@ -448,7 +449,7 @@ function WorkflowPreviewContent({ workflowState }: WorkflowPreviewProps) {
 export function WorkflowPreview({ workflowState }: WorkflowPreviewProps) {
   return (
     <ReactFlowProvider>
-      <div className="h-full w-full">
+      <div className="h-full w-full -m-1">
         <WorkflowPreviewContent workflowState={workflowState} />
       </div>
     </ReactFlowProvider>

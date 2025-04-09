@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Eye, Star } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Eye } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Workflow } from '../marketplace'
 import { WorkflowPreview } from './workflow-preview'
 
@@ -25,6 +27,8 @@ interface WorkflowCardProps {
  */
 export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(!!workflow.workflowState)
+  const router = useRouter()
+  const { createWorkflow } = useWorkflowRegistry()
 
   // When workflow state becomes available, update preview ready state
   useEffect(() => {
@@ -44,10 +48,11 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   }
 
   /**
-   * Handle workflow card click - track views
+   * Handle workflow card click - track views and import workflow
    */
   const handleClick = async () => {
     try {
+      // Track view
       await fetch(`/api/marketplace/workflows`, {
         method: 'POST',
         headers: {
@@ -55,15 +60,34 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
         },
         body: JSON.stringify({ id: workflow.id }),
       })
+
+      // Create a local copy of the marketplace workflow
+      if (workflow.workflowState) {
+        const newWorkflowId = createWorkflow({
+          name: `${workflow.name} (Copy)`,
+          description: workflow.description,
+          marketplaceId: workflow.id,
+          marketplaceState: workflow.workflowState,
+        })
+
+        // Navigate to the new workflow
+        router.push(`/w/${newWorkflowId}`)
+      } else {
+        console.error('Cannot import workflow: state is not available')
+      }
     } catch (error) {
-      console.error('Failed to track workflow view:', error)
+      console.error('Failed to handle workflow click:', error)
     }
   }
 
   return (
-    <div className="block" aria-label={`View ${workflow.name} workflow`} onClick={handleClick}>
+    <div
+      className="block cursor-pointer"
+      aria-label={`View ${workflow.name} workflow`}
+      onClick={handleClick}
+    >
       <Card
-        className="overflow-hidden transition-all hover:shadow-md flex flex-col h-full cursor-pointer"
+        className="overflow-hidden transition-all hover:shadow-md flex flex-col h-full"
         onMouseEnter={handleMouseEnter}
       >
         {/* Workflow preview/thumbnail area */}
@@ -71,7 +95,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
           {isPreviewReady && workflow.workflowState ? (
             // Show interactive workflow preview if state is available
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-full h-full transform-gpu scale-[0.8]">
+              <div className="w-full h-full transform-gpu scale-[0.9]">
                 <WorkflowPreview workflowState={workflow.workflowState} />
               </div>
             </div>
@@ -104,11 +128,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
           {/* Footer with author and stats */}
           <CardFooter className="p-4 pt-2 mt-auto flex justify-between items-center">
             <div className="text-xs text-muted-foreground">by {workflow.author}</div>
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1">
-                <Star className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">{workflow.stars}</span>
-              </div>
+            <div className="flex items-center">
               <div className="flex items-center space-x-1">
                 <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground">{workflow.views}</span>

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
-import { DiscordIcon, GithubIcon, SlackIcon, StripeIcon, WhatsAppIcon } from '@/components/icons'
+import {
+  AirtableIcon,
+  DiscordIcon,
+  GithubIcon,
+  SlackIcon,
+  StripeIcon,
+  WhatsAppIcon,
+} from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
@@ -54,6 +61,14 @@ export interface SlackConfig {
   signingSecret: string
 }
 
+// Define Airtable-specific configuration type
+export interface AirtableWebhookConfig {
+  baseId: string
+  tableId: string
+  externalId?: string // To store the ID returned by Airtable
+  includeCellValuesInFieldIds?: 'all' | undefined
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -62,6 +77,7 @@ export type ProviderConfig =
   | StripeConfig
   | GeneralWebhookConfig
   | SlackConfig
+  | AirtableWebhookConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -160,6 +176,27 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Signing Secret',
         placeholder: 'Enter your Slack app signing secret',
         description: 'The signing secret from your Slack app to validate request authenticity.',
+      },
+    },
+  },
+  airtable: {
+    id: 'airtable',
+    name: 'Airtable',
+    icon: (props) => <AirtableIcon {...props} />,
+    configFields: {
+      baseId: {
+        type: 'string',
+        label: 'Base ID',
+        placeholder: 'appXXXXXXXXXXXXXX',
+        description: 'The ID of the Airtable Base the webhook should monitor.',
+        defaultValue: '', // Default empty, user must provide
+      },
+      tableId: {
+        type: 'string',
+        label: 'Table ID',
+        placeholder: 'tblXXXXXXXXXXXXXX',
+        description: 'The ID of the Airtable Table within the Base to monitor.',
+        defaultValue: '', // Default empty, user must provide
       },
     },
   },
@@ -365,7 +402,6 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           onClose={handleCloseModal}
           webhookPath={webhookPath || ''}
           webhookProvider={webhookProvider || 'generic'}
-          workflowId={workflowId}
           onSave={handleSaveWebhook}
           onDelete={handleDeleteWebhook}
           webhookId={webhookId || undefined}

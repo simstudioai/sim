@@ -20,8 +20,16 @@
     "@react-email/html": "^0.0.11",
     "@react-email/render": "^1.0.5",
     "@react-email/tailwind": "^1.0.4",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.2",
     "framer-motion": "^12.5.0",
+    "freestyle-sandboxes": "^0.0.42",
+    "lucide-react": "^0.487.0",
+    "next": "^15.3.0",
     "radix": "^0.0.0",
-    "react-progress": "^0.0.12"
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-progress": "^0.0.12",
+    "reactflow": "^11.11.4"
   }
 }

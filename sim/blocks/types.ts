@@ -106,6 +106,9 @@ export interface SubBlockConfig {
       value: string | number | boolean | Array<string | number | boolean>
     }
   }
+  // Props specific to 'code' sub-block type
+  language?: 'javascript' | 'json'
+  generationType?: 'javascript-function-body' | 'json-schema'
   // OAuth specific properties
   provider?: string
   serviceId?: string
@@ -115,6 +118,7 @@ export interface SubBlockConfig {
   // File upload specific properties
   acceptedTypes?: string
   multiple?: boolean
+  maxSize?: number
 }
 
 // Main block definition
@@ -151,6 +155,7 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
       }
     }
   }
+  hideFromToolbar?: boolean
 }
 
 // Output configuration rules

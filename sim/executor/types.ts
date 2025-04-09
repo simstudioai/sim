@@ -134,6 +134,34 @@ export interface BlockExecutor {
 }
 
 /**
+ * Interface for block handlers that execute specific block types.
+ * Each handler is responsible for executing a particular type of block.
+ */
+export interface BlockHandler {
+  /**
+   * Determines if this handler can process the given block.
+   *
+   * @param block - Block to check
+   * @returns True if this handler can process the block
+   */
+  canHandle(block: SerializedBlock): boolean
+
+  /**
+   * Executes the block with the given inputs and context.
+   *
+   * @param block - Block to execute
+   * @param inputs - Resolved input parameters
+   * @param context - Current execution context
+   * @returns Block execution output
+   */
+  execute(
+    block: SerializedBlock,
+    inputs: Record<string, any>,
+    context: ExecutionContext
+  ): Promise<BlockOutput>
+}
+
+/**
  * Definition of a tool that can be invoked by blocks.
  *
  * @template P - Parameter type for the tool

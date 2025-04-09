@@ -1,4 +1,9 @@
+import { CheckCircle, Network } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ConfigField } from '../ui/config-field'
+import { ConfigSection } from '../ui/config-section'
 import { CopyableField } from '../ui/copyable'
+import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'
 
 interface WhatsAppConfigProps {
@@ -24,81 +29,72 @@ export function WhatsAppConfig({
 }: WhatsAppConfigProps) {
   return (
     <div className="space-y-4">
-      <CopyableField
-        id="whatsapp-verification-token"
-        label="Verification Token"
-        value={verificationToken}
-        onChange={setVerificationToken}
-        placeholder="Enter a verification token for WhatsApp"
-        description="This token will be used to verify your webhook with WhatsApp."
-        isLoading={isLoadingToken}
-        copied={copied}
-        copyType="token"
-        copyToClipboard={copyToClipboard}
-      />
+      <ConfigSection title="WhatsApp Configuration">
+        <ConfigField
+          id="whatsapp-verification-token"
+          label="Verification Token"
+          description="Enter any secure token here. You'll need to provide the same token in your WhatsApp Business Platform dashboard."
+        >
+          <CopyableField
+            id="whatsapp-verification-token"
+            value={verificationToken}
+            onChange={setVerificationToken}
+            placeholder="Generate or enter a verification token"
+            isLoading={isLoadingToken}
+            copied={copied}
+            copyType="whatsapp-token"
+            copyToClipboard={copyToClipboard}
+            isSecret // Treat as secret
+          />
+        </ConfigField>
+      </ConfigSection>
 
       <TestResultDisplay
         testResult={testResult}
         copied={copied}
         copyToClipboard={copyToClipboard}
+        showCurlCommand={false} // WhatsApp uses GET for verification, not simple POST
       />
 
-      <div className="space-y-2">
-        <h4 className="font-medium">Setup Instructions</h4>
-        <ol className="space-y-2">
-          <li className="flex items-start">
-            <span className="text-gray-500 dark:text-gray-400 mr-2">1.</span>
-            <span className="text-sm">Go to WhatsApp Business Platform dashboard</span>
+      <InstructionsSection tip="After saving, click 'Verify and save' in WhatsApp and subscribe to the 'messages' webhook field.">
+        <ol className="list-decimal list-inside space-y-1">
+          <li>
+            Go to your{' '}
+            <a
+              href="https://developers.facebook.com/apps/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="link"
+            >
+              Meta for Developers Apps
+            </a>{' '}
+            page.
           </li>
-          <li className="flex items-start">
-            <span className="text-gray-500 dark:text-gray-400 mr-2">2.</span>
-            <span className="text-sm">Navigate to "Configuration" in the sidebar</span>
+          <li>Select your App, then navigate to WhatsApp {'>'} Configuration.</li>
+          <li>Find the Webhooks section and click "Edit".</li>
+          <li>
+            Paste the <strong>Webhook URL</strong> (from above) into the "Callback URL" field.
           </li>
-          <li className="flex items-start">
-            <span className="text-gray-500 dark:text-gray-400 mr-2">3.</span>
-            <span className="text-sm">
-              Enter the URL above as "Callback URL" (exactly as shown)
-            </span>
+          <li>
+            Paste the <strong>Verification Token</strong> (from above) into the "Verify token"
+            field.
           </li>
-          <li className="flex items-start">
-            <span className="text-gray-500 dark:text-gray-400 mr-2">4.</span>
-            <span className="text-sm">Enter your token as "Verify token"</span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-gray-500 dark:text-gray-400 mr-2">5.</span>
-            <span className="text-sm">Click "Verify and save" and subscribe to "messages"</span>
-          </li>
+          <li>Click "Verify and save".</li>
+          <li>Click "Manage" next to Webhook fields and subscribe to `messages`.</li>
         </ol>
-        <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md mt-3 border border-blue-200 dark:border-blue-800">
-          <h5 className="text-sm font-medium text-blue-800 dark:text-blue-300">Requirements</h5>
-          <ul className="mt-1 space-y-1">
-            <li className="flex items-start">
-              <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                URL must be publicly accessible with HTTPS
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                Self-signed SSL certificates not supported
-              </span>
-            </li>
-            <li className="flex items-start">
-              <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                For local testing, use ngrok to expose your server
-              </span>
-            </li>
+      </InstructionsSection>
+
+      <Alert>
+        <Network className="h-4 w-4" />
+        <AlertTitle>Requirements</AlertTitle>
+        <AlertDescription>
+          <ul className="list-disc list-outside pl-4 space-y-1 mt-1">
+            <li>Your Sim Studio webhook URL must use HTTPS and be publicly accessible.</li>
+            <li>Self-signed SSL certificates are not supported by WhatsApp.</li>
+            <li>For local testing, use a tunneling service like ngrok or Cloudflare Tunnel.</li>
           </ul>
-        </div>
-        <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
-          <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
-            <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
-            After saving, use "Test" to verify your webhook configuration.
-          </p>
-        </div>
-      </div>
+        </AlertDescription>
+      </Alert>
     </div>
   )
 }

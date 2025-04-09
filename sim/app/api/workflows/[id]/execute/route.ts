@@ -61,8 +61,18 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     runningExecutions.add(workflowId)
     logger.info(`[${requestId}] Starting workflow execution: ${workflowId}`)
 
-    // Get the workflow state
-    const state = workflow.state as WorkflowState
+    // Use the deployed state if available, otherwise fall back to current state
+    const workflowState = workflow.deployedState || workflow.state
+
+    if (!workflow.deployedState) {
+      logger.warn(
+        `[${requestId}] No deployed state found for workflow: ${workflowId}, using current state`
+      )
+    } else {
+      logger.info(`[${requestId}] Using deployed state for workflow execution: ${workflowId}`)
+    }
+
+    const state = workflowState as WorkflowState
     const { blocks, edges, loops } = state
 
     // Use the same execution flow as in scheduled executions

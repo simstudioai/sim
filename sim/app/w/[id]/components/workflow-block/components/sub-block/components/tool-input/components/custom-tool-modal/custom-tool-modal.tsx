@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Code, FileJson, X } from 'lucide-react'
+import { Code, FileJson, SparklesIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -15,6 +15,8 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useCodeGeneration } from '@/hooks/use-code-generation'
+import { CodePromptBar } from '../../../../../../../code-prompt-bar/code-prompt-bar'
 import { CodeEditor } from '../code-editor/code-editor'
 
 const logger = createLogger('CustomToolModal')
@@ -56,6 +58,41 @@ export function CustomToolModal({
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [toolId, setToolId] = useState<string | undefined>(undefined)
+
+  // AI Code Generation Hooks
+  const schemaGeneration = useCodeGeneration({
+    generationType: 'json-schema',
+    onGeneratedContent: (content) => {
+      handleJsonSchemaChange(content)
+      setSchemaError(null) // Clear error on successful generation
+    },
+    onStreamChunk: (chunk) => {
+      setJsonSchema((prev) => {
+        const newSchema = prev + chunk
+        // Clear error as soon as streaming starts
+        if (schemaError) setSchemaError(null)
+        return newSchema
+      })
+    },
+  })
+
+  const codeGeneration = useCodeGeneration({
+    generationType: 'javascript-function-body',
+    onGeneratedContent: (content) => {
+      handleFunctionCodeChange(content) // Use existing handler to also trigger dropdown checks
+      setCodeError(null) // Clear error on successful generation
+    },
+    onStreamChunk: (chunk) => {
+      setFunctionCode((prev) => {
+        const newCode = prev + chunk
+        // Use existing handler logic for consistency, though dropdowns might be disabled during streaming
+        handleFunctionCodeChange(newCode)
+        // Clear error as soon as streaming starts
+        if (codeError) setCodeError(null)
+        return newCode
+      })
+    },
+  })
 
   // Environment variables and tags dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -100,9 +137,17 @@ export function CustomToolModal({
     setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
+    // Reset AI state as well
+    schemaGeneration.closePrompt()
+    schemaGeneration.hidePromptInline()
+    codeGeneration.closePrompt()
+    codeGeneration.hidePromptInline()
   }
 
   const handleClose = () => {
+    // Cancel any ongoing generation before closing
+    if (schemaGeneration.isStreaming) schemaGeneration.cancelGeneration()
+    if (codeGeneration.isStreaming) codeGeneration.cancelGeneration()
     resetForm()
     onOpenChange(false)
   }
@@ -242,6 +287,8 @@ export function CustomToolModal({
   }
 
   const handleJsonSchemaChange = (value: string) => {
+    // Prevent updates during AI generation/streaming
+    if (schemaGeneration.isLoading || schemaGeneration.isStreaming) return
     setJsonSchema(value)
     if (schemaError) {
       setSchemaError(null)
@@ -249,6 +296,16 @@ export function CustomToolModal({
   }
 
   const handleFunctionCodeChange = (value: string) => {
+    // Prevent updates during AI generation/streaming
+    if (codeGeneration.isLoading || codeGeneration.isStreaming) {
+      // We still need to update the state for streaming chunks, but skip dropdown logic
+      setFunctionCode(value)
+      if (codeError) {
+        setCodeError(null)
+      }
+      return
+    }
+
     setFunctionCode(value)
     if (codeError) {
       setCodeError(null)
@@ -284,12 +341,12 @@ export function CustomToolModal({
 
       // Check if we should show the environment variables dropdown
       const envVarTrigger = checkEnvVarTrigger(value, pos)
-      setShowEnvVars(envVarTrigger.show)
+      setShowEnvVars(envVarTrigger.show && !codeGeneration.isStreaming) // Hide dropdown during streaming
       setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
 
       // Check if we should show the tags dropdown
       const tagTrigger = checkTagTrigger(value, pos)
-      setShowTags(tagTrigger.show)
+      setShowTags(tagTrigger.show && !codeGeneration.isStreaming) // Hide dropdown during streaming
       if (!tagTrigger.show) {
         setActiveSourceBlockId(null)
       }
@@ -311,14 +368,42 @@ export function CustomToolModal({
 
   // Handle key press events
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Only handle Escape directly if dropdowns aren't visible
-    // Otherwise, let the dropdowns handle their own keyboard events
-    if (e.key === 'Escape' && !showEnvVars && !showTags) {
-      setShowEnvVars(false)
-      setShowTags(false)
+    // Allow AI prompt interaction (e.g., Escape to close prompt bar)
+    // Check if AI prompt is visible for the current section
+    const isSchemaPromptVisible = activeSection === 'schema' && schemaGeneration.isPromptVisible
+    const isCodePromptVisible = activeSection === 'code' && codeGeneration.isPromptVisible
+
+    if (e.key === 'Escape') {
+      if (isSchemaPromptVisible) {
+        schemaGeneration.hidePromptInline()
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      if (isCodePromptVisible) {
+        codeGeneration.hidePromptInline()
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
+      // Close dropdowns only if AI prompt isn't active
+      if (!showEnvVars && !showTags) {
+        setShowEnvVars(false)
+        setShowTags(false)
+      }
     }
 
-    // Don't handle other keys when dropdowns are visible
+    // Prevent regular input if streaming in the active section
+    if (activeSection === 'schema' && schemaGeneration.isStreaming) {
+      e.preventDefault()
+      return
+    }
+    if (activeSection === 'code' && codeGeneration.isStreaming) {
+      e.preventDefault()
+      return
+    }
+
+    // Let dropdowns handle their own keyboard events if visible
     if (showEnvVars || showTags) {
       if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
         e.preventDefault()
@@ -381,23 +466,89 @@ export function CustomToolModal({
             ))}
           </div>
 
-          <div className="flex-1 px-6 pt-6 pb-12 overflow-auto">
+          <div className="relative flex-1 px-6 pt-6 pb-12 overflow-auto">
+            {/* Schema Section AI Prompt Bar */}
+            {activeSection === 'schema' && (
+              <>
+                <CodePromptBar
+                  isVisible={schemaGeneration.isPromptVisible}
+                  isLoading={schemaGeneration.isLoading}
+                  isStreaming={schemaGeneration.isStreaming}
+                  promptValue={schemaGeneration.promptInputValue}
+                  onSubmit={(prompt: string) =>
+                    schemaGeneration.generateStream({ prompt, context: jsonSchema })
+                  }
+                  onCancel={
+                    schemaGeneration.isStreaming
+                      ? schemaGeneration.cancelGeneration
+                      : schemaGeneration.hidePromptInline
+                  }
+                  onChange={schemaGeneration.updatePromptValue}
+                  placeholder="Describe the JSON schema to generate..."
+                  className="relative mb-2 !top-0"
+                />
+              </>
+            )}
+
+            {/* Code Section AI Prompt Bar */}
+            {activeSection === 'code' && (
+              <>
+                <CodePromptBar
+                  isVisible={codeGeneration.isPromptVisible}
+                  isLoading={codeGeneration.isLoading}
+                  isStreaming={codeGeneration.isStreaming}
+                  promptValue={codeGeneration.promptInputValue}
+                  onSubmit={(prompt: string) =>
+                    codeGeneration.generateStream({ prompt, context: functionCode })
+                  }
+                  onCancel={
+                    codeGeneration.isStreaming
+                      ? codeGeneration.cancelGeneration
+                      : codeGeneration.hidePromptInline
+                  }
+                  onChange={codeGeneration.updatePromptValue}
+                  placeholder="Describe the JavaScript code to generate..."
+                  className="relative mb-2 !top-0"
+                />
+              </>
+            )}
+
             <div
               className={cn(
                 'flex-1 flex flex-col h-full',
                 activeSection === 'schema' ? 'block' : 'hidden'
               )}
             >
-              <div className="flex items-center mb-1 min-h-6">
+              <div className="flex items-center justify-between mb-1 min-h-6">
                 <div className="flex items-center gap-2">
                   <FileJson className="h-4 w-4" />
                   <Label htmlFor="json-schema" className="font-medium">
                     JSON Schema
                   </Label>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      logger.debug('Schema AI button clicked')
+                      logger.debug(
+                        'showPromptInline function exists:',
+                        typeof schemaGeneration.showPromptInline === 'function'
+                      )
+                      schemaGeneration.isPromptVisible
+                        ? schemaGeneration.hidePromptInline()
+                        : schemaGeneration.showPromptInline()
+                    }}
+                    disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
+                    aria-label="Generate schema with AI"
+                  >
+                    <SparklesIcon className="h-3 w-3" />
+                  </Button>
                 </div>
-                {schemaError && (
-                  <span className="text-sm text-red-600 ml-4 flex-shrink-0">{schemaError}</span>
-                )}
+                {schemaError &&
+                  !schemaGeneration.isStreaming && ( // Hide schema error while streaming
+                    <span className="text-sm text-red-600 ml-4 flex-shrink-0">{schemaError}</span>
+                  )}
               </div>
               <CodeEditor
                 value={jsonSchema}
@@ -421,7 +572,13 @@ export function CustomToolModal({
   }
 }`}
                 minHeight="340px"
-                className={cn(schemaError ? 'border-red-500' : '')}
+                className={cn(
+                  schemaError && !schemaGeneration.isStreaming ? 'border-red-500' : '',
+                  (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
+                    'opacity-50 cursor-not-allowed'
+                )}
+                disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming} // Use disabled prop instead of readOnly
+                onKeyDown={handleKeyDown} // Pass keydown handler
               />
               <div className="h-6"></div>
             </div>
@@ -432,16 +589,36 @@ export function CustomToolModal({
                 activeSection === 'code' ? 'block' : 'hidden'
               )}
             >
-              <div className="flex items-center mb-1 min-h-6">
+              <div className="flex items-center justify-between mb-1 min-h-6">
                 <div className="flex items-center gap-2">
                   <Code className="h-4 w-4" />
                   <Label htmlFor="function-code" className="font-medium">
                     Code (optional)
                   </Label>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      logger.debug('Code AI button clicked')
+                      logger.debug(
+                        'showPromptInline function exists:',
+                        typeof codeGeneration.showPromptInline === 'function'
+                      )
+                      codeGeneration.isPromptVisible
+                        ? codeGeneration.hidePromptInline()
+                        : codeGeneration.showPromptInline()
+                    }}
+                    disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
+                    aria-label="Generate code with AI"
+                  >
+                    <SparklesIcon className="h-3 w-3" />
+                  </Button>
                 </div>
-                {codeError && (
-                  <span className="text-sm text-red-600 ml-4 flex-shrink-0">{codeError}</span>
-                )}
+                {codeError &&
+                  !codeGeneration.isStreaming && ( // Hide code error while streaming
+                    <span className="text-sm text-red-600 ml-4 flex-shrink-0">{codeError}</span>
+                  )}
               </div>
               <div ref={codeEditorRef} className="relative">
                 <CodeEditor
@@ -450,9 +627,14 @@ export function CustomToolModal({
                   language="javascript"
                   placeholder={`// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.`}
                   minHeight="340px"
-                  className={cn(codeError ? 'border-red-500' : '')}
+                  className={cn(
+                    codeError && !codeGeneration.isStreaming ? 'border-red-500' : '',
+                    (codeGeneration.isLoading || codeGeneration.isStreaming) &&
+                      'opacity-50 cursor-not-allowed'
+                  )}
                   highlightVariables={true}
-                  onKeyDown={handleKeyDown}
+                  disabled={codeGeneration.isLoading || codeGeneration.isStreaming} // Use disabled prop instead of readOnly
+                  onKeyDown={handleKeyDown} // Pass keydown handler
                 />
 
                 {/* Environment variables dropdown */}

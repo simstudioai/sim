@@ -309,7 +309,6 @@ export function FileUpload({
         useSubBlockStore.getState().setValue(blockId, subBlockId, null)
       }
 
-      addNotification('console', `${file.name} was deleted successfully`, activeWorkflowId)
       useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       addNotification(
@@ -387,19 +386,6 @@ export function FileUpload({
       }
     }
 
-    // Show a single consolidated notification about the deletions
-    if (deletionResults.success > 0) {
-      if (fileCount === 1) {
-        addNotification('console', `File was deleted successfully`, activeWorkflowId)
-      } else {
-        addNotification(
-          'console',
-          `${deletionResults.success} of ${fileCount} files were deleted successfully`,
-          activeWorkflowId
-        )
-      }
-    }
-
     // Show error notification if any deletions failed
     if (deletionResults.failures.length > 0) {
       if (deletionResults.failures.length === 1) {
@@ -427,10 +413,10 @@ export function FileUpload({
     return (
       <div
         key={file.path}
-        className="flex items-center justify-between p-2 rounded border border-border bg-secondary/30"
+        className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background"
       >
         <div className="flex-1 truncate pr-2">
-          <div className="font-medium text-sm truncate">{file.name}</div>
+          <div className="font-normal text-sm truncate">{file.name}</div>
           <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
         </div>
         <Button
@@ -442,7 +428,7 @@ export function FileUpload({
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
           ) : (
             <X className="h-4 w-4" />
           )}
@@ -456,14 +442,14 @@ export function FileUpload({
     return (
       <div
         key={file.id}
-        className="flex items-center justify-between p-2 rounded border border-border bg-secondary/30"
+        className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background"
       >
         <div className="flex-1 truncate pr-2">
-          <div className="font-medium text-sm truncate">{file.name}</div>
+          <div className="font-normal text-sm truncate">{file.name}</div>
           <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
         </div>
         <div className="flex items-center justify-center h-8 w-8 shrink-0">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
         </div>
       </div>
     )
@@ -486,10 +472,10 @@ export function FileUpload({
         data-testid="file-input-element"
       />
 
-      <div>
+      <div className="bg-background">
         {/* File list with consistent spacing */}
         {(hasFiles || isUploading) && (
-          <div className="space-y-2">
+          <div className="space-y-2 mb-2">
             {/* Only show files that aren't currently uploading */}
             {filesArray.map((file) => {
               // Don't show files that have duplicates in the uploading list
@@ -514,12 +500,12 @@ export function FileUpload({
 
         {/* Action buttons */}
         {(hasFiles || isUploading) && (
-          <div className="flex space-x-2 mt-2">
+          <div className="flex space-x-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              className="flex-1"
+              className="flex-1 h-10 text-sm font-normal"
               onClick={handleRemoveAllFiles}
               disabled={isUploading}
             >
@@ -530,7 +516,7 @@ export function FileUpload({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="flex-1"
+                className="flex-1 h-10 text-sm font-normal"
                 onClick={handleOpenFileDialog}
               >
                 Add More
@@ -546,22 +532,15 @@ export function FileUpload({
           <Button
             type="button"
             variant="outline"
-            className="w-full justify-center text-center font-normal"
+            className="w-full justify-center text-center h-10 bg-background text-sm font-normal"
             onClick={handleOpenFileDialog}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            {multiple ? 'Upload Files' : 'Upload File'}
+            <div className="flex items-center justify-center gap-2 w-full">
+              {/* <Upload className="h-4 w-4" /> */}
+              <span>{multiple ? 'Upload Files' : 'Upload File'}</span>
+              <span className="text-xs text-muted-foreground">({maxSize}MB max)</span>
+            </div>
           </Button>
-
-          <Tooltip>
-            <TooltipTrigger className="ml-2">
-              <Info className="h-4 w-4 text-muted-foreground" />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Max file size: {maxSize}MB</p>
-              {multiple && <p>You can select multiple files at once</p>}
-            </TooltipContent>
-          </Tooltip>
         </div>
       )}
     </div>

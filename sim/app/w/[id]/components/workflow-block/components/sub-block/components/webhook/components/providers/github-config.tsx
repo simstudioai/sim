@@ -1,4 +1,5 @@
-import { Label } from '@/components/ui/label'
+import { ShieldCheck } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -6,7 +7,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ConfigField } from '../ui/config-field'
+import { ConfigSection } from '../ui/config-section'
 import { CopyableField } from '../ui/copyable'
+import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'
 
 interface GithubConfigProps {
@@ -41,107 +45,98 @@ export function GithubConfig({
 }: GithubConfigProps) {
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="github-content-type">Content Type</Label>
-        <Select value={contentType} onValueChange={setContentType}>
-          <SelectTrigger id="github-content-type">
-            <SelectValue placeholder="Select content type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="application/json">application/json</SelectItem>
-            <SelectItem value="application/x-www-form-urlencoded">
-              application/x-www-form-urlencoded
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          Format GitHub will use when sending the webhook payload.
-        </p>
-      </div>
+      <ConfigSection title="GitHub Webhook Settings">
+        <ConfigField
+          id="github-content-type"
+          label="Content Type"
+          description="Format GitHub will use when sending the webhook payload."
+        >
+          <Select value={contentType} onValueChange={setContentType} disabled={isLoadingToken}>
+            <SelectTrigger id="github-content-type">
+              <SelectValue placeholder="Select content type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="application/json">application/json</SelectItem>
+              <SelectItem value="application/x-www-form-urlencoded">
+                application/x-www-form-urlencoded
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </ConfigField>
 
-      <CopyableField
-        id="webhook-secret"
-        label="Webhook Secret (Optional but Recommended)"
-        value={webhookSecret}
-        onChange={setWebhookSecret}
-        placeholder="Enter a secret for GitHub webhook"
-        description="A secret token to validate that webhook deliveries are coming from GitHub."
-        isLoading={isLoadingToken}
-        copied={copied}
-        copyType="github-secret"
-        copyToClipboard={copyToClipboard}
-      />
+        <ConfigField id="webhook-secret" label="Webhook Secret (Recommended)">
+          <CopyableField
+            id="webhook-secret"
+            value={webhookSecret}
+            onChange={setWebhookSecret}
+            placeholder="Generate or enter a strong secret"
+            description="Validates that webhook deliveries originate from GitHub."
+            isLoading={isLoadingToken}
+            copied={copied}
+            copyType="github-secret"
+            copyToClipboard={copyToClipboard}
+          />
+        </ConfigField>
 
-      <div className="space-y-2">
-        <Label htmlFor="github-ssl-verification">SSL Verification</Label>
-        <Select value={sslVerification} onValueChange={setSslVerification}>
-          <SelectTrigger id="github-ssl-verification">
-            <SelectValue placeholder="Select SSL verification option" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="enabled">Enabled (Recommended)</SelectItem>
-            <SelectItem value="disabled">Disabled (Not recommended)</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          GitHub will verify SSL certificates when delivering webhooks.
-        </p>
-      </div>
+        <ConfigField
+          id="github-ssl-verification"
+          label="SSL Verification"
+          description="GitHub verifies SSL certificates when delivering webhooks."
+        >
+          <Select
+            value={sslVerification}
+            onValueChange={setSslVerification}
+            disabled={isLoadingToken}
+          >
+            <SelectTrigger id="github-ssl-verification">
+              <SelectValue placeholder="Select SSL verification option" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="enabled">Enabled (Recommended)</SelectItem>
+              <SelectItem value="disabled">Disabled (Use with caution)</SelectItem>
+            </SelectContent>
+          </Select>
+        </ConfigField>
+      </ConfigSection>
 
       <TestResultDisplay
         testResult={testResult}
         copied={copied}
         copyToClipboard={copyToClipboard}
-        showCurlCommand={true}
+        showCurlCommand={true} // GitHub webhooks can be tested
       />
 
-      <div className="space-y-2">
-        <h4 className="font-medium">Setup Instructions</h4>
-        <ol className="list-decimal list-inside space-y-1 text-sm">
-          <li>Go to your GitHub repository</li>
-          <li>Navigate to Settings {'>'} Webhooks</li>
-          <li>Click "Add webhook"</li>
-          <li>Enter the Webhook URL shown above as the "Payload URL"</li>
-          <li>Set Content type to "{contentType}"</li>
-          {webhookSecret && (
-            <li>Enter the same secret shown above in the "Secret" field for validation</li>
-          )}
-          <li>Choose SSL verification</li>
+      <InstructionsSection tip="GitHub will send a ping event to verify after you add the webhook.">
+        <ol className="list-decimal list-inside space-y-1">
           <li>
-            Choose which events trigger the webhook (e.g., "Just the push event" or "Send me
-            everything")
+            Go to your GitHub Repository {'>'} Settings {'>'} Webhooks.
           </li>
-          <li>Ensure "Active" is checked and click "Add webhook"</li>
+          <li>Click "Add webhook".</li>
+          <li>
+            Paste the <strong>Webhook URL</strong> (from above) into the "Payload URL" field.
+          </li>
+          <li>Select "{contentType}" as the Content type.</li>
+          {webhookSecret && (
+            <li>
+              Enter the <strong>Webhook Secret</strong> (from above) into the "Secret" field.
+            </li>
+          )}
+          <li>Set SSL verification according to your selection above.</li>
+          <li>Choose which events should trigger this webhook.</li>
+          <li>Ensure "Active" is checked and click "Add webhook".</li>
         </ol>
-      </div>
+      </InstructionsSection>
 
-      <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md mt-3 border border-blue-200 dark:border-blue-800">
-        <h5 className="text-sm font-medium text-blue-800 dark:text-blue-300">
-          Security Best Practices
-        </h5>
-        <ul className="mt-1 space-y-1">
-          <li className="flex items-start">
-            <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
-            <span className="text-sm text-blue-700 dark:text-blue-300">
-              Always use a secret token to validate requests from GitHub
-            </span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-blue-500 dark:text-blue-400 mr-2">•</span>
-            <span className="text-sm text-blue-700 dark:text-blue-300">
-              Keep SSL verification enabled unless you have a specific reason to disable it
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
-        <p className="text-sm text-gray-700 dark:text-gray-300 flex items-center">
-          <span className="text-gray-400 dark:text-gray-500 mr-2">💡</span>
-          After saving, GitHub will send a ping event to verify your webhook. You can view delivery
-          details and redeliver events from the webhook settings.
-        </p>
-      </div>
+      <Alert>
+        <ShieldCheck className="h-4 w-4" />
+        <AlertTitle>Security Recommendations</AlertTitle>
+        <AlertDescription>
+          <ul className="list-disc list-outside pl-4 space-y-1 mt-1">
+            <li>Always use a strong, unique secret token to validate GitHub requests.</li>
+            <li>Keep SSL verification enabled unless absolutely necessary.</li>
+          </ul>
+        </AlertDescription>
+      </Alert>
     </div>
   )
 }

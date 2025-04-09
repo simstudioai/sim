@@ -29,7 +29,7 @@ const NotificationColors = {
   console: 'text-foreground',
   api: 'text-[#802FFF]',
   marketplace: 'text-foreground',
-  info: 'text-blue-500',
+  info: 'text-foreground',
 }
 
 export function NotificationDropdownItem({
@@ -64,41 +64,8 @@ export function NotificationDropdownItem({
     const notification = getFullNotification()
 
     if (notification) {
-      // For persistent notifications like API info, just re-show them
-      if (notification.options?.isPersistent) {
-        showNotification(id)
-      } else {
-        // For non-persistent notifications, we have different strategies:
-
-        if (notification.isVisible) {
-          if (notification.isFading) {
-            // If it's currently fading, remove and re-add it to restart animation sequence
-            removeNotification(id)
-
-            // Re-add with same properties but new ID
-            addNotification(
-              notification.type,
-              notification.message,
-              notification.workflowId,
-              notification.options
-            )
-          } else {
-            // If visible but not fading, just make sure it's at the top of the stack
-            showNotification(id)
-          }
-        } else {
-          // If not visible, we re-add it instead of just showing it
-          // This ensures a fresh animation sequence
-
-          // Create a new notification with same properties
-          addNotification(
-            notification.type,
-            notification.message,
-            notification.workflowId,
-            notification.options
-          )
-        }
-      }
+      // Simply show the notification regardless of its current state
+      showNotification(id)
     } else {
       // Fallback for any case where the notification doesn't exist anymore
       addNotification(type, message, null, options)

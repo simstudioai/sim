@@ -16,6 +16,7 @@ interface CodeEditorProps {
   minHeight?: string
   highlightVariables?: boolean
   onKeyDown?: (e: React.KeyboardEvent) => void
+  disabled?: boolean
 }
 
 export function CodeEditor({
@@ -27,6 +28,7 @@ export function CodeEditor({
   minHeight = '360px',
   highlightVariables = true,
   onKeyDown,
+  disabled = false,
 }: CodeEditorProps) {
   const [code, setCode] = useState(value)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
@@ -198,6 +200,7 @@ export function CodeEditor({
           onKeyDown={onKeyDown}
           highlight={(code) => customHighlight(code)}
           padding={12}
+          disabled={disabled}
           style={{
             fontFamily: 'inherit',
             minHeight: '46px',
@@ -206,7 +209,7 @@ export function CodeEditor({
           className={cn('focus:outline-none', isCollapsed && 'pointer-events-none select-none')}
           textareaClassName={cn(
             'focus:outline-none focus:ring-0 bg-transparent',
-            isCollapsed && 'pointer-events-none'
+            (isCollapsed || disabled) && 'pointer-events-none'
           )}
         />
       </div>

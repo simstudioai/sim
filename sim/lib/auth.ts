@@ -369,10 +369,6 @@ export const auth = betterAuth({
             'read:me',
             'offline_access',
           ],
-          responseType: 'code',
-          pkce: false, //TODO: change back to true
-          accessType: 'offline',
-          prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira`,
           getUserInfo: async (tokens) => {
             try {
@@ -408,6 +404,23 @@ export const auth = betterAuth({
               return null
             }
           },
+        },
+
+        // Airtable provider
+        {
+          providerId: 'airtable',
+          clientId: process.env.AIRTABLE_CLIENT_ID as string,
+          clientSecret: process.env.AIRTABLE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://airtable.com/oauth2/v1/authorize',
+          tokenUrl: 'https://airtable.com/oauth2/v1/token',
+          userInfoUrl: 'https://api.airtable.com/v0/meta/whoami',
+          scopes: ['data.records:read', 'data.records:write', 'user.email:read', 'webhook:manage'],
+          responseType: 'code',
+          pkce: false, //TODO: change back to true
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
         },
       ],
     }),

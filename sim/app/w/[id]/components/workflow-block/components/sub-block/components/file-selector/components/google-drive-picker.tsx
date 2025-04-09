@@ -245,6 +245,7 @@ export function GoogleDrivePicker({
         showUploadFolders: true,
         supportDrives: true,
         multiselect: false,
+        appId: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
         // Enable folder selection when mimeType is folder
         setSelectFolderEnabled: mimeTypeFilter?.includes('folder') ? true : false,
         callbackFunction: (data) => {

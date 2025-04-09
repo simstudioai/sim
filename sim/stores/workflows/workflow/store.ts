@@ -19,7 +19,8 @@ const initialState = {
   lastSaved: undefined,
   isDeployed: false,
   deployedAt: undefined,
-  isPublished: false,
+  needsRedeployment: false,
+  hasActiveSchedule: false,
   history: {
     past: [],
     present: {
@@ -41,6 +42,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       canUndo: () => false,
       canRedo: () => false,
       revertToHistoryState: () => {},
+
+      setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
+        set({ needsRedeployment })
+      },
 
       addBlock: (id: string, type: string, name: string, position: Position) => {
         const blockConfig = getBlock(type)
@@ -276,6 +281,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
           isDeployed: false,
           isPublished: false,
+          hasActiveSchedule: false,
         }
         set(newState)
         workflowSync.sync()
@@ -297,7 +303,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
-            isPublished: currentState.isPublished,
             lastSaved: Date.now(),
           })
 
@@ -615,6 +620,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           ...get(),
           isDeployed,
           deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+          needsRedeployment: isDeployed ? false : get().needsRedeployment,
         }
 
         set(newState)
@@ -622,15 +628,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         workflowSync.sync()
       },
 
-      setPublishStatus: (isPublished: boolean) => {
-        const newState = {
-          ...get(),
-          isPublished,
+      setScheduleStatus: (hasActiveSchedule: boolean) => {
+        // Only update if the status has changed to avoid unnecessary rerenders
+        if (get().hasActiveSchedule !== hasActiveSchedule) {
+          set({ hasActiveSchedule })
+          get().updateLastSaved()
         }
-
-        set(newState)
-        get().updateLastSaved()
-        workflowSync.sync()
       },
     })),
     { name: 'workflow-store' }
