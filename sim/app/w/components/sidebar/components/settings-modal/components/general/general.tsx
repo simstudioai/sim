@@ -29,6 +29,8 @@ export function General() {
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
   const isDebugModeEnabled = useGeneralStore((state) => state.isDebugModeEnabled)
   const toggleDebugMode = useGeneralStore((state) => state.toggleDebugMode)
+  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
+  const toggleAutoFillEnvVars = useGeneralStore((state) => state.toggleAutoFillEnvVars)
   const theme = useGeneralStore((state) => state.theme)
   const setTheme = useGeneralStore((state) => state.setTheme)
 
@@ -75,6 +77,16 @@ export function General() {
               id="auto-connect"
               checked={isAutoConnectEnabled}
               onCheckedChange={toggleAutoConnect}
+            />
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <Label htmlFor="auto-fill-env-vars" className="font-medium">
+              Auto-fill environment variables
+            </Label>
+            <Switch
+              id="auto-fill-env-vars"
+              checked={isAutoFillEnvVarsEnabled}
+              onCheckedChange={toggleAutoFillEnvVars}
             />
           </div>
         </div>

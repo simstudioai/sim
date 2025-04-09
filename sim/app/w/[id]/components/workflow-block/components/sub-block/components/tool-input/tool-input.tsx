@@ -12,6 +12,7 @@ import {
 import { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import { useToolParamsStore } from '@/stores/tool-params/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getAllBlocks } from '@/blocks'
@@ -126,6 +127,8 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const toolParamsStore = useToolParamsStore()
+  // Get the auto-fill environment variables setting
+  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
 
@@ -168,13 +171,16 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     // Initialize params object with stored or auto-resolved values
     const initialParams: Record<string, string> = {}
 
-    // For each required parameter, check if we have a stored/resolved value
-    requiredParams.forEach((param) => {
-      const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
-      if (resolvedValue) {
-        initialParams[param.id] = resolvedValue
-      }
-    })
+    // Only auto-fill parameters if the setting is enabled
+    if (isAutoFillEnvVarsEnabled) {
+      // For each required parameter, check if we have a stored/resolved value
+      requiredParams.forEach((param) => {
+        const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
+        if (resolvedValue) {
+          initialParams[param.id] = resolvedValue
+        }
+      })
+    }
 
     const newTool: StoredTool = {
       type: toolBlock.type,
@@ -223,13 +229,16 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     // Initialize params object with stored values
     const initialParams: Record<string, string> = {}
 
-    // For each parameter, check if we have a stored/resolved value
-    toolParams.forEach((param) => {
-      const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
-      if (resolvedValue) {
-        initialParams[param.id] = resolvedValue
-      }
-    })
+    // Only auto-fill parameters if the setting is enabled
+    if (isAutoFillEnvVarsEnabled) {
+      // For each parameter, check if we have a stored/resolved value
+      toolParams.forEach((param) => {
+        const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
+        if (resolvedValue) {
+          initialParams[param.id] = resolvedValue
+        }
+      })
+    }
 
     const newTool: StoredTool = {
       type: 'custom-tool',
