@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { ConfluenceIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {

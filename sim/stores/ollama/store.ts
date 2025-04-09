@@ -1,15 +1,11 @@
 import { create } from 'zustand'
 import { createLogger } from '@/lib/logs/console-logger'
 import { updateOllamaProviderModels } from '@/providers/utils'
+import { OllamaStore } from './types'
 
 const logger = createLogger('OllamaStore')
 
-interface OllamaState {
-  models: string[]
-  setModels: (models: string[]) => void
-}
-
-export const useOllamaStore = create<OllamaState>((set) => ({
+export const useOllamaStore = create<OllamaStore>((set) => ({
   models: [],
   setModels: (models) => {
     logger.info('Updating Ollama models', { models })

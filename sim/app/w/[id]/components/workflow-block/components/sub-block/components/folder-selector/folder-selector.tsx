@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, RefreshCw, Search, X } from 'lucide-react'
+import { Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { GmailIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,12 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
-import {
-  Credential,
-  getProviderIdFromServiceId,
-  getServiceIdFromScopes,
-  parseProvider,
-} from '@/lib/oauth'
+import { Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 

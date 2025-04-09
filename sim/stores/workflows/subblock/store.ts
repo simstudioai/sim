@@ -4,6 +4,7 @@ import { SubBlockConfig } from '@/blocks/types'
 import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { workflowSync } from '../sync'
+import { SubBlockStore } from './types'
 
 // Add debounce utility for syncing
 let syncDebounceTimer: NodeJS.Timeout | null = null
@@ -20,18 +21,6 @@ const DEBOUNCE_DELAY = 500 // 500ms delay for sync
  *    (e.g., inputFormat in starter block), the merge function will include it
  *    in the synchronized state to ensure persistence
  */
-interface SubBlockState {
-  workflowValues: Record<string, Record<string, Record<string, any>>> // Store values per workflow ID
-}
-
-interface SubBlockStore extends SubBlockState {
-  setValue: (blockId: string, subBlockId: string, value: any) => void
-  getValue: (blockId: string, subBlockId: string) => any
-  clear: () => void
-  initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => void
-  // Add debounced sync function
-  syncWithDB: () => void
-}
 
 export const useSubBlockStore = create<SubBlockStore>()(
   devtools(
