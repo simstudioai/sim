@@ -8,7 +8,6 @@ import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
 import { getSyncManagers, initializeSyncManagers, resetSyncManagers } from './sync-registry'
-import { useToolParamsStore } from './tool-params/store'
 import {
   loadRegistry,
   loadSubblockValues,
@@ -18,7 +17,6 @@ import {
 } from './workflows/persistence'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { workflowSync } from './workflows/sync'
 import { useWorkflowStore } from './workflows/workflow/store'
 
 const logger = createLogger('Stores')
@@ -232,7 +230,6 @@ export {
   useChatStore,
   useCustomToolsStore,
   useVariablesStore,
-  useToolParamsStore,
 }
 
 // Helper function to reset all stores
@@ -246,6 +243,7 @@ export const resetAllStores = () => {
   })
   useWorkflowStore.getState().clear()
   useSubBlockStore.getState().clear()
+  useSubBlockStore.getState().clearToolParams()
   useNotificationStore.setState({ notifications: [] })
   useEnvironmentStore.setState({
     variables: {},
@@ -257,7 +255,6 @@ export const resetAllStores = () => {
   useChatStore.setState({ messages: [], isProcessing: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
   useVariablesStore.getState().resetLoaded() // Reset variables store tracking
-  useToolParamsStore.getState().clear()
 }
 
 // Helper function to log all store states
@@ -273,7 +270,6 @@ export const logAllStores = () => {
     customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),
     variables: useVariablesStore.getState(),
-    toolParams: useToolParamsStore.getState(),
   }
 
   return state

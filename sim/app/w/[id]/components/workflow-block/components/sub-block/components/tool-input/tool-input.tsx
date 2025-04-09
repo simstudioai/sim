@@ -13,7 +13,7 @@ import { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { useToolParamsStore } from '@/stores/tool-params/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getAllBlocks } from '@/blocks'
 import { getTool } from '@/tools'
@@ -122,8 +122,12 @@ const getOperationOptions = (blockType: string): { label: string; id: string }[]
 const initializeToolParams = (
   toolId: string,
   params: ToolParam[],
-  toolParamsStore: {
-    resolveParamValue: (toolId: string, paramId: string, instanceId?: string) => string | undefined
+  subBlockStore: {
+    resolveToolParamValue: (
+      toolId: string,
+      paramId: string,
+      instanceId?: string
+    ) => string | undefined
   },
   isAutoFillEnabled: boolean,
   instanceId?: string
@@ -134,7 +138,7 @@ const initializeToolParams = (
   if (isAutoFillEnabled) {
     // For each parameter, check if we have a stored/resolved value
     params.forEach((param) => {
-      const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id, instanceId)
+      const resolvedValue = subBlockStore.resolveToolParamValue(toolId, param.id, instanceId)
       if (resolvedValue) {
         initialParams[param.id] = resolvedValue
       }
@@ -152,7 +156,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
-  const toolParamsStore = useToolParamsStore()
+  const subBlockStore = useSubBlockStore()
   const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
@@ -194,7 +198,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const initialParams = initializeToolParams(
       toolId,
       requiredParams,
-      toolParamsStore,
+      subBlockStore,
       isAutoFillEnvVarsEnabled,
       blockId
     )
@@ -247,7 +251,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const initialParams = initializeToolParams(
       toolId,
       toolParams,
-      toolParamsStore,
+      subBlockStore,
       isAutoFillEnvVarsEnabled,
       blockId
     )
@@ -327,7 +331,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
     // Only store non-empty values
     if (paramValue.trim()) {
-      toolParamsStore.setParam(toolId, paramId, paramValue)
+      subBlockStore.setToolParam(toolId, paramId, paramValue)
     }
 
     // Update the value in the workflow
