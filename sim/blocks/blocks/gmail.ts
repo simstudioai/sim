@@ -132,8 +132,8 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     config: {
       tool: (params) => {
         // Since we only have send_gmail now, we can simplify this
-        return 'gmail_send';
-        
+        return 'gmail_send'
+
         // switch (params.operation) {
         //   case 'send_gmail':
         //     return 'gmail_send'

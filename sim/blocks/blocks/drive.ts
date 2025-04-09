@@ -110,8 +110,9 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       condition: {
         // field: 'operation',
         // value: 'list',
-        // and: { 
-          field: 'folderId', value: '' 
+        // and: {
+        field: 'folderId',
+        value: '',
         // },
       },
     },
@@ -137,8 +138,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     config: {
       tool: (params) => {
         // Since we only have 'list' now, we can simplify this
-        return 'google_drive_list';
-        
+        return 'google_drive_list'
+
         // switch (params.operation) {
         //   case 'upload':
         //     return 'google_drive_upload'

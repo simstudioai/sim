@@ -144,12 +144,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           lastModified: new Date(),
           description: options.description || 'New workflow',
           color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows), // Gray for marketplace imports
-          marketplaceData: options.marketplaceId 
-            ? { id: options.marketplaceId, status: 'temp' as const } 
+          marketplaceData: options.marketplaceId
+            ? { id: options.marketplaceId, status: 'temp' as const }
             : undefined,
         }
 
-        let initialState;
+        let initialState
 
         // If this is a marketplace import with existing state
         if (options.marketplaceId && options.marketplaceState) {
@@ -177,7 +177,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: Date.now(),
           }
-          
+
           logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
         } else {
           // Create starter block for new workflow
@@ -342,7 +342,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
        * @param metadata - Additional metadata like name, description from marketplace
        * @returns The ID of the newly created workflow
        */
-      createMarketplaceWorkflow: (marketplaceId: string, state: any, metadata: Partial<WorkflowMetadata>) => {
+      createMarketplaceWorkflow: (
+        marketplaceId: string,
+        state: any,
+        metadata: Partial<WorkflowMetadata>
+      ) => {
         const { workflows } = get()
         const id = crypto.randomUUID()
 

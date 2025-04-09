@@ -9,8 +9,8 @@ import { workflowSchedule } from '@/db/schema'
 const logger = createLogger('ScheduledAPI')
 
 // Track recent requests to reduce redundant logging
-const recentRequests = new Map<string, number>();
-const LOGGING_THROTTLE_MS = 5000; // 5 seconds between logging for the same workflow
+const recentRequests = new Map<string, number>()
+const LOGGING_THROTTLE_MS = 5000 // 5 seconds between logging for the same workflow
 
 /**
  * Get schedule information for a workflow
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const workflowId = url.searchParams.get('workflowId')
   const mode = url.searchParams.get('mode')
-  
+
   // Skip processing if mode is provided and not 'schedule'
   if (mode && mode !== 'schedule') {
     return NextResponse.json({ schedule: null })
@@ -38,13 +38,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Check if we should log this request (throttle logging for repeat requests)
-    const now = Date.now();
-    const lastLog = recentRequests.get(workflowId) || 0;
-    const shouldLog = now - lastLog > LOGGING_THROTTLE_MS;
-    
+    const now = Date.now()
+    const lastLog = recentRequests.get(workflowId) || 0
+    const shouldLog = now - lastLog > LOGGING_THROTTLE_MS
+
     if (shouldLog) {
       logger.info(`[${requestId}] Getting schedule for workflow ${workflowId}`)
-      recentRequests.set(workflowId, now);
+      recentRequests.set(workflowId, now)
     }
 
     // Find the schedule for this workflow
@@ -55,8 +55,8 @@ export async function GET(req: NextRequest) {
       .limit(1)
 
     // Set cache control headers to reduce repeated API calls
-    const headers = new Headers();
-    headers.set('Cache-Control', 'max-age=30'); // Cache for 30 seconds
+    const headers = new Headers()
+    headers.set('Cache-Control', 'max-age=30') // Cache for 30 seconds
 
     if (schedule.length === 0) {
       return NextResponse.json({ schedule: null }, { headers })
