@@ -2,29 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { formatDistanceToNow } from 'date-fns'
-import {
-  Atom,
-  BotMessageSquare,
-  Brain,
-  BrainCircuit,
-  ChartBar,
-  Code,
-  Database,
-  Eye,
-  HelpCircle,
-  Info,
-  LineChart,
-  MailIcon,
-  NotebookPen,
-  Store,
-  TimerIcon,
-  Trash,
-  X,
-} from 'lucide-react'
+import { Eye, HelpCircle, Info, Trash, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -45,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
