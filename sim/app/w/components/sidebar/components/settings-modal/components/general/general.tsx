@@ -1,4 +1,5 @@
 import { useRouter } from 'next/navigation'
+import { Info } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,8 +21,17 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { resetAllStores } from '@/stores'
+
+const TOOLTIPS = {
+  theme: 'Change the visual theme of the application.',
+  debugMode: 'Enable visual debugging information during execution.',
+  autoConnect: 'Automatically connect nodes.',
+  autoFillEnvVars: 'Automatically fill API keys.',
+  resetData: 'Permanently delete all workflows, settings, and stored data.',
+}
 
 export function General() {
   const router = useRouter()
@@ -45,11 +55,23 @@ export function General() {
         <h2 className="text-lg font-medium mb-[22px]">General Settings</h2>
         <div className="space-y-4">
           <div className="flex items-center justify-between py-1">
-            <Label htmlFor="theme-select" className="font-medium">
-              Theme
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="theme-select" className="font-medium">
+                Theme
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                    <Info className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[300px] p-3">
+                  <p className="text-sm">{TOOLTIPS.theme}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <Select value={theme} onValueChange={setTheme}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger id="theme-select" className="w-[180px]">
                 <SelectValue placeholder="Select theme" />
               </SelectTrigger>
               <SelectContent>
@@ -60,9 +82,21 @@ export function General() {
             </Select>
           </div>
           <div className="flex items-center justify-between py-1">
-            <Label htmlFor="debug-mode" className="font-medium">
-              Debug mode
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="debug-mode" className="font-medium">
+                Debug mode
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                    <Info className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[300px] p-3">
+                  <p className="text-sm">{TOOLTIPS.debugMode}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <Switch
               id="debug-mode"
               checked={isDebugModeEnabled}
@@ -70,9 +104,21 @@ export function General() {
             />
           </div>
           <div className="flex items-center justify-between py-1">
-            <Label htmlFor="auto-connect" className="font-medium">
-              Auto-connect on drop
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="auto-connect" className="font-medium">
+                Auto-connect on drop
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                    <Info className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[300px] p-3">
+                  <p className="text-sm">{TOOLTIPS.autoConnect}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <Switch
               id="auto-connect"
               checked={isAutoConnectEnabled}
@@ -80,9 +126,21 @@ export function General() {
             />
           </div>
           <div className="flex items-center justify-between py-1">
-            <Label htmlFor="auto-fill-env-vars" className="font-medium">
-              Auto-fill environment variables
-            </Label>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="auto-fill-env-vars" className="font-medium">
+                Auto-fill environment variables
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                    <Info className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[300px] p-3">
+                  <p className="text-sm">{TOOLTIPS.autoFillEnvVars}</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <Switch
               id="auto-fill-env-vars"
               checked={isAutoFillEnvVarsEnabled}
@@ -95,7 +153,19 @@ export function General() {
       {/* Danger Zone Section */}
       <div>
         <div className="flex items-center justify-between py-1">
-          <Label className="font-medium">Reset all data</Label>
+          <div className="flex items-center gap-2">
+            <Label className="font-medium">Reset all data</Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                  <Info className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[300px] p-3">
+                <p className="text-sm">{TOOLTIPS.resetData}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">
