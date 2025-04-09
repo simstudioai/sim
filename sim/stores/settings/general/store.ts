@@ -1,21 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-
-interface General {
-  isAutoConnectEnabled: boolean
-  isDebugModeEnabled: boolean
-  isAutoFillEnvVarsEnabled: boolean
-  theme: 'system' | 'light' | 'dark'
-}
-
-interface GeneralActions {
-  toggleAutoConnect: () => void
-  toggleDebugMode: () => void
-  toggleAutoFillEnvVars: () => void
-  setTheme: (theme: 'system' | 'light' | 'dark') => void
-}
-
-type GeneralStore = General & GeneralActions
+import { GeneralStore } from './types'
 
 export const useGeneralStore = create<GeneralStore>()(
   devtools(

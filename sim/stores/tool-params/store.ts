@@ -3,6 +3,7 @@ import { devtools, persist } from 'zustand/middleware'
 import { useEnvironmentStore } from '../settings/environment/store'
 import { useGeneralStore } from '../settings/general/store'
 import { ToolParamsStore } from './types'
+import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from './utils'
 
 export const useToolParamsStore = create<ToolParamsStore>()(
   devtools(
@@ -107,10 +108,7 @@ export const useToolParamsStore = create<ToolParamsStore>()(
           return get().params[toolId] || {}
         },
 
-        isEnvVarReference: (value: string) => {
-          // Check if the value looks like {{ENV_VAR}}
-          return /^\{\{[a-zA-Z0-9_-]+\}\}$/.test(value)
-        },
+        isEnvVarReference,
 
         resolveParamValue: (toolId: string, paramId: string, instanceId?: string) => {
           // If this is a specific instance that has been deliberately cleared, don't auto-fill it
@@ -133,9 +131,10 @@ export const useToolParamsStore = create<ToolParamsStore>()(
 
           if (storedValue) {
             // If the stored value is an environment variable reference like {{EXA_API_KEY}}
-            if (get().isEnvVarReference(storedValue)) {
+            if (isEnvVarReference(storedValue)) {
               // Extract variable name from {{VAR_NAME}}
-              const envVarName = storedValue.slice(2, -2)
+              const envVarName = extractEnvVarName(storedValue)
+              if (!envVarName) return undefined
 
               // Check if this environment variable still exists
               const envValue = envStore.getVariable(envVarName)
@@ -156,26 +155,11 @@ export const useToolParamsStore = create<ToolParamsStore>()(
           // If no stored value, try to guess based on parameter name
           // This handles cases where the user hasn't entered a value yet
           if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
-            // For example, if toolId is 'exa' and param is 'apiKey', look for EXA_API_KEY
-            // First extract base tool name if it's a compound ID
-            const baseTool = toolId.includes('-') ? toolId.split('-')[0] : toolId
-            const toolPrefix = baseTool.toUpperCase()
-            const possibleEnvVars = [
-              `${toolPrefix}_API_KEY`,
-              `${toolPrefix.replace(/-/g, '_')}_API_KEY`,
-              `${toolPrefix}_KEY`,
-              `${toolPrefix}_TOKEN`,
-              `${toolPrefix}`,
-            ]
-
-            // Check each possible env var name
-            for (const varName of possibleEnvVars) {
-              const envValue = envStore.getVariable(varName)
-              if (envValue) {
-                const envReference = `{{${varName}}}`
-                get().setParam(toolId, paramId, envReference)
-                return envReference
-              }
+            const matchingVar = findMatchingEnvVar(toolId)
+            if (matchingVar) {
+              const envReference = `{{${matchingVar}}}`
+              get().setParam(toolId, paramId, envReference)
+              return envReference
             }
           }
 
