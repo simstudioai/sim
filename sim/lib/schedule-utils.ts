@@ -96,8 +96,18 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
     // Day component
     if (dayOfMonth !== '*' && month !== '*') {
       const months = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December',
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ]
       if (month.includes(',')) {
         const monthNames = month.split(',').map((m) => months[parseInt(m, 10) - 1])
@@ -133,15 +143,15 @@ export const getScheduleInfo = (
   lastRanAt: string | null,
   scheduleType?: string | null
 ): {
-  scheduleTiming: string;
-  nextRunFormatted: string | null;
-  lastRunFormatted: string | null;
+  scheduleTiming: string
+  nextRunFormatted: string | null
+  lastRunFormatted: string | null
 } => {
   if (!nextRunAt) {
     return {
       scheduleTiming: 'Unknown schedule',
       nextRunFormatted: null,
-      lastRunFormatted: null
+      lastRunFormatted: null,
     }
   }
 
@@ -156,6 +166,6 @@ export const getScheduleInfo = (
   return {
     scheduleTiming,
     nextRunFormatted: formatDateTime(new Date(nextRunAt)),
-    lastRunFormatted: lastRanAt ? formatDateTime(new Date(lastRanAt)) : null
+    lastRunFormatted: lastRanAt ? formatDateTime(new Date(lastRanAt)) : null,
   }
-} 
+}
