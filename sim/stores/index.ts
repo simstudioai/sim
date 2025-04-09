@@ -310,17 +310,3 @@ export async function reinitializeAfterLogin(): Promise<void> {
     logger.error('Error reinitializing application:', { error })
   }
 }
-
-/**
- * Get a snapshot of the current application state
- * This is useful for debugging and analytics
- */
-export function getStoreSnapshot(): any {
-  return {
-    registry: useWorkflowRegistry.getState(),
-    workflow: useWorkflowStore.getState(),
-    subBlock: useSubBlockStore.getState(),
-    variables: useVariablesStore.getState(),
-    toolParams: useToolParamsStore.getState(),
-  }
-}

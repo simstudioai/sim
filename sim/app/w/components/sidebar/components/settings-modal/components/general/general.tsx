@@ -61,7 +61,12 @@ export function General() {
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 p-1 h-7"
+                    aria-label="Learn more about theme settings"
+                  >
                     <Info className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
@@ -88,7 +93,12 @@ export function General() {
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 p-1 h-7"
+                    aria-label="Learn more about debug mode"
+                  >
                     <Info className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
@@ -110,7 +120,12 @@ export function General() {
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 p-1 h-7"
+                    aria-label="Learn more about auto-connect feature"
+                  >
                     <Info className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
@@ -132,7 +147,12 @@ export function General() {
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 p-1 h-7"
+                    aria-label="Learn more about auto-fill environment variables"
+                  >
                     <Info className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
@@ -157,7 +177,12 @@ export function General() {
             <Label className="font-medium">Reset all data</Label>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 p-1 h-7"
+                  aria-label="Learn more about resetting all data"
+                >
                   <Info className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>

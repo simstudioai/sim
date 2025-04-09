@@ -38,7 +38,6 @@ function handleAgentBlockApiKey(
     }
   } else {
     // No API key found for this provider - ALWAYS clear the field
-    // This ensures the UI doesn't show asterisks for a non-existent value
     subBlockStore.setValue(blockId, subBlockId, '')
   }
 }
@@ -141,12 +140,10 @@ export function useSubBlockValue<T = any>(
   subBlockId: string,
   triggerWorkflowUpdate: boolean = false
 ): readonly [T | null, (value: T) => void] {
-  // Get block type for param lookup - always call this hook unconditionally
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
   )
 
-  // Get initial value from workflow store - always call this hook unconditionally
   const initialValue = useWorkflowStore(
     useCallback(
       (state) => state.blocks?.[blockId]?.subBlocks?.[subBlockId]?.value ?? null,

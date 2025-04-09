@@ -118,6 +118,32 @@ const getOperationOptions = (blockType: string): { label: string; id: string }[]
   })
 }
 
+// Helper function to initialize tool parameters
+const initializeToolParams = (
+  toolId: string,
+  params: ToolParam[],
+  toolParamsStore: {
+    resolveParamValue: (toolId: string, paramId: string, instanceId?: string) => string | undefined
+  },
+  isAutoFillEnabled: boolean,
+  instanceId?: string
+): Record<string, string> => {
+  const initialParams: Record<string, string> = {}
+
+  // Only auto-fill parameters if the setting is enabled
+  if (isAutoFillEnabled) {
+    // For each parameter, check if we have a stored/resolved value
+    params.forEach((param) => {
+      const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id, instanceId)
+      if (resolvedValue) {
+        initialParams[param.id] = resolvedValue
+      }
+    })
+  }
+
+  return initialParams
+}
+
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -127,7 +153,6 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const toolParamsStore = useToolParamsStore()
-  // Get the auto-fill environment variables setting
   const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
@@ -162,25 +187,17 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
 
-    // Get the tool ID to fetch parameters
     const toolId = getToolIdFromBlock(toolBlock.type) || toolBlock.type
-
-    // Get required params for this tool
     const requiredParams = toolId ? getRequiredToolParams(toolId) : []
 
-    // Initialize params object with stored or auto-resolved values
-    const initialParams: Record<string, string> = {}
-
-    // Only auto-fill parameters if the setting is enabled
-    if (isAutoFillEnvVarsEnabled) {
-      // For each required parameter, check if we have a stored/resolved value
-      requiredParams.forEach((param) => {
-        const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
-        if (resolvedValue) {
-          initialParams[param.id] = resolvedValue
-        }
-      })
-    }
+    // Use the helper function to initialize parameters with blockId as instanceId
+    const initialParams = initializeToolParams(
+      toolId,
+      requiredParams,
+      toolParamsStore,
+      isAutoFillEnvVarsEnabled,
+      blockId
+    )
 
     const newTool: StoredTool = {
       type: toolBlock.type,
@@ -226,19 +243,14 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     // Create tool ID for the custom tool
     const toolId = `custom-${customTool.schema.function.name}`
 
-    // Initialize params object with stored values
-    const initialParams: Record<string, string> = {}
-
-    // Only auto-fill parameters if the setting is enabled
-    if (isAutoFillEnvVarsEnabled) {
-      // For each parameter, check if we have a stored/resolved value
-      toolParams.forEach((param) => {
-        const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
-        if (resolvedValue) {
-          initialParams[param.id] = resolvedValue
-        }
-      })
-    }
+    // Use the helper function to initialize parameters with blockId as instanceId
+    const initialParams = initializeToolParams(
+      toolId,
+      toolParams,
+      toolParamsStore,
+      isAutoFillEnvVarsEnabled,
+      blockId
+    )
 
     const newTool: StoredTool = {
       type: 'custom-tool',
