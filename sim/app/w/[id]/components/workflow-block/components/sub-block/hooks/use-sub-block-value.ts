@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
+import { useToolParamsStore } from '@/stores/tool-params/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -17,6 +18,9 @@ export function useSubBlockValue<T = any>(
   subBlockId: string,
   triggerWorkflowUpdate: boolean = false
 ): readonly [T | null, (value: T) => void] {
+  // Get block type for param lookup
+  const blockType = useWorkflowStore(useCallback((state) => state.blocks[blockId]?.type, [blockId]))
+
   // Get initial value from workflow store
   const initialValue = useWorkflowStore(
     useCallback(
@@ -32,6 +36,23 @@ export function useSubBlockValue<T = any>(
   const storeValue = useSubBlockStore(
     useCallback((state) => state.getValue(blockId, subBlockId), [blockId, subBlockId])
   )
+
+  // Check if this is an API key field that could be auto-filled
+  const isApiKey = subBlockId === 'apiKey' || subBlockId.toLowerCase().includes('apikey')
+
+  // When component mounts, check for existing API key in toolParamsStore
+  useEffect(() => {
+    // Only run for API key fields that don't already have a value
+    if (isApiKey && blockType && (!storeValue || storeValue === '')) {
+      const toolParamsStore = useToolParamsStore.getState()
+      const savedValue = toolParamsStore.resolveParamValue(blockType, 'apiKey')
+
+      if (savedValue && savedValue !== '' && savedValue !== storeValue) {
+        // Auto-fill the API key from the param store
+        useSubBlockStore.getState().setValue(blockId, subBlockId, savedValue)
+      }
+    }
+  }, [blockId, subBlockId, blockType, storeValue, isApiKey])
 
   // Update the ref if the store value changes
   // This ensures we're always working with the latest value
@@ -57,6 +78,12 @@ export function useSubBlockValue<T = any>(
               ? JSON.parse(JSON.stringify(newValue))
               : newValue
 
+        // For API keys, also store in toolParamsStore for cross-block reuse
+        if (isApiKey && blockType && newValue && String(newValue).trim() !== '') {
+          const toolParamsStore = useToolParamsStore.getState()
+          toolParamsStore.setParam(blockType, 'apiKey', String(newValue))
+        }
+
         // Update the subblock store with the new value
         // The store's setValue method will now trigger the debounced sync automatically
         useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
@@ -66,7 +93,7 @@ export function useSubBlockValue<T = any>(
         }
       }
     },
-    [blockId, subBlockId, triggerWorkflowUpdate]
+    [blockId, subBlockId, blockType, isApiKey, triggerWorkflowUpdate]
   )
 
   // Return the current value and setter

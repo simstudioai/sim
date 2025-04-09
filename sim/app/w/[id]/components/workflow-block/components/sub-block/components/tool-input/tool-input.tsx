@@ -1,15 +1,6 @@
 import { useCallback, useState } from 'react'
-import { PencilIcon, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
@@ -21,6 +12,7 @@ import {
 import { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useToolParamsStore } from '@/stores/tool-params/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getAllBlocks } from '@/blocks'
 import { getTool } from '@/tools'
@@ -133,6 +125,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
+  const toolParamsStore = useToolParamsStore()
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
 
@@ -166,10 +159,27 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
 
+    // Get the tool ID to fetch parameters
+    const toolId = getToolIdFromBlock(toolBlock.type) || toolBlock.type
+
+    // Get required params for this tool
+    const requiredParams = toolId ? getRequiredToolParams(toolId) : []
+
+    // Initialize params object with stored or auto-resolved values
+    const initialParams: Record<string, string> = {}
+
+    // For each required parameter, check if we have a stored/resolved value
+    requiredParams.forEach((param) => {
+      const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
+      if (resolvedValue) {
+        initialParams[param.id] = resolvedValue
+      }
+    })
+
     const newTool: StoredTool = {
       type: toolBlock.type,
       title: toolBlock.name,
-      params: {},
+      params: initialParams,
       isExpanded: true,
       operation: defaultOperation,
     }
@@ -204,10 +214,27 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       return
     }
 
+    // Get custom tool parameters from schema
+    const toolParams = getCustomToolParams(customTool.schema)
+
+    // Create tool ID for the custom tool
+    const toolId = `custom-${customTool.schema.function.name}`
+
+    // Initialize params object with stored values
+    const initialParams: Record<string, string> = {}
+
+    // For each parameter, check if we have a stored/resolved value
+    toolParams.forEach((param) => {
+      const resolvedValue = toolParamsStore.resolveParamValue(toolId, param.id)
+      if (resolvedValue) {
+        initialParams[param.id] = resolvedValue
+      }
+    })
+
     const newTool: StoredTool = {
       type: 'custom-tool',
       title: customTool.title,
-      params: {},
+      params: initialParams,
       isExpanded: true,
       schema: customTool.schema,
       code: customTool.code || '',
@@ -270,6 +297,19 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }
 
   const handleParamChange = (toolIndex: number, paramId: string, paramValue: string) => {
+    // Store the value in the tool params store for future use
+    const tool = selectedTools[toolIndex]
+    const toolId =
+      tool.type === 'custom-tool'
+        ? `custom-${tool.schema?.function?.name || 'tool'}`
+        : getToolIdFromBlock(tool.type) || tool.type
+
+    // Only store non-empty values
+    if (paramValue.trim()) {
+      toolParamsStore.setParam(toolId, paramId, paramValue)
+    }
+
+    // Update the value in the workflow
     setValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
