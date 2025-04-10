@@ -242,7 +242,7 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      console.error('Debug step execution failed:', this.sanitizeError(error))
+      logger.error('Debug step execution failed:', this.sanitizeError(error))
 
       return {
         success: false,
@@ -787,21 +787,14 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
-      // Log the error even if we'll continue execution through error path
-      context.blockLogs.push(blockLog)
-      addConsole({
-        output: {},
-        error:
-          error.message ||
-          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
-        durationMs: blockLog.durationMs,
-        startedAt: blockLog.startedAt,
-        endedAt: blockLog.endedAt,
-        workflowId: context.workflowId,
-        timestamp: blockLog.startedAt,
-        blockName: block.metadata?.name || 'Unnamed Block',
-        blockType: block.metadata?.id || 'unknown',
-      })
+      // Check for error connections and follow them if they exist
+      const hasErrorPath = this.activateErrorPath(blockId, context)
+
+      // Log the error for visibility
+      logger.error(
+        `Error executing block ${block.metadata?.name || blockId}:`,
+        this.sanitizeError(error)
+      )
 
       // Create error output with appropriate structure
       const errorOutput: NormalizedBlockOutput = {
@@ -818,15 +811,6 @@ export class Executor {
         executed: true,
         executionTime: blockLog.durationMs,
       })
-
-      // Check for error connections and follow them if they exist
-      const hasErrorPath = this.activateErrorPath(blockId, context)
-
-      // Console.error the error for visibility
-      logger.error(
-        `Error executing block ${block.metadata?.name || blockId}:`,
-        this.sanitizeError(error)
-      )
 
       // If there are error paths to follow, return error output instead of throwing
       if (hasErrorPath) {

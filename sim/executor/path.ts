@@ -69,7 +69,7 @@ export class PathTracker {
    * @param context - Current execution context
    */
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
-    logger.debug(`Updating execution paths for blocks: ${executedBlockIds.join(', ')}`);
+    logger.info(`Updating paths for blocks: ${executedBlockIds.join(', ')}`);
     
     for (const blockId of executedBlockIds) {
       const block = this.workflow.blocks.find((b) => b.id === blockId);
@@ -82,7 +82,7 @@ export class PathTracker {
           // Record the decision but don't deactivate other paths
           context.decisions.router.set(blockId, selectedPath);
           context.activeExecutionPath.add(selectedPath);
-          logger.debug(`Router ${blockId} selected path: ${selectedPath}`);
+          logger.info(`Router ${blockId} selected path: ${selectedPath}`);
         }
       } else if (block?.metadata?.id === 'condition') {
         const conditionOutput = context.blockStates.get(blockId)?.output;
@@ -99,7 +99,7 @@ export class PathTracker {
 
           if (targetConnection) {
             context.activeExecutionPath.add(targetConnection.target);
-            logger.debug(`Condition ${blockId} selected condition: ${selectedConditionId}, target: ${targetConnection.target}`);
+            logger.debug(`Condition ${blockId} selected: ${selectedConditionId}`);
           }
         }
       } else {
@@ -113,8 +113,6 @@ export class PathTracker {
         const outgoingConnections = this.workflow.connections.filter(
           (conn) => conn.source === blockId
         );
-        
-        logger.debug(`Block ${blockId} has ${outgoingConnections.length} outgoing connections, hasError: ${hasError}`);
         
         // Find out which loops this block belongs to
         const blockLoops = Object.entries(context.workflow?.loops || {})
@@ -137,7 +135,6 @@ export class PathTracker {
           
           // Let the LoopManager handle all connections within loops
           if (isInternalLoopConnection) {
-            logger.debug(`Skipping loop path activation: ${blockId} -> ${conn.target} (handled by LoopManager)`);
             continue;
           }
           
@@ -148,7 +145,6 @@ export class PathTracker {
           
           // Skip external connections from loop blocks UNLESS all loops are completed
           if (isExternalLoopConnection && !allLoopsCompleted) {
-            logger.debug(`Skipping external path from loop block: ${blockId} -> ${conn.target} (will be handled by LoopManager when loop completes)`);
             continue;
           }
           
@@ -160,29 +156,20 @@ export class PathTracker {
           if (conn.sourceHandle === 'error') {
             if (hasError) {
               context.activeExecutionPath.add(conn.target);
-              logger.debug(`Activating error path: ${blockId} -> ${conn.target}`);
             }
           }
           // For regular (source) connections, only activate them if there's no error
           else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
             if (!hasError) {
               context.activeExecutionPath.add(conn.target);
-              if (isExternalLoopConnection && allLoopsCompleted) {
-                logger.debug(`Activating external path after loop completion: ${blockId} -> ${conn.target}`);
-              } else {
-                logger.debug(`Activating regular path: ${blockId} -> ${conn.target}`);
-              }
             }
           }
           // All other types of connections (e.g., from condition blocks) follow their own rules
           else {
             context.activeExecutionPath.add(conn.target);
-            logger.debug(`Activating other path: ${blockId} -> ${conn.target} (handle: ${conn.sourceHandle})`);
           }
         }
       }
     }
-    
-    logger.debug(`Updated active execution path: ${Array.from(context.activeExecutionPath).join(', ')}`);
   }
 }

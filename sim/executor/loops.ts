@@ -1,5 +1,8 @@
 import { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'
 import { ExecutionContext } from './types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('LoopManager')
 
 /**
  * Manages loop detection, iteration limits, and state resets.
@@ -207,13 +210,9 @@ export class LoopManager {
         // If target is not in the loop, it's an external path
         if (!loop.nodes.includes(conn.target)) {
           externalTargets.add(conn.target);
-          console.log(`Found external target ${conn.target} from loop ${loopId}`);
         }
       }
     }
-    
-    // Track whether we have activated any external paths
-    let activatedExternalPaths = false;
     
     // Now, only activate the identified external targets
     for (const target of externalTargets) {
@@ -234,15 +233,11 @@ export class LoopManager {
           // Only activate error paths if there was an error
           if (hasError) {
             context.activeExecutionPath.add(target);
-            activatedExternalPaths = true;
-            console.log(`Activated external error path: ${sourceBlockId} -> ${target}`);
           }
         } else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
           // Only activate regular paths if there was no error
           if (!hasError) {
             context.activeExecutionPath.add(target);
-            activatedExternalPaths = true;
-            console.log(`Activated external path: ${sourceBlockId} -> ${target}`);
           }
         } else if (conn.sourceHandle?.startsWith('condition-')) {
           // For condition connections, check if this was the selected condition
@@ -251,8 +246,6 @@ export class LoopManager {
           
           if (conditionId === selectedCondition) {
             context.activeExecutionPath.add(target);
-            activatedExternalPaths = true;
-            console.log(`Activated external condition path: ${sourceBlockId} -> ${target} (condition: ${conditionId})`);
           }
         } else if (sourceBlockId === conn.source) {
           // For router blocks, check if this was the selected target
@@ -262,21 +255,13 @@ export class LoopManager {
             
             if (selectedTarget === target) {
               context.activeExecutionPath.add(target);
-              activatedExternalPaths = true;
-              console.log(`Activated external router path: ${sourceBlockId} -> ${target}`);
             }
           } else {
             // For any other connection type
             context.activeExecutionPath.add(target);
-            activatedExternalPaths = true;
-            console.log(`Activated external path (other type): ${sourceBlockId} -> ${target}`);
           }
         }
       }
-    }
-    
-    if (!activatedExternalPaths) {
-      console.log(`No external paths were activated for loop ${loopId}`);
     }
   }
 
@@ -350,7 +335,7 @@ export class LoopManager {
             
             return JSON.parse(normalizedExpression)
           } catch (jsonError) {
-            console.error(`Error parsing JSON for loop ${loopId}:`, jsonError)
+            logger.debug(`Error parsing JSON for loop ${loopId}:`, jsonError)
             // If JSON parsing fails, continue with expression evaluation
           }
         }
@@ -370,7 +355,7 @@ export class LoopManager {
 
         return []
       } catch (e) {
-        console.error(`Error evaluating forEach items for loop ${loopId}:`, e)
+        logger.error(`Error evaluating forEach items for loop ${loopId}:`, e)
         return []
       }
     }
