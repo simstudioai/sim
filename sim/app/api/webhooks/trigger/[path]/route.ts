@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/deduplication'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
@@ -121,7 +122,17 @@ export async function POST(
     const body = JSON.parse(rawBody || '{}')
     logger.info(`[${requestId}] Webhook POST request received for path: ${path}`)
 
-    // --- Find Webhook and Workflow ---
+    // Generate a unique request ID based on the request content
+    const requestHash = await generateRequestHash(path, body)
+
+    // Check if this exact request has been processed before using in-memory deduplication
+    if (await hasProcessedMessage(requestHash)) {
+      logger.info(`[${requestId}] Duplicate webhook request detected with hash: ${requestHash}`)
+      // Return early for duplicate requests to prevent workflow execution
+      return new NextResponse('Duplicate request', { status: 200 })
+    }
+
+    // Find the webhook in the database
     const webhooks = await db
       .select({
         webhook: webhook,
@@ -297,17 +308,24 @@ export async function POST(
           return NextResponse.json({ challenge: body.challenge })
         }
       }
-      const messageId = body?.event?.event_id // Slack message ID
-      // Use full prefix for clarity and avoid collision with general keys
-      // const slackMsgKey = `slack:msg:${messageId}` // Removed key generation
-      // if (messageId && (await hasProcessedMessage(slackMsgKey))) { // Removed check
-      //   logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
-      //   return new NextResponse('Duplicate message', { status: 200 })
-      // }
-      // if (messageId) {
-      //   await markMessageAsProcessed(slackMsgKey) // Removed marking as processed
-      // }
-      // Process Slack webhook using the existing function
+
+      // Check if we've already processed this message using Redis
+      const messageId = body?.event?.event_id
+      if (messageId && (await hasProcessedMessage(messageId))) {
+        logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
+        // Return early for duplicate messages to prevent workflow execution
+        return new NextResponse('Duplicate message', { status: 200 })
+      }
+
+      // Store the message ID in memory to prevent duplicate processing in future requests
+      if (messageId) {
+        await markMessageAsProcessed(messageId)
+      }
+
+      // Mark this request as processed to prevent duplicates
+      await markMessageAsProcessed(requestHash)
+
+      // Process the webhook for Slack
       return await processWebhook(
         foundWebhook,
         foundWorkflow,
@@ -377,12 +395,9 @@ export async function POST(
   }
 }
 
-// --- Helper Functions ---
-
 /**
- * Fetches all available payloads from Airtable API after a ping
- * and triggers a single workflow execution with the batch of payloads.
- * Simplified version without locking mechanism.
+ * Generate a unique hash for a webhook request based on its path and body
+ * This is used to deduplicate webhook requests
  */
 async function fetchAndProcessAirtablePayloads(
   webhookData: any,
