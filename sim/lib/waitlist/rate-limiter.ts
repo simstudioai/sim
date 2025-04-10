@@ -1,22 +1,18 @@
 import { NextRequest } from 'next/server'
-import { getRedisClient } from '../redis'
 
 // Configuration
 const RATE_LIMIT_WINDOW = 60 // 1 minute window (in seconds)
 const WAITLIST_MAX_REQUESTS = 5 // 5 requests per minute per IP
 const WAITLIST_BLOCK_DURATION = 15 * 60 // 15 minutes block (in seconds)
 
-// Environment detection
-const isProduction = process.env.NODE_ENV === 'production'
-
-// Fallback in-memory store for development or if Redis fails
+// In-memory store for rate limiting
 const inMemoryStore = new Map<
   string,
   { count: number; timestamp: number; blocked: boolean; blockedUntil?: number }
 >()
 
-// Clean up in-memory store periodically (only used in development)
-if (!isProduction && typeof setInterval !== 'undefined') {
+// Clean up in-memory store periodically
+if (typeof setInterval !== 'undefined') {
   setInterval(
     () => {
       const now = Math.floor(Date.now() / 1000)
@@ -59,55 +55,6 @@ export async function isRateLimited(
   const key = `ratelimit:${type}:${clientIp}`
   const now = Math.floor(Date.now() / 1000)
 
-  // Get the shared Redis client
-  const redisClient = getRedisClient()
-
-  // Use Redis if available
-  if (redisClient) {
-    try {
-      // Check if IP is blocked
-      const isBlocked = await redisClient.get(`${key}:blocked`)
-
-      if (isBlocked) {
-        const ttl = await redisClient.ttl(`${key}:blocked`)
-        if (ttl > 0) {
-          return {
-            limited: true,
-            message: 'Too many requests. Please try again later.',
-            remainingTime: ttl,
-          }
-        }
-        // Block expired, remove it
-        await redisClient.del(`${key}:blocked`)
-      }
-
-      // Increment counter with expiry
-      const count = await redisClient.incr(key)
-
-      // Set expiry on first request
-      if (count === 1) {
-        await redisClient.expire(key, RATE_LIMIT_WINDOW)
-      }
-
-      // If limit exceeded, block the IP
-      if (count > WAITLIST_MAX_REQUESTS) {
-        await redisClient.set(`${key}:blocked`, '1', 'EX', WAITLIST_BLOCK_DURATION)
-
-        return {
-          limited: true,
-          message: 'Too many requests. Please try again later.',
-          remainingTime: WAITLIST_BLOCK_DURATION,
-        }
-      }
-
-      return { limited: false }
-    } catch (error) {
-      console.error('Redis rate limit error:', error)
-      // Fall back to in-memory if Redis fails
-    }
-  }
-
-  // In-memory fallback implementation
   let record = inMemoryStore.get(key)
 
   // Check if IP is blocked

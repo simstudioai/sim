@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
+import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/deduplication'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
@@ -101,9 +101,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
-  } finally {
-    // Ensure Redis connection is properly closed in serverless environment
-    await closeRedisConnection()
   }
 }
 
@@ -131,7 +128,7 @@ export async function POST(
     // Generate a unique request ID based on the request content
     const requestHash = await generateRequestHash(path, body)
 
-    // Check if this exact request has been processed before
+    // Check if this exact request has been processed before using in-memory deduplication
     if (await hasProcessedMessage(requestHash)) {
       logger.info(`[${requestId}] Duplicate webhook request detected with hash: ${requestHash}`)
       // Return early for duplicate requests to prevent workflow execution
@@ -212,13 +209,13 @@ export async function POST(
         return new NextResponse('Duplicate message', { status: 200 })
       }
 
-      // Store the message ID in Redis to prevent duplicate processing in future requests
+      // Store the message ID in memory to prevent duplicate processing in future requests
       if (messageId) {
         await markMessageAsProcessed(messageId)
       }
 
       // Mark this request as processed to prevent duplicates
-      await markMessageAsProcessed(requestHash, 60 * 60 * 24)
+      await markMessageAsProcessed(requestHash)
 
       // Process the webhook for Slack
       return await processWebhook(
@@ -292,9 +289,6 @@ export async function POST(
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
-  } finally {
-    // Ensure Redis connection is properly closed in serverless environment
-    await closeRedisConnection()
   }
 }
 

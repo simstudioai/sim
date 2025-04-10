@@ -3,7 +3,6 @@ import { AgentBlock } from './blocks/agent'
 import { ApiBlock } from './blocks/api'
 import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
-import { ElasticsearchBlock } from './blocks/elasticsearch'
 import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
 import { EvaluatorBlock } from './blocks/evaluator'
@@ -16,7 +15,6 @@ import { GmailBlock } from './blocks/gmail'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
-import { MongoDBBlock } from './blocks/mongodb'
 import { MySQLBlock } from './blocks/mysql'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -24,7 +22,6 @@ import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { PostgreSQLBlock } from './blocks/postgresql'
 import { RedditBlock } from './blocks/reddit'
-import { RedisBlock } from './blocks/redis'
 import { RouterBlock } from './blocks/router'
 import { SerperBlock } from './blocks/serper'
 import { GoogleSheetsBlock } from './blocks/sheets'
@@ -46,7 +43,6 @@ export {
   ApiBlock,
   FileBlock,
   FunctionBlock,
-  MongoDBBlock,
   MySQLBlock,
   PostgreSQLBlock,
   VisionBlock,
@@ -79,8 +75,6 @@ export {
   ConfluenceBlock,
   ImageGeneratorBlock,
   TypeformBlock,
-  RedisBlock,
-  ElasticsearchBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -89,7 +83,6 @@ const blocks: Record<string, BlockConfig> = {
   api: ApiBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
-  elasticsearch: ElasticsearchBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   file: FileBlock,
@@ -103,7 +96,6 @@ const blocks: Record<string, BlockConfig> = {
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
-  mongodb: MongoDBBlock,
   mysql: MySQLBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
@@ -111,7 +103,6 @@ const blocks: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   postgresql: PostgreSQLBlock,
   reddit: RedditBlock,
-  redis: RedisBlock,
   router: RouterBlock,
   serper: SerperBlock,
   slack: SlackBlock,

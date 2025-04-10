@@ -18,11 +18,10 @@ describe('Webhook Trigger API Route', () => {
     // Mock all dependencies
     mockExecutionDependencies()
 
-    // Mock Redis for duplicate detection
-    vi.doMock('@/lib/redis', () => ({
+    // Mock deduplication system
+    vi.doMock('@/lib/deduplication', () => ({
       hasProcessedMessage: vi.fn().mockResolvedValue(false),
-      markMessageAsProcessed: vi.fn().mockResolvedValue(true),
-      closeRedisConnection: vi.fn().mockResolvedValue(undefined),
+      markMessageAsProcessed: vi.fn().mockResolvedValue(undefined),
     }))
 
     // Mock database with webhook data
@@ -252,16 +251,6 @@ describe('Webhook Trigger API Route', () => {
     // Mock the path param
     const params = Promise.resolve({ path: 'test-path' })
 
-    // Import Redis mocks
-    const hasProcessedMessageMock = vi.fn().mockResolvedValue(false)
-    const markMessageAsProcessedMock = vi.fn().mockResolvedValue(true)
-
-    vi.doMock('@/lib/redis', () => ({
-      hasProcessedMessage: hasProcessedMessageMock,
-      markMessageAsProcessed: markMessageAsProcessedMock,
-      closeRedisConnection: vi.fn().mockResolvedValue(undefined),
-    }))
-
     // Import the handler after mocks are set up
     const { POST } = await import('./route')
 
@@ -323,10 +312,9 @@ describe('Webhook Trigger API Route', () => {
     const markMessageAsProcessedMock = vi.fn().mockResolvedValue(true)
 
     // Mock hasProcessedMessage to return true (duplicate)
-    vi.doMock('@/lib/redis', () => ({
+    vi.doMock('@/lib/deduplication', () => ({
       hasProcessedMessage: hasProcessedMessageMock,
       markMessageAsProcessed: markMessageAsProcessedMock,
-      closeRedisConnection: vi.fn().mockResolvedValue(undefined),
     }))
 
     // Create executor mock to verify it's not called
