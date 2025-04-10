@@ -17,8 +17,8 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       title: 'Host',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'mysql',
-      value: () => 'mysql',
+      placeholder: 'localhost or database host',
+      value: () => 'localhost',
     },
     {
       id: 'port',
@@ -29,11 +29,11 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       value: () => '3306',
     },
     {
-      id: 'username',
+      id: 'user',
       title: 'Username',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'root',
+      placeholder: 'Enter username',
       value: () => 'root',
     },
     {
@@ -43,15 +43,15 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       layout: 'half',
       placeholder: 'Enter password',
       password: true,
-      value: () => 'root',
+      value: () => '',
     },
     {
       id: 'database',
       title: 'Database',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'simstudio',
-      value: () => 'simstudio',
+      placeholder: 'Enter database name',
+      value: () => '',
     },
     {
       id: 'ssl',
@@ -92,48 +92,36 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       layout: 'full',
       placeholder: 'Enter query parameters as array',
     },
-    {
-      id: 'options',
-      title: 'Options',
-      type: 'code',
-      layout: 'full',
-      placeholder: 'Enter query options',
-    },
   ],
   tools: {
     access: ['mysql'],
     config: {
       tool: () => 'mysql',
-      params: (params) => {
-        const connection = {
-          host: params.host || 'mysql',
+      params: (params) => ({
+        connection: {
+          host: params.host || 'localhost',
           port: parseInt(params.port || '3306'),
-          username: params.username || 'root',
-          password: params.password || 'root',
-          database: params.database || 'simstudio',
+          user: params.user || 'root',
+          password: params.password || '',
+          database: params.database,
           ssl: params.ssl === 'true'
-        }
-        return {
-          connection,
-          operation: params.operation,
-          query: params.query,
-          params: params.params ? JSON.parse(params.params) : undefined,
-          options: params.options ? JSON.parse(params.options) : undefined,
-        }
-      },
+        },
+        operation: params.operation,
+        query: params.query,
+        params: params.params ? JSON.parse(params.params) : undefined
+      }),
     },
   },
   inputs: {
     host: { type: 'string', required: false },
     port: { type: 'string', required: false },
-    username: { type: 'string', required: false },
+    user: { type: 'string', required: false },
     password: { type: 'string', required: false },
-    database: { type: 'string', required: false },
+    database: { type: 'string', required: true },
     ssl: { type: 'string', required: false },
     operation: { type: 'string', required: true },
     query: { type: 'string', required: true },
-    params: { type: 'json', required: false },
-    options: { type: 'json', required: false },
+    params: { type: 'json', required: false }
   },
   outputs: {
     response: {

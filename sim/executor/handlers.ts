@@ -987,6 +987,8 @@ export class GenericBlockHandler implements BlockHandler {
     try {
       // Get the block configuration to transform parameters
       const blockConfig = getBlock(block.metadata?.id || '')
+      
+      // Transform parameters based on block configuration if available
       const transformedParams = blockConfig?.tools?.config?.params
         ? blockConfig.tools.config.params(inputs)
         : inputs
@@ -1016,6 +1018,7 @@ export class GenericBlockHandler implements BlockHandler {
           blockId: block.id,
           blockName: block.metadata?.name || 'Unnamed Block',
           output: result.output || {},
+          timestamp: new Date().toISOString(),
         })
 
         throw error
@@ -1023,6 +1026,13 @@ export class GenericBlockHandler implements BlockHandler {
 
       return { response: result.output }
     } catch (error: any) {
+      // Ensure we have a meaningful error message
+      if (!error.message || error.message === 'undefined (undefined)') {
+        error.message = `Block execution of ${tool.name || block.config.tool} failed - ${
+          block.metadata?.name || 'Unknown error'
+        }`
+      }
+
       // Add additional context to the error
       if (typeof error === 'object' && error !== null) {
         if (!error.toolId) error.toolId = block.config.tool

@@ -1,9 +1,6 @@
 import { createPool, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { NextResponse } from 'next/server'
-<<<<<<< HEAD
 import { getMySQLConfig } from '@/config/database'
-=======
->>>>>>> 7fd5c86 (feat(database) tools -)
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +8,6 @@ export async function POST(request: Request) {
     console.log('[MySQL API] Received request:', {
       ...body,
       password: body.password ? '[REDACTED]' : undefined,
-<<<<<<< HEAD
       connection: body.connection ? { 
         ...body.connection,
         password: body.connection.password ? '[REDACTED]' : undefined 
@@ -22,13 +18,6 @@ export async function POST(request: Request) {
     // 1. Request body
     // 2. Environment variables
     let connection = body.connection || {
-=======
-      connection: body.connection ? { password: '[REDACTED]' } : undefined
-    })
-
-    // Extract connection parameters from either root level or connection object
-    const connection = body.connection || {
->>>>>>> 7fd5c86 (feat(database) tools -)
       host: body.host,
       port: body.port,
       user: body.user || body.username,
@@ -37,7 +26,6 @@ export async function POST(request: Request) {
       ssl: body.ssl === 'true'
     }
 
-<<<<<<< HEAD
     // If no connection details provided in the request, try to get from environment
     if (!connection.host || !connection.user || !connection.password || !connection.database) {
       const envConfig = getMySQLConfig()
@@ -54,8 +42,6 @@ export async function POST(request: Request) {
       }
     }
 
-=======
->>>>>>> 7fd5c86 (feat(database) tools -)
     // Check for required connection parameters
     const hasRequiredParams = {
       hasConnection: !!connection,
@@ -89,7 +75,6 @@ export async function POST(request: Request) {
       ssl: connection.ssl === 'true' ? { rejectUnauthorized: false } : undefined
     }
     
-<<<<<<< HEAD
     console.log('[MySQL API] Attempting to create connection pool with config:', {
       ...poolConfig,
       password: '[REDACTED]'
@@ -106,9 +91,6 @@ export async function POST(request: Request) {
       console.error('[MySQL API] Connection test failed:', testError)
       throw testError
     }
-=======
-    const pool = createPool(poolConfig)
->>>>>>> 7fd5c86 (feat(database) tools -)
 
     // Execute query based on operation
     const { operation, query, params, options } = body
@@ -135,7 +117,6 @@ export async function POST(request: Request) {
     }
   } catch (error: any) {
     console.error('[MySQL API] Error:', error)
-<<<<<<< HEAD
     console.error('[MySQL API] Error details:', {
       name: error.name,
       message: error.message,
@@ -144,8 +125,6 @@ export async function POST(request: Request) {
       sqlState: error.sqlState,
       sqlMessage: error.sqlMessage
     })
-=======
->>>>>>> 7fd5c86 (feat(database) tools -)
     
     // Handle specific MySQL errors
     if (error.code === 'ER_ACCESS_DENIED_ERROR') {
