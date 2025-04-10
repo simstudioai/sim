@@ -1,13 +1,12 @@
 import { AgentIcon } from '@/components/icons'
+import { isHostedVersion } from '@/lib/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
-// Determine if we're running on the hosted version
-const isHostedVersion = typeof window !== 'undefined' && 
-  process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
+const isHosted = isHostedVersion()
 
 interface AgentResponse extends ToolResponse {
   output: {
@@ -96,11 +95,13 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       password: true,
       connectionDroppable: false,
       // Hide API key for GPT-4o models when running on hosted version
-      condition: isHostedVersion ? {
-        field: 'model',
-        value: 'gpt-4o',
-        not: true // Show for all models EXCEPT GPT-4o models
-      } : undefined, // Show for all models in non-hosted environments
+      condition: isHosted
+        ? {
+            field: 'model',
+            value: 'gpt-4o',
+            not: true, // Show for all models EXCEPT GPT-4o models
+          }
+        : undefined, // Show for all models in non-hosted environments
     },
     {
       id: 'tools',

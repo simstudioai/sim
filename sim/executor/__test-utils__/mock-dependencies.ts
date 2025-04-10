@@ -12,6 +12,12 @@ vi.mock('@/lib/logs/console-logger', () => ({
   })),
 }))
 
+// Utils
+vi.mock('@/lib/utils', () => ({
+  isHostedVersion: vi.fn().mockReturnValue(false),
+  getRotatingApiKey: vi.fn(),
+}))
+
 // Tools
 vi.mock('@/tools')
 

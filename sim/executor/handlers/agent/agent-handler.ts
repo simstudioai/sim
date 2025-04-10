@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { isHostedVersion } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { BlockOutput } from '@/blocks/types'
 import { executeProviderRequest } from '@/providers'
@@ -64,6 +65,17 @@ export class AgentBlockHandler implements BlockHandler {
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
     logger.info(`Using provider: ${providerId}, model: ${model}`)
+
+    // Check if we need to validate API key presence
+    const isGPT4o = model === 'gpt-4o'
+    const isHosted = isHostedVersion()
+
+    // For non-hosted version, or for models other than gpt-4o, API key is required
+    if (!isHosted || !isGPT4o) {
+      if (!inputs.apiKey) {
+        throw new Error(`API key is required for ${model}`)
+      }
+    }
 
     // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)

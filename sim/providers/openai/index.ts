@@ -1,9 +1,70 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
+import { isHostedVersion } from '@/lib/utils'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('OpenAI Provider')
+
+/**
+ * Helper function to handle API key rotation for GPT-4o
+ * @param apiKey - The original API key from the request
+ * @param model - The model being used
+ * @returns The API key to use (original or rotating)
+ */
+async function getApiKey(apiKey: string | undefined, model: string): Promise<string> {
+  // Check if we should use a rotating key
+  const isHosted = isHostedVersion()
+  const isGPT4o = model === 'gpt-4o'
+
+  // On hosted version, always use rotating key for GPT-4o models
+  if (isHosted && isGPT4o) {
+    try {
+      // Use API endpoint to get the key from server-side env variables
+      const response = await fetch('/api/keys/openai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(`API key service error: ${errorData.error || response.statusText}`)
+      }
+
+      const data = await response.json()
+      if (!data.apiKey) {
+        throw new Error('API key service did not return a key')
+      }
+
+      logger.info('Using API key from server rotation service')
+      return data.apiKey
+    } catch (error) {
+      logger.warn('Failed to get API key from server', {
+        error: error instanceof Error ? error.message : String(error),
+      })
+
+      // If we couldn't get a rotating key and have a user key, use it as fallback
+      // This should only happen if rotation system is misconfigured
+      if (apiKey) {
+        logger.info('Falling back to user-provided API key')
+        return apiKey
+      }
+
+      // No rotating key and no user key - throw specific error
+      throw new Error('API key is required for OpenAI')
+    }
+  }
+
+  // For non-hosted versions or non-GPT4o models, require the provided key
+  if (!apiKey) {
+    throw new Error('API key is required for OpenAI')
+  }
+
+  return apiKey
+}
 
 /**
  * OpenAI provider configuration
@@ -26,18 +87,11 @@ export const openaiProvider: ProviderConfig = {
       hasResponseFormat: !!request.responseFormat,
     })
 
-    if (!request.apiKey) {
-      logger.error('OpenAI API key missing in request', {
-        hasModel: !!request.model,
-        hasSystemPrompt: !!request.systemPrompt,
-        hasMessages: !!request.messages,
-        hasTools: !!request.tools,
-      })
-      throw new Error('API key is required for OpenAI')
-    }
+    // Get the API key - this will fetch from the server if needed for gpt-4o on hosted version
+    const apiKey = await getApiKey(request.apiKey, request.model || 'gpt-4o')
 
     const openai = new OpenAI({
-      apiKey: request.apiKey,
+      apiKey,
       dangerouslyAllowBrowser: true,
     })
 
