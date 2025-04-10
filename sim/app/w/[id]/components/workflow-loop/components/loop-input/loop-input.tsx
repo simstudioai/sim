@@ -127,13 +127,15 @@ export function LoopInput({ id }: NodeProps) {
         </Badge>
       </PopoverTrigger>
       <PopoverContent
-        className={cn('p-3', loopType !== 'for' ? 'w-64' : 'w-48')}
+        className={cn('p-3', loopType !== 'for' ? 'w-72' : 'w-48')}
         align="start"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">
-            {loopType === 'for' ? 'Loop Iterations' : 'Collection Items'}
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium text-muted-foreground">
+              {loopType === 'for' ? 'Loop Iterations' : 'Collection Items'}
+            </div>
           </div>
 
           {loopType === 'for' ? (
@@ -177,7 +179,7 @@ export function LoopInput({ id }: NodeProps) {
           <div className="text-[10px] text-muted-foreground">
             {loopType === 'for'
               ? 'Enter a number between 1 and 50'
-              : 'Define the collection to iterate over'}
+              : 'Array or object to iterate over'}
           </div>
         </div>
       </PopoverContent>

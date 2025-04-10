@@ -301,6 +301,11 @@ export class InputResolver {
     if (!blockMatches) return value
 
     let resolvedValue = value
+    
+    // Check if we're in a template literal for function blocks
+    const isInTemplateLiteral = 
+      currentBlock.metadata?.id === 'function' && 
+      (/\${[^}]*</.test(value) || /<[^>]*}\$/.test(value))
 
     for (const match of blockMatches) {
       // Skip variables - they've already been processed
@@ -418,8 +423,11 @@ export class InputResolver {
               // Format the value based on type
               if (currentItem !== undefined) {
                 if (typeof currentItem !== 'object' || currentItem === null) {
-                  // For primitives, convert to string
-                  resolvedValue = resolvedValue.replace(match, String(currentItem))
+                  // Format primitive values properly for code contexts
+                  resolvedValue = resolvedValue.replace(
+                    match, 
+                    this.formatValueForCodeContext(currentItem, currentBlock, isInTemplateLiteral)
+                  )
                 } else if (
                   Array.isArray(currentItem) &&
                   currentItem.length === 2 &&
@@ -428,14 +436,15 @@ export class InputResolver {
                   // Handle [key, value] pair from Object.entries()
                   if (pathParts.length > 1) {
                     if (pathParts[1] === 'key') {
-                      resolvedValue = resolvedValue.replace(match, String(currentItem[0]))
+                      resolvedValue = resolvedValue.replace(
+                        match, 
+                        this.formatValueForCodeContext(currentItem[0], currentBlock, isInTemplateLiteral)
+                      )
                     } else if (pathParts[1] === 'value') {
-                      const itemValue = currentItem[1]
-                      const formattedValue =
-                        typeof itemValue === 'object' && itemValue !== null
-                          ? JSON.stringify(itemValue)
-                          : String(itemValue)
-                      resolvedValue = resolvedValue.replace(match, formattedValue)
+                      resolvedValue = resolvedValue.replace(
+                        match, 
+                        this.formatValueForCodeContext(currentItem[1], currentBlock, isInTemplateLiteral)
+                      )
                     }
                   } else {
                     // Default to stringifying the whole item
@@ -457,12 +466,11 @@ export class InputResolver {
                       }
                     }
 
-                    const formattedValue =
-                      typeof itemValue === 'object' && itemValue !== null
-                        ? JSON.stringify(itemValue)
-                        : String(itemValue)
-
-                    resolvedValue = resolvedValue.replace(match, formattedValue)
+                    // Use the formatter helper method
+                    resolvedValue = resolvedValue.replace(
+                      match, 
+                      this.formatValueForCodeContext(itemValue, currentBlock, isInTemplateLiteral)
+                    )
                   } else {
                     // Return the whole item as JSON
                     resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
@@ -477,11 +485,11 @@ export class InputResolver {
             const items = this.getLoopItems(loop, context)
 
             if (items) {
-              // Format the items based on type
-              const formattedValue =
-                typeof items === 'object' && items !== null ? JSON.stringify(items) : String(items)
-
-              resolvedValue = resolvedValue.replace(match, formattedValue)
+              // Format the items using our helper
+              resolvedValue = resolvedValue.replace(
+                match, 
+                this.formatValueForCodeContext(items, currentBlock, isInTemplateLiteral)
+              )
               continue
             }
           } else if (pathParts[0] === 'index') {
@@ -490,7 +498,11 @@ export class InputResolver {
               ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
               : context.loopIterations.get(containingLoopId) || 0
 
-            resolvedValue = resolvedValue.replace(match, String(index))
+            // For function blocks, we don't need to quote numbers, but use the formatter for consistency
+            resolvedValue = resolvedValue.replace(
+              match, 
+              this.formatValueForCodeContext(index, currentBlock, isInTemplateLiteral)
+            )
             continue
           }
         }
@@ -576,8 +588,13 @@ export class InputResolver {
         typeof replacementValue === 'string' &&
         this.needsCodeStringLiteral(currentBlock, value)
       ) {
-        // For code blocks, quote string values properly for the given language
-        formattedValue = JSON.stringify(replacementValue)
+        // Check if we're in a template literal
+        const isInTemplateLiteral = 
+          currentBlock.metadata?.id === 'function' && 
+          (/\${[^}]*</.test(value) || /<[^>]*}\$/.test(value))
+
+        // For code blocks, use our formatter
+        formattedValue = this.formatValueForCodeContext(replacementValue, currentBlock, isInTemplateLiteral)
       } else {
         formattedValue =
           typeof replacementValue === 'object'
@@ -828,7 +845,14 @@ export class InputResolver {
           if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
             try {
               // Try to parse as JSON first
-              return JSON.parse(trimmedExpression)
+              // Handle both JSON format (double quotes) and JS format (single quotes)
+              const normalizedExpression = trimmedExpression
+                .replace(/'/g, '"')                // Replace all single quotes with double quotes
+                .replace(/(\w+):/g, '"$1":')       // Convert property names to double-quoted strings
+                .replace(/,\s*]/g, ']')            // Remove trailing commas before closing brackets
+                .replace(/,\s*}/g, '}')            // Remove trailing commas before closing braces
+              
+              return JSON.parse(normalizedExpression)
             } catch (jsonError) {
               console.error(`Error parsing JSON for loop:`, jsonError)
               // If JSON parsing fails, continue with expression evaluation
@@ -865,5 +889,55 @@ export class InputResolver {
 
     // Default to empty array if no valid items found
     return []
+  }
+
+  /**
+   * Formats a value for safe use in a code context (like function blocks).
+   * Ensures strings are properly quoted in JavaScript.
+   * 
+   * @param value - The value to format
+   * @param block - The block that will use this value
+   * @param isInTemplateLiteral - Whether this value is inside a template literal
+   * @returns Properly formatted value for code insertion
+   */
+  private formatValueForCodeContext(
+    value: any, 
+    block: SerializedBlock,
+    isInTemplateLiteral: boolean = false
+  ): string {
+    // For function blocks, properly format values to avoid syntax errors
+    if (block.metadata?.id === 'function') {
+      // Special case for values in template literals (like `Hello ${<loop.currentItem>}`)
+      if (isInTemplateLiteral) {
+        if (typeof value === 'string') {
+          return value // Don't quote strings in template literals
+        } else if (typeof value === 'object' && value !== null) {
+          return JSON.stringify(value) // But do stringify objects
+        } else {
+          return String(value)
+        }
+      }
+      
+      // Regular (non-template) contexts
+      if (typeof value === 'string') {
+        // Quote strings for JavaScript
+        return JSON.stringify(value)
+      } else if (typeof value === 'object' && value !== null) {
+        // Stringify objects and arrays
+        return JSON.stringify(value)
+      } else if (value === undefined) {
+        return 'undefined'
+      } else if (value === null) {
+        return 'null'
+      } else {
+        // Numbers, booleans can be inserted as is
+        return String(value)
+      }
+    }
+    
+    // For non-code blocks, use normal string conversion
+    return typeof value === 'object' && value !== null 
+      ? JSON.stringify(value) 
+      : String(value)
   }
 }

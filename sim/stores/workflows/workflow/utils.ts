@@ -24,6 +24,12 @@ export function detectCycle(
     const neighbors = edges.filter((edge) => edge.source === node).map((edge) => edge.target)
 
     for (const neighbor of neighbors) {
+      // Check for self-loops (node connecting to itself)
+      if (neighbor === node) {
+        allCycles.push([node])
+        continue
+      }
+
       if (!recursionStack.has(neighbor)) {
         if (!visited.has(neighbor)) {
           dfs(neighbor)
@@ -33,10 +39,8 @@ export function detectCycle(
         const cycleStartIndex = currentPath.indexOf(neighbor)
         if (cycleStartIndex !== -1) {
           const cycle = currentPath.slice(cycleStartIndex)
-          // Only add cycles with length > 1
-          if (cycle.length > 1) {
-            allCycles.push([...cycle])
-          }
+          // Include all cycles, even single-node ones
+          allCycles.push([...cycle])
         }
       }
     }

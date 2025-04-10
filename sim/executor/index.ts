@@ -141,9 +141,13 @@ export class Executor {
               finalOutput = outputs[outputs.length - 1]
             }
 
-            const hasLoopReachedMaxIterations =
-              await this.loopManager.processLoopIterations(context)
-            if (hasLoopReachedMaxIterations) {
+            // Process loop iterations - this will activate external paths when loops complete
+            await this.loopManager.processLoopIterations(context)
+            
+            // Continue execution for any newly activated paths
+            // Only stop execution if there are no more blocks to execute
+            const updatedNextLayer = this.getNextExecutionLayer(context)
+            if (updatedNextLayer.length === 0) {
               hasMoreLayers = false
             }
           }
@@ -199,7 +203,6 @@ export class Executor {
       if (outputs.length > 0) {
         finalOutput = outputs[outputs.length - 1]
       }
-
       await this.loopManager.processLoopIterations(context)
       const nextLayer = this.getNextExecutionLayer(context)
       setPendingBlocks(nextLayer)
@@ -239,7 +242,7 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      console.error('Debug step execution failed:', this.sanitizeError(error))
+      logger.error('Debug step execution failed:', this.sanitizeError(error))
 
       return {
         success: false,
@@ -293,10 +296,6 @@ export class Executor {
         }
       }
 
-      if (loop.nodes.length < 2) {
-        throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
-      }
-
       if (loop.iterations <= 0) {
         throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
@@ -326,6 +325,7 @@ export class Executor {
       },
       loopIterations: new Map(),
       loopItems: new Map(),
+      completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: this.workflow,
@@ -483,7 +483,7 @@ export class Executor {
         // Fallback to raw input with both paths accessible
         // Ensure we handle both input formats
         const inputData =
-          this.workflowInput.input !== undefined
+          this.workflowInput?.input !== undefined
             ? this.workflowInput.input // Use nested input if available
             : this.workflowInput // Fallback to direct input
 
@@ -545,11 +545,32 @@ export class Executor {
         (conn) => conn.target === block.id
       )
 
-      const isInLoop = Object.values(this.workflow.loops || {}).some((loop) =>
+      // Find all loops that this block is a part of
+      const containingLoops = Object.values(this.workflow.loops || {}).filter(loop => 
         loop.nodes.includes(block.id)
       )
+      
+      const isInLoop = containingLoops.length > 0
 
       if (isInLoop) {
+        // Check if this block is part of a self-loop (single-node loop)
+        const isInSelfLoop = containingLoops.some(loop => 
+          loop.nodes.length === 1 && loop.nodes[0] === block.id
+        )
+        
+        // Check if there's a direct self-connection
+        const hasSelfConnection = this.workflow.connections.some(
+          conn => conn.source === block.id && conn.target === block.id
+        )
+
+        if (isInSelfLoop || hasSelfConnection) {
+          // For self-loops, we only need the node to be in the active execution path
+          // It will be reset after each iteration by the loop manager
+          pendingBlocks.add(block.id)
+          continue
+        }
+        
+        // For regular multi-node loops
         const hasValidPath = incomingConnections.some((conn) => {
           return executedBlocks.has(conn.source)
         })
@@ -558,6 +579,7 @@ export class Executor {
           pendingBlocks.add(block.id)
         }
       } else {
+        // Regular non-loop block handling (unchanged)
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
           const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
@@ -765,21 +787,14 @@ export class Executor {
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
 
-      // Log the error even if we'll continue execution through error path
-      context.blockLogs.push(blockLog)
-      addConsole({
-        output: {},
-        error:
-          error.message ||
-          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
-        durationMs: blockLog.durationMs,
-        startedAt: blockLog.startedAt,
-        endedAt: blockLog.endedAt,
-        workflowId: context.workflowId,
-        timestamp: blockLog.startedAt,
-        blockName: block.metadata?.name || 'Unnamed Block',
-        blockType: block.metadata?.id || 'unknown',
-      })
+      // Check for error connections and follow them if they exist
+      const hasErrorPath = this.activateErrorPath(blockId, context)
+
+      // Log the error for visibility
+      logger.error(
+        `Error executing block ${block.metadata?.name || blockId}:`,
+        this.sanitizeError(error)
+      )
 
       // Create error output with appropriate structure
       const errorOutput: NormalizedBlockOutput = {
@@ -796,15 +811,6 @@ export class Executor {
         executed: true,
         executionTime: blockLog.durationMs,
       })
-
-      // Check for error connections and follow them if they exist
-      const hasErrorPath = this.activateErrorPath(blockId, context)
-
-      // Console.error the error for visibility
-      logger.error(
-        `Error executing block ${block.metadata?.name || blockId}:`,
-        this.sanitizeError(error)
-      )
 
       // If there are error paths to follow, return error output instead of throwing
       if (hasErrorPath) {
