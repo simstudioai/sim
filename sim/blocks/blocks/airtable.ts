@@ -19,7 +19,7 @@ type AirtableResponse =
 export const AirtableBlock: BlockConfig<AirtableResponse> = {
   type: 'airtable',
   name: 'Airtable',
-  description: 'Read, create, and update Airtable records',
+  description: 'Read, create, and update Airtable',
   longDescription:
     'Integrate Airtable functionality to manage table records. List, get, create, ' +
     'update single, or update multiple records using OAuth authentication. ' +
