@@ -1,5 +1,6 @@
 import { createPool, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { NextResponse } from 'next/server'
+import { getMySQLConfig } from '@/config/database'
 
 export async function POST(request: Request) {
   try {
@@ -7,17 +8,38 @@ export async function POST(request: Request) {
     console.log('[MySQL API] Received request:', {
       ...body,
       password: body.password ? '[REDACTED]' : undefined,
-      connection: body.connection ? { password: '[REDACTED]' } : undefined
+      connection: body.connection ? { 
+        ...body.connection,
+        password: body.connection.password ? '[REDACTED]' : undefined 
+      } : undefined
     })
 
-    // Extract connection parameters from either root level or connection object
-    const connection = body.connection || {
+    // Get connection parameters from either:
+    // 1. Request body
+    // 2. Environment variables
+    let connection = body.connection || {
       host: body.host,
       port: body.port,
       user: body.user || body.username,
       password: body.password,
       database: body.database,
       ssl: body.ssl === 'true'
+    }
+
+    // If no connection details provided in the request, try to get from environment
+    if (!connection.host || !connection.user || !connection.password || !connection.database) {
+      const envConfig = getMySQLConfig()
+      if (envConfig) {
+        connection = {
+          ...connection,
+          host: connection.host || envConfig.host,
+          port: connection.port || envConfig.port,
+          user: connection.user || envConfig.user,
+          password: connection.password || envConfig.password,
+          database: connection.database || envConfig.database,
+          ssl: connection.ssl !== undefined ? connection.ssl : envConfig.ssl
+        }
+      }
     }
 
     // Check for required connection parameters
@@ -53,7 +75,22 @@ export async function POST(request: Request) {
       ssl: connection.ssl === 'true' ? { rejectUnauthorized: false } : undefined
     }
     
+    console.log('[MySQL API] Attempting to create connection pool with config:', {
+      ...poolConfig,
+      password: '[REDACTED]'
+    })
+    
     const pool = createPool(poolConfig)
+    
+    // Test the connection with a simple query
+    console.log('[MySQL API] Testing connection with SELECT 1')
+    try {
+      await pool.query('SELECT 1')
+      console.log('[MySQL API] Connection test successful')
+    } catch (testError: any) {
+      console.error('[MySQL API] Connection test failed:', testError)
+      throw testError
+    }
 
     // Execute query based on operation
     const { operation, query, params, options } = body
@@ -80,6 +117,14 @@ export async function POST(request: Request) {
     }
   } catch (error: any) {
     console.error('[MySQL API] Error:', error)
+    console.error('[MySQL API] Error details:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    })
     
     // Handle specific MySQL errors
     if (error.code === 'ER_ACCESS_DENIED_ERROR') {
