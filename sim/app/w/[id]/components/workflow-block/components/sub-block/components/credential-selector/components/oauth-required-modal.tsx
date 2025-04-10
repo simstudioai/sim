@@ -54,6 +54,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   offline_access: 'Access your account when you are not using the application',
   repo: 'Access your repositories',
   workflow: 'Manage repository workflows',
+  'read:user': 'Read your public user information',
   'user:email': 'Access your email address',
   'tweet.read': 'Read your tweets and timeline',
   'tweet.write': 'Post tweets on your behalf',
