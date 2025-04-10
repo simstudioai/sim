@@ -89,6 +89,15 @@ export function initializeSyncSystem(): () => void {
   }
 
   const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    // Check if we're on an authentication page and skip confirmation if we are
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      // Skip confirmation for auth-related pages
+      if (path === '/login' || path === '/signup' || path === '/reset-password' || path === '/verify') {
+        return;
+      }
+    }
+
     // Find managers that need exit sync
     const exitSyncManagers = Array.from(syncManagerRegistry.values()).filter(
       (manager) => manager.config.syncOnExit

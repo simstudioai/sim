@@ -118,6 +118,15 @@ function initializeWorkflowState(workflowId: string): void {
  * Handle application cleanup before unload
  */
 function handleBeforeUnload(event: BeforeUnloadEvent): void {
+  // Check if we're on an authentication page and skip confirmation if we are
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname;
+    // Skip confirmation for auth-related pages
+    if (path === '/login' || path === '/signup' || path === '/reset-password' || path === '/verify') {
+      return;
+    }
+  }
+
   // 1. Persist current state
   const currentId = useWorkflowRegistry.getState().activeWorkflowId
   if (currentId) {
