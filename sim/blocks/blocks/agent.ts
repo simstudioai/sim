@@ -7,7 +7,7 @@ import { BlockConfig } from '../types'
 
 // Determine if we're running on the hosted version
 const isHostedVersion = typeof window !== 'undefined' && 
-  process.env.NEXT_PUBLIC_BASE_URL === 'https://www.simstudio.ai'
+  process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
 
 interface AgentResponse extends ToolResponse {
   output: {
