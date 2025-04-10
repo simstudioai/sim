@@ -28,10 +28,7 @@ export const groqProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      const groq = new Groq({
-        apiKey: request.apiKey,
-        dangerouslyAllowBrowser: true,
-      })
+      const groq = new Groq({ apiKey: request.apiKey })
 
       // Start with an empty array for all messages
       const allMessages = []

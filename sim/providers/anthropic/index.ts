@@ -18,10 +18,7 @@ export const anthropicProvider: ProviderConfig = {
       throw new Error('API key is required for Anthropic')
     }
 
-    const anthropic = new Anthropic({
-      apiKey: request.apiKey,
-      dangerouslyAllowBrowser: true,
-    })
+    const anthropic = new Anthropic({ apiKey: request.apiKey })
 
     // Helper function to generate a simple unique ID for tool uses
     const generateToolUseId = (toolName: string) => {

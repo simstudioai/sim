@@ -27,7 +27,6 @@ export const googleProvider: ProviderConfig = {
       const openai = new OpenAI({
         apiKey: request.apiKey,
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-        dangerouslyAllowBrowser: true,
       })
 
       // Start with an empty array for all messages

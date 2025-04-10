@@ -450,3 +450,40 @@ export function formatCost(cost: number): string {
     return '$0'
   }
 }
+
+/**
+ * Get an API key for a specific provider, handling rotation and fallbacks
+ * For use server-side only
+ */
+export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
+  // If user provided a key, use it as a fallback
+  const hasUserKey = !!userProvidedKey
+
+  // Only use server key rotation for OpenAI's gpt-4o model on the hosted platform
+  const isHostedVersion = process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
+  const isGPT4o = model === 'gpt-4o' && provider === 'openai'
+
+  if (isHostedVersion && isGPT4o) {
+    try {
+      // Import the key rotation function
+      const { getRotatingApiKey } = require('@/lib/utils')
+      const serverKey = getRotatingApiKey('openai')
+      return serverKey
+    } catch (error) {
+      // If server key fails and we have a user key, fallback to that
+      if (hasUserKey) {
+        return userProvidedKey!
+      }
+
+      // Otherwise, throw an error
+      throw new Error(`No API key available for ${provider} ${model}`)
+    }
+  }
+
+  // For all other cases, require user-provided key
+  if (!hasUserKey) {
+    throw new Error(`API key is required for ${provider} ${model}`)
+  }
+
+  return userProvidedKey!
+}

@@ -54,7 +54,6 @@ export const ollamaProvider: ProviderConfig = {
       const ollama = new OpenAI({
         apiKey: 'empty',
         baseURL: `${OLLAMA_HOST}/v1`,
-        dangerouslyAllowBrowser: true,
       })
 
       // Start with an empty array for all messages

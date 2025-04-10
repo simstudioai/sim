@@ -1,8 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { isHostedVersion } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { BlockOutput } from '@/blocks/types'
-import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool, getTool } from '@/tools'
@@ -65,17 +63,6 @@ export class AgentBlockHandler implements BlockHandler {
     const model = inputs.model || 'gpt-4o'
     const providerId = getProviderFromModel(model)
     logger.info(`Using provider: ${providerId}, model: ${model}`)
-
-    // Check if we need to validate API key presence
-    const isGPT4o = model === 'gpt-4o'
-    const isHosted = isHostedVersion()
-
-    // For non-hosted version, or for models other than gpt-4o, API key is required
-    if (!isHosted || !isGPT4o) {
-      if (!inputs.apiKey) {
-        throw new Error(`API key is required for ${model}`)
-      }
-    }
 
     // Format tools for provider API
     const formattedTools = Array.isArray(inputs.tools)
@@ -150,6 +137,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     // Debug request before sending to provider
     const providerRequest = {
+      provider: providerId,
       model,
       systemPrompt: inputs.systemPrompt,
       context: Array.isArray(inputs.context)
@@ -172,112 +160,138 @@ export class AgentBlockHandler implements BlockHandler {
       hasApiKey: !!providerRequest.apiKey,
     })
 
-    // Ensure context is properly formatted for the provider
-    const response = await executeProviderRequest(providerId, providerRequest)
+    try {
+      const response = await fetch('/api/providers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(providerRequest),
+      })
 
-    logger.info(`Provider response received`, {
-      contentLength: response.content ? response.content.length : 0,
-      model: response.model,
-      hasTokens: !!response.tokens,
-      hasToolCalls: !!response.toolCalls,
-      toolCallsCount: response.toolCalls?.length || 0,
-    })
-
-    // If structured responses, try to parse the content
-    if (responseFormat) {
-      try {
-        const parsedContent = JSON.parse(response.content)
-
-        const result = {
-          response: {
-            ...parsedContent,
-            tokens: response.tokens || {
-              prompt: 0,
-              completion: 0,
-              total: 0,
-            },
-            toolCalls: response.toolCalls
-              ? {
-                  list: response.toolCalls.map((tc) => ({
-                    ...tc,
-                    // Preserve timing information if available
-                    startTime: tc.startTime,
-                    endTime: tc.endTime,
-                    duration: tc.duration,
-                    input: tc.arguments || tc.input,
-                    output: tc.result || tc.output,
-                  })),
-                  count: response.toolCalls.length,
-                }
-              : undefined,
-            providerTiming: response.timing || undefined,
-            cost: response.cost || undefined,
-          },
+      if (!response.ok) {
+        // Try to extract a helpful error message
+        let errorMessage = `Provider API request failed with status ${response.status}`
+        try {
+          const errorData = await response.json()
+          if (errorData.error) {
+            errorMessage = errorData.error
+          }
+        } catch (e) {
+          // If JSON parsing fails, use the original error message
         }
+        throw new Error(errorMessage)
+      }
 
-        return result
-      } catch (error) {
-        logger.error(`Failed to parse response content:`, { error })
-        logger.info(`Falling back to standard response format`)
+      const result = await response.json()
 
-        // Fall back to standard response if parsing fails
-        return {
-          response: {
-            content: response.content,
-            model: response.model,
-            tokens: response.tokens || {
-              prompt: 0,
-              completion: 0,
-              total: 0,
+      logger.info(`Provider response received`, {
+        contentLength: result.content ? result.content.length : 0,
+        model: result.model,
+        hasTokens: !!result.tokens,
+        hasToolCalls: !!result.toolCalls,
+        toolCallsCount: result.toolCalls?.length || 0,
+      })
+
+      // If structured responses, try to parse the content
+      if (responseFormat) {
+        try {
+          const parsedContent = JSON.parse(result.content)
+
+          const responseResult = {
+            response: {
+              ...parsedContent,
+              tokens: result.tokens || {
+                prompt: 0,
+                completion: 0,
+                total: 0,
+              },
+              toolCalls: result.toolCalls
+                ? {
+                    list: result.toolCalls.map((tc: any) => ({
+                      ...tc,
+                      // Preserve timing information if available
+                      startTime: tc.startTime,
+                      endTime: tc.endTime,
+                      duration: tc.duration,
+                      input: tc.arguments || tc.input,
+                      output: tc.result || tc.output,
+                    })),
+                    count: result.toolCalls.length,
+                  }
+                : undefined,
+              providerTiming: result.timing || undefined,
+              cost: result.cost || undefined,
             },
-            toolCalls: {
-              list: response.toolCalls
-                ? response.toolCalls.map((tc) => ({
-                    ...tc,
-                    // Preserve timing information if available
-                    startTime: tc.startTime,
-                    endTime: tc.endTime,
-                    duration: tc.duration,
-                    input: tc.arguments || tc.input,
-                    output: tc.result || tc.output,
-                  }))
-                : [],
-              count: response.toolCalls?.length || 0,
+          }
+
+          return responseResult
+        } catch (error) {
+          logger.error(`Failed to parse response content:`, { error })
+          logger.info(`Falling back to standard response format`)
+
+          // Fall back to standard response if parsing fails
+          return {
+            response: {
+              content: result.content,
+              model: result.model,
+              tokens: result.tokens || {
+                prompt: 0,
+                completion: 0,
+                total: 0,
+              },
+              toolCalls: {
+                list: result.toolCalls
+                  ? result.toolCalls.map((tc: any) => ({
+                      ...tc,
+                      // Preserve timing information if available
+                      startTime: tc.startTime,
+                      endTime: tc.endTime,
+                      duration: tc.duration,
+                      input: tc.arguments || tc.input,
+                      output: tc.result || tc.output,
+                    }))
+                  : [],
+                count: result.toolCalls?.length || 0,
+              },
+              providerTiming: result.timing || undefined,
+              cost: result.cost || undefined,
             },
-            providerTiming: response.timing || undefined,
-            cost: response.cost || undefined,
-          },
+          }
         }
       }
-    }
 
-    // Return standard response if no responseFormat
-    return {
-      response: {
-        content: response.content,
-        model: response.model,
-        tokens: response.tokens || {
-          prompt: 0,
-          completion: 0,
-          total: 0,
+      // Return standard response if no responseFormat
+      return {
+        response: {
+          content: result.content,
+          model: result.model,
+          tokens: result.tokens || {
+            prompt: 0,
+            completion: 0,
+            total: 0,
+          },
+          toolCalls: {
+            list: result.toolCalls
+              ? result.toolCalls.map((tc: any) => ({
+                  ...tc,
+                  // Preserve timing information if available
+                  startTime: tc.startTime,
+                  endTime: tc.endTime,
+                  duration: tc.duration,
+                  input: tc.arguments || tc.input,
+                  output: tc.result || tc.output,
+                }))
+              : [],
+            count: result.toolCalls?.length || 0,
+          },
+          providerTiming: result.timing || undefined,
+          cost: result.cost || undefined,
         },
-        toolCalls: {
-          list: response.toolCalls
-            ? response.toolCalls.map((tc) => ({
-                ...tc,
-                // Preserve timing information if available
-                startTime: tc.startTime,
-                endTime: tc.endTime,
-                duration: tc.duration,
-                input: tc.arguments || tc.input,
-                output: tc.result || tc.output,
-              }))
-            : [],
-          count: response.toolCalls?.length || 0,
-        },
-        providerTiming: response.timing || undefined,
-        cost: response.cost || undefined,
-      },
+      }
+    } catch (error) {
+      logger.error(`Error executing provider request:`, { error })
+      throw error
     }
   }
 }
