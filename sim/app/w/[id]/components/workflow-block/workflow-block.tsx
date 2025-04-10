@@ -182,16 +182,24 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       // Check if the condition value is an array
       const isValueMatch = Array.isArray(block.condition.value)
         ? fieldValue != null &&
-          block.condition.value.includes(fieldValue as string | number | boolean)
-        : fieldValue === block.condition.value
+          (block.condition.not
+            ? !block.condition.value.includes(fieldValue as string | number | boolean)
+            : block.condition.value.includes(fieldValue as string | number | boolean))
+        : block.condition.not
+          ? fieldValue !== block.condition.value
+          : fieldValue === block.condition.value
 
       // Check both conditions if 'and' is present
       const isAndValueMatch =
         !block.condition.and ||
         (Array.isArray(block.condition.and.value)
           ? andFieldValue != null &&
-            block.condition.and.value.includes(andFieldValue as string | number | boolean)
-          : andFieldValue === block.condition.and.value)
+            (block.condition.and.not
+              ? !block.condition.and.value.includes(andFieldValue as string | number | boolean)
+              : block.condition.and.value.includes(andFieldValue as string | number | boolean))
+          : block.condition.and.not
+            ? andFieldValue !== block.condition.and.value
+            : andFieldValue === block.condition.and.value)
 
       return isValueMatch && isAndValueMatch
     })

@@ -5,6 +5,10 @@ import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
+// Determine if we're running on the hosted version
+const isHostedVersion = typeof window !== 'undefined' && 
+  process.env.NEXT_PUBLIC_BASE_URL === 'https://www.simstudio.ai'
+
 interface AgentResponse extends ToolResponse {
   output: {
     content: string
@@ -91,6 +95,12 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
+      // Hide API key for GPT-4o models when running on hosted version
+      condition: isHostedVersion ? {
+        field: 'model',
+        value: 'gpt-4o',
+        not: true // Show for all models EXCEPT GPT-4o models
+      } : undefined, // Show for all models in non-hosted environments
     },
     {
       id: 'tools',
