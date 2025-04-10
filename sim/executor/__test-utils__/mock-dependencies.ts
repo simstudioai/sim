@@ -49,3 +49,6 @@ vi.mock('@/blocks/blocks/router')
 
 // Mock blocks - needed by agent handler for transformBlockTool
 vi.mock('@/blocks')
+
+// Mock fetch for server requests
+global.fetch = vi.fn()
