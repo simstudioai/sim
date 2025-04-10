@@ -101,9 +101,11 @@ export interface SubBlockConfig {
   condition?: {
     field: string
     value: string | number | boolean | Array<string | number | boolean>
+    not?: boolean
     and?: {
       field: string
       value: string | number | boolean | Array<string | number | boolean>
+      not?: boolean
     }
   }
   // Props specific to 'code' sub-block type
