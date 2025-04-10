@@ -14,7 +14,7 @@ const logger = createLogger('OpenAI Provider')
  */
 async function getApiKey(apiKey: string | undefined, model: string): Promise<string> {
   // Check if we should use a rotating key
-  const isHostedVersion = process.env.NEXT_PUBLIC_BASE_URL === 'https://www.simstudio.ai'
+  const isHostedVersion = process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
   const isGPT4o = model === 'gpt-4o'
   
   // On hosted version, always use rotating key for GPT-4o models

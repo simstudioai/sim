@@ -18,6 +18,9 @@ import {
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
+import { workflowSync } from './workflows/sync'
+import { BlockState } from './workflows/workflow/types'
+import { SubBlockType } from '@/blocks/types'
 
 const logger = createLogger('Stores')
 
@@ -71,6 +74,10 @@ async function initializeApplication(): Promise<void> {
         logger.info('New login session with no workflows - preventing initial sync')
         const syncManagers = getSyncManagers()
         syncManagers.forEach((manager) => manager.stopIntervalSync())
+        
+        // Create the first starter workflow with an agent block for new users
+        logger.info('Creating first workflow with agent block for new user')
+        createFirstWorkflowWithAgentBlock()
       }
     } else {
       logger.info('Using workflows loaded from DB, ignoring localStorage')
@@ -284,9 +291,6 @@ export const logAllStores = () => {
   return state
 }
 
-// Re-export sync managers
-export { workflowSync } from './workflows/sync'
-
 /**
  * Reinitialize the application after login
  * This ensures we load fresh data from the database for the new user
@@ -315,3 +319,138 @@ export async function reinitializeAfterLogin(): Promise<void> {
     logger.error('Error reinitializing application:', { error })
   }
 }
+
+/**
+ * Creates the first workflow with a starter and agent block for new users
+ */
+function createFirstWorkflowWithAgentBlock(): void {
+  // Create a workflow with default settings
+  const workflowId = useWorkflowRegistry.getState().createWorkflow({
+    name: "My First Workflow",
+    description: "Getting started with agents",
+    isInitial: true
+  })
+
+  // Get the current workflow state
+  const workflowState = useWorkflowStore.getState()
+  const starterBlockId = Object.keys(workflowState.blocks)[0]
+
+  if (!starterBlockId) {
+    logger.error('Failed to find starter block in new workflow')
+    return
+  }
+
+  // Create an agent block
+  const agentBlockId = crypto.randomUUID()
+  const agentBlock: BlockState = {
+    id: agentBlockId,
+    type: 'agent',
+    name: 'Agent',
+    position: { x: 577.2367674819552, y: -173.0961530669049 },
+    subBlocks: {
+      systemPrompt: {
+        id: 'systemPrompt',
+        type: 'long-input' as SubBlockType,
+        value: 'You are a helpful assistant.',
+      },
+      context: {
+        id: 'context',
+        type: 'short-input' as SubBlockType,
+        value: '',
+      },
+      model: {
+        id: 'model',
+        type: 'dropdown' as SubBlockType,
+        value: 'gpt-4o',
+      },
+      temperature: {
+        id: 'temperature',
+        type: 'slider' as SubBlockType,
+        value: 0.7,
+      },
+      apiKey: {
+        id: 'apiKey',
+        type: 'short-input' as SubBlockType,
+        value: '',
+      },
+      tools: {
+        id: 'tools',
+        type: 'tool-input' as SubBlockType,
+        value: '[]',
+      },
+      responseFormat: {
+        id: 'responseFormat',
+        type: 'code' as SubBlockType,
+        value: null,
+      },
+    },
+    outputs: {
+      response: {
+        type: {
+          content: 'string',
+          model: 'string',
+          tokens: 'any',
+          toolCalls: 'any',
+        },
+      },
+    },
+    enabled: true,
+    horizontalHandles: true,
+    isWide: false,
+    height: 642,
+  }
+
+  // Create an edge connecting starter to agent
+  const edgeId = crypto.randomUUID()
+  const edge = {
+    id: edgeId,
+    source: starterBlockId,
+    target: agentBlockId,
+  }
+
+  // Update the workflow state with the new block and edge
+  const updatedState = {
+    ...workflowState,
+    blocks: {
+      ...workflowState.blocks,
+      [agentBlockId]: agentBlock,
+    },
+    edges: [...workflowState.edges, edge],
+    history: {
+      ...workflowState.history,
+      present: {
+        ...workflowState.history.present,
+        state: {
+          ...workflowState.history.present.state,
+          blocks: {
+            ...workflowState.history.present.state.blocks,
+            [agentBlockId]: agentBlock,
+          },
+          edges: [...(workflowState.history.present.state.edges || []), edge],
+        },
+      },
+    },
+    lastSaved: Date.now(),
+  }
+
+  // Set the updated state
+  useWorkflowStore.setState(updatedState)
+
+  // Initialize subblock values for agent block
+  useSubBlockStore.getState().initializeFromWorkflow(workflowId, updatedState.blocks)
+
+  // Save the updated workflow state
+  saveWorkflowState(workflowId, updatedState)
+
+  // Resume sync managers after initialization
+  setTimeout(() => {
+    const syncManagers = getSyncManagers()
+    syncManagers.forEach((manager) => manager.startIntervalSync())
+    workflowSync.sync()
+  }, 1000)
+  
+  logger.info('First workflow with agent block created successfully')
+}
+
+// Re-export sync managers
+export { workflowSync } from './workflows/sync'
