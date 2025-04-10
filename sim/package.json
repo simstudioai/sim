@@ -50,6 +50,7 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "@react-email/components": "^0.0.34",
     "@vercel/og": "^0.6.5",
+    "@vercel/speed-insights": "^1.2.0",
     "ai": "^4.3.2",
     "better-auth": "^1.2.5-beta.5",
     "browser-image-compression": "^2.0.2",
