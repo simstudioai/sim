@@ -355,7 +355,11 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                       />
                     </div>
                   ) : (
-                    <JSONView data={value} level={level + 1} />
+                    <JSONView
+                      data={value}
+                      level={level + 1}
+                      initiallyExpanded={initiallyExpanded}
+                    />
                   )}
                   {index < Object.entries(data).length - 1 && ','}
                 </div>
@@ -470,7 +474,11 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                                     />
                                   </div>
                                 ) : (
-                                  <JSONView data={outputValue} level={level + 2} />
+                                  <JSONView
+                                    data={outputValue}
+                                    level={level + 2}
+                                    initiallyExpanded={initiallyExpanded}
+                                  />
                                 )}
                                 {idx < Object.entries(value).length - 1 && ','}
                               </div>
@@ -481,7 +489,11 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                       <span className="text-muted-foreground">{'}'}</span>
                     </div>
                   ) : (
-                    <JSONView data={value} level={level + 1} />
+                    <JSONView
+                      data={value}
+                      level={level + 1}
+                      initiallyExpanded={initiallyExpanded}
+                    />
                   )}
                   {index < Object.entries(data).length - 1 && ','}
                 </div>
@@ -577,7 +589,7 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
           {isArray
             ? items.map((item, index) => (
                 <div key={index} className="break-all">
-                  <JSONView data={item} level={level + 1} />
+                  <JSONView data={item} level={level + 1} initiallyExpanded={initiallyExpanded} />
                   {index < items.length - 1 && ','}
                 </div>
               ))
@@ -594,7 +606,11 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                         <TruncatedValue value={JSON.stringify('[base64 image data]')} />
                       </span>
                     ) : (
-                      <JSONView data={value} level={level + 1} />
+                      <JSONView
+                        data={value}
+                        level={level + 1}
+                        initiallyExpanded={initiallyExpanded}
+                      />
                     )}
                     {index < items.length - 1 && ','}
                   </div>
