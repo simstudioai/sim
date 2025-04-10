@@ -26,7 +26,6 @@ export const xAIProvider: ProviderConfig = {
       const xai = new OpenAI({
         apiKey: request.apiKey,
         baseURL: 'https://api.x.ai/v1',
-        dangerouslyAllowBrowser: true,
       })
 
       const allMessages = []

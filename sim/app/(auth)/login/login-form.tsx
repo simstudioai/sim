@@ -118,6 +118,11 @@ export default function LoginPage({
         setIsLoading(false)
         return
       }
+
+      // Mark that the user has previously logged in
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('has_logged_in_before', 'true')
+      }
     } catch (err: any) {
       // Handle only the special verification case that requires a redirect
       if (err.message?.includes('not verified') || err.message?.includes('EMAIL_NOT_VERIFIED')) {
