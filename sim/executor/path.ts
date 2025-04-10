@@ -69,77 +69,120 @@ export class PathTracker {
    * @param context - Current execution context
    */
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
+    logger.debug(`Updating execution paths for blocks: ${executedBlockIds.join(', ')}`);
+    
     for (const blockId of executedBlockIds) {
-      const block = this.workflow.blocks.find((b) => b.id === blockId)
+      const block = this.workflow.blocks.find((b) => b.id === blockId);
 
       if (block?.metadata?.id === 'router') {
-        const routerOutput = context.blockStates.get(blockId)?.output
-        const selectedPath = routerOutput?.response?.selectedPath?.blockId
+        const routerOutput = context.blockStates.get(blockId)?.output;
+        const selectedPath = routerOutput?.response?.selectedPath?.blockId;
 
         if (selectedPath) {
           // Record the decision but don't deactivate other paths
-          context.decisions.router.set(blockId, selectedPath)
-          context.activeExecutionPath.add(selectedPath)
+          context.decisions.router.set(blockId, selectedPath);
+          context.activeExecutionPath.add(selectedPath);
+          logger.debug(`Router ${blockId} selected path: ${selectedPath}`);
         }
       } else if (block?.metadata?.id === 'condition') {
-        const conditionOutput = context.blockStates.get(blockId)?.output
-        const selectedConditionId = conditionOutput?.response?.selectedConditionId
+        const conditionOutput = context.blockStates.get(blockId)?.output;
+        const selectedConditionId = conditionOutput?.response?.selectedConditionId;
 
         if (selectedConditionId) {
           // Record the decision but don't deactivate other paths
-          context.decisions.condition.set(blockId, selectedConditionId)
+          context.decisions.condition.set(blockId, selectedConditionId);
 
           const targetConnection = this.workflow.connections.find(
             (conn) =>
               conn.source === blockId && conn.sourceHandle === `condition-${selectedConditionId}`
-          )
+          );
 
           if (targetConnection) {
-            context.activeExecutionPath.add(targetConnection.target)
+            context.activeExecutionPath.add(targetConnection.target);
+            logger.debug(`Condition ${blockId} selected condition: ${selectedConditionId}, target: ${targetConnection.target}`);
           }
         }
       } else {
         // For regular blocks, activate all outgoing connections based on success or error status
-        const blockState = context.blockStates.get(blockId)
+        const blockState = context.blockStates.get(blockId);
         const hasError =
           blockState?.output?.error !== undefined ||
-          blockState?.output?.response?.error !== undefined
+          blockState?.output?.response?.error !== undefined;
 
         // Get all outgoing connections
         const outgoingConnections = this.workflow.connections.filter(
           (conn) => conn.source === blockId
-        )
+        );
+        
+        logger.debug(`Block ${blockId} has ${outgoingConnections.length} outgoing connections, hasError: ${hasError}`);
+        
+        // Find out which loops this block belongs to
+        const blockLoops = Object.entries(context.workflow?.loops || {})
+          .filter(([_, loop]) => loop.nodes.includes(blockId))
+          .map(([id, loop]) => ({ id, loop }));
+        
+        // Check if the block is part of any loops
+        const isPartOfLoop = blockLoops.length > 0;
+        
+        // Process each outgoing connection
         for (const conn of outgoingConnections) {
-          // Check if target is part of a loop that includes the source
-          const isInSameLoop = Object.values(context.workflow?.loops || {}).some(
-            loop => loop.nodes.includes(conn.source) && loop.nodes.includes(conn.target)
-          )
+          // Check if this connection is internal to any loop the source block belongs to
+          const isInternalLoopConnection = blockLoops.some(({ loop }) => 
+            // Target is also in the same loop as the source
+            loop.nodes.includes(conn.target)
+          );
           
-          // If this is a connection within a loop, let the LoopManager handle it
-          // This prevents regular path activation from interfering with loop control
-          if (isInSameLoop) {
-            logger.debug(`Skipping loop path activation: ${blockId} -> ${conn.target} (handled by LoopManager)`)
+          // Check if this is a connection to a block outside any loop that contains the source
+          const isExternalLoopConnection = isPartOfLoop && !isInternalLoopConnection;
+          
+          // Let the LoopManager handle all connections within loops
+          if (isInternalLoopConnection) {
+            logger.debug(`Skipping loop path activation: ${blockId} -> ${conn.target} (handled by LoopManager)`);
             continue;
           }
+          
+          // Check if all loops this block belongs to are completed
+          const allLoopsCompleted = blockLoops.every(({ id }) => 
+            context.completedLoops && context.completedLoops.has(id)
+          );
+          
+          // Skip external connections from loop blocks UNLESS all loops are completed
+          if (isExternalLoopConnection && !allLoopsCompleted) {
+            logger.debug(`Skipping external path from loop block: ${blockId} -> ${conn.target} (will be handled by LoopManager when loop completes)`);
+            continue;
+          }
+          
+          // Now we can activate the path if:
+          // 1. It's not a loop connection, or
+          // 2. It's an external connection and all loops are completed
           
           // For error connections, only activate them on error
           if (conn.sourceHandle === 'error') {
             if (hasError) {
-              context.activeExecutionPath.add(conn.target)
+              context.activeExecutionPath.add(conn.target);
+              logger.debug(`Activating error path: ${blockId} -> ${conn.target}`);
             }
           }
           // For regular (source) connections, only activate them if there's no error
           else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
             if (!hasError) {
-              context.activeExecutionPath.add(conn.target)
+              context.activeExecutionPath.add(conn.target);
+              if (isExternalLoopConnection && allLoopsCompleted) {
+                logger.debug(`Activating external path after loop completion: ${blockId} -> ${conn.target}`);
+              } else {
+                logger.debug(`Activating regular path: ${blockId} -> ${conn.target}`);
+              }
             }
           }
           // All other types of connections (e.g., from condition blocks) follow their own rules
           else {
-            context.activeExecutionPath.add(conn.target)
+            context.activeExecutionPath.add(conn.target);
+            logger.debug(`Activating other path: ${blockId} -> ${conn.target} (handle: ${conn.sourceHandle})`);
           }
         }
       }
     }
+    
+    logger.debug(`Updated active execution path: ${Array.from(context.activeExecutionPath).join(', ')}`);
   }
 }

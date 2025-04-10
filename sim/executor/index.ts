@@ -325,6 +325,7 @@ export class Executor {
       },
       loopIterations: new Map(),
       loopItems: new Map(),
+      completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: this.workflow,
@@ -482,7 +483,7 @@ export class Executor {
         // Fallback to raw input with both paths accessible
         // Ensure we handle both input formats
         const inputData =
-          this.workflowInput.input !== undefined
+          this.workflowInput?.input !== undefined
             ? this.workflowInput.input // Use nested input if available
             : this.workflowInput // Fallback to direct input
 

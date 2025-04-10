@@ -62,7 +62,7 @@ export class LoopManager {
             hasLoopReachedMaxIterations = true
           }
           
-          // Activate external paths from loop blocks when the loop is completed
+          // Now that the loop is complete, activate only external paths
           this.activateExternalPaths(loopId, loop, context)
           continue
         }
@@ -86,24 +86,26 @@ export class LoopManager {
           if (currentIteration + 1 >= items.length || currentIteration + 1 >= loop.iterations) {
             hasLoopReachedMaxIterations = true
             
-            // When loop is complete, activate only external paths and DON'T reset blocks
+            // IMPORTANT: If we've completed all iterations, activate the external paths
+            // This is different from the previous approach - we activate external paths
+            // at the end of the last iteration
             this.activateExternalPaths(loopId, loop, context)
-            continue // Skip the block reset logic below to avoid another loop iteration
-          }
+          } else {
+            // We have more iterations to go, reset the blocks
+            // Reset ALL blocks in the loop for the next iteration
+            for (const nodeId of loop.nodes) {
+              // Remove from executed blocks
+              context.executedBlocks.delete(nodeId)
 
-          // Reset ALL blocks in the loop for the next iteration
-          for (const nodeId of loop.nodes) {
-            // Remove from executed blocks
-            context.executedBlocks.delete(nodeId)
+              // Make sure it's in the active execution path
+              context.activeExecutionPath.add(nodeId)
+            }
 
-            // Make sure it's in the active execution path
-            context.activeExecutionPath.add(nodeId)
-          }
-
-          // Make sure the first block in the loop is marked as executable
-          const entryBlock = this.findEntryBlock(loop.nodes, context)
-          if (loop.nodes.length > 0 && entryBlock) {
-            context.activeExecutionPath.add(entryBlock)
+            // Make sure the first block in the loop is marked as executable
+            const entryBlock = this.findEntryBlock(loop.nodes, context)
+            if (loop.nodes.length > 0 && entryBlock) {
+              context.activeExecutionPath.add(entryBlock)
+            }
           }
         } else {
           // Not all blocks in the loop have been executed yet
@@ -136,25 +138,26 @@ export class LoopManager {
           if (currentIteration + 1 >= loop.iterations) {
             hasLoopReachedMaxIterations = true
             
-            // When loop is complete, activate only external paths and DON'T reset blocks
+            // IMPORTANT: If we've completed all iterations, activate the external paths
+            // This is different from the previous approach - we activate external paths
+            // at the end of the last iteration
             this.activateExternalPaths(loopId, loop, context)
-            continue // Skip the block reset logic below to avoid another loop iteration
-          }
+          } else {
+            // Reset ALL blocks in the loop, not just blocks after the entry
+            for (const nodeId of loop.nodes) {
+              // Remove from executed blocks
+              context.executedBlocks.delete(nodeId)
 
-          // Reset ALL blocks in the loop, not just blocks after the entry
-          for (const nodeId of loop.nodes) {
-            // Remove from executed blocks
-            context.executedBlocks.delete(nodeId)
+              // Make sure it's in the active execution path
+              context.activeExecutionPath.add(nodeId)
+            }
 
-            // Make sure it's in the active execution path
-            context.activeExecutionPath.add(nodeId)
-          }
-
-          // Important: Make sure the first block in the loop is marked as executable
-          const entryBlock = this.findEntryBlock(loop.nodes, context)
-          if (loop.nodes.length > 0 && entryBlock) {
-            // Make sure it's in the active path
-            context.activeExecutionPath.add(entryBlock)
+            // Important: Make sure the first block in the loop is marked as executable
+            const entryBlock = this.findEntryBlock(loop.nodes, context)
+            if (loop.nodes.length > 0 && entryBlock) {
+              // Make sure it's in the active path
+              context.activeExecutionPath.add(entryBlock)
+            }
           }
         } else {
           // Not all blocks in the loop have been executed yet
@@ -168,9 +171,9 @@ export class LoopManager {
   }
 
   /**
-   * Activates external paths leading from loop blocks to blocks outside the loop
-   * when a loop completes all iterations.
-   * 
+   * Activates only paths that go from loop nodes to nodes outside the loop.
+   * This is called when a loop completes all iterations.
+   *
    * @param loopId - ID of the loop
    * @param loop - The loop configuration
    * @param context - Current execution context
@@ -182,53 +185,98 @@ export class LoopManager {
   ): void {
     if (!context.workflow) return;
     
-    // Find all connections leading from blocks inside the loop to blocks outside the loop
+    // Mark this loop as completed
+    if (!context.completedLoops) {
+      context.completedLoops = new Set<string>();
+    }
+    context.completedLoops.add(loopId);
+    
+    // First, identify all paths that lead to outside the loop
+    // We need to ensure only these are activated on loop completion
+    const externalTargets = new Set<string>();
+    
+    // Build a map of outgoing connections from each node in the loop
     for (const nodeId of loop.nodes) {
       // Get all outgoing connections from this node
-      const outgoingConnections = context.workflow.connections.filter(
-        conn => conn.source === nodeId
+      const outgoingConnections = context.workflow.connections.filter(conn => 
+        conn.source === nodeId
       );
       
-      // Process each outgoing connection
+      // For each outgoing connection, check if it leads outside the loop
       for (const conn of outgoingConnections) {
-        // Skip connections that lead back to the same loop
-        if (loop.nodes.includes(conn.target)) {
-          continue;
+        // If target is not in the loop, it's an external path
+        if (!loop.nodes.includes(conn.target)) {
+          externalTargets.add(conn.target);
+          console.log(`Found external target ${conn.target} from loop ${loopId}`);
         }
+      }
+    }
+    
+    // Track whether we have activated any external paths
+    let activatedExternalPaths = false;
+    
+    // Now, only activate the identified external targets
+    for (const target of externalTargets) {
+      // Find all connections leading to this target from nodes in the loop
+      const incomingConnections = context.workflow.connections.filter(conn => 
+        loop.nodes.includes(conn.source) && conn.target === target
+      );
+      
+      for (const conn of incomingConnections) {
+        const sourceBlockId = conn.source;
+        const blockState = context.blockStates.get(sourceBlockId);
+        const hasError = 
+          blockState?.output?.error !== undefined || 
+          blockState?.output?.response?.error !== undefined;
         
-        // For error connections, only activate them if there was an error
+        // Apply connection type rules, but only activate for the final iteration
         if (conn.sourceHandle === 'error') {
-          const blockState = context.blockStates.get(nodeId);
-          const hasError = 
-            blockState?.output?.error !== undefined || 
-            blockState?.output?.response?.error !== undefined;
-            
+          // Only activate error paths if there was an error
           if (hasError) {
-            context.activeExecutionPath.add(conn.target);
+            context.activeExecutionPath.add(target);
+            activatedExternalPaths = true;
+            console.log(`Activated external error path: ${sourceBlockId} -> ${target}`);
           }
-        } 
-        // For regular connections, activate them
-        else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
-          context.activeExecutionPath.add(conn.target);
-        }
-        // Handle connections from condition blocks
-        else if (conn.sourceHandle?.startsWith('condition-')) {
+        } else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+          // Only activate regular paths if there was no error
+          if (!hasError) {
+            context.activeExecutionPath.add(target);
+            activatedExternalPaths = true;
+            console.log(`Activated external path: ${sourceBlockId} -> ${target}`);
+          }
+        } else if (conn.sourceHandle?.startsWith('condition-')) {
+          // For condition connections, check if this was the selected condition
           const conditionId = conn.sourceHandle.replace('condition-', '');
-          const selectedCondition = context.decisions.condition.get(nodeId);
+          const selectedCondition = context.decisions.condition.get(sourceBlockId);
           
           if (conditionId === selectedCondition) {
-            context.activeExecutionPath.add(conn.target);
+            context.activeExecutionPath.add(target);
+            activatedExternalPaths = true;
+            console.log(`Activated external condition path: ${sourceBlockId} -> ${target} (condition: ${conditionId})`);
           }
-        }
-        // Handle connections from router blocks
-        else if (nodeId === conn.source) {
-          const selectedTarget = context.decisions.router.get(nodeId);
-          
-          if (selectedTarget === conn.target) {
-            context.activeExecutionPath.add(conn.target);
+        } else if (sourceBlockId === conn.source) {
+          // For router blocks, check if this was the selected target
+          const sourceBlock = context.workflow.blocks.find(b => b.id === sourceBlockId);
+          if (sourceBlock?.metadata?.id === 'router') {
+            const selectedTarget = context.decisions.router.get(sourceBlockId);
+            
+            if (selectedTarget === target) {
+              context.activeExecutionPath.add(target);
+              activatedExternalPaths = true;
+              console.log(`Activated external router path: ${sourceBlockId} -> ${target}`);
+            }
+          } else {
+            // For any other connection type
+            context.activeExecutionPath.add(target);
+            activatedExternalPaths = true;
+            console.log(`Activated external path (other type): ${sourceBlockId} -> ${target}`);
           }
         }
       }
+    }
+    
+    if (!activatedExternalPaths) {
+      console.log(`No external paths were activated for loop ${loopId}`);
     }
   }
 
@@ -360,42 +408,80 @@ export class LoopManager {
     }
 
     // Check which blocks have connections from outside the loop
-    const blocksWithExternalIncoming = new Map<string, number>();
+    const blocksWithExternalConnections = new Map<string, {
+      incomingExternal: number,
+      outgoingExternal: number,
+      incomingInternal: number,
+    }>();
     
     for (const nodeId of nodeIds) {
       // Count connections coming from outside the loop
       const externalIncomingCount = context.workflow!.connections.filter(
-        (conn) => conn.target === nodeId && !nodeIds.includes(conn.source)
+        conn => conn.target === nodeId && !nodeIds.includes(conn.source)
       ).length;
       
-      blocksWithExternalIncoming.set(nodeId, externalIncomingCount);
-    }
-    
-    // Find blocks with external incoming connections
-    const blocksWithExternal = [...nodeIds].filter(id => blocksWithExternalIncoming.get(id)! > 0);
-    
-    // If we have blocks with external connections, prioritize them
-    if (blocksWithExternal.length > 0) {
-      return blocksWithExternal[0];
-    }
-    
-    // Fallback: If no blocks have external connections, use the one with fewest internal incoming connections
-    const blockConnectionCounts = new Map<string, number>();
-    
-    for (const nodeId of nodeIds) {
-      // Count internal connections that aren't self-connections
-      const incomingCount = context.workflow!.connections.filter(
-        (conn) => conn.target === nodeId && conn.source !== nodeId && nodeIds.includes(conn.source)
+      // Count connections going to outside the loop
+      const externalOutgoingCount = context.workflow!.connections.filter(
+        conn => conn.source === nodeId && !nodeIds.includes(conn.target)
       ).length;
       
-      blockConnectionCounts.set(nodeId, incomingCount);
+      // Count internal incoming connections that aren't self-connections
+      const internalIncomingCount = context.workflow!.connections.filter(
+        conn => conn.target === nodeId && conn.source !== nodeId && nodeIds.includes(conn.source)
+      ).length;
+      
+      blocksWithExternalConnections.set(nodeId, {
+        incomingExternal: externalIncomingCount,
+        outgoingExternal: externalOutgoingCount,
+        incomingInternal: internalIncomingCount
+      });
     }
-
-    const sortedBlocks = [...nodeIds].sort(
-      (a, b) => (blockConnectionCounts.get(a) || 0) - (blockConnectionCounts.get(b) || 0)
+    
+    // First priority: blocks with incoming connections from outside the loop
+    const blocksWithExternalIncoming = nodeIds.filter(id => 
+      blocksWithExternalConnections.get(id)?.incomingExternal! > 0
     );
-
-    return sortedBlocks[0];
+    
+    if (blocksWithExternalIncoming.length > 0) {
+      // If multiple blocks have external incoming connections, 
+      // prioritize the one with the most external incoming connections
+      return blocksWithExternalIncoming.sort((a, b) => 
+        blocksWithExternalConnections.get(b)?.incomingExternal! - 
+        blocksWithExternalConnections.get(a)?.incomingExternal!
+      )[0];
+    }
+    
+    // Second priority: look for the likely first node in a self-contained loop
+    // This is often the node that has the fewest internal incoming connections
+    // but might have outgoing connections to outside the loop
+    
+    // Sort blocks by fewest internal incoming connections
+    const sortedByInternalIncoming = [...nodeIds].sort(
+      (a, b) => 
+        (blocksWithExternalConnections.get(a)?.incomingInternal || 0) - 
+        (blocksWithExternalConnections.get(b)?.incomingInternal || 0)
+    );
+    
+    // Among those with the fewest internal incoming connections,
+    // prioritize those with external outgoing connections
+    const candidatesWithFewestIncoming = sortedByInternalIncoming.filter(id => 
+      blocksWithExternalConnections.get(id)?.incomingInternal === 
+      blocksWithExternalConnections.get(sortedByInternalIncoming[0])?.incomingInternal
+    );
+    
+    if (candidatesWithFewestIncoming.length > 1) {
+      // Among these candidates, prioritize those with external outgoing connections
+      const withExternalOutgoing = candidatesWithFewestIncoming.filter(id =>
+        blocksWithExternalConnections.get(id)?.outgoingExternal! > 0
+      );
+      
+      if (withExternalOutgoing.length > 0) {
+        return withExternalOutgoing[0];
+      }
+    }
+    
+    // If no better criteria found, return the first node with fewest internal incoming connections
+    return sortedByInternalIncoming[0];
   }
 
   /**
