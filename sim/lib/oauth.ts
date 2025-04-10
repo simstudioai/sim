@@ -131,16 +131,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'github-repo',
         icon: (props) => GithubIcon(props),
         baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ['repo', 'user'],
-      },
-      'github-workflow': {
-        id: 'github-workflow',
-        name: 'GitHub Actions',
-        description: 'Trigger and manage GitHub Actions workflows.',
-        providerId: 'github-workflow',
-        icon: (props) => GithubIcon(props),
-        baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ['repo', 'workflow'],
+        scopes: ['repo', 'user:email', 'read:user', 'workflow'],
       },
     },
     defaultService: 'github',
@@ -260,9 +251,7 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
       return 'google-calendar'
     }
   } else if (provider === 'github') {
-    if (scopes.some((scope) => scope.includes('workflow'))) {
-      return 'github-workflow'
-    }
+    return 'github'
   } else if (provider === 'supabase') {
     return 'supabase'
   } else if (provider === 'x') {
