@@ -17,8 +17,8 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       title: 'Host',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'postgres',
-      value: () => 'postgres',
+      placeholder: 'localhost or database host',
+      value: () => 'localhost',
     },
     {
       id: 'port',
@@ -33,7 +33,7 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       title: 'Username',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'postgres',
+      placeholder: 'Enter username (default: postgres)',
       value: () => 'postgres',
     },
     {
@@ -43,14 +43,14 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       layout: 'half',
       placeholder: 'Enter password',
       password: true,
-      value: () => 'postgres',
+      value: () => '',
     },
     {
       id: 'database',
       title: 'Database',
       type: 'short-input',
       layout: 'half',
-      placeholder: 'postgres',
+      placeholder: 'Enter database name',
       value: () => 'postgres',
     },
     {
@@ -83,21 +83,21 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       title: 'Query',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter SQL query',
+      placeholder: 'Enter SQL query (e.g., SELECT * FROM users)',
     },
     {
       id: 'params',
       title: 'Parameters',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter query parameters as array',
+      placeholder: 'Enter query parameters as array (e.g., ["value1", "value2"])',
     },
     {
       id: 'options',
       title: 'Options',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter query options',
+      placeholder: 'Enter additional query options as JSON (optional)',
     },
   ],
   tools: {
@@ -106,10 +106,10 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       tool: () => 'postgresql',
       params: (params) => {
         const connection = {
-          host: params.host || 'postgres',
+          host: params.host || 'localhost',
           port: parseInt(params.port || '5432'),
           username: params.username || 'postgres',
-          password: params.password || 'postgres',
+          password: params.password || '',
           database: params.database || 'postgres',
           ssl: params.ssl === 'true'
         }

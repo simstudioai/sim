@@ -1,5 +1,6 @@
 import { Pool, FieldDef } from 'pg'
 import { NextResponse } from 'next/server'
+import { getPostgreSQLConfig } from '@/config/database'
 
 export async function POST(request: Request) {
   try {
@@ -14,7 +15,29 @@ export async function POST(request: Request) {
       }
     })
     
-    const { connection, operation, query, params: queryParams, options } = params
+    let { connection, operation, query, params: queryParams, options } = params
+
+    // If no connection details provided in the request, try to get from environment
+    if (!connection || !connection.host || !connection.username || !connection.password || !connection.database) {
+      const envConfig = getPostgreSQLConfig()
+      if (envConfig) {
+        connection = {
+          ...connection,
+          host: connection?.host || envConfig.host,
+          port: connection?.port || envConfig.port,
+          username: connection?.username || envConfig.user,
+          password: connection?.password || envConfig.password,
+          database: connection?.database || envConfig.database,
+          ssl: connection?.ssl !== undefined ? connection.ssl : envConfig.ssl
+        }
+      }
+    }
+
+    // Check for required connection parameters
+    if (!connection || !connection.host || !connection.username || !connection.password || !connection.database) {
+      console.error('[PostgreSQL API] Missing required connection parameters')
+      throw new Error('Missing required connection parameters')
+    }
 
     // Create connection pool
     const { host, port, username, password, database, ssl } = connection

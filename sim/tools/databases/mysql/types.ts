@@ -3,7 +3,7 @@ import { ToolResponse } from '../../types'
 export interface MySQLConnectionConfig {
   host: string
   port: number
-  username: string
+  user: string
   password: string
   database: string
   ssl: boolean
