@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { useToolParamsStore } from '@/stores/tool-params/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getProviderFromModel } from '@/providers/utils'
@@ -24,20 +23,19 @@ function handleAgentBlockApiKey(
   // Skip if we couldn't determine a provider
   if (!provider || provider === 'ollama') return
 
-  const toolParamsStore = useToolParamsStore.getState()
   const subBlockStore = useSubBlockStore.getState()
 
   // Try to get a saved API key for this provider
-  const savedValue = toolParamsStore.resolveParamValue(provider, 'apiKey', blockId)
+  const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
 
   // If we have a valid API key, use it
   if (savedValue && savedValue !== '') {
-    // Only update if different from current value
-    if (savedValue !== storeValue) {
-      subBlockStore.setValue(blockId, subBlockId, savedValue)
-    }
+    // Always update the value when switching models, even if it appears the same
+    // This handles cases where the field shows masked values but needs to update
+    subBlockStore.setValue(blockId, subBlockId, savedValue)
   } else {
-    // No API key found for this provider - ALWAYS clear the field
+    // Always clear the field when switching to a model with no API key
+    // Don't wait for user interaction to clear it
     subBlockStore.setValue(blockId, subBlockId, '')
   }
 }
@@ -53,16 +51,16 @@ function handleStandardBlockApiKey(
 ) {
   if (!blockType) return
 
-  const toolParamsStore = useToolParamsStore.getState()
+  const subBlockStore = useSubBlockStore.getState()
 
   // Only auto-fill if the field is empty
   if (!storeValue || storeValue === '') {
     // Pass the blockId as instanceId to check if this specific instance has been cleared
-    const savedValue = toolParamsStore.resolveParamValue(blockType, 'apiKey', blockId)
+    const savedValue = subBlockStore.resolveToolParamValue(blockType, 'apiKey', blockId)
 
     if (savedValue && savedValue !== '' && savedValue !== storeValue) {
       // Auto-fill the API key from the param store
-      useSubBlockStore.getState().setValue(blockId, subBlockId, savedValue)
+      subBlockStore.setValue(blockId, subBlockId, savedValue)
     }
   }
   // Handle environment variable references
@@ -73,13 +71,13 @@ function handleStandardBlockApiKey(
     storeValue.endsWith('}}')
   ) {
     // Pass the blockId as instanceId
-    const currentValue = toolParamsStore.resolveParamValue(blockType, 'apiKey', blockId)
+    const currentValue = subBlockStore.resolveToolParamValue(blockType, 'apiKey', blockId)
 
     if (currentValue !== storeValue) {
       // If we got a replacement or null, update the field
       if (currentValue) {
         // Replacement found - update to new reference
-        useSubBlockStore.getState().setValue(blockId, subBlockId, currentValue)
+        subBlockStore.setValue(blockId, subBlockId, currentValue)
       }
     }
   }
@@ -97,32 +95,39 @@ function storeApiKeyValue(
 ) {
   if (!blockType) return
 
-  const toolParamsStore = useToolParamsStore.getState()
+  const subBlockStore = useSubBlockStore.getState()
 
-  // Check if this is an empty value for an API key field that previously had a value
-  // This indicates the user has deliberately cleared the field
+  // Check if this is user explicitly clearing a field that had a value
+  // We only want to mark it as cleared if it's a user action, not an automatic
+  // clearing from model switching
   if (
     storeValue &&
     storeValue !== '' &&
     (newValue === null || newValue === '' || String(newValue).trim() === '')
   ) {
     // Mark this specific instance as cleared so we don't auto-fill it
-    toolParamsStore.markParamAsCleared(blockId, 'apiKey')
+    subBlockStore.markParamAsCleared(blockId, 'apiKey')
     return
   }
 
   // Only store non-empty values
   if (!newValue || String(newValue).trim() === '') return
 
+  // If user enters a value, we should clear any "cleared" flag
+  // to ensure auto-fill will work in the future
+  if (subBlockStore.isParamCleared(blockId, 'apiKey')) {
+    subBlockStore.unmarkParamAsCleared(blockId, 'apiKey')
+  }
+
   // For agent blocks, store the API key under the provider name
   if (blockType === 'agent' && modelValue) {
     const provider = getProviderFromModel(modelValue)
     if (provider && provider !== 'ollama') {
-      toolParamsStore.setParam(provider, 'apiKey', String(newValue))
+      subBlockStore.setToolParam(provider, 'apiKey', String(newValue))
     }
   } else {
     // For other blocks, store under the block type
-    toolParamsStore.setParam(blockType, 'apiKey', String(newValue))
+    subBlockStore.setToolParam(blockType, 'apiKey', String(newValue))
   }
 }
 
@@ -184,9 +189,27 @@ export function useSubBlockValue<T = any>(
       // Update the previous model reference
       prevModelRef.current = modelValue
 
-      // Handle API key autofill for the new model
-      if (isAutoFillEnvVarsEnabled && modelValue) {
-        handleAgentBlockApiKey(blockId, subBlockId, modelValue, storeValue)
+      // For agent blocks, always clear the field if needed
+      // But only fill with saved values if auto-fill is enabled
+      if (modelValue) {
+        const provider = getProviderFromModel(modelValue)
+
+        // Skip if we couldn't determine a provider
+        if (!provider || provider === 'ollama') return
+
+        const subBlockStore = useSubBlockStore.getState()
+
+        // Check if there's a saved value for this provider
+        const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+
+        if (savedValue && savedValue !== '' && isAutoFillEnvVarsEnabled) {
+          // Only auto-fill if the feature is enabled
+          subBlockStore.setValue(blockId, subBlockId, savedValue)
+        } else {
+          // Always clear immediately when switching to a model with no saved key
+          // or when auto-fill is disabled
+          subBlockStore.setValue(blockId, subBlockId, '')
+        }
       }
     }
   }, [blockId, subBlockId, blockType, isApiKey, modelValue, isAutoFillEnvVarsEnabled, storeValue])
