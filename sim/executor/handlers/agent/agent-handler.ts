@@ -160,8 +160,11 @@ export class AgentBlockHandler implements BlockHandler {
       hasApiKey: !!providerRequest.apiKey,
     })
 
+    // Get the app URL from environment variable or use default
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
     try {
-      const response = await fetch('/api/providers', {
+      const response = await fetch(`${appUrl ? appUrl : ''}/api/providers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
