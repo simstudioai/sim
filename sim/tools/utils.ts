@@ -47,12 +47,10 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
   const hasBody = method !== 'GET' && method !== 'HEAD' && !!tool.request.body
   const bodyResult = tool.request.body ? tool.request.body(params) : undefined
 
-  // Special handling for NDJSON content type or 'application/x-www-form-urlencoded'
-  const isPreformattedContent =
-    headers['Content-Type'] === 'application/x-ndjson' ||
-    headers['Content-Type'] === 'application/x-www-form-urlencoded'
+  // Special handling for NDJSON content type
+  const isNDJSON = headers['Content-Type'] === 'application/x-ndjson'
   const body = hasBody
-    ? isPreformattedContent && bodyResult
+    ? isNDJSON && bodyResult
       ? bodyResult.body
       : JSON.stringify(bodyResult)
     : undefined
@@ -153,4 +151,13 @@ export function validateToolRequest(
       throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
     }
   }
+}
+
+export const getDatabaseApiUrl = (path: string) => {
+  // In production, use NEXT_PUBLIC_APP_URL
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return `${process.env.NEXT_PUBLIC_APP_URL}/api/database/${path}`
+  }
+  // In development, use relative path
+  return `/api/database/${path}`
 }
