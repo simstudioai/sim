@@ -1,5 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import * as schema from './schema'
 
 // In production, use the Vercel-generated POSTGRES_URL
 // In development, use the direct DATABASE_URL
@@ -13,4 +14,4 @@ const client = postgres(connectionString, {
 })
 
 // Export the database client (never null)
-export const db = drizzle(client)
+export const db = drizzle(client, { schema })

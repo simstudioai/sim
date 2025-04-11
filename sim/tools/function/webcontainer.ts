@@ -1,27 +1,13 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { CodeExecutionInput, CodeExecutionOutput } from './execute'
 
-export interface CodeExecutionInput {
-  code: Array<{ content: string; id: string }> | string
-  timeout?: number
-  memoryLimit?: number
-}
+const DEFAULT_TIMEOUT = 5000 // 5 seconds
 
-export interface CodeExecutionOutput extends ToolResponse {
-  output: {
-    result: any
-    stdout: string
-    executionTime: number
-  }
-}
-
-const DEFAULT_TIMEOUT = 3000 // 3 seconds
-const DEFAULT_MEMORY_LIMIT = 512 // 512MB
-
-export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
-  id: 'function_execute',
-  name: 'Function Execute',
+export const webcontainerExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
+  id: 'webcontainer_execute',
+  name: 'WebContainer Execute',
   description:
-    'Execute JavaScript code in a secure, sandboxed environment with proper isolation and resource limits.',
+    'Execute JavaScript code in a secure WebContainer environment with Node.js runtime and full npm package support.',
   version: '1.0.0',
 
   params: {
@@ -36,16 +22,10 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Execution timeout in milliseconds',
       default: DEFAULT_TIMEOUT,
     },
-    memoryLimit: {
-      type: 'number',
-      required: false,
-      description: 'Memory limit in MB',
-      default: DEFAULT_MEMORY_LIMIT,
-    },
   },
 
   request: {
-    url: '/api/function/execute',
+    url: '/api/webcontainer',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',
@@ -58,7 +38,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       return {
         code: codeContent,
         timeout: params.timeout || DEFAULT_TIMEOUT,
-        memoryLimit: params.memoryLimit || DEFAULT_MEMORY_LIMIT,
       }
     },
     isInternalRoute: true,
@@ -68,7 +47,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
     const result = await response.json()
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || 'Code execution failed')
+      throw new Error(result.error || 'WebContainer code execution failed')
     }
 
     return {
@@ -82,6 +61,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   },
 
   transformError: (error: any) => {
-    return error.message || 'Code execution failed'
+    return error.message || 'WebContainer code execution failed'
   },
 }

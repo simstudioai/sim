@@ -48,7 +48,7 @@ services:
 
   local-llm-gpu:
     profiles: 
-      - local-gpu # This profile requires both 'local' and 'gpu'
+      - local-gpu
     image: ollama/ollama:latest
     pull_policy: always
     volumes:
@@ -76,7 +76,7 @@ services:
 
   local-llm-cpu:
     profiles:
-      - local-cpu # This profile requires both 'local' and 'cpu'
+      - local-cpu
     image: ollama/ollama:latest
     pull_policy: always
     volumes:

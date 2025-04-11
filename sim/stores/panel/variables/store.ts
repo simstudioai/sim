@@ -340,7 +340,9 @@ export const useVariablesStore = create<VariablesStore>()(
             }
 
             if (!response.ok) {
-              throw new Error(`Failed to load workflow variables: ${response.statusText}`)
+              const errorData = await response.json().catch(() => ({}))
+              const errorMessage = errorData.error || response.statusText || 'Failed to load workflow variables'
+              throw new Error(`${errorMessage} (Status: ${response.status})`)
             }
 
             const { data } = await response.json()
@@ -389,7 +391,11 @@ export const useVariablesStore = create<VariablesStore>()(
               })
             }
           } catch (error) {
-            logger.error('Error loading workflow variables:', { error, workflowId })
+            logger.error('Error loading workflow variables:', { 
+              error: error instanceof Error ? error.message : 'Unknown error',
+              workflowId,
+              stack: error instanceof Error ? error.stack : undefined
+            })
             set({
               error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,

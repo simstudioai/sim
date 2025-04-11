@@ -1,19 +1,13 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import {
-  airtableCreateRecordsTool,
-  airtableGetRecordTool,
-  airtableListRecordsTool,
-  airtableUpdateRecordTool,
-} from '@/tools/airtable'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl/scrape'
-import { functionExecuteTool } from './function'
+import { functionExecuteTool, webcontainerExecuteTool } from './function'
 import {
   githubCommentTool,
   githubLatestCommitTool,
@@ -25,7 +19,7 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
-import { mistralParserTool } from './mistral'
+import mysqlTool from './databases/mysql'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
@@ -37,18 +31,17 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from './pinecone'
+import postgresqlTool from './databases/postgresql'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
-import { supabaseInsertTool, supabaseQueryTool } from './supabase'
+import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase/index'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
-import { thinkingTool } from './thinking/thinking'
-import { sendSMSTool } from './twilio/send'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, transformTable, validateToolRequest } from './utils'
+import { formatRequestParams, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
@@ -58,11 +51,14 @@ const logger = createLogger('Tools')
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  mysql: mysqlTool,
+  postgresql: postgresqlTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
+  webcontainer_execute: webcontainerExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
@@ -75,6 +71,7 @@ export const tools: Record<string, ToolConfig> = {
   tavily_extract: tavilyExtractTool,
   supabase_query: supabaseQueryTool,
   supabase_insert: supabaseInsertTool,
+  supabase_update: supabaseUpdateTool,
   typeform_responses: typeformResponsesTool,
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,
@@ -116,14 +113,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
-  twilio_send_sms: sendSMSTool,
   dalle_generate: dalleTool,
-  airtable_create_records: airtableCreateRecordsTool,
-  airtable_get_record: airtableGetRecordTool,
-  airtable_list_records: airtableListRecordsTool,
-  airtable_update_record: airtableUpdateRecordTool,
-  mistral_parser: mistralParserTool,
-  thinking_tool: thinkingTool,
 }
 
 // Get a tool by its ID
@@ -145,8 +135,8 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined'
 }
 
-// Check if Freestyle is available
-function isFreestyleAvailable(): boolean {
+// Check if WebContainer is available
+function isWebContainerAvailable(): boolean {
   return isBrowser() && !!window.crossOriginIsolated
 }
 
@@ -223,7 +213,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       isInternalRoute: true,
     },
 
-    // Direct execution support for browser environment with Freestyle
+    // Direct execution support for browser environment with WebContainer
     directExecution: async (params: Record<string, any>) => {
       // If there's no code, we can't execute directly
       if (!customTool.code) {
@@ -234,8 +224,8 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
         }
       }
 
-      // If we're in a browser with Freestyle available, use it
-      if (isFreestyleAvailable()) {
+      // If we're in a browser with WebContainer available, use it
+      if (isWebContainerAvailable()) {
         try {
           // Get environment variables from the store
           const envStore = useEnvironmentStore.getState()
@@ -272,13 +262,18 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             resolvedCode = resolvedCode.replace(match, tagValue)
           }
 
-          // Dynamically import Freestyle to execute code
-          const { executeCode } = await import('@/lib/freestyle')
+          // Dynamically import the executeCode function
+          const { executeCode } = await import('@/lib/webcontainer')
 
-          const result = await executeCode(resolvedCode, mergedParams)
+          // Execute the code with resolved variables
+          const result = await executeCode(
+            resolvedCode,
+            mergedParams, // Use the merged params that include env vars
+            5000 // Default timeout
+          )
 
           if (!result.success) {
-            throw new Error(result.error || 'Freestyle execution failed')
+            throw new Error(result.error || 'WebContainer execution failed')
           }
 
           return {
@@ -287,18 +282,18 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             error: undefined,
           }
         } catch (error: any) {
-          logger.warn('Freestyle execution failed, falling back to API:', error.message)
-          // Fall back to API route if Freestyle fails
+          logger.warn('WebContainer execution failed, falling back to API:', error.message)
+          // Fall back to API route if WebContainer fails
           return undefined
         }
       }
 
-      // No Freestyle or not in browser, return undefined to use regular API route
+      // No WebContainer or not in browser, return undefined to use regular API route
       return undefined
     },
 
     // Response handling
-    transformResponse: async (response: Response, params: Record<string, any>) => {
+    transformResponse: async (response: Response) => {
       const data = await response.json()
 
       if (!data.success) {
@@ -338,55 +333,24 @@ export async function executeTool(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    // For any tool with direct execution capability, try it first
-    if (tool.directExecution) {
-      try {
-        const directResult = await tool.directExecution(params)
-        if (directResult) {
-          // Add timing data to the result
-          const endTime = new Date()
-          const endTimeISO = endTime.toISOString()
-          const duration = endTime.getTime() - startTime.getTime()
-
-          // Apply post-processing if available and not skipped
-          if (tool.postProcess && directResult.success && !skipPostProcess) {
-            try {
-              const postProcessResult = await tool.postProcess(directResult, params, executeTool)
-              return {
-                ...postProcessResult,
-                timing: {
-                  startTime: startTimeISO,
-                  endTime: endTimeISO,
-                  duration,
-                },
-              }
-            } catch (error) {
-              logger.error(`Error in post-processing for tool ${toolId}:`, { error })
-              return {
-                ...directResult,
-                timing: {
-                  startTime: startTimeISO,
-                  endTime: endTimeISO,
-                  duration,
-                },
-              }
-            }
-          }
-
-          return {
-            ...directResult,
-            timing: {
-              startTime: startTimeISO,
-              endTime: endTimeISO,
-              duration,
-            },
-          }
+    // For custom tools, try direct execution in browser first if available
+    if (toolId.startsWith('custom_') && tool.directExecution) {
+      const directResult = await tool.directExecution(params)
+      if (directResult) {
+        // Add timing data to the result
+        const endTime = new Date()
+        const endTimeISO = endTime.toISOString()
+        const duration = endTime.getTime() - startTime.getTime()
+        return {
+          ...directResult,
+          timing: {
+            startTime: startTimeISO,
+            endTime: endTimeISO,
+            duration,
+          },
         }
-        // If directExecution returns undefined, fall back to API route
-      } catch (error) {
-        logger.warn(`Direct execution failed for tool ${toolId}, falling back to API:`, error)
-        // Fall back to API route if direct execution fails
       }
+      // If directExecution returns undefined, fall back to API route
     }
 
     // For internal routes or when skipProxy is true, call the API directly
@@ -631,7 +595,7 @@ async function handleInternalRequest(
 
     // Use the tool's response transformer if available
     if (tool.transformResponse) {
-      return await tool.transformResponse(response, params)
+      return await tool.transformResponse(response)
     }
 
     // Default response handling
