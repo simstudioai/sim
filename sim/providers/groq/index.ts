@@ -145,7 +145,11 @@ export const groqProvider: ProviderConfig = {
 
               // Execute the tool
               const toolCallStartTime = Date.now()
-              const mergedArgs = { ...tool.params, ...toolArgs }
+              const mergedArgs = {
+                ...tool.params,
+                ...toolArgs,
+                ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+              }
               const result = await executeTool(toolName, mergedArgs)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
