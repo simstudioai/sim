@@ -8,7 +8,10 @@ import {
   Bug,
   ChevronDown,
   History,
+  LayoutGrid,
+  List,
   Loader2,
+  MessageSquare,
   Play,
   SkipForward,
   StepForward,
@@ -108,6 +111,9 @@ export function ControlBar() {
   const [showRunProgress, setShowRunProgress] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const cancelFlagRef = useRef(false)
+
+  // View toggle state
+  const [activeView, setActiveView] = useState<'workflow' | 'chat'>('workflow')
 
   // Register keyboard shortcut for running workflow
   useKeyboardShortcuts(
@@ -947,12 +953,44 @@ export function ControlBar() {
   )
 
   return (
-    <div className="flex h-16 w-full items-center justify-between bg-background px-6 border-b transition-all duration-300">
+    <div className="relative flex h-16 w-full items-center justify-between bg-background px-6 border-b transition-all duration-300">
       {/* Left Section - Workflow Info */}
       {renderWorkflowName()}
 
-      {/* Middle Section - Reserved for future use */}
-      <div className="flex-1" />
+      {/* Middle Section - View Toggle Switch */}
+      <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+        <div className="flex bg-muted rounded-full p-0.5">
+          <div className="relative flex gap-[1px]">
+            <div
+              className="absolute inset-0 bg-white rounded-full shadow-sm transition-transform duration-200"
+              style={{
+                width: 'calc(50% - 0.5px)',
+                transform:
+                  activeView === 'workflow' ? 'translateX(0)' : 'translateX(calc(100% + 1px))',
+              }}
+            />
+            <Button
+              variant="ghost"
+              onClick={() => setActiveView('workflow')}
+              className="h-8 w-8 rounded-full p-0 z-10 bg-transparent hover:bg-transparent"
+              aria-label="Workflow view"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span className="sr-only">Workflow View</span>
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setActiveView('chat')}
+              className="h-8 w-8 rounded-full p-0 z-10 bg-transparent hover:bg-transparent"
+              aria-label="Chat view"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {/* <p>Chat</p> */}
+              <span className="sr-only">Chat View</span>
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Right Section - Actions */}
       <div className="flex items-center gap-2">
