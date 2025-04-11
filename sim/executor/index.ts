@@ -143,7 +143,7 @@ export class Executor {
 
             // Process loop iterations - this will activate external paths when loops complete
             await this.loopManager.processLoopIterations(context)
-            
+
             // Continue execution for any newly activated paths
             // Only stop execution if there are no more blocks to execute
             const updatedNextLayer = this.getNextExecutionLayer(context)
@@ -546,21 +546,21 @@ export class Executor {
       )
 
       // Find all loops that this block is a part of
-      const containingLoops = Object.values(this.workflow.loops || {}).filter(loop => 
+      const containingLoops = Object.values(this.workflow.loops || {}).filter((loop) =>
         loop.nodes.includes(block.id)
       )
-      
+
       const isInLoop = containingLoops.length > 0
 
       if (isInLoop) {
         // Check if this block is part of a self-loop (single-node loop)
-        const isInSelfLoop = containingLoops.some(loop => 
-          loop.nodes.length === 1 && loop.nodes[0] === block.id
+        const isInSelfLoop = containingLoops.some(
+          (loop) => loop.nodes.length === 1 && loop.nodes[0] === block.id
         )
-        
+
         // Check if there's a direct self-connection
         const hasSelfConnection = this.workflow.connections.some(
-          conn => conn.source === block.id && conn.target === block.id
+          (conn) => conn.source === block.id && conn.target === block.id
         )
 
         if (isInSelfLoop || hasSelfConnection) {
@@ -569,7 +569,7 @@ export class Executor {
           pendingBlocks.add(block.id)
           continue
         }
-        
+
         // For regular multi-node loops
         const hasValidPath = incomingConnections.some((conn) => {
           return executedBlocks.has(conn.source)
@@ -733,10 +733,6 @@ export class Executor {
 
       // Resolve inputs (which will look up references to other blocks including starter)
       const inputs = this.resolver.resolveInputs(block, context)
-      logger.debug(
-        `Resolved inputs for ${block.metadata?.name || blockId}:`,
-        JSON.stringify(inputs, null, 2)
-      )
 
       // Find the appropriate handler
       const handler = this.blockHandlers.find((h) => h.canHandle(block))

@@ -44,6 +44,7 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getKeyboardShortcutText, useKeyboardShortcuts } from '../../hooks/use-keyboard-shortcuts'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -107,6 +108,20 @@ export function ControlBar() {
   const [showRunProgress, setShowRunProgress] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const cancelFlagRef = useRef(false)
+
+  // Register keyboard shortcut for running workflow
+  useKeyboardShortcuts(
+    () => {
+      if (!isExecuting && !isMultiRunning && !isCancelling) {
+        if (isDebugModeEnabled) {
+          handleRunWorkflow()
+        } else {
+          handleMultipleRuns()
+        }
+      }
+    },
+    isExecuting || isMultiRunning || isCancelling
+  )
 
   // Get notifications for current workflow
   const workflowNotifications = activeWorkflowId
@@ -820,44 +835,58 @@ export function ControlBar() {
 
       <div className="flex ml-1">
         {/* Main Run/Debug Button */}
-        <Button
-          className={cn(
-            'gap-2 font-medium',
-            'bg-[#802FFF] hover:bg-[#7028E6]',
-            'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-            'text-white transition-all duration-200',
-            (isExecuting || isMultiRunning) &&
-              !isCancelling &&
-              'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-            'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
-            isDebugModeEnabled || isMultiRunning
-              ? 'rounded py-2 px-4 h-10'
-              : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
-          )}
-          onClick={isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns}
-          disabled={isExecuting || isMultiRunning || isCancelling}
-        >
-          {isCancelling ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-          ) : isDebugModeEnabled ? (
-            <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
-          ) : (
-            <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
-          )}
-          {isCancelling
-            ? 'Cancelling...'
-            : isMultiRunning
-              ? `Running (${completedRuns}/${runCount})`
-              : isExecuting
-                ? isDebugging
-                  ? 'Debugging'
-                  : 'Running'
-                : isDebugModeEnabled
-                  ? 'Debug'
-                  : runCount === 1
-                    ? 'Run'
-                    : `Run (${runCount})`}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className={cn(
+                'gap-2 font-medium',
+                'bg-[#802FFF] hover:bg-[#7028E6]',
+                'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                'text-white transition-all duration-200',
+                (isExecuting || isMultiRunning) &&
+                  !isCancelling &&
+                  'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+                'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
+                isDebugModeEnabled || isMultiRunning
+                  ? 'rounded py-2 px-4 h-10'
+                  : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
+              )}
+              onClick={isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns}
+              disabled={isExecuting || isMultiRunning || isCancelling}
+            >
+              {isCancelling ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+              ) : isDebugModeEnabled ? (
+                <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
+              ) : (
+                <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
+              )}
+              {isCancelling
+                ? 'Cancelling...'
+                : isMultiRunning
+                  ? `Running (${completedRuns}/${runCount})`
+                  : isExecuting
+                    ? isDebugging
+                      ? 'Debugging'
+                      : 'Running'
+                    : isDebugModeEnabled
+                      ? 'Debug'
+                      : runCount === 1
+                        ? 'Run'
+                        : `Run (${runCount})`}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isDebugModeEnabled
+              ? 'Debug Workflow'
+              : runCount === 1
+                ? 'Run Workflow'
+                : `Run Workflow ${runCount} times`}
+            <span className="text-xs text-muted-foreground ml-1">
+              {getKeyboardShortcutText('Enter', true)}
+            </span>
+          </TooltipContent>
+        </Tooltip>
 
         {/* Dropdown Trigger - Only show when not in debug mode and not multi-running */}
         {!isDebugModeEnabled && !isMultiRunning && (
