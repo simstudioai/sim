@@ -20,17 +20,20 @@ export const providers: Record<
   ProviderId,
   ProviderConfig & {
     models: string[]
+    computerUseModels?: string[]
     modelPatterns?: RegExp[]
   }
 > = {
   openai: {
     ...openaiProvider,
     models: ['gpt-4o', 'o1', 'o3-mini'],
+    computerUseModels: ['computer-use-preview'],
     modelPatterns: [/^gpt/, /^o1/],
   },
   anthropic: {
     ...anthropicProvider,
     models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
+    computerUseModels: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
     modelPatterns: [/^claude/],
   },
   google: {
