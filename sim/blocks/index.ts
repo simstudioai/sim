@@ -26,6 +26,7 @@ import { RouterBlock } from './blocks/router'
 import { SerperBlock } from './blocks/serper'
 import { GoogleSheetsBlock } from './blocks/sheets'
 import { SlackBlock } from './blocks/slack'
+import { StagehandBlock } from './blocks/stagehand'
 import { StarterBlock } from './blocks/starter'
 import { SupabaseBlock } from './blocks/supabase'
 import { TavilyBlock } from './blocks/tavily'
@@ -79,6 +80,7 @@ export {
   ImageGeneratorBlock,
   TypeformBlock,
   ThinkingBlock,
+  StagehandBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -109,6 +111,7 @@ const blocks: Record<string, BlockConfig> = {
   reddit: RedditBlock,
   router: RouterBlock,
   serper: SerperBlock,
+  stagehand: StagehandBlock,
   slack: SlackBlock,
   starter: StarterBlock,
   supabase: SupabaseBlock,
