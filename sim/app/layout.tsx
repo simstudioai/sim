@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { createLogger } from '@/lib/logs/console-logger'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
@@ -73,6 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body suppressHydrationWarning>
         <ZoomPrevention />
+        <SpeedInsights />
         {children}
       </body>
     </html>

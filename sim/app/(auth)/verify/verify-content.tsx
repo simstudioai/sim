@@ -165,6 +165,16 @@ export function VerifyContent({ hasResendKey, baseUrl, isProduction }: VerifyCon
       <Suspense fallback={<VerificationFormFallback />}>
         <VerificationForm hasResendKey={hasResendKey} isProduction={isProduction} />
       </Suspense>
+
+      {/* Login link for already verified users */}
+      <CardFooter className="flex justify-center pt-0">
+        <p className="text-sm text-muted-foreground">
+          Already have an account? Go to{' '}
+          <a href="/login" className="text-primary hover:underline font-medium">
+            Login
+          </a>
+        </p>
+      </CardFooter>
     </Card>
   )
 }

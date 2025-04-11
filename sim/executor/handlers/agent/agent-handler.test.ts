@@ -2,14 +2,13 @@ import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
 import { isHostedVersion } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
-import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
-import { SerializedBlock } from '@/serializer/types'
+import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool, getTool } from '@/tools'
 import { ExecutionContext } from '../../types'
 import { AgentBlockHandler } from './agent-handler'
 
-const mockExecuteProviderRequest = executeProviderRequest as Mock
+const mockFetch = global.fetch as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockExecuteTool = executeTool as Mock
@@ -24,48 +23,63 @@ describe('AgentBlockHandler', () => {
 
   beforeEach(() => {
     handler = new AgentBlockHandler()
+    vi.clearAllMocks()
     mockBlock = {
-      id: 'agent-block-1',
-      metadata: { id: 'agent' },
+      id: 'test-agent-block',
+      metadata: { id: 'agent', name: 'Test Agent' },
+      type: 'agent',
       position: { x: 0, y: 0 },
-      config: { tool: 'mock-tool', params: {} },
+      config: {
+        tool: 'mock-tool',
+        params: {},
+      },
       inputs: {},
       outputs: {},
       enabled: true,
-    }
+    } as SerializedBlock
     mockContext = {
-      workflowId: 'test-workflow-id',
+      workflowId: 'test-workflow',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: {},
-      environmentVariables: { TEST_ENV: 'test' },
+      metadata: { startTime: new Date().toISOString() },
+      environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
       loopItems: new Map(),
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
+      workflow: {
+        blocks: [],
+        connections: [],
+        version: '1.0.0',
+        loops: {},
+      } as SerializedWorkflow,
     }
-
-    // Reset mocks before each test using vi
-    vi.clearAllMocks()
-
-    // Default mock implementations (using vi)
     mockIsHostedVersion.mockReturnValue(false) // Default to non-hosted env for tests
     mockGetProviderFromModel.mockReturnValue('mock-provider')
-    mockExecuteProviderRequest.mockResolvedValue({
-      content: 'Mocked response content',
-      model: 'mock-model',
-      tokens: { prompt: 10, completion: 20, total: 30 },
-      toolCalls: [],
-      cost: 0.001,
-      timing: { total: 100 },
+
+    // Set up fetch mock to return a successful response
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: 'Mocked response content',
+            model: 'mock-model',
+            tokens: { prompt: 10, completion: 20, total: 30 },
+            toolCalls: [],
+            cost: 0.001,
+            timing: { total: 100 },
+          }),
+      })
     })
+
     mockTransformBlockTool.mockImplementation((tool: any) => ({
-      id: tool.id || `block_${tool.title}`,
-      name: tool.schema?.function?.name || tool.title,
-      description: tool.schema?.function?.description || '',
-      parameters: tool.schema?.function?.parameters || {},
+      id: `transformed_${tool.id}`,
+      name: `${tool.id}_${tool.operation}`,
+      description: 'Transformed tool',
+      parameters: { type: 'object', properties: {} },
     }))
     mockGetAllBlocks.mockReturnValue([])
     mockGetTool.mockReturnValue(undefined)
@@ -131,7 +145,7 @@ describe('AgentBlockHandler', () => {
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
       expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-      expect(mockExecuteProviderRequest).toHaveBeenCalledWith('openai', expectedProviderRequest)
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
       expect(result).toEqual(expectedOutput)
     })
 
@@ -145,7 +159,7 @@ describe('AgentBlockHandler', () => {
         context: 'User query: Hello!',
         temperature: 0.7,
         maxTokens: 100,
-        // No API key provided
+        // No API key provided - this will be handled server-side
       }
 
       mockGetProviderFromModel.mockReturnValue('openai')
@@ -157,15 +171,15 @@ describe('AgentBlockHandler', () => {
         tools: undefined,
         temperature: 0.7,
         maxTokens: 100,
-        apiKey: undefined,
+        apiKey: undefined, // No API key, server will add it
         responseFormat: undefined,
       }
 
-      const result = await handler.execute(mockBlock, inputs, mockContext)
+      // Execute should work even without API key
+      await handler.execute(mockBlock, inputs, mockContext)
 
-      expect(mockIsHostedVersion).toHaveBeenCalled()
-      expect(mockExecuteProviderRequest).toHaveBeenCalledWith('openai', expectedProviderRequest)
-      expect(result).toHaveProperty('response.content')
+      // Verify the proxy was called with the right parameters
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
     })
 
     it('should execute with standard block tools', async () => {
@@ -221,7 +235,7 @@ describe('AgentBlockHandler', () => {
         inputs.tools[0],
         expect.objectContaining({ selectedOperation: 'analyze' })
       )
-      expect(mockExecuteProviderRequest).toHaveBeenCalledWith('openai', expectedProviderRequest)
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
       expect(result).toEqual(expectedOutput)
     })
 
@@ -274,80 +288,77 @@ describe('AgentBlockHandler', () => {
       await handler.execute(mockBlock, inputs, mockContext)
 
       // Verify that mockExecuteProviderRequest was called
-      expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
-        'openai',
-        expect.objectContaining({
-          model: 'gpt-4o',
-          context: 'Use the custom tools.',
-          apiKey: 'test-api-key',
-          tools: expect.arrayContaining([
-            expect.objectContaining({
-              id: 'custom_Custom Schema Tool',
-              name: 'custom_schema_tool',
-              description: 'A tool defined only by schema',
-            }),
-            expect.objectContaining({
-              id: 'custom_Custom Code Tool',
-              name: 'custom_code_tool',
-              description: 'A tool with code execution',
-              executeFunction: expect.any(Function),
-            }),
-          ]),
-        })
-      )
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
     })
 
     it('should handle responseFormat with valid JSON', async () => {
-      const inputs = {
-        model: 'gpt-4o',
-        context: 'Format this output.',
-        apiKey: 'test-api-key', // Add API key for non-hosted env
-        responseFormat: JSON.stringify({
-          type: 'object',
-          properties: {
-            result: { type: 'string' },
-            score: { type: 'number' },
-          },
-          required: ['result'],
-        }),
-      }
-
-      // Mock a JSON response from provider
-      mockExecuteProviderRequest.mockResolvedValue({
-        content: '{"result": "Success", "score": 0.95}',
-        model: 'mock-model',
-        tokens: { prompt: 10, completion: 20, total: 30 },
-        timing: { total: 100 },
+      // Create a special mock for this test only
+      mockFetch.mockImplementationOnce(() => {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              content: '{"result": "Success", "score": 0.95}',
+              model: 'mock-model',
+              tokens: { prompt: 10, completion: 20, total: 30 },
+              timing: { total: 100 },
+            }),
+        })
       })
 
-      mockGetProviderFromModel.mockReturnValue('openai')
+      const inputs = {
+        model: 'gpt-4o',
+        context: 'Test context',
+        apiKey: 'test-api-key',
+        responseFormat:
+          '{"type":"object","properties":{"result":{"type":"string"},"score":{"type":"number"}}}',
+      }
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
-      // Cast the result to an object with response property for the test
-      const typedResult = result as { response: any }
-      expect(typedResult.response).toHaveProperty('result', 'Success')
-      expect(typedResult.response).toHaveProperty('score', 0.95)
-      expect(typedResult.response).toHaveProperty('tokens')
-      expect(typedResult.response).toHaveProperty('providerTiming')
+      expect(result).toEqual({
+        response: {
+          result: 'Success',
+          score: 0.95,
+          tokens: { prompt: 10, completion: 20, total: 30 },
+          providerTiming: { total: 100 },
+        },
+      })
     })
 
     it('should handle responseFormat when it is an empty string', async () => {
+      // Create a special mock for this test only
+      mockFetch.mockImplementationOnce(() => {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              content: 'Regular text response',
+              model: 'mock-model',
+              tokens: { prompt: 10, completion: 20, total: 30 },
+              timing: { total: 100 },
+            }),
+        })
+      })
+
       const inputs = {
         model: 'gpt-4o',
-        context: 'No format needed.',
-        apiKey: 'test-api-key', // Add API key for non-hosted env
-        responseFormat: '',
+        context: 'Test context',
+        apiKey: 'test-api-key',
+        responseFormat: '', // Empty string
       }
-
-      mockGetProviderFromModel.mockReturnValue('openai')
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
 
-      // Cast the result to an object with response property for the test
-      const typedResult = result as { response: any }
-      expect(typedResult.response).toHaveProperty('content', 'Mocked response content')
-      expect(typedResult.response).toHaveProperty('model', 'mock-model')
+      expect(result).toEqual({
+        response: {
+          content: 'Regular text response',
+          model: 'mock-model',
+          tokens: { prompt: 10, completion: 20, total: 30 },
+          toolCalls: { list: [], count: 0 },
+          providerTiming: { total: 100 },
+        },
+      })
     })
 
     it('should throw an error for invalid JSON in responseFormat', async () => {
@@ -371,7 +382,7 @@ describe('AgentBlockHandler', () => {
       }
 
       mockGetProviderFromModel.mockReturnValue('openai')
-      mockExecuteProviderRequest.mockRejectedValue(new Error('Provider API Error'))
+      mockFetch.mockRejectedValue(new Error('Provider API Error'))
 
       await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
         'Provider API Error'

@@ -386,12 +386,10 @@ function createFirstWorkflowWithAgentBlock(): void {
     },
     outputs: {
       response: {
-        type: {
-          content: 'string',
-          model: 'string',
-          tokens: 'any',
-          toolCalls: 'any',
-        },
+        content: 'string',
+        model: 'string',
+        tokens: 'any',
+        toolCalls: 'any',
       },
     },
     enabled: true,

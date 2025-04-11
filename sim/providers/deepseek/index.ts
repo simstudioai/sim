@@ -27,7 +27,6 @@ export const deepseekProvider: ProviderConfig = {
       const deepseek = new OpenAI({
         apiKey: request.apiKey,
         baseURL: 'https://api.deepseek.com/v1',
-        dangerouslyAllowBrowser: true,
       })
 
       // Start with an empty array for all messages

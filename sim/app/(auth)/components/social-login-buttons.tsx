@@ -30,6 +30,11 @@ export function SocialLoginButtons({
     setIsGithubLoading(true)
     try {
       await client.signIn.social({ provider: 'github', callbackURL })
+
+      // Mark that the user has previously logged in
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('has_logged_in_before', 'true')
+      }
     } catch (err: any) {
       let errorMessage = 'Failed to sign in with GitHub'
 
@@ -55,6 +60,11 @@ export function SocialLoginButtons({
     setIsGoogleLoading(true)
     try {
       await client.signIn.social({ provider: 'google', callbackURL })
+
+      // Mark that the user has previously logged in
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('has_logged_in_before', 'true')
+      }
     } catch (err: any) {
       let errorMessage = 'Failed to sign in with Google'
 

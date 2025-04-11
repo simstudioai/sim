@@ -145,27 +145,82 @@ export const auth = betterAuth({
       config: [
         {
           providerId: 'github-repo',
-          clientId: process.env.GITHUB_CLIENT_ID as string,
-          clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+          clientId: process.env.GITHUB_REPO_CLIENT_ID as string,
+          clientSecret: process.env.GITHUB_REPO_CLIENT_SECRET as string,
           authorizationUrl: 'https://github.com/login/oauth/authorize',
           accessType: 'offline',
           prompt: 'consent',
           tokenUrl: 'https://github.com/login/oauth/access_token',
           userInfoUrl: 'https://api.github.com/user',
-          scopes: ['user:email', 'repo'],
+          scopes: ['user:email', 'repo', 'read:user', 'workflow'],
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-repo`,
-        },
-        {
-          providerId: 'github-workflow',
-          clientId: process.env.GITHUB_CLIENT_ID as string,
-          clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
-          authorizationUrl: 'https://github.com/login/oauth/authorize',
-          accessType: 'offline',
-          tokenUrl: 'https://github.com/login/oauth/access_token',
-          userInfoUrl: 'https://api.github.com/user',
-          scopes: ['workflow', 'repo'],
-          prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-workflow`,
+          getUserInfo: async (tokens) => {
+            try {
+              // Fetch user profile
+              const profileResponse = await fetch('https://api.github.com/user', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'User-Agent': 'sim-studio',
+                },
+              })
+
+              if (!profileResponse.ok) {
+                logger.error('Failed to fetch GitHub profile', {
+                  status: profileResponse.status,
+                  statusText: profileResponse.statusText,
+                })
+                throw new Error(`Failed to fetch GitHub profile: ${profileResponse.statusText}`)
+              }
+
+              const profile = await profileResponse.json()
+
+              // If email is null, fetch emails separately
+              if (!profile.email) {
+                const emailsResponse = await fetch('https://api.github.com/user/emails', {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                    'User-Agent': 'sim-studio',
+                  },
+                })
+
+                if (emailsResponse.ok) {
+                  const emails = await emailsResponse.json()
+
+                  // Find primary email or use the first one
+                  const primaryEmail =
+                    emails.find(
+                      (email: { primary: boolean; email: string; verified: boolean }) =>
+                        email.primary
+                    ) || emails[0]
+                  if (primaryEmail) {
+                    profile.email = primaryEmail.email
+                    // Add information about email verification
+                    profile.emailVerified = primaryEmail.verified || false
+                  }
+                } else {
+                  logger.warn('Failed to fetch GitHub emails', {
+                    status: emailsResponse.status,
+                    statusText: emailsResponse.statusText,
+                  })
+                }
+              }
+
+              const now = new Date()
+
+              return {
+                id: profile.id.toString(),
+                name: profile.name || profile.login,
+                email: profile.email,
+                image: profile.avatar_url,
+                emailVerified: profile.emailVerified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in GitHub getUserInfo', { error })
+              throw error
+            }
+          },
         },
 
         // Google providers for different purposes

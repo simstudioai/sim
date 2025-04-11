@@ -1,6 +1,13 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWindowSize } from './use-window-size'
+
+const logger = createLogger('NavClient')
 
 const XIcon = () => (
   <svg
@@ -41,14 +48,48 @@ const DiscordIcon = () => (
 export default function NavClient({ children }: { children: React.ReactNode }) {
   const { width } = useWindowSize()
   const isMobile = width !== undefined && width < 640
+  const { data: session } = useSession()
+  const isAuthenticated = !!session?.user
+  const [hasPreviouslyLoggedIn, setHasPreviouslyLoggedIn] = useState(false)
+
+  // Check if user has previously logged in
+  useEffect(() => {
+    // Check localStorage for previous login flag
+    if (typeof window !== 'undefined') {
+      const hasLoggedInBefore = localStorage.getItem('has_logged_in_before') === 'true'
+      setHasPreviouslyLoggedIn(hasLoggedInBefore)
+    }
+
+    // If user is currently authenticated, set the flag for future visits
+    if (isAuthenticated && typeof window !== 'undefined') {
+      localStorage.setItem('has_logged_in_before', 'true')
+    }
+  }, [isAuthenticated])
 
   return (
     <nav className="fixed top-1 left-0 right-0 z-10 backdrop-blur-sm px-4 py-4">
       <div className="max-w-6xl mx-auto flex justify-between items-center">
         <div className="text-xl text-white">sim studio</div>
 
-        {/* Social media icons */}
+        {/* Navigation and social media icons */}
         <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
+          {isAuthenticated ? (
+            <Link
+              href="/w"
+              className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
+            >
+              workflows
+            </Link>
+          ) : (
+            hasPreviouslyLoggedIn && (
+              <Link
+                href="/login"
+                className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
+              >
+                login
+              </Link>
+            )
+          )}
           <a
             href={`${process.env.NEXT_PUBLIC_DOCS_URL}/docs`}
             className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"

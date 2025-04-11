@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
-import { AlertCircle, AlertTriangle, Calendar, CheckCircle2, Clock, Terminal } from 'lucide-react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  Calendar,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Terminal,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { getBlock } from '@/blocks'
 import { JSONView } from '../json-view/json-view'
@@ -47,6 +57,7 @@ const WordWrap = ({ text }: { text: string }) => {
 
 export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [expandAllJson, setExpandAllJson] = useState(false)
 
   const blockConfig = useMemo(() => {
     if (!entry.blockType) return null
@@ -62,6 +73,22 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
   ) : (
     <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
   )
+
+  // Helper function to check if data has nested objects or arrays
+  const hasNestedStructure = (data: any): boolean => {
+    if (data === null || typeof data !== 'object') return false
+
+    // Check if it's an empty object or array
+    if (Object.keys(data).length === 0) return false
+
+    // For arrays, check if any element is an object
+    if (Array.isArray(data)) {
+      return data.some((item) => typeof item === 'object' && item !== null)
+    }
+
+    // For objects, check if any value is an object
+    return Object.values(data).some((value) => typeof value === 'object' && value !== null)
+  }
 
   return (
     <div
@@ -106,8 +133,37 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           {!entry.error && !entry.warning && (
             <div className="flex items-start gap-2">
               <Terminal className="h-4 w-4 text-muted-foreground mt-1" />
-              <div className="text-sm font-mono flex-1 break-normal whitespace-normal overflow-wrap-anywhere">
-                <JSONView data={entry.output} initiallyExpanded={isExpanded} />
+              <div className="text-sm font-mono flex-1 break-normal whitespace-normal overflow-wrap-anywhere relative">
+                {typeof entry.output === 'object' &&
+                  entry.output !== null &&
+                  hasNestedStructure(entry.output) && (
+                    <div className="absolute right-0 top-0 z-10">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setExpandAllJson(!expandAllJson)
+                        }}
+                      >
+                        <span className="flex items-center">
+                          {expandAllJson ? (
+                            <>
+                              <ChevronUp className="h-3 w-3 mr-1" />
+                              <span className="text-xs">Collapse all</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3 mr-1" />
+                              <span className="text-xs">Expand all</span>
+                            </>
+                          )}
+                        </span>
+                      </Button>
+                    </div>
+                  )}
+                <JSONView data={entry.output} initiallyExpanded={expandAllJson} />
               </div>
             </div>
           )}
