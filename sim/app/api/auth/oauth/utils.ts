@@ -149,16 +149,16 @@ export async function getOAuthToken(userId: string, providerId: string): Promise
  * Refreshes an OAuth token if needed based on credential information
  * @param credentialId The ID of the credential to check and potentially refresh
  * @param userId The user ID who owns the credential (for security verification)
- * @param requestId Optional request ID for log correlation
+ * @param requestId Request ID for log correlation
  * @returns The valid access token or null if refresh fails
  */
 export async function refreshAccessTokenIfNeeded(
   credentialId: string,
   userId: string,
-  requestId?: string
+  requestId: string
 ): Promise<string | null> {
   // Get the credential directly using the getCredential helper
-  const credential = await getCredential(requestId || '', credentialId, userId)
+  const credential = await getCredential(requestId, credentialId, userId)
 
   if (!credential) {
     return null
@@ -172,20 +172,17 @@ export async function refreshAccessTokenIfNeeded(
   let accessToken = credential.accessToken
 
   if (needsRefresh && credential.refreshToken) {
-    logger.info(`[${requestId || ''}] Token expired, attempting to refresh for credential`)
+    logger.info(`[${requestId}] Token expired, attempting to refresh for credential`)
     try {
       const refreshedToken = await refreshOAuthToken(credential.providerId, credential.refreshToken)
 
       if (!refreshedToken) {
-        logger.error(
-          `[${requestId || ''}] Failed to refresh token for credential: ${credentialId}`,
-          {
-            credentialId,
-            providerId: credential.providerId,
-            userId: credential.userId,
-            hasRefreshToken: !!credential.refreshToken,
-          }
-        )
+        logger.error(`[${requestId}] Failed to refresh token for credential: ${credentialId}`, {
+          credentialId,
+          providerId: credential.providerId,
+          userId: credential.userId,
+          hasRefreshToken: !!credential.refreshToken,
+        })
         return null
       }
 
@@ -198,17 +195,17 @@ export async function refreshAccessTokenIfNeeded(
 
       // If we received a new refresh token, update it
       if (refreshedToken.refreshToken && refreshedToken.refreshToken !== credential.refreshToken) {
-        logger.info(`[${requestId || ''}] Updating refresh token for credential`)
+        logger.info(`[${requestId}] Updating refresh token for credential`)
         updateData.refreshToken = refreshedToken.refreshToken
       }
 
       // Update the token in the database
       await db.update(account).set(updateData).where(eq(account.id, credentialId))
 
-      logger.info(`[${requestId || ''}] Successfully refreshed access token for credential`)
+      logger.info(`[${requestId}] Successfully refreshed access token for credential`)
       return refreshedToken.accessToken
     } catch (error) {
-      logger.error(`[${requestId || ''}] Error refreshing token for credential`, {
+      logger.error(`[${requestId}] Error refreshing token for credential`, {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         providerId: credential.providerId,
@@ -218,11 +215,11 @@ export async function refreshAccessTokenIfNeeded(
       return null
     }
   } else if (!accessToken) {
-    logger.error(`[${requestId || ''}] Missing access token for credential`)
+    logger.error(`[${requestId}] Missing access token for credential`)
     return null
   }
 
-  logger.info(`[${requestId || ''}] Access token is valid for credential`)
+  logger.info(`[${requestId}] Access token is valid for credential`)
   return accessToken
 }
 

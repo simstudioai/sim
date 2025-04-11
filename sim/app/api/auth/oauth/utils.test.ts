@@ -224,7 +224,7 @@ describe('OAuth Utils', () => {
 
       const { refreshAccessTokenIfNeeded } = await import('./utils')
 
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id')
+      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
       expect(token).toBe('valid-token')
@@ -249,7 +249,7 @@ describe('OAuth Utils', () => {
 
       const { refreshAccessTokenIfNeeded } = await import('./utils')
 
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id')
+      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
       expect(mockDb.update).toHaveBeenCalled()
@@ -262,7 +262,7 @@ describe('OAuth Utils', () => {
 
       const { refreshAccessTokenIfNeeded } = await import('./utils')
 
-      const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id')
+      const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
 
       expect(token).toBeNull()
       expect(mockLogger.warn).toHaveBeenCalled()
@@ -283,7 +283,7 @@ describe('OAuth Utils', () => {
 
       const { refreshAccessTokenIfNeeded } = await import('./utils')
 
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id')
+      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
 
       expect(token).toBeNull()
       expect(mockLogger.error).toHaveBeenCalled()
