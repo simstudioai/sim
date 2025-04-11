@@ -34,10 +34,10 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
     },
     {
       id: 'apiKey',
-      title: 'Anthropic API Key',
+      title: 'OpenAI API Key',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your Anthropic API key',
+      placeholder: 'Enter your OpenAI API key',
       password: true,
     },
     {
