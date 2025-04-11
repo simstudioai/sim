@@ -10,7 +10,7 @@ interface StagehandExtractResponse extends ToolResponse {
 
 export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
   type: 'stagehand',
-  name: 'Stagehand',
+  name: 'Stagehand Extract',
   description: 'Extract data from websites',
   longDescription:
     'Use Stagehand to extract structured data from webpages using Browserbase and OpenAI.',
@@ -34,10 +34,10 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
     },
     {
       id: 'apiKey',
-      title: 'OpenAI API Key',
+      title: 'Anthropic API Key',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your OpenAI API key',
+      placeholder: 'Enter your Anthropic API key',
       password: true,
     },
     {
