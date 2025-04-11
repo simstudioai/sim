@@ -1,6 +1,12 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import {
+  airtableCreateRecordsTool,
+  airtableGetRecordTool,
+  airtableListRecordsTool,
+  airtableUpdateRecordTool,
+} from './airtable'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
@@ -39,7 +45,6 @@ import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
 import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase/index'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
-import { supabaseInsertTool, supabaseQueryTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
@@ -120,8 +125,6 @@ export const tools: Record<string, ToolConfig> = {
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
-  mistral_parser: mistralParserTool,
-  thinking_tool: thinkingTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
 }

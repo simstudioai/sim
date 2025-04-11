@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import * as binExt from 'binary-extensions'
+import binaryExtensionsList from 'binary-extensions'
 import { Buffer } from 'buffer'
 import { createHash } from 'crypto'
 import fsPromises, { readFile, unlink, writeFile } from 'fs/promises'
@@ -481,7 +481,7 @@ function handleGenericBuffer(
   extension: string,
   fileType?: string
 ): ParseResult {
-  const isBinary = binExt.includes(extension)
+  const isBinary = binaryExtensionsList.includes(extension)
   const content = isBinary
     ? `[Binary ${extension.toUpperCase()} file - ${fileBuffer.length} bytes]`
     : fileBuffer.toString('utf-8')
@@ -687,7 +687,7 @@ async function handleGenericFile(
     const fileSize = fileBuffer.length
 
     // Determine if file should be treated as binary
-    const isBinary = binExt.includes(extension)
+    const isBinary = binaryExtensionsList.includes(extension)
 
     // Parse content based on binary status
     let content: string
