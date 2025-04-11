@@ -52,10 +52,10 @@ export const StagehandAgentBlock: BlockConfig<StagehandAgentResponse> = {
     },
     {
       id: 'apiKey',
-      title: 'OpenAI API Key',
+      title: 'Anthropic API Key',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your OpenAI API key',
+      placeholder: 'Enter your Anthropic API key',
       password: true,
     },
     {
