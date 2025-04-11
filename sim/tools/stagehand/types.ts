@@ -57,28 +57,26 @@ export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
       }
 
       const shape: Record<string, z.ZodTypeAny> = {}
+      const requiredFields = new Set(jsonSchema.required || [])
 
       for (const [key, propSchema] of Object.entries(jsonSchema.properties)) {
-        shape[key] = jsonSchemaToZod(propSchema as Record<string, any>)
+        // Create the base schema for this property
+        let fieldSchema = jsonSchemaToZod(propSchema as Record<string, any>)
+
+        // Make it optional if not in required fields
+        if (!requiredFields.has(key)) {
+          fieldSchema = fieldSchema.optional()
+        }
 
         // Add description if available
         if ((propSchema as Record<string, any>).description) {
-          shape[key] = shape[key].describe((propSchema as Record<string, any>).description)
+          fieldSchema = fieldSchema.describe((propSchema as Record<string, any>).description)
         }
+
+        shape[key] = fieldSchema
       }
 
-      let schema = z.object(shape)
-
-      // Handle required fields
-      if (jsonSchema.required && Array.isArray(jsonSchema.required)) {
-        const required: Record<string, true> = {}
-        for (const key of jsonSchema.required) {
-          required[key] = true
-        }
-        schema = schema.required(required)
-      }
-
-      return schema
+      return z.object(shape)
 
     case 'array':
       if (!jsonSchema.items) {

@@ -12,18 +12,9 @@ export class Serializer {
     edges: Edge[],
     loops: Record<string, Loop>
   ): SerializedWorkflow {
-    // Filter out any blocks with undefined types before serializing
-    const validBlocks = Object.values(blocks).filter((block) => {
-      if (!block.type) {
-        logger.warn('Found block with undefined type, filtering it out', { blockId: block.id })
-        return false
-      }
-      return true
-    })
-
     return {
       version: '1.0',
-      blocks: validBlocks.map((block) => this.serializeBlock(block)),
+      blocks: Object.values(blocks).map((block) => this.serializeBlock(block)),
       connections: edges.map((edge) => ({
         source: edge.source,
         target: edge.target,

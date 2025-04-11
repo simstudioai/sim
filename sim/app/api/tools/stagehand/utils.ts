@@ -8,6 +8,12 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     throw new Error('Invalid schema: Schema is required')
   }
 
+  // Handle non-object schemas (strings, numbers, etc.)
+  if (typeof jsonSchema !== 'object' || jsonSchema === null) {
+    logger.warn('Schema is not an object, defaulting to any', { type: typeof jsonSchema })
+    return z.any()
+  }
+
   // Handle different schema types
   if (jsonSchema.type === 'object' && jsonSchema.properties) {
     const shape: Record<string, z.ZodTypeAny> = {}
