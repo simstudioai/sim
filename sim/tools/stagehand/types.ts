@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { ToolResponse } from '../types'
 
-// Basic parameter interface for the Stagehand extract tool
 export interface StagehandExtractParams {
   instruction: string
   schema: Record<string, any>
@@ -9,12 +8,42 @@ export interface StagehandExtractParams {
   url: string
 }
 
-// Response interface for the Stagehand extract tool
 export interface StagehandExtractResponse extends ToolResponse {
   output: Record<string, any>
 }
 
-// Helper function to convert JSON schema to Zod schema
+export interface StagehandAgentParams {
+  task: string
+  startUrl: string
+  outputSchema?: Record<string, any>
+  variables?: Record<string, string>
+  apiKey: string
+  options?: {
+    useTextExtract?: boolean
+    selector?: string
+  }
+}
+
+export interface StagehandAgentAction {
+  type: string
+  params: Record<string, any>
+  result: Record<string, any>
+}
+
+export interface StagehandAgentResult {
+  success: boolean
+  completed: boolean
+  message: string
+  actions: StagehandAgentAction[]
+}
+
+export interface StagehandAgentResponse extends ToolResponse {
+  output: {
+    agentResult: StagehandAgentResult
+    structuredOutput?: Record<string, any>
+  }
+}
+
 export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
   if (!jsonSchema) {
     throw new Error('Invalid schema: Schema is required')

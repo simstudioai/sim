@@ -42,7 +42,7 @@ import { opportunitiesTool as salesforceOpportunities } from './salesforce/oppor
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
-import { stagehandExtractTool } from './stagehand'
+import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
 import { supabaseInsertTool, supabaseQueryTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
 import { thinkingTool } from './thinking/thinking'
@@ -126,6 +126,7 @@ export const tools: Record<string, ToolConfig> = {
   mistral_parser: mistralParserTool,
   thinking_tool: thinkingTool,
   stagehand_extract: stagehandExtractTool,
+  stagehand_agent: stagehandAgentTool,
 }
 
 // Get a tool by its ID
