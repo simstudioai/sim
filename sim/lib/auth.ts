@@ -367,6 +367,7 @@ export const auth = betterAuth({
           pkce: true,
           responseType: 'code',
           prompt: 'consent',
+          authentication: 'basic',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
           getUserInfo: async (tokens) => {
             try {

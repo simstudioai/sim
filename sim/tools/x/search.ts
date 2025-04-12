@@ -63,7 +63,11 @@ export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
         'user.fields': 'name,username,description,profile_image_url,verified,public_metrics',
       })
 
-      if (params.maxResults) queryParams.append('max_results', params.maxResults.toString())
+      if (params.maxResults && params.maxResults < 10) {
+        queryParams.append('max_results', '10')
+      } else if (params.maxResults) {
+        queryParams.append('max_results', params.maxResults.toString())
+      }
       if (params.startTime) queryParams.append('start_time', params.startTime)
       if (params.endTime) queryParams.append('end_time', params.endTime)
       if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
@@ -127,12 +131,15 @@ export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   },
 
   transformError: (error) => {
+    // Log the full error object for debugging
+    console.error('X Search API Error:', JSON.stringify(error, null, 2))
+
     if (error.title === 'Unauthorized') {
       return 'Invalid or expired access token. Please reconnect your X account.'
     }
     if (error.title === 'Invalid Request') {
       return 'Invalid search query. Please check your search parameters.'
     }
-    return error.detail || 'An error occurred while searching X'
+    return error.detail || `An error occurred while searching X`
   },
 }

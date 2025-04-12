@@ -332,9 +332,11 @@ export async function executeTool(
 
   try {
     const tool = getTool(toolId)
+    // Ensure context is preserved if it exists
+    const contextParams = { ...params }
 
     // Validate the tool and its parameters
-    validateToolRequest(toolId, tool, params)
+    validateToolRequest(toolId, tool, contextParams)
 
     // After validation, we know tool exists
     if (!tool) {
@@ -344,7 +346,7 @@ export async function executeTool(
     // For any tool with direct execution capability, try it first
     if (tool.directExecution) {
       try {
-        const directResult = await tool.directExecution(params)
+        const directResult = await tool.directExecution(contextParams)
         if (directResult) {
           // Add timing data to the result
           const endTime = new Date()
@@ -354,7 +356,11 @@ export async function executeTool(
           // Apply post-processing if available and not skipped
           if (tool.postProcess && directResult.success && !skipPostProcess) {
             try {
-              const postProcessResult = await tool.postProcess(directResult, params, executeTool)
+              const postProcessResult = await tool.postProcess(
+                directResult,
+                contextParams,
+                executeTool
+              )
               return {
                 ...postProcessResult,
                 timing: {
@@ -394,12 +400,12 @@ export async function executeTool(
 
     // For internal routes or when skipProxy is true, call the API directly
     if (tool.request.isInternalRoute || skipProxy) {
-      const result = await handleInternalRequest(toolId, tool, params)
+      const result = await handleInternalRequest(toolId, tool, contextParams)
 
       // Apply post-processing if available and not skipped
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          const postProcessResult = await tool.postProcess(result, params, executeTool)
+          const postProcessResult = await tool.postProcess(result, contextParams, executeTool)
 
           // Add timing data to the post-processed result
           const endTime = new Date()
@@ -446,12 +452,12 @@ export async function executeTool(
     }
 
     // For external APIs, use the proxy
-    const result = await handleProxyRequest(toolId, params)
+    const result = await handleProxyRequest(toolId, contextParams)
 
     // Apply post-processing if available and not skipped
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        const postProcessResult = await tool.postProcess(result, params, executeTool)
+        const postProcessResult = await tool.postProcess(result, contextParams, executeTool)
 
         // Add timing data to the post-processed result
         const endTime = new Date()
