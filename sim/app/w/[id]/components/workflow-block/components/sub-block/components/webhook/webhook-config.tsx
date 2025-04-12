@@ -374,27 +374,51 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const isWebhookConnected = webhookId && webhookProvider === actualProvider
 
   return (
-    <div className="mt-2">
+    <div className="w-full">
       {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full"
-        onClick={handleOpenModal}
-        disabled={isConnecting || isSaving || isDeleting}
-      >
-        {isWebhookConnected ? (
-          <>
-            {getProviderIcon()}
-            {isSaving ? 'Saving...' : isDeleting ? 'Deleting...' : 'Webhook Connected'}
-          </>
-        ) : (
-          <>
-            <ExternalLink className="h-4 w-4 mr-2" />
-            {isSaving ? 'Saving...' : isDeleting ? 'Deleting...' : 'Configure Webhook'}
-          </>
-        )}
-      </Button>
+
+      {isWebhookConnected ? (
+        <div className="flex flex-col space-y-2">
+          <div className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background">
+            <div className="flex items-center gap-2 flex-1">
+              <div className="flex-1 truncate">
+                <div className="font-normal text-sm truncate">
+                  {getProviderIcon()}
+                  {WEBHOOK_PROVIDERS[webhookProvider || 'generic'].name} Webhook
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Path: {webhookPath || 'Not configured'}
+                </div>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={handleOpenModal}
+              disabled={isDeleting || isConnecting}
+            >
+              {isDeleting ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+              ) : (
+                <ExternalLink className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-10 text-sm font-normal bg-background flex items-center"
+          onClick={handleOpenModal}
+          disabled={isConnecting || isSaving || isDeleting}
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Configure Webhook
+        </Button>
+      )}
 
       {isModalOpen && (
         <WebhookModal

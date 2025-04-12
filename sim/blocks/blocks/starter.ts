@@ -48,8 +48,8 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
       options: [
         { label: 'Generic', id: 'generic' },
         { label: 'WhatsApp', id: 'whatsapp' },
-        { label: 'GitHub', id: 'github' },
-        { label: 'Discord', id: 'discord' },
+        // { label: 'GitHub', id: 'github' },
+        // { label: 'Discord', id: 'discord' },
         { label: 'Slack', id: 'slack' },
         { label: 'Airtable', id: 'airtable' },
         // { label: 'Stripe', id: 'stripe' },
