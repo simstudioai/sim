@@ -33,6 +33,12 @@ describe('Schedule Utilities', () => {
       expect(parseTimeString('9:')).toEqual([9, 0])
       expect(parseTimeString(':30')).toEqual([0, 30]) // Only has minutes
     })
+
+    it('should handle out-of-range time values', () => {
+      expect(parseTimeString('25:30')).toEqual([25, 30]) // Hours > 24
+      expect(parseTimeString('10:75')).toEqual([10, 75]) // Minutes > 59
+      expect(parseTimeString('99:99')).toEqual([99, 99]) // Both out of range
+    })
   })
 
   describe('getSubBlockValue', () => {
@@ -151,40 +157,39 @@ describe('Schedule Utilities', () => {
       // For this simplified test, let's skip the complex mocking
       // and just verify the 'custom' case is in the switch statement
       
-      // Since we can't properly test the custom case without complex mocking,
-      // we'll just verify the function behaves as expected for other types
-      
-      // Create a block with some configuration
-      const mockBlock = {
+      // Create a mock block with custom cron expression
+      const mockBlock: BlockState = {
         type: 'starter',
         subBlocks: {
           cronExpression: { value: '*/5 * * * *' }
         }
-      } as BlockState
+      }
       
-      // Instead of testing the 'custom' case directly (which requires mocking),
-      // we're just verifying that our utility function can generate expressions for the other types
-      const scheduleTypes = ['minutes', 'hourly', 'daily', 'weekly', 'monthly']
-      const allTypesWork = scheduleTypes.every(type => {
-        try {
-          // This validation is already done in other tests
-          return typeof generateCronExpression(type, { 
-            scheduleTime: '',
-            minutesInterval: 15,
-            hourlyMinute: 30,
-            dailyTime: [9, 0] as [number, number],
-            weeklyDay: 1,
-            weeklyTime: [10, 0] as [number, number],
-            monthlyDay: 15,
-            monthlyTime: [14, 30] as [number, number],
-          }) === 'string'
-        } catch (e) {
-          return false
-        }
-      })
+      // Create schedule values with the block as any since we're testing a special case
+      const scheduleValues = {
+        ...getScheduleTimeValues(mockBlock),
+        // Override as BlockState to access the cronExpression
+        // This simulates what happens in the actual code
+        subBlocks: mockBlock.subBlocks
+      } as any
       
-      // This passes if all the non-custom types work
-      expect(allTypesWork).toBe(true)
+      // Now properly test the custom case
+      const result = generateCronExpression('custom', scheduleValues)
+      expect(result).toBe('*/5 * * * *')
+      
+      // Also verify other schedule types still work
+      const standardScheduleValues = { 
+        scheduleTime: '',
+        minutesInterval: 15,
+        hourlyMinute: 30,
+        dailyTime: [9, 0] as [number, number],
+        weeklyDay: 1,
+        weeklyTime: [10, 0] as [number, number],
+        monthlyDay: 15,
+        monthlyTime: [14, 30] as [number, number],
+      }
+      
+      expect(generateCronExpression('minutes', standardScheduleValues)).toBe('*/15 * * * *')
     })
 
     it('should throw for invalid schedule types', () => {
@@ -240,7 +245,7 @@ describe('Schedule Utilities', () => {
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
       
-      // Should be 14:30 or later
+      // Should be 14:30
       expect(nextRun.getHours()).toBe(14)
       expect(nextRun.getMinutes()).toBe(30)
     })

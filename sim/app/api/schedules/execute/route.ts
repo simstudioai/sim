@@ -303,7 +303,6 @@ export async function GET(req: NextRequest) {
         if (result.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
           // Calculate the next run time based on the schedule configuration
-          // Force a fresh calculation without considering lastRanAt timing
           const nextRunAt = calculateNextRunTime(schedule, blocks)
 
           logger.debug(`[${requestId}] Calculated next run time: ${nextRunAt.toISOString()} for workflow ${schedule.workflowId}`)

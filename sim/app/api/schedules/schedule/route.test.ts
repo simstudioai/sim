@@ -120,7 +120,7 @@ describe('Schedule Configuration API Route', () => {
             scheduleTime: '09:30',
             dailyTime: '09:30',
           }
-          return subBlocks[id] || ''
+          return subBlocks[id as keyof typeof subBlocks] || ''
         }),
       generateCronExpression: vi.fn().mockReturnValue('0 9 * * *'),
       calculateNextRunTime: vi.fn().mockReturnValue(new Date()),
@@ -244,7 +244,7 @@ describe('Schedule Configuration API Route', () => {
           scheduleTime: '10:30',
           dailyTime: '10:30',
         }
-        return subBlocks[id] || ''
+        return subBlocks[id as keyof typeof subBlocks] || ''
       }),
       generateCronExpression: vi.fn().mockReturnValue('0 10 * * *'),
       calculateNextRunTime: vi.fn().mockReturnValue(new Date()),
