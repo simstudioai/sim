@@ -10,7 +10,13 @@ import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
-import { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import { 
+  getScheduleTimeValues, 
+  getSubBlockValue, 
+  calculateNextRunTime as calculateNextTime,
+  BlockState 
+} from '@/lib/schedules/utils'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
@@ -21,15 +27,10 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ScheduledExecuteAPI')
 
-interface SubBlockValue {
-  value: string
-}
-
-function getSubBlockValue(block: BlockState, id: string): string {
-  const subBlock = block.subBlocks[id] as SubBlockValue | undefined
-  return subBlock?.value || ''
-}
-
+/**
+ * Calculate the next run time for a schedule
+ * This is a wrapper around the utility function in schedule-utils.ts
+ */
 function calculateNextRunTime(
   schedule: typeof workflowSchedule.$inferSelect,
   blocks: Record<string, BlockState>
@@ -38,113 +39,24 @@ function calculateNextRunTime(
   const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
   if (!starterBlock) throw new Error('No starter block found')
 
+  // Get schedule type from the starter block  
   const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
-
-  // If there's a cron expression, use that first regardless of schedule type
+  
+  // Get all schedule values
+  const scheduleValues = getScheduleTimeValues(starterBlock)
+  
+  // If there's a cron expression, use croner to calculate next run
   if (schedule.cronExpression) {
     const cron = new Cron(schedule.cronExpression)
     const nextDate = cron.nextRun()
     if (!nextDate) throw new Error('Invalid cron expression or no future occurrences')
     return nextDate
   }
-
-  switch (scheduleType) {
-    case 'minutes': {
-      const interval = parseInt(getSubBlockValue(starterBlock, 'minutesInterval') || '15')
-      const startingAt = getSubBlockValue(starterBlock, 'minutesStartingAt')
-
-      // If we have a specific starting time and this is the first run
-      if (!schedule.lastRanAt && startingAt) {
-        const [hours, minutes] = startingAt.split(':')
-        const startTime = new Date()
-        startTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
-        while (startTime <= new Date()) {
-          startTime.setMinutes(startTime.getMinutes() + interval)
-        }
-        return startTime
-      }
-
-      // For subsequent runs or if no starting time specified
-      const baseTime = schedule.lastRanAt ? new Date(schedule.lastRanAt) : new Date()
-      const currentMinutes = baseTime.getMinutes()
-
-      // Find the next interval boundary after the base time
-      const nextIntervalBoundary = Math.ceil(currentMinutes / interval) * interval
-      const nextRun = new Date(baseTime)
-
-      // Handle minute rollover properly
-      const minutesToAdd = nextIntervalBoundary - currentMinutes
-      nextRun.setMinutes(nextRun.getMinutes() + minutesToAdd, 0, 0)
-
-      // If we're already past this time, add another interval
-      if (nextRun <= new Date()) {
-        nextRun.setMinutes(nextRun.getMinutes() + interval)
-      }
-
-      return nextRun
-    }
-    case 'hourly': {
-      const minute = parseInt(getSubBlockValue(starterBlock, 'hourlyMinute') || '0')
-      const nextRun = new Date()
-      nextRun.setHours(nextRun.getHours() + 1, minute, 0, 0)
-      return nextRun
-    }
-    case 'daily': {
-      const [hours, minutes] = getSubBlockValue(starterBlock, 'dailyTime').split(':')
-      const nextRun = new Date()
-      nextRun.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-      if (nextRun <= new Date()) {
-        nextRun.setDate(nextRun.getDate() + 1)
-      }
-      return nextRun
-    }
-    case 'weekly': {
-      const dayMap: Record<string, number> = {
-        MON: 1,
-        TUE: 2,
-        WED: 3,
-        THU: 4,
-        FRI: 5,
-        SAT: 6,
-        SUN: 0,
-      }
-      const targetDay = dayMap[getSubBlockValue(starterBlock, 'weeklyDay') || 'MON']
-      const [hours, minutes] = getSubBlockValue(starterBlock, 'weeklyDayTime').split(':')
-      const nextRun = new Date()
-      nextRun.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-
-      while (nextRun.getDay() !== targetDay || nextRun <= new Date()) {
-        nextRun.setDate(nextRun.getDate() + 1)
-      }
-      return nextRun
-    }
-    case 'monthly': {
-      const day = parseInt(getSubBlockValue(starterBlock, 'monthlyDay') || '1')
-      const [hours, minutes] = getSubBlockValue(starterBlock, 'monthlyTime').split(':')
-      const nextRun = new Date()
-      nextRun.setDate(day)
-      nextRun.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-      if (nextRun <= new Date()) {
-        nextRun.setMonth(nextRun.getMonth() + 1)
-      }
-      return nextRun
-    }
-    case 'custom': {
-      const cronExpression = getSubBlockValue(starterBlock, 'cronExpression')
-      if (!cronExpression) throw new Error('No cron expression provided')
-
-      // Create a new cron instance with the expression
-      const cron = new Cron(cronExpression)
-
-      // Get the next occurrence after now
-      const nextDate = cron.nextRun()
-      if (!nextDate) throw new Error('Invalid cron expression or no future occurrences')
-
-      return nextDate
-    }
-    default:
-      throw new Error(`Unsupported schedule type: ${scheduleType}`)
-  }
+  
+  // Calculate next run time with our helper function
+  // We pass the lastRanAt from the schedule to help calculate accurate next run time
+  const lastRanAt = schedule.lastRanAt ? new Date(schedule.lastRanAt) : null
+  return calculateNextTime(scheduleType, scheduleValues, lastRanAt)
 }
 
 // Define the schema for environment variables
@@ -392,6 +304,8 @@ export async function GET(req: NextRequest) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
           // Calculate the next run time based on the schedule configuration
           const nextRunAt = calculateNextRunTime(schedule, blocks)
+
+          logger.debug(`[${requestId}] Calculated next run time: ${nextRunAt.toISOString()} for workflow ${schedule.workflowId}`)
 
           // Update the schedule with the next run time
           await db
