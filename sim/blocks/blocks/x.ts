@@ -156,7 +156,7 @@ export const XBlock: BlockConfig<XResponse> = {
 
         // Convert string values to appropriate types
         const parsedParams: Record<string, any> = {
-          accessToken: credential,
+          credential: credential,
         }
 
         // Add other params

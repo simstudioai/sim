@@ -1857,6 +1857,7 @@ export function PostgreSQLIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
 export function StagehandIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

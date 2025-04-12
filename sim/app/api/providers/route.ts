@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
     try {
       finalApiKey = getApiKey(provider, model, apiKey)
       logger.info(`API key obtained for ${provider} ${model}`)
+      workflowId,
+    } = body
+
+    let finalApiKey: string
+    try {
+      finalApiKey = getApiKey(provider, model, apiKey)
     } catch (error) {
       logger.error('Failed to get API key:', error)
       return NextResponse.json(
@@ -49,6 +55,7 @@ export async function POST(request: NextRequest) {
       maxTokens,
       apiKey: finalApiKey,
       responseFormat,
+      workflowId,
     })
 
     return NextResponse.json(response)

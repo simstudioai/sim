@@ -353,6 +353,7 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.x.com/2/oauth2/token'
         clientId = process.env.X_CLIENT_ID
         clientSecret = process.env.X_CLIENT_SECRET
+        useBasicAuth = true
         break
       case 'confluence':
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
@@ -407,6 +408,15 @@ export async function refreshOAuthToken(
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
+    } else if (provider === 'x') {
+      // Handle X differently
+      // Confidential client - use Basic Auth
+      const authString = `${clientId}:${clientSecret}`
+      const basicAuth = Buffer.from(authString).toString('base64')
+      headers['Authorization'] = `Basic ${basicAuth}`
+
+      // When using Basic Auth, don't include client_id in body
+      delete bodyParams.client_id
     } else {
       // For other providers, use the general approach
       if (useBasicAuth) {
@@ -429,15 +439,20 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorText = await response.text()
+      let errorData = errorText
+
+      // Try to parse the error as JSON for better diagnostics
+      try {
+        errorData = JSON.parse(errorText)
+      } catch (e) {
+        // Not JSON, keep as text
+      }
+
       logger.error('Token refresh failed:', {
         status: response.status,
         error: errorText,
+        parsedError: errorData,
         provider,
-        headers: JSON.stringify(headers, null, 2).replace(
-          /"Authorization":"[^"]*"/,
-          '"Authorization":"[REDACTED]"'
-        ),
-        bodyParams: JSON.stringify(bodyParams),
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
