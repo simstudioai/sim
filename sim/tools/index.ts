@@ -53,6 +53,8 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
+import { mistralParserTool } from './mistral'
+import { thinkingTool } from './thinking'
 
 const logger = createLogger('Tools')
 
@@ -365,7 +367,9 @@ export async function executeTool(
             endTime: endTimeISO,
             duration,
           },
-]
+        }
+      }
+    }
     // For any tool with direct execution capability, try it first
     if (tool.directExecution) {
       try {
@@ -414,8 +418,11 @@ export async function executeTool(
             },
           }
         }
+      } catch (error) {
+        logger.error(`Error in direct execution for tool ${toolId}:`, { error })
+        // Fall through to API route
       }
-      // If directExecution returns undefined, fall back to API route
+      // If directExecution returns undefined or throws, fall back to API route
     }
 
     // For internal routes or when skipProxy is true, call the API directly
