@@ -21,6 +21,12 @@ import {
   pineconeSearchVectorTool,
   pineconeUpsertTextTool,
 } from './pinecone'
+import {
+  createCollectionTool, 
+  upsertVectorsTool, 
+  searchVectorsTool, 
+  retrieveVectorsTool 
+} from './qdrant'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
@@ -72,6 +78,10 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
+  qdrant_create: createCollectionTool,
+  qdrant_insert: upsertVectorsTool,
+  qdrant_similarity: searchVectorsTool, 
+  qdrant_fetch: retrieveVectorsTool,
   github_pr: githubPrTool,
   github_comment: githubCommentTool,
   exa_search: exaSearchTool,

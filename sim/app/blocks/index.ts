@@ -28,6 +28,7 @@ import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
+import { QdrantBlock } from './blocks/qdrant'
 import { BlockConfig } from './types'
 
 // Export blocks for ease of use
@@ -61,6 +62,7 @@ export {
   GoogleDocsBlock,
   WhatsAppBlock,
   GoogleSheetsBlock,
+  QdrantBlock
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -82,6 +84,7 @@ const blocks: Record<string, BlockConfig> = {
   notion: NotionBlock,
   openai: OpenAIBlock,
   pinecone: PineconeBlock,
+  qdrant: QdrantBlock,
   reddit: RedditBlock,
   router: RouterBlock,
   serper: SerperBlock,
