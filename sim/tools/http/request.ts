@@ -124,7 +124,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         const queryParamsObj = transformTable(params.params || null)
         const queryString = Object.entries(queryParamsObj)
           .filter(([_, value]) => value !== undefined && value !== null)
-          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
           .join('&')
 
         if (queryString) {
@@ -216,7 +216,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       const queryParamsObj = transformTable(params.params || null)
       const queryString = Object.entries(queryParamsObj)
         .filter(([_, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
         .join('&')
 
       if (queryString) {

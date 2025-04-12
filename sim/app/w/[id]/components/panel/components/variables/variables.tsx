@@ -18,8 +18,8 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useVariablesStore } from '../../../../../../../stores/panel/variables/store'
-import { Variable, VariableType } from '../../../../../../../stores/panel/variables/types'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { Variable, VariableType } from '@/stores/panel/variables/types'
 
 interface VariablesProps {
   panelWidth: number
@@ -77,6 +77,8 @@ export function Variables({ panelWidth }: VariablesProps) {
         return '{}'
       case 'array':
         return '[]'
+      case 'plain':
+        return 'Abc'
       default:
         return '?'
     }
@@ -94,6 +96,8 @@ export function Variables({ panelWidth }: VariablesProps) {
         return '{\n  "key": "value"\n}'
       case 'array':
         return '[\n  1,\n  2,\n  3\n]'
+      case 'plain':
+        return 'Plain text value'
       default:
         return ''
     }
@@ -105,6 +109,7 @@ export function Variables({ panelWidth }: VariablesProps) {
       case 'array':
       case 'boolean':
       case 'number':
+      case 'plain':
         return 'javascript'
       default:
         return 'javascript'
@@ -115,26 +120,32 @@ export function Variables({ panelWidth }: VariablesProps) {
     if (variable.value === '') return ''
 
     try {
+      // For object and array types, prettify JSON
       if (variable.type === 'object' || variable.type === 'array') {
-        // Try to prettify if it's JSON
-        const parsed = JSON.parse(variable.value as string)
+        const parsed = typeof variable.value === 'string' ? JSON.parse(variable.value) : variable.value
         return JSON.stringify(parsed, null, 2)
       }
 
-      // For string type, remove surrounding quotes for display
-      if (variable.type === 'string') {
+      // For string type, show wrapped in exactly one pair of quotes
+      if (variable.type === 'string' || variable.type === 'plain') {
         const value = variable.value as string
         const trimmed = value.trim()
-
+        
         // Remove surrounding quotes if they exist
         if (
           (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
           (trimmed.startsWith("'") && trimmed.endsWith("'"))
         ) {
-          // Get the content between quotes and unescape any internal quotes
-          return trimmed.slice(1, -1).replace(/\\"/g, '"')
+          return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
         }
         return value
+      }
+
+      // For number and boolean types, show as-is without quotes
+      if (variable.type === 'number' || variable.type === 'boolean') {
+        // If the value is a string representation of number/boolean, extract the raw value
+        const value = variable.value as string
+        return value.replace(/^["'](.*)["']$/, '$1')
       }
     } catch (e) {
       // If not valid JSON, return as is
@@ -155,8 +166,28 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   // Handle editor value changes
   const handleEditorChange = (variable: Variable, newValue: string) => {
-    // For string type, we send the raw input value so the store can handle quoting
-    updateVariable(variable.id, { value: newValue })
+    // Pre-process the value based on variable type
+    let processedValue: string = newValue;
+    
+    if (variable.type === 'string') {
+      // For string type, ensure consistent quoting
+      // Remove existing quotes to prevent doubling
+      const cleanValue = newValue.replace(/^["'](.*)["']$/, '$1');
+      
+      // We don't add quotes - that's only for display
+      processedValue = cleanValue;
+    }
+    else if (variable.type === 'number' || variable.type === 'boolean') {
+      // For numbers/booleans, strip any quotes
+      processedValue = newValue.replace(/^["'](.*)["']$/, '$1');
+    }
+    else if (variable.type === 'plain') {
+      // For plain type, use as-is
+      processedValue = newValue;
+    }
+    
+    // Update the variable with the processed value
+    updateVariable(variable.id, { value: processedValue });
   }
 
   return (
@@ -237,6 +268,13 @@ export function Variables({ panelWidth }: VariablesProps) {
                           >
                             <div className="w-5 text-center mr-2 font-mono text-sm">[]</div>
                             <span>Array</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => updateVariable(variable.id, { type: 'plain' })}
+                            className="cursor-pointer flex items-center"
+                          >
+                            <div className="w-5 text-center mr-2 font-mono text-sm">Abc</div>
+                            <span>Plain</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
