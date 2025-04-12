@@ -98,6 +98,8 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   value?: (params: Record<string, any>) => string
+  required?: boolean
+  validate?: (value: string) => string | null
   condition?: {
     field: string
     value: string | number | boolean | Array<string | number | boolean>

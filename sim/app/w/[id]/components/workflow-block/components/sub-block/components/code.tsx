@@ -22,7 +22,7 @@ interface CodeProps {
   subBlockId: string
   isConnecting: boolean
   placeholder?: string
-  language?: 'javascript' | 'json'
+  language?: 'javascript' | 'json' | 'sql'
   generationType?: 'javascript-function-body' | 'json-schema'
 }
 

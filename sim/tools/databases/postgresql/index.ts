@@ -109,23 +109,21 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
       return {
         success: true,
         output: {
-          rows: JSON.stringify(result.rows || []),
-          affectedRows: JSON.stringify(result.rowCount || 0),
-          metadata: JSON.stringify({
+          rows: result.rows || [],
+          affectedRows: result.rowCount || 0,
+          metadata: {
             operation: params.operation,
             query: params.query,
             executionTime: Date.now() - startTime,
             fields: result.fields || []
-          })
+          }
         }
       }
     } catch (error) {
       console.error('[PostgreSQL Tool] Error during execution:', error)
       
-      // Format the error message to be more user-friendly
       let errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       
-      // Add query context to the error
       if (params.query) {
         errorMessage = `${errorMessage}\n\nQuery: ${params.query}`
       }
@@ -133,14 +131,14 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
       return {
         success: false,
         output: {
-          rows: '[]',
-          affectedRows: '0',
-          metadata: JSON.stringify({
+          rows: [],
+          affectedRows: 0,
+          metadata: {
             operation: params.operation,
             query: params.query,
             executionTime: Date.now() - startTime,
             error: errorMessage
-          })
+          }
         },
         error: errorMessage
       }

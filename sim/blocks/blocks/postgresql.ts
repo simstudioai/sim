@@ -19,6 +19,11 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       layout: 'half',
       placeholder: 'localhost or database host',
       value: () => 'localhost',
+      required: true,
+      validate: (value) => {
+        if (!value) return 'Host is required'
+        return null
+      }
     },
     {
       id: 'port',
@@ -27,6 +32,13 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       layout: 'half',
       placeholder: '5432',
       value: () => '5432',
+      required: true,
+      validate: (value) => {
+        if (!value) return 'Port is required'
+        const portNum = parseInt(value)
+        if (isNaN(portNum) || portNum < 1 || portNum > 65535) return 'Port must be a number between 1 and 65535'
+        return null
+      }
     },
     {
       id: 'username',
@@ -35,6 +47,11 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       layout: 'half',
       placeholder: 'Enter username (default: postgres)',
       value: () => 'postgres',
+      required: true,
+      validate: (value) => {
+        if (!value) return 'Username is required'
+        return null
+      }
     },
     {
       id: 'password',
@@ -44,6 +61,11 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       placeholder: 'Enter password',
       password: true,
       value: () => '',
+      required: true,
+      validate: (value) => {
+        if (!value) return 'Password is required'
+        return null
+      }
     },
     {
       id: 'database',
@@ -51,7 +73,12 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'Enter database name',
-      value: () => 'postgres',
+      value: () => '',
+      required: true,
+      validate: (value) => {
+        if (!value) return 'Database name is required'
+        return null
+      }
     },
     {
       id: 'ssl',
@@ -63,6 +90,33 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'false',
+    },
+    {
+      id: 'sslCA',
+      title: 'CA Certificate',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter CA certificate',
+      value: () => '',
+      required: false,
+    },
+    {
+      id: 'sslKey',
+      title: 'Client Key',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter client key',
+      value: () => '',
+      required: false,
+    },
+    {
+      id: 'sslCert',
+      title: 'Client Certificate',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter client certificate',
+      value: () => '',
+      required: false,
     },
     {
       id: 'operation',
@@ -97,7 +151,12 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       title: 'Options',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter additional query options as JSON (optional)',
+      placeholder: 'Enter query options as JSON (e.g., {"page": 1, "pageSize": 50})',
+      value: () => JSON.stringify({
+        page: 1,
+        pageSize: 100
+      }, null, 2),
+      condition: { field: 'operation', value: 'select' }
     },
   ],
   tools: {
@@ -105,20 +164,41 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
     config: {
       tool: () => 'postgresql',
       params: (params) => {
+        // Validate required parameters
+        if (!params.password) {
+          throw new Error('Password is required for PostgreSQL connection');
+        }
+
         const connection = {
           host: params.host || 'localhost',
           port: parseInt(params.port || '5432'),
           username: params.username || 'postgres',
-          password: params.password || '',
+          password: params.password, // No default value, password is required
           database: params.database || 'postgres',
-          ssl: params.ssl === 'true'
+          ssl: params.ssl === 'true' ? {
+            rejectUnauthorized: true,
+            ca: params.sslCA || undefined,
+            key: params.sslKey || undefined,
+            cert: params.sslCert || undefined,
+          } : false
         }
+
+        // Parse options with defaults for SELECT queries
+        let options = params.options ? JSON.parse(params.options) : {}
+        if (params.operation === 'select') {
+          options = {
+            page: 1,
+            pageSize: 100,
+            ...options
+          }
+        }
+
         return {
           connection,
           operation: params.operation,
           query: params.query,
           params: params.params ? JSON.parse(params.params) : undefined,
-          options: params.options ? JSON.parse(params.options) : undefined,
+          options
         }
       },
     },
@@ -130,6 +210,9 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
     password: { type: 'string', required: false },
     database: { type: 'string', required: false },
     ssl: { type: 'string', required: false },
+    sslCA: { type: 'string', required: false },
+    sslKey: { type: 'string', required: false },
+    sslCert: { type: 'string', required: false },
     operation: { type: 'string', required: true },
     query: { type: 'string', required: true },
     params: { type: 'json', required: false },
@@ -138,9 +221,9 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
   outputs: {
     response: {
       type: {
-        rows: 'string',
-        affectedRows: 'string',
-        metadata: 'string'
+        rows: 'json',
+        affectedRows: 'number',
+        metadata: 'json'
       }
     }
   },

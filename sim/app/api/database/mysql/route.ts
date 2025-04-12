@@ -1,11 +1,14 @@
-import { createPool, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
+import { createPool, PoolOptions, ResultSetHeader, RowDataPacket, Pool } from 'mysql2/promise'
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getMySQLConfig } from '@/config/database'
+import fs from 'fs'
 
 const logger = createLogger('MySQLAPI')
 
 export async function POST(request: Request) {
+  let pool: Pool | null = null;
+  
   try {
     const body = await request.json()
     logger.info('Received request:', {
@@ -63,19 +66,54 @@ export async function POST(request: Request) {
       throw new Error('Missing required connection parameters')
     }
 
+    // Configure SSL with proper certificate validation for RDS
+    const ssl = connection.ssl === 'true' || connection.ssl === true ? {
+      rejectUnauthorized: true,  // Enable certificate validation
+      ca: connection.ca || fs.readFileSync('/Users/rishabhshinde/.mysql/certs/global-bundle.pem'),  // Use provided CA cert or global bundle
+      // Only include client cert/key if provided
+      ...(connection.cert && { cert: connection.cert }),
+      ...(connection.key && { key: connection.key })
+    } : undefined
+
     // Create MySQL connection pool
     logger.info('Creating connection pool with config:', {
       ...connection,
-      password: '[REDACTED]'
+      password: '[REDACTED]',
+      ssl: ssl ? {
+        ...ssl,
+        ca: ssl.ca ? '[CERT CONFIGURED]' : undefined,
+        cert: ssl.cert ? '[CERT CONFIGURED]' : undefined,
+        key: ssl.key ? '[KEY CONFIGURED]' : undefined
+      } : undefined
     })
+    
+    // Validate and parse port number
+    const defaultPort = 3306;
+    let portNumber = defaultPort;
+    
+    if (connection.port) {
+      const parsedPort = parseInt(connection.port.toString(), 10);
+      if (!isNaN(parsedPort) && parsedPort > 0 && parsedPort <= 65535) {
+        portNumber = parsedPort;
+      } else {
+        logger.warn(`Invalid port number provided: ${connection.port}, using default port ${defaultPort}`);
+      }
+    }
     
     const poolConfig: PoolOptions = {
       host: connection.host,
-      port: parseInt(connection.port || '3306'),
+      port: portNumber,
       user: connection.user || connection.username,
       password: connection.password,
       database: connection.database,
-      ssl: connection.ssl === 'true' ? { rejectUnauthorized: false } : undefined
+      ssl,
+      connectionLimit: 10,
+      queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 0,
+      connectTimeout: 10000,
+      waitForConnections: true,
+      dateStrings: true
     }
     
     logger.debug('Attempting to create connection pool with config:', {
@@ -83,7 +121,7 @@ export async function POST(request: Request) {
       password: '[REDACTED]'
     })
     
-    const pool = createPool(poolConfig)
+    pool = createPool(poolConfig)
     
     // Test the connection with a simple query
     logger.debug('Testing connection with SELECT 1')
@@ -102,14 +140,36 @@ export async function POST(request: Request) {
     let result
     switch (operation?.toLowerCase()) {
       case 'select':
+        const startTime = Date.now()
         result = await pool.query<RowDataPacket[]>(query, params)
-        return NextResponse.json({ rows: result[0], fields: result[1] })
+        return NextResponse.json({
+          rows: result[0],
+          fields: result[1].map((field: any) => ({
+            name: field.name,
+            type: field.type,
+            length: field.length
+          })),
+          metadata: {
+            operation,
+            query,
+            executionTime: Date.now() - startTime
+          }
+        })
       
       case 'insert':
       case 'update':
       case 'delete':
+        const modifyStartTime = Date.now()
         result = await pool.query<ResultSetHeader>(query, params)
-        return NextResponse.json({ affectedRows: result[0].affectedRows })
+        return NextResponse.json({
+          rows: [],
+          affectedRows: result[0].affectedRows,
+          metadata: {
+            operation,
+            query,
+            executionTime: Date.now() - modifyStartTime
+          }
+        })
       
       case 'execute':
         result = await pool.query(query, params)
@@ -161,5 +221,16 @@ export async function POST(request: Request) {
       { error: error.message || 'An error occurred while executing the query.' },
       { status: 500 }
     )
+  } finally {
+    // Always close the pool to prevent connection leaks
+    if (pool) {
+      try {
+        logger.debug('Closing connection pool')
+        await pool.end()
+        logger.info('Connection pool closed successfully')
+      } catch (closeError) {
+        logger.error('Error closing connection pool:', closeError)
+      }
+    }
   }
 } 

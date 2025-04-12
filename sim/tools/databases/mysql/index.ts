@@ -95,18 +95,19 @@ const toolConfig: ToolConfig<MySQLQueryParams, MySQLResponse> = {
       }
 
       const result = await response.json()
+      console.log('[MySQL Tool] API response result:', result)
 
       return {
         success: true,
         output: {
-          rows: JSON.stringify(result.rows || []),
-          affectedRows: JSON.stringify(result.affectedRows || 0),
-          metadata: JSON.stringify({
+          rows: result.rows || [],
+          affectedRows: result.affectedRows || 0,
+          metadata: {
             operation: params.operation,
             query: params.query,
-            executionTime: Date.now() - startTime,
+            executionTime: result.metadata?.executionTime || Date.now() - startTime,
             fields: result.fields || []
-          })
+          }
         }
       }
     } catch (error) {

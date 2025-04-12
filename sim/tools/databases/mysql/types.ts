@@ -22,10 +22,21 @@ export interface MySQLQueryParams {
   }
 }
 
+export interface MySQLMetadata {
+  operation: 'select' | 'insert' | 'update' | 'delete' | 'execute'
+  query: string
+  executionTime: number
+  fields: Array<{
+    name: string
+    type: number
+    length: number
+  }>
+}
+
 export interface MySQLResponse extends ToolResponse {
   output: {
-    rows: string // JSON string of query results
-    affectedRows: string // JSON string of affected rows
-    metadata: string // JSON string of metadata
+    rows: any[]
+    affectedRows: number
+    metadata: MySQLMetadata
   }
 } 

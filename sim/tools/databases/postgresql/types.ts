@@ -20,8 +20,20 @@ export interface PostgreSQLQueryParams {
 
 export interface PostgreSQLResponse extends ToolResponse {
   output: {
-    rows: string // JSON string of query results
-    affectedRows: string // Number of affected rows as string
-    metadata: string // Operation metadata as JSON string
+    rows: any[] // Array of query results
+    affectedRows: number // Number of affected rows
+    metadata: {
+      operation: 'select' | 'insert' | 'update' | 'delete' | 'execute'
+      query: string
+      executionTime: number
+      fields?: any[]
+      error?: string
+      pagination?: {
+        page: number
+        pageSize: number
+        total: number
+        totalPages: number
+      }
+    }
   }
 } 
