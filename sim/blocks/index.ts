@@ -42,6 +42,7 @@ import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
+import { QdrantBlock } from './blocks/qdrant'
 import { BlockConfig } from './types'
 import { Mem0Block } from './blocks/mem0'
 
@@ -90,6 +91,7 @@ export {
   ThinkingBlock,
   StagehandBlock,
   StagehandAgentBlock,
+  QdrantBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -120,6 +122,7 @@ const blocks: Record<string, BlockConfig> = {
   openai: OpenAIBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  qdrant: QdrantBlock,
   reddit: RedditBlock,
   router: RouterBlock,
   serper: SerperBlock,
