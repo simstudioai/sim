@@ -21,6 +21,7 @@ const initialState = {
   deployedAt: undefined,
   needsRedeployment: false,
   hasActiveSchedule: false,
+  hasActiveWebhook: false,
   history: {
     past: [],
     present: {
@@ -323,6 +324,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           isDeployed: false,
           isPublished: false,
           hasActiveSchedule: false,
+          hasActiveWebhook: false,
         }
         set(newState)
         workflowSync.sync()
@@ -651,6 +653,19 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Only update if the status has changed to avoid unnecessary rerenders
         if (get().hasActiveSchedule !== hasActiveSchedule) {
           set({ hasActiveSchedule })
+          get().updateLastSaved()
+        }
+      },
+
+      setWebhookStatus: (hasActiveWebhook: boolean) => {
+        // Only update if the status has changed to avoid unnecessary rerenders
+        if (get().hasActiveWebhook !== hasActiveWebhook) {
+          // If the workflow has an active schedule, disable it
+          if (get().hasActiveSchedule) {
+            get().setScheduleStatus(false)
+          }
+
+          set({ hasActiveWebhook })
           get().updateLastSaved()
         }
       },

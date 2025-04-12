@@ -4,6 +4,7 @@ import { Calendar, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
+import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { formatDateTime } from '@/lib/utils'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -11,7 +12,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ScheduleModal } from './components/schedule-modal'
-import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 
 const logger = createLogger('ScheduleConfig')
 
@@ -38,10 +38,6 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const workflowId = params.id as string
 
   // Get workflow state from store
-  const blocks = useWorkflowStore((state) => state.blocks)
-  const edges = useWorkflowStore((state) => state.edges)
-  const loops = useWorkflowStore((state) => state.loops)
-  const triggerUpdate = useWorkflowStore((state) => state.triggerUpdate)
   const setScheduleStatus = useWorkflowStore((state) => state.setScheduleStatus)
 
   // Get the schedule type from the block state
@@ -225,7 +221,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       setTimeout(() => {
         logger.debug('Refreshing schedule information after save')
         setRefreshCounter((prev) => prev + 1)
-        
+
         // Make a separate API call to ensure we get the latest schedule info
         checkSchedule()
       }, 500)
@@ -302,11 +298,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
     <div className="w-full" onClick={(e) => e.stopPropagation()}>
       {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-2">
-          <div className="h-5 w-5 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
-        </div>
-      ) : isScheduleActive ? (
+      {isScheduleActive ? (
         <div className="flex flex-col space-y-2">
           <div className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background">
             <div className="flex items-center gap-2 flex-1">
@@ -336,7 +328,11 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
           onClick={handleOpenModal}
           disabled={isConnecting || isSaving || isDeleting}
         >
-          <Calendar className="h-4 w-4 mr-2" />
+          {isLoading ? (
+            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+          ) : (
+            <Calendar className="h-4 w-4 mr-2" />
+          )}
           Configure Schedule
         </Button>
       )}

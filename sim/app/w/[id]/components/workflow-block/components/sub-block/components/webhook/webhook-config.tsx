@@ -11,6 +11,7 @@ import {
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { WebhookModal } from './components/webhook-modal'
 
@@ -216,6 +217,10 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const [webhookId, setWebhookId] = useState<string | null>(null)
   const params = useParams()
   const workflowId = params.id as string
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Get workflow store function to update webhook status
+  const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
 
   // Get the webhook provider from the block state
   const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
@@ -232,6 +237,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   // Check if webhook exists in the database
   useEffect(() => {
     const checkWebhook = async () => {
+      setIsLoading(true)
       try {
         // Check if there's a webhook for this workflow
         const response = await fetch(`/api/webhooks?workflowId=${workflowId}`)
@@ -253,18 +259,33 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
             if (webhook.path && webhook.path !== webhookPath) {
               setWebhookPath(webhook.path)
             }
+
+            // Set active webhook flag to true since we found an active webhook
+            setWebhookStatus(true)
           } else {
             setWebhookId(null)
             setActualProvider(null)
+
+            // Set active webhook flag to false since no webhook was found
+            setWebhookStatus(false)
           }
         }
       } catch (error) {
         logger.error('Error checking webhook:', { error })
+      } finally {
+        setIsLoading(false)
       }
     }
 
     checkWebhook()
-  }, [webhookPath, webhookProvider, workflowId, setWebhookPath, setWebhookProvider])
+  }, [
+    webhookPath,
+    webhookProvider,
+    workflowId,
+    setWebhookPath,
+    setWebhookProvider,
+    setWebhookStatus,
+  ])
 
   const handleOpenModal = () => {
     setIsModalOpen(true)
@@ -317,6 +338,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       // Update the actual provider after saving
       setActualProvider(webhookProvider || 'generic')
 
+      // Set active webhook flag to true after successfully saving
+      setWebhookStatus(true)
+
       return true
     } catch (error: any) {
       logger.error('Error saving webhook:', { error })
@@ -346,6 +370,10 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       // Clear the webhook ID and actual provider
       setWebhookId(null)
       setActualProvider(null)
+
+      // Set active webhook flag to false after deletion
+      setWebhookStatus(false)
+      handleCloseModal()
 
       return true
     } catch (error: any) {
@@ -379,32 +407,18 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
       {isWebhookConnected ? (
         <div className="flex flex-col space-y-2">
-          <div className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background">
-            <div className="flex items-center gap-2 flex-1">
-              <div className="flex-1 truncate">
-                <div className="font-normal text-sm truncate">
-                  {getProviderIcon()}
+          <div
+            className="flex items-center justify-center px-3 py-2 rounded border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors duration-200 cursor-pointer h-10"
+            onClick={handleOpenModal}
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
+                {getProviderIcon()}
+                <span className="font-normal text-sm">
                   {WEBHOOK_PROVIDERS[webhookProvider || 'generic'].name} Webhook
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Path: {webhookPath || 'Not configured'}
-                </div>
+                </span>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
-              onClick={handleOpenModal}
-              disabled={isDeleting || isConnecting}
-            >
-              {isDeleting ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
-              ) : (
-                <ExternalLink className="h-4 w-4" />
-              )}
-            </Button>
           </div>
         </div>
       ) : (
@@ -415,7 +429,11 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           onClick={handleOpenModal}
           disabled={isConnecting || isSaving || isDeleting}
         >
-          <ExternalLink className="h-4 w-4 mr-2" />
+          {isLoading ? (
+            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+          ) : (
+            <ExternalLink className="h-4 w-4 mr-2" />
+          )}
           Configure Webhook
         </Button>
       )}
