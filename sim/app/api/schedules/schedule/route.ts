@@ -3,20 +3,17 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { BlockState } from '@/stores/workflows/workflow/types'
+import { 
+  getScheduleTimeValues,
+  getSubBlockValue, 
+  generateCronExpression, 
+  calculateNextRunTime,
+  BlockState
+} from '@/lib/schedules/utils'
 import { db } from '@/db'
 import { workflowSchedule } from '@/db/schema'
 
 const logger = createLogger('ScheduledScheduleAPI')
-
-interface SubBlockValue {
-  value: string
-}
-
-function getSubBlockValue(block: BlockState, id: string): string {
-  const subBlock = block.subBlocks[id] as SubBlockValue | undefined
-  return subBlock?.value || ''
-}
 
 // Schema for schedule request
 const ScheduleRequestSchema = z.object({
@@ -56,32 +53,27 @@ export async function POST(req: NextRequest) {
     const startWorkflow = getSubBlockValue(starterBlock, 'startWorkflow')
     const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
 
-    // Check if there's a valid schedule configuration
+    // Check if there's a valid schedule configuration using the helper function
+    const scheduleValues = getScheduleTimeValues(starterBlock)
+    
+    // Determine if there's a valid schedule configuration
     const hasScheduleConfig = (() => {
-      const getValue = (id: string): string => {
-        const value = getSubBlockValue(starterBlock, id)
-        return value && value.trim() !== '' ? value : ''
+      switch (scheduleType) {
+        case 'minutes':
+          return !!scheduleValues.minutesInterval
+        case 'hourly':
+          return scheduleValues.hourlyMinute !== undefined
+        case 'daily':
+          return !!scheduleValues.dailyTime[0] || !!scheduleValues.dailyTime[1]
+        case 'weekly':
+          return !!scheduleValues.weeklyDay && (!!scheduleValues.weeklyTime[0] || !!scheduleValues.weeklyTime[1])
+        case 'monthly':
+          return !!scheduleValues.monthlyDay && (!!scheduleValues.monthlyTime[0] || !!scheduleValues.monthlyTime[1])
+        case 'custom':
+          return !!getSubBlockValue(starterBlock, 'cronExpression')
+        default:
+          return false
       }
-
-      if (scheduleType === 'minutes' && getValue('minutesInterval')) {
-        return true
-      }
-      if (scheduleType === 'hourly' && getValue('hourlyMinute') !== '') {
-        return true
-      }
-      if (scheduleType === 'daily' && getValue('dailyTime')) {
-        return true
-      }
-      if (scheduleType === 'weekly' && getValue('weeklyDay') && getValue('weeklyDayTime')) {
-        return true
-      }
-      if (scheduleType === 'monthly' && getValue('monthlyDay') && getValue('monthlyTime')) {
-        return true
-      }
-      if (scheduleType === 'custom' && getValue('cronExpression')) {
-        return true
-      }
-      return false
     })()
 
     // If the workflow is not configured for scheduling, delete any existing schedule
@@ -106,11 +98,6 @@ export async function POST(req: NextRequest) {
     // Get schedule configuration from starter block
     logger.debug(`[${requestId}] Schedule type for workflow ${workflowId}: ${scheduleType}`)
 
-    // Calculate cron expression based on schedule type
-    let cronExpression: string | null = null
-    let shouldUpdateNextRunAt = false
-    let nextRunAt: Date | undefined
-
     // First check if there's an existing schedule
     const existingSchedule = await db
       .select()
@@ -118,233 +105,39 @@ export async function POST(req: NextRequest) {
       .where(eq(workflowSchedule.workflowId, workflowId))
       .limit(1)
 
-    switch (scheduleType) {
-      case 'minutes': {
-        const interval = parseInt(getSubBlockValue(starterBlock, 'minutesInterval') || '15')
-        cronExpression = `*/${interval} * * * *`
+    // Generate cron expression and calculate next run time
+    let cronExpression: string | null = null
+    let nextRunAt: Date | undefined
 
-        // Always update nextRunAt when schedule is edited
-        shouldUpdateNextRunAt = true
-          
-        // Get the scheduleTime value (e.g., "12:30")
-        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-          
-        // Get the current date
-        nextRunAt = new Date()
-        
-        if (scheduleTime) {
-            // Parse the time (HH:MM format)
-            const [hours, minutes] = scheduleTime.split(':').map(Number)
-            
-            // Set the hours and minutes from scheduleTime
-            nextRunAt.setHours(hours, minutes, 0, 0)
-            
-            // If the time is in the past, add the interval to get the next occurrence
-            while (nextRunAt <= new Date()) {
-              nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
-            }
-          } else {
-            // If no time specified, round to the next interval boundary
-            const now = new Date()
-            const currentMinutes = now.getMinutes()
-            const nextIntervalBoundary = Math.ceil(currentMinutes / interval) * interval
-            nextRunAt = new Date(now)
-            nextRunAt.setMinutes(nextIntervalBoundary, 0, 0)
-            
-            // If we're already past this time, add another interval
-            if (nextRunAt <= now) {
-              nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
-            }
-          }
-        break
-      }
-      case 'hourly': {
-        const minute = parseInt(getSubBlockValue(starterBlock, 'hourlyMinute') || '0')
-        cronExpression = `${minute} * * * *`
-
-        // Always update nextRunAt when schedule is edited
-        shouldUpdateNextRunAt = true
-          
-        // Get schedule time if specified
-        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-        nextRunAt = new Date()
-        
-        if (scheduleTime) {
-          // Set the initial hour from scheduleTime, but use the minute from hourlyMinute
-          const [hours] = scheduleTime.split(':').map(Number)
-          nextRunAt.setHours(hours, minute, 0, 0)
-          
-          // If in the past, find the next hour that's in the future
-          while (nextRunAt <= new Date()) {
-            nextRunAt.setHours(nextRunAt.getHours() + 1)
-          }
-        } else {
-          // Standard approach - current hour + 1, with specified minute
-          nextRunAt.setHours(nextRunAt.getHours() + 1, minute, 0, 0)
-        }
-        break
-      }
-      case 'daily': {
-        // First check the dailyTime as the primary source of time
-        let dailyHours = 9, dailyMinutes = 0;
-        const dailyTime = getSubBlockValue(starterBlock, 'dailyTime')
-        
-        if (dailyTime && dailyTime.includes(':')) {
-          const [hours, minutes] = dailyTime.split(':').map(Number)
-          dailyHours = hours
-          dailyMinutes = minutes
-        }
-        
-        // Set the cron expression
-        cronExpression = `${dailyMinutes} ${dailyHours} * * *`
-
-        // Always update nextRunAt when schedule is edited
-        shouldUpdateNextRunAt = true
-        nextRunAt = new Date()
-          
-        // Check if there's a specific scheduleTime to respect
-        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-          
-        if (scheduleTime && scheduleTime.includes(':')) {
-          // Override with scheduleTime if available
-          const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number)
-          nextRunAt.setHours(scheduleHours, scheduleMinutes, 0, 0)
-        } else {
-          // Otherwise use the dailyTime values
-          nextRunAt.setHours(dailyHours, dailyMinutes, 0, 0)
-        }
-        
-        // If the time is already passed for today, schedule for tomorrow
-        if (nextRunAt <= new Date()) {
-          nextRunAt.setDate(nextRunAt.getDate() + 1)
-        }
-        break
-      }
-      case 'weekly': {
-        const dayMap: Record<string, number> = {
-          MON: 1,
-          TUE: 2,
-          WED: 3,
-          THU: 4,
-          FRI: 5,
-          SAT: 6,
-          SUN: 0,
-        }
-        
-        // Get the weekly day and time
-        const targetDay = dayMap[getSubBlockValue(starterBlock, 'weeklyDay') || 'MON']
-        let weeklyHours = 9, weeklyMinutes = 0;
-        
-        const weeklyDayTime = getSubBlockValue(starterBlock, 'weeklyDayTime')
-        if (weeklyDayTime && weeklyDayTime.includes(':')) {
-          const [hours, minutes] = weeklyDayTime.split(':').map(Number)
-          weeklyHours = hours
-          weeklyMinutes = minutes
-        }
-        
-        cronExpression = `${weeklyMinutes} ${weeklyHours} * * ${targetDay}`
-
-        // Always update nextRunAt when schedule is edited
-        shouldUpdateNextRunAt = true
-        nextRunAt = new Date()
-          
-        // Always check for scheduleTime, not just for first run
-        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-        if (scheduleTime && scheduleTime.includes(':')) {
-          const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number)
-          weeklyHours = scheduleHours
-          weeklyMinutes = scheduleMinutes
-        }
-          
-        nextRunAt.setHours(weeklyHours, weeklyMinutes, 0, 0)
-        
-        // Keep adding days until we reach the target day in the future
-        while (nextRunAt.getDay() !== targetDay || nextRunAt <= new Date()) {
-          nextRunAt.setDate(nextRunAt.getDate() + 1)
-        }
-        break
-      }
-      case 'monthly': {
-        const day = parseInt(getSubBlockValue(starterBlock, 'monthlyDay') || '1')
-        
-        // Get monthly time 
-        let monthlyHours = 9, monthlyMinutes = 0;
-        const monthlyTime = getSubBlockValue(starterBlock, 'monthlyTime')
-        
-        if (monthlyTime && monthlyTime.includes(':')) {
-          const [hours, minutes] = monthlyTime.split(':').map(Number)
-          monthlyHours = hours
-          monthlyMinutes = minutes
-        }
-        
-        cronExpression = `${monthlyMinutes} ${monthlyHours} ${day} * *`
-
-        // Always update nextRunAt when schedule is edited
-        shouldUpdateNextRunAt = true
-        nextRunAt = new Date()
-          
-        // Always check for scheduleTime, not just for first run
-        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-        if (scheduleTime && scheduleTime.includes(':')) {
-          const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number)
-          monthlyHours = scheduleHours
-          monthlyMinutes = scheduleMinutes
-        }
-          
-        nextRunAt.setDate(day)
-        nextRunAt.setHours(monthlyHours, monthlyMinutes, 0, 0)
-        
-        // If the date is in the past, move to next month
-        if (nextRunAt <= new Date()) {
-          nextRunAt.setMonth(nextRunAt.getMonth() + 1)
-        }
-        break
-      }
-      case 'custom': {
-        cronExpression = getSubBlockValue(starterBlock, 'cronExpression')
-        if (!cronExpression) {
-          return NextResponse.json(
-            { error: 'No cron expression provided for custom schedule' },
-            { status: 400 }
-          )
-        }
-
-        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
-          shouldUpdateNextRunAt = true
-          nextRunAt = new Date()
-          nextRunAt.setMinutes(nextRunAt.getMinutes() + 1)
-        }
-        break
-      }
-      default:
-        logger.warn(`[${requestId}] Invalid schedule type: ${scheduleType}`)
-        return NextResponse.json({ error: 'Invalid schedule type' }, { status: 400 })
+    try {
+      // Get cron expression based on schedule type
+      cronExpression = generateCronExpression(scheduleType, scheduleValues)
+      
+      // Always calculate next run time when schedule is created or updated
+      nextRunAt = calculateNextRunTime(scheduleType, scheduleValues)
+      
+      logger.debug(`[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`)
+    } catch (error) {
+      logger.error(`[${requestId}] Error generating schedule: ${error}`)
+      return NextResponse.json({ error: 'Failed to generate schedule' }, { status: 400 })
     }
 
     // Prepare the values for upsert
-    const values: any = {
+    const values = {
       id: crypto.randomUUID(),
       workflowId,
       cronExpression,
       triggerType: 'schedule',
       createdAt: new Date(),
       updatedAt: new Date(),
-    }
-
-    // Only include next_run_at if it should be updated
-    if (shouldUpdateNextRunAt && nextRunAt) {
-      values.nextRunAt = nextRunAt
+      nextRunAt,
     }
 
     // Prepare the set values for update
-    const setValues: any = {
+    const setValues = {
       cronExpression,
       updatedAt: new Date(),
-    }
-
-    // Only include next_run_at in the update if it should be updated
-    if (shouldUpdateNextRunAt && nextRunAt) {
-      setValues.nextRunAt = nextRunAt
+      nextRunAt,
     }
 
     // Upsert the schedule
@@ -357,15 +150,13 @@ export async function POST(req: NextRequest) {
       })
 
     logger.info(`[${requestId}] Schedule updated for workflow ${workflowId}`, {
-      nextRunAt: shouldUpdateNextRunAt
-        ? nextRunAt?.toISOString()
-        : existingSchedule[0]?.nextRunAt?.toISOString(),
+      nextRunAt: nextRunAt?.toISOString(),
       cronExpression,
     })
 
     return NextResponse.json({
       message: 'Schedule updated',
-      nextRunAt: shouldUpdateNextRunAt ? nextRunAt : existingSchedule[0]?.nextRunAt,
+      nextRunAt,
       cronExpression,
     })
   } catch (error) {

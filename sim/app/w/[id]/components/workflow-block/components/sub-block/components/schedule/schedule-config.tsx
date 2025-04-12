@@ -11,7 +11,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ScheduleModal } from './components/schedule-modal'
-import { parseCronToHumanReadable } from '@/lib/schedule-utils'
+import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 
 const logger = createLogger('ScheduleConfig')
 
