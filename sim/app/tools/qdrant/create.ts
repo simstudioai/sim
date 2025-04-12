@@ -69,6 +69,5 @@ export const createCollectionTool: ToolConfig<CreateCollectionParams, QdrantResp
       output : { result: data.result },
     }
   },
-
   transformError: (error) => `Qqrant create failed: ${error.message}`,
 }

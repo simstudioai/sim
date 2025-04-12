@@ -93,6 +93,7 @@ export {
   ThinkingBlock,
   StagehandBlock,
   StagehandAgentBlock,
+  QdrantBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted

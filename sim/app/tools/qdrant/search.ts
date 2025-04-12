@@ -116,5 +116,5 @@ export const searchVectorsTool: ToolConfig<SearchVectorsParams, QdrantResponse> 
     };
   },
 
-  transformError: (error) => `Pinecone search failed: ${error.message}`,
+  transformError: (error) => `Qdrant search failed: ${error.message}`,
 }
