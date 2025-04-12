@@ -123,54 +123,100 @@ export async function POST(req: NextRequest) {
         const interval = parseInt(getSubBlockValue(starterBlock, 'minutesInterval') || '15')
         cronExpression = `*/${interval} * * * *`
 
-        // Check if we need to update next_run_at
-        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
-          shouldUpdateNextRunAt = true
-          nextRunAt = new Date()
-          const startingAt = getSubBlockValue(starterBlock, 'minutesStartingAt')
-
-          if (startingAt) {
-            const [hours, minutes] = startingAt.split(':')
-            nextRunAt.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+        // Always update nextRunAt when schedule is edited
+        shouldUpdateNextRunAt = true
+          
+        // Get the scheduleTime value (e.g., "12:30")
+        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+          
+        // Get the current date
+        nextRunAt = new Date()
+        
+        if (scheduleTime) {
+            // Parse the time (HH:MM format)
+            const [hours, minutes] = scheduleTime.split(':').map(Number)
+            
+            // Set the hours and minutes from scheduleTime
+            nextRunAt.setHours(hours, minutes, 0, 0)
+            
+            // If the time is in the past, add the interval to get the next occurrence
             while (nextRunAt <= new Date()) {
               nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
             }
           } else {
-            // Round down to nearest interval boundary
+            // If no time specified, round to the next interval boundary
             const now = new Date()
             const currentMinutes = now.getMinutes()
-            const lastIntervalBoundary = Math.floor(currentMinutes / interval) * interval
+            const nextIntervalBoundary = Math.ceil(currentMinutes / interval) * interval
             nextRunAt = new Date(now)
-            nextRunAt.setMinutes(lastIntervalBoundary, 0, 0)
-            while (nextRunAt <= now) {
+            nextRunAt.setMinutes(nextIntervalBoundary, 0, 0)
+            
+            // If we're already past this time, add another interval
+            if (nextRunAt <= now) {
               nextRunAt.setMinutes(nextRunAt.getMinutes() + interval)
             }
           }
-        }
         break
       }
       case 'hourly': {
         const minute = parseInt(getSubBlockValue(starterBlock, 'hourlyMinute') || '0')
         cronExpression = `${minute} * * * *`
 
-        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
-          shouldUpdateNextRunAt = true
-          nextRunAt = new Date()
+        // Always update nextRunAt when schedule is edited
+        shouldUpdateNextRunAt = true
+          
+        // Get schedule time if specified
+        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+        nextRunAt = new Date()
+        
+        if (scheduleTime) {
+          // Set the initial hour from scheduleTime, but use the minute from hourlyMinute
+          const [hours] = scheduleTime.split(':').map(Number)
+          nextRunAt.setHours(hours, minute, 0, 0)
+          
+          // If in the past, find the next hour that's in the future
+          while (nextRunAt <= new Date()) {
+            nextRunAt.setHours(nextRunAt.getHours() + 1)
+          }
+        } else {
+          // Standard approach - current hour + 1, with specified minute
           nextRunAt.setHours(nextRunAt.getHours() + 1, minute, 0, 0)
         }
         break
       }
       case 'daily': {
-        const [hours, minutes] = getSubBlockValue(starterBlock, 'dailyTime').split(':')
-        cronExpression = `${minutes || '0'} ${hours || '9'} * * *`
+        // First check the dailyTime as the primary source of time
+        let dailyHours = 9, dailyMinutes = 0;
+        const dailyTime = getSubBlockValue(starterBlock, 'dailyTime')
+        
+        if (dailyTime && dailyTime.includes(':')) {
+          const [hours, minutes] = dailyTime.split(':').map(Number)
+          dailyHours = hours
+          dailyMinutes = minutes
+        }
+        
+        // Set the cron expression
+        cronExpression = `${dailyMinutes} ${dailyHours} * * *`
 
-        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
-          shouldUpdateNextRunAt = true
-          nextRunAt = new Date()
-          nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-          if (nextRunAt <= new Date()) {
-            nextRunAt.setDate(nextRunAt.getDate() + 1)
-          }
+        // Always update nextRunAt when schedule is edited
+        shouldUpdateNextRunAt = true
+        nextRunAt = new Date()
+          
+        // Check if there's a specific scheduleTime to respect
+        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+          
+        if (scheduleTime && scheduleTime.includes(':')) {
+          // Override with scheduleTime if available
+          const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number)
+          nextRunAt.setHours(scheduleHours, scheduleMinutes, 0, 0)
+        } else {
+          // Otherwise use the dailyTime values
+          nextRunAt.setHours(dailyHours, dailyMinutes, 0, 0)
+        }
+        
+        // If the time is already passed for today, schedule for tomorrow
+        if (nextRunAt <= new Date()) {
+          nextRunAt.setDate(nextRunAt.getDate() + 1)
         }
         break
       }
@@ -184,33 +230,73 @@ export async function POST(req: NextRequest) {
           SAT: 6,
           SUN: 0,
         }
+        
+        // Get the weekly day and time
         const targetDay = dayMap[getSubBlockValue(starterBlock, 'weeklyDay') || 'MON']
-        const [hours, minutes] = getSubBlockValue(starterBlock, 'weeklyDayTime').split(':')
-        cronExpression = `${minutes || '0'} ${hours || '9'} * * ${targetDay}`
+        let weeklyHours = 9, weeklyMinutes = 0;
+        
+        const weeklyDayTime = getSubBlockValue(starterBlock, 'weeklyDayTime')
+        if (weeklyDayTime && weeklyDayTime.includes(':')) {
+          const [hours, minutes] = weeklyDayTime.split(':').map(Number)
+          weeklyHours = hours
+          weeklyMinutes = minutes
+        }
+        
+        cronExpression = `${weeklyMinutes} ${weeklyHours} * * ${targetDay}`
 
-        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
-          shouldUpdateNextRunAt = true
-          nextRunAt = new Date()
-          nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-          while (nextRunAt.getDay() !== targetDay || nextRunAt <= new Date()) {
-            nextRunAt.setDate(nextRunAt.getDate() + 1)
-          }
+        // Always update nextRunAt when schedule is edited
+        shouldUpdateNextRunAt = true
+        nextRunAt = new Date()
+          
+        // Always check for scheduleTime, not just for first run
+        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+        if (scheduleTime && scheduleTime.includes(':')) {
+          const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number)
+          weeklyHours = scheduleHours
+          weeklyMinutes = scheduleMinutes
+        }
+          
+        nextRunAt.setHours(weeklyHours, weeklyMinutes, 0, 0)
+        
+        // Keep adding days until we reach the target day in the future
+        while (nextRunAt.getDay() !== targetDay || nextRunAt <= new Date()) {
+          nextRunAt.setDate(nextRunAt.getDate() + 1)
         }
         break
       }
       case 'monthly': {
         const day = parseInt(getSubBlockValue(starterBlock, 'monthlyDay') || '1')
-        const [hours, minutes] = getSubBlockValue(starterBlock, 'monthlyTime').split(':')
-        cronExpression = `${minutes || '0'} ${hours || '9'} ${day} * *`
+        
+        // Get monthly time 
+        let monthlyHours = 9, monthlyMinutes = 0;
+        const monthlyTime = getSubBlockValue(starterBlock, 'monthlyTime')
+        
+        if (monthlyTime && monthlyTime.includes(':')) {
+          const [hours, minutes] = monthlyTime.split(':').map(Number)
+          monthlyHours = hours
+          monthlyMinutes = minutes
+        }
+        
+        cronExpression = `${monthlyMinutes} ${monthlyHours} ${day} * *`
 
-        if (!existingSchedule[0] || existingSchedule[0].cronExpression !== cronExpression) {
-          shouldUpdateNextRunAt = true
-          nextRunAt = new Date()
-          nextRunAt.setDate(day)
-          nextRunAt.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
-          if (nextRunAt <= new Date()) {
-            nextRunAt.setMonth(nextRunAt.getMonth() + 1)
-          }
+        // Always update nextRunAt when schedule is edited
+        shouldUpdateNextRunAt = true
+        nextRunAt = new Date()
+          
+        // Always check for scheduleTime, not just for first run
+        const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+        if (scheduleTime && scheduleTime.includes(':')) {
+          const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number)
+          monthlyHours = scheduleHours
+          monthlyMinutes = scheduleMinutes
+        }
+          
+        nextRunAt.setDate(day)
+        nextRunAt.setHours(monthlyHours, monthlyMinutes, 0, 0)
+        
+        // If the date is in the past, move to next month
+        if (nextRunAt <= new Date()) {
+          nextRunAt.setMonth(nextRunAt.getMonth() + 1)
         }
         break
       }

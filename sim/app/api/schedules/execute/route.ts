@@ -37,6 +37,9 @@ function calculateNextRunTime(
   // Find the starter block
   const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
   if (!starterBlock) throw new Error('No starter block found')
+  
+  // Always get the latest schedule configuration values
+  const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
 
   const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
 
@@ -51,33 +54,30 @@ function calculateNextRunTime(
   switch (scheduleType) {
     case 'minutes': {
       const interval = parseInt(getSubBlockValue(starterBlock, 'minutesInterval') || '15')
-      const startingAt = getSubBlockValue(starterBlock, 'minutesStartingAt')
+      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
 
-      // If we have a specific starting time and this is the first run
-      if (!schedule.lastRanAt && startingAt) {
-        const [hours, minutes] = startingAt.split(':')
+      // If this is the first run and we have a specific time
+      if (!schedule.lastRanAt && scheduleTime) {
+        const [hours, minutes] = scheduleTime.split(':').map(Number)
         const startTime = new Date()
-        startTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
+        startTime.setHours(hours, minutes, 0, 0)
+        
+        // If the time is in the past, add intervals until we reach the future
         while (startTime <= new Date()) {
           startTime.setMinutes(startTime.getMinutes() + interval)
         }
         return startTime
       }
 
-      // For subsequent runs or if no starting time specified
+      // For subsequent runs
       const baseTime = schedule.lastRanAt ? new Date(schedule.lastRanAt) : new Date()
-      const currentMinutes = baseTime.getMinutes()
-
-      // Find the next interval boundary after the base time
-      const nextIntervalBoundary = Math.ceil(currentMinutes / interval) * interval
+      
+      // Calculate the next run time: add the interval to the last run time
       const nextRun = new Date(baseTime)
-
-      // Handle minute rollover properly
-      const minutesToAdd = nextIntervalBoundary - currentMinutes
-      nextRun.setMinutes(nextRun.getMinutes() + minutesToAdd, 0, 0)
-
-      // If we're already past this time, add another interval
-      if (nextRun <= new Date()) {
+      nextRun.setMinutes(nextRun.getMinutes() + interval, 0, 0)
+      
+      // If we're somehow already past this time, add more intervals until we're in the future
+      while (nextRun <= new Date()) {
         nextRun.setMinutes(nextRun.getMinutes() + interval)
       }
 
@@ -85,17 +85,52 @@ function calculateNextRunTime(
     }
     case 'hourly': {
       const minute = parseInt(getSubBlockValue(starterBlock, 'hourlyMinute') || '0')
+      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
       const nextRun = new Date()
-      nextRun.setHours(nextRun.getHours() + 1, minute, 0, 0)
+      
+      // Always prioritize scheduleTime if it's provided, not just for first run
+      if (scheduleTime) {
+        const [scheduleHours] = scheduleTime.split(':').map(Number)
+        nextRun.setHours(scheduleHours, minute, 0, 0)
+        
+        // If in the past, find next future occurrence
+        while (nextRun <= new Date()) {
+          nextRun.setHours(nextRun.getHours() + 1)
+        }
+      } else {
+        // Standard approach - next hour with specified minute
+        nextRun.setHours(nextRun.getHours() + 1, minute, 0, 0)
+      }
+      
       return nextRun
     }
     case 'daily': {
-      const [hours, minutes] = getSubBlockValue(starterBlock, 'dailyTime').split(':')
+      let targetHours = 9, targetMinutes = 0;
+      
+      // First check dailyTime
+      const dailyTime = getSubBlockValue(starterBlock, 'dailyTime')
+      if (dailyTime && dailyTime.includes(':')) {
+        const [hours, minutes] = dailyTime.split(':').map(Number)
+        targetHours = hours
+        targetMinutes = minutes
+      }
+      
+      // Always check if scheduleTime should override, not just for first run
+      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+      if (scheduleTime && scheduleTime.includes(':')) {
+        const [hours, minutes] = scheduleTime.split(':').map(Number)
+        targetHours = hours
+        targetMinutes = minutes
+      }
+      
       const nextRun = new Date()
-      nextRun.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
+      nextRun.setHours(targetHours, targetMinutes, 0, 0)
+      
+      // If time is in the past, schedule for tomorrow
       if (nextRun <= new Date()) {
         nextRun.setDate(nextRun.getDate() + 1)
       }
+      
       return nextRun
     }
     case 'weekly': {
@@ -109,24 +144,67 @@ function calculateNextRunTime(
         SUN: 0,
       }
       const targetDay = dayMap[getSubBlockValue(starterBlock, 'weeklyDay') || 'MON']
-      const [hours, minutes] = getSubBlockValue(starterBlock, 'weeklyDayTime').split(':')
+      
+      // Get time settings
+      let targetHours = 9, targetMinutes = 0;
+      
+      // First get weeklyDayTime
+      const weeklyDayTime = getSubBlockValue(starterBlock, 'weeklyDayTime')
+      if (weeklyDayTime && weeklyDayTime.includes(':')) {
+        const [hours, minutes] = weeklyDayTime.split(':').map(Number)
+        targetHours = hours
+        targetMinutes = minutes
+      }
+      
+      // Always check if scheduleTime should override, not just for first run
+      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+      if (scheduleTime && scheduleTime.includes(':')) {
+        const [hours, minutes] = scheduleTime.split(':').map(Number)
+        targetHours = hours
+        targetMinutes = minutes
+      }
+      
       const nextRun = new Date()
-      nextRun.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
+      nextRun.setHours(targetHours, targetMinutes, 0, 0)
 
+      // Add days until we reach the right day of week in the future
       while (nextRun.getDay() !== targetDay || nextRun <= new Date()) {
         nextRun.setDate(nextRun.getDate() + 1)
       }
+      
       return nextRun
     }
     case 'monthly': {
       const day = parseInt(getSubBlockValue(starterBlock, 'monthlyDay') || '1')
-      const [hours, minutes] = getSubBlockValue(starterBlock, 'monthlyTime').split(':')
+      
+      // Get time settings
+      let targetHours = 9, targetMinutes = 0;
+      
+      // First get monthlyTime
+      const monthlyTime = getSubBlockValue(starterBlock, 'monthlyTime')
+      if (monthlyTime && monthlyTime.includes(':')) {
+        const [hours, minutes] = monthlyTime.split(':').map(Number)
+        targetHours = hours
+        targetMinutes = minutes
+      }
+      
+      // Always check if scheduleTime should override, not just for first run
+      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+      if (scheduleTime && scheduleTime.includes(':')) {
+        const [hours, minutes] = scheduleTime.split(':').map(Number)
+        targetHours = hours
+        targetMinutes = minutes
+      }
+      
       const nextRun = new Date()
       nextRun.setDate(day)
-      nextRun.setHours(parseInt(hours || '9'), parseInt(minutes || '0'), 0, 0)
+      nextRun.setHours(targetHours, targetMinutes, 0, 0)
+      
+      // If the date is in the past, move to next month
       if (nextRun <= new Date()) {
         nextRun.setMonth(nextRun.getMonth() + 1)
       }
+      
       return nextRun
     }
     case 'custom': {
@@ -391,7 +469,10 @@ export async function GET(req: NextRequest) {
         if (result.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
           // Calculate the next run time based on the schedule configuration
+          // Force a fresh calculation without considering lastRanAt timing
           const nextRunAt = calculateNextRunTime(schedule, blocks)
+
+          logger.debug(`[${requestId}] Calculated next run time: ${nextRunAt.toISOString()} for workflow ${schedule.workflowId}`)
 
           // Update the schedule with the next run time
           await db
