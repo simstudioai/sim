@@ -138,6 +138,7 @@ export interface ProviderRequest {
     strict?: boolean
   }
   local_execution?: boolean
+  workflowId?: string // Optional workflow ID for authentication context
 }
 
 // Map of provider IDs to their configurations
