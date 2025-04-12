@@ -81,18 +81,14 @@ export class InputResolver {
         // Check for direct variable reference first
         if (directVariableMatch) {
           const variableName = directVariableMatch[1]
-          const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => {
-            const normalizedName = (variable.name || '').replace(/\\s+/g, '')
-            return normalizedName === variableName
-          })
+          const variable = this.findVariableByName(variableName)
 
-          if (foundVariable) {
-            const [_, variable] = foundVariable
-            // Return the *typed* value directly
+          if (variable) {
+            // Return the typed value directly
             result[key] = this.getTypedVariableValue(variable)
             continue // Skip further processing for this direct reference
           } else {
-            logger.warn(`Nested direct variable reference <variable.${variableName}> not found. Treating as literal.`)
+            logger.warn(`Direct variable reference <variable.${variableName}> not found. Treating as literal.`)
             result[key] = value // Return original string
             continue
           }
@@ -178,49 +174,35 @@ export class InputResolver {
           )
         ) {
           // Resolve each cell's value within the array
-          // IMPORTANT: Cell values are resolved here and will be extracted by tools/utils.ts transformTable function
-          // This ensures variable references like <variable.openweather> are properly substituted with their actual values
-          // The 'plain' type is handled specially to insert values directly without quoting
+          // Cell values are resolved here and will be extracted by tools/utils.ts transformTable function
           result[key] = value.map((row) => ({
             ...row,
             cells: Object.entries(row.cells).reduce(
               (acc, [cellKey, cellValue]) => {
-                // Apply the same direct reference + interpolation logic here
                 if (typeof cellValue === 'string') {
                   const trimmedValue = cellValue.trim()
-                  const directVariableMatch = trimmedValue.match(/^<variable\\.([^>]+)>$/)
+                  // Check for direct variable reference pattern: <variable.name>
+                  const directVariableMatch = trimmedValue.match(/^<variable\.([^>]+)>$/)
 
                   if (directVariableMatch) {
-                    // Direct variable reference in table cell
+                    // Direct variable reference - handle with clean variable lookup
                     const variableName = directVariableMatch[1]
-                    const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => {
-                      const normalizedName = (variable.name || '').replace(/\\s+/g, '')
-                      return normalizedName === variableName
-                    })
+                    const variable = this.findVariableByName(variableName)
 
-                    if (foundVariable) {
-                      const [_, variable] = foundVariable
-                      acc[cellKey] = this.getTypedVariableValue(variable) // Assign typed value
+                    if (variable) {
+                      // Use the variable's typed value directly 
+                      acc[cellKey] = this.getTypedVariableValue(variable) 
                     } else {
-                      logger.warn(`Direct variable reference <variable.${variableName}> in table not found. Treating as literal.`)
-                      acc[cellKey] = cellValue // Assign original string
+                      logger.warn(`Variable reference <variable.${variableName}> not found in table cell`)
+                      acc[cellKey] = cellValue // Fall back to original string
                     }
                   } else {
-                    // Not a direct variable reference, handle interpolation etc.
-                    const resolvedVars = this.resolveVariableReferences(cellValue, block)
-                    // Ensure input to block resolver is string
-                    const resolvedRefs = typeof resolvedVars === 'string'
-                       ? this.resolveBlockReferences(resolvedVars, context, block)
-                       : resolvedVars
-                    // Ensure input to env resolver is string
-                    // Check original cellValue context for API key, as refs might obscure it
-                    const isApiKey = this.isApiKeyField(block, cellValue)
-                    acc[cellKey] = typeof resolvedRefs === 'string'
-                       ? this.resolveEnvVariables(resolvedRefs, isApiKey)
-                       : resolvedRefs
+                    // Process interpolated variables, block references, and environment variables
+                    // The resolveNestedStructure handles all types of resolution in a consistent way
+                    acc[cellKey] = this.resolveNestedStructure(cellValue, context, block)
                   }
                 } else {
-                  // Handle non-string cell values recursively
+                  // Handle non-string values (objects, arrays, etc.)
                   acc[cellKey] = this.resolveNestedStructure(cellValue, context, block)
                 }
                 return acc
@@ -258,8 +240,11 @@ export class InputResolver {
 
     try {
       switch (variable.type) {
+        case 'plain':
+          // Plain type - use raw value without any processing
+          return typeof processedValue === 'string' ? processedValue : String(processedValue)
+
         case 'string':
-        case 'plain': // Treat plain similarly to string for raw value, but formatting differs
           // If the stored string value starts and ends with quotes, remove them
           if (typeof processedValue === 'string') {
             const trimmed = processedValue.trim()
@@ -268,7 +253,7 @@ export class InputResolver {
               (trimmed.startsWith("'") && trimmed.endsWith("'"))
             ) {
               // Remove the quotes and unescape any escaped quotes
-              return trimmed.slice(1, -1).replace(/\\\\"/g, '"').replace(/\\\\'/g, "'")
+              return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
             }
           }
           // Return string value as is if no surrounding quotes
@@ -285,9 +270,9 @@ export class InputResolver {
           if (typeof processedValue === 'number') {
             return processedValue
           }
-          // Handle string representations more robustly
+          // Handle string representations
           if (typeof processedValue === 'string') {
-            // First, remove potential surrounding quotes
+            // Remove potential surrounding quotes
             let stringValue = processedValue.trim()
             if (
               (stringValue.startsWith('"') && stringValue.endsWith('"')) ||
@@ -295,12 +280,10 @@ export class InputResolver {
             ) {
               stringValue = stringValue.slice(1, -1)
             }
-            // Now, attempt to parse the cleaned string
+            // Parse the cleaned string
             const parsed = Number(stringValue)
-            // Return number if valid, otherwise return the original *uncleaned* string value
             return !isNaN(parsed) ? parsed : processedValue
           }
-          // If not a number or string, return as is
           return processedValue
 
         case 'object':
@@ -308,21 +291,18 @@ export class InputResolver {
           if (typeof processedValue === 'object') {
             return processedValue // Already an object/array
           }
-          // Handle JSON string representations
+          // Parse JSON string representations
           if (typeof processedValue === 'string') {
             try {
               return JSON.parse(processedValue)
             } catch (e) {
-              // Keep as string if parsing fails? Or maybe return null/error?
               logger.warn(`Failed to parse JSON for ${variable.type} variable: ${variable.name}`, e)
               return processedValue // Fallback to original string
             }
           }
-          // If it's not an object or string, return as is (though this shouldn't happen often)
           return processedValue
 
         default:
-          // Unknown type, return raw value
           return processedValue
       }
     } catch (error) {
@@ -333,7 +313,7 @@ export class InputResolver {
 
   /**
    * Formats a typed variable value for interpolation into a string.
-   * Ensures strings are quoted correctly in code contexts, etc.
+   * Ensures values are formatted correctly based on their type and context.
    *
    * @param value - The typed value obtained from getTypedVariableValue
    * @param type - The original variable type ('string', 'number', 'plain', etc.)
@@ -341,16 +321,16 @@ export class InputResolver {
    * @returns A string representation suitable for insertion
    */
   private formatValueForInterpolation(value: any, type: string, currentBlock?: SerializedBlock): string {
-     // Determine if this needs special handling for code contexts
+    // Determine if this needs special handling for code contexts
     const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, String(value))
 
     switch (type) {
       case 'plain':
-        // Plain type - use raw value without any formatting or quotes.
+        // Plain type - always use the raw value without any formatting or quotes
         return String(value)
 
       case 'string':
-        // Strings need quotes only in code contexts, otherwise use raw value
+        // For string type, quote only in code contexts
         return needsCodeStringLiteral ? JSON.stringify(value) : String(value)
 
       case 'number':
@@ -363,10 +343,9 @@ export class InputResolver {
         // Objects and arrays need to be stringified for interpolation
         return typeof value === 'object' && value !== null
           ? JSON.stringify(value)
-          : String(value) // Fallback for non-objects
+          : String(value)
 
       default:
-        // Unknown type - use basic string conversion
         return String(value)
     }
   }
@@ -393,14 +372,10 @@ export class InputResolver {
     for (const match of variableMatches) {
       const variableName = match.slice('<variable.'.length, -1)
 
-      // Find the variable by normalized name (without spaces)
-      const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => {
-        const normalizedName = (variable.name || '').replace(/\s+/g, '')
-        return normalizedName === variableName
-      })
+      // Find the variable using our helper method
+      const variable = this.findVariableByName(variableName)
 
-      if (foundVariable) {
-        const [_, variable] = foundVariable
+      if (variable) {
 
         // Get the actual typed value
         const typedValue = this.getTypedVariableValue(variable)
@@ -951,6 +926,21 @@ export class InputResolver {
    */
   private normalizeBlockName(name: string): string {
     return name.toLowerCase().replace(/\s+/g, '')
+  }
+  
+  /**
+   * Helper method to find a variable by its name.
+   * Handles normalization of names (removing spaces) for consistent matching.
+   * 
+   * @param variableName - The name of the variable to find
+   * @returns The found variable object or undefined if not found
+   */
+  private findVariableByName(variableName: string): any | undefined {
+    const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => 
+      (variable.name || '').replace(/\s+/g, '') === variableName
+    )
+    
+    return foundVariable ? foundVariable[1] : undefined
   }
 
   /**
