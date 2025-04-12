@@ -140,6 +140,6 @@ export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     if (error.title === 'Invalid Request') {
       return 'Invalid search query. Please check your search parameters.'
     }
-    return error.detail || `An error occurred while searching X: ${JSON.stringify(error)}`
+    return error.detail || `An error occurred while searching X`
   },
 }

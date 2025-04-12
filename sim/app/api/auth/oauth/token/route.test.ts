@@ -201,7 +201,7 @@ describe('OAuth Token API Routes', () => {
       const response = await POST(req)
       const data = await response.json()
 
-      expect(response.status).toBe(500)
+      expect(response.status).toBe(401)
       expect(data).toHaveProperty('error', 'Failed to refresh access token')
     })
   })

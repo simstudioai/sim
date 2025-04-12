@@ -246,6 +246,7 @@ export async function refreshTokenIfNeeded(
     const refreshResult = await refreshOAuthToken(credential.providerId, credential.refreshToken)
 
     if (!refreshResult) {
+      logger.error(`[${requestId}] Failed to refresh token for credential`)
       throw new Error('Failed to refresh token')
     }
 

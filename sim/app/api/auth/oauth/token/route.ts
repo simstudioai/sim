@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
       return NextResponse.json({ accessToken }, { status: 200 })
     } catch (error) {
-      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)

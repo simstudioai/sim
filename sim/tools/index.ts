@@ -332,13 +332,8 @@ export async function executeTool(
 
   try {
     const tool = getTool(toolId)
-    logger.info(`Executing tool ${toolId} with params: ${JSON.stringify(params)}`)
-
-    // Extract workflowId from context if available, so we can use it across all execution paths
-    const workflowId = params?._context?.workflowId
-
     // Ensure context is preserved if it exists
-    const contextParams = { ...params, _context: { workflowId } }
+    const contextParams = { ...params }
 
     // Validate the tool and its parameters
     validateToolRequest(toolId, tool, contextParams)
