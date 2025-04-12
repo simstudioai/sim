@@ -1,13 +1,16 @@
 import { Pool, FieldDef } from 'pg'
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getPostgreSQLConfig } from '@/config/database'
+
+const logger = createLogger('PostgreSQLAPI')
 
 export async function POST(request: Request) {
   let pool: Pool | null = null
   
   try {
     const body = await request.json()
-    console.log('[PostgreSQL API] Received request:', {
+    logger.info('Received request:', {
       ...body,
       password: body.password ? '[REDACTED]' : undefined,
       connection: body.connection ? { 
@@ -36,7 +39,7 @@ export async function POST(request: Request) {
           ...connection,
           host: connection.host || envConfig.host,
           port: connection.port || envConfig.port,
-          user: connection.user || envConfig.user || 'postgres', // Default to 'postgres' if not specified
+          user: connection.user || envConfig.user || 'postgres',
           password: connection.password || envConfig.password,
           database: connection.database || envConfig.database,
           ssl: connection.ssl !== undefined ? connection.ssl : envConfig.ssl
@@ -53,17 +56,17 @@ export async function POST(request: Request) {
       hasDatabase: !!connection?.database
     }
 
-    console.log('[PostgreSQL API] Connection parameters check:', hasRequiredParams)
+    logger.debug('Connection parameters check:', hasRequiredParams)
 
     if (!hasRequiredParams.hasConnection || !hasRequiredParams.hasHost || 
         !hasRequiredParams.hasUsername || !hasRequiredParams.hasPassword || 
         !hasRequiredParams.hasDatabase) {
-      console.log('[PostgreSQL API] Missing required connection parameters:', hasRequiredParams)
+      logger.warn('Missing required connection parameters:', hasRequiredParams)
       throw new Error('Missing required connection parameters')
     }
 
     // Create PostgreSQL connection pool with proper SSL configuration for RDS
-    console.log('[PostgreSQL API] Creating connection pool with config:', {
+    logger.info('Creating connection pool with config:', {
       ...connection,
       password: '[REDACTED]'
     })
@@ -78,24 +81,24 @@ export async function POST(request: Request) {
         rejectUnauthorized: false,
         requestCert: true
       } : undefined,
-      connectionTimeoutMillis: 10000, // 10 second timeout
-      idleTimeoutMillis: 30000, // 30 second idle timeout
-      max: 20 // maximum number of clients in the pool
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000,
+      max: 20
     })
 
     // Test connection
-    console.log('[PostgreSQL API] Testing connection...')
+    logger.debug('Testing connection...')
     try {
       await pool.query('SELECT 1')
-      console.log('[PostgreSQL API] Connection test successful')
+      logger.info('Connection test successful')
     } catch (error: any) {
-      console.error('[PostgreSQL API] Connection test failed:', error)
+      logger.error('Connection test failed:', { error })
       throw error
     }
 
     // Execute query based on operation
     const { operation, query, params: queryParams, options } = body
-    console.log('[PostgreSQL API] Executing query:', { operation, query, queryParams, options })
+    logger.debug('Executing query:', { operation, query, queryParams, options })
 
     let result
     switch (operation?.toLowerCase()) {
@@ -128,10 +131,8 @@ export async function POST(request: Request) {
       default:
         throw new Error(`Unsupported operation: ${operation}`)
     }
-
   } catch (error: any) {
-    console.error('[PostgreSQL API] Error:', error)
-    console.error('[PostgreSQL API] Error details:', {
+    logger.error('Error during execution:', {
       name: error.name,
       message: error.message,
       code: error.code,
@@ -177,9 +178,9 @@ export async function POST(request: Request) {
     if (pool) {
       try {
         await pool.end()
-        console.log('[PostgreSQL API] Connection pool closed')
+        logger.info('Connection pool closed')
       } catch (error) {
-        console.error('[PostgreSQL API] Error closing pool:', error)
+        logger.error('Error closing pool:', { error })
       }
     }
   }

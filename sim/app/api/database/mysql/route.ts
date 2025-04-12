@@ -1,11 +1,14 @@
 import { createPool, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getMySQLConfig } from '@/config/database'
+
+const logger = createLogger('MySQLAPI')
 
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    console.log('[MySQL API] Received request:', {
+    logger.info('Received request:', {
       ...body,
       password: body.password ? '[REDACTED]' : undefined,
       connection: body.connection ? { 
@@ -51,17 +54,17 @@ export async function POST(request: Request) {
       hasDatabase: !!connection?.database
     }
 
-    console.log('[MySQL API] Connection parameters check:', hasRequiredParams)
+    logger.debug('Connection parameters check:', hasRequiredParams)
 
     if (!hasRequiredParams.hasConnection || !hasRequiredParams.hasHost || 
         !hasRequiredParams.hasUsername || !hasRequiredParams.hasPassword || 
         !hasRequiredParams.hasDatabase) {
-      console.log('[MySQL API] Missing required connection parameters:', hasRequiredParams)
+      logger.warn('Missing required connection parameters:', hasRequiredParams)
       throw new Error('Missing required connection parameters')
     }
 
     // Create MySQL connection pool
-    console.log('[MySQL API] Creating connection pool with config:', {
+    logger.info('Creating connection pool with config:', {
       ...connection,
       password: '[REDACTED]'
     })
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
       ssl: connection.ssl === 'true' ? { rejectUnauthorized: false } : undefined
     }
     
-    console.log('[MySQL API] Attempting to create connection pool with config:', {
+    logger.debug('Attempting to create connection pool with config:', {
       ...poolConfig,
       password: '[REDACTED]'
     })
@@ -83,18 +86,18 @@ export async function POST(request: Request) {
     const pool = createPool(poolConfig)
     
     // Test the connection with a simple query
-    console.log('[MySQL API] Testing connection with SELECT 1')
+    logger.debug('Testing connection with SELECT 1')
     try {
       await pool.query('SELECT 1')
-      console.log('[MySQL API] Connection test successful')
+      logger.info('Connection test successful')
     } catch (testError: any) {
-      console.error('[MySQL API] Connection test failed:', testError)
+      logger.error('Connection test failed:', { error: testError })
       throw testError
     }
 
     // Execute query based on operation
     const { operation, query, params, options } = body
-    console.log('[MySQL API] Executing query:', { operation, query, params, options })
+    logger.debug('Executing query:', { operation, query, params, options })
 
     let result
     switch (operation?.toLowerCase()) {
@@ -116,8 +119,7 @@ export async function POST(request: Request) {
         throw new Error(`Unsupported operation: ${operation}`)
     }
   } catch (error: any) {
-    console.error('[MySQL API] Error:', error)
-    console.error('[MySQL API] Error details:', {
+    logger.error('Error during execution:', {
       name: error.name,
       message: error.message,
       code: error.code,
