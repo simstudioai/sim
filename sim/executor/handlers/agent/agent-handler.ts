@@ -150,6 +150,7 @@ export class AgentBlockHandler implements BlockHandler {
       maxTokens: inputs.maxTokens,
       apiKey: inputs.apiKey,
       responseFormat,
+      workflowId: context.workflowId,
     }
 
     logger.info(`Provider request prepared`, {
@@ -158,6 +159,7 @@ export class AgentBlockHandler implements BlockHandler {
       hasContext: !!providerRequest.context,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
+      workflowId: providerRequest.workflowId,
     })
 
     // Get the app URL from environment variable or use default
