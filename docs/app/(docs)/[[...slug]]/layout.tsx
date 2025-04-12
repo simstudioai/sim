@@ -26,7 +26,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         nav={{
           title: (
             <div className="flex items-center gap-2">
-              <AgentIcon className="h-4 w-4" />
+              <AgentIcon className="h-4 w-4 text-[#8b5cf6]" />
               Sim Studio
             </div>
           ),

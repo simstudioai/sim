@@ -19,6 +19,15 @@ const BlockFeature = ({
   totalItems: number
   itemsPerRow: number
 }) => {
+  const blockColor = {
+    '--block-color': title === 'Agent' ? '#8b5cf6' : 
+                    title === 'API' ? '#3b82f6' : 
+                    title === 'Condition' ? '#f59e0b' :
+                    title === 'Function' ? '#10b981' :
+                    title === 'Router' ? '#6366f1' :
+                    title === 'Evaluator' ? '#ef4444' : '#8b5cf6'
+  } as React.CSSProperties
+  
   const content = (
     <>
       {index < itemsPerRow && (
@@ -27,9 +36,13 @@ const BlockFeature = ({
       {index >= itemsPerRow && (
         <div className="opacity-0 group-hover/feature:opacity-100 transition duration-200 absolute inset-0 h-full w-full bg-gradient-to-b from-neutral-100 dark:from-neutral-800 to-transparent pointer-events-none" />
       )}
-      <div className="mb-4 relative z-10 px-10 text-neutral-600 dark:text-neutral-400">{icon}</div>
+      <div className="mb-4 relative z-10 px-10 text-neutral-500 group-hover/feature:text-[color:var(--block-color,#8b5cf6)] dark:text-neutral-400 dark:group-hover/feature:text-[color:var(--block-color,#a78bfa)] transition-colors duration-200"
+        style={blockColor}
+      >
+        {icon}
+      </div>
       <div className="text-lg font-bold mb-2 relative z-10 px-10">
-        <div className="absolute left-0 inset-y-0 h-6 group-hover/feature:h-8 w-1 rounded-tr-full rounded-br-full bg-neutral-300 dark:bg-neutral-700 group-hover/feature:bg-purple-500 transition-all duration-200 origin-center" />
+        <div className="absolute left-0 inset-y-0 h-6 group-hover/feature:h-8 w-1 rounded-tr-full rounded-br-full bg-neutral-300 dark:bg-neutral-700 group-hover/feature:bg-[color:var(--block-color,#8b5cf6)] transition-all duration-200 origin-center" style={blockColor} />
         <span className="group-hover/feature:translate-x-2 transition duration-200 inline-block text-neutral-800 dark:text-neutral-100">
           {title}
         </span>
@@ -65,42 +78,42 @@ export function BlockTypes() {
       description:
         'Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations.',
       icon: <AgentIcon className="w-6 h-6" />,
-      href: '/docs/blocks/agent',
+      href: '/blocks/agent',
     },
     {
       title: 'API',
       description:
         'Connect to any external API with support for all standard HTTP methods and customizable request parameters.',
       icon: <ApiIcon className="w-6 h-6" />,
-      href: '/docs/blocks/api',
+      href: '/blocks/api',
     },
     {
       title: 'Condition',
       description:
         'Add a condition to the workflow to branch the execution path based on a boolean expression.',
       icon: <ConditionalIcon className="w-6 h-6" />,
-      href: '/docs/blocks/condition',
+      href: '/blocks/condition',
     },
     {
       title: 'Function',
       description:
         'Execute custom JavaScript or TypeScript code within your workflow to transform data or implement complex logic.',
       icon: <CodeIcon className="w-6 h-6" />,
-      href: '/docs/blocks/function',
+      href: '/blocks/function',
     },
     {
       title: 'Router',
       description:
         'Intelligently direct workflow execution to different paths based on input analysis.',
       icon: <ConnectIcon className="w-6 h-6" />,
-      href: '/docs/blocks/router',
+      href: '/blocks/router',
     },
     {
       title: 'Evaluator',
       description:
         'Assess content using customizable evaluation metrics and scoring criteria across multiple dimensions.',
       icon: <ChartBarIcon className="w-6 h-6" />,
-      href: '/docs/blocks/evaluator',
+      href: '/blocks/evaluator',
     },
   ]
 

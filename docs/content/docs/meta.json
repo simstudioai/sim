@@ -1,4 +1,5 @@
 {
   "title": "Sim Studio Documentation",
-  "pages": ["introduction", "getting-started", "blocks", "variables", "tools", "connections", "execution"]
+  "pages": ["introduction", "getting-started", "blocks", "variables", "tools", "connections", "execution"],
+  "defaultOpen": true
 }

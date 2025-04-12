@@ -1,5 +1,7 @@
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
-
+:root {
+    --color-fd-primary: #8b5cf6; /* or your desired purple hue */
+}
 @source '../node_modules/fumadocs-ui/dist/**/*.js';
