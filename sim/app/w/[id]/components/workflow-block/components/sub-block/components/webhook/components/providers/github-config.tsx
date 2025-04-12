@@ -126,17 +126,6 @@ export function GithubConfig({
           <li>Ensure "Active" is checked and click "Add webhook".</li>
         </ol>
       </InstructionsSection>
-
-      <Alert>
-        <ShieldCheck className="h-4 w-4" />
-        <AlertTitle>Security Recommendations</AlertTitle>
-        <AlertDescription>
-          <ul className="list-disc list-outside pl-4 space-y-1 mt-1">
-            <li>Always use a strong, unique secret token to validate GitHub requests.</li>
-            <li>Keep SSL verification enabled unless absolutely necessary.</li>
-          </ul>
-        </AlertDescription>
-      </Alert>
     </div>
   )
 }

@@ -138,7 +138,18 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
   generic: {
     id: 'generic',
     name: 'General',
-    icon: (props) => <CheckCircle2 {...props} />,
+    icon: (props) => (
+      <div
+        className={`flex items-center justify-center rounded ${props.className || ''}`}
+        style={{
+          backgroundColor: '#802FFF',
+          minWidth: '28px',
+          padding: '0 4px',
+        }}
+      >
+        <span className="font-medium text-white text-xs">Sim</span>
+      </div>
+    ),
     configFields: {
       token: {
         type: 'string',

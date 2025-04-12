@@ -576,6 +576,7 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+            webhookUrl={webhookUrl}
           />
         )
       case 'airtable':
@@ -593,6 +594,7 @@ export function WebhookModal({
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
             webhookId={webhookId}
+            webhookUrl={webhookUrl}
           />
         )
       case 'generic':
@@ -643,12 +645,14 @@ export function WebhookModal({
           </DialogHeader>
 
           <div className="pt-4 px-6 pb-6 overflow-y-auto flex-grow">
-            <WebhookUrlField
-              webhookUrl={webhookUrl}
-              isLoadingToken={isLoadingToken}
-              copied={copied}
-              copyToClipboard={copyToClipboard}
-            />
+            {webhookProvider !== 'slack' && webhookProvider !== 'airtable' && (
+              <WebhookUrlField
+                webhookUrl={webhookUrl}
+                isLoadingToken={isLoadingToken}
+                copied={copied}
+                copyToClipboard={copyToClipboard}
+              />
+            )}
 
             {renderProviderContent()}
           </div>

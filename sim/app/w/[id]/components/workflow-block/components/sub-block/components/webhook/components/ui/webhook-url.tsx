@@ -3,6 +3,7 @@ import { CheckCheck, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 interface WebhookUrlFieldProps {
   webhookUrl: string
@@ -27,7 +28,10 @@ export function WebhookUrlField({
           id="webhook-url"
           readOnly
           value={webhookUrl}
-          className="flex-1 h-10 font-mono text-xs cursor-text"
+          className={cn(
+            'flex-1 h-10 font-mono text-xs cursor-text',
+            'focus-visible:ring-2 focus-visible:ring-primary/20'
+          )}
           onClick={(e) => (e.target as HTMLInputElement).select()}
           disabled={isLoadingToken}
         />
@@ -35,7 +39,7 @@ export function WebhookUrlField({
           type="button"
           size="icon"
           variant="outline"
-          className="ml-2 h-10 w-10"
+          className={cn('ml-2 h-10 w-10', 'hover:bg-primary/5', 'transition-colors')}
           onClick={() => copyToClipboard(webhookUrl, 'url')}
           disabled={isLoadingToken}
         >
