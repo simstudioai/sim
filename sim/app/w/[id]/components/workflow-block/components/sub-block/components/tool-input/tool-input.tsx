@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react'
-import { CircleSlashIcon, GaugeIcon, PlusIcon, WrenchIcon, XIcon, ZapIcon } from 'lucide-react'
+import {
+  BrainIcon,
+  CircleSlashIcon,
+  GaugeIcon,
+  PlusIcon,
+  WrenchIcon,
+  XIcon,
+  ZapIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -623,12 +631,12 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 }}
                                 aria-label="Toggle tool usage control"
                               >
-                                {/* Auto - Gauge icon */}
-                                <GaugeIcon
+                                {/* Auto - Brain icon */}
+                                <BrainIcon
                                   size={14}
                                   className={`absolute shrink-0 transition-all ${
                                     tool.usageControl === 'auto'
-                                      ? 'scale-100 opacity-100 text-blue-600 dark:text-blue-400'
+                                      ? 'scale-100 opacity-100 text-muted-foreground'
                                       : 'scale-0 opacity-0'
                                   }`}
                                   aria-hidden="true"
@@ -639,7 +647,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                   size={14}
                                   className={`absolute shrink-0 transition-all ${
                                     tool.usageControl === 'force'
-                                      ? 'scale-100 opacity-100 text-green-600 dark:text-green-400'
+                                      ? 'scale-100 opacity-100 text-muted-foreground'
                                       : 'scale-0 opacity-0'
                                   }`}
                                   aria-hidden="true"
@@ -650,7 +658,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                   size={14}
                                   className={`absolute shrink-0 transition-all ${
                                     tool.usageControl === 'none'
-                                      ? 'scale-100 opacity-100 text-red-600 dark:text-red-400'
+                                      ? 'scale-100 opacity-100 text-muted-foreground'
                                       : 'scale-0 opacity-0'
                                   }`}
                                   aria-hidden="true"

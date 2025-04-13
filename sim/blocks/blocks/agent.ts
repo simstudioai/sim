@@ -1,11 +1,10 @@
 import { AgentIcon } from '@/components/icons'
-import { isHostedVersion } from '@/lib/utils'
 import { createLogger } from '@/lib/logs/console-logger'
+import { isHostedVersion } from '@/lib/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { getAllBlocks } from '@/blocks'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
-import { getTool } from '@/tools'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
