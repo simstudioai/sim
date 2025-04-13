@@ -5,7 +5,7 @@ import { BlockCategory, BlockConfig, BlockIcon } from '../types'
 export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   type: 'twilio_sms',
   name: 'Twilio SMS',
-  description: 'Send SMS messages via Twilio',
+  description: 'Send SMS messages',
   longDescription: 'Send text messages to single or multiple recipients using the Twilio API.',
   category: 'tools',
   bgColor: '#F22F46', // Twilio brand color

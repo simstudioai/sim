@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { Notice } from '@/components/ui/notice'
 import {
   Select,
   SelectContent,
@@ -447,12 +448,9 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderPublishForm = () => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="mb-4 rounded-md bg-amber-50 p-3 border border-amber-200">
-          <p className="text-sm text-amber-800">
-            <span className="font-medium text-amber-800">Security:</span> API keys and environment
-            variables will be automatically removed before publishing.
-          </p>
-        </div>
+        <Notice variant="warning" title="Security">
+          API keys and environment variables will be automatically removed before publishing.
+        </Notice>
 
         <FormField
           control={form.control}

@@ -96,7 +96,11 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
       </SelectTrigger>
       <SelectContent className="max-h-48">
         {evaluatedOptions.map((option) => (
-          <SelectItem key={getOptionValue(option)} value={getOptionValue(option)}>
+          <SelectItem
+            key={getOptionValue(option)}
+            value={getOptionValue(option)}
+            className="text-base"
+          >
             {getOptionLabel(option)}
           </SelectItem>
         ))}

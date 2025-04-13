@@ -1,5 +1,6 @@
 import React from 'react'
 import { Lightbulb } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface InstructionsSectionProps {
   title?: string
@@ -15,21 +16,11 @@ export function InstructionsSection({
   className,
 }: InstructionsSectionProps) {
   return (
-    <div
-      className={`bg-muted/50 dark:bg-muted/20 p-4 rounded-md mt-4 border border-border ${className}`}
-    >
+    <div className={cn('bg-card/50 p-4 rounded-md mt-4 border border-border shadow-sm', className)}>
       <h4 className="font-medium text-base mb-3">{title}</h4>
-      <div className="text-sm text-muted-foreground space-y-1">
+      <div className="text-sm text-muted-foreground space-y-1 [&_a]:text-primary [&_a]:underline [&_a]:hover:text-primary/80 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
         {children} {/* Instructions list goes here */}
       </div>
-      {tip && (
-        <div className="mt-4 pt-3 border-t border-border">
-          <p className="text-sm text-muted-foreground flex items-center">
-            <Lightbulb className="h-4 w-4 text-yellow-500 dark:text-yellow-400 mr-2 flex-shrink-0" />
-            {tip}
-          </p>
-        </div>
-      )}
     </div>
   )
 }

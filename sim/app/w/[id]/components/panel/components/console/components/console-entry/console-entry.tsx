@@ -151,12 +151,12 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
                           {expandAllJson ? (
                             <>
                               <ChevronUp className="h-3 w-3 mr-1" />
-                              <span className="text-xs">Collapse all</span>
+                              <span className="text-xs">Collapse</span>
                             </>
                           ) : (
                             <>
                               <ChevronDown className="h-3 w-3 mr-1" />
-                              <span className="text-xs">Expand all</span>
+                              <span className="text-xs">Expand</span>
                             </>
                           )}
                         </span>
