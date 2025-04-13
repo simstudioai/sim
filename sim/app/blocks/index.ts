@@ -17,6 +17,7 @@ import { OpenAIBlock } from './blocks/openai'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
 import { RouterBlock } from './blocks/router'
+import { SemrushBlock } from './blocks/semrush'
 import { SerperBlock } from './blocks/serper'
 import { GoogleSheetsBlock } from './blocks/sheets'
 import { SlackBlock } from './blocks/slack'
@@ -44,6 +45,7 @@ export {
   SlackBlock,
   GitHubBlock,
   ConditionBlock,
+  SemrushBlock,
   SerperBlock,
   TavilyBlock,
   RouterBlock,
@@ -86,6 +88,7 @@ const blocks: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   qdrant: QdrantBlock,
   reddit: RedditBlock,
+  semrush: SemrushBlock,
   router: RouterBlock,
   serper: SerperBlock,
   slack: SlackBlock,

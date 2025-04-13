@@ -27,6 +27,9 @@ import {
   searchVectorsTool, 
   retrieveVectorsTool 
 } from './qdrant'
+import {
+  semrushDomainOverviewTool
+} from './semrush'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
@@ -57,6 +60,7 @@ export const tools: Record<string, ToolConfig> = {
   slack_message: slackMessageTool,
   github_repoinfo: githubRepoInfoTool,
   serper_search: serperSearch,
+  semrush_domain_overview: semrushDomainOverviewTool,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
   supabase_query: supabaseQueryTool,
