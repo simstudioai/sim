@@ -6,6 +6,7 @@ import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 import Editor from 'react-simple-code-editor'
+import { VariableManager } from '@/lib/variables/variable-manager'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -120,38 +121,15 @@ export function Variables({ panelWidth }: VariablesProps) {
     if (variable.value === '') return ''
 
     try {
-      // For object and array types, prettify JSON
-      if (variable.type === 'object' || variable.type === 'array') {
-        const parsed = typeof variable.value === 'string' ? JSON.parse(variable.value) : variable.value
-        return JSON.stringify(parsed, null, 2)
-      }
-
-      // For string type, show wrapped in exactly one pair of quotes
-      if (variable.type === 'string' || variable.type === 'plain') {
-        const value = variable.value as string
-        const trimmed = value.trim()
-        
-        // Remove surrounding quotes if they exist
-        if (
-          (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-          (trimmed.startsWith("'") && trimmed.endsWith("'"))
-        ) {
-          return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
-        }
-        return value
-      }
-
-      // For number and boolean types, show as-is without quotes
-      if (variable.type === 'number' || variable.type === 'boolean') {
-        // If the value is a string representation of number/boolean, extract the raw value
-        const value = variable.value as string
-        return value.replace(/^["'](.*)["']$/, '$1')
-      }
+      // Use the VariableManager to format values consistently
+      return VariableManager.formatForEditor(variable.value, variable.type)
     } catch (e) {
-      // If not valid JSON, return as is
+      console.error('Error formatting value:', e)
+      // If formatting fails, return as is
+      return typeof variable.value === 'string' 
+        ? variable.value 
+        : JSON.stringify(variable.value)
     }
-
-    return variable.value as string
   }
 
   // Clear editor refs when variables change
@@ -166,28 +144,16 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   // Handle editor value changes
   const handleEditorChange = (variable: Variable, newValue: string) => {
-    // Pre-process the value based on variable type
-    let processedValue: string = newValue;
-    
-    if (variable.type === 'string') {
-      // For string type, ensure consistent quoting
-      // Remove existing quotes to prevent doubling
-      const cleanValue = newValue.replace(/^["'](.*)["']$/, '$1');
+    try {
+      // Use the VariableManager to consistently parse input values
+      const processedValue = VariableManager.parseInputForStorage(newValue, variable.type)
       
-      // We don't add quotes - that's only for display
-      processedValue = cleanValue;
+      // Update the variable with the processed value
+      updateVariable(variable.id, { value: processedValue })
+    } catch (e) {
+      // If processing fails, use the raw value
+      updateVariable(variable.id, { value: newValue })
     }
-    else if (variable.type === 'number' || variable.type === 'boolean') {
-      // For numbers/booleans, strip any quotes
-      processedValue = newValue.replace(/^["'](.*)["']$/, '$1');
-    }
-    else if (variable.type === 'plain') {
-      // For plain type, use as-is
-      processedValue = newValue;
-    }
-    
-    // Update the variable with the processed value
-    updateVariable(variable.id, { value: processedValue });
   }
 
   return (

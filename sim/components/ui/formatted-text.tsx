@@ -1,6 +1,7 @@
 'use client'
 
 import { ReactNode } from 'react'
+import { VariableManager } from '@/lib/variables/variable-manager'
 
 /**
  * Formats text by highlighting block references (<...>) and environment variables ({{...}})
@@ -16,13 +17,9 @@ export function formatDisplayText(text: string, stripQuotes: boolean = false): R
   // This is needed when displaying plain type variables in inputs
   let processedText = text;
   if (stripQuotes && typeof text === 'string') {
-    // Check if the text is a quoted string (starts and ends with quotes)
-    if ((text.startsWith('"') && text.endsWith('"')) || 
-        (text.startsWith("'") && text.endsWith("'"))) {
-      // Remove the quotes but make sure there's at least one character between them
-      if (text.length > 2) {
-        processedText = text.slice(1, -1);
-      }
+    // Use VariableManager to determine if quotes should be stripped
+    if (VariableManager.shouldStripQuotesForDisplay(text)) {
+      processedText = text.slice(1, -1);
     }
   }
 

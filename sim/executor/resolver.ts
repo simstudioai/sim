@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { VariableManager } from '@/lib/variables/variable-manager'
 import { LoopManager } from './loops'
 import { ExecutionContext } from './types'
 
@@ -102,7 +103,7 @@ export class InputResolver {
         // Need to ensure input is string here if resolveVariableReferences returned non-string somehow (shouldn't)
         const resolvedReferences = typeof resolvedVars === 'string'
             ? this.resolveBlockReferences(resolvedVars, context, block)
-            : resolvedVars; // Pass non-string through
+            : resolvedVars // Pass non-string through
 
         // Check if this is an API key field - needs original context, less reliable here
         // We might need a better way to pass isApiKey context down recursively
@@ -112,7 +113,7 @@ export class InputResolver {
         // Need to ensure input is string here
         const resolvedEnv = typeof resolvedReferences === 'string'
             ? this.resolveEnvVariables(resolvedReferences, isApiKey)
-            : resolvedReferences; // Pass non-string through
+            : resolvedReferences // Pass non-string through
 
         // Special handling for different block types
         const isFunctionBlock = block.metadata?.id === 'function'
@@ -226,7 +227,7 @@ export class InputResolver {
 
   /**
    * Retrieves the correctly typed value of a variable based on its stored type.
-   * Handles parsing for numbers, booleans, objects, and arrays if stored as strings.
+   * Uses VariableManager for consistent handling of all variable types.
    *
    * @param variable - The variable object from workflowVariables
    * @returns The actual typed value of the variable
@@ -236,84 +237,19 @@ export class InputResolver {
       return variable?.value // Return null or undefined as is
     }
 
-    let processedValue = variable.value
-
     try {
-      switch (variable.type) {
-        case 'plain':
-          // Plain type - use raw value without any processing
-          return typeof processedValue === 'string' ? processedValue : String(processedValue)
-
-        case 'string':
-          // If the stored string value starts and ends with quotes, remove them
-          if (typeof processedValue === 'string') {
-            const trimmed = processedValue.trim()
-            if (
-              (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-              (trimmed.startsWith("'") && trimmed.endsWith("'"))
-            ) {
-              // Remove the quotes and unescape any escaped quotes
-              return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
-            }
-          }
-          // Return string value as is if no surrounding quotes
-          return String(processedValue)
-
-        case 'boolean':
-          if (typeof processedValue === 'boolean') {
-            return processedValue
-          }
-          // Handle string representations
-          return String(processedValue).trim().toLowerCase() === 'true'
-
-        case 'number':
-          if (typeof processedValue === 'number') {
-            return processedValue
-          }
-          // Handle string representations
-          if (typeof processedValue === 'string') {
-            // Remove potential surrounding quotes
-            let stringValue = processedValue.trim()
-            if (
-              (stringValue.startsWith('"') && stringValue.endsWith('"')) ||
-              (stringValue.startsWith("'") && stringValue.endsWith("'"))
-            ) {
-              stringValue = stringValue.slice(1, -1)
-            }
-            // Parse the cleaned string
-            const parsed = Number(stringValue)
-            return !isNaN(parsed) ? parsed : processedValue
-          }
-          return processedValue
-
-        case 'object':
-        case 'array':
-          if (typeof processedValue === 'object') {
-            return processedValue // Already an object/array
-          }
-          // Parse JSON string representations
-          if (typeof processedValue === 'string') {
-            try {
-              return JSON.parse(processedValue)
-            } catch (e) {
-              logger.warn(`Failed to parse JSON for ${variable.type} variable: ${variable.name}`, e)
-              return processedValue // Fallback to original string
-            }
-          }
-          return processedValue
-
-        default:
-          return processedValue
-      }
+      // Use the centralized VariableManager to resolve variable values
+      return VariableManager.resolveForExecution(variable.value, variable.type)
     } catch (error) {
       logger.error(`Error processing variable ${variable.name} (type: ${variable.type}):`, error)
-      return processedValue // Fallback to original value on error
+      return variable.value // Fallback to original value on error
     }
   }
 
   /**
    * Formats a typed variable value for interpolation into a string.
    * Ensures values are formatted correctly based on their type and context.
+   * Uses VariableManager for consistent handling of all variable types.
    *
    * @param value - The typed value obtained from getTypedVariableValue
    * @param type - The original variable type ('string', 'number', 'plain', etc.)
@@ -321,32 +257,20 @@ export class InputResolver {
    * @returns A string representation suitable for insertion
    */
   private formatValueForInterpolation(value: any, type: string, currentBlock?: SerializedBlock): string {
-    // Determine if this needs special handling for code contexts
-    const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, String(value))
-
-    switch (type) {
-      case 'plain':
-        // Plain type - always use the raw value without any formatting or quotes
-        return String(value)
-
-      case 'string':
-        // For string type, quote only in code contexts
-        return needsCodeStringLiteral ? JSON.stringify(value) : String(value)
-
-      case 'number':
-      case 'boolean':
-        // Numbers and booleans should be unquoted string representations
-        return String(value)
-
-      case 'object':
-      case 'array':
-        // Objects and arrays need to be stringified for interpolation
-        return typeof value === 'object' && value !== null
-          ? JSON.stringify(value)
-          : String(value)
-
-      default:
-        return String(value)
+    try {
+      // Determine if this needs special handling for code contexts
+      const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, String(value))
+      
+      // Use the appropriate formatting method based on context
+      if (needsCodeStringLiteral) {
+        return VariableManager.formatForCodeContext(value, type as any)
+      } else {
+        return VariableManager.formatForTemplateInterpolation(value, type as any)
+      }
+    } catch (error) {
+      logger.error(`Error formatting value for interpolation (type: ${type}):`, error)
+      // Fallback to simple string conversion
+      return String(value)
     }
   }
 
@@ -361,7 +285,7 @@ export class InputResolver {
     // Added check: If value is not a string, return it directly.
     // This can happen if a prior resolution step (like block reference) returned a non-string.
     if (typeof value !== 'string') {
-       return value as any; // Cast needed as function technically returns string, but might pass through others
+       return value as any // Cast needed as function technically returns string, but might pass through others
     }
 
     const variableMatches = value.match(/<variable\.([^>]+)>/g)
@@ -1110,7 +1034,7 @@ export class InputResolver {
         /\b(if|else|elif|for|while|def|return|import|from|as|class|with|try|except)\b/,
 
         // Common code patterns
-        /^['\"]use strict['\"];?$/, // JS strict mode
+        /^['\"]use strict['\"]?$/, // JS strict mode
         /\$\{.+?\}/, // JS template literals
         /f['\"].*?['\"]/, // Python f-strings
         /\bprint\s*\(/, // Python print

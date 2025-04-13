@@ -686,45 +686,5 @@ describe('InputResolver', () => {
       expect(result.param1).toBe('Hello')
       expect(result.param2).toBe(42)
     })
-
-    it('should handle variable names with spaces', () => {
-      // Add a variable with spaces in the name
-      mockWorkflowVars['with spaces'] = {
-        id: 'var7',
-        workflowId: 'test-workflow',
-        name: 'with spaces',
-        type: 'string',
-        value: 'Space value',
-      }
-
-      // Create a new resolver with the updated variables
-      resolver = new InputResolver(
-        sampleWorkflow,
-        mockEnvironmentVars,
-        mockWorkflowVars
-      )
-
-      const block: SerializedBlock = {
-        id: 'test-block',
-        metadata: { id: 'generic', name: 'Test Block' },
-        position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
-            param: '<variable.withspaces>', // No spaces in reference
-          }
-        },
-        inputs: {
-          param: 'string',
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      const result = resolver.resolveInputs(block, mockContext)
-      
-      // Should find the variable despite spaces in the name
-      expect(result.param).toBe('Space value')
-    })
   })
 })

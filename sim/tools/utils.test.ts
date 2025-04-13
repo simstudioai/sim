@@ -433,5 +433,28 @@ describe('executeRequest', () => {
       output: {},
       error: 'Tool returned an error',
     })
+
+    // Case 4: transformError throws an exception
+    mockTool.transformError = vi.fn().mockImplementation(() => {
+      throw new Error('Exception from transformError');
+    });
+    
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ message: 'Error' }),
+    })
+
+    result = await executeRequest('test-tool', mockTool, {
+      url: 'https://api.example.com',
+      method: 'GET',
+      headers: {},
+    })
+
+    expect(result).toEqual({
+      success: false,
+      output: {},
+      error: 'Exception from transformError',
+    })
   })
 })
