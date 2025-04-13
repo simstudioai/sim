@@ -245,3 +245,12 @@ input[type='search']::-ms-clear {
 .dark .bg-red-500 {
   @apply bg-red-700;
 }
+
+/* Font Variables */
+.font-geist-sans {
+  font-family: var(--font-geist-sans);
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono);
+}

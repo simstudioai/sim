@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactFlow, {
-  Background,
   ConnectionLineType,
   Edge,
+  MarkerType,
   Node,
   NodeTypes,
   Position,
@@ -12,6 +12,7 @@ import ReactFlow, {
   useEdgesState,
   useNodesState,
 } from 'reactflow'
+import { motion } from 'framer-motion'
 import 'reactflow/dist/style.css'
 import { HeroBlock } from './hero-block'
 import { useWindowSize } from './use-window-size'
@@ -20,184 +21,104 @@ const nodeTypes: NodeTypes = {
   heroBlock: HeroBlock,
 }
 
-// Initial nodes configuration
-const initialNodes: Node[] = [
-  {
-    id: 'api',
-    type: 'heroBlock',
-    position: { x: -150, y: -100 },
-    data: {
-      type: 'api',
-      name: 'API Block',
-      color: '#2F55FF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'router',
-    type: 'heroBlock',
-    position: { x: 125, y: -50 },
-    data: {
-      type: 'router',
-      name: 'Router',
-      color: '#28C43F',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent1',
-    type: 'heroBlock',
-    position: { x: 400, y: -100 },
-    data: {
-      type: 'agent',
-      name: 'Agent 1',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent2',
-    type: 'heroBlock',
-    position: { x: 400, y: 0 },
-    data: {
-      type: 'agent',
-      name: 'Agent 2',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-]
+// --- Layouts based on visual position in the reference image --- 
 
-// Consolidated edges configuration
-const baseEdges: Edge[] = [
-  {
-    id: 'api-router',
-    source: 'api',
-    target: 'router',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-  {
-    id: 'router-agent1',
-    source: 'router',
-    target: 'agent1',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-  {
-    id: 'router-agent2',
-    source: 'router',
-    target: 'agent2',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-]
+// Desktop Layout (Wide spread)
+const desktopNodes: Node[] = [
+  { id: 'function', type: 'heroBlock', position: { x: -550, y: -100 }, data: { type: 'function', content: "functions.svg" }, sourcePosition: Position.Right, targetPosition: Position.Left },
+  { id: 'router', type: 'heroBlock', position: { x: 550, y: -100 }, data: { type: 'router', content: 'router.svg' }, sourcePosition: Position.Right, targetPosition: Position.Left },
+  { id: 'agent', type: 'heroBlock', position: { x: -400, y: 250 }, data: { type: 'agent', content: 'agent.svg' }, sourcePosition: Position.Right, targetPosition: Position.Left },
+  { id: 'workflow', type: 'heroBlock', position: { x: 400, y: 250 }, data: { type: 'workflow', name: 'Workflow 1', content: 'workflow.svg' }, sourcePosition: Position.Right, targetPosition: Position.Left },
+];
+const desktopEdges: Edge[] = [
+  { id: 'function-router', source: 'function', target: 'router', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+  { id: 'agent-workflow', source: 'agent', target: 'workflow', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+  { id: 'function-agent', source: 'function', target: 'agent', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+  { id: 'router-workflow', source: 'router', target: 'workflow', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+];
 
-const initialEdges: Edge[] = [
-  ...baseEdges,
-  {
-    id: 'router-agent3',
-    source: 'router',
-    target: 'agent3',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-]
+// Tablet Layout (Slightly less spread)
+const tabletNodes: Node[] = [
+  { id: 'function', type: 'heroBlock', position: { x: -400, y: -80 }, data: { type: 'function', content: "functions.svg" }, sourcePosition: Position.Right, targetPosition: Position.Left },
+  { id: 'router', type: 'heroBlock', position: { x: 400, y: -80 }, data: { type: 'router', content: 'router.svg' }, sourcePosition: Position.Right, targetPosition: Position.Left },
+  { id: 'agent', type: 'heroBlock', position: { x: -400, y: 220 }, data: { type: 'agent', content: 'agent.svg' }, sourcePosition: Position.Right, targetPosition: Position.Left },
+  { id: 'workflow', type: 'heroBlock', position: { x: 400, y: 220 }, data: { type: 'workflow', name: 'Workflow 1', content: 'workflow.svg' }, sourcePosition: Position.Right, targetPosition: Position.Left },
+];
+const tabletEdges: Edge[] = desktopEdges; // Reuse edges
 
-// Create mobile node positions
-const getMobileNodes = (): Node[] => [
-  {
-    id: 'api',
-    type: 'heroBlock',
-    position: { x: -25, y: -150 },
-    data: {
-      type: 'api',
-      name: 'API Block',
-      color: '#2F55FF',
+// Mobile Layout (Vertical Stack)
+const mobileNodes: Node[] = [
+  { id: 'function', type: 'heroBlock', position: { x: 0, y: -200 }, data: { type: 'function', content: "functions.svg" }, sourcePosition: Position.Bottom, targetPosition: Position.Top }, 
+  { id: 'router', type: 'heroBlock', position: { x: 0, y: 100 }, data: { type: 'router', content: 'router.svg' }, sourcePosition: Position.Bottom, targetPosition: Position.Top },
+  { id: 'agent', type: 'heroBlock', position: { x: 0, y: 400 }, data: { type: 'agent', content: 'agent.svg' }, sourcePosition: Position.Bottom, targetPosition: Position.Top }, 
+  { id: 'workflow', type: 'heroBlock', position: { x: 0, y: 700 }, data: { type: 'workflow', name: 'Workflow 1', content: 'workflow.svg' }, sourcePosition: Position.Bottom, targetPosition: Position.Top },
+];
+const mobileEdges: Edge[] = [
+  { id: 'function-router-mobile', source: 'function', target: 'router', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+  { id: 'router-agent-mobile', source: 'router', target: 'agent', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+  { id: 'agent-workflow-mobile', source: 'agent', target: 'workflow', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
+];
+
+const workflowVariants = {
+  hidden: { opacity: 0, scale: 0.95, y: 20 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      delay: 0.1, // Small delay after hero text animation
+      ease: "easeOut",
     },
-    dragHandle: '.workflow-drag-handle',
   },
-  {
-    id: 'router',
-    type: 'heroBlock',
-    position: { x: 0, y: -30 },
-    data: {
-      type: 'router',
-      name: 'Router',
-      color: '#28C43F',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent1',
-    type: 'heroBlock',
-    position: { x: 275, y: -100 },
-    data: {
-      type: 'agent',
-      name: 'Agent 1',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent2',
-    type: 'heroBlock',
-    position: { x: 275, y: 0 },
-    data: {
-      type: 'agent',
-      name: 'Agent 2',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-]
+};
 
 export function HeroWorkflow() {
-  const { width } = useWindowSize()
-  const isMobile = width ? width <= 768 : false
+  const { width } = useWindowSize();
+  const isMobile = width !== undefined && width < 768;
+  const isTablet = width !== undefined && width >= 768 && width < 1024;
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(isMobile ? getMobileNodes() : initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(isMobile ? baseEdges : initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
-  // Handle viewport changes with instant update
   useEffect(() => {
-    const targetNodes = isMobile ? getMobileNodes() : initialNodes
-    const targetEdges = isMobile ? baseEdges : initialEdges
+    if (isMobile) {
+      setNodes(mobileNodes);
+      setEdges(mobileEdges);
+    } else if (isTablet) {
+      setNodes(tabletNodes);
+      setEdges(tabletEdges); 
+    } else {
+      setNodes(desktopNodes);
+      setEdges(desktopEdges);
+    }
+  }, [isMobile, isTablet, setNodes, setEdges]);
 
-    setNodes((nds) =>
-      nds.map((node) => {
-        const targetNode = targetNodes.find((n) => n.id === node.id)
-        if (targetNode) {
-          return {
-            ...node,
-            position: {
-              x: targetNode.position.x,
-              y: targetNode.position.y,
-            },
-          }
-        }
-        return node
-      })
-    )
-    setEdges(targetEdges)
-  }, [isMobile, setNodes, setEdges])
+  const fitViewPadding = useMemo(() => {
+    if (isMobile) {
+      return 1.0;
+    } else if (isTablet) {
+      return 0.3;
+    } else {
+      return 0.1;
+    }
+  }, [isMobile, isTablet]);
 
   return (
-    <div className="w-full h-[240px] md:h-[320px]">
-      <style jsx global>{`
-        .animated-edge {
-          animation: dashdraw 7s linear infinite;
+    <motion.div 
+      className="absolute inset-0 pointer-events-none"
+      variants={workflowVariants}
+      initial="hidden"
+      animate="visible"
+    >
+       <style jsx global>{`
+        .react-flow__edge-path {
+          stroke-dasharray: 4;
+          animation: dashdraw .5s linear infinite;
         }
         @keyframes dashdraw {
           from {
-            stroke-dashoffset: 100;
-          }
-          to {
-            stroke-dashoffset: 0;
+            stroke-dashoffset: 8;
           }
         }
       `}</style>
@@ -207,19 +128,14 @@ export function HeroWorkflow() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        defaultEdgeOptions={{
-          type: 'smoothstep',
-          style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '8,8' },
-          className: 'animated-edge',
-        }}
         connectionLineType={ConnectionLineType.SmoothStep}
-        connectionLineStyle={{ stroke: '#94a3b8', strokeWidth: 2 }}
+        connectionLineStyle={{ stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }}
         fitView
-        minZoom={0.6}
-        maxZoom={1.35}
-        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        fitViewOptions={{ padding: fitViewPadding }}
+        minZoom={0.1}
+        maxZoom={1.2}
         proOptions={{ hideAttribution: true }}
-        nodesDraggable={true}
+        nodesDraggable={false} 
         nodesConnectable={false}
         elementsSelectable={false}
         panOnScroll={false}
@@ -229,20 +145,9 @@ export function HeroWorkflow() {
         panOnDrag={false}
         selectionOnDrag={false}
         preventScrolling={true}
-        autoPanOnNodeDrag={false}
-        nodeExtent={
-          isMobile
-            ? [
-                [-50, -175],
-                [500, 75],
-              ]
-            : [
-                [-190, -130],
-                [644, 60],
-              ]
-        }
-      />
-    </div>
+      >
+      </ReactFlow>
+    </motion.div>
   )
 }
 
