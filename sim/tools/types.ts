@@ -69,7 +69,7 @@ export interface TableRow {
   id: string
   cells: {
     Key: string
-    Value: string
+    Value: any
   }
 }
 

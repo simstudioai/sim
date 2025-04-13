@@ -16,7 +16,7 @@ const VariablesSchema = z.object({
       id: z.string(),
       workflowId: z.string(),
       name: z.string(),
-      type: z.enum(['string', 'number', 'boolean', 'object', 'array']),
+      type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
       value: z.union([z.string(), z.number(), z.boolean(), z.record(z.any()), z.array(z.any())]),
     })
   ),

@@ -325,7 +325,7 @@ export function ShortInput({
         >
           {password && !isFocused
             ? '•'.repeat(value?.toString().length ?? 0)
-            : formatDisplayText(value?.toString() ?? '')}
+            : formatDisplayText(value?.toString() ?? '', true)}
         </div>
       </div>
       <EnvVarDropdown

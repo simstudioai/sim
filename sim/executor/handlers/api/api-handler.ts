@@ -31,18 +31,29 @@ export class ApiBlockHandler implements BlockHandler {
 
     // Pre-validate common HTTP request issues to provide better error messages
     if (tool.name && tool.name.includes('HTTP') && inputs.url) {
+      // Strip any surrounding quotes that might have been added during resolution
+      let urlToValidate = inputs.url;
+      if (typeof urlToValidate === 'string') {
+        if ((urlToValidate.startsWith('"') && urlToValidate.endsWith('"')) || 
+            (urlToValidate.startsWith("'") && urlToValidate.endsWith("'"))) {
+          urlToValidate = urlToValidate.slice(1, -1);
+          // Update the input with unquoted URL
+          inputs.url = urlToValidate;
+        }
+      }
+      
       // Check for missing protocol
-      if (!inputs.url.match(/^https?:\/\//i)) {
+      if (!urlToValidate.match(/^https?:\/\//i)) {
         throw new Error(
-          `Invalid URL: "${inputs.url}" - URL must include protocol (try "https://${inputs.url}")`
+          `Invalid URL: "${urlToValidate}" - URL must include protocol (try "https://${urlToValidate}")`
         )
       }
 
       // Detect other common URL issues
       try {
-        new URL(inputs.url)
+        new URL(urlToValidate)
       } catch (e: any) {
-        throw new Error(`Invalid URL format: "${inputs.url}" - ${e.message}`)
+        throw new Error(`Invalid URL format: "${urlToValidate}" - ${e.message}`)
       }
     }
 

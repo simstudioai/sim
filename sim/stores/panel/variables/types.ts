@@ -1,4 +1,4 @@
-export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array'
+export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
 
 /**
  * Represents a workflow variable with workflow-specific naming
