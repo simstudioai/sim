@@ -112,6 +112,16 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       try {
         // Process URL with path parameters and query params
         let url = params.url
+        
+        // Strip any surrounding quotes that might have been added during resolution
+        if (typeof url === 'string') {
+          if ((url.startsWith('"') && url.endsWith('"')) || 
+              (url.startsWith("'") && url.endsWith("'"))) {
+            url = url.slice(1, -1);
+            // Update the params with unquoted URL
+            params.url = url;
+          }
+        }
 
         // Replace path parameters
         if (params.pathParams) {
@@ -124,7 +134,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         const queryParamsObj = transformTable(params.params || null)
         const queryString = Object.entries(queryParamsObj)
           .filter(([_, value]) => value !== undefined && value !== null)
-          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
           .join('&')
 
         if (queryString) {
@@ -204,6 +214,16 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   request: {
     url: (params: RequestParams) => {
       let url = params.url
+      
+      // Strip any surrounding quotes that might have been added during resolution
+      if (typeof url === 'string') {
+        if ((url.startsWith('"') && url.endsWith('"')) || 
+            (url.startsWith("'") && url.endsWith("'"))) {
+          url = url.slice(1, -1);
+          // Update the params with unquoted URL
+          params.url = url;
+        }
+      }
 
       // Replace path parameters
       if (params.pathParams) {
@@ -216,7 +236,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       const queryParamsObj = transformTable(params.params || null)
       const queryString = Object.entries(queryParamsObj)
         .filter(([_, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
         .join('&')
 
       if (queryString) {

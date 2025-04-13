@@ -91,7 +91,7 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
             )
           )}
           <a
-            href={`${process.env.NEXT_PUBLIC_DOCS_URL}/docs`}
+            href={`${process.env.NEXT_PUBLIC_DOCS_URL}`}
             className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
             rel="noopener noreferrer"
           >

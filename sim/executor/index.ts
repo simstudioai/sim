@@ -443,18 +443,6 @@ export class Executor {
             },
           }
 
-          logger.info(`[Executor] API input for starter block:`, {
-            type: typeof inputData,
-            isArray: Array.isArray(inputData),
-            keys: Object.keys(inputData),
-            inputData: JSON.stringify(inputData, null, 2),
-          })
-
-          logger.info(
-            `[Executor] Final starter block output:`,
-            JSON.stringify(starterOutput, null, 2)
-          )
-
           context.blockStates.set(starterBlock.id, {
             output: starterOutput,
             executed: true,
@@ -467,8 +455,6 @@ export class Executor {
               input: this.workflowInput,
             },
           }
-
-          logger.info(`[Executor] Simple starter output:`, JSON.stringify(starterOutput, null, 2))
 
           context.blockStates.set(starterBlock.id, {
             output: starterOutput,
@@ -722,11 +708,6 @@ export class Executor {
         if (!starterState) {
           logger.warn(
             `Starter block state not found when executing ${block.metadata?.name || blockId}. This may cause reference errors.`
-          )
-        } else {
-          logger.debug(
-            `Starter block state available for ${block.metadata?.name || blockId}:`,
-            JSON.stringify(starterState.output || {}, null, 2)
           )
         }
       }

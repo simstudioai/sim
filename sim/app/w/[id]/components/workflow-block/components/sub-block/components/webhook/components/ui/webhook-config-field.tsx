@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Check, Copy, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCheck, Copy, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-interface CopyableFieldProps {
+interface WebhookConfigFieldProps {
   id: string
+  label: string
   value: string
   onChange?: (value: string) => void
   placeholder?: string
@@ -16,10 +18,12 @@ interface CopyableFieldProps {
   copyToClipboard: (text: string, type: string) => void
   readOnly?: boolean
   isSecret?: boolean
+  className?: string
 }
 
-export function CopyableField({
+export function WebhookConfigField({
   id,
+  label,
   value,
   onChange,
   placeholder,
@@ -30,7 +34,8 @@ export function CopyableField({
   copyToClipboard,
   readOnly = false,
   isSecret = false,
-}: CopyableFieldProps) {
+  className,
+}: WebhookConfigFieldProps) {
   const [showSecret, setShowSecret] = useState(!isSecret)
 
   const toggleShowSecret = () => {
@@ -40,13 +45,12 @@ export function CopyableField({
   }
 
   return (
-    <div className="flex items-center space-x-2">
-      {isLoading ? (
-        <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="flex-1 relative">
+    <div className={cn('space-y-1 mb-4', className)}>
+      <Label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </Label>
+      <div className="flex">
+        <div className={cn('flex-1 relative')}>
           <Input
             id={id}
             type={isSecret && !showSecret ? 'password' : 'text'}
@@ -54,11 +58,14 @@ export function CopyableField({
             onChange={onChange ? (e) => onChange(e.target.value) : undefined}
             placeholder={placeholder}
             className={cn(
-              'flex-1',
+              'flex-1 h-10',
+              readOnly ? 'font-mono text-xs cursor-text' : '',
               isSecret ? 'pr-10' : '',
               'focus-visible:ring-2 focus-visible:ring-primary/20'
             )}
+            onClick={readOnly ? (e) => (e.target as HTMLInputElement).select() : undefined}
             readOnly={readOnly}
+            disabled={isLoading}
           />
           {isSecret && (
             <Button
@@ -77,18 +84,22 @@ export function CopyableField({
             </Button>
           )}
         </div>
-      )}
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        onClick={() => copyToClipboard(value, copyType)}
-        disabled={isLoading || !value}
-        className={cn('shrink-0', 'hover:bg-primary/5 transition-colors')}
-        aria-label="Copy value"
-      >
-        {copied === copyType ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-      </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className={cn('ml-2 h-10 w-10', 'hover:bg-primary/5', 'transition-colors')}
+          onClick={() => copyToClipboard(value, copyType)}
+          disabled={isLoading || !value}
+        >
+          {copied === copyType ? (
+            <CheckCheck className="h-4 w-4 text-green-500" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </Button>
+      </div>
+      {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
     </div>
   )
 }
