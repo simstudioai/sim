@@ -43,6 +43,7 @@ export interface WorkflowState {
   deployedAt?: Date
   needsRedeployment?: boolean
   hasActiveSchedule?: boolean
+  hasActiveWebhook?: boolean
 }
 
 export interface WorkflowActions {
@@ -66,6 +67,7 @@ export interface WorkflowActions {
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
+  setWebhookStatus: (hasActiveWebhook: boolean) => void
 }
 
 export type WorkflowStore = WorkflowState & WorkflowActions

@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
 import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
 import { AirtableConfig } from './providers/airtable-config'
 import { DiscordConfig } from './providers/discord-config'
@@ -12,7 +21,6 @@ import { WhatsAppConfig } from './providers/whatsapp-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
-import { WebhookDialogHeader } from './ui/webhook-header'
 import { WebhookUrlField } from './ui/webhook-url'
 
 const logger = createLogger('WebhookModal')
@@ -304,7 +312,7 @@ export function WebhookModal({
 
   const webhookUrl = `${baseUrl}/api/webhooks/trigger/${formattedPath}`
 
-  const copyToClipboard = (text: string, type: string) => {
+  const copyToClipboard = (text: string, type: string): void => {
     navigator.clipboard.writeText(text)
     setCopied(type)
     setTimeout(() => setCopied(null), 2000)
@@ -568,6 +576,7 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+            webhookUrl={webhookUrl}
           />
         )
       case 'airtable':
@@ -585,6 +594,7 @@ export function WebhookModal({
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
             webhookId={webhookId}
+            webhookUrl={webhookUrl}
           />
         )
       case 'generic':
@@ -609,36 +619,59 @@ export function WebhookModal({
     }
   }
 
+  // Get provider name for the title
+  const getProviderTitle = () => {
+    const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
+    return provider.name || 'Webhook'
+  }
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[675px] max-h-[90vh] overflow-hidden flex flex-col">
-          <WebhookDialogHeader webhookProvider={webhookProvider} webhookId={webhookId} />
+        <DialogContent
+          className="sm:max-w-[600px] flex flex-col p-0 gap-0 max-h-[90vh] overflow-hidden"
+          hideCloseButton
+        >
+          <DialogHeader className="px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-lg font-medium">
+                {webhookId ? 'Edit' : 'Configure'} {getProviderTitle()} Webhook
+              </DialogTitle>
+              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </div>
+          </DialogHeader>
 
-          <div className="space-y-4 py-2 px-2 overflow-y-auto flex-grow pb-6">
-            <WebhookUrlField
-              webhookUrl={webhookUrl}
-              isLoadingToken={isLoadingToken}
-              copied={copied}
-              copyToClipboard={copyToClipboard}
-            />
+          <div className="pt-4 px-6 pb-6 overflow-y-auto flex-grow">
+            {webhookProvider !== 'slack' && webhookProvider !== 'airtable' && (
+              <WebhookUrlField
+                webhookUrl={webhookUrl}
+                isLoadingToken={isLoadingToken}
+                copied={copied}
+                copyToClipboard={copyToClipboard}
+              />
+            )}
 
             {renderProviderContent()}
           </div>
 
-          <WebhookDialogFooter
-            webhookId={webhookId}
-            webhookProvider={webhookProvider}
-            isSaving={isSaving}
-            isDeleting={isDeleting}
-            isLoadingToken={isLoadingToken}
-            isTesting={isTesting}
-            isCurrentConfigValid={isCurrentConfigValid} // <-- Pass down validation state
-            onSave={handleSave}
-            onDelete={() => setShowDeleteConfirm(true)}
-            onTest={testWebhook}
-            onClose={handleClose}
-          />
+          <DialogFooter className="px-6 pt-0 pb-6 w-full border-t pt-4">
+            <WebhookDialogFooter
+              webhookId={webhookId}
+              webhookProvider={webhookProvider}
+              isSaving={isSaving}
+              isDeleting={isDeleting}
+              isLoadingToken={isLoadingToken}
+              isTesting={isTesting}
+              isCurrentConfigValid={isCurrentConfigValid}
+              onSave={handleSave}
+              onDelete={() => setShowDeleteConfirm(true)}
+              onTest={testWebhook}
+              onClose={handleClose}
+            />
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

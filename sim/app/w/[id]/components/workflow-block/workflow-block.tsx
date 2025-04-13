@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { Calendar, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { Calendar, ExternalLink, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
@@ -37,6 +37,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     nextRunAt: string | null
     lastRanAt: string | null
   } | null>(null)
+  const [webhookInfo, setWebhookInfo] = useState<{
+    webhookPath: string
+    provider: string
+  } | null>(null)
 
   // Refs
   const blockRef = useRef<HTMLDivElement>(null)
@@ -52,6 +56,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
   const hasActiveSchedule = useWorkflowStore((state) => state.hasActiveSchedule ?? false)
+  const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
 
   // Workflow store actions
   const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
@@ -65,7 +70,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   // Get schedule information for the tooltip
   useEffect(() => {
     if (type === 'starter' && hasActiveSchedule) {
-      // Fetch schedule information
       const fetchScheduleInfo = async () => {
         try {
           const workflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -80,7 +84,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
           if (response.ok) {
             const data = await response.json()
-
             if (data.schedule) {
               let scheduleTiming = 'Unknown schedule'
               if (data.schedule.cronExpression) {
@@ -100,8 +103,40 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       }
 
       fetchScheduleInfo()
+    } else if (!hasActiveSchedule) {
+      setScheduleInfo(null)
     }
   }, [type, hasActiveSchedule])
+
+  // Get webhook information for the tooltip
+  useEffect(() => {
+    if (type === 'starter' && hasActiveWebhook) {
+      const fetchWebhookInfo = async () => {
+        try {
+          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!workflowId) return
+
+          const response = await fetch(`/api/webhooks?workflowId=${workflowId}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.webhooks?.[0]?.webhook) {
+              const webhook = data.webhooks[0].webhook
+              setWebhookInfo({
+                webhookPath: webhook.path || '',
+                provider: webhook.provider || 'generic',
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching webhook info:', error)
+        }
+      }
+
+      fetchWebhookInfo()
+    } else if (!hasActiveWebhook) {
+      setWebhookInfo(null)
+    }
+  }, [type, hasActiveWebhook])
 
   // Update node internals when handles change
   useEffect(() => {
@@ -249,9 +284,24 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and has an active schedule
+  // Check if this is a starter block and has active schedule or webhook
   const isStarterBlock = type === 'starter'
   const showScheduleIndicator = isStarterBlock && hasActiveSchedule
+  const showWebhookIndicator = isStarterBlock && hasActiveWebhook
+
+  // Helper function to get provider name - only create once
+  const getProviderName = (providerId: string): string => {
+    const providers: Record<string, string> = {
+      whatsapp: 'WhatsApp',
+      github: 'GitHub',
+      discord: 'Discord',
+      stripe: 'Stripe',
+      generic: 'General',
+      slack: 'Slack',
+      airtable: 'Airtable',
+    }
+    return providers[providerId] || 'Webhook'
+  }
 
   return (
     <div className="relative group">
@@ -363,32 +413,56 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[300px] p-4">
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm font-medium mb-1">Schedule Information</p>
-                      {scheduleInfo ? (
-                        <>
-                          <p className="text-sm mb-1">{scheduleInfo.scheduleTiming}</p>
-                          <div className="text-xs text-muted-foreground">
-                            {scheduleInfo.nextRunAt && (
-                              <div>
-                                Next run: {formatDateTime(new Date(scheduleInfo.nextRunAt))}
-                              </div>
-                            )}
-                            {scheduleInfo.lastRanAt && (
-                              <div>
-                                Last run: {formatDateTime(new Date(scheduleInfo.lastRanAt))}
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          This workflow is running on a schedule.
+                  {scheduleInfo ? (
+                    <>
+                      <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
+                      {scheduleInfo.nextRunAt && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Next run: {formatDateTime(new Date(scheduleInfo.nextRunAt))}
                         </p>
                       )}
+                      {scheduleInfo.lastRanAt && (
+                        <p className="text-xs text-muted-foreground">
+                          Last run: {formatDateTime(new Date(scheduleInfo.lastRanAt))}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      This workflow is running on a schedule.
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {/* Webhook indicator badge - displayed for starter blocks with active webhooks */}
+            {showWebhookIndicator && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className="flex items-center gap-1 text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400 font-normal text-xs"
+                  >
+                    <div className="relative flex items-center justify-center mr-0.5">
+                      <div className="absolute h-3 w-3 rounded-full bg-green-500/20"></div>
+                      <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
                     </div>
-                  </div>
+                    Webhook
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[300px] p-4">
+                  {webhookInfo ? (
+                    <>
+                      <p className="text-sm">{getProviderName(webhookInfo.provider)} Webhook</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Path: {webhookInfo.webhookPath}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      This workflow is triggered by a webhook.
+                    </p>
+                  )}
                 </TooltipContent>
               </Tooltip>
             )}
