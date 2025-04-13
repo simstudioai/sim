@@ -1,6 +1,6 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'
 import { ExecutionContext } from './types'
-import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('LoopManager')
 
@@ -64,7 +64,7 @@ export class LoopManager {
           } else {
             hasLoopReachedMaxIterations = true
           }
-          
+
           // Now that the loop is complete, activate only external paths
           this.activateExternalPaths(loopId, loop, context)
           continue
@@ -88,7 +88,7 @@ export class LoopManager {
           // Check if we've now reached iterations limit after incrementing
           if (currentIteration + 1 >= items.length || currentIteration + 1 >= loop.iterations) {
             hasLoopReachedMaxIterations = true
-            
+
             // IMPORTANT: If we've completed all iterations, activate the external paths
             // This is different from the previous approach - we activate external paths
             // at the end of the last iteration
@@ -123,7 +123,7 @@ export class LoopManager {
         // If we've hit the iterations count, skip this loop and mark flag
         if (currentIteration >= loop.iterations) {
           hasLoopReachedMaxIterations = true
-          
+
           // Activate external paths from loop blocks when the loop is completed
           this.activateExternalPaths(loopId, loop, context)
           continue
@@ -140,7 +140,7 @@ export class LoopManager {
           // Check if we've now reached iterations limit after incrementing
           if (currentIteration + 1 >= loop.iterations) {
             hasLoopReachedMaxIterations = true
-            
+
             // IMPORTANT: If we've completed all iterations, activate the external paths
             // This is different from the previous approach - we activate external paths
             // at the end of the last iteration
@@ -186,79 +186,79 @@ export class LoopManager {
     loop: SerializedLoop,
     context: ExecutionContext
   ): void {
-    if (!context.workflow) return;
-    
+    if (!context.workflow) return
+
     // Mark this loop as completed
     if (!context.completedLoops) {
-      context.completedLoops = new Set<string>();
+      context.completedLoops = new Set<string>()
     }
-    context.completedLoops.add(loopId);
-    
+    context.completedLoops.add(loopId)
+
     // First, identify all paths that lead to outside the loop
     // We need to ensure only these are activated on loop completion
-    const externalTargets = new Set<string>();
-    
+    const externalTargets = new Set<string>()
+
     // Build a map of outgoing connections from each node in the loop
     for (const nodeId of loop.nodes) {
       // Get all outgoing connections from this node
-      const outgoingConnections = context.workflow.connections.filter(conn => 
-        conn.source === nodeId
-      );
-      
+      const outgoingConnections = context.workflow.connections.filter(
+        (conn) => conn.source === nodeId
+      )
+
       // For each outgoing connection, check if it leads outside the loop
       for (const conn of outgoingConnections) {
         // If target is not in the loop, it's an external path
         if (!loop.nodes.includes(conn.target)) {
-          externalTargets.add(conn.target);
+          externalTargets.add(conn.target)
         }
       }
     }
-    
+
     // Now, only activate the identified external targets
     for (const target of externalTargets) {
       // Find all connections leading to this target from nodes in the loop
-      const incomingConnections = context.workflow.connections.filter(conn => 
-        loop.nodes.includes(conn.source) && conn.target === target
-      );
-      
+      const incomingConnections = context.workflow.connections.filter(
+        (conn) => loop.nodes.includes(conn.source) && conn.target === target
+      )
+
       for (const conn of incomingConnections) {
-        const sourceBlockId = conn.source;
-        const blockState = context.blockStates.get(sourceBlockId);
-        const hasError = 
-          blockState?.output?.error !== undefined || 
-          blockState?.output?.response?.error !== undefined;
-        
+        const sourceBlockId = conn.source
+        const blockState = context.blockStates.get(sourceBlockId)
+        const hasError =
+          blockState?.output?.error !== undefined ||
+          blockState?.output?.response?.error !== undefined
+
         // Apply connection type rules, but only activate for the final iteration
         if (conn.sourceHandle === 'error') {
           // Only activate error paths if there was an error
           if (hasError) {
-            context.activeExecutionPath.add(target);
+            context.activeExecutionPath.add(target)
           }
         } else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
           // Only activate regular paths if there was no error
           if (!hasError) {
-            context.activeExecutionPath.add(target);
+            context.activeExecutionPath.add(target)
           }
         } else if (conn.sourceHandle?.startsWith('condition-')) {
           // For condition connections, check if this was the selected condition
-          const conditionId = conn.sourceHandle.replace('condition-', '');
-          const selectedCondition = context.decisions.condition.get(sourceBlockId);
-          
+          const conditionId = conn.sourceHandle.replace('condition-', '')
+          const selectedCondition = context.decisions.condition.get(sourceBlockId)
+
           if (conditionId === selectedCondition) {
-            context.activeExecutionPath.add(target);
+            context.activeExecutionPath.add(target)
           }
         } else if (sourceBlockId === conn.source) {
           // For router blocks, check if this was the selected target
-          const sourceBlock = context.workflow.blocks.find(b => b.id === sourceBlockId);
+          const sourceBlock = context.workflow.blocks.find((b) => b.id === sourceBlockId)
           if (sourceBlock?.metadata?.id === 'router') {
-            const selectedTarget = context.decisions.router.get(sourceBlockId);
-            
+            const selectedTarget = context.decisions.router.get(sourceBlockId)
+
             if (selectedTarget === target) {
-              context.activeExecutionPath.add(target);
+              context.activeExecutionPath.add(target)
             }
           } else {
             // For any other connection type
-            context.activeExecutionPath.add(target);
+            context.activeExecutionPath.add(target)
           }
         }
       }
@@ -328,11 +328,11 @@ export class LoopManager {
             // Try to parse as JSON first
             // Handle both JSON format (double quotes) and JS format (single quotes)
             const normalizedExpression = trimmedExpression
-              .replace(/'/g, '"')                // Replace all single quotes with double quotes
-              .replace(/(\w+):/g, '"$1":')       // Convert property names to double-quoted strings
-              .replace(/,\s*]/g, ']')            // Remove trailing commas before closing brackets
-              .replace(/,\s*}/g, '}')            // Remove trailing commas before closing braces
-            
+              .replace(/'/g, '"') // Replace all single quotes with double quotes
+              .replace(/(\w+):/g, '"$1":') // Convert property names to double-quoted strings
+              .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+              .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+
             return JSON.parse(normalizedExpression)
           } catch (jsonError) {
             logger.debug(`Error parsing JSON for loop ${loopId}:`, jsonError)
@@ -389,84 +389,89 @@ export class LoopManager {
   private findEntryBlock(nodeIds: string[], context: ExecutionContext): string | undefined {
     // If there's only one node in the loop, it's the entry block
     if (nodeIds.length === 1) {
-      return nodeIds[0];
+      return nodeIds[0]
     }
 
     // Check which blocks have connections from outside the loop
-    const blocksWithExternalConnections = new Map<string, {
-      incomingExternal: number,
-      outgoingExternal: number,
-      incomingInternal: number,
-    }>();
-    
+    const blocksWithExternalConnections = new Map<
+      string,
+      {
+        incomingExternal: number
+        outgoingExternal: number
+        incomingInternal: number
+      }
+    >()
+
     for (const nodeId of nodeIds) {
       // Count connections coming from outside the loop
       const externalIncomingCount = context.workflow!.connections.filter(
-        conn => conn.target === nodeId && !nodeIds.includes(conn.source)
-      ).length;
-      
+        (conn) => conn.target === nodeId && !nodeIds.includes(conn.source)
+      ).length
+
       // Count connections going to outside the loop
       const externalOutgoingCount = context.workflow!.connections.filter(
-        conn => conn.source === nodeId && !nodeIds.includes(conn.target)
-      ).length;
-      
+        (conn) => conn.source === nodeId && !nodeIds.includes(conn.target)
+      ).length
+
       // Count internal incoming connections that aren't self-connections
       const internalIncomingCount = context.workflow!.connections.filter(
-        conn => conn.target === nodeId && conn.source !== nodeId && nodeIds.includes(conn.source)
-      ).length;
-      
+        (conn) => conn.target === nodeId && conn.source !== nodeId && nodeIds.includes(conn.source)
+      ).length
+
       blocksWithExternalConnections.set(nodeId, {
         incomingExternal: externalIncomingCount,
         outgoingExternal: externalOutgoingCount,
-        incomingInternal: internalIncomingCount
-      });
+        incomingInternal: internalIncomingCount,
+      })
     }
-    
+
     // First priority: blocks with incoming connections from outside the loop
-    const blocksWithExternalIncoming = nodeIds.filter(id => 
-      blocksWithExternalConnections.get(id)?.incomingExternal! > 0
-    );
-    
+    const blocksWithExternalIncoming = nodeIds.filter(
+      (id) => blocksWithExternalConnections.get(id)?.incomingExternal! > 0
+    )
+
     if (blocksWithExternalIncoming.length > 0) {
-      // If multiple blocks have external incoming connections, 
+      // If multiple blocks have external incoming connections,
       // prioritize the one with the most external incoming connections
-      return blocksWithExternalIncoming.sort((a, b) => 
-        blocksWithExternalConnections.get(b)?.incomingExternal! - 
-        blocksWithExternalConnections.get(a)?.incomingExternal!
-      )[0];
+      return blocksWithExternalIncoming.sort(
+        (a, b) =>
+          blocksWithExternalConnections.get(b)?.incomingExternal! -
+          blocksWithExternalConnections.get(a)?.incomingExternal!
+      )[0]
     }
-    
+
     // Second priority: look for the likely first node in a self-contained loop
     // This is often the node that has the fewest internal incoming connections
     // but might have outgoing connections to outside the loop
-    
+
     // Sort blocks by fewest internal incoming connections
     const sortedByInternalIncoming = [...nodeIds].sort(
-      (a, b) => 
-        (blocksWithExternalConnections.get(a)?.incomingInternal || 0) - 
+      (a, b) =>
+        (blocksWithExternalConnections.get(a)?.incomingInternal || 0) -
         (blocksWithExternalConnections.get(b)?.incomingInternal || 0)
-    );
-    
+    )
+
     // Among those with the fewest internal incoming connections,
     // prioritize those with external outgoing connections
-    const candidatesWithFewestIncoming = sortedByInternalIncoming.filter(id => 
-      blocksWithExternalConnections.get(id)?.incomingInternal === 
-      blocksWithExternalConnections.get(sortedByInternalIncoming[0])?.incomingInternal
-    );
-    
+    const candidatesWithFewestIncoming = sortedByInternalIncoming.filter(
+      (id) =>
+        blocksWithExternalConnections.get(id)?.incomingInternal ===
+        blocksWithExternalConnections.get(sortedByInternalIncoming[0])?.incomingInternal
+    )
+
     if (candidatesWithFewestIncoming.length > 1) {
       // Among these candidates, prioritize those with external outgoing connections
-      const withExternalOutgoing = candidatesWithFewestIncoming.filter(id =>
-        blocksWithExternalConnections.get(id)?.outgoingExternal! > 0
-      );
-      
+      const withExternalOutgoing = candidatesWithFewestIncoming.filter(
+        (id) => blocksWithExternalConnections.get(id)?.outgoingExternal! > 0
+      )
+
       if (withExternalOutgoing.length > 0) {
-        return withExternalOutgoing[0];
+        return withExternalOutgoing[0]
       }
     }
-    
+
     // If no better criteria found, return the first node with fewest internal incoming connections
-    return sortedByInternalIncoming[0];
+    return sortedByInternalIncoming[0]
   }
 
   /**
@@ -479,11 +484,11 @@ export class LoopManager {
   private allBlocksExecuted(nodeIds: string[], context: ExecutionContext): boolean {
     // For single-node loops, ensure the node has been executed at least once
     if (nodeIds.length === 1 && context.executedBlocks.has(nodeIds[0])) {
-      return true;
+      return true
     }
-    
+
     // For multi-node loops, ensure all nodes have been executed
-    return nodeIds.every((nodeId) => context.executedBlocks.has(nodeId));
+    return nodeIds.every((nodeId) => context.executedBlocks.has(nodeId))
   }
 
   /**
@@ -497,14 +502,18 @@ export class LoopManager {
   isFeedbackPath(connection: SerializedConnection, blocks: SerializedBlock[]): boolean {
     // Self-loops are always feedback paths
     if (connection.source === connection.target) {
-      return true;
+      return true
     }
 
     for (const [loopId, loop] of Object.entries(this.loops)) {
       if (loop.nodes.includes(connection.source) && loop.nodes.includes(connection.target)) {
         // For single-node loops, any connection to itself is a feedback path
-        if (loop.nodes.length === 1 && loop.nodes[0] === connection.source && connection.source === connection.target) {
-          return true;
+        if (
+          loop.nodes.length === 1 &&
+          loop.nodes[0] === connection.source &&
+          connection.source === connection.target
+        ) {
+          return true
         }
 
         const sourceIndex = loop.nodes.indexOf(connection.source)
@@ -546,54 +555,55 @@ export class LoopManager {
   /**
    * Activates the next blocks in the loop sequence when not all blocks have been executed.
    * This ensures proper flow through the loop when PathTracker is prevented from activating within-loop paths.
-   * 
+   *
    * @param loopId - ID of the loop
    * @param loop - The loop configuration
    * @param context - Current execution context
    */
   private activateNextBlocksInLoop(
-    loopId: string, 
-    loop: SerializedLoop, 
+    loopId: string,
+    loop: SerializedLoop,
     context: ExecutionContext
   ): void {
-    if (!context.workflow) return;
-    
+    if (!context.workflow) return
+
     // Find which blocks in the loop have been executed
     const executedLoopBlocks = new Set(
-      loop.nodes.filter(nodeId => context.executedBlocks.has(nodeId))
-    );
-    
+      loop.nodes.filter((nodeId) => context.executedBlocks.has(nodeId))
+    )
+
     if (executedLoopBlocks.size === 0) {
       // If no blocks have been executed yet, activate the entry block
-      const entryBlock = this.findEntryBlock(loop.nodes, context);
+      const entryBlock = this.findEntryBlock(loop.nodes, context)
       if (entryBlock) {
-        context.activeExecutionPath.add(entryBlock);
+        context.activeExecutionPath.add(entryBlock)
       }
-      return;
+      return
     }
-    
+
     // For each executed block, find and activate its next blocks in the loop
     for (const executedBlockId of executedLoopBlocks) {
       // Get outgoing connections from this block to other blocks in the loop
-      const outgoingConnections = context.workflow.connections.filter(conn => 
-        conn.source === executedBlockId && 
-        loop.nodes.includes(conn.target) &&
-        !executedLoopBlocks.has(conn.target)
-      );
-      
+      const outgoingConnections = context.workflow.connections.filter(
+        (conn) =>
+          conn.source === executedBlockId &&
+          loop.nodes.includes(conn.target) &&
+          !executedLoopBlocks.has(conn.target)
+      )
+
       // Activate each target that hasn't been executed yet
       for (const conn of outgoingConnections) {
         // Skip error connections unless there was an error
         if (conn.sourceHandle === 'error') {
-          const blockState = context.blockStates.get(executedBlockId);
-          const hasError = 
-            blockState?.output?.error !== undefined || 
-            blockState?.output?.response?.error !== undefined;
-            
-          if (!hasError) continue;
+          const blockState = context.blockStates.get(executedBlockId)
+          const hasError =
+            blockState?.output?.error !== undefined ||
+            blockState?.output?.response?.error !== undefined
+
+          if (!hasError) continue
         }
-        
-        context.activeExecutionPath.add(conn.target);
+
+        context.activeExecutionPath.add(conn.target)
       }
     }
   }

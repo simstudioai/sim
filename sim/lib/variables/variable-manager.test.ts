@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { VariableManager } from './variable-manager'
 import { VariableType } from '@/stores/panel/variables/types'
+import { VariableManager } from './variable-manager'
 
 describe('VariableManager', () => {
   describe('parseInputForStorage', () => {
@@ -34,7 +34,9 @@ describe('VariableManager', () => {
     })
 
     it('should handle object type variables', () => {
-      expect(VariableManager.parseInputForStorage('{"foo":"bar"}', 'object')).toEqual({ foo: 'bar' })
+      expect(VariableManager.parseInputForStorage('{"foo":"bar"}', 'object')).toEqual({
+        foo: 'bar',
+      })
       expect(VariableManager.parseInputForStorage('invalid json', 'object')).toEqual({})
       expect(VariableManager.parseInputForStorage('42', 'object')).toEqual({ value: '42' })
     })
@@ -81,14 +83,20 @@ describe('VariableManager', () => {
 
     it('should format object type variables for editor', () => {
       expect(VariableManager.formatForEditor({ foo: 'bar' }, 'object')).toBe('{\n  "foo": "bar"\n}')
-      expect(VariableManager.formatForEditor('{"foo":"bar"}', 'object')).toBe('{\n  "foo": "bar"\n}')
-      expect(VariableManager.formatForEditor('invalid json', 'object')).toEqual('{\n  "value": "invalid json"\n}')
+      expect(VariableManager.formatForEditor('{"foo":"bar"}', 'object')).toBe(
+        '{\n  "foo": "bar"\n}'
+      )
+      expect(VariableManager.formatForEditor('invalid json', 'object')).toEqual(
+        '{\n  "value": "invalid json"\n}'
+      )
     })
 
     it('should format array type variables for editor', () => {
       expect(VariableManager.formatForEditor([1, 2, 3], 'array')).toBe('[\n  1,\n  2,\n  3\n]')
       expect(VariableManager.formatForEditor('[1,2,3]', 'array')).toBe('[\n  1,\n  2,\n  3\n]')
-      expect(VariableManager.formatForEditor('invalid json', 'array')).toEqual('[\n  "invalid json"\n]')
+      expect(VariableManager.formatForEditor('invalid json', 'array')).toEqual(
+        '[\n  "invalid json"\n]'
+      )
     })
 
     it('should handle empty values', () => {
@@ -145,20 +153,28 @@ describe('VariableManager', () => {
 
   describe('formatForTemplateInterpolation', () => {
     it('should format plain type variables for interpolation', () => {
-      expect(VariableManager.formatForTemplateInterpolation('hello world', 'plain')).toBe('hello world')
+      expect(VariableManager.formatForTemplateInterpolation('hello world', 'plain')).toBe(
+        'hello world'
+      )
       expect(VariableManager.formatForTemplateInterpolation(42, 'plain')).toBe('42')
       expect(VariableManager.formatForTemplateInterpolation(true, 'plain')).toBe('true')
     })
 
     it('should format string type variables for interpolation', () => {
-      expect(VariableManager.formatForTemplateInterpolation('hello world', 'string')).toBe('hello world')
+      expect(VariableManager.formatForTemplateInterpolation('hello world', 'string')).toBe(
+        'hello world'
+      )
       expect(VariableManager.formatForTemplateInterpolation(42, 'string')).toBe('42')
       expect(VariableManager.formatForTemplateInterpolation(true, 'string')).toBe('true')
     })
 
     it('should format object type variables for interpolation', () => {
-      expect(VariableManager.formatForTemplateInterpolation({ foo: 'bar' }, 'object')).toBe('{"foo":"bar"}')
-      expect(VariableManager.formatForTemplateInterpolation('{"foo":"bar"}', 'object')).toBe('{"foo":"bar"}')
+      expect(VariableManager.formatForTemplateInterpolation({ foo: 'bar' }, 'object')).toBe(
+        '{"foo":"bar"}'
+      )
+      expect(VariableManager.formatForTemplateInterpolation('{"foo":"bar"}', 'object')).toBe(
+        '{"foo":"bar"}'
+      )
     })
 
     it('should handle empty values', () => {

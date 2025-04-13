@@ -8,6 +8,7 @@ import {
   airtableUpdateRecordTool,
 } from '@/tools/airtable'
 import { autoblocksPromptManagerTool } from '@/tools/autoblocks'
+import { browserUseRunTaskTool } from './browserUse'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
@@ -55,7 +56,6 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
-import { browserUseRunTaskTool } from './browserUse'
 
 const logger = createLogger('Tools')
 

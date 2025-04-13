@@ -3,12 +3,12 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { 
-  getScheduleTimeValues,
-  getSubBlockValue, 
-  generateCronExpression, 
+import {
+  BlockState,
   calculateNextRunTime,
-  BlockState
+  generateCronExpression,
+  getScheduleTimeValues,
+  getSubBlockValue,
 } from '@/lib/schedules/utils'
 import { db } from '@/db'
 import { workflowSchedule } from '@/db/schema'
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     // Check if there's a valid schedule configuration using the helper function
     const scheduleValues = getScheduleTimeValues(starterBlock)
-    
+
     // Determine if there's a valid schedule configuration
     const hasScheduleConfig = (() => {
       switch (scheduleType) {
@@ -66,9 +66,15 @@ export async function POST(req: NextRequest) {
         case 'daily':
           return !!scheduleValues.dailyTime[0] || !!scheduleValues.dailyTime[1]
         case 'weekly':
-          return !!scheduleValues.weeklyDay && (!!scheduleValues.weeklyTime[0] || !!scheduleValues.weeklyTime[1])
+          return (
+            !!scheduleValues.weeklyDay &&
+            (!!scheduleValues.weeklyTime[0] || !!scheduleValues.weeklyTime[1])
+          )
         case 'monthly':
-          return !!scheduleValues.monthlyDay && (!!scheduleValues.monthlyTime[0] || !!scheduleValues.monthlyTime[1])
+          return (
+            !!scheduleValues.monthlyDay &&
+            (!!scheduleValues.monthlyTime[0] || !!scheduleValues.monthlyTime[1])
+          )
         case 'custom':
           return !!getSubBlockValue(starterBlock, 'cronExpression')
         default:
@@ -112,11 +118,13 @@ export async function POST(req: NextRequest) {
     try {
       // Get cron expression based on schedule type
       cronExpression = generateCronExpression(scheduleType, scheduleValues)
-      
+
       // Always calculate next run time when schedule is created or updated
       nextRunAt = calculateNextRunTime(scheduleType, scheduleValues)
-      
-      logger.debug(`[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`)
+
+      logger.debug(
+        `[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`
+      )
     } catch (error) {
       logger.error(`[${requestId}] Error generating schedule: ${error}`)
       return NextResponse.json({ error: 'Failed to generate schedule' }, { status: 400 })

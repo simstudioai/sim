@@ -37,12 +37,9 @@ export function parseTimeString(timeString: string | undefined | null): [number,
   if (!timeString || !timeString.includes(':')) {
     return [9, 0] // Default to 9:00 AM
   }
-  
+
   const [hours, minutes] = timeString.split(':').map(Number)
-  return [
-    isNaN(hours) ? 9 : hours, 
-    isNaN(minutes) ? 0 : minutes
-  ]
+  return [isNaN(hours) ? 9 : hours, isNaN(minutes) ? 0 : minutes]
 }
 
 /**
@@ -62,28 +59,28 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 } {
   // Extract schedule time (common field that can override others)
   const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-  
+
   // Get minutes interval (default to 15)
   const minutesIntervalStr = getSubBlockValue(starterBlock, 'minutesInterval')
   const minutesInterval = parseInt(minutesIntervalStr) || 15
-  
+
   // Get hourly minute (default to 0)
   const hourlyMinuteStr = getSubBlockValue(starterBlock, 'hourlyMinute')
   const hourlyMinute = parseInt(hourlyMinuteStr) || 0
-  
+
   // Get daily time
   const dailyTime = parseTimeString(getSubBlockValue(starterBlock, 'dailyTime'))
-  
+
   // Get weekly config
   const weeklyDayStr = getSubBlockValue(starterBlock, 'weeklyDay') || 'MON'
   const weeklyDay = DAY_MAP[weeklyDayStr] || 1
   const weeklyTime = parseTimeString(getSubBlockValue(starterBlock, 'weeklyDayTime'))
-  
+
   // Get monthly config
   const monthlyDayStr = getSubBlockValue(starterBlock, 'monthlyDay')
   const monthlyDay = parseInt(monthlyDayStr) || 1
   const monthlyTime = parseTimeString(getSubBlockValue(starterBlock, 'monthlyTime'))
-  
+
   return {
     scheduleTime,
     minutesInterval,
@@ -92,7 +89,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
     weeklyDay,
     weeklyTime,
     monthlyDay,
-    monthlyTime
+    monthlyTime,
   }
 }
 
@@ -106,25 +103,25 @@ export function generateCronExpression(
   switch (scheduleType) {
     case 'minutes':
       return `*/${scheduleValues.minutesInterval} * * * *`
-    
+
     case 'hourly':
       return `${scheduleValues.hourlyMinute} * * * *`
-    
+
     case 'daily': {
       const [hours, minutes] = scheduleValues.dailyTime
       return `${minutes} ${hours} * * *`
     }
-    
+
     case 'weekly': {
       const [hours, minutes] = scheduleValues.weeklyTime
       return `${minutes} ${hours} * * ${scheduleValues.weeklyDay}`
     }
-    
+
     case 'monthly': {
       const [hours, minutes] = scheduleValues.monthlyTime
       return `${minutes} ${hours} ${scheduleValues.monthlyDay} * *`
     }
-    
+
     case 'custom': {
       const cronExpression = getSubBlockValue(scheduleValues as any, 'cronExpression')
       if (!cronExpression) {
@@ -132,7 +129,7 @@ export function generateCronExpression(
       }
       return cronExpression
     }
-    
+
     default:
       throw new Error(`Unsupported schedule type: ${scheduleType}`)
   }
@@ -151,110 +148,110 @@ export function calculateNextRunTime(
   lastRanAt?: Date | null
 ): Date {
   // Always prioritize scheduleTime if it's set
-  const scheduleTimeOverride = scheduleValues.scheduleTime 
-    ? parseTimeString(scheduleValues.scheduleTime) 
+  const scheduleTimeOverride = scheduleValues.scheduleTime
+    ? parseTimeString(scheduleValues.scheduleTime)
     : null
-  
+
   // Start with current date/time
   const nextRun = new Date()
-  
+
   switch (scheduleType) {
     case 'minutes': {
       const { minutesInterval } = scheduleValues
-      
+
       // If we have a time override, use it
       if (scheduleTimeOverride) {
         const [hours, minutes] = scheduleTimeOverride
         nextRun.setHours(hours, minutes, 0, 0)
-        
+
         // Add intervals until we're in the future
         while (nextRun <= new Date()) {
           nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
         }
         return nextRun
       }
-      
+
       // For subsequent runs after lastRanAt
       if (lastRanAt) {
         const baseTime = new Date(lastRanAt)
         nextRun.setTime(baseTime.getTime())
         nextRun.setMinutes(nextRun.getMinutes() + minutesInterval, 0, 0)
-        
+
         // Make sure we're in the future
         while (nextRun <= new Date()) {
           nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
         }
         return nextRun
       }
-      
+
       // Calculate next boundary for minutes
       const now = new Date()
       const currentMinutes = now.getMinutes()
       const nextIntervalBoundary = Math.ceil(currentMinutes / minutesInterval) * minutesInterval
       nextRun.setMinutes(nextIntervalBoundary, 0, 0)
-      
+
       // If we're past this time, add another interval
       if (nextRun <= now) {
         nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
       }
       return nextRun
     }
-    
+
     case 'hourly': {
       // Use the override time if available, otherwise use hourly config
       const [targetHours, _] = scheduleTimeOverride || [nextRun.getHours(), 0]
       const targetMinutes = scheduleValues.hourlyMinute
-      
+
       nextRun.setHours(targetHours, targetMinutes, 0, 0)
-      
+
       // If we're in the past, move to next hour
       if (nextRun <= new Date()) {
         nextRun.setHours(nextRun.getHours() + 1)
       }
       return nextRun
     }
-    
+
     case 'daily': {
       // Use either schedule override or daily time values
       const [hours, minutes] = scheduleTimeOverride || scheduleValues.dailyTime
-      
+
       nextRun.setHours(hours, minutes, 0, 0)
-      
+
       // If we're in the past, move to tomorrow
       if (nextRun <= new Date()) {
         nextRun.setDate(nextRun.getDate() + 1)
       }
       return nextRun
     }
-    
+
     case 'weekly': {
       // Use either schedule override or weekly time values
       const [hours, minutes] = scheduleTimeOverride || scheduleValues.weeklyTime
-      
+
       nextRun.setHours(hours, minutes, 0, 0)
-      
+
       // Add days until we reach the target day in the future
       while (nextRun.getDay() !== scheduleValues.weeklyDay || nextRun <= new Date()) {
         nextRun.setDate(nextRun.getDate() + 1)
       }
       return nextRun
     }
-    
+
     case 'monthly': {
       // Use either schedule override or monthly time values
       const [hours, minutes] = scheduleTimeOverride || scheduleValues.monthlyTime
       const { monthlyDay } = scheduleValues
-      
+
       nextRun.setDate(monthlyDay)
       nextRun.setHours(hours, minutes, 0, 0)
-      
+
       // If we're in the past, move to next month
       if (nextRun <= new Date()) {
         nextRun.setMonth(nextRun.getMonth() + 1)
       }
       return nextRun
     }
-    
+
     default:
       throw new Error(`Unsupported schedule type: ${scheduleType}`)
   }

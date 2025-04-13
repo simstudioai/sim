@@ -195,7 +195,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
               processedPaths.add(canonicalPath)
-              
+
               // Check if this path matches an existing loop
               let existingLoop: Loop | undefined
               Object.values(existingLoops).forEach((loop) => {
@@ -204,12 +204,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   existingLoop = loop
                 }
               })
-              
+
               if (existingLoop) {
                 // Preserve the existing loop's properties
                 newLoops[existingLoop.id] = {
                   ...existingLoop,
-                  nodes: path // Update nodes in case order changed
+                  nodes: path, // Update nodes in case order changed
                 }
               } else {
                 // Create a new loop with default settings
@@ -255,7 +255,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
               processedPaths.add(canonicalPath)
-              
+
               // Check if this path matches an existing loop
               let existingLoop: Loop | undefined
               Object.values(existingLoops).forEach((loop) => {
@@ -264,12 +264,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   existingLoop = loop
                 }
               })
-              
+
               if (existingLoop) {
                 // Preserve the existing loop's properties
                 newLoops[existingLoop.id] = {
                   ...existingLoop,
-                  nodes: path // Update nodes in case order changed
+                  nodes: path, // Update nodes in case order changed
                 }
               } else {
                 // Create a new loop with default settings

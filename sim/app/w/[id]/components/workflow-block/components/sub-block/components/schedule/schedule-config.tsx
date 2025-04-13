@@ -4,6 +4,7 @@ import { Calendar, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
+import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { formatDateTime } from '@/lib/utils'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -11,7 +12,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ScheduleModal } from './components/schedule-modal'
-import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 
 const logger = createLogger('ScheduleConfig')
 
@@ -225,7 +225,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       setTimeout(() => {
         logger.debug('Refreshing schedule information after save')
         setRefreshCounter((prev) => prev + 1)
-        
+
         // Make a separate API call to ensure we get the latest schedule info
         checkSchedule()
       }, 500)
