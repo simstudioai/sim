@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { VariableManager } from '@/lib/variables/variable-manager'
+import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { LoopManager } from './loops'
 import { ExecutionContext } from './types'
 
@@ -89,7 +89,9 @@ export class InputResolver {
             result[key] = this.getTypedVariableValue(variable)
             continue // Skip further processing for this direct reference
           } else {
-            logger.warn(`Direct variable reference <variable.${variableName}> not found. Treating as literal.`)
+            logger.warn(
+              `Direct variable reference <variable.${variableName}> not found. Treating as literal.`
+            )
             result[key] = value // Return original string
             continue
           }
@@ -101,7 +103,8 @@ export class InputResolver {
 
         // Then resolve block references
         // Need to ensure input is string here if resolveVariableReferences returned non-string somehow (shouldn't)
-        const resolvedReferences = typeof resolvedVars === 'string'
+        const resolvedReferences =
+          typeof resolvedVars === 'string'
             ? this.resolveBlockReferences(resolvedVars, context, block)
             : resolvedVars // Pass non-string through
 
@@ -111,7 +114,8 @@ export class InputResolver {
 
         // Then resolve environment variables
         // Need to ensure input is string here
-        const resolvedEnv = typeof resolvedReferences === 'string'
+        const resolvedEnv =
+          typeof resolvedReferences === 'string'
             ? this.resolveEnvVariables(resolvedReferences, isApiKey)
             : resolvedReferences // Pass non-string through
 
@@ -130,15 +134,15 @@ export class InputResolver {
           if (typeof resolvedEnv === 'string') {
             try {
               if (resolvedEnv.trim().startsWith('{') || resolvedEnv.trim().startsWith('[')) {
-                 result[key] = JSON.parse(resolvedEnv)
+                result[key] = JSON.parse(resolvedEnv)
               } else {
-                 result[key] = resolvedEnv // Keep as string if not JSON-like
+                result[key] = resolvedEnv // Keep as string if not JSON-like
               }
             } catch {
-               result[key] = resolvedEnv // Keep as string if JSON parsing fails
+              result[key] = resolvedEnv // Keep as string if JSON parsing fails
             }
           } else {
-             result[key] = resolvedEnv // Already a non-string type
+            result[key] = resolvedEnv // Already a non-string type
           }
         }
         // For other inputs, try to convert JSON strings to objects/arrays
@@ -150,10 +154,10 @@ export class InputResolver {
                 resolvedEnv.trim().length > 0 &&
                 (resolvedEnv.trim().startsWith('{') || resolvedEnv.trim().startsWith('['))
               ) {
-                 result[key] = JSON.parse(resolvedEnv)
+                result[key] = JSON.parse(resolvedEnv)
               } else {
-                 // If not JSON-like or empty, keep as string
-                 result[key] = resolvedEnv
+                // If not JSON-like or empty, keep as string
+                result[key] = resolvedEnv
               }
             } catch {
               // If it's not valid JSON, keep it as a string
@@ -170,9 +174,7 @@ export class InputResolver {
         // Special handling for table-like arrays (e.g., from API params/headers)
         if (
           Array.isArray(value) &&
-          value.every(
-            (item) => typeof item === 'object' && item !== null && 'cells' in item
-          )
+          value.every((item) => typeof item === 'object' && item !== null && 'cells' in item)
         ) {
           // Resolve each cell's value within the array
           // Cell values are resolved here and will be extracted by tools/utils.ts transformTable function
@@ -191,10 +193,12 @@ export class InputResolver {
                     const variable = this.findVariableByName(variableName)
 
                     if (variable) {
-                      // Use the variable's typed value directly 
-                      acc[cellKey] = this.getTypedVariableValue(variable) 
+                      // Use the variable's typed value directly
+                      acc[cellKey] = this.getTypedVariableValue(variable)
                     } else {
-                      logger.warn(`Variable reference <variable.${variableName}> not found in table cell`)
+                      logger.warn(
+                        `Variable reference <variable.${variableName}> not found in table cell`
+                      )
                       acc[cellKey] = cellValue // Fall back to original string
                     }
                   } else {
@@ -256,11 +260,15 @@ export class InputResolver {
    * @param currentBlock - The block context, used for needsCodeStringLiteral check
    * @returns A string representation suitable for insertion
    */
-  private formatValueForInterpolation(value: any, type: string, currentBlock?: SerializedBlock): string {
+  private formatValueForInterpolation(
+    value: any,
+    type: string,
+    currentBlock?: SerializedBlock
+  ): string {
     try {
       // Determine if this needs special handling for code contexts
       const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, String(value))
-      
+
       // Use the appropriate formatting method based on context
       if (needsCodeStringLiteral) {
         return VariableManager.formatForCodeContext(value, type as any)
@@ -285,7 +293,7 @@ export class InputResolver {
     // Added check: If value is not a string, return it directly.
     // This can happen if a prior resolution step (like block reference) returned a non-string.
     if (typeof value !== 'string') {
-       return value as any // Cast needed as function technically returns string, but might pass through others
+      return value as any // Cast needed as function technically returns string, but might pass through others
     }
 
     const variableMatches = value.match(/<variable\.([^>]+)>/g)
@@ -300,17 +308,22 @@ export class InputResolver {
       const variable = this.findVariableByName(variableName)
 
       if (variable) {
-
         // Get the actual typed value
         const typedValue = this.getTypedVariableValue(variable)
 
         // Format the typed value for string interpolation
-        const formattedValue: string = this.formatValueForInterpolation(typedValue, variable.type, currentBlock)
+        const formattedValue: string = this.formatValueForInterpolation(
+          typedValue,
+          variable.type,
+          currentBlock
+        )
         resolvedValue = resolvedValue.replace(match, formattedValue)
       } else {
-         // Variable not found - leave the placeholder <variable.name> in the string? Or replace with empty string?
-         // For now, let's leave it, which matches previous behavior implicitly.
-         logger.warn(`Interpolated variable reference <variable.${variableName}> not found. Leaving as literal.`)
+        // Variable not found - leave the placeholder <variable.name> in the string? Or replace with empty string?
+        // For now, let's leave it, which matches previous behavior implicitly.
+        logger.warn(
+          `Interpolated variable reference <variable.${variableName}> not found. Leaving as literal.`
+        )
       }
     }
 
@@ -336,10 +349,10 @@ export class InputResolver {
     if (!blockMatches) return value
 
     let resolvedValue = value
-    
+
     // Check if we're in a template literal for function blocks
-    const isInTemplateLiteral = 
-      currentBlock.metadata?.id === 'function' && 
+    const isInTemplateLiteral =
+      currentBlock.metadata?.id === 'function' &&
       (/\${[^}]*</.test(value) || /<[^>]*}}\$/.test(value))
 
     for (const match of blockMatches) {
@@ -460,7 +473,7 @@ export class InputResolver {
                 if (typeof currentItem !== 'object' || currentItem === null) {
                   // Format primitive values properly for code contexts
                   resolvedValue = resolvedValue.replace(
-                    match, 
+                    match,
                     this.formatValueForCodeContext(currentItem, currentBlock, isInTemplateLiteral)
                   )
                 } else if (
@@ -472,13 +485,21 @@ export class InputResolver {
                   if (pathParts.length > 1) {
                     if (pathParts[1] === 'key') {
                       resolvedValue = resolvedValue.replace(
-                        match, 
-                        this.formatValueForCodeContext(currentItem[0], currentBlock, isInTemplateLiteral)
+                        match,
+                        this.formatValueForCodeContext(
+                          currentItem[0],
+                          currentBlock,
+                          isInTemplateLiteral
+                        )
                       )
                     } else if (pathParts[1] === 'value') {
                       resolvedValue = resolvedValue.replace(
-                        match, 
-                        this.formatValueForCodeContext(currentItem[1], currentBlock, isInTemplateLiteral)
+                        match,
+                        this.formatValueForCodeContext(
+                          currentItem[1],
+                          currentBlock,
+                          isInTemplateLiteral
+                        )
                       )
                     }
                   } else {
@@ -503,7 +524,7 @@ export class InputResolver {
 
                     // Use the formatter helper method
                     resolvedValue = resolvedValue.replace(
-                      match, 
+                      match,
                       this.formatValueForCodeContext(itemValue, currentBlock, isInTemplateLiteral)
                     )
                   } else {
@@ -522,7 +543,7 @@ export class InputResolver {
             if (items) {
               // Format the items using our helper
               resolvedValue = resolvedValue.replace(
-                match, 
+                match,
                 this.formatValueForCodeContext(items, currentBlock, isInTemplateLiteral)
               )
               continue
@@ -535,7 +556,7 @@ export class InputResolver {
 
             // For function blocks, we don't need to quote numbers, but use the formatter for consistency
             resolvedValue = resolvedValue.replace(
-              match, 
+              match,
               this.formatValueForCodeContext(index, currentBlock, isInTemplateLiteral)
             )
             continue
@@ -624,12 +645,16 @@ export class InputResolver {
         this.needsCodeStringLiteral(currentBlock, value)
       ) {
         // Check if we're in a template literal
-        const isInTemplateLiteral = 
-          currentBlock.metadata?.id === 'function' && 
+        const isInTemplateLiteral =
+          currentBlock.metadata?.id === 'function' &&
           (/\${[^}]*</.test(value) || /<[^>]*}\$/.test(value))
 
         // For code blocks, use our formatter
-        formattedValue = this.formatValueForCodeContext(replacementValue, currentBlock, isInTemplateLiteral)
+        formattedValue = this.formatValueForCodeContext(
+          replacementValue,
+          currentBlock,
+          isInTemplateLiteral
+        )
       } else {
         formattedValue =
           typeof replacementValue === 'object'
@@ -851,19 +876,19 @@ export class InputResolver {
   private normalizeBlockName(name: string): string {
     return name.toLowerCase().replace(/\s+/g, '')
   }
-  
+
   /**
    * Helper method to find a variable by its name.
    * Handles normalization of names (removing spaces) for consistent matching.
-   * 
+   *
    * @param variableName - The name of the variable to find
    * @returns The found variable object or undefined if not found
    */
   private findVariableByName(variableName: string): any | undefined {
-    const foundVariable = Object.entries(this.workflowVariables).find(([_, variable]) => 
-      (variable.name || '').replace(/\s+/g, '') === variableName
+    const foundVariable = Object.entries(this.workflowVariables).find(
+      ([_, variable]) => (variable.name || '').replace(/\s+/g, '') === variableName
     )
-    
+
     return foundVariable ? foundVariable[1] : undefined
   }
 
@@ -897,11 +922,11 @@ export class InputResolver {
               // Try to parse as JSON first
               // Handle both JSON format (double quotes) and JS format (single quotes)
               const normalizedExpression = trimmedExpression
-                .replace(/'/g, '"')                // Replace all single quotes with double quotes
-                .replace(/(\w+):/g, '"$1":')       // Convert property names to double-quoted strings
-                .replace(/,\s*]/g, ']')            // Remove trailing commas before closing brackets
-                .replace(/,\s*}/g, '}')            // Remove trailing commas before closing braces
-              
+                .replace(/'/g, '"') // Replace all single quotes with double quotes
+                .replace(/(\w+):/g, '"$1":') // Convert property names to double-quoted strings
+                .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+                .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
+
               return JSON.parse(normalizedExpression)
             } catch (jsonError) {
               console.error(`Error parsing JSON for loop:`, jsonError)
@@ -944,14 +969,14 @@ export class InputResolver {
   /**
    * Formats a value for safe use in a code context (like function blocks).
    * Ensures strings are properly quoted in JavaScript.
-   * 
+   *
    * @param value - The value to format
    * @param block - The block that will use this value
    * @param isInTemplateLiteral - Whether this value is inside a template literal
    * @returns Properly formatted value for code insertion
    */
   private formatValueForCodeContext(
-    value: any, 
+    value: any,
     block: SerializedBlock,
     isInTemplateLiteral: boolean = false
   ): string {
@@ -967,7 +992,7 @@ export class InputResolver {
           return String(value)
         }
       }
-      
+
       // Regular (non-template) contexts
       if (typeof value === 'string') {
         // Quote strings for JavaScript
@@ -984,11 +1009,9 @@ export class InputResolver {
         return String(value)
       }
     }
-    
+
     // For non-code blocks, use normal string conversion
-    return typeof value === 'object' && value !== null 
-      ? JSON.stringify(value) 
-      : String(value)
+    return typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)
   }
 
   /**
@@ -999,7 +1022,7 @@ export class InputResolver {
    * @param expression - The expression containing the value (used for context checks)
    * @returns Whether the value should be formatted as a string literal
    */
-   private needsCodeStringLiteral(block?: SerializedBlock, expression?: string): boolean {
+  private needsCodeStringLiteral(block?: SerializedBlock, expression?: string): boolean {
     if (!block) return false
 
     // These block types execute code and need properly formatted string literals

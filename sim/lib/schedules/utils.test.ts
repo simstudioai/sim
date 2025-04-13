@@ -3,13 +3,13 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  BlockState,
   calculateNextRunTime,
   generateCronExpression,
   getScheduleTimeValues,
   getSubBlockValue,
-  parseTimeString,
   parseCronToHumanReadable,
-  BlockState,
+  parseTimeString,
 } from './utils'
 
 describe('Schedule Utilities', () => {
@@ -50,7 +50,7 @@ describe('Schedule Utilities', () => {
           scheduleTime: { value: '09:30' },
           emptyValue: { value: '' },
           nullValue: { value: null },
-        }
+        },
       } as BlockState
 
       expect(getSubBlockValue(block, 'scheduleType')).toBe('daily')
@@ -63,7 +63,7 @@ describe('Schedule Utilities', () => {
     it('should handle missing subBlocks', () => {
       const block = {
         type: 'starter',
-        subBlocks: {},  // Empty subBlocks
+        subBlocks: {}, // Empty subBlocks
       } as BlockState
 
       expect(getSubBlockValue(block, 'anyField')).toBe('')
@@ -83,11 +83,11 @@ describe('Schedule Utilities', () => {
           weeklyDayTime: { value: '12:00' },
           monthlyDay: { value: '15' },
           monthlyTime: { value: '14:30' },
-        }
+        },
       } as BlockState
 
       const result = getScheduleTimeValues(block)
-      
+
       expect(result).toEqual({
         scheduleTime: '09:30',
         minutesInterval: 15,
@@ -106,19 +106,19 @@ describe('Schedule Utilities', () => {
         subBlocks: {
           // Minimal config
           scheduleType: { value: 'daily' },
-        }
+        },
       } as BlockState
 
       const result = getScheduleTimeValues(block)
-      
+
       expect(result).toEqual({
         scheduleTime: '',
         minutesInterval: 15, // Default
-        hourlyMinute: 0,     // Default
-        dailyTime: [9, 0],   // Default
-        weeklyDay: 1,        // Default (MON)
-        weeklyTime: [9, 0],  // Default
-        monthlyDay: 1,       // Default
+        hourlyMinute: 0, // Default
+        dailyTime: [9, 0], // Default
+        weeklyDay: 1, // Default (MON)
+        weeklyTime: [9, 0], // Default
+        monthlyDay: 1, // Default
         monthlyTime: [9, 0], // Default
       })
     })
@@ -139,16 +139,16 @@ describe('Schedule Utilities', () => {
 
       // Minutes (every 15 minutes)
       expect(generateCronExpression('minutes', scheduleValues)).toBe('*/15 * * * *')
-      
+
       // Hourly (at minute 45)
       expect(generateCronExpression('hourly', scheduleValues)).toBe('45 * * * *')
-      
+
       // Daily (at 10:15)
       expect(generateCronExpression('daily', scheduleValues)).toBe('15 10 * * *')
-      
+
       // Weekly (Monday at 12:00)
       expect(generateCronExpression('weekly', scheduleValues)).toBe('0 12 * * 1')
-      
+
       // Monthly (15th at 14:30)
       expect(generateCronExpression('monthly', scheduleValues)).toBe('30 14 15 * *')
     })
@@ -156,29 +156,29 @@ describe('Schedule Utilities', () => {
     it('should handle custom cron expressions', () => {
       // For this simplified test, let's skip the complex mocking
       // and just verify the 'custom' case is in the switch statement
-      
+
       // Create a mock block with custom cron expression
       const mockBlock: BlockState = {
         type: 'starter',
         subBlocks: {
-          cronExpression: { value: '*/5 * * * *' }
-        }
+          cronExpression: { value: '*/5 * * * *' },
+        },
       }
-      
+
       // Create schedule values with the block as any since we're testing a special case
       const scheduleValues = {
         ...getScheduleTimeValues(mockBlock),
         // Override as BlockState to access the cronExpression
         // This simulates what happens in the actual code
-        subBlocks: mockBlock.subBlocks
+        subBlocks: mockBlock.subBlocks,
       } as any
-      
+
       // Now properly test the custom case
       const result = generateCronExpression('custom', scheduleValues)
       expect(result).toBe('*/5 * * * *')
-      
+
       // Also verify other schedule types still work
-      const standardScheduleValues = { 
+      const standardScheduleValues = {
         scheduleTime: '',
         minutesInterval: 15,
         hourlyMinute: 30,
@@ -188,7 +188,7 @@ describe('Schedule Utilities', () => {
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
       }
-      
+
       expect(generateCronExpression('minutes', standardScheduleValues)).toBe('*/15 * * * *')
     })
 
@@ -222,11 +222,11 @@ describe('Schedule Utilities', () => {
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
-      
+
       // Just check that it's a valid date in the future
       expect(nextRun instanceof Date).toBe(true)
       expect(nextRun > new Date()).toBe(true)
-      
+
       // Check minute is a multiple of the interval
       expect(nextRun.getMinutes() % 15).toBe(0)
     })
@@ -244,7 +244,7 @@ describe('Schedule Utilities', () => {
       }
 
       const nextRun = calculateNextRunTime('minutes', scheduleValues)
-      
+
       // Should be 14:30
       expect(nextRun.getHours()).toBe(14)
       expect(nextRun.getMinutes()).toBe(30)
@@ -263,7 +263,7 @@ describe('Schedule Utilities', () => {
       }
 
       const nextRun = calculateNextRunTime('hourly', scheduleValues)
-      
+
       // Just verify it's a valid future date with the right minute
       expect(nextRun instanceof Date).toBe(true)
       expect(nextRun > new Date()).toBe(true)
@@ -283,7 +283,7 @@ describe('Schedule Utilities', () => {
       }
 
       const nextRun = calculateNextRunTime('daily', scheduleValues)
-      
+
       // Verify it's a future date at exactly 9:00
       expect(nextRun instanceof Date).toBe(true)
       expect(nextRun > new Date()).toBe(true)
@@ -304,7 +304,7 @@ describe('Schedule Utilities', () => {
       }
 
       const nextRun = calculateNextRunTime('weekly', scheduleValues)
-      
+
       // Should be next Monday at 10:00 AM
       expect(nextRun.getDay()).toBe(1) // Monday
       expect(nextRun.getHours()).toBe(10)
@@ -324,7 +324,7 @@ describe('Schedule Utilities', () => {
       }
 
       const nextRun = calculateNextRunTime('monthly', scheduleValues)
-      
+
       // Current date is 2025-04-12 12:00, so next run should be 2025-04-15 14:30
       expect(nextRun.getFullYear()).toBe(2025)
       expect(nextRun.getMonth()).toBe(3) // April (0-indexed)
@@ -348,13 +348,13 @@ describe('Schedule Utilities', () => {
       // Last ran 10 minutes ago
       const lastRanAt = new Date()
       lastRanAt.setMinutes(lastRanAt.getMinutes() - 10)
-      
+
       const nextRun = calculateNextRunTime('minutes', scheduleValues, lastRanAt)
-      
+
       // Should be 5 minutes from the last run (15 min interval)
       const expectedNextRun = new Date(lastRanAt)
       expectedNextRun.setMinutes(expectedNextRun.getMinutes() + 15)
-      
+
       expect(nextRun.getMinutes()).toBe(expectedNextRun.getMinutes())
     })
   })

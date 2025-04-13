@@ -93,7 +93,7 @@ describe('Schedule Configuration API Route', () => {
 
       return { db: mockDb }
     })
-    
+
     // Fix imports for route.ts
     vi.doMock('crypto', () => ({
       randomUUID: vi.fn(() => 'test-uuid'),
@@ -111,17 +111,15 @@ describe('Schedule Configuration API Route', () => {
         monthlyDay: 1,
         monthlyTime: [9, 30],
       }),
-      getSubBlockValue: vi
-        .fn()
-        .mockImplementation((block: any, id: string) => {
-          const subBlocks = {
-            startWorkflow: 'schedule',
-            scheduleType: 'daily',
-            scheduleTime: '09:30',
-            dailyTime: '09:30',
-          }
-          return subBlocks[id as keyof typeof subBlocks] || ''
-        }),
+      getSubBlockValue: vi.fn().mockImplementation((block: any, id: string) => {
+        const subBlocks = {
+          startWorkflow: 'schedule',
+          scheduleType: 'daily',
+          scheduleTime: '09:30',
+          dailyTime: '09:30',
+        }
+        return subBlocks[id as keyof typeof subBlocks] || ''
+      }),
       generateCronExpression: vi.fn().mockReturnValue('0 9 * * *'),
       calculateNextRunTime: vi.fn().mockReturnValue(new Date()),
       BlockState: {},
@@ -139,7 +137,7 @@ describe('Schedule Configuration API Route', () => {
     // Create a mock request with schedule data
     const req = createMockRequest('POST', {
       workflowId: 'workflow-id',
-      state: { 
+      state: {
         blocks: {
           'starter-id': {
             type: 'starter',
@@ -148,11 +146,11 @@ describe('Schedule Configuration API Route', () => {
               scheduleType: { value: 'daily' },
               scheduleTime: { value: '09:30' },
               dailyTime: { value: '09:30' },
-            }
-          }
+            },
+          },
         },
         edges: [],
-        loops: {} 
+        loops: {},
       },
     })
 
@@ -171,7 +169,7 @@ describe('Schedule Configuration API Route', () => {
     expect(responseData).toHaveProperty('message', 'Schedule updated')
     expect(responseData).toHaveProperty('cronExpression', '0 9 * * *')
     expect(responseData).toHaveProperty('nextRunAt')
-    
+
     // We can't verify the utility functions were called directly
     // since we're mocking them at the module level
     // Instead, we just verify that the response has the expected properties
@@ -214,7 +212,7 @@ describe('Schedule Configuration API Route', () => {
     // Create a mock request with updated schedule
     const req = createMockRequest('POST', {
       workflowId: 'workflow-id',
-      state: { 
+      state: {
         blocks: {
           'starter-id': {
             type: 'starter',
@@ -223,11 +221,11 @@ describe('Schedule Configuration API Route', () => {
               scheduleType: { value: 'daily' },
               scheduleTime: { value: '10:30' }, // Updated time
               dailyTime: { value: '10:30' },
-            }
-          }
+            },
+          },
         },
         edges: [],
-        loops: {} 
+        loops: {},
       },
     })
 
@@ -260,7 +258,7 @@ describe('Schedule Configuration API Route', () => {
     // Verify response
     expect(response).toBeDefined()
     expect(response.status).toBe(200)
-    
+
     const responseData = await response.json()
     expect(responseData).toHaveProperty('message', 'Schedule updated')
   })
@@ -272,7 +270,7 @@ describe('Schedule Configuration API Route', () => {
     // Skip this test for now, as we're having issues with the mock
     // This would require deeper debugging of how the mock is being applied
     expect(true).toBe(true)
-    
+
     /*
     // Mock the db to verify delete is called
     const dbDeleteMock = vi.fn().mockImplementation(() => ({
@@ -354,9 +352,9 @@ describe('Schedule Configuration API Route', () => {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({
             where: vi.fn().mockImplementation(() => ({
-              limit: vi.fn().mockImplementation(() => [])
-            }))
-          }))
+              limit: vi.fn().mockImplementation(() => []),
+            })),
+          })),
         })),
         insert: vi.fn().mockImplementation(() => {
           throw new Error('Database error')
