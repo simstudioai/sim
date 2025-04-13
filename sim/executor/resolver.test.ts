@@ -138,11 +138,7 @@ describe('InputResolver', () => {
     }
 
     // Create resolver
-    resolver = new InputResolver(
-      sampleWorkflow,
-      mockEnvironmentVars,
-      mockWorkflowVars
-    )
+    resolver = new InputResolver(sampleWorkflow, mockEnvironmentVars, mockWorkflowVars)
   })
 
   afterEach(() => {
@@ -155,12 +151,12 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             directRef: '<variable.stringVar>',
             interpolated: 'Hello <variable.stringVar>!',
-          }
+          },
         },
         inputs: {
           directRef: 'string',
@@ -171,7 +167,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.directRef).toBe('Hello')
       expect(result.interpolated).toBe('Hello Hello!')
     })
@@ -181,12 +177,12 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             directRef: '<variable.numberVar>',
             interpolated: 'The number is <variable.numberVar>',
-          }
+          },
         },
         inputs: {
           directRef: 'number',
@@ -197,7 +193,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.directRef).toBe(42) // Should be converted to actual number
       expect(result.interpolated).toBe('The number is 42')
     })
@@ -207,12 +203,12 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             directRef: '<variable.boolVar>',
             interpolated: 'Is it true? <variable.boolVar>',
-          }
+          },
         },
         inputs: {
           directRef: 'boolean',
@@ -223,7 +219,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.directRef).toBe(true) // Should be converted to boolean
       expect(result.interpolated).toBe('Is it true? true')
     })
@@ -233,11 +229,11 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             directRef: '<variable.objectVar>',
-          }
+          },
         },
         inputs: {
           directRef: 'json',
@@ -247,7 +243,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.directRef).toEqual({ name: 'John', age: 30 }) // Should be parsed to object
     })
 
@@ -256,12 +252,12 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             directRef: '<variable.plainVar>',
             interpolated: 'Content: <variable.plainVar>',
-          }
+          },
         },
         inputs: {
           directRef: 'string',
@@ -272,7 +268,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.directRef).toBe('Raw text without quotes')
       expect(result.interpolated).toBe('Content: Raw text without quotes')
     })
@@ -284,13 +280,13 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             starterRef: '<starter-block.response.input>',
             functionRef: '<function-block.response.result>',
             nameRef: '<Start.response.input>', // Reference by name
-          }
+          },
         },
         inputs: {
           starterRef: 'string',
@@ -302,7 +298,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.starterRef).toBe('Hello World')
       expect(result.functionRef).toBe('42') // String representation
       expect(result.nameRef).toBe('Hello World') // Should resolve using block name
@@ -313,12 +309,12 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             startRef: '<start.response.input>',
             startType: '<start.response.type>',
-          }
+          },
         },
         inputs: {
           startRef: 'string',
@@ -329,7 +325,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.startRef).toBe('Hello World')
       expect(result.startType).toBe('text')
     })
@@ -339,11 +335,11 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             inactiveRef: '<condition-block.response.result>', // Not in activeExecutionPath
-          }
+          },
         },
         inputs: {
           inactiveRef: 'string',
@@ -360,18 +356,18 @@ describe('InputResolver', () => {
 
     it('should throw an error for references to disabled blocks', () => {
       // Enable the disabled block but keep it out of execution path
-      const disabledBlock = sampleWorkflow.blocks.find(b => b.id === 'disabled-block')!
+      const disabledBlock = sampleWorkflow.blocks.find((b) => b.id === 'disabled-block')!
       disabledBlock.enabled = false
-      
+
       const block: SerializedBlock = {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             disabledRef: '<disabled-block.response.result>',
-          }
+          },
         },
         inputs: {
           disabledRef: 'string',
@@ -390,13 +386,13 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'api', name: 'Test API Block' }, // API block type
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'api', 
-          params: { 
+        config: {
+          tool: 'api',
+          params: {
             apiKey: '{{API_KEY}}',
             url: 'https://example.com?key={{API_KEY}}',
             regularParam: 'Base URL is: {{BASE_URL}}', // Should not be resolved in regular params
-          }
+          },
         },
         inputs: {
           apiKey: 'string',
@@ -408,7 +404,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.apiKey).toBe('test-api-key')
       expect(result.url).toBe('https://example.com?key=test-api-key')
       expect(result.regularParam).toBe('Base URL is: {{BASE_URL}}') // Should not be resolved
@@ -419,11 +415,11 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             explicitEnv: '{{BASE_URL}}', // Full string is just an env var
-          }
+          },
         },
         inputs: {
           explicitEnv: 'string',
@@ -433,7 +429,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.explicitEnv).toBe('https://api.example.com')
     })
 
@@ -442,11 +438,11 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             regularParam: 'Value with {{API_KEY}} embedded',
-          }
+          },
         },
         inputs: {
           regularParam: 'string',
@@ -456,7 +452,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       // Environment variable should not be resolved in regular contexts
       expect(result.regularParam).toBe('Value with {{API_KEY}} embedded')
     })
@@ -468,33 +464,33 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             tableParam: [
-              { 
+              {
                 id: 'row1',
-                cells: { 
-                  Key: 'stringKey', 
-                  Value: '<variable.stringVar>' 
-                } 
+                cells: {
+                  Key: 'stringKey',
+                  Value: '<variable.stringVar>',
+                },
               },
-              { 
+              {
                 id: 'row2',
-                cells: { 
-                  Key: 'numberKey', 
-                  Value: '<variable.numberVar>' 
-                } 
+                cells: {
+                  Key: 'numberKey',
+                  Value: '<variable.numberVar>',
+                },
               },
-              { 
+              {
                 id: 'row3',
-                cells: { 
-                  Key: 'plainKey', 
-                  Value: '<variable.plainVar>' 
-                } 
+                cells: {
+                  Key: 'plainKey',
+                  Value: '<variable.plainVar>',
+                },
               },
-            ]
-          }
+            ],
+          },
         },
         inputs: {
           tableParam: 'json',
@@ -504,7 +500,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.tableParam[0].cells.Value).toBe('Hello') // string var
       expect(result.tableParam[1].cells.Value).toBe(42) // number var - correctly typed
       expect(result.tableParam[2].cells.Value).toBe('Raw text without quotes') // plain var
@@ -515,26 +511,26 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             tableParam: [
-              { 
+              {
                 id: 'row1',
-                cells: { 
-                  Key: 'inputKey', 
-                  Value: '<start.response.input>' 
-                } 
+                cells: {
+                  Key: 'inputKey',
+                  Value: '<start.response.input>',
+                },
               },
-              { 
+              {
                 id: 'row2',
-                cells: { 
-                  Key: 'resultKey', 
-                  Value: '<function-block.response.result>' 
-                } 
+                cells: {
+                  Key: 'resultKey',
+                  Value: '<function-block.response.result>',
+                },
               },
-            ]
-          }
+            ],
+          },
         },
         inputs: {
           tableParam: 'json',
@@ -544,7 +540,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.tableParam[0].cells.Value).toBe('Hello World')
       expect(result.tableParam[1].cells.Value).toBe('42') // Result values come as strings
     })
@@ -554,19 +550,19 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             tableParam: [
-              { 
+              {
                 id: 'row1',
-                cells: { 
-                  Key: 'greeting', 
-                  Value: 'Hello, <variable.stringVar>!' 
-                } 
+                cells: {
+                  Key: 'greeting',
+                  Value: 'Hello, <variable.stringVar>!',
+                },
               },
-            ]
-          }
+            ],
+          },
         },
         inputs: {
           tableParam: 'json',
@@ -576,7 +572,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.tableParam[0].cells.Value).toBe('Hello, Hello!')
     })
   })
@@ -587,11 +583,11 @@ describe('InputResolver', () => {
         id: 'code-block',
         metadata: { id: 'function', name: 'Code Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'function', 
-          params: { 
+        config: {
+          tool: 'function',
+          params: {
             code: 'const name = "<variable.stringVar>";\nconst num = <variable.numberVar>;\nreturn { name, num };',
-          }
+          },
         },
         inputs: {
           code: 'string',
@@ -601,7 +597,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       // String should be quoted in code context
       expect(result.code).toContain('const name = "\"Hello\"";')
       // Number should not be quoted
@@ -613,11 +609,11 @@ describe('InputResolver', () => {
         id: 'api-block',
         metadata: { id: 'api', name: 'API Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'api', 
-          params: { 
+        config: {
+          tool: 'api',
+          params: {
             body: '{ "name": "<variable.stringVar>", "value": <variable.numberVar> }',
-          }
+          },
         },
         inputs: {
           body: 'json',
@@ -627,11 +623,11 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       // Body should be parsed into an object
       expect(result.body).toEqual({
         name: 'Hello',
-        value: 42
+        value: 42,
       })
     })
 
@@ -640,11 +636,11 @@ describe('InputResolver', () => {
         id: 'condition-block',
         metadata: { id: 'condition', name: 'Condition Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'condition', 
-          params: { 
+        config: {
+          tool: 'condition',
+          params: {
             conditions: '<start.response.input> === "Hello World"',
-          }
+          },
         },
         inputs: {
           conditions: 'string',
@@ -654,7 +650,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       // Conditions should be passed through without parsing for condition blocks
       expect(result.conditions).toBe('<start.response.input> === "Hello World"')
     })
@@ -666,12 +662,12 @@ describe('InputResolver', () => {
         id: 'test-block',
         metadata: { id: 'generic', name: 'Test Block' },
         position: { x: 0, y: 0 },
-        config: { 
-          tool: 'generic', 
-          params: { 
+        config: {
+          tool: 'generic',
+          params: {
             param1: '<variable.stringVar>',
             param2: '<variable.numberVar>',
-          }
+          },
         },
         inputs: {
           param1: 'string',
@@ -682,7 +678,7 @@ describe('InputResolver', () => {
       }
 
       const result = resolver.resolveInputs(block, mockContext)
-      
+
       expect(result.param1).toBe('Hello')
       expect(result.param2).toBe(42)
     })

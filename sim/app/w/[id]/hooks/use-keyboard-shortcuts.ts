@@ -67,4 +67,4 @@ export function useKeyboardShortcuts(onRunWorkflow: () => void, isDisabled = fal
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onRunWorkflow, isDisabled, isMac])
-} 
+}

@@ -7,15 +7,15 @@ import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import {
+  BlockState,
+  calculateNextRunTime as calculateNextTime,
+  getScheduleTimeValues,
+  getSubBlockValue,
+} from '@/lib/schedules/utils'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
-import { 
-  getScheduleTimeValues, 
-  getSubBlockValue, 
-  calculateNextRunTime as calculateNextTime,
-  BlockState 
-} from '@/lib/schedules/utils'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
@@ -39,12 +39,12 @@ function calculateNextRunTime(
   const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
   if (!starterBlock) throw new Error('No starter block found')
 
-  // Get schedule type from the starter block  
+  // Get schedule type from the starter block
   const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
-  
+
   // Get all schedule values
   const scheduleValues = getScheduleTimeValues(starterBlock)
-  
+
   // If there's a cron expression, use croner to calculate next run
   if (schedule.cronExpression) {
     const cron = new Cron(schedule.cronExpression)
@@ -52,7 +52,7 @@ function calculateNextRunTime(
     if (!nextDate) throw new Error('Invalid cron expression or no future occurrences')
     return nextDate
   }
-  
+
   // Calculate next run time with our helper function
   // We pass the lastRanAt from the schedule to help calculate accurate next run time
   const lastRanAt = schedule.lastRanAt ? new Date(schedule.lastRanAt) : null
@@ -305,7 +305,9 @@ export async function GET(req: NextRequest) {
           // Calculate the next run time based on the schedule configuration
           const nextRunAt = calculateNextRunTime(schedule, blocks)
 
-          logger.debug(`[${requestId}] Calculated next run time: ${nextRunAt.toISOString()} for workflow ${schedule.workflowId}`)
+          logger.debug(
+            `[${requestId}] Calculated next run time: ${nextRunAt.toISOString()} for workflow ${schedule.workflowId}`
+          )
 
           // Update the schedule with the next run time
           await db

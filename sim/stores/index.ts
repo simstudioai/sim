@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
+import { SubBlockType } from '@/blocks/types'
 import { useChatStore } from './chat/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
@@ -17,10 +18,9 @@ import {
 } from './workflows/persistence'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { useWorkflowStore } from './workflows/workflow/store'
 import { workflowSync } from './workflows/sync'
+import { useWorkflowStore } from './workflows/workflow/store'
 import { BlockState } from './workflows/workflow/types'
-import { SubBlockType } from '@/blocks/types'
 
 const logger = createLogger('Stores')
 
@@ -74,7 +74,7 @@ async function initializeApplication(): Promise<void> {
         logger.info('New login session with no workflows - preventing initial sync')
         const syncManagers = getSyncManagers()
         syncManagers.forEach((manager) => manager.stopIntervalSync())
-        
+
         // Create the first starter workflow with an agent block for new users
         logger.info('Creating first workflow with agent block for new user')
         createFirstWorkflowWithAgentBlock()
@@ -127,10 +127,15 @@ function initializeWorkflowState(workflowId: string): void {
 function handleBeforeUnload(event: BeforeUnloadEvent): void {
   // Check if we're on an authentication page and skip confirmation if we are
   if (typeof window !== 'undefined') {
-    const path = window.location.pathname;
+    const path = window.location.pathname
     // Skip confirmation for auth-related pages
-    if (path === '/login' || path === '/signup' || path === '/reset-password' || path === '/verify') {
-      return;
+    if (
+      path === '/login' ||
+      path === '/signup' ||
+      path === '/reset-password' ||
+      path === '/verify'
+    ) {
+      return
     }
   }
 
@@ -326,9 +331,9 @@ export async function reinitializeAfterLogin(): Promise<void> {
 function createFirstWorkflowWithAgentBlock(): void {
   // Create a workflow with default settings
   const workflowId = useWorkflowRegistry.getState().createWorkflow({
-    name: "My First Workflow",
-    description: "Getting started with agents",
-    isInitial: true
+    name: 'My First Workflow',
+    description: 'Getting started with agents',
+    isInitial: true,
   })
 
   // Get the current workflow state
@@ -446,7 +451,7 @@ function createFirstWorkflowWithAgentBlock(): void {
     syncManagers.forEach((manager) => manager.startIntervalSync())
     workflowSync.sync()
   }, 1000)
-  
+
   logger.info('First workflow with agent block created successfully')
 }
 

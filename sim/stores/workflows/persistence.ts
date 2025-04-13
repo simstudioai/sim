@@ -142,12 +142,17 @@ export function setupUnloadPersistence(): void {
 
   window.addEventListener('beforeunload', (event) => {
     // Check if we're on an authentication page and skip confirmation if we are
-    const path = window.location.pathname;
+    const path = window.location.pathname
     // Skip confirmation for auth-related pages
-    if (path === '/login' || path === '/signup' || path === '/reset-password' || path === '/verify') {
-      return;
+    if (
+      path === '/login' ||
+      path === '/signup' ||
+      path === '/reset-password' ||
+      path === '/verify'
+    ) {
+      return
     }
-    
+
     const currentId = useWorkflowRegistry.getState().activeWorkflowId
     if (currentId) {
       // Save workflow state
@@ -173,7 +178,7 @@ export function setupUnloadPersistence(): void {
 
     // Save registry
     saveRegistry(useWorkflowRegistry.getState().workflows)
-    
+
     // Only prevent navigation on non-auth pages
     event.preventDefault()
     event.returnValue = ''

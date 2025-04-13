@@ -6,7 +6,6 @@ import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 import Editor from 'react-simple-code-editor'
-import { VariableManager } from '@/lib/variables/variable-manager'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,9 +17,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { VariableManager } from '@/lib/variables/variable-manager'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { Variable, VariableType } from '@/stores/panel/variables/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface VariablesProps {
   panelWidth: number
@@ -126,9 +126,7 @@ export function Variables({ panelWidth }: VariablesProps) {
     } catch (e) {
       console.error('Error formatting value:', e)
       // If formatting fails, return as is
-      return typeof variable.value === 'string' 
-        ? variable.value 
-        : JSON.stringify(variable.value)
+      return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
     }
   }
 
@@ -147,7 +145,7 @@ export function Variables({ panelWidth }: VariablesProps) {
     try {
       // Use the VariableManager to consistently parse input values
       const processedValue = VariableManager.parseInputForStorage(newValue, variable.type)
-      
+
       // Update the variable with the processed value
       updateVariable(variable.id, { value: processedValue })
     } catch (e) {

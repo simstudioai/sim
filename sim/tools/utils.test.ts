@@ -27,7 +27,7 @@ describe('transformTable', () => {
     ]
 
     const result = transformTable(table)
-    
+
     expect(result).toEqual({
       name: 'John Doe',
       age: 30,
@@ -45,7 +45,7 @@ describe('transformTable', () => {
     ]
 
     const result = transformTable(table)
-    
+
     expect(result).toEqual({
       name: 'John Doe',
     })
@@ -58,7 +58,7 @@ describe('transformTable', () => {
     ]
 
     const result = transformTable(table)
-    
+
     expect(result).toEqual({
       count: 0,
       enabled: false,
@@ -90,23 +90,23 @@ describe('formatRequestParams', () => {
   it('should format request with static URL', () => {
     const params = { foo: 'bar' }
     const result = formatRequestParams(mockTool, params)
-    
+
     expect(result).toEqual({
       url: 'https://api.example.com',
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
       body: undefined, // No body for GET
     })
-    
+
     expect(mockTool.request.headers).toHaveBeenCalledWith(params)
   })
 
   it('should format request with dynamic URL function', () => {
     mockTool.request.url = (params) => `https://api.example.com/${params.id}`
     const params = { id: '123' }
-    
+
     const result = formatRequestParams(mockTool, params)
-    
+
     expect(result).toEqual({
       url: 'https://api.example.com/123',
       method: 'GET',
@@ -118,7 +118,7 @@ describe('formatRequestParams', () => {
   it('should use method from params over tool default', () => {
     const params = { method: 'POST' }
     const result = formatRequestParams(mockTool, params)
-    
+
     expect(result.method).toBe('POST')
     expect(result.body).toBe(JSON.stringify({ data: 'test-data' }))
     expect(mockTool.request.body).toHaveBeenCalledWith(params)
@@ -129,13 +129,13 @@ describe('formatRequestParams', () => {
     mockTool.request.headers = vi.fn().mockReturnValue({
       'Content-Type': 'application/x-www-form-urlencoded',
     })
-    
+
     // Return a preformatted body
     mockTool.request.body = vi.fn().mockReturnValue({ body: 'key1=value1&key2=value2' })
-    
+
     const params = { method: 'POST' }
     const result = formatRequestParams(mockTool, params)
-    
+
     expect(result.body).toBe('key1=value1&key2=value2')
   })
 
@@ -144,15 +144,15 @@ describe('formatRequestParams', () => {
     mockTool.request.headers = vi.fn().mockReturnValue({
       'Content-Type': 'application/x-ndjson',
     })
-    
+
     // Return a preformatted body for NDJSON
-    mockTool.request.body = vi.fn().mockReturnValue({ 
-      body: '{"prompt": "Hello"}\n{"prompt": "World"}' 
+    mockTool.request.body = vi.fn().mockReturnValue({
+      body: '{"prompt": "Hello"}\n{"prompt": "World"}',
     })
-    
+
     const params = { method: 'POST' }
     const result = formatRequestParams(mockTool, params)
-    
+
     expect(result.body).toBe('{"prompt": "Hello"}\n{"prompt": "World"}')
   })
 })
@@ -373,7 +373,7 @@ describe('executeRequest', () => {
   it('should handle various Promise return types from transformError', async () => {
     // Case 1: transformError returns a Promise<string>
     mockTool.transformError = vi.fn().mockResolvedValue('Promise string error')
-    
+
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
@@ -394,7 +394,7 @@ describe('executeRequest', () => {
 
     // Case 2: transformError returns a Promise<{error: string}>
     mockTool.transformError = vi.fn().mockResolvedValue({ error: 'Object error message' })
-    
+
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
@@ -415,7 +415,7 @@ describe('executeRequest', () => {
 
     // Case 3: transformError returns an object without an error property
     mockTool.transformError = vi.fn().mockResolvedValue({ foo: 'bar' })
-    
+
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
@@ -436,9 +436,9 @@ describe('executeRequest', () => {
 
     // Case 4: transformError throws an exception
     mockTool.transformError = vi.fn().mockImplementation(() => {
-      throw new Error('Exception from transformError');
-    });
-    
+      throw new Error('Exception from transformError')
+    })
+
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
