@@ -181,12 +181,12 @@ export function CodeEditor({
         }}
       >
         {code.length === 0 && placeholder && (
-          <div
-            className="absolute top-[12px] text-muted-foreground/50 select-none pointer-events-none"
-            style={{ left: `calc(${gutterWidth} + 12px)` }}
+          <pre
+            className="absolute top-[12px] text-muted-foreground/50 select-none pointer-events-none whitespace-pre-wrap overflow-visible"
+            style={{ left: `calc(${gutterWidth} + 12px)`, fontFamily: 'inherit', margin: 0 }}
           >
             {placeholder}
-          </div>
+          </pre>
         )}
 
         <Editor
