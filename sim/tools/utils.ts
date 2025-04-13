@@ -9,17 +9,32 @@ const logger = createLogger('Tools Utils')
  * @param table Array of table rows from the store
  * @returns Record of key-value pairs
  */
-export const transformTable = (table: TableRow[] | null): Record<string, string> => {
+export const transformTable = (table: TableRow[] | null): Record<string, any> => {
   if (!table) return {}
 
   return table.reduce(
     (acc, row) => {
       if (row.cells?.Key && row.cells?.Value !== undefined) {
-        acc[row.cells.Key] = row.cells.Value
+        // Extract the Value cell as is - it should already be properly resolved
+        // by the InputResolver based on variable type (number, string, boolean etc.)
+        const value = row.cells.Value
+
+        // Store the correctly typed value in the result object
+        acc[row.cells.Key] = value
+
+        // Log for debugging with more details about value type
+        const valueType = typeof value
+        // Use JSON.stringify for a clearer representation in logs
+        const valueDisplay = JSON.stringify(value)
+
+        // Log the actual type and the stringified representation
+        logger.debug(
+          `[transformTable] Row ${row.id}: ${row.cells.Key} = ${valueDisplay} (type: ${valueType})`
+        )
       }
       return acc
     },
-    {} as Record<string, string>
+    {} as Record<string, any>
   )
 }
 
