@@ -10,7 +10,6 @@ interface BrowserUseResponse extends ToolResponse {
     status: string
     steps: any[]
     live_url: string | null
-    browser_data: any | null
   }
 }
 
@@ -18,7 +17,8 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   type: 'browser_use',
   name: 'Browser Use',
   description: 'Run browser automation tasks',
-  longDescription: 'Execute browser automation tasks with BrowserUse to navigate the web, scrape data, and perform actions as if a real user was interacting with the browser. The task runs asynchronously and the block will poll for completion before returning results.',
+  longDescription:
+    'Execute browser automation tasks with BrowserUse to navigate the web, scrape data, and perform actions as if a real user was interacting with the browser. The task runs asynchronously and the block will poll for completion before returning results.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: BrowserUseIcon,
@@ -71,8 +71,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
         status: 'string',
         steps: 'json',
         live_url: 'any',
-        browser_data: 'json',
       },
     },
   },
-} 
+}

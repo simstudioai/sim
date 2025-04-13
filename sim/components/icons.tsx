@@ -2023,7 +2023,7 @@ export function AutoblocksIcon(props: SVGProps<SVGSVGElement>) {
       y="0px"
       width="100%"
       viewBox="0 0 1250 1250"
-      enable-background="new 0 0 1250 1250"
+      enableBackground="new 0 0 1250 1250"
       xmlSpace="preserve"
     >
       <path
@@ -2116,15 +2116,18 @@ z"
 
 export function BrowserUseIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg {...props} version="1.0" xmlns="http://www.w3.org/2000/svg"
- width="150.000000pt" height="150.000000pt" viewBox="0 0 150.000000 150.000000"
- preserveAspectRatio="xMidYMid meet">
-<metadata>
-Created by potrace 1.10, written by Peter Selinger 2001-2011
-</metadata>
-<g transform="translate(0.000000,150.000000) scale(0.050000,-0.050000)"
-fill="#000000" stroke="none">
-<path d="M786 2713 c-184 -61 -353 -217 -439 -405 -76 -165 -65 -539 19 -666
+    <svg
+      {...props}
+      version="1.0"
+      xmlns="http://www.w3.org/2000/svg"
+      width="150pt"
+      height="150pt"
+      viewBox="0 0 150 150"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <g transform="translate(0,150) scale(0.05,-0.05)" fill="#000000" stroke="none">
+        <path
+          d="M786 2713 c-184 -61 -353 -217 -439 -405 -76 -165 -65 -539 19 -666
 l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
 77 196 -76 c763 -293 1353 304 1051 1063 -77 191 -77 189 -14 282 163 239 97
 660 -140 893 -235 231 -528 256 -975 83 l-96 -37 -121 67 c-144 79 -383 103
@@ -2138,8 +2141,9 @@ l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
 -583 1052 117 -106 239 -366 585 -504 671 l-72 44 98 45 c150 68 169 63 305
 -82z m-329 -310 c161 -184 163 -160 -30 -338 -188 -173 -180 -173 -386 19
 -163 153 -163 157 7 324 218 213 219 213 409 -5z m354 -375 c92 -239 -179
--462 -377 -309 l-46 35 186 163 c211 186 209 185 237 111z"/>
-</g>
-</svg>
+-462 -377 -309 l-46 35 186 163 c211 186 209 185 237 111z"
+        />
+      </g>
+    </svg>
   )
 }
