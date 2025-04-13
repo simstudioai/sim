@@ -1,5 +1,3 @@
-import React from 'react'
-
 interface ConfigSectionProps {
   title?: string
   children: React.ReactNode

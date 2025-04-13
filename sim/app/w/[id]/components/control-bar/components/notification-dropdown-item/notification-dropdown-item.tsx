@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Rocket, Store, Terminal, X } from 'lucide-react'
+import { AlertCircle, Rocket, Store, Terminal } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'

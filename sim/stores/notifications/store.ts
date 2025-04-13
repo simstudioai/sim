@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { Notification, NotificationOptions, NotificationStore, NotificationType } from './types'
+import { Notification, NotificationOptions, NotificationStore } from './types'
 
 const STORAGE_KEY = 'workflow-notifications'
 // Maximum number of notifications to keep across all workflows

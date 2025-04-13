@@ -16,8 +16,7 @@ import {
   getPresignedUrl,
   downloadFromS3,
   deleteFromS3,
-  s3Client,
-  FileInfo
+  s3Client
 } from './s3-client'
 
 // Mock AWS SDK

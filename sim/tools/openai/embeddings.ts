@@ -1,4 +1,4 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
 
 interface OpenAIEmbeddingsParams {
   apiKey: string

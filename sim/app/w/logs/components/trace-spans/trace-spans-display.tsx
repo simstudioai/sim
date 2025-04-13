@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
 import {
   AgentIcon,

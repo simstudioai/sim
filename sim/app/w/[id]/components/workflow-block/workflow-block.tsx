@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Calendar, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

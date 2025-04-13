@@ -1,4 +1,4 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
 import { RedditHotPostsResponse, RedditPost } from './types'
 
 interface HotPostsParams {

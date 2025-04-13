@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
-import { join } from 'path'
 import { createLogger } from '@/lib/logs/console-logger'
 import { downloadFromS3, getPresignedUrl } from '@/lib/uploads/s3-client'
-import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { USE_S3_STORAGE } from '@/lib/uploads/setup'
 // Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
 import {

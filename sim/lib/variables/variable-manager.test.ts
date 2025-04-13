@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { VariableManager } from './variable-manager'
-import { VariableType } from '@/stores/panel/variables/types'
 
 describe('VariableManager', () => {
   describe('parseInputForStorage', () => {

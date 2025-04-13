@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ToolConfig, ToolResponse } from './types'
+import { ToolConfig } from './types'
 import { executeRequest, formatRequestParams, transformTable, validateToolRequest } from './utils'
 
 // Mock logger

@@ -1,4 +1,4 @@
-import { AirplaneIcon, ImageIcon } from '@/components/icons'
+import { ImageIcon } from '@/components/icons'
 import { DalleResponse } from '@/tools/openai/dalle'
 import { BlockConfig } from '../types'
 

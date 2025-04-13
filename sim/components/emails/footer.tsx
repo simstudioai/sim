@@ -1,4 +1,3 @@
-import * as React from 'react'
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 
 interface EmailFooterProps {

@@ -1,4 +1,4 @@
-import { Workflow, Block, Connection } from '../types'
+import { Workflow, Block } from '../types'
 
 /**
  * Options for code generation

@@ -1,4 +1,4 @@
-import { CheckCircle, Network } from 'lucide-react'
+import { Network } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'

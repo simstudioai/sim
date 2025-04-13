@@ -1,4 +1,4 @@
-import { and, count, desc, eq, like, or, SQL } from 'drizzle-orm'
+import { and, count, desc, eq, like } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import {
   getEmailSubject,

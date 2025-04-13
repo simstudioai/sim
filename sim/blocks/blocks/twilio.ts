@@ -1,6 +1,6 @@
 import { TwilioIcon } from '@/components/icons'
 import { TwilioSMSBlockOutput } from '@/tools/twilio/types'
-import { BlockCategory, BlockConfig, BlockIcon } from '../types'
+import { BlockConfig } from '../types'
 
 export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
   type: 'twilio_sms',

@@ -11,7 +11,7 @@
  * @module AgentStore
  */
 import { create } from 'zustand'
-import { Agent, AgentState, ChatMessage, ChatSession, MCPServer } from './types'
+import { AgentState } from './types'
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   // Collections
