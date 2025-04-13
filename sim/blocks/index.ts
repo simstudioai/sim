@@ -2,6 +2,7 @@
 import { AgentBlock } from './blocks/agent'
 import { AirtableBlock } from './blocks/airtable'
 import { ApiBlock } from './blocks/api'
+import { BrowserUseBlock } from './blocks/browserUse'
 import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
 import { GoogleDocsBlock } from './blocks/docs'
@@ -46,6 +47,7 @@ export {
   AgentBlock,
   AirtableBlock,
   ApiBlock,
+  BrowserUseBlock,
   MistralParseBlock,
   FunctionBlock,
   VisionBlock,
@@ -90,6 +92,7 @@ const blocks: Record<string, BlockConfig> = {
   agent: AgentBlock,
   airtable: AirtableBlock,
   api: ApiBlock,
+  browser_use: BrowserUseBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   evaluator: EvaluatorBlock,

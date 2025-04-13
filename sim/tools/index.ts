@@ -54,11 +54,13 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
+import { browserUseRunTaskTool } from './browserUse'
 
 const logger = createLogger('Tools')
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  browser_use_run_task: browserUseRunTaskTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
