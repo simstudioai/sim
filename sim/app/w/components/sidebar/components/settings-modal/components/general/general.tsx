@@ -26,7 +26,6 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { resetAllStores } from '@/stores'
 
 const TOOLTIPS = {
-  theme: 'Change the visual theme of the application.',
   debugMode: 'Enable visual debugging information during execution.',
   autoConnect: 'Automatically connect nodes.',
   autoFillEnvVars: 'Automatically fill API keys.',
@@ -59,21 +58,6 @@ export function General() {
               <Label htmlFor="theme-select" className="font-medium">
                 Theme
               </Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-500 p-1 h-7"
-                    aria-label="Learn more about theme settings"
-                  >
-                    <Info className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[300px] p-3">
-                  <p className="text-sm">{TOOLTIPS.theme}</p>
-                </TooltipContent>
-              </Tooltip>
             </div>
             <Select value={theme} onValueChange={setTheme}>
               <SelectTrigger id="theme-select" className="w-[180px]">

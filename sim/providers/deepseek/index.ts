@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Deepseek Provider')
 
@@ -74,14 +75,44 @@ export const deepseekProvider: ProviderConfig = {
       if (request.temperature !== undefined) payload.temperature = request.temperature
       if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
-      // Add tools if provided
+      // Handle tools and tool usage control
+      let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+
       if (tools?.length) {
-        payload.tools = tools
-        payload.tool_choice = 'auto'
+        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'deepseek')
+        const { tools: filteredTools, toolChoice } = preparedTools
+
+        if (filteredTools?.length && toolChoice) {
+          payload.tools = filteredTools
+          payload.tool_choice = toolChoice
+
+          logger.info(`Deepseek request configuration:`, {
+            toolCount: filteredTools.length,
+            toolChoice:
+              typeof toolChoice === 'string'
+                ? toolChoice
+                : toolChoice.type === 'function'
+                  ? `force:${toolChoice.function.name}`
+                  : toolChoice.type === 'tool'
+                    ? `force:${toolChoice.name}`
+                    : toolChoice.type === 'any'
+                      ? `force:${toolChoice.any?.name || 'unknown'}`
+                      : 'unknown',
+            model: request.model || 'deepseek-v3',
+          })
+        }
       }
 
       // Make the initial API request
       const initialCallTime = Date.now()
+
+      // Track the original tool_choice for forced tool tracking
+      const originalToolChoice = payload.tool_choice
+
+      // Track forced tools and their usage
+      const forcedTools = preparedTools?.forcedTools || []
+      let usedForcedTools: string[] = []
+
       let currentResponse = await deepseek.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -106,6 +137,9 @@ export const deepseekProvider: ProviderConfig = {
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
+      // Track if a forced tool has been used
+      let hasUsedForcedTool = false
+
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -120,6 +154,24 @@ export const deepseekProvider: ProviderConfig = {
           duration: firstResponseTime,
         },
       ]
+
+      // Check if a forced tool was used in the first response
+      if (
+        typeof originalToolChoice === 'object' &&
+        currentResponse.choices[0]?.message?.tool_calls
+      ) {
+        const toolCallsResponse = currentResponse.choices[0].message.tool_calls
+        const result = trackForcedToolUsage(
+          toolCallsResponse,
+          originalToolChoice,
+          logger,
+          'deepseek',
+          forcedTools,
+          usedForcedTools
+        )
+        hasUsedForcedTool = result.hasUsedForcedTool
+        usedForcedTools = result.usedForcedTools
+      }
 
       try {
         while (iterationCount < MAX_ITERATIONS) {
@@ -210,11 +262,52 @@ export const deepseekProvider: ProviderConfig = {
             messages: currentMessages,
           }
 
+          // Update tool_choice based on which forced tools have been used
+          if (
+            typeof originalToolChoice === 'object' &&
+            hasUsedForcedTool &&
+            forcedTools.length > 0
+          ) {
+            // If we have remaining forced tools, get the next one to force
+            const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+
+            if (remainingTools.length > 0) {
+              // Force the next tool
+              nextPayload.tool_choice = {
+                type: 'function',
+                function: { name: remainingTools[0] },
+              }
+              logger.info(`Forcing next tool: ${remainingTools[0]}`)
+            } else {
+              // All forced tools have been used, switch to auto
+              nextPayload.tool_choice = 'auto'
+              logger.info('All forced tools have been used, switching to auto tool_choice')
+            }
+          }
+
           // Time the next model call
           const nextModelStartTime = Date.now()
 
           // Make the next request
           currentResponse = await deepseek.chat.completions.create(nextPayload)
+
+          // Check if any forced tools were used in this response
+          if (
+            typeof nextPayload.tool_choice === 'object' &&
+            currentResponse.choices[0]?.message?.tool_calls
+          ) {
+            const toolCallsResponse = currentResponse.choices[0].message.tool_calls
+            const result = trackForcedToolUsage(
+              toolCallsResponse,
+              nextPayload.tool_choice,
+              logger,
+              'deepseek',
+              forcedTools,
+              usedForcedTools
+            )
+            hasUsedForcedTool = result.hasUsedForcedTool
+            usedForcedTools = result.usedForcedTools
+          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime
