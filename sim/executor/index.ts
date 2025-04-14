@@ -126,6 +126,10 @@ export class Executor {
                 pendingBlocks: nextLayer,
                 isDebugSession: true,
                 context: context, // Include context for resumption
+                workflowConnections: this.workflow.connections.map((conn) => ({
+                  source: conn.source,
+                  target: conn.target,
+                })),
               },
               logs: context.blockLogs,
             }
@@ -166,6 +170,10 @@ export class Executor {
           duration: endTime.getTime() - startTime.getTime(),
           startTime: context.metadata.startTime!,
           endTime: context.metadata.endTime!,
+          workflowConnections: this.workflow.connections.map((conn) => ({
+            source: conn.source,
+            target: conn.target,
+          })),
         },
         logs: context.blockLogs,
       }
@@ -223,6 +231,10 @@ export class Executor {
             endTime: context.metadata.endTime!,
             pendingBlocks: [],
             isDebugSession: false,
+            workflowConnections: this.workflow.connections.map((conn) => ({
+              source: conn.source,
+              target: conn.target,
+            })),
           },
           logs: context.blockLogs,
         }
@@ -317,6 +329,7 @@ export class Executor {
       blockLogs: [],
       metadata: {
         startTime: startTime.toISOString(),
+        duration: 0, // Initialize with zero, will be updated throughout execution
       },
       environmentVariables: this.environmentVariables,
       decisions: {
