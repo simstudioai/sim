@@ -33,8 +33,22 @@ export function TestResultDisplay({
     <Notice
       variant={testResult.success ? 'success' : 'error'}
       title={testResult.success ? 'Webhook Test Successful' : 'Webhook Test Failed'}
+      icon={testResult.success ? null : undefined}
+      className={cn(
+        'mb-4',
+        testResult.success
+          ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800/50'
+          : 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/50'
+      )}
     >
-      <div>
+      <div
+        className={cn(
+          'text-sm',
+          testResult.success
+            ? 'text-green-800 dark:text-green-300'
+            : 'text-red-800 dark:text-red-300'
+        )}
+      >
         {testResult.message}
 
         {showCurlCommand && testResult.success && testResult.test?.curlCommand && (

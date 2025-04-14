@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckCheck, Copy, Eye, EyeOff } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -93,7 +93,7 @@ export function WebhookConfigField({
           disabled={isLoading || !value}
         >
           {copied === copyType ? (
-            <CheckCheck className="h-4 w-4 text-green-500" />
+            <Check className="h-4 w-4 text-green-500" />
           ) : (
             <Copy className="h-4 w-4" />
           )}
