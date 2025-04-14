@@ -98,6 +98,11 @@ export interface SubBlockConfig {
   connectionDroppable?: boolean
   hidden?: boolean
   value?: (params: Record<string, any>) => string
+  buttons?: {
+    id: string
+    label: string
+    onClick: (params: Record<string, any>) => Promise<string>
+  }[]
   condition?: {
     field: string
     value: string | number | boolean | Array<string | number | boolean>

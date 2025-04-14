@@ -26,6 +26,12 @@ const nextConfig: NextConfig = {
       }
     }
 
+    // Add pg to externals for server-side only
+    if (isServer) {
+      config.externals = [...(config.externals || []), 'pg']
+    }
+
+
     return config
   },
   // Only include headers when not building for standalone export

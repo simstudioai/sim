@@ -56,6 +56,8 @@ import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
+import mysqlTool from './database/mysql'
+import postgresqlTool from './database/postgresql'
 
 const logger = createLogger('Tools')
 
@@ -131,6 +133,8 @@ export const tools: Record<string, ToolConfig> = {
   thinking_tool: thinkingTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
+  mysql: mysqlTool,
+  postgresql: postgresqlTool,
 }
 
 // Get a tool by its ID
