@@ -243,99 +243,6 @@ const createWorkflowWithLoop = (): SerializedWorkflow => ({
   },
 })
 
-// Create a workflow with nested loops
-const createWorkflowWithNestedLoops = (): SerializedWorkflow => ({
-  version: '1.0',
-  blocks: [
-    {
-      id: 'starter',
-      position: { x: 0, y: 0 },
-      config: { tool: 'test-tool', params: {} },
-      inputs: {},
-      outputs: {},
-      enabled: true,
-      metadata: { id: 'starter', name: 'Starter Block' },
-    },
-    {
-      id: 'outer-block1',
-      position: { x: 100, y: 0 },
-      config: { tool: 'test-tool', params: {} },
-      inputs: {},
-      outputs: {},
-      enabled: true,
-      metadata: { id: 'test', name: 'Outer Loop Block 1' },
-    },
-    {
-      id: 'inner-block1',
-      position: { x: 200, y: 0 },
-      config: { tool: 'test-tool', params: {} },
-      inputs: {},
-      outputs: {},
-      enabled: true,
-      metadata: { id: 'test', name: 'Inner Loop Block 1' },
-    },
-    {
-      id: 'inner-block2',
-      position: { x: 300, y: 0 },
-      config: { tool: 'test-tool', params: {} },
-      inputs: {},
-      outputs: {},
-      enabled: true,
-      metadata: { id: 'test', name: 'Inner Loop Block 2' },
-    },
-    {
-      id: 'outer-block2',
-      position: { x: 400, y: 0 },
-      config: { tool: 'test-tool', params: {} },
-      inputs: {},
-      outputs: {},
-      enabled: true,
-      metadata: { id: 'test', name: 'Outer Loop Block 2' },
-    },
-  ],
-  connections: [
-    {
-      source: 'starter',
-      target: 'outer-block1',
-    },
-    {
-      source: 'outer-block1',
-      target: 'inner-block1',
-    },
-    {
-      source: 'inner-block1',
-      target: 'inner-block2',
-    },
-    {
-      source: 'inner-block2',
-      target: 'inner-block1',
-    },
-    {
-      source: 'inner-block2',
-      target: 'outer-block2',
-    },
-    {
-      source: 'outer-block2',
-      target: 'outer-block1',
-    },
-  ],
-  loops: {
-    outerLoop: {
-      id: 'outerLoop',
-      nodes: ['outer-block1', 'inner-block1', 'inner-block2', 'outer-block2'],
-      iterations: 3,
-      loopType: 'for',
-    },
-    innerLoop: {
-      id: 'innerLoop',
-      nodes: ['inner-block1', 'inner-block2'],
-      iterations: 2,
-      loopType: 'forEach',
-      forEachItems: ['a', 'b'],
-    },
-  },
-})
-
 describe('Executor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -878,7 +785,7 @@ describe('Executor', () => {
         workflowId: 'test-workflow-id',
         blockStates: new Map(),
         blockLogs: [],
-        metadata: { startTime: new Date().toISOString() },
+        metadata: { startTime: new Date().toISOString(), duration: 0 },
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map([['loop1', 0]]),
@@ -886,6 +793,7 @@ describe('Executor', () => {
         executedBlocks: new Set<string>(['block1', 'block2']),
         activeExecutionPath: new Set<string>(['block1', 'block2']),
         workflow,
+        completedLoops: new Set<string>(),
       }
 
       // Process loop iterations to increment counter
@@ -939,7 +847,7 @@ describe('Executor', () => {
         workflowId: 'test-workflow-id',
         blockStates: new Map(),
         blockLogs: [],
-        metadata: { startTime: new Date().toISOString() },
+        metadata: { startTime: new Date().toISOString(), duration: 0 },
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map([['loop1', 2]]), // Iteration 2 (3rd item)
@@ -947,6 +855,7 @@ describe('Executor', () => {
         executedBlocks: new Set<string>(['block1']),
         activeExecutionPath: new Set<string>(['block1', 'block2']),
         workflow,
+        completedLoops: new Set<string>(),
       }
 
       // Resolve a loop index reference
@@ -1189,7 +1098,7 @@ describe('Executor', () => {
         workflowId: 'test-workflow-id',
         blockStates: new Map(),
         blockLogs: [],
-        metadata: { startTime: new Date().toISOString() },
+        metadata: { startTime: new Date().toISOString(), duration: 0 },
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map([['loop1', 0]]),
@@ -1197,6 +1106,7 @@ describe('Executor', () => {
         executedBlocks: new Set<string>(),
         activeExecutionPath: new Set<string>(['block1', 'block2']),
         workflow,
+        completedLoops: new Set<string>(),
       }
 
       // First iteration - this should give index 0 for both blocks
