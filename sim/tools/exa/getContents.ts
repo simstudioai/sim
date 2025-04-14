@@ -10,9 +10,9 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
 
   params: {
     urls: {
-      type: 'string[]',
+      type: 'string',
       required: true,
-      description: 'Array of URLs to retrieve content from',
+      description: 'Comma-separated list of URLs to retrieve content from',
     },
     text: {
       type: 'boolean',
@@ -42,8 +42,15 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       'x-api-key': params.apiKey,
     }),
     body: (params) => {
+      // Parse the comma-separated URLs into an array
+      const urlsString = params.urls
+      const urlArray = urlsString
+        .split(',')
+        .map((url: string) => url.trim())
+        .filter((url: string) => url.length > 0)
+
       const body: Record<string, any> = {
-        urls: params.urls,
+        urls: urlArray,
       }
 
       // Add optional parameters if provided
