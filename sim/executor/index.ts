@@ -648,6 +648,7 @@ export class Executor {
     const { setActiveBlocks } = useExecutionStore.getState()
 
     try {
+      // Set all blocks in this layer as active
       setActiveBlocks(new Set(blockIds))
 
       const results = await Promise.all(
@@ -661,8 +662,10 @@ export class Executor {
       this.pathTracker.updateExecutionPaths(blockIds, context)
 
       return results
-    } finally {
+    } catch (error) {
+      // If there's an uncaught error, clear all active blocks as a safety measure
       setActiveBlocks(new Set())
+      throw error
     }
   }
 
@@ -694,6 +697,7 @@ export class Executor {
 
     const blockLog = this.createBlockLog(block)
     const addConsole = useConsoleStore.getState().addConsole
+    const { setActiveBlocks } = useExecutionStore.getState()
 
     try {
       if (block.enabled === false) {
@@ -726,6 +730,13 @@ export class Executor {
       const rawOutput = await handler.execute(block, inputs, context)
       const executionTime = performance.now() - startTime
 
+      // Remove this block from active blocks immediately after execution
+      // This ensures the pulse effect stops as soon as the block completes
+      const currentActiveBlocks = useExecutionStore.getState().activeBlockIds
+      const updatedActiveBlocks = new Set(currentActiveBlocks)
+      updatedActiveBlocks.delete(blockId)
+      setActiveBlocks(updatedActiveBlocks)
+
       // Normalize the output
       const output = this.normalizeBlockOutput(rawOutput, block)
 
@@ -756,6 +767,12 @@ export class Executor {
 
       return output
     } catch (error: any) {
+      // Remove this block from active blocks if there's an error
+      const currentActiveBlocks = useExecutionStore.getState().activeBlockIds
+      const updatedActiveBlocks = new Set(currentActiveBlocks)
+      updatedActiveBlocks.delete(blockId)
+      setActiveBlocks(updatedActiveBlocks)
+
       blockLog.success = false
       blockLog.error =
         error.message ||

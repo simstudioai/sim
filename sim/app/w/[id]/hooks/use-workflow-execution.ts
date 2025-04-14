@@ -38,6 +38,7 @@ export function useWorkflowExecution() {
     setPendingBlocks,
     setExecutor,
     setDebugContext,
+    setActiveBlocks,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
@@ -168,6 +169,8 @@ export function useWorkflowExecution() {
           // Reset execution states right away for UI to update
           setIsExecuting(false)
           setIsDebugging(false)
+          // IMPORTANT: Reset active blocks when execution completes
+          setActiveBlocks(new Set())
         }
 
         // Show notification
@@ -239,6 +242,8 @@ export function useWorkflowExecution() {
       setExecutionResult(errorResult)
       setIsExecuting(false)
       setIsDebugging(false)
+      // IMPORTANT: Reset active blocks when execution fails
+      setActiveBlocks(new Set())
 
       // Create a more user-friendly notification message
       let notificationMessage = `Workflow execution failed`
@@ -288,6 +293,7 @@ export function useWorkflowExecution() {
     setIsDebugging,
     isDebugModeEnabled,
     isDebugging,
+    setActiveBlocks,
   ])
 
   /**
@@ -318,6 +324,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       setIsDebugging(false)
       setIsExecuting(false)
+      setActiveBlocks(new Set())
       return
     }
 
@@ -362,6 +369,7 @@ export function useWorkflowExecution() {
         setDebugContext(null)
         setExecutor(null)
         setPendingBlocks([])
+        setActiveBlocks(new Set())
       } else {
         // Debug session continues - update UI with new pending blocks
         logger.info('Debug step completed, next blocks pending', {
@@ -403,6 +411,7 @@ export function useWorkflowExecution() {
       setDebugContext(null)
       setExecutor(null)
       setPendingBlocks([])
+      setActiveBlocks(new Set())
     }
   }, [
     executor,
@@ -415,6 +424,7 @@ export function useWorkflowExecution() {
     setPendingBlocks,
     setDebugContext,
     setExecutor,
+    setActiveBlocks,
   ])
 
   /**
@@ -445,6 +455,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       setIsDebugging(false)
       setIsExecuting(false)
+      setActiveBlocks(new Set())
       return
     }
 
@@ -550,6 +561,7 @@ export function useWorkflowExecution() {
       setDebugContext(null)
       setExecutor(null)
       setPendingBlocks([])
+      setActiveBlocks(new Set())
     } catch (error: any) {
       logger.error('Debug Resume Error:', error)
 
@@ -582,6 +594,7 @@ export function useWorkflowExecution() {
       setDebugContext(null)
       setExecutor(null)
       setPendingBlocks([])
+      setActiveBlocks(new Set())
     }
   }, [
     executor,
@@ -594,6 +607,7 @@ export function useWorkflowExecution() {
     setPendingBlocks,
     setDebugContext,
     setExecutor,
+    setActiveBlocks,
   ])
 
   /**
@@ -605,7 +619,15 @@ export function useWorkflowExecution() {
     setDebugContext(null)
     setExecutor(null)
     setPendingBlocks([])
-  }, [setIsExecuting, setIsDebugging, setDebugContext, setExecutor, setPendingBlocks])
+    setActiveBlocks(new Set())
+  }, [
+    setIsExecuting,
+    setIsDebugging,
+    setDebugContext,
+    setExecutor,
+    setPendingBlocks,
+    setActiveBlocks,
+  ])
 
   return {
     isExecuting,
