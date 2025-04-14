@@ -22,6 +22,7 @@ export interface SemrushDomainOverviewResponse extends ToolResponse {
 export interface SemrushDomainKeywordsParams {
   apiKey: string;
   domain: string;
+  database?: string;
 }
 
 export interface SemrushDomainKeywordsResponse extends ToolResponse {
@@ -36,6 +37,7 @@ export interface SemrushDomainKeywordsResponse extends ToolResponse {
 export interface SemrushKeywordOverviewParams {
   apiKey: string;
   keyword: string;
+  database?: string;
 }
 
 export interface SemrushKeywordOverviewResponse extends ToolResponse {
@@ -54,6 +56,7 @@ export interface SemrushKeywordOverviewResponse extends ToolResponse {
 export interface SemrushUrlKeywordsParams {
   apiKey: string;
   url: string;
+  database?: string;
 }
 
 export interface SemrushUrlKeywordsResponse extends ToolResponse {
