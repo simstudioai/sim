@@ -74,6 +74,17 @@ export const ollamaProvider: ProviderConfig = {
         allMessages.push(...request.messages)
       }
 
+      // Build the basic payload
+      const payload: any = {
+        model: request.model,
+        messages: allMessages,
+        stream: false,
+      }
+
+      // Add optional parameters
+      if (request.temperature !== undefined) payload.temperature = request.temperature
+      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+
       // Transform tools to OpenAI format if provided
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
@@ -86,25 +97,34 @@ export const ollamaProvider: ProviderConfig = {
           }))
         : undefined
 
-      const payload: any = {
-        model: request.model,
-        messages: allMessages,
-      }
-
-      // Add optional parameters
-      if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
-
-      // Add tools if provided
+      // Handle tools and tool usage control
       if (tools?.length) {
-        payload.tools = tools
-        payload.tool_choice = 'auto'
+        // Filter out any tools with usageControl='none', but ignore 'force' since Ollama doesn't support it
+        const filteredTools = tools.filter((tool) => {
+          const toolId = tool.function?.name
+          const toolConfig = request.tools?.find((t) => t.id === toolId)
+          // Only filter out 'none', treat 'force' as 'auto'
+          return toolConfig?.usageControl !== 'none'
+        })
+
+        if (filteredTools?.length) {
+          payload.tools = filteredTools
+          // Always use 'auto' for Ollama, regardless of the tool_choice setting
+          payload.tool_choice = 'auto'
+
+          logger.info(`Ollama request configuration:`, {
+            toolCount: filteredTools.length,
+            toolChoice: 'auto', // Ollama always uses auto
+            model: request.model,
+          })
+        }
       }
 
-      // Make the initial API request
-      const initialCallTime = Date.now()
+      // Track the original tool_choice for forced tool tracking
+      const originalToolChoice = payload.tool_choice
+
       let currentResponse = await ollama.chat.completions.create(payload)
-      const firstResponseTime = Date.now() - initialCallTime
+      const firstResponseTime = Date.now() - startTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
 
@@ -134,8 +154,8 @@ export const ollamaProvider: ProviderConfig = {
         {
           type: 'model',
           name: 'Initial response',
-          startTime: initialCallTime,
-          endTime: initialCallTime + firstResponseTime,
+          startTime: startTime,
+          endTime: startTime + firstResponseTime,
           duration: firstResponseTime,
         },
       ]

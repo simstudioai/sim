@@ -84,14 +84,32 @@ export const groqProvider: ProviderConfig = {
         }
       }
 
-      // Add tools if provided
+      // Handle tools and tool usage control
       if (tools?.length) {
-        payload.tools = tools
-        payload.tool_choice = 'auto'
+        // Filter out any tools with usageControl='none', but ignore 'force' since Groq doesn't support it
+        const filteredTools = tools.filter((tool) => {
+          const toolId = tool.function?.name
+          const toolConfig = request.tools?.find((t) => t.id === toolId)
+          // Only filter out 'none', treat 'force' as 'auto'
+          return toolConfig?.usageControl !== 'none'
+        })
+
+        if (filteredTools?.length) {
+          payload.tools = filteredTools
+          // Always use 'auto' for Groq, regardless of the tool_choice setting
+          payload.tool_choice = 'auto'
+
+          logger.info(`Groq request configuration:`, {
+            toolCount: filteredTools.length,
+            toolChoice: 'auto', // Groq always uses auto
+            model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+          })
+        }
       }
 
       // Make the initial API request
       const initialCallTime = Date.now()
+
       let currentResponse = await groq.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 

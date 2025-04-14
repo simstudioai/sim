@@ -20,10 +20,15 @@ describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
+  let originalPromiseAll: any
 
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+
+    // Save original Promise.all to restore later
+    originalPromiseAll = Promise.all
+
     mockBlock = {
       id: 'test-agent-block',
       metadata: { id: 'agent', name: 'Test Agent' },
@@ -83,6 +88,22 @@ describe('AgentBlockHandler', () => {
     }))
     mockGetAllBlocks.mockReturnValue([])
     mockGetTool.mockReturnValue(undefined)
+
+    // Set up executeTool mock
+    mockExecuteTool.mockImplementation((toolId, params) => {
+      if (toolId === 'function_execute') {
+        return Promise.resolve({
+          success: true,
+          output: { result: 'Executed successfully', params },
+        })
+      }
+      return Promise.resolve({ success: false, error: 'Unknown tool' })
+    })
+  })
+
+  afterEach(() => {
+    // Restore original Promise.all
+    Promise.all = originalPromiseAll
   })
 
   describe('canHandle', () => {
@@ -147,6 +168,347 @@ describe('AgentBlockHandler', () => {
       expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
       expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
       expect(result).toEqual(expectedOutput)
+    })
+
+    it('should preserve executeFunction for custom tools with different usageControl settings', async () => {
+      // Set up a spy for Promise.all to capture the tools array before it's serialized
+      let capturedTools: any[] = []
+
+      // Mock Promise.all to capture tools
+      Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
+        // Store result of the original Promise.all
+        const result = originalPromiseAll.call(Promise, promises)
+
+        // When result resolves, capture the tools
+        result.then((tools: any[]) => {
+          if (tools && tools.length) {
+            capturedTools = tools.filter((t) => t !== null)
+          }
+        })
+
+        return result
+      })
+
+      // Configure response with tool calls
+      mockFetch.mockImplementationOnce(() => {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              content: 'Using tools to respond',
+              model: 'mock-model',
+              tokens: { prompt: 10, completion: 20, total: 30 },
+              toolCalls: [
+                {
+                  name: 'auto_tool',
+                  arguments: { input: 'test input for auto tool' },
+                },
+                {
+                  name: 'force_tool',
+                  arguments: { input: 'test input for force tool' },
+                },
+              ],
+              timing: { total: 100 },
+            }),
+        })
+      })
+
+      const inputs = {
+        model: 'gpt-4o',
+        context: 'Test custom tools with different usageControl settings',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'custom-tool',
+            title: 'Auto Tool',
+            code: 'return { result: "auto tool executed", input }',
+            timeout: 1000,
+            schema: {
+              function: {
+                name: 'auto_tool',
+                description: 'Custom tool with auto usage control',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    input: { type: 'string' },
+                  },
+                },
+              },
+            },
+            usageControl: 'auto',
+          },
+          {
+            type: 'custom-tool',
+            title: 'Force Tool',
+            code: 'return { result: "force tool executed", input }',
+            timeout: 1000,
+            schema: {
+              function: {
+                name: 'force_tool',
+                description: 'Custom tool with forced usage control',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    input: { type: 'string' },
+                  },
+                },
+              },
+            },
+            usageControl: 'force',
+          },
+          {
+            type: 'custom-tool',
+            title: 'None Tool',
+            code: 'return { result: "none tool executed", input }',
+            timeout: 1000,
+            schema: {
+              function: {
+                name: 'none_tool',
+                description: 'Custom tool that should be filtered out',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    input: { type: 'string' },
+                  },
+                },
+              },
+            },
+            usageControl: 'none', // This tool should be filtered out
+          },
+        ],
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      // Execute with the tools
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      // Verify Promise.all was called (tools were processed)
+      expect(Promise.all).toHaveBeenCalled()
+
+      // Verify that the none tool was filtered out
+      expect(capturedTools.length).toBe(2)
+
+      // Find the tools by name
+      const autoTool = capturedTools.find((t) => t.name === 'auto_tool')
+      const forceTool = capturedTools.find((t) => t.name === 'force_tool')
+      const noneTool = capturedTools.find((t) => t.name === 'none_tool')
+
+      // Verify that auto and force tools are included
+      expect(autoTool).toBeDefined()
+      expect(forceTool).toBeDefined()
+      expect(noneTool).toBeUndefined() // None tool shouldn't be included
+
+      // Verify usageControl properties
+      expect(autoTool.usageControl).toBe('auto')
+      expect(forceTool.usageControl).toBe('force')
+
+      // Verify that the executeFunction property exists on both tools
+      expect(typeof autoTool.executeFunction).toBe('function')
+      expect(typeof forceTool.executeFunction).toBe('function')
+
+      // Test that executeFunction can be called
+      const autoResult = await autoTool.executeFunction({ input: 'test input' })
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'function_execute',
+        expect.objectContaining({
+          code: 'return { result: "auto tool executed", input }',
+          input: 'test input',
+        })
+      )
+
+      const forceResult = await forceTool.executeFunction({ input: 'another test' })
+      expect(mockExecuteTool).toHaveBeenCalledWith(
+        'function_execute',
+        expect.objectContaining({
+          code: 'return { result: "force tool executed", input }',
+          input: 'another test',
+        })
+      )
+
+      // Extract the request body from the fetch call to verify serialized tools
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify that only two tools were passed to the API
+      expect(requestBody.tools.length).toBe(2)
+
+      // Note: executeFunction won't be in the serialized tools since functions aren't serializable
+      // But we've verified above that they exist before serialization
+    })
+
+    it('should filter out tools with usageControl set to "none"', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        context: 'Use the tools provided.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            title: 'Tool 1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'auto', // default setting
+          },
+          {
+            id: 'tool_2',
+            title: 'Tool 2',
+            type: 'tool-type-2',
+            operation: 'operation2',
+            usageControl: 'none', // should be filtered out
+          },
+          {
+            id: 'tool_3',
+            title: 'Tool 3',
+            type: 'tool-type-3',
+            operation: 'operation3',
+            usageControl: 'force', // should be included
+          },
+        ],
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      // Execute the handler
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      // Extract the actual request from the fetch call
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify that only two tools were passed (the ones with auto and force settings)
+      expect(requestBody.tools.length).toBe(2)
+
+      // Check that the filtered tools are the right ones
+      const toolIds = requestBody.tools.map((t: any) => t.id)
+      expect(toolIds).toContain('transformed_tool_1')
+      expect(toolIds).toContain('transformed_tool_3')
+      expect(toolIds).not.toContain('transformed_tool_2')
+    })
+
+    it('should include usageControl property in transformed tools', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        context: 'Use the tools with different usage controls.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            id: 'tool_1',
+            title: 'Tool 1',
+            type: 'tool-type-1',
+            operation: 'operation1',
+            usageControl: 'auto',
+          },
+          {
+            id: 'tool_2',
+            title: 'Tool 2',
+            type: 'tool-type-2',
+            operation: 'operation2',
+            usageControl: 'force',
+          },
+        ],
+      }
+
+      // Custom implementation to preserve the usageControl property
+      mockTransformBlockTool.mockImplementation((tool: any) => ({
+        id: `transformed_${tool.id}`,
+        name: `${tool.id}_${tool.operation}`,
+        description: 'Transformed tool',
+        parameters: { type: 'object', properties: {} },
+      }))
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      // Execute the handler
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      // Extract the actual request from the fetch call
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify that tools have the usageControl property
+      expect(requestBody.tools[0].usageControl).toBe('auto')
+      expect(requestBody.tools[1].usageControl).toBe('force')
+    })
+
+    it('should handle custom tools with usageControl properties', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        context: 'Use the custom tools.',
+        apiKey: 'test-api-key',
+        tools: [
+          {
+            type: 'custom-tool',
+            title: 'Custom Tool - Auto',
+            schema: {
+              function: {
+                name: 'custom_tool_auto',
+                description: 'A custom tool with auto usage control',
+                parameters: {
+                  type: 'object',
+                  properties: { input: { type: 'string' } },
+                },
+              },
+            },
+            usageControl: 'auto',
+          },
+          {
+            type: 'custom-tool',
+            title: 'Custom Tool - Force',
+            schema: {
+              function: {
+                name: 'custom_tool_force',
+                description: 'A custom tool with forced usage',
+                parameters: {
+                  type: 'object',
+                  properties: { input: { type: 'string' } },
+                },
+              },
+            },
+            usageControl: 'force',
+          },
+          {
+            type: 'custom-tool',
+            title: 'Custom Tool - None',
+            schema: {
+              function: {
+                name: 'custom_tool_none',
+                description: 'A custom tool that should not be used',
+                parameters: {
+                  type: 'object',
+                  properties: { input: { type: 'string' } },
+                },
+              },
+            },
+            usageControl: 'none', // Should be filtered out
+          },
+        ],
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      // Execute the handler
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      // Extract the actual request from the fetch call
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify that only two custom tools were passed (auto and force)
+      expect(requestBody.tools.length).toBe(2)
+
+      // Check the tools by name
+      const toolNames = requestBody.tools.map((t: any) => t.name)
+      expect(toolNames).toContain('custom_tool_auto')
+      expect(toolNames).toContain('custom_tool_force')
+      expect(toolNames).not.toContain('custom_tool_none')
+
+      // Verify usageControl properties
+      const autoTool = requestBody.tools.find((t: any) => t.name === 'custom_tool_auto')
+      const forceTool = requestBody.tools.find((t: any) => t.name === 'custom_tool_force')
+
+      expect(autoTool.usageControl).toBe('auto')
+      expect(forceTool.usageControl).toBe('force')
     })
 
     it('should not require API key for gpt-4o on hosted version', async () => {
