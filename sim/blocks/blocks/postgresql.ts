@@ -43,7 +43,6 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
       layout: 'half',
       placeholder: 'Enter password',
       password: true,
-      value: () => '',
     },
     {
       id: 'database',
@@ -136,42 +135,65 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
     config: {
       tool: () => 'postgresql',
       params: (params) => {
+        // Ensure params is defined
+        const p = params || {}
+        
+        // Validate required fields
+        if (!p.host) throw new Error('PostgreSQL host is required')
+        if (!p.database) throw new Error('PostgreSQL database is required')
+        if (!p.username) throw new Error('PostgreSQL username is required')
+        if (!p.password) throw new Error('PostgreSQL password is required')
+        if (!p.operation) throw new Error('PostgreSQL operation is required')
+        if (!p.query) throw new Error('PostgreSQL query is required')
+        
+        // Safe parsing of port number
+        const port = parseInt(p.port || '5432', 10)
+        if (isNaN(port)) throw new Error('Invalid PostgreSQL port number')
+        
         const connection = {
-          host: params.host || 'localhost',
-          port: parseInt(params.port || '5432'),
-          username: params.username || 'postgres',
-          password: params.password || '',
-          database: params.database || 'postgres',
-          ssl: params.ssl === 'true'
+          host: p.host,
+          port: port,
+          user: p.username,
+          password: p.password,
+          database: p.database,
+          ssl: p.ssl === 'true',
+          schema: p.schema
         }
-        return {
-          connection,
-          operation: params.operation,
-          query: params.query,
-          params: params.params ? JSON.parse(params.params) : undefined,
-          options: params.options ? JSON.parse(params.options) : undefined,
+
+        try {
+          return {
+            connection,
+            operation: p.operation,
+            query: p.query,
+            params: p.params ? JSON.parse(p.params) : undefined,
+            options: p.options ? JSON.parse(p.options) : undefined
+          }
+        } catch (error) {
+          throw new Error('Invalid JSON in params or options')
         }
       },
     },
   },
   inputs: {
-    host: { type: 'string', required: false },
-    port: { type: 'string', required: false },
-    username: { type: 'string', required: false },
-    password: { type: 'string', required: false },
-    database: { type: 'string', required: false },
-    ssl: { type: 'string', required: false },
+    host: { type: 'string', required: true },
+    port: { type: 'string', required: true },
+    username: { type: 'string', required: true },
+    password: { type: 'string', required: true },
+    database: { type: 'string', required: true },
+    ssl: { type: 'string', required: true },
+    schema: { type: 'string', required: false },
     operation: { type: 'string', required: true },
     query: { type: 'string', required: true },
     params: { type: 'json', required: false },
-    options: { type: 'json', required: false },
+    options: { type: 'json', required: false }
   },
   outputs: {
     response: {
       type: {
         rows: 'json',
         rowCount: 'number',
-        fields: 'any'
+        fields: 'json',
+        executionTime: 'any'
       }
     }
   },

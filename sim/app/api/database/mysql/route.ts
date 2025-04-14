@@ -5,7 +5,54 @@ import { getMySQLConfig } from '@/config/database'
 
 const logger = createLogger('MySQLAPI')
 
+// SQL injection prevention patterns
+const DANGEROUS_SQL_PATTERNS = [
+  /--/,                // SQL comments
+  /;.*;/,             // Multiple statements
+  /EXEC\s+xp_/i,      // Extended stored procedures
+  /EXEC\s+sp_/i,      // System stored procedures
+  /INTO\s+OUTFILE/i,  // File operations
+  /LOAD_FILE/i,       // File operations
+  /UNION\s+ALL/i,     // UNION injections
+  /UNION\s+SELECT/i,  // UNION injections
+  /\/\*/,             // Block comments
+  /xp_cmdshell/i,     // Command execution
+]
+
+// Validate SQL query for potential injection attempts
+function validateSQLQuery(query: string): void {
+  // Check for dangerous patterns
+  const hasDangerousPattern = DANGEROUS_SQL_PATTERNS.some(pattern => pattern.test(query))
+  if (hasDangerousPattern) {
+    throw new Error('Query contains potentially dangerous SQL patterns')
+  }
+
+  // Validate basic query structure
+  const normalizedQuery = query.trim().toLowerCase()
+  
+  // Ensure proper SELECT structure
+  if (normalizedQuery.startsWith('select') && !normalizedQuery.includes('from')) {
+    throw new Error('Invalid SELECT query structure')
+  }
+
+  // Ensure proper INSERT structure
+  if (normalizedQuery.startsWith('insert') && !normalizedQuery.includes('into')) {
+    throw new Error('Invalid INSERT query structure')
+  }
+
+  // Ensure proper UPDATE structure
+  if (normalizedQuery.startsWith('update') && !normalizedQuery.includes('set')) {
+    throw new Error('Invalid UPDATE query structure')
+  }
+
+  // Ensure proper DELETE structure
+  if (normalizedQuery.startsWith('delete') && !normalizedQuery.includes('from')) {
+    throw new Error('Invalid DELETE query structure')
+  }
+}
+
 export async function POST(request: Request) {
+  let pool = null
   try {
     const body = await request.json()
     logger.info('Received request:', {
@@ -63,7 +110,7 @@ export async function POST(request: Request) {
       throw new Error('Missing required connection parameters')
     }
 
-    // Create MySQL connection pool
+    // Create MySQL connection pool with secure SSL configuration
     logger.info('Creating connection pool with config:', {
       ...connection,
       password: '[REDACTED]'
@@ -75,7 +122,15 @@ export async function POST(request: Request) {
       user: connection.user || connection.username,
       password: connection.password,
       database: connection.database,
-      ssl: connection.ssl === 'true' ? { rejectUnauthorized: false } : undefined
+      ssl: connection.ssl === 'true' ? {
+        rejectUnauthorized: true, // Enable certificate validation
+        minVersion: 'TLSv1.2',    // Enforce minimum TLS version
+        ca: process.env.MYSQL_CA_CERT // Optional: Use custom CA certificate
+      } : undefined,
+      connectionLimit: 10,         // Limit maximum connections
+      queueLimit: 0,              // Prevent connection queue buildup
+      enableKeepAlive: true,      // Enable TCP keepalive
+      keepAliveInitialDelay: 10000 // 10 seconds
     }
     
     logger.debug('Attempting to create connection pool with config:', {
@@ -83,7 +138,7 @@ export async function POST(request: Request) {
       password: '[REDACTED]'
     })
     
-    const pool = createPool(poolConfig)
+    pool = createPool(poolConfig)
     
     // Test the connection with a simple query
     logger.debug('Testing connection with SELECT 1')
@@ -99,6 +154,9 @@ export async function POST(request: Request) {
     const { operation, query, params, options } = body
     logger.debug('Executing query:', { operation, query, params, options })
 
+    // Validate SQL query before execution
+    validateSQLQuery(query)
+
     let result
     switch (operation?.toLowerCase()) {
       case 'select':
@@ -112,6 +170,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ affectedRows: result[0].affectedRows })
       
       case 'execute':
+        // Additional validation for execute operation
+        if (!query.trim()) {
+          throw new Error('Empty query is not allowed')
+        }
         result = await pool.query(query, params)
         return NextResponse.json({ result })
       
@@ -161,5 +223,15 @@ export async function POST(request: Request) {
       { error: error.message || 'An error occurred while executing the query.' },
       { status: 500 }
     )
+  } finally {
+    // Always close the pool in the finally block
+    if (pool) {
+      try {
+        await pool.end()
+        logger.info('Connection pool closed')
+      } catch (error) {
+        logger.error('Error closing pool:', { error })
+      }
+    }
   }
 } 

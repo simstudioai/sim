@@ -39,7 +39,7 @@ export async function POST(request: Request) {
           ...connection,
           host: connection.host || envConfig.host,
           port: connection.port || envConfig.port,
-          user: connection.user || envConfig.user || 'postgres',
+          user: connection.user || envConfig.user,
           password: connection.password || envConfig.password,
           database: connection.database || envConfig.database,
           ssl: connection.ssl !== undefined ? connection.ssl : envConfig.ssl
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     pool = new Pool({
       host: connection.host,
       port: typeof connection.port === 'string' ? parseInt(connection.port, 10) : (connection.port || 5432),
-      user: connection.user || connection.username || 'postgres',
+      user: connection.user || connection.username,
       password: connection.password,
       database: connection.database,
       ssl: connection.ssl === 'true' || connection.ssl === true ? {

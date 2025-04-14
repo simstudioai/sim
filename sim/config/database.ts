@@ -21,19 +21,26 @@ export function getMySQLConfig(): DatabaseConfig | null {
     if (mysqlUrl) {
       // Parse MySQL URL (format: mysql://user:password@host:port/database)
       const url = new URL(mysqlUrl)
-      const auth = url.username ? url.username.split(':') : []
-      const user = auth[0] || ''
-      const password = auth[1] || ''
-      const host = url.hostname || ''
-      const port = parseInt(url.port || '3306')
-      const database = url.pathname.substring(1) || ''
+      
+      // Extract and validate user credentials
+      if (!url.username) {
+        throw new Error('MySQL username is required in connection URL')
+      }
+      
+      const auth = url.username.split(':')
+      const user = auth[0]
+      
+      // Validate required credentials
+      if (!user) {
+        throw new Error('MySQL username cannot be empty')
+      }
       
       return {
-        host,
-        port,
+        host: url.hostname,
+        port: parseInt(url.port || '3306', 10),
         user,
-        password,
-        database,
+        password: auth[1] || '',
+        database: url.pathname.slice(1),
         ssl: url.searchParams.get('ssl') === 'true'
       }
     }
@@ -66,19 +73,26 @@ export function getPostgreSQLConfig(): DatabaseConfig | null {
     if (databaseUrl) {
       // Parse PostgreSQL URL (format: postgresql://user:password@host:port/database)
       const url = new URL(databaseUrl)
-      const auth = url.username ? url.username.split(':') : []
-      const user = auth[0] || ''
-      const password = auth[1] || ''
-      const host = url.hostname || ''
-      const port = parseInt(url.port || '5432')
-      const database = url.pathname.substring(1) || ''
+      
+      // Extract and validate user credentials
+      if (!url.username) {
+        throw new Error('PostgreSQL username is required in connection URL')
+      }
+      
+      const auth = url.username.split(':')
+      const user = auth[0]
+      
+      // Validate required credentials
+      if (!user) {
+        throw new Error('PostgreSQL username cannot be empty')
+      }
       
       return {
-        host,
-        port,
+        host: url.hostname,
+        port: parseInt(url.port || '5432', 10),
         user,
-        password,
-        database,
+        password: auth[1] || '',
+        database: url.pathname.slice(1),
         ssl: url.searchParams.get('ssl') === 'true'
       }
     }

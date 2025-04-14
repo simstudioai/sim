@@ -143,6 +143,7 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
         if (!p.host) throw new Error('MySQL host is required')
         if (!p.database) throw new Error('MySQL database is required')
         if (!p.user) throw new Error('MySQL username is required')
+        if (!p.password) throw new Error('MySQL password is required')
         if (!p.operation) throw new Error('MySQL operation is required')
         if (!p.query) throw new Error('MySQL query is required')
         
@@ -151,7 +152,7 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
             host: p.host,
             port: parseInt(p.port || '3306'),
             user: p.user,
-            password: p.password || '',
+            password: p.password,
             database: p.database,
             ssl: p.ssl === 'true'
           },
@@ -180,7 +181,8 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
       type: {
         rows: 'json',
         affectedRows: 'number',
-        metadata: 'json'
+        fields: 'json',
+        executionTime: 'number'
       }
     }
   },

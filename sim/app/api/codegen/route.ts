@@ -419,8 +419,69 @@ export async function POST(req: NextRequest) {
         )
       }
     } else if (generationType === 'sql-query') {
-      // For SQL queries, return just the raw query without wrapping it
-      return NextResponse.json({ success: true, generatedContent: generatedContent.replace(/;$/, '') })
+      try {
+        // Validate required fields
+        if (!prompt) {
+          return NextResponse.json(
+            { error: 'Prompt is required for SQL query generation' },
+            { status: 400 }
+          )
+        }
+
+        // Generate SQL query
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4-turbo-preview',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a SQL expert. Generate valid SQL queries based on the user\'s request. Only return the SQL query without any explanation or comments.'
+            },
+            {
+              role: 'user',
+              content: prompt
+            },
+            ...(history || []).map((msg: any) => ({
+              role: msg.role,
+              content: msg.content
+            }))
+          ],
+          temperature: 0.2,
+          max_tokens: 500
+        })
+
+        // Validate response
+        if (!response.choices?.[0]?.message?.content) {
+          throw new Error('Failed to generate SQL query')
+        }
+
+        // Extract and validate the generated query
+        const generatedQuery = response.choices[0].message.content.trim()
+        if (!generatedQuery) {
+          throw new Error('Generated SQL query is empty')
+        }
+
+        // Basic SQL injection prevention check
+        const dangerousPatterns = [
+          /--/,
+          /;.*;/,
+          /EXEC\s+xp_/i,
+          /EXEC\s+sp_/i,
+          /INTO\s+OUTFILE/i,
+          /LOAD_FILE/i
+        ]
+
+        if (dangerousPatterns.some(pattern => pattern.test(generatedQuery))) {
+          throw new Error('Generated SQL query contains potentially unsafe patterns')
+        }
+
+        return NextResponse.json({ generatedContent: generatedQuery })
+      } catch (error: any) {
+        console.error('Error generating SQL query:', error)
+        return NextResponse.json(
+          { error: error.message || 'Failed to generate SQL query' },
+          { status: 500 }
+        )
+      }
     } else {
       return NextResponse.json({ success: true, generatedContent })
     }
