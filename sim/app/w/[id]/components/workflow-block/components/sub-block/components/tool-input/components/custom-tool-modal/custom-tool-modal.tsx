@@ -61,7 +61,7 @@ export function CustomToolModal({
 
   // AI Code Generation Hooks
   const schemaGeneration = useCodeGeneration({
-    generationType: 'json-schema',
+    generationType: 'custom-tool-schema',
     onGeneratedContent: (content) => {
       handleJsonSchemaChange(content)
       setSchemaError(null) // Clear error on successful generation
