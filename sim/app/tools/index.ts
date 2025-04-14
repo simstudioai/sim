@@ -28,7 +28,10 @@ import {
   retrieveVectorsTool 
 } from './qdrant'
 import {
-  semrushDomainOverviewTool
+  semrushDomainOverviewTool, 
+  semrushDomainKeywordsTool,
+  semrushKeywordOverviewTool,
+  semrushUrlKeywordsTool
 } from './semrush'
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
@@ -61,6 +64,9 @@ export const tools: Record<string, ToolConfig> = {
   github_repoinfo: githubRepoInfoTool,
   serper_search: serperSearch,
   semrush_domain_overview: semrushDomainOverviewTool,
+  semrush_domain_keywords: semrushDomainKeywordsTool,
+  semrush_keyword_overview: semrushKeywordOverviewTool,
+  semrush_url: semrushUrlKeywordsTool,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
   supabase_query: supabaseQueryTool,

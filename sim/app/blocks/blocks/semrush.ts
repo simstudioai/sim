@@ -5,7 +5,7 @@ import {
   SemrushKeywordOverviewResponse,
   SemrushUrlKeywordsResponse
 } from '@/tools/semrush/types'
-import { BlockConfig } from '../types'
+import { BlockConfig } from '../types';
 
 type SemrushBlockResponse =
   SemrushDomainOverviewResponse |
@@ -76,7 +76,7 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
       'semrush_domain_overview',
       'semrush_domain_keywords',
       'semrush_keyword_overview',
-      'semrush_url_keywords'
+      'semrush_url'
     ],
     config: {
       tool: (params: Record<string, any>) => {

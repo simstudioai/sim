@@ -39,9 +39,6 @@ export const domainOverviewTool: ToolConfig<SemrushDomainOverviewParams, Semrush
   },
 
   transformResponse: async (response: Response): Promise<SemrushDomainOverviewResponse> => {
-    // Note: The Semrush API may return a CSV response by default.
-    // If your response format is CSV, you might need to convert it to JSON.
-    // For demonstration, we assume JSON.
     const data = await response.json();
     console.log("Domain Overview response:", data);
     return {
