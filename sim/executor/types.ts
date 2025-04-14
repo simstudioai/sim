@@ -88,6 +88,7 @@ export interface ExecutionContext {
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
   loopItems: Map<string, any> // Tracks current item for forEach loops
+  completedLoops: Set<string> // Tracks which loops have completed all iterations
 
   // Execution tracking
   executedBlocks: Set<string> // Set of block IDs that have been executed
@@ -125,6 +126,34 @@ export interface BlockExecutor {
 
   /**
    * Executes the block with the given inputs and context.
+   */
+  execute(
+    block: SerializedBlock,
+    inputs: Record<string, any>,
+    context: ExecutionContext
+  ): Promise<BlockOutput>
+}
+
+/**
+ * Interface for block handlers that execute specific block types.
+ * Each handler is responsible for executing a particular type of block.
+ */
+export interface BlockHandler {
+  /**
+   * Determines if this handler can process the given block.
+   *
+   * @param block - Block to check
+   * @returns True if this handler can process the block
+   */
+  canHandle(block: SerializedBlock): boolean
+
+  /**
+   * Executes the block with the given inputs and context.
+   *
+   * @param block - Block to execute
+   * @param inputs - Resolved input parameters
+   * @param context - Current execution context
+   * @returns Block execution output
    */
   execute(
     block: SerializedBlock,

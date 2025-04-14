@@ -100,6 +100,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             subBlockId={config.id}
             isConnecting={isConnecting}
             placeholder={config.placeholder}
+            language={config.language}
+            generationType={config.generationType}
           />
         )
       case 'switch':
@@ -137,6 +139,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             subBlockId={config.id}
             acceptedTypes={config.acceptedTypes || '*'}
             multiple={config.multiple === true}
+            maxSize={config.maxSize}
           />
         )
       case 'webhook-config':

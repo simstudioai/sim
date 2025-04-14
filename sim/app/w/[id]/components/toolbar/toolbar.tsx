@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAllBlocks, getBlocksByCategory } from '@/blocks'
-import { BlockCategory, BlockConfig } from '@/blocks/types'
+import { BlockCategory } from '@/blocks/types'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 
@@ -19,7 +19,8 @@ export function Toolbar() {
     const filteredBlocks = !searchQuery.trim() ? getBlocksByCategory(activeTab) : getAllBlocks()
 
     return filteredBlocks.filter((block) => {
-      if (block.type === 'starter') return false
+      if (block.type === 'starter' || block.hideFromToolbar) return false
+
       return (
         !searchQuery.trim() ||
         block.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

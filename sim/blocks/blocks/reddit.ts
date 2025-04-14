@@ -23,7 +23,7 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse> = {
     // Limit input
     {
       id: 'limit',
-      title: 'Number of Posts',
+      title: 'Number of Top Posts',
       type: 'short-input',
       layout: 'full',
       placeholder: '10',

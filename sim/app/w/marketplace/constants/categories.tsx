@@ -74,6 +74,11 @@ export const getCategoryByValue = (value: string): Category => {
 }
 
 export const getCategoryLabel = (value: string): string => {
+  // Special handling for "popular" and "recent" sections
+  if (value === 'popular') return 'Popular'
+  if (value === 'recent') return 'Recent'
+
+  // Default handling for regular categories
   return getCategoryByValue(value).label
 }
 

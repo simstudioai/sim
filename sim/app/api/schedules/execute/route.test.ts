@@ -6,7 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
-  getMockedDependencies,
   mockExecutionDependencies,
   sampleWorkflowState,
 } from '@/app/api/__test-utils__/utils'

@@ -8,6 +8,15 @@ import { workflow } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
+// Define marketplace data schema
+const MarketplaceDataSchema = z
+  .object({
+    id: z.string(),
+    status: z.enum(['owner', 'temp']),
+  })
+  .nullable()
+  .optional()
+
 // Schema for workflow data
 const WorkflowStateSchema = z.object({
   blocks: z.record(z.any()),
@@ -20,6 +29,7 @@ const WorkflowStateSchema = z.object({
     .optional()
     .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
   isPublished: z.boolean().optional(),
+  marketplaceData: MarketplaceDataSchema,
 })
 
 const WorkflowSchema = z.object({
@@ -28,6 +38,7 @@ const WorkflowSchema = z.object({
   description: z.string().optional(),
   color: z.string().optional(),
   state: WorkflowStateSchema,
+  marketplaceData: MarketplaceDataSchema,
 })
 
 const SyncPayloadSchema = z.object({
@@ -114,6 +125,12 @@ export async function POST(req: NextRequest) {
         processedIds.add(id)
         const dbWorkflow = dbWorkflowMap.get(id)
 
+        // Handle legacy published workflows migration
+        // If client workflow has isPublished but no marketplaceData, create marketplaceData with owner status
+        if (clientWorkflow.state.isPublished && !clientWorkflow.marketplaceData) {
+          clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: 'owner' }
+        }
+
         if (!dbWorkflow) {
           // New workflow - create
           operations.push(
@@ -124,6 +141,7 @@ export async function POST(req: NextRequest) {
               description: clientWorkflow.description,
               color: clientWorkflow.color,
               state: clientWorkflow.state,
+              marketplaceData: clientWorkflow.marketplaceData || null,
               lastSynced: now,
               createdAt: now,
               updatedAt: now,
@@ -135,7 +153,9 @@ export async function POST(req: NextRequest) {
             JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
             dbWorkflow.name !== clientWorkflow.name ||
             dbWorkflow.description !== clientWorkflow.description ||
-            dbWorkflow.color !== clientWorkflow.color
+            dbWorkflow.color !== clientWorkflow.color ||
+            JSON.stringify(dbWorkflow.marketplaceData) !==
+              JSON.stringify(clientWorkflow.marketplaceData)
 
           if (needsUpdate) {
             operations.push(
@@ -146,6 +166,7 @@ export async function POST(req: NextRequest) {
                   description: clientWorkflow.description,
                   color: clientWorkflow.color,
                   state: clientWorkflow.state,
+                  marketplaceData: clientWorkflow.marketplaceData || null,
                   lastSynced: now,
                   updatedAt: now,
                 })

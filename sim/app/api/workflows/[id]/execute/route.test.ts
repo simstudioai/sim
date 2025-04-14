@@ -3,8 +3,8 @@
  *
  * @vitest-environment node
  */
-import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NextRequest } from 'next/server'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Workflow Execution API Route', () => {
@@ -88,6 +88,8 @@ describe('Workflow Execution API Route', () => {
       decryptSecret: vi.fn().mockResolvedValue({
         decrypted: 'decrypted-secret-value',
       }),
+      isHostedVersion: vi.fn().mockReturnValue(false),
+      getRotatingApiKey: vi.fn().mockReturnValue('rotated-api-key'),
     }))
 
     // Mock logger

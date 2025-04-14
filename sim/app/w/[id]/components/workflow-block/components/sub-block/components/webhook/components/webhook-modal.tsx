@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
 import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
+import { AirtableConfig } from './providers/airtable-config'
 import { DiscordConfig } from './providers/discord-config'
 import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
@@ -12,7 +22,6 @@ import { TwilioConfig } from './providers/twilio-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
-import { WebhookDialogHeader } from './ui/webhook-header'
 import { WebhookUrlField } from './ui/webhook-url'
 
 const logger = createLogger('WebhookModal')
@@ -22,7 +31,6 @@ interface WebhookModalProps {
   onClose: () => void
   webhookPath: string
   webhookProvider: string
-  workflowId: string
   onSave?: (path: string, providerConfig: ProviderConfig) => Promise<boolean>
   onDelete?: () => Promise<boolean>
   webhookId?: string
@@ -33,7 +41,6 @@ export function WebhookModal({
   onClose,
   webhookPath,
   webhookProvider,
-  workflowId,
   onSave,
   onDelete,
   webhookId,
@@ -58,7 +65,7 @@ export function WebhookModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [showUnsavedChangesConfirm, setShowUnsavedChangesConfirm] = useState(false)
-  const isConfigured = Boolean(webhookId)
+  const [isCurrentConfigValid, setIsCurrentConfigValid] = useState(true)
 
   // Generic webhook state
   const [generalToken, setGeneralToken] = useState('')
@@ -73,6 +80,12 @@ export function WebhookModal({
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
 
+  // Airtable-specific state
+  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
+  const [airtableBaseId, setAirtableBaseId] = useState('')
+  const [airtableTableId, setAirtableTableId] = useState('')
+  const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
+
   // Original values to track changes
   const [originalValues, setOriginalValues] = useState({
     whatsappVerificationToken: '',
@@ -85,6 +98,10 @@ export function WebhookModal({
     discordAvatarUrl: '',
     slackSigningSecret: '',
     sendReply: true,
+    airtableWebhookSecret: '',
+    airtableBaseId: '',
+    airtableTableId: '',
+    airtableIncludeCellValues: false,
   })
 
   // Add Twilio specific state
@@ -188,6 +205,21 @@ export function WebhookModal({
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
               } else if (webhookProvider === 'twilio') {
                 setSendReply(config.sendReply !== false)
+              } else if (webhookProvider === 'airtable') {
+                const baseIdVal = config.baseId || ''
+                const tableIdVal = config.tableId || ''
+                const includeCells = config.includeCellValuesInFieldIds === 'all'
+
+                setAirtableBaseId(baseIdVal)
+                setAirtableTableId(tableIdVal)
+                setAirtableIncludeCellValues(includeCells)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  airtableBaseId: baseIdVal,
+                  airtableTableId: tableIdVal,
+                  airtableIncludeCellValues: includeCells,
+                }))
               }
             }
           }
@@ -223,6 +255,11 @@ export function WebhookModal({
       (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
       (webhookProvider === 'twilio' &&
         sendReply !== originalValues.sendReply)
+      (webhookProvider === 'airtable' &&
+        (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
+          airtableBaseId !== originalValues.airtableBaseId ||
+          airtableTableId !== originalValues.airtableTableId ||
+          airtableIncludeCellValues !== originalValues.airtableIncludeCellValues))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -238,6 +275,40 @@ export function WebhookModal({
     originalValues,
     slackSigningSecret,
     sendReply,
+    airtableWebhookSecret,
+    airtableBaseId,
+    airtableTableId,
+    airtableIncludeCellValues,
+  ])
+
+  // Validate required fields for current provider
+  useEffect(() => {
+    let isValid = true
+    switch (webhookProvider) {
+      case 'airtable':
+        isValid = airtableBaseId.trim() !== '' && airtableTableId.trim() !== ''
+        break
+      case 'slack':
+        isValid = slackSigningSecret.trim() !== ''
+        break
+      case 'whatsapp':
+        // Although we auto-generate a token on creation, user could clear it when editing
+        isValid = whatsappVerificationToken.trim() !== ''
+        break
+      case 'github':
+        isValid = generalToken.trim() !== ''
+        break
+      case 'discord':
+        isValid = discordWebhookName.trim() !== ''
+        break
+    }
+    setIsCurrentConfigValid(isValid)
+  }, [
+    webhookProvider,
+    airtableBaseId,
+    airtableTableId,
+    slackSigningSecret,
+    whatsappVerificationToken,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -251,7 +322,7 @@ export function WebhookModal({
 
   const webhookUrl = `${baseUrl}/api/webhooks/trigger/${formattedPath}`
 
-  const copyToClipboard = (text: string, type: string) => {
+  const copyToClipboard = (text: string, type: string): void => {
     navigator.clipboard.writeText(text)
     setCopied(type)
     setTimeout(() => setCopied(null), 2000)
@@ -290,6 +361,12 @@ export function WebhookModal({
       case 'twilio':
         return {
           sendReply,
+      case 'airtable':
+        return {
+          webhookSecret: airtableWebhookSecret || undefined,
+          baseId: airtableBaseId,
+          tableId: airtableTableId,
+          includeCellValuesInFieldIds: airtableIncludeCellValues ? 'all' : undefined,
         }
       default:
         return {}
@@ -297,6 +374,16 @@ export function WebhookModal({
   }
 
   const handleSave = async () => {
+    if (!isCurrentConfigValid) {
+      logger.warn('Attempted to save with invalid configuration')
+      // Add user feedback for invalid configuration
+      setTestResult({
+        success: false,
+        message: 'Cannot save: Please fill in all required fields for the selected provider.',
+      })
+      return
+    }
+
     setIsSaving(true)
     try {
       // Call the onSave callback with the path and provider-specific config
@@ -308,26 +395,43 @@ export function WebhookModal({
           : formattedPath
 
         await new Promise((resolve) => setTimeout(resolve, 100))
-        await onSave(pathToSave, providerConfig)
+        const saveSuccessful = await onSave(pathToSave, providerConfig)
         await new Promise((resolve) => setTimeout(resolve, 100))
-
-        // Update original values to match current values after successful save
-        setOriginalValues({
-          whatsappVerificationToken,
-          githubContentType,
-          generalToken,
-          secretHeaderName,
-          requireAuth,
-          allowedIps,
-          discordWebhookName,
-          discordAvatarUrl,
-          slackSigningSecret,
-          sendReply,
-        })
-        setHasUnsavedChanges(false)
+        if (saveSuccessful) {
+          setOriginalValues({
+            whatsappVerificationToken,
+            githubContentType,
+            generalToken,
+            secretHeaderName,
+            requireAuth,
+            allowedIps,
+            discordWebhookName,
+            discordAvatarUrl,
+            slackSigningSecret,
+            airtableWebhookSecret,
+            airtableBaseId,
+            airtableTableId,
+            airtableIncludeCellValues,
+          })
+          setHasUnsavedChanges(false)
+          setTestResult({
+            success: true,
+            message: 'Webhook configuration saved successfully.',
+          })
+        } else {
+          setTestResult({
+            success: false,
+            message: 'Failed to save webhook configuration. Please try again.',
+          })
+        }
       }
     } catch (error) {
       logger.error('Error saving webhook:', { error })
+      setTestResult({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'An error occurred while saving the webhook',
+      })
     } finally {
       setIsSaving(false)
     }
@@ -376,15 +480,27 @@ export function WebhookModal({
       const testEndpoint = `/api/webhooks/test?id=${webhookId}`
 
       const response = await fetch(testEndpoint)
+
+      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
-        throw new Error('Failed to test webhook')
+        const errorText = await response.text()
+        let errorMessage = 'Failed to test webhook'
+
+        try {
+          // Try to parse as JSON, but handle case where it's not valid JSON
+          const errorData = JSON.parse(errorText)
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch (parseError) {
+          // If JSON parsing fails, use the raw text if it exists
+          errorMessage = errorText || errorMessage
+        }
+
+        throw new Error(errorMessage)
       }
       logger.info('response ok', response)
 
+      // Parse JSON only after confirming response is ok
       const data = await response.json()
-
-      // Add a slight delay before showing the result for smoother animation
-      await new Promise((resolve) => setTimeout(resolve, 300))
 
       // If the test was successful, show a success message
       if (data.success) {
@@ -396,7 +512,7 @@ export function WebhookModal({
       } else {
         setTestResult({
           success: false,
-          message: data.message || data.error || 'Failed to validate webhook configuration',
+          message: data.message || data.error || 'Webhook test failed with success=false',
         })
       }
     } catch (error: any) {
@@ -473,6 +589,25 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+            webhookUrl={webhookUrl}
+          />
+        )
+      case 'airtable':
+        return (
+          <AirtableConfig
+            baseId={airtableBaseId}
+            setBaseId={setAirtableBaseId}
+            tableId={airtableTableId}
+            setTableId={setAirtableTableId}
+            includeCellValues={airtableIncludeCellValues}
+            setIncludeCellValues={setAirtableIncludeCellValues}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
+            webhookId={webhookId}
+            webhookUrl={webhookUrl}
           />
         )
       case 'twilio':
@@ -507,35 +642,59 @@ export function WebhookModal({
     }
   }
 
+  // Get provider name for the title
+  const getProviderTitle = () => {
+    const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
+    return provider.name || 'Webhook'
+  }
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[675px] max-h-[90vh] overflow-hidden flex flex-col">
-          <WebhookDialogHeader webhookProvider={webhookProvider} webhookId={webhookId} />
+        <DialogContent
+          className="sm:max-w-[600px] flex flex-col p-0 gap-0 max-h-[90vh] overflow-hidden"
+          hideCloseButton
+        >
+          <DialogHeader className="px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-lg font-medium">
+                {webhookId ? 'Edit' : 'Configure'} {getProviderTitle()} Webhook
+              </DialogTitle>
+              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </div>
+          </DialogHeader>
 
-          <div className="space-y-4 py-2 px-2 overflow-y-auto flex-grow pb-6">
-            <WebhookUrlField
-              webhookUrl={webhookUrl}
-              isLoadingToken={isLoadingToken}
-              copied={copied}
-              copyToClipboard={copyToClipboard}
-            />
+          <div className="pt-4 px-6 pb-6 overflow-y-auto flex-grow">
+            {webhookProvider !== 'slack' && webhookProvider !== 'airtable' && (
+              <WebhookUrlField
+                webhookUrl={webhookUrl}
+                isLoadingToken={isLoadingToken}
+                copied={copied}
+                copyToClipboard={copyToClipboard}
+              />
+            )}
 
             {renderProviderContent()}
           </div>
 
-          <WebhookDialogFooter
-            webhookId={webhookId}
-            webhookProvider={webhookProvider}
-            isSaving={isSaving}
-            isDeleting={isDeleting}
-            isLoadingToken={isLoadingToken}
-            isTesting={isTesting}
-            onSave={handleSave}
-            onDelete={() => setShowDeleteConfirm(true)}
-            onTest={testWebhook}
-            onClose={handleClose}
-          />
+          <DialogFooter className="px-6 pt-0 pb-6 w-full border-t pt-4">
+            <WebhookDialogFooter
+              webhookId={webhookId}
+              webhookProvider={webhookProvider}
+              isSaving={isSaving}
+              isDeleting={isDeleting}
+              isLoadingToken={isLoadingToken}
+              isTesting={isTesting}
+              isCurrentConfigValid={isCurrentConfigValid}
+              onSave={handleSave}
+              onDelete={() => setShowDeleteConfirm(true)}
+              onTest={testWebhook}
+              onClose={handleClose}
+            />
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

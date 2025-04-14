@@ -19,12 +19,12 @@ services:
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
       - BETTER_AUTH_SECRET=your_auth_secret_here
       - ENCRYPTION_KEY=your_encryption_key_here
+      - FREESTYLE_API_KEY=placeholder
       - GOOGLE_CLIENT_ID=placeholder
       - GOOGLE_CLIENT_SECRET=placeholder
       - GITHUB_CLIENT_ID=placeholder
       - GITHUB_CLIENT_SECRET=placeholder
       - RESEND_API_KEY=placeholder
-      - WEBCONTAINER_CLIENT_ID=placeholder
     depends_on:
       db:
         condition: service_healthy
@@ -96,4 +96,3 @@ services:
 
 volumes:
   postgres_data:
-

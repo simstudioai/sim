@@ -19,7 +19,9 @@ const initialState = {
   lastSaved: undefined,
   isDeployed: false,
   deployedAt: undefined,
-  isPublished: false,
+  needsRedeployment: false,
+  hasActiveSchedule: false,
+  hasActiveWebhook: false,
   history: {
     past: [],
     present: {
@@ -41,6 +43,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       canUndo: () => false,
       canRedo: () => false,
       revertToHistoryState: () => {},
+
+      setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
+        set({ needsRedeployment })
+      },
 
       addBlock: (id: string, type: string, name: string, position: Position) => {
         const blockConfig = getBlock(type)
@@ -130,7 +136,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Clean up loops
         Object.entries(newState.loops).forEach(([loopId, loop]) => {
           if (loop.nodes.includes(id)) {
-            if (loop.nodes.length <= 2) {
+            // If removing this node would leave the loop empty, delete the loop
+            if (loop.nodes.length <= 1) {
               delete newState.loops[loopId]
             } else {
               newState.loops[loopId] = {
@@ -178,6 +185,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Recalculate all loops after adding the edge
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
+        const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -187,15 +195,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             // Create a canonical path representation for deduplication
             const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
-              const loopId = crypto.randomUUID()
-              newLoops[loopId] = {
-                id: loopId,
-                nodes: path,
-                iterations: 5,
-                loopType: 'for', // Default to 'for' loop
-                forEachItems: '',
-              }
               processedPaths.add(canonicalPath)
+
+              // Check if this path matches an existing loop
+              let existingLoop: Loop | undefined
+              Object.values(existingLoops).forEach((loop) => {
+                const loopCanonicalPath = [...loop.nodes].sort().join(',')
+                if (loopCanonicalPath === canonicalPath) {
+                  existingLoop = loop
+                }
+              })
+
+              if (existingLoop) {
+                // Preserve the existing loop's properties
+                newLoops[existingLoop.id] = {
+                  ...existingLoop,
+                  nodes: path, // Update nodes in case order changed
+                }
+              } else {
+                // Create a new loop with default settings
+                const loopId = crypto.randomUUID()
+                newLoops[loopId] = {
+                  id: loopId,
+                  nodes: path,
+                  iterations: 5,
+                  loopType: 'for',
+                  forEachItems: '',
+                }
+              }
             }
           })
         })
@@ -218,6 +245,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Recalculate all loops after edge removal
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
+        const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -227,15 +255,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             // Create a canonical path representation for deduplication
             const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
-              const loopId = crypto.randomUUID()
-              newLoops[loopId] = {
-                id: loopId,
-                nodes: path,
-                iterations: 5,
-                loopType: 'for', // Default to 'for' loop
-                forEachItems: '',
-              }
               processedPaths.add(canonicalPath)
+
+              // Check if this path matches an existing loop
+              let existingLoop: Loop | undefined
+              Object.values(existingLoops).forEach((loop) => {
+                const loopCanonicalPath = [...loop.nodes].sort().join(',')
+                if (loopCanonicalPath === canonicalPath) {
+                  existingLoop = loop
+                }
+              })
+
+              if (existingLoop) {
+                // Preserve the existing loop's properties
+                newLoops[existingLoop.id] = {
+                  ...existingLoop,
+                  nodes: path, // Update nodes in case order changed
+                }
+              } else {
+                // Create a new loop with default settings
+                const loopId = crypto.randomUUID()
+                newLoops[loopId] = {
+                  id: loopId,
+                  nodes: path,
+                  iterations: 5,
+                  loopType: 'for',
+                  forEachItems: '',
+                }
+              }
             }
           })
         })
@@ -276,6 +323,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           lastSaved: Date.now(),
           isDeployed: false,
           isPublished: false,
+          hasActiveSchedule: false,
+          hasActiveWebhook: false,
         }
         set(newState)
         workflowSync.sync()
@@ -297,7 +346,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
-            isPublished: currentState.isPublished,
             lastSaved: Date.now(),
           })
 
@@ -563,28 +611,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       updateLoopForEachItems: (loopId: string, items: string) => {
-        let parsedItems: any = items
-
-        // Try to parse the string as JSON if it looks like JSON
-        if (
-          typeof items === 'string' &&
-          ((items.trim().startsWith('[') && items.trim().endsWith(']')) ||
-            (items.trim().startsWith('{') && items.trim().endsWith('}')))
-        ) {
-          try {
-            // First try to parse to validate it's valid JSON
-            const parsed = JSON.parse(items)
-
-            // If parsing succeeds, store the original string to preserve formatting
-            // This way we keep the user's exact formatting (spacing, line breaks, etc.)
-            parsedItems = items
-          } catch (e) {
-            // If parsing fails, keep it as a string expression
-            console.error('Invalid JSON format for forEach items:', e)
-            parsedItems = items
-          }
-        }
-
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges],
@@ -592,7 +618,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...get().loops,
             [loopId]: {
               ...get().loops[loopId],
-              forEachItems: parsedItems,
+              forEachItems: items,
             },
           },
         }
@@ -615,6 +641,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           ...get(),
           isDeployed,
           deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+          needsRedeployment: isDeployed ? false : get().needsRedeployment,
         }
 
         set(newState)
@@ -622,15 +649,25 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         workflowSync.sync()
       },
 
-      setPublishStatus: (isPublished: boolean) => {
-        const newState = {
-          ...get(),
-          isPublished,
+      setScheduleStatus: (hasActiveSchedule: boolean) => {
+        // Only update if the status has changed to avoid unnecessary rerenders
+        if (get().hasActiveSchedule !== hasActiveSchedule) {
+          set({ hasActiveSchedule })
+          get().updateLastSaved()
         }
+      },
 
-        set(newState)
-        get().updateLastSaved()
-        workflowSync.sync()
+      setWebhookStatus: (hasActiveWebhook: boolean) => {
+        // Only update if the status has changed to avoid unnecessary rerenders
+        if (get().hasActiveWebhook !== hasActiveWebhook) {
+          // If the workflow has an active schedule, disable it
+          if (get().hasActiveSchedule) {
+            get().setScheduleStatus(false)
+          }
+
+          set({ hasActiveWebhook })
+          get().updateLastSaved()
+        }
       },
     })),
     { name: 'workflow-store' }

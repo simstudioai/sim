@@ -1,14 +1,21 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { airtableReadTool, airtableUpdateTool, airtableWriteTool } from './airtable'
+import {
+  airtableCreateRecordsTool,
+  airtableGetRecordTool,
+  airtableListRecordsTool,
+  airtableUpdateRecordTool,
+} from '@/tools/airtable'
+import { autoblocksPromptManagerTool } from '@/tools/autoblocks'
+import { browserUseRunTaskTool } from './browserUse'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl/scrape'
-import { functionExecuteTool, webcontainerExecuteTool } from './function'
+import { functionExecuteTool } from './function'
 import {
   githubCommentTool,
   githubLatestCommitTool,
@@ -20,6 +27,7 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
@@ -36,12 +44,14 @@ import { opportunitiesTool as salesforceOpportunities } from './salesforce/oppor
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
 import { slackMessageTool } from './slack/message'
-import { supabaseInsertTool, supabaseQueryTool, supabaseUpdateTool } from './supabase'
+import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
+import { supabaseInsertTool, supabaseQueryTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
+import { thinkingTool } from './thinking/thinking'
 import { sendSMSTool } from './twilio/send'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, validateToolRequest } from './utils'
+import { formatRequestParams, transformTable, validateToolRequest } from './utils'
 import { visionTool } from './vision/vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
@@ -51,12 +61,13 @@ const logger = createLogger('Tools')
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
+  browser_use_run_task: browserUseRunTaskTool,
+  autoblocks_prompt_manager: autoblocksPromptManagerTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
-  webcontainer_execute: webcontainerExecuteTool,
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
@@ -69,7 +80,6 @@ export const tools: Record<string, ToolConfig> = {
   tavily_extract: tavilyExtractTool,
   supabase_query: supabaseQueryTool,
   supabase_insert: supabaseInsertTool,
-  supabase_update: supabaseUpdateTool,
   typeform_responses: typeformResponsesTool,
   typeform_files: typeformFilesTool,
   typeform_insights: typeformInsightsTool,
@@ -113,9 +123,14 @@ export const tools: Record<string, ToolConfig> = {
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
   dalle_generate: dalleTool,
-  airtable_read: airtableReadTool,
-  airtable_write: airtableWriteTool,
-  airtable_update: airtableUpdateTool,
+  airtable_create_records: airtableCreateRecordsTool,
+  airtable_get_record: airtableGetRecordTool,
+  airtable_list_records: airtableListRecordsTool,
+  airtable_update_record: airtableUpdateRecordTool,
+  mistral_parser: mistralParserTool,
+  thinking_tool: thinkingTool,
+  stagehand_extract: stagehandExtractTool,
+  stagehand_agent: stagehandAgentTool,
 }
 
 // Get a tool by its ID
@@ -137,8 +152,8 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined'
 }
 
-// Check if WebContainer is available
-function isWebContainerAvailable(): boolean {
+// Check if Freestyle is available
+function isFreestyleAvailable(): boolean {
   return isBrowser() && !!window.crossOriginIsolated
 }
 
@@ -215,7 +230,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
       isInternalRoute: true,
     },
 
-    // Direct execution support for browser environment with WebContainer
+    // Direct execution support for browser environment with Freestyle
     directExecution: async (params: Record<string, any>) => {
       // If there's no code, we can't execute directly
       if (!customTool.code) {
@@ -226,8 +241,8 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
         }
       }
 
-      // If we're in a browser with WebContainer available, use it
-      if (isWebContainerAvailable()) {
+      // If we're in a browser with Freestyle available, use it
+      if (isFreestyleAvailable()) {
         try {
           // Get environment variables from the store
           const envStore = useEnvironmentStore.getState()
@@ -264,18 +279,13 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             resolvedCode = resolvedCode.replace(match, tagValue)
           }
 
-          // Dynamically import the executeCode function
-          const { executeCode } = await import('@/lib/webcontainer')
+          // Dynamically import Freestyle to execute code
+          const { executeCode } = await import('@/lib/freestyle')
 
-          // Execute the code with resolved variables
-          const result = await executeCode(
-            resolvedCode,
-            mergedParams, // Use the merged params that include env vars
-            5000 // Default timeout
-          )
+          const result = await executeCode(resolvedCode, mergedParams)
 
           if (!result.success) {
-            throw new Error(result.error || 'WebContainer execution failed')
+            throw new Error(result.error || 'Freestyle execution failed')
           }
 
           return {
@@ -284,18 +294,18 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
             error: undefined,
           }
         } catch (error: any) {
-          logger.warn('WebContainer execution failed, falling back to API:', error.message)
-          // Fall back to API route if WebContainer fails
+          logger.warn('Freestyle execution failed, falling back to API:', error.message)
+          // Fall back to API route if Freestyle fails
           return undefined
         }
       }
 
-      // No WebContainer or not in browser, return undefined to use regular API route
+      // No Freestyle or not in browser, return undefined to use regular API route
       return undefined
     },
 
     // Response handling
-    transformResponse: async (response: Response) => {
+    transformResponse: async (response: Response, params: Record<string, any>) => {
       const data = await response.json()
 
       if (!data.success) {
@@ -326,43 +336,80 @@ export async function executeTool(
 
   try {
     const tool = getTool(toolId)
+    // Ensure context is preserved if it exists
+    const contextParams = { ...params }
 
     // Validate the tool and its parameters
-    validateToolRequest(toolId, tool, params)
+    validateToolRequest(toolId, tool, contextParams)
 
     // After validation, we know tool exists
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    // For custom tools, try direct execution in browser first if available
-    if (toolId.startsWith('custom_') && tool.directExecution) {
-      const directResult = await tool.directExecution(params)
-      if (directResult) {
-        // Add timing data to the result
-        const endTime = new Date()
-        const endTimeISO = endTime.toISOString()
-        const duration = endTime.getTime() - startTime.getTime()
-        return {
-          ...directResult,
-          timing: {
-            startTime: startTimeISO,
-            endTime: endTimeISO,
-            duration,
-          },
+    // For any tool with direct execution capability, try it first
+    if (tool.directExecution) {
+      try {
+        const directResult = await tool.directExecution(contextParams)
+        if (directResult) {
+          // Add timing data to the result
+          const endTime = new Date()
+          const endTimeISO = endTime.toISOString()
+          const duration = endTime.getTime() - startTime.getTime()
+
+          // Apply post-processing if available and not skipped
+          if (tool.postProcess && directResult.success && !skipPostProcess) {
+            try {
+              const postProcessResult = await tool.postProcess(
+                directResult,
+                contextParams,
+                executeTool
+              )
+              return {
+                ...postProcessResult,
+                timing: {
+                  startTime: startTimeISO,
+                  endTime: endTimeISO,
+                  duration,
+                },
+              }
+            } catch (error) {
+              logger.error(`Error in post-processing for tool ${toolId}:`, { error })
+              return {
+                ...directResult,
+                timing: {
+                  startTime: startTimeISO,
+                  endTime: endTimeISO,
+                  duration,
+                },
+              }
+            }
+          }
+
+          return {
+            ...directResult,
+            timing: {
+              startTime: startTimeISO,
+              endTime: endTimeISO,
+              duration,
+            },
+          }
         }
+        // If directExecution returns undefined, fall back to API route
+      } catch (error) {
+        logger.warn(`Direct execution failed for tool ${toolId}, falling back to API:`, error)
+        // Fall back to API route if direct execution fails
       }
-      // If directExecution returns undefined, fall back to API route
     }
 
     // For internal routes or when skipProxy is true, call the API directly
     if (tool.request.isInternalRoute || skipProxy) {
-      const result = await handleInternalRequest(toolId, tool, params)
+      const result = await handleInternalRequest(toolId, tool, contextParams)
 
       // Apply post-processing if available and not skipped
       if (tool.postProcess && result.success && !skipPostProcess) {
         try {
-          const postProcessResult = await tool.postProcess(result, params, executeTool)
+          const postProcessResult = await tool.postProcess(result, contextParams, executeTool)
 
           // Add timing data to the post-processed result
           const endTime = new Date()
@@ -409,12 +456,12 @@ export async function executeTool(
     }
 
     // For external APIs, use the proxy
-    const result = await handleProxyRequest(toolId, params)
+    const result = await handleProxyRequest(toolId, contextParams)
 
     // Apply post-processing if available and not skipped
     if (tool.postProcess && result.success && !skipPostProcess) {
       try {
-        const postProcessResult = await tool.postProcess(result, params, executeTool)
+        const postProcessResult = await tool.postProcess(result, contextParams, executeTool)
 
         // Add timing data to the post-processed result
         const endTime = new Date()
@@ -597,7 +644,7 @@ async function handleInternalRequest(
 
     // Use the tool's response transformer if available
     if (tool.transformResponse) {
-      return await tool.transformResponse(response)
+      return await tool.transformResponse(response, params)
     }
 
     // Default response handling

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { existsSync } from 'fs'
-import fs from 'fs'
-import { readFile, unlink, writeFile } from 'fs/promises'
+import * as binExt from 'binary-extensions'
+import { Buffer } from 'buffer'
+import { createHash } from 'crypto'
+import fsPromises, { readFile, unlink, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
 import { join } from 'path'
 import path from 'path'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
@@ -11,6 +13,10 @@ import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 const logger = createLogger('FilesParseAPI')
+
+// Constants for URL downloads
+const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
+const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
 
 interface ParseSuccessResult {
   success: true
@@ -140,6 +146,11 @@ export async function POST(request: NextRequest) {
 async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
   logger.info('Parsing file:', filePath)
 
+  // Check if this is an external URL
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return handleExternalUrl(filePath, fileType)
+  }
+
   // Check if this is an S3 path
   const isS3Path = filePath.includes('/api/files/serve/s3/')
 
@@ -150,6 +161,118 @@ async function parseFileSingle(filePath: string, fileType?: string): Promise<Par
 
   // Use local handler for local files
   return handleLocalFile(filePath, fileType)
+}
+
+/**
+ * Handle an external URL by downloading the file first
+ */
+async function handleExternalUrl(url: string, fileType?: string): Promise<ParseResult> {
+  logger.info(`Handling external URL: ${url}`)
+
+  try {
+    // Create a unique filename for the temporary file
+    const urlHash = createHash('md5').update(url).digest('hex')
+    const urlObj = new URL(url)
+    const originalFilename = urlObj.pathname.split('/').pop() || 'download'
+    const tmpFilename = `${urlHash}-${originalFilename}`
+    const tmpFilePath = path.join(tmpdir(), tmpFilename)
+
+    // Download the file using native fetch
+    logger.info(`Downloading file from URL to ${tmpFilePath}`)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'SimStudio/1.0',
+      },
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), // Add timeout
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to download file: ${response.status} ${response.statusText}`)
+    }
+
+    // Check file size before downloading content
+    const contentLength = response.headers.get('content-length')
+    if (contentLength) {
+      const fileSize = parseInt(contentLength, 10)
+      if (fileSize > MAX_DOWNLOAD_SIZE_BYTES) {
+        throw new Error(
+          `File size (${prettySize(fileSize)}) exceeds the limit of ${prettySize(
+            MAX_DOWNLOAD_SIZE_BYTES
+          )}.`
+        )
+      }
+    } else {
+      logger.warn('Content-Length header missing, cannot verify file size before download.')
+    }
+
+    // Get the file buffer from response
+    const arrayBuffer = await response.arrayBuffer()
+    const fileBuffer = Buffer.from(arrayBuffer)
+
+    // Write to temporary file
+    await writeFile(tmpFilePath, fileBuffer)
+    logger.info(`Downloaded ${fileBuffer.length} bytes to ${tmpFilePath}`)
+
+    // Determine file extension and type
+    const contentType = response.headers.get('content-type') || ''
+    const extension =
+      path.extname(originalFilename).toLowerCase().substring(1) ||
+      (contentType ? contentType.split('/').pop() || 'unknown' : 'unknown')
+
+    try {
+      // Process based on file type
+      let result: ParseResult
+
+      if (extension === 'pdf') {
+        result = await handlePdfBuffer(fileBuffer, originalFilename, fileType, url)
+      } else if (extension === 'csv') {
+        result = await handleCsvBuffer(fileBuffer, originalFilename, fileType, url)
+      } else if (isSupportedFileType(extension)) {
+        result = await handleGenericTextBuffer(
+          fileBuffer,
+          originalFilename,
+          extension,
+          fileType,
+          url
+        )
+      } else {
+        result = handleGenericBuffer(fileBuffer, originalFilename, extension, fileType)
+      }
+
+      // Clean up temporary file
+      try {
+        await unlink(tmpFilePath)
+        logger.info(`Deleted temporary file: ${tmpFilePath}`)
+      } catch (cleanupError) {
+        logger.warn(`Failed to delete temporary file ${tmpFilePath}:`, cleanupError)
+      }
+
+      return result
+    } catch (parseError) {
+      logger.error(`Error parsing downloaded file: ${url}`, parseError)
+
+      // Clean up temporary file on error
+      try {
+        await unlink(tmpFilePath)
+      } catch (cleanupError) {
+        // Ignore cleanup errors on parse failure
+      }
+
+      throw parseError
+    }
+  } catch (error) {
+    logger.error(`Error handling external URL ${url}:`, error)
+    let errorMessage = `Failed to download or process file from URL: ${(error as Error).message}`
+    if ((error as Error).name === 'TimeoutError') {
+      errorMessage = `Download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000} seconds.`
+    }
+    return {
+      success: false,
+      error: errorMessage,
+      filePath: url,
+    }
+  }
 }
 
 /**
@@ -358,7 +481,7 @@ function handleGenericBuffer(
   extension: string,
   fileType?: string
 ): ParseResult {
-  const isBinary = binaryExtensions.includes(extension)
+  const isBinary = binExt.includes(extension)
   const content = isBinary
     ? `[Binary ${extension.toUpperCase()} file - ${fileBuffer.length} bytes]`
     : fileBuffer.toString('utf-8')
@@ -428,7 +551,7 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
 
     // Make sure the file is actually a file that exists
     try {
-      await fs.promises.access(localFilePath, fs.constants.R_OK)
+      await fsPromises.access(localFilePath, fsPromises.constants.R_OK)
     } catch (error) {
       logger.error(`File access error: ${localFilePath}`, error)
       return {
@@ -439,7 +562,7 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
     }
 
     // Get file stats
-    const stats = await fs.promises.stat(localFilePath)
+    const stats = await fsPromises.stat(localFilePath)
     if (!stats.isFile()) {
       logger.error(`Not a file: ${localFilePath}`)
       return {
@@ -564,18 +687,21 @@ async function handleGenericFile(
     const fileSize = fileBuffer.length
 
     // Determine if file should be treated as binary
-    const isBinary = binaryExtensions.includes(extension)
+    const isBinary = binExt.includes(extension)
 
     // Parse content based on binary status
-    const fileContent = isBinary
-      ? `[Binary ${extension.toUpperCase()} file - ${fileSize} bytes]`
-      : await parseTextFile(fileBuffer)
+    let content: string
+    if (isBinary) {
+      content = `[Binary ${extension.toUpperCase()} file - ${fileSize} bytes]`
+    } else {
+      content = await parseTextFile(fileBuffer)
+    }
 
     // Always return success: true for generic files (even unsupported ones)
     return {
       success: true,
       output: {
-        content: fileContent,
+        content,
         fileType: fileType || getMimeType(extension),
         size: fileSize,
         name: filename,

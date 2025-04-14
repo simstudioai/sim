@@ -2,26 +2,38 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { closeRedisConnection, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
-import { decryptSecret } from '@/lib/utils'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { db } from '@/db'
-import { environment, userStats, webhook, workflow } from '@/db/schema'
-import { Executor } from '@/executor'
-import { Serializer } from '@/serializer'
-import { validateSlackSignature } from '../../utils'
+import { webhook, workflow } from '@/db/schema'
+import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
+import { 
+  handleWhatsAppVerification,
+  handleSlackChallenge,
+  processWhatsAppDeduplication,
+  processGenericDeduplication,
+  processWebhook,
+  fetchAndProcessAirtablePayloads
+} from '@/lib/webhooks/utils'
 
 const logger = createLogger('WebhookTriggerAPI')
 
+// Ensure dynamic rendering to support real-time webhook processing
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max execution time for long-running webhooks
 
+// Storage for active processing tasks to prevent garbage collection
+// This keeps track of background promises that must continue running even after HTTP response
+const activeProcessingTasks = new Map<string, Promise<any>>();
+
 /**
- * Consolidated webhook trigger endpoint for all providers
- * Handles both WhatsApp verification and other webhook providers
+ * Webhook Verification Handler (GET)
+ * 
+ * Handles verification requests from webhook providers:
+ * - WhatsApp: Responds to hub.challenge verification
+ * - Generic: Confirms webhook endpoint exists and is active
+ * 
+ * @param request The incoming HTTP request
+ * @param params Route parameters containing the webhook path
+ * @returns HTTP response appropriate for the verification type
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -30,53 +42,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const path = (await params).path
     const url = new URL(request.url)
 
-    // Check if this is a WhatsApp verification request
+    // --- WhatsApp Verification ---
+    // Extract WhatsApp challenge parameters
     const mode = url.searchParams.get('hub.mode')
     const token = url.searchParams.get('hub.verify_token')
     const challenge = url.searchParams.get('hub.challenge')
 
-    if (mode && token && challenge) {
-      // This is a WhatsApp verification request
-      logger.info(`[${requestId}] WhatsApp verification request received for path: ${path}`)
-
-      if (mode !== 'subscribe') {
-        logger.warn(`[${requestId}] Invalid WhatsApp verification mode: ${mode}`)
-        return new NextResponse('Invalid mode', { status: 400 })
-      }
-
-      // Find all active WhatsApp webhooks
-      const webhooks = await db
-        .select()
-        .from(webhook)
-        .where(and(eq(webhook.provider, 'whatsapp'), eq(webhook.isActive, true)))
-
-      // Check if any webhook has a matching verification token
-      for (const wh of webhooks) {
-        const providerConfig = (wh.providerConfig as Record<string, any>) || {}
-        const verificationToken = providerConfig.verificationToken
-
-        if (!verificationToken) {
-          logger.debug(`[${requestId}] Webhook ${wh.id} has no verification token, skipping`)
-          continue
-        }
-
-        if (token === verificationToken) {
-          logger.info(`[${requestId}] WhatsApp verification successful for webhook ${wh.id}`)
-          // Return ONLY the challenge as plain text (exactly as WhatsApp expects)
-          return new NextResponse(challenge, {
-            status: 200,
-            headers: {
-              'Content-Type': 'text/plain',
-            },
-          })
-        }
-      }
-
-      logger.warn(`[${requestId}] No matching WhatsApp verification token found`)
-      return new NextResponse('Verification failed', { status: 403 })
+    // Handle WhatsApp verification if applicable
+    const whatsAppResponse = await handleWhatsAppVerification(requestId, path, mode, token, challenge)
+    if (whatsAppResponse) {
+      return whatsAppResponse
     }
 
-    // For non-WhatsApp verification requests
+    // --- General Webhook Verification ---
     logger.debug(`[${requestId}] Looking for webhook with path: ${path}`)
 
     // Find the webhook in the database
@@ -93,7 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return new NextResponse('Webhook not found', { status: 404 })
     }
 
-    // For other providers, just return a 200 OK
+    // For all other providers, confirm the webhook endpoint exists
     logger.info(`[${requestId}] Webhook verification successful for path: ${path}`)
     return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
@@ -101,21 +79,39 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(`Internal Server Error: ${error.message}`, {
       status: 500,
     })
-  } finally {
-    // Ensure Redis connection is properly closed in serverless environment
-    await closeRedisConnection()
   }
 }
 
+/**
+ * Webhook Payload Handler (POST)
+ * 
+ * Processes incoming webhook payloads from all supported providers:
+ * - Validates and parses the request body
+ * - Performs provider-specific deduplication
+ * - Acquires distributed processing lock
+ * - Executes the associated workflow
+ * 
+ * Performance optimizations:
+ * - Fast response time (2.5s timeout) to acknowledge receipt
+ * - Background processing for long-running operations
+ * - Robust deduplication to prevent duplicate executions
+ * 
+ * @param request The incoming HTTP request with webhook payload
+ * @param params Route parameters containing the webhook path
+ * @returns HTTP response (may respond before processing completes)
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ path: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const executionId = uuidv4()
   let foundWorkflow: any = null
+  let foundWebhook: any = null
+  
+  // --- PHASE 1: Request validation and parsing ---
+  
+  // Extract and validate the raw request body
   let rawBody: string | null = null
-
   try {
     const path = (await params).path
 
@@ -125,7 +121,12 @@ export async function POST(
     // Clone the request to get the raw body for signature verification and content parsing
     const requestClone = request.clone()
     rawBody = await requestClone.text()
+    logger.debug(`[${requestId}] Captured raw request body, length: ${rawBody.length}`)
     
+    if (!rawBody || rawBody.length === 0) {
+      logger.warn(`[${requestId}] Rejecting request with empty body`)
+      return new NextResponse('Empty request body', { status: 400 })
+    }
     // Parse the request body based on content type
     let body: any
     
@@ -189,84 +190,59 @@ export async function POST(
       // Return early for duplicate requests to prevent workflow execution
       return new NextResponse('Duplicate request', { status: 200 })
     }
-
-    // Find the webhook in the database
-    const webhooks = await db
-      .select({
-        webhook: webhook,
-        workflow: workflow,
-      })
-      .from(webhook)
-      .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
-      .where(and(eq(webhook.path, path), eq(webhook.isActive, true)))
-      .limit(1)
-
-    if (webhooks.length === 0) {
-      logger.warn(`[${requestId}] No active webhook found for path: ${path}`)
-      return new NextResponse('Webhook not found', { status: 404 })
-    }
-
-    const { webhook: foundWebhook, workflow: workflowData } = webhooks[0]
-    foundWorkflow = workflowData
-
-    logger.info(`[${requestId}] Found webhook for path ${path}`, {
-      webhookId: foundWebhook.id,
-      provider: foundWebhook.provider,
-      workflowId: foundWorkflow.id,
+  } catch (bodyError) {
+    logger.error(`[${requestId}] Failed to read request body`, {
+      error: bodyError instanceof Error ? bodyError.message : String(bodyError),
     })
-
-    // Provider-specific validation and handling
-    if (foundWebhook.provider === 'slack') {
-      // Validate Slack signature if this is a Slack webhook
-      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-      const signingSecret = providerConfig.signingSecret
-
-      if (signingSecret) {
-        const slackSignature = request.headers.get('x-slack-signature')
-        const slackTimestamp = request.headers.get('x-slack-request-timestamp')
-
-        if (!slackSignature || !slackTimestamp || !rawBody) {
-          logger.warn(`[${requestId}] Missing Slack signature headers`, {
-            hasSignature: !!slackSignature,
-            hasTimestamp: !!slackTimestamp,
-            hasBody: !!rawBody,
-          })
-          return NextResponse.json({ error: 'Invalid Slack request' }, { status: 400 })
-        }
-
-        // Validate the Slack signature
-        const isValid = await validateSlackSignature(
-          signingSecret,
-          slackSignature,
-          slackTimestamp,
-          rawBody
-        )
-
-        if (!isValid) {
-          logger.warn(`[${requestId}] Invalid Slack signature`)
-          return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-        }
-
-        logger.info(`[${requestId}] Slack signature validated successfully`)
-
-        // Handle Slack URL verification challenge during POST
-        if (body.type === 'url_verification' && body.challenge) {
-          logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
-          return NextResponse.json({ challenge: body.challenge })
-        }
-      }
-
-      // Check if we've already processed this message using Redis
-      const messageId = body?.event?.event_id
-      if (messageId && (await hasProcessedMessage(messageId))) {
-        logger.info(`[${requestId}] Duplicate Slack message detected with ID: ${messageId}`)
-        // Return early for duplicate messages to prevent workflow execution
+    return new NextResponse('Failed to read request body', { status: 400 })
+  }
+  
+  // Parse the body as JSON
+  let body: any
+  try {
+    body = JSON.parse(rawBody)
+    
+    if (Object.keys(body).length === 0) {
+      logger.warn(`[${requestId}] Rejecting empty JSON object`)
+      return new NextResponse('Empty JSON payload', { status: 400 })
+    }
+  } catch (parseError) {
+    logger.error(`[${requestId}] Failed to parse JSON body`, {
+      error: parseError instanceof Error ? parseError.message : String(parseError),
+    })
+    return new NextResponse('Invalid JSON payload', { status: 400 })
+  }
+  
+  // --- PHASE 2: Early Slack deduplication ---
+  
+  // Handle Slack-specific message deduplication to prevent duplicates
+  const messageId = body?.event_id
+  const slackRetryNum = request.headers.get('x-slack-retry-num')
+  const slackRetryReason = request.headers.get('x-slack-retry-reason')
+  
+  if (body?.type === 'event_callback') {
+    logger.debug(`[${requestId}] Slack event received with event_id: ${messageId || 'missing'}, retry: ${slackRetryNum || 'none'}`)
+    
+    // Create a robust deduplication key (works even if messageId is missing)
+    const dedupeKey = messageId ? 
+      `slack:msg:${messageId}` : 
+      `slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
+    
+    try {
+      // Check if this message was already processed
+      const isDuplicate = await hasProcessedMessage(dedupeKey)
+      if (isDuplicate) {
+        logger.info(`[${requestId}] Duplicate Slack message detected: ${dedupeKey}, retry: ${slackRetryNum || 'none'}`)
         return new NextResponse('Duplicate message', { status: 200 })
       }
-
-      // Store the message ID in Redis to prevent duplicate processing in future requests
-      if (messageId) {
-        await markMessageAsProcessed(messageId)
+      
+      // Mark as processed immediately to prevent race conditions
+      await markMessageAsProcessed(dedupeKey, 60 * 60 * 24) // 24 hour TTL
+      logger.debug(`[${requestId}] Marked Slack message as processed with key: ${dedupeKey}`)
+      
+      // Log retry information if present
+      if (slackRetryNum) {
+        logger.info(`[${requestId}] Processing Slack retry #${slackRetryNum} for message, reason: ${slackRetryReason || 'unknown'}`)
       }
 
       // Mark this request as processed to prevent duplicates
@@ -459,391 +435,267 @@ async function generateRequestHash(path: string, body: any): Promise<string> {
       const char = requestString.charCodeAt(i)
       hash = (hash << 5) - hash + char
       hash = hash & hash // Convert to 32bit integer
+    } catch (error) {
+      logger.error(`[${requestId}] Error in Slack deduplication`, error)
+      // Continue processing - better to risk a duplicate than fail to process
     }
-
-    return `request:${path}:${hash}`
-  } catch (error) {
-    // If hashing fails, use a UUID as fallback
-    return `request:${path}:${uuidv4()}`
   }
-}
-
-/**
- * Normalize webhook body by removing fields that might change between identical requests
- * This helps with more accurate deduplication
- */
-function normalizeBody(body: any): any {
-  if (!body || typeof body !== 'object') return body
-
-  // Create a copy to avoid modifying the original
-  const result = Array.isArray(body) ? [...body] : { ...body }
-
-  // Fields to remove (common timestamp/random fields)
-  const fieldsToRemove = ['timestamp', 'random', 'nonce', 'requestId']
-
-  if (Array.isArray(result)) {
-    // Handle arrays
-    return result.map((item) => normalizeBody(item))
+  
+  // --- PHASE 3: Set up processing framework ---
+  
+  // Set up distributed processing lock to prevent duplicate processing
+  let hasExecutionLock = false
+  
+  // Create a provider-specific lock key
+  let executionLockKey: string
+  if (body?.type === 'event_callback') {
+    // For Slack events, use the same scheme as deduplication
+    executionLockKey = messageId ? 
+      `execution:lock:slack:${messageId}` : 
+      `execution:lock:slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
   } else {
-    // Handle objects
-    for (const key in result) {
-      if (fieldsToRemove.includes(key.toLowerCase())) {
-        delete result[key]
-      } else if (typeof result[key] === 'object' && result[key] !== null) {
-        result[key] = normalizeBody(result[key])
-      }
-    }
-    return result
+    // Default fallback for other providers
+    executionLockKey = `execution:lock:${requestId}:${crypto.randomUUID()}`
   }
-}
-
-/**
- * Process a webhook synchronously
- */
-async function processWebhook(
-  foundWebhook: any,
-  foundWorkflow: any,
-  body: any,
-  request: NextRequest,
-  executionId: string,
-  requestId: string
-): Promise<NextResponse> {
+  
+  // We can't detect Airtable webhooks reliably from the body alone
+  // We'll handle provider-specific logic after loading the webhook from the database
+  
   try {
-    // Handle provider-specific verification and authentication
-    if (foundWebhook.provider && foundWebhook.provider !== 'whatsapp') {
-      const authHeader = request.headers.get('authorization')
-      const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
-
-      switch (foundWebhook.provider) {
-        case 'github':
-          // GitHub doesn't require verification in this implementation
-          break
-
-        case 'stripe':
-          // Stripe verification would go here if needed
-          break
-
-        case 'generic':
-          // Enhanced general webhook authentication
-          if (providerConfig.requireAuth) {
-            let isAuthenticated = false
-
-            // Check for token in Authorization header (Bearer token)
-            if (providerConfig.token) {
-              const providedToken = authHeader?.startsWith('Bearer ')
-                ? authHeader.substring(7)
-                : null
-              if (providedToken === providerConfig.token) {
-                isAuthenticated = true
-              }
-
-              // Check for token in custom header if specified
-              if (!isAuthenticated && providerConfig.secretHeaderName) {
-                const customHeaderValue = request.headers.get(providerConfig.secretHeaderName)
-                if (customHeaderValue === providerConfig.token) {
-                  isAuthenticated = true
-                }
-              }
-
-              // Return 401 if authentication failed
-              if (!isAuthenticated) {
-                logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
-                return new NextResponse('Unauthorized', { status: 401 })
-              }
-            }
-          }
-
-          // IP restriction check
-          if (
-            providerConfig.allowedIps &&
-            Array.isArray(providerConfig.allowedIps) &&
-            providerConfig.allowedIps.length > 0
-          ) {
-            const clientIp =
-              request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-              request.headers.get('x-real-ip') ||
-              'unknown'
-
-            if (clientIp === 'unknown' || !providerConfig.allowedIps.includes(clientIp)) {
-              logger.warn(
-                `[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`
-              )
-              return new NextResponse('Forbidden - IP not allowed', { status: 403 })
-            }
-          }
-          break
-
-        default:
-          // For other generic webhooks, check for a token if provided in providerConfig
-          if (providerConfig.token) {
-            const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
-            if (!providedToken || providedToken !== providerConfig.token) {
-              logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
-              return new NextResponse('Unauthorized', { status: 401 })
-            }
-          }
-      }
-    }
-
-    // Format the input based on provider
-    let input = {}
-
-    if (foundWebhook.provider === 'whatsapp') {
-      // Extract WhatsApp specific data
-      const data = body?.entry?.[0]?.changes?.[0]?.value
-      const messages = data?.messages || []
-
-      if (messages.length > 0) {
-        const message = messages[0]
-        const phoneNumberId = data.metadata?.phone_number_id
-        const from = message.from
-        const messageId = message.id
-        const timestamp = message.timestamp
-        const text = message.text?.body
-
-        logger.info(`[${requestId}] Processing WhatsApp message from ${from}`, {
-          messageId,
-          textPreview: text
-            ? `${text.substring(0, 30)}${text.length > 30 ? '...' : ''}`
-            : '[no text]',
-        })
-
-        input = {
-          whatsapp: {
-            data: {
-              messageId,
-              from,
-              phoneNumberId,
-              text,
-              timestamp,
-              raw: message,
-            },
-          },
-          webhook: {
-            data: {
-              provider: 'whatsapp',
-              path: foundWebhook.path,
-              providerConfig: foundWebhook.providerConfig,
-              payload: body,
-              headers: Object.fromEntries(request.headers.entries()),
-              method: request.method,
-            },
-          },
-        }
-      } else {
-        return new NextResponse('OK', { status: 200 })
-      }
-    } else {
-      // Generic format for other providers
-      input = {
-        webhook: {
-          data: {
-            path: foundWebhook.path,
-            provider: foundWebhook.provider,
-            providerConfig: foundWebhook.providerConfig,
-            payload: body,
-            headers: Object.fromEntries(request.headers.entries()),
-            method: request.method,
-          },
-        },
-      }
-    }
-
-    // Get the workflow state
-    if (!foundWorkflow.state) {
-      logger.error(`[${requestId}] Workflow ${foundWorkflow.id} has no state`)
-      return new NextResponse('Workflow state not found', { status: 500 })
-    }
-
-    logger.info(
-      `[${requestId}] Executing workflow ${foundWorkflow.id} for webhook ${foundWebhook.id}`
-    )
-
-    // Get the workflow state
-    const state = foundWorkflow.state as any
-    const { blocks, edges, loops } = state
-
-    // Use the async version of mergeSubblockState to ensure all values are properly resolved
-    logger.debug(`[${requestId}] Merging subblock states for workflow ${foundWorkflow.id}`)
-    const mergedStates = await mergeSubblockStateAsync(blocks, foundWorkflow.id)
-
-    // Retrieve environment variables for this user
-    const [userEnv] = await db
-      .select()
-      .from(environment)
-      .where(eq(environment.userId, foundWorkflow.userId))
-      .limit(1)
-
-    // Create a map of decrypted environment variables
-    let decryptedEnvVars: Record<string, string> = {}
-    if (userEnv) {
-      const decryptionPromises = Object.entries(userEnv.variables as Record<string, string>).map(
-        async ([key, encryptedValue]) => {
-          try {
-            const { decrypted } = await decryptSecret(encryptedValue)
-            return [key, decrypted] as const
-          } catch (error: any) {
-            logger.error(`[${requestId}] Failed to decrypt environment variable "${key}"`, error)
-            throw new Error(`Failed to decrypt environment variable "${key}": ${error.message}`)
-          }
-        }
-      )
-
-      const decryptedEntries = await Promise.all(decryptionPromises)
-      decryptedEnvVars = Object.fromEntries(decryptedEntries)
-    }
-
-    // Process the block states to extract values from subBlocks
-    const currentBlockStates = Object.entries(mergedStates).reduce(
-      (acc, [id, block]) => {
-        acc[id] = Object.entries(block.subBlocks).reduce(
-          (subAcc, [key, subBlock]) => {
-            subAcc[key] = subBlock.value
-            return subAcc
-          },
-          {} as Record<string, any>
-        )
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    // Serialize and execute the workflow
-    const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
-
-    // Add workflowId to the input for OAuth credential resolution
-    const enrichedInput = {
-      ...input,
-      workflowId: foundWorkflow.id,
-    }
-
-    // Process the block states to ensure response formats are properly parsed
-    const processedBlockStates = Object.entries(currentBlockStates).reduce(
-      (acc, [blockId, blockState]) => {
-        // Create a copy of the block state to avoid modifying the original
-        const processedState = { ...blockState }
-
-        // Check if this block has a responseFormat that needs to be parsed
-        if (processedState.responseFormat) {
-          try {
-            // If responseFormat is a string, parse it
-            if (typeof processedState.responseFormat === 'string') {
-              processedState.responseFormat = JSON.parse(processedState.responseFormat)
-            }
-
-            // Ensure the responseFormat is properly structured for OpenAI
-            if (
-              processedState.responseFormat &&
-              typeof processedState.responseFormat === 'object'
-            ) {
-              // Make sure it has the required properties
-              if (!processedState.responseFormat.schema && !processedState.responseFormat.name) {
-                // If it's just a raw schema, wrap it properly
-                processedState.responseFormat = {
-                  name: 'response_schema',
-                  schema: processedState.responseFormat,
-                  strict: true,
-                }
-              }
-            }
-
-            acc[blockId] = processedState
-          } catch (error) {
-            logger.warn(`[${requestId}] Failed to parse responseFormat for block ${blockId}`, error)
-            acc[blockId] = blockState
-          }
-        } else {
-          acc[blockId] = blockState
-        }
-        return acc
-      },
-      {} as Record<string, Record<string, any>>
-    )
-
-    logger.debug(
-      `[${requestId}] Starting workflow execution with ${Object.keys(processedBlockStates).length} blocks`
-    )
-
-    // Get workflow variables
-    let workflowVariables = {}
-    if (foundWorkflow.variables) {
-      try {
-        // Parse workflow variables if they're stored as a string
-        if (typeof foundWorkflow.variables === 'string') {
-          workflowVariables = JSON.parse(foundWorkflow.variables)
-        } else {
-          // Otherwise use as is (already parsed JSON)
-          workflowVariables = foundWorkflow.variables
-        }
-        logger.debug(
-          `[${requestId}] Loaded ${Object.keys(workflowVariables).length} workflow variables for: ${foundWorkflow.id}`
-        )
-      } catch (error) {
-        logger.error(
-          `[${requestId}] Failed to parse workflow variables: ${foundWorkflow.id}`,
-          error
-        )
-        // Continue execution even if variables can't be parsed
-      }
-    } else {
-      logger.debug(`[${requestId}] No workflow variables found for: ${foundWorkflow.id}`)
-    }
-
-    const executor = new Executor(
-      serializedWorkflow,
-      processedBlockStates,
-      decryptedEnvVars,
-      enrichedInput,
-      workflowVariables
-    )
-    const result = await executor.execute(foundWorkflow.id)
-
-    logger.info(`[${requestId}] Successfully executed workflow ${foundWorkflow.id}`, {
-      success: result.success,
-      executionTime: result.metadata?.duration,
-    })
-
-    // Update workflow run counts if execution was successful
-    if (result.success) {
-      await updateWorkflowRunCounts(foundWorkflow.id)
-
-      // Track webhook trigger in user stats
-      await db
-        .update(userStats)
-        .set({
-          totalWebhookTriggers: sql`total_webhook_triggers + 1`,
-          lastActive: new Date(),
-        })
-        .where(eq(userStats.userId, foundWorkflow.userId))
-    }
-
-    // Build trace spans from execution logs
-    const { traceSpans, totalDuration } = buildTraceSpans(result)
-
-    // Add trace spans to the execution result
-    const enrichedResult = {
-      ...result,
-      traceSpans,
-      totalDuration,
-    }
-
-    // Log each execution step and the final result
-    await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
-
-    // Return the execution result
-    return NextResponse.json(result, { status: 200 })
-  } catch (error: any) {
-    logger.error(`[${requestId}] Error processing webhook`, error)
-
-    // Log the error if we have a workflow ID
-    if (foundWorkflow?.id) {
-      await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
-    }
-
-    return new NextResponse(`Internal Server Error: ${error.message}`, {
-      status: 500,
-    })
+    // Attempt to acquire a distributed processing lock
+    hasExecutionLock = await acquireLock(executionLockKey, requestId, 30) // 30 second TTL
+    logger.debug(`[${requestId}] Execution lock acquisition ${hasExecutionLock ? 'successful' : 'failed'} for key: ${executionLockKey}`)
+  } catch (lockError) {
+    logger.error(`[${requestId}] Error acquiring execution lock`, lockError)
+    // Proceed without lock in case of Redis failure (fallback to best-effort)
   }
+
+  // --- PHASE 4: First identify the webhook to determine the execution path ---
+  const path = (await params).path
+  logger.info(`[${requestId}] Processing webhook request for path: ${path}`)
+  
+  // Look up the webhook and its associated workflow
+  const webhooks = await db
+    .select({
+      webhook: webhook,
+      workflow: workflow,
+    })
+    .from(webhook)
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .where(and(eq(webhook.path, path), eq(webhook.isActive, true)))
+    .limit(1)
+
+  if (webhooks.length === 0) {
+    logger.warn(`[${requestId}] No active webhook found for path: ${path}`)
+    return new NextResponse('Webhook not found', { status: 404 })
+  }
+
+  foundWebhook = webhooks[0].webhook
+  foundWorkflow = webhooks[0].workflow
+  
+  // NOW we can detect the provider correctly from the database record
+  const isAirtableWebhook = foundWebhook.provider === 'airtable';
+  
+  // Special handling for Slack challenge verification - must be checked before timeout
+  const slackChallengeResponse = body?.type === 'url_verification' ? handleSlackChallenge(body) : null;
+  if (slackChallengeResponse) {
+    logger.info(`[${requestId}] Responding to Slack URL verification challenge`);
+    return slackChallengeResponse;
+  }
+  
+  // Skip processing if another instance is already handling this request
+  if (!hasExecutionLock) {
+    logger.info(`[${requestId}] Skipping execution as lock was not acquired. Another instance is processing this request.`);
+    return new NextResponse('Request is being processed by another instance', { status: 200 });
+  }
+  
+  // --- PHASE 5: Branch based on provider type ---
+  
+  // For Airtable, use fully synchronous processing without timeouts
+  if (isAirtableWebhook) {
+    try {
+      logger.info(`[${requestId}] Airtable webhook ping received for webhook: ${foundWebhook.id}`);
+      
+      // DEBUG: Log webhook and workflow IDs to trace execution
+      logger.debug(`[${requestId}] EXECUTION_TRACE: Airtable webhook handling started`, {
+        webhookId: foundWebhook.id,
+        workflowId: foundWorkflow.id,
+        bodyKeys: Object.keys(body)
+      });
+
+      // Airtable deduplication using notification ID 
+      const notificationId = body.notificationId || null;
+      if (notificationId) {
+        try {
+          const processedKey = `airtable-webhook-${foundWebhook.id}-${notificationId}`;
+
+          // Check if this notification was already processed
+          const alreadyProcessed = await db
+            .select({ id: webhook.id })
+            .from(webhook)
+            .where(
+              and(
+                eq(webhook.id, foundWebhook.id),
+                sql`(webhook.provider_config->>'processedNotifications')::jsonb ? ${processedKey}`
+              )
+            )
+            .limit(1);
+
+          if (alreadyProcessed.length > 0) {
+            logger.info(
+              `[${requestId}] Duplicate Airtable notification detected: ${notificationId}`,
+              { webhookId: foundWebhook.id }
+            );
+            return new NextResponse('Notification already processed', { status: 200 });
+          }
+
+          // Store notification ID to prevent duplicate processing
+          const providerConfig = foundWebhook.providerConfig || {};
+          const processedNotifications = providerConfig.processedNotifications || [];
+          processedNotifications.push(processedKey);
+          
+          // Keep only the last 100 notifications to prevent unlimited growth
+          const limitedNotifications = processedNotifications.slice(-100);
+
+          // Update the webhook record
+          await db
+            .update(webhook)
+            .set({
+              providerConfig: {
+                ...providerConfig,
+                processedNotifications: limitedNotifications,
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(webhook.id, foundWebhook.id));
+            
+          // DEBUG: Log successful deduplication
+          logger.debug(`[${requestId}] EXECUTION_TRACE: Deduplication successful, notification ID stored`, {
+            notificationId,
+            processedKey,
+            totalNotificationsStored: limitedNotifications.length
+          });
+        } catch (error) {
+          // If deduplication fails, log and continue processing
+          logger.warn(`[${requestId}] Airtable deduplication check failed, continuing with processing`, {
+            error: error instanceof Error ? error.message : String(error),
+            webhookId: foundWebhook.id,
+          });
+        }
+      }
+
+      // Process Airtable payloads COMPLETELY SYNCHRONOUSLY with NO TIMEOUT
+      try {
+        // Explicitly use the synchronous approach that worked before
+        logger.info(`[${requestId}] Starting synchronous Airtable payload processing...`, {
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+        });
+        
+        // DEBUG: Log processing start time for timing analysis
+        const processingStartTime = Date.now();
+        logger.debug(`[${requestId}] EXECUTION_TRACE: About to call fetchAndProcessAirtablePayloads`, {
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Process the ping SYNCHRONOUSLY - directly await it with NO timeout
+        await fetchAndProcessAirtablePayloads(
+          foundWebhook,
+          foundWorkflow,
+          requestId // Pass the original request ID for consistent logging
+        );
+        
+        // DEBUG: Log processing duration
+        const processingDuration = Date.now() - processingStartTime;
+        logger.debug(`[${requestId}] EXECUTION_TRACE: fetchAndProcessAirtablePayloads completed`, {
+          duration: `${processingDuration}ms`,
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id
+        });
+        
+        logger.info(`[${requestId}] Synchronous Airtable payload processing finished.`, {
+          webhookId: foundWebhook.id,
+        });
+        
+        // Return success after SYNCHRONOUS processing completes - exactly like old code
+        return new NextResponse('Airtable ping processed successfully', { status: 200 });
+      } catch (error: any) {
+        // DEBUG: Log detailed error information
+        logger.error(`[${requestId}] EXECUTION_TRACE: Error during Airtable processing`, {
+          webhookId: foundWebhook.id,
+          workflowId: foundWorkflow.id,
+          errorType: error.constructor.name, 
+          error: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString()
+        });
+        
+        logger.error(`[${requestId}] Error during synchronous Airtable processing`, {
+          webhookId: foundWebhook.id,
+          error: error.message,
+          stack: error.stack,
+        });
+        return new NextResponse(`Error processing Airtable webhook: ${error.message}`, {
+          status: 500,
+        });
+      }
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error in Airtable processing branch:`, error);
+      return new NextResponse(`Internal server error: ${error.message}`, { status: 500 });
+    }
+  }
+  
+  // For all other webhook types, use the timeout mechanism
+  // Create timeout promise for non-Airtable webhooks
+  const timeoutDuration = 2500; // 2.5 seconds for non-Airtable webhooks
+  const timeoutPromise = new Promise<NextResponse>((resolve) => {
+    setTimeout(() => {
+      logger.warn(`[${requestId}] Request processing timeout (${timeoutDuration}ms), sending acknowledgment`);
+      resolve(new NextResponse('Request received', { status: 200 }));
+    }, timeoutDuration);
+  });
+  
+  // Create the processing promise for non-Airtable webhooks
+  const processingPromise = (async () => {
+    try {
+      // WhatsApp-specific deduplication
+      if (foundWebhook.provider === 'whatsapp') {
+        const data = body?.entry?.[0]?.changes?.[0]?.value;
+        const messages = data?.messages || [];
+        
+        const whatsappDuplicateResponse = await processWhatsAppDeduplication(requestId, messages);
+        if (whatsappDuplicateResponse) {
+          return whatsappDuplicateResponse;
+        }
+      } 
+      // Generic deduplication for other providers (excluding Slack which was handled earlier)
+      else if (foundWebhook.provider !== 'slack') {
+        const genericDuplicateResponse = await processGenericDeduplication(requestId, path, body);
+        if (genericDuplicateResponse) {
+          return genericDuplicateResponse;
+        }
+      }
+      
+      // --- Execute workflow for the webhook event ---
+      logger.info(`[${requestId}] Executing workflow for ${foundWebhook.provider} webhook`);
+      
+      // Generate a unique execution ID for this webhook trigger
+      const executionId = uuidv4();
+      
+      // Process the webhook and return the response
+      // This function handles formatting input, executing the workflow, and persisting results
+      return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId, requestId);
+      
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error processing webhook:`, error);
+      return new NextResponse(`Internal server error: ${error.message}`, { status: 500 });
+    }
+  })();
+  
+  // Race the processing against the timeout to ensure fast response (for non-Airtable)
+  return Promise.race([timeoutPromise, processingPromise]);
 }
 
 /**

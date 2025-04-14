@@ -26,6 +26,9 @@ export const MODELS_TEMP_RANGE_0_1 = [
 // All models that support temperature (combined list)
 export const MODELS_WITH_TEMPERATURE_SUPPORT = [...MODELS_TEMP_RANGE_0_2, ...MODELS_TEMP_RANGE_0_1]
 
+// Models and their providers that support tool usage control (force, auto, none)
+export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = ['openai', 'anthropic', 'deepseek', 'xai']
+
 /**
  * Check if a model supports temperature parameter
  */
@@ -59,4 +62,11 @@ export function getMaxTemperature(model: string): number | undefined {
 
   // Temperature not supported
   return undefined
+}
+
+/**
+ * Check if a provider supports tool usage control
+ */
+export function supportsToolUsageControl(provider: string): boolean {
+  return PROVIDERS_WITH_TOOL_USAGE_CONTROL.includes(provider)
 }

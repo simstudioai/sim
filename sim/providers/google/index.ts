@@ -27,7 +27,6 @@ export const googleProvider: ProviderConfig = {
       const openai = new OpenAI({
         apiKey: request.apiKey,
         baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
-        dangerouslyAllowBrowser: true,
       })
 
       // Start with an empty array for all messages
@@ -215,7 +214,11 @@ export const googleProvider: ProviderConfig = {
 
               // Execute the tool
               const toolCallStartTime = Date.now()
-              const mergedArgs = { ...tool.params, ...toolArgs }
+              const mergedArgs = {
+                ...tool.params,
+                ...toolArgs,
+                ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+              }
               const result = await executeTool(toolName, mergedArgs)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Copy, Rocket, Store, Terminal, X } from 'lucide-react'
+import { AlertCircle, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { NotificationOptions, NotificationType } from '@/stores/notifications/types'
+import { Notification, NotificationOptions, NotificationType } from '@/stores/notifications/types'
 
 interface NotificationDropdownItemProps {
   id: string
@@ -29,7 +29,7 @@ const NotificationColors = {
   console: 'text-foreground',
   api: 'text-[#802FFF]',
   marketplace: 'text-foreground',
-  info: 'text-blue-500',
+  info: 'text-foreground',
 }
 
 export function NotificationDropdownItem({
@@ -40,7 +40,8 @@ export function NotificationDropdownItem({
   options,
   setDropdownOpen,
 }: NotificationDropdownItemProps) {
-  const { showNotification } = useNotificationStore()
+  const { notifications, showNotification, hideNotification, removeNotification, addNotification } =
+    useNotificationStore()
   const Icon = NotificationIcon[type]
   const [, forceUpdate] = useState({})
 
@@ -50,11 +51,26 @@ export function NotificationDropdownItem({
     return () => clearInterval(interval)
   }, [])
 
+  // Find the full notification object from the store
+  const getFullNotification = (): Notification | undefined => {
+    return notifications.find((n) => n.id === id)
+  }
+
   // Handle click to show the notification
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    showNotification(id)
+
+    const notification = getFullNotification()
+
+    if (notification) {
+      // Simply show the notification regardless of its current state
+      showNotification(id)
+    } else {
+      // Fallback for any case where the notification doesn't exist anymore
+      addNotification(type, message, null, options)
+    }
+
     // Close the dropdown after clicking
     if (setDropdownOpen) {
       setDropdownOpen(false)

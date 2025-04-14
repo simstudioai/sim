@@ -9,10 +9,12 @@ export function NavItem({
   href,
   label,
   children,
+  className,
 }: {
   href: string
   label: string
   children: React.ReactNode
+  className?: string
 }) {
   const pathname = usePathname()
 
@@ -25,7 +27,8 @@ export function NavItem({
             'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
             {
               'bg-accent': pathname === href,
-            }
+            },
+            className
           )}
         >
           {children}

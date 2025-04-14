@@ -131,16 +131,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'github-repo',
         icon: (props) => GithubIcon(props),
         baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ['repo', 'user'],
-      },
-      'github-workflow': {
-        id: 'github-workflow',
-        name: 'GitHub Actions',
-        description: 'Trigger and manage GitHub Actions workflows.',
-        providerId: 'github-workflow',
-        icon: (props) => GithubIcon(props),
-        baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ['repo', 'workflow'],
+        scopes: ['repo', 'user:email', 'read:user', 'workflow'],
       },
     },
     defaultService: 'github',
@@ -260,9 +251,7 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
       return 'google-calendar'
     }
   } else if (provider === 'github') {
-    if (scopes.some((scope) => scope.includes('workflow'))) {
-      return 'github-workflow'
-    }
+    return 'github'
   } else if (provider === 'supabase') {
     return 'supabase'
   } else if (provider === 'x') {
@@ -333,12 +322,12 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
  * This is a server-side utility function to refresh OAuth tokens
  * @param providerId The provider ID (e.g., 'google-drive')
  * @param refreshToken The refresh token to use
- * @returns The new access token, or null if refresh failed
+ * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
  */
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
-): Promise<string | null> {
+): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
@@ -347,6 +336,7 @@ export async function refreshOAuthToken(
     let tokenEndpoint: string
     let clientId: string | undefined
     let clientSecret: string | undefined
+    let useBasicAuth = false
 
     switch (provider) {
       case 'google':
@@ -363,11 +353,23 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.x.com/2/oauth2/token'
         clientId = process.env.X_CLIENT_ID
         clientSecret = process.env.X_CLIENT_SECRET
+        useBasicAuth = true
         break
       case 'confluence':
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = process.env.CONFLUENCE_CLIENT_ID
         clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
+        break
+      case 'airtable':
+        tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
+        clientId = process.env.AIRTABLE_CLIENT_ID
+        clientSecret = process.env.AIRTABLE_CLIENT_SECRET
+        useBasicAuth = true
+        break
+      case 'supabase':
+        tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
+        clientId = process.env.SUPABASE_CLIENT_ID
+        clientSecret = process.env.SUPABASE_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
@@ -377,34 +379,117 @@ export async function refreshOAuthToken(
       throw new Error(`Missing client credentials for provider: ${provider}`)
     }
 
+    // Prepare request headers and body
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(provider === 'github' && {
+        Accept: 'application/json',
+      }),
+    }
+
+    // Prepare request body
+    const bodyParams: Record<string, string> = {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }
+
+    // For Airtable, check if we have both client ID and secret
+    if (provider === 'airtable') {
+      // Airtable requires Basic Auth with client ID and secret in the Authorization header
+      // Do not include client_id or client_secret in the body when using Basic Auth
+      if (clientId && clientSecret) {
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+        headers['Authorization'] = `Basic ${basicAuth}`
+
+        // Make sure to include refresh_token in body params but not client_id/client_secret
+        // This ensures we're not sending credentials in both header and body
+        delete bodyParams.client_id
+        delete bodyParams.client_secret
+      } else {
+        throw new Error('Both client ID and client secret are required for Airtable OAuth')
+      }
+    } else if (provider === 'x') {
+      // Handle X differently
+      // Confidential client - use Basic Auth
+      const authString = `${clientId}:${clientSecret}`
+      const basicAuth = Buffer.from(authString).toString('base64')
+      headers['Authorization'] = `Basic ${basicAuth}`
+
+      // When using Basic Auth, don't include client_id in body
+      delete bodyParams.client_id
+    } else {
+      // For other providers, use the general approach
+      if (useBasicAuth) {
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
+        headers['Authorization'] = `Basic ${basicAuth}`
+      }
+
+      if (!useBasicAuth) {
+        bodyParams.client_id = clientId
+        bodyParams.client_secret = clientSecret
+      }
+    }
+
     // Refresh the token
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        ...(provider === 'github' && {
-          Accept: 'application/json',
-        }),
-      },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }).toString(),
+      headers,
+      body: new URLSearchParams(bodyParams).toString(),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
+      let errorData = errorText
+
+      // Try to parse the error as JSON for better diagnostics
+      try {
+        errorData = JSON.parse(errorText)
+      } catch (e) {
+        // Not JSON, keep as text
+      }
+
       logger.error('Token refresh failed:', {
         status: response.status,
         error: errorText,
+        parsedError: errorData,
+        provider,
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }
 
     const data = await response.json()
-    return data.access_token || null
+
+    // Extract token and expiration (different providers may use different field names)
+    const accessToken = data.access_token
+
+    // For Airtable, also capture the new refresh token if provided
+    // Airtable may rotate refresh tokens
+    let newRefreshToken = null
+    if (provider === 'airtable' && data.refresh_token) {
+      newRefreshToken = data.refresh_token
+      logger.info('Received new refresh token from Airtable')
+    }
+
+    // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
+    // Different providers use different names for this field
+    const expiresIn = data.expires_in || data.expiresIn || 3600
+
+    if (!accessToken) {
+      logger.warn('No access token found in refresh response', data)
+      return null
+    }
+
+    logger.info('Token refreshed successfully with expiration', {
+      expiresIn,
+      hasNewRefreshToken: !!newRefreshToken,
+      provider,
+    })
+
+    return {
+      accessToken,
+      expiresIn,
+      refreshToken: newRefreshToken || refreshToken, // Return new refresh token if available
+    }
   } catch (error) {
     logger.error('Error refreshing token:', { error })
     return null

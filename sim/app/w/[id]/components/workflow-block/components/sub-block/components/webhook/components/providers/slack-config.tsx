@@ -1,7 +1,10 @@
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { CopyableField } from '../ui/copyable'
+import { SlackIcon } from '@/components/icons'
+import { Notice } from '@/components/ui/notice'
+import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
+import { ConfigSection } from '../ui/config-section'
+import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'
+import { WebhookConfigField } from '../ui/webhook-config-field'
 
 interface SlackConfigProps {
   signingSecret: string
@@ -15,7 +18,26 @@ interface SlackConfigProps {
   copied: string | null
   copyToClipboard: (text: string, type: string) => void
   testWebhook: () => Promise<void>
+  webhookUrl: string
 }
+
+const exampleEvent = JSON.stringify(
+  {
+    type: 'event_callback',
+    event: {
+      type: 'message',
+      channel: 'C0123456789',
+      user: 'U0123456789',
+      text: 'Hello from Slack!',
+      ts: '1234567890.123456',
+    },
+    team_id: 'T0123456789',
+    event_id: 'Ev0123456789',
+    event_time: 1234567890,
+  },
+  null,
+  2
+)
 
 export function SlackConfig({
   signingSecret,
@@ -24,26 +46,37 @@ export function SlackConfig({
   testResult,
   copied,
   copyToClipboard,
+  webhookUrl,
 }: SlackConfigProps) {
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <CopyableField
+      <ConfigSection title="Slack Configuration">
+        <WebhookConfigField
+          id="webhook-url"
+          label="Webhook URL"
+          value={webhookUrl}
+          description="This is the URL that will receive webhook requests"
+          isLoading={isLoadingToken}
+          copied={copied}
+          copyType="url"
+          copyToClipboard={copyToClipboard}
+          readOnly={true}
+        />
+
+        <WebhookConfigField
           id="slack-signing-secret"
           label="Signing Secret"
           value={signingSecret}
           onChange={setSigningSecret}
           placeholder="Enter your Slack app signing secret"
-          description="The signing secret from your Slack app used to validate request authenticity."
+          description="Found on your Slack app's Basic Information page. Used to validate requests."
           isLoading={isLoadingToken}
           copied={copied}
           copyType="slack-signing-secret"
           copyToClipboard={copyToClipboard}
+          isSecret={true}
         />
-        <p className="text-xs text-muted-foreground">
-          The signing secret is provided in your Slack app&apos;s Basic Information page.
-        </p>
-      </div>
+      </ConfigSection>
 
       <TestResultDisplay
         testResult={testResult}
@@ -52,76 +85,73 @@ export function SlackConfig({
         showCurlCommand={true}
       />
 
-      <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md mt-3 border border-gray-200 dark:border-gray-700">
-        <h4 className="font-medium">Setup Instructions</h4>
-        <ol className="list-decimal list-inside space-y-1 text-sm">
+      <InstructionsSection>
+        <ol className="list-decimal list-inside space-y-2">
           <li>
-            Go to your{' '}
+            Go to{' '}
             <a
               href="https://api.slack.com/apps"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:underline"
+              className="link text-primary underline hover:text-primary/80 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                window.open('https://api.slack.com/apps', '_blank', 'noopener,noreferrer')
+                e.preventDefault()
+              }}
             >
               Slack Apps page
             </a>
           </li>
-          <li>Create a new app or select an existing one</li>
-          <li>Navigate to &quot;Event Subscriptions&quot; in the left sidebar</li>
-          <li>Enable events and add the Webhook URL above as the Request URL</li>
-          <li>Add the event subscriptions you want to receive (e.g., message.channels)</li>
-          <li>Go to &quot;Basic Information&quot; and copy your Signing Secret</li>
-          <li>Paste the Signing Secret in the field above</li>
-          <li>Save your configuration</li>
+          <li>
+            If you don't have an app:
+            <ol className="list-disc ml-5 mt-1">
+              <li>Create an app from scratch</li>
+              <li>Give it a name and select your workspace</li>
+            </ol>
+          </li>
+          <li>
+            Go to "Basic Information", find the "Signing Secret", and paste it in the field above.
+          </li>
+          <li>
+            Go to "OAuth & Permissions" and add bot token scopes:
+            <ol className="list-disc ml-5 mt-1">
+              <li>
+                <code>app_mentions:read</code> - For viewing messages that tag your bot with an @
+              </li>
+              <li>
+                <code>chat:write</code> - To send messages to channels your bot is a part of
+              </li>
+            </ol>
+          </li>
+          <li>
+            Go to "Event Subscriptions":
+            <ol className="list-disc ml-5 mt-1">
+              <li>Enable events</li>
+              <li>
+                Under "Subscribe to Bot Events", add <code>app_mention</code> to listen to messages
+                that mention your bot
+              </li>
+              <li>Paste the Webhook URL (from above) into the "Request URL" field</li>
+            </ol>
+          </li>
+          <li>Save changes in both Slack and here.</li>
         </ol>
-      </div>
+      </InstructionsSection>
 
-      <div className="bg-emerald-50 dark:bg-emerald-950 p-3 rounded-md mt-3 border border-emerald-200 dark:border-emerald-800">
-        <h5 className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
-          Slack Webhook Features
-        </h5>
-        <ul className="mt-1 space-y-1">
-          <li className="flex items-start">
-            <span className="text-emerald-500 dark:text-emerald-400 mr-2">•</span>
-            <span className="text-sm text-emerald-700 dark:text-emerald-300">
-              Receive events from Slack channels, direct messages, and more
-            </span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-emerald-500 dark:text-emerald-400 mr-2">•</span>
-            <span className="text-sm text-emerald-700 dark:text-emerald-300">
-              Trigger workflows based on messages, reactions, or other Slack events
-            </span>
-          </li>
-          <li className="flex items-start">
-            <span className="text-emerald-500 dark:text-emerald-400 mr-2">•</span>
-            <span className="text-sm text-emerald-700 dark:text-emerald-300">
-              Securely verify incoming requests with Slack&apos;s signing secret
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <div className="bg-purple-50 dark:bg-purple-950 p-3 rounded-md mt-3 border border-purple-200 dark:border-purple-800">
-        <h5 className="text-sm font-medium text-purple-800 dark:text-purple-300">
-          Example Slack Event
-        </h5>
-        <pre className="mt-2 text-xs bg-black/5 dark:bg-white/5 p-2 rounded overflow-x-auto">
-          {`{
-  "type": "event_callback",
-  "event": {
-    "type": "message",
-    "channel": "C0123456789",
-    "user": "U0123456789",
-    "text": "Hello from Slack!",
-    "ts": "1234567890.123456"
-  },
-  "team_id": "T0123456789",
-  "event_id": "Ev0123456789",
-  "event_time": 1234567890
-}`}
-        </pre>
-      </div>
+      <Notice
+        variant="default"
+        className="bg-white border-slate-200 dark:bg-background dark:border-border"
+        icon={
+          <SlackIcon className="h-5 w-5 text-[#611f69] dark:text-[#e01e5a] mt-0.5 mr-3.5 flex-shrink-0" />
+        }
+        title="Slack Event Payload Example"
+      >
+        Your workflow will receive a payload similar to this when a subscribed event occurs:
+        <div className="mt-2 text-sm font-mono break-normal whitespace-normal overflow-wrap-anywhere">
+          <JSONView data={JSON.parse(exampleEvent)} initiallyExpanded={true} />
+        </div>
+      </Notice>
     </div>
   )
 }
