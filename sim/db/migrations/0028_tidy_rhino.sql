@@ -1,1 +1,0 @@
-ALTER TABLE "workflow" ALTER COLUMN "deployed_state" SET DEFAULT 'null'::json;

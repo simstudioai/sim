@@ -1,5 +1,11 @@
 import { ToolResponse } from '../../types'
 
+// Common SQL operation type for both MySQL and PostgreSQL
+export type SQLOperation = 'select' | 'insert' | 'update' | 'delete' | 'execute'
+
+// Common SQL parameter type for both MySQL and PostgreSQL
+export type SQLParam = string | number | boolean | null | Date | Buffer
+
 // Field metadata interface for type safety
 export interface PostgreSQLFieldMetadata {
   name: string
@@ -9,29 +15,52 @@ export interface PostgreSQLFieldMetadata {
   dataTypeSize: number
   dataTypeModifier: number
   format: string
+  // Additional PostgreSQL-specific field properties
+  schema?: string
+  table?: string
+  typeName?: string
 }
 
 export interface PostgreSQLConnectionConfig {
   host: string
   port: number
-  user: string // Changed from username to user for consistency with MySQL
+  user: string
   password: string
   database: string
-  ssl: boolean // Changed from optional to required for consistency with MySQL
+  ssl: boolean
   schema?: string // PostgreSQL-specific option
+  // Additional PostgreSQL-specific connection options
+  applicationName?: string
+  keepAlive?: boolean
+  keepAliveInitialDelayMillis?: number
+  statement_timeout?: number
+  query_timeout?: number
+  idle_in_transaction_session_timeout?: number
+}
+
+export interface PostgreSQLQueryOptions {
+  // Common options shared with MySQL
+  timeout?: number
+  maxRows?: number
+  // PostgreSQL-specific options
+  fetchSize?: number
+  readOnly?: boolean
+  portal?: string
+  binary?: boolean
+  parallel?: boolean
+  // Query execution options
+  rowMode?: 'array' | 'object'
+  types?: Record<string, any>
+  // Transaction options
+  isolationLevel?: 'READ COMMITTED' | 'REPEATABLE READ' | 'SERIALIZABLE'
 }
 
 export interface PostgreSQLQueryParams {
   connection: PostgreSQLConnectionConfig
-  operation: 'select' | 'insert' | 'update' | 'delete' | 'execute' // Aligned with MySQL operations
+  operation: SQLOperation
   query: string
-  params?: Array<string | number | boolean | null> // More specific type than any[]
-  options?: {
-    timeout?: number
-    maxRows?: number
-    fetchSize?: number
-    // Add other specific options as needed
-  }
+  params?: SQLParam[]
+  options?: PostgreSQLQueryOptions
 }
 
 export interface PostgreSQLResponse extends ToolResponse {
@@ -39,6 +68,10 @@ export interface PostgreSQLResponse extends ToolResponse {
     rows: Record<string, unknown>[] // More specific than any[]
     rowCount: number
     fields: PostgreSQLFieldMetadata[]
-    executionTime?: number // Added for consistency with MySQL
+    executionTime: number // Made required for consistency
+    // Additional PostgreSQL-specific response properties
+    command?: string
+    oid?: number
+    notices?: string[]
   }
 } 

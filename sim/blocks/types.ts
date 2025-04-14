@@ -114,8 +114,8 @@ export interface SubBlockConfig {
     }
   }
   // Props specific to 'code' sub-block type
-  language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema'
+  language?: 'javascript' | 'json' | 'sql'
+  generationType?: 'javascript-function-body' | 'json-schema' | 'sql-query'
   // OAuth specific properties
   provider?: string
   serviceId?: string

@@ -48,13 +48,29 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
     const startTime = Date.now()
     
     try {
-      console.log('[PostgreSQL Tool] Starting execution with params:', {
-        ...params,
-        connection: {
-          ...params.connection,
-          password: '[REDACTED]'
-        }
-      })
+      // Sanitize sensitive information before logging
+      const sanitizedParams = {
+        connection: params.connection ? {
+          host: params.connection.host,
+          port: params.connection.port,
+          user: '[REDACTED]',
+          password: '[REDACTED]',
+          database: params.connection.database,
+          ssl: params.connection.ssl,
+          schema: params.connection.schema
+        } : undefined,
+        operation: params.operation,
+        query: params.query,
+        // Don't log actual parameter values as they might contain sensitive data
+        params: params.params ? '[REDACTED]' : undefined,
+        options: params.options ? {
+          timeout: params.options.timeout,
+          maxRows: params.options.maxRows,
+          fetchSize: params.options.fetchSize
+        } : undefined
+      }
+
+      console.log('[PostgreSQL Tool] Starting execution with params:', sanitizedParams)
 
       // Basic query validation
       if (!params.query || params.query.trim() === '') {
@@ -104,14 +120,33 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
       }
 
       const result = await response.json()
-      console.log('[PostgreSQL Tool] API response result:', result)
+      // Log sanitized response without sensitive data
+      console.log('[PostgreSQL Tool] API response result:', {
+        ...result,
+        rows: result.rows ? `[${result.rows.length} rows]` : undefined,
+        fields: result.fields ? `[${result.fields.length} fields]` : undefined
+      })
 
+      const executionTime = Date.now() - startTime
       return {
         success: true,
         output: {
           rows: result.rows || [],
           rowCount: result.rowCount || 0,
-          fields: result.fields || []
+          fields: result.fields || [],
+          executionTime
+        },
+        metadata: {
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date().toISOString(),
+          duration: executionTime,
+          rowCount: result.rowCount || 0,
+          fieldCount: result.fields?.length || 0
+        },
+        timing: {
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date().toISOString(),
+          duration: executionTime
         }
       }
     } catch (error) {
@@ -120,21 +155,126 @@ const toolConfig: ToolConfig<PostgreSQLQueryParams, PostgreSQLResponse> = {
       // Format the error message to be more user-friendly
       let errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       
-      // Add query context to the error
-      if (params.query) {
+      // Add query context to the error if available
+      if (params?.query) {
         errorMessage = `${errorMessage}\n\nQuery: ${params.query}`
       }
-      
+
+      const executionTime = Date.now() - startTime
       return {
         success: false,
         output: {
           rows: [],
           rowCount: 0,
-          fields: []
+          fields: [],
+          executionTime
         },
-        error: errorMessage
+        error: errorMessage,
+        metadata: {
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date().toISOString(),
+          duration: executionTime,
+          rowCount: 0,
+          fieldCount: 0,
+          error: errorMessage
+        },
+        timing: {
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date().toISOString(),
+          duration: executionTime
+        }
       }
     }
+  },
+  transformResponse: async (response, params) => {
+    const startTime = Date.now()
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[PostgreSQL Tool] API error response:', errorText)
+      
+      try {
+        const errorJson = JSON.parse(errorText)
+        // Extract specific PostgreSQL error details
+        const errorMessage = errorJson.message || errorJson.error || errorText
+        const errorDetail = errorJson.detail || ''
+        const errorHint = errorJson.hint ? `\nHint: ${errorJson.hint}` : ''
+        const errorPosition = errorJson.position ? `\nPosition: ${errorJson.position}` : ''
+        const errorWhere = errorJson.where ? `\nContext: ${errorJson.where}` : ''
+        
+        return {
+          success: false,
+          output: {
+            rows: [],
+            rowCount: 0,
+            fields: [],
+            executionTime: Date.now() - startTime
+          },
+          error: `PostgreSQL Error: ${errorMessage}${errorDetail}${errorHint}${errorPosition}${errorWhere}`,
+          timing: {
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date().toISOString(),
+            duration: Date.now() - startTime
+          }
+        }
+      } catch (e) {
+        return {
+          success: false,
+          output: {
+            rows: [],
+            rowCount: 0,
+            fields: [],
+            executionTime: Date.now() - startTime
+          },
+          error: `Database error: ${errorText}`,
+          timing: {
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date().toISOString(),
+            duration: Date.now() - startTime
+          }
+        }
+      }
+    }
+    
+    const result = await response.json()
+    console.log('[PostgreSQL Tool] API response result:', result)
+    
+    return {
+      success: true,
+      output: {
+        rows: result.rows || [],
+        rowCount: result.rowCount || 0,
+        fields: result.fields || [],
+        executionTime: Date.now() - startTime
+      },
+      timing: {
+        startTime: new Date(startTime).toISOString(),
+        endTime: new Date().toISOString(),
+        duration: Date.now() - startTime
+      }
+    }
+  },
+  transformError: (error) => {
+    console.error('[PostgreSQL Tool] Error during execution:', error)
+    
+    // Format the error message to be more user-friendly
+    let errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    
+    return Promise.resolve({
+      success: false,
+      output: {
+        rows: [],
+        rowCount: 0,
+        fields: [],
+        executionTime: 0
+      },
+      error: errorMessage,
+      timing: {
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        duration: 0
+      }
+    })
   }
 }
 

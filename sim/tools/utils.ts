@@ -67,7 +67,6 @@ export function formatRequestParams(tool: ToolConfig, params: Record<string, any
     headers['Content-Type'] === 'application/x-ndjson' ||
     headers['Content-Type'] === 'application/x-www-form-urlencoded'
 
-  
   const body = hasBody
     ? isPreformattedContent && bodyResult
       ? bodyResult.body
@@ -172,11 +171,31 @@ export function validateToolRequest(
   }
 }
 
-export const getDatabaseApiUrl = (path: string) => {
-  // In production, use NEXT_PUBLIC_APP_URL
-  if (process.env.NEXT_PUBLIC_APP_URL) {
+export function getDatabaseApiUrl(path: string): string {
+  // Check for production environment
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.NEXT_PUBLIC_APP_URL) {
+      console.warn('NEXT_PUBLIC_APP_URL not set in production environment')
+      return `/api/database/${path}`
+    }
     return `${process.env.NEXT_PUBLIC_APP_URL}/api/database/${path}`
   }
-  // In development, use relative path
+
+  // Development environment
+  if (process.env.NODE_ENV === 'development') {
+    // Use localhost in development if no custom URL is set
+    if (!process.env.NEXT_PUBLIC_APP_URL) {
+      return `http://localhost:3000/api/database/${path}`
+    }
+    return `${process.env.NEXT_PUBLIC_APP_URL}/api/database/${path}`
+  }
+
+  // Test environment
+  if (process.env.NODE_ENV === 'test') {
+    return `/api/database/${path}`
+  }
+
+  // Fallback to relative path
+  console.warn('Unknown environment, using relative path for database API URL')
   return `/api/database/${path}`
 }

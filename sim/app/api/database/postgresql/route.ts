@@ -78,13 +78,22 @@ export async function POST(request: Request) {
       password: connection.password,
       database: connection.database,
       ssl: connection.ssl === 'true' || connection.ssl === true ? {
-        rejectUnauthorized: false,
+        rejectUnauthorized: connection.sslRejectUnauthorized === 'false' ? false : true,
         requestCert: true
       } : undefined,
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
       max: 20
     })
+
+    // Log a warning if SSL certificate validation is disabled
+    if (connection.ssl === 'true' || connection.ssl === true) {
+      if (connection.sslRejectUnauthorized === 'false') {
+        logger.warn('SSL certificate validation is disabled. This makes the connection vulnerable to man-in-the-middle attacks.')
+      } else {
+        logger.info('SSL connection with certificate validation enabled')
+      }
+    }
 
     // Test connection
     logger.debug('Testing connection...')
@@ -101,7 +110,10 @@ export async function POST(request: Request) {
     logger.debug('Executing query:', { operation, query, queryParams, options })
 
     let result
-    switch (operation?.toLowerCase()) {
+    // Ensure operation is a string before calling toLowerCase()
+    const operationType = typeof operation === 'string' ? operation.toLowerCase() : 'execute'
+    
+    switch (operationType) {
       case 'select':
         result = await pool.query(query, queryParams || [])
         return NextResponse.json({ 

@@ -1,4 +1,5 @@
 import { ToolResponse } from '../../types'
+import { SQLOperation, SQLParam } from '../postgresql/types'
 
 // Field metadata interface for type safety
 export interface MySQLFieldMetadata {
@@ -23,30 +24,44 @@ export interface MySQLConnectionConfig {
   user: string
   password: string
   database: string
-  ssl?: boolean // Made optional for consistency with PostgreSQL
+  ssl: boolean
   // Additional MySQL-specific connection options
   charset?: string
   timezone?: string
   connectTimeout?: number
   compress?: boolean
   maxAllowedPacket?: number
+  multipleStatements?: boolean
+  dateStrings?: boolean
+  debug?: boolean
+  trace?: boolean
+  localInfile?: boolean
+}
+
+export interface MySQLQueryOptions {
+  // Common options shared with PostgreSQL
+  timeout?: number
+  maxRows?: number
+  // MySQL-specific options
+  typeCast?: boolean
+  dateStrings?: boolean
+  supportBigNumbers?: boolean
+  bigNumberStrings?: boolean
+  nestTables?: boolean | string
+  decimalNumbers?: boolean
+  // Query execution options
+  sql?: string
+  values?: SQLParam[]
+  // Transaction options
+  isolationLevel?: 'READ UNCOMMITTED' | 'READ COMMITTED' | 'REPEATABLE READ' | 'SERIALIZABLE'
 }
 
 export interface MySQLQueryParams {
   connection: MySQLConnectionConfig
-  operation: 'select' | 'insert' | 'update' | 'delete' | 'execute'
+  operation: SQLOperation
   query: string
-  params?: Array<string | number | boolean | null> // More specific type than any[]
-  options?: {
-    timeout?: number
-    maxRows?: number
-    multipleStatements?: boolean
-    // Add other specific options as needed
-    typeCast?: boolean
-    dateStrings?: boolean
-    supportBigNumbers?: boolean
-    bigNumberStrings?: boolean
-  }
+  params?: SQLParam[]
+  options?: MySQLQueryOptions
 }
 
 export interface MySQLResponse extends ToolResponse {

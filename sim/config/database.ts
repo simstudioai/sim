@@ -27,8 +27,9 @@ export function getMySQLConfig(): DatabaseConfig | null {
         throw new Error('MySQL username is required in connection URL')
       }
       
-      const auth = url.username.split(':')
-      const user = auth[0]
+      // Use the URL object's built-in properties for username and password
+      const user = url.username
+      const password = url.password || ''
       
       // Validate required credentials
       if (!user) {
@@ -39,7 +40,7 @@ export function getMySQLConfig(): DatabaseConfig | null {
         host: url.hostname,
         port: parseInt(url.port || '3306', 10),
         user,
-        password: auth[1] || '',
+        password,
         database: url.pathname.slice(1),
         ssl: url.searchParams.get('ssl') === 'true'
       }
@@ -79,8 +80,9 @@ export function getPostgreSQLConfig(): DatabaseConfig | null {
         throw new Error('PostgreSQL username is required in connection URL')
       }
       
-      const auth = url.username.split(':')
-      const user = auth[0]
+      // Use the URL object's built-in properties for username and password
+      const user = url.username
+      const password = url.password || ''
       
       // Validate required credentials
       if (!user) {
@@ -91,7 +93,7 @@ export function getPostgreSQLConfig(): DatabaseConfig | null {
         host: url.hostname,
         port: parseInt(url.port || '5432', 10),
         user,
-        password: auth[1] || '',
+        password,
         database: url.pathname.slice(1),
         ssl: url.searchParams.get('ssl') === 'true'
       }

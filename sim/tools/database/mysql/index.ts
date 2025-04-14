@@ -48,6 +48,14 @@ const toolConfig: ToolConfig<MySQLQueryParams, MySQLResponse> = {
     const startTime = Date.now()
     
     try {
+      console.log('[MySQL Tool] Starting execution with params:', {
+        ...params,
+        connection: {
+          ...params.connection,
+          password: '[REDACTED]'
+        }
+      })
+
       // Basic query validation
       if (!params.query || params.query.trim() === '') {
         throw new Error('SQL query cannot be empty')
@@ -79,34 +87,40 @@ const toolConfig: ToolConfig<MySQLQueryParams, MySQLResponse> = {
       if (!response.ok) {
         const errorText = await response.text()
         console.error('[MySQL Tool] API error response:', errorText)
-        // Try to parse the error as JSON to get the SQL error message
+        // Try to parse the error as JSON to get the MySQL error message
         try {
           const errorJson = JSON.parse(errorText)
           // Extract specific MySQL error details
           const errorMessage = errorJson.message || errorJson.error || errorText
-          const errorCode = errorJson.code ? `\nError Code: ${errorJson.code}` : ''
-          const errorSqlState = errorJson.sqlState ? `\nSQL State: ${errorJson.sqlState}` : ''
-          const errorSqlMessage = errorJson.sqlMessage ? `\nSQL Message: ${errorJson.sqlMessage}` : ''
+          const errorCode = errorJson.code || ''
+          const errorSqlState = errorJson.sqlState || ''
+          const errorSqlMessage = errorJson.sqlMessage || ''
           
-          throw new Error(`MySQL Error: ${errorMessage}${errorCode}${errorSqlState}${errorSqlMessage}`)
+          throw new Error(`MySQL Error: ${errorMessage}${errorCode ? ` (${errorCode})` : ''}${errorSqlState ? ` [${errorSqlState}]` : ''}${errorSqlMessage ? ` - ${errorSqlMessage}` : ''}`)
         } catch (e) {
           throw new Error(`Database error: ${errorText}`)
         }
       }
 
       const result = await response.json()
+      console.log('[MySQL Tool] API response result:', {
+        ...result,
+        rows: result.rows ? `[${result.rows.length} rows]` : undefined,
+        fields: result.fields ? `[${result.fields.length} fields]` : undefined
+      })
 
       return {
         success: true,
         output: {
           rows: result.rows || [],
           affectedRows: result.affectedRows || 0,
-          metadata: {
-            operation: params.operation,
-            query: params.query,
-            executionTime: Date.now() - startTime,
-            fields: result.fields || []
-          }
+          fields: result.fields || [],
+          executionTime: Date.now() - startTime
+        },
+        timing: {
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date().toISOString(),
+          duration: Date.now() - startTime
         }
       }
     } catch (error) {
@@ -125,16 +139,110 @@ const toolConfig: ToolConfig<MySQLQueryParams, MySQLResponse> = {
         output: {
           rows: [],
           affectedRows: 0,
-          metadata: {
-            operation: params.operation,
-            query: params.query,
-            executionTime: Date.now() - startTime,
-            error: errorMessage
-          }
+          fields: [],
+          executionTime: Date.now() - startTime
         },
-        error: errorMessage
+        error: errorMessage,
+        timing: {
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date().toISOString(),
+          duration: Date.now() - startTime
+        }
       }
     }
+  },
+  transformResponse: async (response, params) => {
+    const startTime = Date.now()
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[MySQL Tool] API error response:', errorText)
+      
+      try {
+        const errorJson = JSON.parse(errorText)
+        // Extract specific MySQL error details
+        const errorMessage = errorJson.message || errorJson.error || errorText
+        const errorCode = errorJson.code || ''
+        const errorSqlState = errorJson.sqlState || ''
+        const errorSqlMessage = errorJson.sqlMessage || ''
+        
+        return {
+          success: false,
+          output: {
+            rows: [],
+            affectedRows: 0,
+            fields: [],
+            executionTime: Date.now() - startTime
+          },
+          error: `MySQL Error: ${errorMessage}${errorCode ? ` (${errorCode})` : ''}${errorSqlState ? ` [${errorSqlState}]` : ''}${errorSqlMessage ? ` - ${errorSqlMessage}` : ''}`,
+          timing: {
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date().toISOString(),
+            duration: Date.now() - startTime
+          }
+        }
+      } catch (e) {
+        return {
+          success: false,
+          output: {
+            rows: [],
+            affectedRows: 0,
+            fields: [],
+            executionTime: Date.now() - startTime
+          },
+          error: `Database error: ${errorText}`,
+          timing: {
+            startTime: new Date(startTime).toISOString(),
+            endTime: new Date().toISOString(),
+            duration: Date.now() - startTime
+          }
+        }
+      }
+    }
+    
+    const result = await response.json()
+    console.log('[MySQL Tool] API response result:', {
+      ...result,
+      rows: result.rows ? `[${result.rows.length} rows]` : undefined,
+      fields: result.fields ? `[${result.fields.length} fields]` : undefined
+    })
+    
+    return {
+      success: true,
+      output: {
+        rows: result.rows || [],
+        affectedRows: result.affectedRows || 0,
+        fields: result.fields || [],
+        executionTime: Date.now() - startTime
+      },
+      timing: {
+        startTime: new Date(startTime).toISOString(),
+        endTime: new Date().toISOString(),
+        duration: Date.now() - startTime
+      }
+    }
+  },
+  transformError: (error) => {
+    console.error('[MySQL Tool] Error during execution:', error)
+    
+    // Format the error message to be more user-friendly
+    let errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    
+    return Promise.resolve({
+      success: false,
+      output: {
+        rows: [],
+        affectedRows: 0,
+        fields: [],
+        executionTime: 0
+      },
+      error: errorMessage,
+      timing: {
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        duration: 0
+      }
+    })
   }
 }
 

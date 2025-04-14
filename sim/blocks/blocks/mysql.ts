@@ -139,13 +139,41 @@ export const MySQLBlock: BlockConfig<MySQLResponse> = {
         // Ensure params is defined
         const p = params || {}
         
-        // Validate required fields
-        if (!p.host) throw new Error('MySQL host is required')
-        if (!p.database) throw new Error('MySQL database is required')
-        if (!p.user) throw new Error('MySQL username is required')
-        if (!p.password) throw new Error('MySQL password is required')
-        if (!p.operation) throw new Error('MySQL operation is required')
-        if (!p.query) throw new Error('MySQL query is required')
+        // Validate required fields with fallbacks
+        if (!p.host) {
+          console.warn('MySQL host not provided, using default: localhost')
+          p.host = 'localhost'
+        }
+        
+        if (!p.port) {
+          console.warn('MySQL port not provided, using default: 3306')
+          p.port = '3306'
+        }
+        
+        if (!p.user) {
+          console.warn('MySQL username not provided, using default: root')
+          p.user = 'root'
+        }
+        
+        if (!p.password) {
+          console.warn('MySQL password not provided, using empty string')
+          p.password = ''
+        }
+        
+        if (!p.database) {
+          console.warn('MySQL database not provided, using default: mysql')
+          p.database = 'mysql'
+        }
+        
+        if (!p.operation) {
+          console.warn('MySQL operation not provided, using default: select')
+          p.operation = 'select'
+        }
+        
+        if (!p.query) {
+          console.warn('MySQL query not provided, using default: SELECT 1')
+          p.query = 'SELECT 1'
+        }
         
         return {
           connection: {

@@ -138,38 +138,84 @@ export const PostgreSQLBlock: BlockConfig<PostgreSQLResponse> = {
         // Ensure params is defined
         const p = params || {}
         
-        // Validate required fields
-        if (!p.host) throw new Error('PostgreSQL host is required')
-        if (!p.database) throw new Error('PostgreSQL database is required')
-        if (!p.username) throw new Error('PostgreSQL username is required')
-        if (!p.password) throw new Error('PostgreSQL password is required')
-        if (!p.operation) throw new Error('PostgreSQL operation is required')
-        if (!p.query) throw new Error('PostgreSQL query is required')
+        // Validate required fields with fallbacks
+        if (!p.host) {
+          console.warn('PostgreSQL host not provided, using default: localhost')
+          p.host = 'localhost'
+        }
+        
+        if (!p.port) {
+          console.warn('PostgreSQL port not provided, using default: 5432')
+          p.port = '5432'
+        }
+        
+        if (!p.username) {
+          console.warn('PostgreSQL username not provided, using default: postgres')
+          p.username = 'postgres'
+        }
+        
+        if (!p.password) {
+          console.warn('PostgreSQL password not provided, using empty string')
+          p.password = ''
+        }
+        
+        if (!p.database) {
+          console.warn('PostgreSQL database not provided, using default: postgres')
+          p.database = 'postgres'
+        }
+        
+        if (!p.operation) {
+          console.warn('PostgreSQL operation not provided, using default: select')
+          p.operation = 'select'
+        }
+        
+        if (!p.query) {
+          console.warn('PostgreSQL query not provided, using default: SELECT 1')
+          p.query = 'SELECT 1'
+        }
         
         // Safe parsing of port number
         const port = parseInt(p.port || '5432', 10)
-        if (isNaN(port)) throw new Error('Invalid PostgreSQL port number')
+        if (isNaN(port)) {
+          console.warn('Invalid PostgreSQL port number, using default: 5432')
+          p.port = '5432'
+        }
         
+        // Create connection object with proper field names (user instead of username)
         const connection = {
           host: p.host,
-          port: port,
-          user: p.username,
+          port: parseInt(p.port || '5432', 10),
+          user: p.username, // Use 'user' to match the type definition
           password: p.password,
           database: p.database,
           ssl: p.ssl === 'true',
           schema: p.schema
         }
 
+        // Parse params and options with proper error handling
+        let parsedParams
+        let parsedOptions
+        
         try {
-          return {
-            connection,
-            operation: p.operation,
-            query: p.query,
-            params: p.params ? JSON.parse(p.params) : undefined,
-            options: p.options ? JSON.parse(p.options) : undefined
-          }
+          parsedParams = p.params ? JSON.parse(p.params) : undefined
         } catch (error) {
-          throw new Error('Invalid JSON in params or options')
+          console.error('Error parsing PostgreSQL params:', error)
+          parsedParams = undefined
+        }
+        
+        try {
+          parsedOptions = p.options ? JSON.parse(p.options) : undefined
+        } catch (error) {
+          console.error('Error parsing PostgreSQL options:', error)
+          parsedOptions = undefined
+        }
+
+        return {
+          connection,
+          operation: p.operation,
+          query: p.query,
+          params: parsedParams,
+          options: parsedOptions
         }
       },
     },

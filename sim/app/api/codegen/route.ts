@@ -419,69 +419,80 @@ export async function POST(req: NextRequest) {
         )
       }
     } else if (generationType === 'sql-query') {
-      try {
-        // Validate required fields
-        if (!prompt) {
-          return NextResponse.json(
-            { error: 'Prompt is required for SQL query generation' },
-            { status: 400 }
-          )
-        }
-
-        // Generate SQL query
-        const response = await openai.chat.completions.create({
-          model: 'gpt-4-turbo-preview',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a SQL expert. Generate valid SQL queries based on the user\'s request. Only return the SQL query without any explanation or comments.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            },
-            ...(history || []).map((msg: any) => ({
-              role: msg.role,
-              content: msg.content
-            }))
-          ],
-          temperature: 0.2,
-          max_tokens: 500
-        })
-
-        // Validate response
-        if (!response.choices?.[0]?.message?.content) {
-          throw new Error('Failed to generate SQL query')
-        }
-
-        // Extract and validate the generated query
-        const generatedQuery = response.choices[0].message.content.trim()
-        if (!generatedQuery) {
-          throw new Error('Generated SQL query is empty')
-        }
-
-        // Basic SQL injection prevention check
-        const dangerousPatterns = [
-          /--/,
-          /;.*;/,
-          /EXEC\s+xp_/i,
-          /EXEC\s+sp_/i,
-          /INTO\s+OUTFILE/i,
-          /LOAD_FILE/i
-        ]
-
-        if (dangerousPatterns.some(pattern => pattern.test(generatedQuery))) {
-          throw new Error('Generated SQL query contains potentially unsafe patterns')
-        }
-
-        return NextResponse.json({ generatedContent: generatedQuery })
-      } catch (error: any) {
-        console.error('Error generating SQL query:', error)
+      if (!prompt) {
         return NextResponse.json(
-          { error: error.message || 'Failed to generate SQL query' },
+          { error: 'Prompt is required for SQL query generation' },
+          { status: 400 }
+        )
+      }
+
+      // Reuse the existing completion code for SQL query generation
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a SQL expert. Generate a safe and efficient SQL query based on the user's request. 
+            Follow these rules:
+            1. Use parameterized queries to prevent SQL injection
+            2. Include proper table and column names
+            3. Add appropriate WHERE clauses for data filtering
+            4. Use proper JOIN syntax when combining tables
+            5. Include ORDER BY for sorted results
+            6. Add LIMIT for large result sets
+            7. Use proper data types in conditions
+            8. Include helpful comments explaining the query
+            9. Validate input parameters
+            10. Handle NULL values appropriately`
+          },
+          ...(history || []),
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 1000
+      })
+
+      const generatedQuery = completion.choices[0]?.message?.content
+
+      if (!generatedQuery) {
+        return NextResponse.json(
+          { error: 'Failed to generate SQL query' },
           { status: 500 }
         )
       }
+
+      // Validate the generated query
+      const query = generatedQuery.trim()
+      if (!query) {
+        return NextResponse.json(
+          { error: 'Generated SQL query is empty' },
+          { status: 500 }
+        )
+      }
+
+      // Check for potentially dangerous SQL patterns
+      const dangerousPatterns = [
+        /--/,                // SQL comments
+        /;.*;/,             // Multiple statements
+        /EXEC\s+xp_/i,      // Extended stored procedures
+        /EXEC\s+sp_/i,      // System stored procedures
+        /INTO\s+OUTFILE/i,  // File operations
+        /LOAD_FILE/i,       // File operations
+        /UNION\s+ALL/i,     // UNION injections
+        /UNION\s+SELECT/i,  // UNION injections
+        /\/\*/,             // Block comments
+        /xp_cmdshell/i,     // Command execution
+      ]
+
+      const hasDangerousPattern = dangerousPatterns.some(pattern => pattern.test(query))
+      if (hasDangerousPattern) {
+        return NextResponse.json(
+          { error: 'Generated SQL query contains potentially dangerous patterns' },
+          { status: 400 }
+        )
+      }
+
+      return NextResponse.json({ generatedContent: query })
     } else {
       return NextResponse.json({ success: true, generatedContent })
     }
