@@ -59,11 +59,11 @@ export interface BlockLog {
 export interface ExecutionMetadata {
   startTime?: string // ISO timestamp when workflow execution started
   endTime?: string // ISO timestamp when workflow execution completed
-  duration: number
-  pendingBlocks?: string[]
-  isDebugSession?: boolean
-  context?: ExecutionContext
-  workflowConnections?: Array<{ source: string; target: string }>
+  duration: number // Duration of workflow execution in milliseconds
+  pendingBlocks?: string[] // List of block IDs that are pending execution
+  isDebugSession?: boolean // Whether the workflow is running in debug mode
+  context?: ExecutionContext // Runtime context for the workflow
+  workflowConnections?: Array<{ source: string; target: string }> // Connections between workflow blocks
 }
 
 /**

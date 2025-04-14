@@ -217,9 +217,13 @@ export function buildTraceSpans(result: ExecutionResult): {
 
   // Identify blocks at the top level (aka "layer 0")
   const topLevelBlocks = new Set<string>()
+
+  // Create the array of parent values once before the loop
+  const parentValues = Array.from(parentChildMap.values())
+
   workflowConnections.forEach((conn) => {
     // If the source is starter or doesn't exist in our connections as a target, it's top level
-    if (conn.source === 'starter' || !Array.from(parentChildMap.values()).includes(conn.source)) {
+    if (conn.source === 'starter' || !parentValues.includes(conn.source)) {
       topLevelBlocks.add(conn.target)
     }
   })
@@ -354,9 +358,17 @@ export function buildTraceSpans(result: ExecutionResult): {
     // This correctly accounts for parallel execution
     const actualWorkflowDuration = latestEnd - earliestStart
 
-    // Use the metadata duration if available, otherwise use our calculated duration
-    // For parallel execution, this ensures we use the actual wall-clock time
-    const workflowDuration = result.metadata.duration || actualWorkflowDuration
+    // Check if any spans have errors to determine overall workflow status
+    const hasErrors = rootSpans.some((span) => {
+      if (span.status === 'error') return true
+      // Recursively check children for errors
+      const checkChildren = (children: TraceSpan[] = []): boolean => {
+        return children.some(
+          (child) => child.status === 'error' || (child.children && checkChildren(child.children))
+        )
+      }
+      return span.children && checkChildren(span.children)
+    })
 
     // Create the workflow span
     const workflowSpan: TraceSpan = {
@@ -366,7 +378,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       duration: actualWorkflowDuration, // Always use actual duration for the span
       startTime: new Date(earliestStart).toISOString(),
       endTime: new Date(latestEnd).toISOString(),
-      status: 'success',
+      status: hasErrors ? 'error' : 'success',
       children: rootSpans,
     }
 

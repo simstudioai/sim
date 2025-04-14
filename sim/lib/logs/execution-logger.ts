@@ -495,7 +495,9 @@ export async function persistExecutionLogs(
     // For parallel execution, calculate the actual duration from start to end times
     let actualDuration = totalDuration
     if (result.metadata?.startTime && result.metadata?.endTime) {
-      const startTime = new Date(result.metadata.startTime).getTime()
+      const startTime = result.metadata.startTime
+        ? new Date(result.metadata.startTime).getTime()
+        : 0
       const endTime = new Date(result.metadata.endTime).getTime()
       actualDuration = endTime - startTime
     }

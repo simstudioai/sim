@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ChevronDown,
   ChevronDownSquare,
@@ -53,29 +53,13 @@ export function TraceSpansDisplay({
 
   // Find the latest end time among all spans
   const workflowEndTime = traceSpans.reduce((latest, span) => {
-    const endTime = new Date(span.endTime).getTime()
+    const endTime = span.endTime ? new Date(span.endTime).getTime() : 0
     return endTime > latest ? endTime : latest
   }, 0)
 
   // Calculate the actual total workflow duration from start to end
   // This ensures parallel spans are represented correctly in the timeline
   const actualTotalDuration = workflowEndTime - workflowStartTime
-
-  // Handle span toggling
-  const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
-    const newExpandedSpans = new Set(expandedSpans)
-    if (expanded) {
-      newExpandedSpans.add(spanId)
-    } else {
-      newExpandedSpans.delete(spanId)
-    }
-    setExpandedSpans(newExpandedSpans)
-
-    // Only notify parent component if this span has children or tool calls
-    if (onExpansionChange && hasSubItems) {
-      onExpansionChange(newExpandedSpans.size > 0)
-    }
-  }
 
   // Function to collect all span IDs recursively (for expand all functionality)
   const collectAllSpanIds = (spans: TraceSpan[]): string[] => {
@@ -95,9 +79,26 @@ export function TraceSpansDisplay({
     return ids
   }
 
+  const allSpanIds = useMemo(() => collectAllSpanIds(traceSpans), [traceSpans])
+
+  // Handle span toggling
+  const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
+    const newExpandedSpans = new Set(expandedSpans)
+    if (expanded) {
+      newExpandedSpans.add(spanId)
+    } else {
+      newExpandedSpans.delete(spanId)
+    }
+    setExpandedSpans(newExpandedSpans)
+
+    // Only notify parent component if this span has children or tool calls
+    if (onExpansionChange && hasSubItems) {
+      onExpansionChange(newExpandedSpans.size > 0)
+    }
+  }
+
   // Handle expand all / collapse all
   const handleExpandAll = () => {
-    const allSpanIds = collectAllSpanIds(traceSpans)
     const newExpandedSpans = new Set(allSpanIds)
     setExpandedSpans(newExpandedSpans)
 
@@ -115,7 +116,6 @@ export function TraceSpansDisplay({
   }
 
   // Determine if all spans are currently expanded
-  const allSpanIds = collectAllSpanIds(traceSpans)
   const allExpanded = allSpanIds.length > 0 && allSpanIds.every((id) => expandedSpans.has(id))
 
   return (
@@ -150,7 +150,9 @@ export function TraceSpansDisplay({
               key={index}
               span={span}
               depth={0}
-              totalDuration={actualTotalDuration || totalDuration}
+              totalDuration={
+                actualTotalDuration !== undefined ? actualTotalDuration : totalDuration
+              }
               isLast={index === traceSpans.length - 1}
               parentStartTime={new Date(span.startTime).getTime()}
               workflowStartTime={workflowStartTime}

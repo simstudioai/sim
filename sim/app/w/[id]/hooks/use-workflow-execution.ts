@@ -169,7 +169,6 @@ export function useWorkflowExecution() {
           // Reset execution states right away for UI to update
           setIsExecuting(false)
           setIsDebugging(false)
-          // IMPORTANT: Reset active blocks when execution completes
           setActiveBlocks(new Set())
         }
 
@@ -242,7 +241,6 @@ export function useWorkflowExecution() {
       setExecutionResult(errorResult)
       setIsExecuting(false)
       setIsDebugging(false)
-      // IMPORTANT: Reset active blocks when execution fails
       setActiveBlocks(new Set())
 
       // Create a more user-friendly notification message
