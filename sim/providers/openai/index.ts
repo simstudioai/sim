@@ -92,12 +92,11 @@ export const openaiProvider: ProviderConfig = {
     }
 
     // Handle tools and tool usage control
+    let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+
     if (tools?.length) {
-      const {
-        tools: filteredTools,
-        toolChoice,
-        forcedTools,
-      } = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
+      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
+      const { tools: filteredTools, toolChoice } = preparedTools
 
       if (filteredTools?.length && toolChoice) {
         payload.tools = filteredTools
@@ -132,10 +131,28 @@ export const openaiProvider: ProviderConfig = {
       const originalToolChoice = payload.tool_choice
 
       // Track forced tools and their usage
-      const forcedTools = tools?.length
-        ? prepareToolsWithUsageControl(tools, request.tools, logger, 'openai').forcedTools
-        : []
+      const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
+
+      // Helper function to check for forced tool usage in responses
+      const checkForForcedToolUsage = (
+        response: any,
+        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
+      ) => {
+        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
+          const toolCallsResponse = response.choices[0].message.tool_calls
+          const result = trackForcedToolUsage(
+            toolCallsResponse,
+            toolChoice,
+            logger,
+            'openai',
+            forcedTools,
+            usedForcedTools
+          )
+          hasUsedForcedTool = result.hasUsedForcedTool
+          usedForcedTools = result.usedForcedTools
+        }
+      }
 
       let currentResponse = await openai.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
@@ -152,12 +169,12 @@ export const openaiProvider: ProviderConfig = {
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
-      // Track if a forced tool has been used
-      let hasUsedForcedTool = false
-
       // Track time spent in model vs tools
       let modelTime = firstResponseTime
       let toolsTime = 0
+
+      // Track if a forced tool has been used
+      let hasUsedForcedTool = false
 
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
@@ -171,22 +188,7 @@ export const openaiProvider: ProviderConfig = {
       ]
 
       // Check if a forced tool was used in the first response
-      if (
-        typeof originalToolChoice === 'object' &&
-        currentResponse.choices[0]?.message?.tool_calls
-      ) {
-        const toolCallsResponse = currentResponse.choices[0].message.tool_calls
-        const result = trackForcedToolUsage(
-          toolCallsResponse,
-          originalToolChoice,
-          logger,
-          'openai',
-          forcedTools,
-          usedForcedTools
-        )
-        hasUsedForcedTool = result.hasUsedForcedTool
-        usedForcedTools = result.usedForcedTools
-      }
+      checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_ITERATIONS) {
         // Check for tool calls
@@ -309,22 +311,7 @@ export const openaiProvider: ProviderConfig = {
         currentResponse = await openai.chat.completions.create(nextPayload)
 
         // Check if any forced tools were used in this response
-        if (
-          typeof nextPayload.tool_choice === 'object' &&
-          currentResponse.choices[0]?.message?.tool_calls
-        ) {
-          const toolCallsResponse = currentResponse.choices[0].message.tool_calls
-          const result = trackForcedToolUsage(
-            toolCallsResponse,
-            nextPayload.tool_choice,
-            logger,
-            'openai',
-            forcedTools,
-            usedForcedTools
-          )
-          hasUsedForcedTool = result.hasUsedForcedTool || hasUsedForcedTool
-          usedForcedTools = result.usedForcedTools
-        }
+        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime

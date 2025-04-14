@@ -76,12 +76,11 @@ export const deepseekProvider: ProviderConfig = {
       if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
 
       // Handle tools and tool usage control
+      let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+
       if (tools?.length) {
-        const {
-          tools: filteredTools,
-          toolChoice,
-          forcedTools,
-        } = prepareToolsWithUsageControl(tools, request.tools, logger, 'deepseek')
+        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'deepseek')
+        const { tools: filteredTools, toolChoice } = preparedTools
 
         if (filteredTools?.length && toolChoice) {
           payload.tools = filteredTools
@@ -111,9 +110,7 @@ export const deepseekProvider: ProviderConfig = {
       const originalToolChoice = payload.tool_choice
 
       // Track forced tools and their usage
-      const forcedTools = tools?.length
-        ? prepareToolsWithUsageControl(tools, request.tools, logger, 'deepseek').forcedTools
-        : []
+      const forcedTools = preparedTools?.forcedTools || []
       let usedForcedTools: string[] = []
 
       let currentResponse = await deepseek.chat.completions.create(payload)
@@ -308,7 +305,7 @@ export const deepseekProvider: ProviderConfig = {
               forcedTools,
               usedForcedTools
             )
-            hasUsedForcedTool = result.hasUsedForcedTool || hasUsedForcedTool
+            hasUsedForcedTool = result.hasUsedForcedTool
             usedForcedTools = result.usedForcedTools
           }
 

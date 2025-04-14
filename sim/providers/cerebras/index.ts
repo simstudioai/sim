@@ -82,24 +82,27 @@ export const cerebrasProvider: ProviderConfig = {
 
       // Add tools if provided
       if (tools?.length) {
-        // Filter out any tools with usageControl='none', but ignore 'force' since Cerebras doesn't support it
+        // Filter out any tools with usageControl='none', treat 'force' as 'auto' since Cerebras only supports 'auto'
         const filteredTools = tools.filter((tool) => {
           const toolId = tool.function?.name
           const toolConfig = request.tools?.find((t) => t.id === toolId)
-          // Only filter out 'none', treat 'force' as 'auto'
+          // Only filter out tools with usageControl='none'
           return toolConfig?.usageControl !== 'none'
         })
 
         if (filteredTools?.length) {
           payload.tools = filteredTools
-          // Always use 'auto' for Cerebras, regardless of the tool_choice setting
+          // Always use 'auto' for Cerebras, explicitly converting any 'force' usageControl to 'auto'
           payload.tool_choice = 'auto'
 
           logger.info(`Cerebras request configuration:`, {
             toolCount: filteredTools.length,
-            toolChoice: 'auto', // Cerebras always uses auto
+            toolChoice: 'auto', // Cerebras always uses auto, 'force' is treated as 'auto'
             model: request.model,
           })
+        } else if (tools.length > 0 && filteredTools.length === 0) {
+          // Handle case where all tools are filtered out
+          logger.info(`All tools have usageControl='none', removing tools from request`)
         }
       }
 

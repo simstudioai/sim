@@ -145,27 +145,6 @@ describe('AgentBlock', () => {
       })
     })
 
-    it('should log which tools are filtered out', () => {
-      const params = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        tools: [
-          {
-            type: 'tool-type-1',
-            title: 'Tool 1',
-            usageControl: 'auto',
-          },
-          {
-            type: 'tool-type-2',
-            title: 'Tool 2',
-            usageControl: 'none', // Should be filtered out and logged
-          },
-        ],
-      }
-
-      paramsFunction(params)
-    })
-
     it('should handle an empty tools array', () => {
       const params = {
         model: 'gpt-4o',
