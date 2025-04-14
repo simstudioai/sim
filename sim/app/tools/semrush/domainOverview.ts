@@ -34,7 +34,6 @@ export const domainOverviewTool: ToolConfig<SemrushDomainOverviewParams, Semrush
       return url;
     },
     method: 'GET',
-    // No headers are needed since the API key and required parameters are in the URL.
     headers: (params: SemrushDomainOverviewParams): Record<string, string> => ({})
   },
 

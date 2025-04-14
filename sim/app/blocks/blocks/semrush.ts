@@ -1,4 +1,4 @@
-import { SemrushIcon } from '@/components/icons' // Replace with a Semrush icon if available
+import { SemrushIcon } from '@/components/icons'
 import {
   SemrushDomainOverviewResponse,
   SemrushDomainKeywordsResponse,
@@ -20,7 +20,7 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
   longDescription: 'This block integrates Semrush data by offering tools to retrieve domain SEO metrics, domain keyword data, keyword SEO metrics, and URL keyword data. Users can select the desired operation, enter domains or keywords, and authenticate using their Semrush API key.',
   category: 'tools',
   bgColor: '#F5F5F5',
-  icon: SemrushIcon, // Replace or update with a proper Semrush icon
+  icon: SemrushIcon,
 
   subBlocks: [
     {
@@ -103,7 +103,6 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
     operation: { type: 'string', required: true }
   },
 
-  // Define outputs using the standard ToolResponse structure.
   outputs: {
     response: {
       type: 'json',
