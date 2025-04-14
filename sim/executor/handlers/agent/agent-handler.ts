@@ -68,69 +68,88 @@ export class AgentBlockHandler implements BlockHandler {
     const formattedTools = Array.isArray(inputs.tools)
       ? (
           await Promise.all(
-            inputs.tools.map(async (tool: any) => {
-              // Handle custom tools
-              if (tool.type === 'custom-tool' && tool.schema) {
-                // Add function execution capability to custom tools with code
-                if (tool.code) {
-                  // Store the tool's code and make it available for execution
-                  const toolName = tool.schema.function.name
-                  const params = tool.params || {}
+            // First filter out any tools with usageControl set to 'none'
+            inputs.tools
+              .filter((tool: any) => {
+                const usageControl = tool.usageControl || 'auto'
+                if (usageControl === 'none') {
+                  logger.info(`Filtering out tool set to 'none': ${tool.title || tool.type}`)
+                  return false
+                }
+                return true
+              })
+              .map(async (tool: any) => {
+                // Handle custom tools
+                if (tool.type === 'custom-tool' && tool.schema) {
+                  // Add function execution capability to custom tools with code
+                  if (tool.code) {
+                    // Store the tool's code and make it available for execution
+                    const toolName = tool.schema.function.name
+                    const params = tool.params || {}
 
-                  // Create a tool that can execute the code
+                    // Create a tool that can execute the code
+                    return {
+                      id: `custom_${tool.title}`,
+                      name: toolName,
+                      description: tool.schema.function.description || '',
+                      params: params,
+                      parameters: {
+                        type: tool.schema.function.parameters.type,
+                        properties: tool.schema.function.parameters.properties,
+                        required: tool.schema.function.parameters.required || [],
+                      },
+                      usageControl: tool.usageControl || 'auto',
+                      executeFunction: async (callParams: Record<string, any>) => {
+                        try {
+                          // Execute the code using the function_execute tool
+                          const result = await executeTool('function_execute', {
+                            code: tool.code,
+                            ...params,
+                            ...callParams,
+                            timeout: tool.timeout || 5000,
+                          })
+
+                          if (!result.success) {
+                            throw new Error(result.error || 'Function execution failed')
+                          }
+
+                          return result.output
+                        } catch (error: any) {
+                          logger.error(`Error executing custom tool ${toolName}:`, error)
+                          throw new Error(`Error in ${toolName}: ${error.message}`)
+                        }
+                      },
+                    }
+                  }
+
                   return {
                     id: `custom_${tool.title}`,
-                    name: toolName,
+                    name: tool.schema.function.name,
                     description: tool.schema.function.description || '',
-                    params: params,
+                    params: tool.params || {},
                     parameters: {
                       type: tool.schema.function.parameters.type,
                       properties: tool.schema.function.parameters.properties,
                       required: tool.schema.function.parameters.required || [],
                     },
-                    executeFunction: async (callParams: Record<string, any>) => {
-                      try {
-                        // Execute the code using the function_execute tool
-                        const result = await executeTool('function_execute', {
-                          code: tool.code,
-                          ...params,
-                          ...callParams,
-                          timeout: tool.timeout || 5000,
-                        })
-
-                        if (!result.success) {
-                          throw new Error(result.error || 'Function execution failed')
-                        }
-
-                        return result.output
-                      } catch (error: any) {
-                        logger.error(`Error executing custom tool ${toolName}:`, error)
-                        throw new Error(`Error in ${toolName}: ${error.message}`)
-                      }
-                    },
+                    usageControl: tool.usageControl || 'auto',
                   }
                 }
 
-                return {
-                  id: `custom_${tool.title}`,
-                  name: tool.schema.function.name,
-                  description: tool.schema.function.description || '',
-                  params: tool.params || {},
-                  parameters: {
-                    type: tool.schema.function.parameters.type,
-                    properties: tool.schema.function.parameters.properties,
-                    required: tool.schema.function.parameters.required || [],
-                  },
-                }
-              }
+                // Handle regular block tools with operation selection
+                const transformedTool = transformBlockTool(tool, {
+                  selectedOperation: tool.operation,
+                  getAllBlocks,
+                  getTool,
+                })
 
-              // Handle regular block tools with operation selection
-              return transformBlockTool(tool, {
-                selectedOperation: tool.operation,
-                getAllBlocks,
-                getTool,
+                // Add usageControl to the transformed tool if it exists
+                if (transformedTool) {
+                  transformedTool.usageControl = tool.usageControl || 'auto'
+                }
+
+                return transformedTool
               })
-            })
           )
         ).filter((t: any): t is NonNullable<typeof t> => t !== null)
       : []

@@ -9,7 +9,6 @@ export const maxDuration = 60
 
 const logger = createLogger('GenerateCodeAPI')
 
-// Edge-optimized OpenAI client initialization
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -20,7 +19,11 @@ if (!process.env.OPENAI_API_KEY) {
   logger.warn('OPENAI_API_KEY not found. Code generation API will not function.')
 }
 
-type GenerationType = 'json-schema' | 'javascript-function-body' | 'typescript-function-body'
+type GenerationType =
+  | 'json-schema'
+  | 'javascript-function-body'
+  | 'typescript-function-body'
+  | 'custom-tool-schema'
 
 // Define the structure for a single message in the history
 interface ChatMessage {
@@ -117,6 +120,102 @@ Example 3 (Array Input):
         "additionalProperties": false,
         "required": ["item_ids", "processing_mode"]
     }
+}
+`,
+  'custom-tool-schema': `You are an expert programmer specializing in creating OpenAI function calling format JSON schemas for custom tools.
+Generate ONLY the JSON schema based on the user's request.
+The output MUST be a single, valid JSON object, starting with { and ending with }.
+The JSON schema MUST follow this specific format:
+1. Top-level property "type" must be set to "function"
+2. A "function" object containing:
+   - "name": A concise, camelCase name for the function
+   - "description": A clear description of what the function does
+   - "parameters": A JSON Schema object describing the function's parameters with:
+     - "type": "object"
+     - "properties": An object containing parameter definitions
+     - "required": An array of required parameter names
+
+Do not include any explanations, markdown formatting, or other text outside the JSON object.
+
+Valid Schema Examples:
+
+Example 1:
+{
+  "type": "function",
+  "function": {
+    "name": "getWeather",
+    "description": "Fetches the current weather for a specific location.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "The city and state, e.g., San Francisco, CA"
+        },
+        "unit": {
+          "type": "string",
+          "description": "Temperature unit",
+          "enum": ["celsius", "fahrenheit"]
+        }
+      },
+      "required": ["location"],
+      "additionalProperties": false
+    }
+  }
+}
+
+Example 2:
+{
+  "type": "function",
+  "function": {
+    "name": "addItemToOrder",
+    "description": "Add one quantity of a food item to the order.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "itemName": {
+          "type": "string",
+          "description": "The name of the food item to add to order"
+        },
+        "quantity": {
+          "type": "integer",
+          "description": "The quantity of the item to add",
+          "default": 1
+        }
+      },
+      "required": ["itemName"],
+      "additionalProperties": false
+    }
+  }
+}
+
+Example 3 (Array Input):
+{
+  "type": "function",
+  "function": {
+    "name": "processItems",
+    "description": "Processes a list of items with specific IDs.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "itemIds": {
+          "type": "array",
+          "description": "A list of unique item identifiers to process.",
+          "items": {
+            "type": "string",
+            "description": "An item ID"
+          }
+        },
+        "processingMode": {
+          "type": "string",
+          "description": "The mode for processing",
+          "enum": ["fast", "thorough"]
+        }
+      },
+      "required": ["itemIds"],
+      "additionalProperties": false
+    }
+  }
 }
 `,
   'javascript-function-body': `You are an expert JavaScript programmer.

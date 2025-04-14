@@ -82,12 +82,33 @@ export const cerebrasProvider: ProviderConfig = {
 
       // Add tools if provided
       if (tools?.length) {
-        payload.tools = tools
-        payload.tool_choice = 'auto'
+        // Filter out any tools with usageControl='none', treat 'force' as 'auto' since Cerebras only supports 'auto'
+        const filteredTools = tools.filter((tool) => {
+          const toolId = tool.function?.name
+          const toolConfig = request.tools?.find((t) => t.id === toolId)
+          // Only filter out tools with usageControl='none'
+          return toolConfig?.usageControl !== 'none'
+        })
+
+        if (filteredTools?.length) {
+          payload.tools = filteredTools
+          // Always use 'auto' for Cerebras, explicitly converting any 'force' usageControl to 'auto'
+          payload.tool_choice = 'auto'
+
+          logger.info(`Cerebras request configuration:`, {
+            toolCount: filteredTools.length,
+            toolChoice: 'auto', // Cerebras always uses auto, 'force' is treated as 'auto'
+            model: request.model,
+          })
+        } else if (tools.length > 0 && filteredTools.length === 0) {
+          // Handle case where all tools are filtered out
+          logger.info(`All tools have usageControl='none', removing tools from request`)
+        }
       }
 
       // Make the initial API request
       const initialCallTime = Date.now()
+
       let currentResponse = (await client.chat.completions.create(payload)) as CerebrasResponse
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -239,8 +260,10 @@ export const cerebrasProvider: ProviderConfig = {
             const finalPayload = {
               ...payload,
               messages: currentMessages,
-              tool_choice: 'none',
             }
+
+            // Use tool_choice: 'none' for the final response to avoid an infinite loop
+            finalPayload.tool_choice = 'none'
 
             const finalResponse = (await client.chat.completions.create(
               finalPayload

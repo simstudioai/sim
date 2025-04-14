@@ -7,7 +7,11 @@ interface ChatMessage {
   content: string
 }
 
-type GenerationType = 'json-schema' | 'javascript-function-body' | 'typescript-function-body'
+type GenerationType =
+  | 'json-schema'
+  | 'javascript-function-body'
+  | 'typescript-function-body'
+  | 'custom-tool-schema'
 
 interface UseCodeGenerationProps {
   generationType: GenerationType

@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('OpenAI Provider')
 
@@ -90,11 +91,32 @@ export const openaiProvider: ProviderConfig = {
       logger.info('Added JSON schema response format to request')
     }
 
-    // Add tools if provided
+    // Handle tools and tool usage control
+    let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+
     if (tools?.length) {
-      payload.tools = tools
-      payload.tool_choice = 'auto'
-      logger.info(`Configured ${tools.length} tools for OpenAI request`)
+      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
+      const { tools: filteredTools, toolChoice } = preparedTools
+
+      if (filteredTools?.length && toolChoice) {
+        payload.tools = filteredTools
+        payload.tool_choice = toolChoice
+
+        logger.info(`OpenAI request configuration:`, {
+          toolCount: filteredTools.length,
+          toolChoice:
+            typeof toolChoice === 'string'
+              ? toolChoice
+              : toolChoice.type === 'function'
+                ? `force:${toolChoice.function.name}`
+                : toolChoice.type === 'tool'
+                  ? `force:${toolChoice.name}`
+                  : toolChoice.type === 'any'
+                    ? `force:${toolChoice.any?.name || 'unknown'}`
+                    : 'unknown',
+          model: request.model || 'gpt-4o',
+        })
+      }
     }
 
     // Start execution timer for the entire provider execution
@@ -104,6 +126,34 @@ export const openaiProvider: ProviderConfig = {
     try {
       // Make the initial API request
       const initialCallTime = Date.now()
+
+      // Track the original tool_choice for forced tool tracking
+      const originalToolChoice = payload.tool_choice
+
+      // Track forced tools and their usage
+      const forcedTools = preparedTools?.forcedTools || []
+      let usedForcedTools: string[] = []
+
+      // Helper function to check for forced tool usage in responses
+      const checkForForcedToolUsage = (
+        response: any,
+        toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
+      ) => {
+        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
+          const toolCallsResponse = response.choices[0].message.tool_calls
+          const result = trackForcedToolUsage(
+            toolCallsResponse,
+            toolChoice,
+            logger,
+            'openai',
+            forcedTools,
+            usedForcedTools
+          )
+          hasUsedForcedTool = result.hasUsedForcedTool
+          usedForcedTools = result.usedForcedTools
+        }
+      }
+
       let currentResponse = await openai.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
@@ -123,6 +173,9 @@ export const openaiProvider: ProviderConfig = {
       let modelTime = firstResponseTime
       let toolsTime = 0
 
+      // Track if a forced tool has been used
+      let hasUsedForcedTool = false
+
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
@@ -133,6 +186,9 @@ export const openaiProvider: ProviderConfig = {
           duration: firstResponseTime,
         },
       ]
+
+      // Check if a forced tool was used in the first response
+      checkForForcedToolUsage(currentResponse, originalToolChoice)
 
       while (iterationCount < MAX_ITERATIONS) {
         // Check for tool calls
@@ -229,11 +285,33 @@ export const openaiProvider: ProviderConfig = {
           messages: currentMessages,
         }
 
+        // Update tool_choice based on which forced tools have been used
+        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+          // If we have remaining forced tools, get the next one to force
+          const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
+
+          if (remainingTools.length > 0) {
+            // Force the next tool
+            nextPayload.tool_choice = {
+              type: 'function',
+              function: { name: remainingTools[0] },
+            }
+            logger.info(`Forcing next tool: ${remainingTools[0]}`)
+          } else {
+            // All forced tools have been used, switch to auto
+            nextPayload.tool_choice = 'auto'
+            logger.info('All forced tools have been used, switching to auto tool_choice')
+          }
+        }
+
         // Time the next model call
         const nextModelStartTime = Date.now()
 
         // Make the next request
         currentResponse = await openai.chat.completions.create(nextPayload)
+
+        // Check if any forced tools were used in this response
+        checkForForcedToolUsage(currentResponse, nextPayload.tool_choice)
 
         const nextModelEndTime = Date.now()
         const thisModelTime = nextModelEndTime - nextModelStartTime
