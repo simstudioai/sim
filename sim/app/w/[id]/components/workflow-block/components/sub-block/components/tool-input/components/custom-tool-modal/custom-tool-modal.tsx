@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Code, FileJson, SparklesIcon, X } from 'lucide-react'
+import { Code, FileJson, Wand2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -528,7 +528,7 @@ export function CustomToolModal({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-5 w-5 p-0 rounded-full bg-muted/80 hover:bg-muted shadow-sm hover:shadow text-muted-foreground hover:text-primary transition-all duration-200 border border-transparent hover:border-primary/20"
                     onClick={() => {
                       logger.debug('Schema AI button clicked')
                       logger.debug(
@@ -542,7 +542,7 @@ export function CustomToolModal({
                     disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
                     aria-label="Generate schema with AI"
                   >
-                    <SparklesIcon className="h-3 w-3" />
+                    <Wand2 className="h-3 w-3" />
                   </Button>
                 </div>
                 {schemaError &&
@@ -571,7 +571,7 @@ export function CustomToolModal({
     }
   }
 }`}
-                minHeight="340px"
+                minHeight="360px"
                 className={cn(
                   schemaError && !schemaGeneration.isStreaming ? 'border-red-500' : '',
                   (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
@@ -598,7 +598,7 @@ export function CustomToolModal({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                    className="h-5 w-5 p-0 rounded-full bg-muted/80 hover:bg-muted shadow-sm hover:shadow text-muted-foreground hover:text-primary transition-all duration-200 border border-transparent hover:border-primary/20"
                     onClick={() => {
                       logger.debug('Code AI button clicked')
                       logger.debug(
@@ -612,7 +612,7 @@ export function CustomToolModal({
                     disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
                     aria-label="Generate code with AI"
                   >
-                    <SparklesIcon className="h-3 w-3" />
+                    <Wand2 className="h-3 w-3" />
                   </Button>
                 </div>
                 {codeError &&
@@ -626,7 +626,7 @@ export function CustomToolModal({
                   onChange={handleFunctionCodeChange}
                   language="javascript"
                   placeholder={`// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.`}
-                  minHeight="340px"
+                  minHeight="360px"
                   className={cn(
                     codeError && !codeGeneration.isStreaming ? 'border-red-500' : '',
                     (codeGeneration.isLoading || codeGeneration.isStreaming) &&
