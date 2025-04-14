@@ -38,27 +38,16 @@ export const domainOverviewTool: ToolConfig<SemrushDomainOverviewParams, Semrush
   },
 
   transformResponse: async (response: Response): Promise<SemrushDomainOverviewResponse> => {
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
-    console.log("Domain Overview response:", data);
     return {
       success: true,
       output: data
     };
   },
 
-  transformError: async (error) => {
-    console.error("=== domainOverviewTool transformError called ===");
-    if (error.response) {
-      console.error("HTTP Status:", error.response.status);
-      try {
-        const errorText = await error.response.text();
-        console.error("Error Response Text:", errorText);
-        return errorText || error.message || 'An error occurred while retrieving the domain overview';
-      } catch (readErr) {
-        console.error("Error reading error response:", readErr);
-      }
-    }
-    console.error("Full error object:", error);
-    return error.message || 'An error occurred while retrieving the domain overview';
-  }
+  transformError: (error) => `Domain overview fetching failed: ${error.message}`
 }

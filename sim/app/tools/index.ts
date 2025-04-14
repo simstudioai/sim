@@ -66,7 +66,7 @@ export const tools: Record<string, ToolConfig> = {
   semrush_domain_overview: semrushDomainOverviewTool,
   semrush_domain_keywords: semrushDomainKeywordsTool,
   semrush_keyword_overview: semrushKeywordOverviewTool,
-  semrush_url: semrushUrlKeywordsTool,
+  semrush_url_keywords: semrushUrlKeywordsTool,
   tavily_search: tavilySearchTool,
   tavily_extract: tavilyExtractTool,
   supabase_query: supabaseQueryTool,

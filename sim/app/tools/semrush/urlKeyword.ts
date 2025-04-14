@@ -39,25 +39,16 @@ export const urlKeywordsTool: ToolConfig<SemrushUrlKeywordsParams, SemrushUrlKey
   },
 
   transformResponse: async (response: Response): Promise<SemrushUrlKeywordsResponse> => {
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
-    console.log("URL Keywords response:", data);
     return {
       success: true,
       output: data
     };
   },
 
-  transformError: async (error) => {
-    console.error("=== urlKeywordsTool transformError called ===");
-    if (error.response) {
-      try {
-        const errorText = await error.response.text();
-        console.error("Error Response Text:", errorText);
-        return errorText || error.message || 'An error occurred while retrieving URL keywords';
-      } catch (readErr) {
-        console.error("Error reading error response:", readErr);
-      }
-    }
-    return error.message || 'An error occurred while retrieving URL keywords';
-  }
+  transformError: (error) => `URL keyword fetching failed: ${error.message}`
 }

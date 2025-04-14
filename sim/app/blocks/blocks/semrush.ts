@@ -76,7 +76,7 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
       'semrush_domain_overview',
       'semrush_domain_keywords',
       'semrush_keyword_overview',
-      'semrush_url'
+      'semrush_url_keywords'
     ],
     config: {
       tool: (params: Record<string, any>) => {
@@ -95,11 +95,11 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
   inputs: {
     apiKey: { type: 'string', required: true },
     // When a domain is needed.
-    domain: { type: 'string', required: false },
+    domain: { type: 'string', required: true },
     // When a keyword is needed.
-    keyword: { type: 'string', required: false },
+    keyword: { type: 'string', required: true },
     // When a URL is needed.
-    url: { type: 'string', required: false },
+    url: { type: 'string', required: true },
     operation: { type: 'string', required: true }
   },
 
