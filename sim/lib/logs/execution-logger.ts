@@ -492,6 +492,16 @@ export async function persistExecutionLogs(
       .filter((log) => log.success)
       .reduce((sum, log) => sum + log.durationMs, 0)
 
+    // For parallel execution, calculate the actual duration from start to end times
+    let actualDuration = totalDuration
+    if (result.metadata?.startTime && result.metadata?.endTime) {
+      const startTime = result.metadata.startTime
+        ? new Date(result.metadata.startTime).getTime()
+        : 0
+      const endTime = new Date(result.metadata.endTime).getTime()
+      actualDuration = endTime - startTime
+    }
+
     // Get trigger-specific message
     const successMessage = getTriggerSuccessMessage(triggerType)
     const errorPrefix = getTriggerErrorPrefix(triggerType)
@@ -499,7 +509,7 @@ export async function persistExecutionLogs(
     // Create workflow-level metadata with aggregated cost information
     const workflowMetadata: any = {
       traceSpans: (result as any).traceSpans || [],
-      totalDuration: (result as any).totalDuration || totalDuration,
+      totalDuration: (result as any).totalDuration || actualDuration,
     }
 
     // Add accumulated cost data to workflow-level log
@@ -569,7 +579,7 @@ export async function persistExecutionLogs(
       executionId,
       level: result.success ? 'info' : 'error',
       message: result.success ? successMessage : `${errorPrefix} execution failed: ${result.error}`,
-      duration: result.success ? `${totalDuration}ms` : 'NA',
+      duration: result.success ? `${actualDuration}ms` : 'NA',
       trigger: triggerType,
       createdAt: new Date(),
       metadata: workflowMetadata,

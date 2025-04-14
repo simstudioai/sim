@@ -153,14 +153,6 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
     access: ['exa_search', 'exa_get_contents', 'exa_find_similar_links', 'exa_answer'],
     config: {
       tool: (params) => {
-        // Parse comma-separated URLs for Get Contents operation
-        if (params.operation === 'exa_get_contents' && params.urls) {
-          params.urls = params.urls
-            .split(',')
-            .map((url: string) => url.trim())
-            .filter((url: string) => url.length > 0)
-        }
-
         // Convert numResults to a number for operations that use it
         if (params.numResults) {
           params.numResults = Number(params.numResults)

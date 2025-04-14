@@ -38,7 +38,7 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
 
       return url.toString()
     },
-    method: 'PATCH',
+    method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

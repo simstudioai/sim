@@ -51,6 +51,7 @@ export interface TraceSpan {
   status?: 'success' | 'error'
   tokens?: number
   relativeStartMs?: number // Time in ms from the start of the parent span
+  blockId?: string // Added to track the original block ID for relationship mapping
 }
 
 export interface WorkflowLog {

@@ -35,7 +35,7 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
       // Keep fields minimal to reduce chance of rate limits
       const userFields = 'description,profile_image_url,verified,public_metrics'
 
-      return `https://api.x.com/2/users/by/username/${username}?user.fields=${userFields}`
+      return `https://api.twitter.com/2/users/by/username/${username}?user.fields=${userFields}`
     },
     method: 'GET',
     headers: (params) => ({
@@ -74,7 +74,11 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
         // If there's an error object in the response
         if (responseData.errors && responseData.errors.length > 0) {
           const error = responseData.errors[0]
-          throw new Error(`X API error: ${error.detail || error.message || JSON.stringify(error)}`)
+          // Remove the square brackets from the error message
+          const cleanedMessage = error.detail ? error.detail.replace(/\[(.*?)\]/, '$1') : ''
+          throw new Error(
+            `X API error: ${cleanedMessage || error.message || JSON.stringify(error)}`
+          )
         }
         throw new Error('Invalid response format from X API')
       }
@@ -122,7 +126,9 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
       return 'The specified user was not found.'
     }
     if (error.detail) {
-      return `X API error: ${error.detail}`
+      // Remove the square brackets from the error message if present
+      const cleanedDetail = error.detail.replace(/\[(.*?)\]/, '$1')
+      return `X API error: ${cleanedDetail}`
     }
 
     // Extract the message from the error object
@@ -133,6 +139,7 @@ export const userTool: ToolConfig<XUserParams, XUserResponse> = {
       return 'X API rate limit exceeded. Please try again later or use a different X account.'
     }
 
-    return errorMessage
+    // Clean any brackets from the error message
+    return errorMessage.replace(/\[(.*?)\]/g, '$1')
   },
 }

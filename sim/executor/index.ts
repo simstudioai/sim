@@ -126,6 +126,10 @@ export class Executor {
                 pendingBlocks: nextLayer,
                 isDebugSession: true,
                 context: context, // Include context for resumption
+                workflowConnections: this.workflow.connections.map((conn) => ({
+                  source: conn.source,
+                  target: conn.target,
+                })),
               },
               logs: context.blockLogs,
             }
@@ -166,6 +170,10 @@ export class Executor {
           duration: endTime.getTime() - startTime.getTime(),
           startTime: context.metadata.startTime!,
           endTime: context.metadata.endTime!,
+          workflowConnections: this.workflow.connections.map((conn) => ({
+            source: conn.source,
+            target: conn.target,
+          })),
         },
         logs: context.blockLogs,
       }
@@ -223,6 +231,10 @@ export class Executor {
             endTime: context.metadata.endTime!,
             pendingBlocks: [],
             isDebugSession: false,
+            workflowConnections: this.workflow.connections.map((conn) => ({
+              source: conn.source,
+              target: conn.target,
+            })),
           },
           logs: context.blockLogs,
         }
@@ -317,6 +329,7 @@ export class Executor {
       blockLogs: [],
       metadata: {
         startTime: startTime.toISOString(),
+        duration: 0, // Initialize with zero, will be updated throughout execution
       },
       environmentVariables: this.environmentVariables,
       decisions: {
@@ -648,7 +661,8 @@ export class Executor {
     const { setActiveBlocks } = useExecutionStore.getState()
 
     try {
-      setActiveBlocks(new Set(blockIds))
+      // Set all blocks in this layer as active
+      useExecutionStore.setState({ activeBlockIds: new Set(blockIds) })
 
       const results = await Promise.all(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -661,8 +675,10 @@ export class Executor {
       this.pathTracker.updateExecutionPaths(blockIds, context)
 
       return results
-    } finally {
-      setActiveBlocks(new Set())
+    } catch (error) {
+      // If there's an uncaught error, clear all active blocks as a safety measure
+      useExecutionStore.setState({ activeBlockIds: new Set() })
+      throw error
     }
   }
 
@@ -694,6 +710,7 @@ export class Executor {
 
     const blockLog = this.createBlockLog(block)
     const addConsole = useConsoleStore.getState().addConsole
+    const { setActiveBlocks } = useExecutionStore.getState()
 
     try {
       if (block.enabled === false) {
@@ -726,6 +743,14 @@ export class Executor {
       const rawOutput = await handler.execute(block, inputs, context)
       const executionTime = performance.now() - startTime
 
+      // Remove this block from active blocks immediately after execution
+      // This ensures the pulse effect stops as soon as the block completes
+      useExecutionStore.setState((state) => {
+        const updatedActiveBlockIds = new Set(state.activeBlockIds)
+        updatedActiveBlockIds.delete(blockId)
+        return { activeBlockIds: updatedActiveBlockIds }
+      })
+
       // Normalize the output
       const output = this.normalizeBlockOutput(rawOutput, block)
 
@@ -756,6 +781,13 @@ export class Executor {
 
       return output
     } catch (error: any) {
+      // Remove this block from active blocks if there's an error
+      useExecutionStore.setState((state) => {
+        const updatedActiveBlockIds = new Set(state.activeBlockIds)
+        updatedActiveBlockIds.delete(blockId)
+        return { activeBlockIds: updatedActiveBlockIds }
+      })
+
       blockLog.success = false
       blockLog.error =
         error.message ||
