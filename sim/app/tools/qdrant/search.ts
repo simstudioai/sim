@@ -93,7 +93,7 @@ export const searchVectorsTool: ToolConfig<SearchVectorsParams, QdrantResponse> 
 
       const payload: Record<string, any> = {
         vector: parsedVector,
-        limit: limitValue || 10,
+        limit: limitValue,
       };
       if (filterValue !== undefined) {
         payload.filter = filterValue;
@@ -104,6 +104,10 @@ export const searchVectorsTool: ToolConfig<SearchVectorsParams, QdrantResponse> 
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
     console.log("Search response data:", data);
     return {
@@ -112,19 +116,5 @@ export const searchVectorsTool: ToolConfig<SearchVectorsParams, QdrantResponse> 
     };
   },
 
-  transformError: async (error) => {
-    console.error("=== searchVectorsTool transformError called ===");
-    if (error.response) {
-      console.error("HTTP Status:", error.response.status);
-      try {
-        const errorText = await error.response.text();
-        console.error("Error Response Text:", errorText);
-        return errorText || error.message || 'An error occurred while searching vectors';
-      } catch (readErr) {
-        console.error("Error reading error response:", readErr);
-      }
-    }
-    console.error("Full error object:", error);
-    return error.message || 'An error occurred while searching vectors';
-  },
+  transformError: (error) => `Pinecone search failed: ${error.message}`,
 }

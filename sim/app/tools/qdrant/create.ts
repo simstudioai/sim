@@ -58,6 +58,10 @@ export const createCollectionTool: ToolConfig<CreateCollectionParams, QdrantResp
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
     console.log("Create collection response:", data);
     return {
@@ -66,19 +70,5 @@ export const createCollectionTool: ToolConfig<CreateCollectionParams, QdrantResp
     }
   },
 
-  transformError: async (error) => {
-    console.error("=== createCollectionTool transformError called ===");
-    if (error.response) {
-      console.error("HTTP Status:", error.response.status);
-      try {
-        const errorText = await error.response.text();
-        console.error("Error Response Text:", errorText);
-        return errorText || error.message || 'An error occurred while creating the collection';
-      } catch (readErr) {
-        console.error("Error reading error response:", readErr);
-      }
-    }
-    console.error("Full error object:", error);
-    return error.message || 'An error occurred while creating the collection';
-  },
+  transformError: (error) => `Qqrant create failed: ${error.message}`,
 }

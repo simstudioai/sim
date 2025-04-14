@@ -58,6 +58,10 @@ export const upsertVectorsTool: ToolConfig<UpsertVectorsParams, QdrantResponse> 
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
     return {
       success: true,
@@ -65,33 +69,5 @@ export const upsertVectorsTool: ToolConfig<UpsertVectorsParams, QdrantResponse> 
     }
   },
 
-  transformError: async (error) => {
-    try {
-      console.error("=== transformError called ===");
-      console.error("Received error:", error);
-  
-      if (error.response) {
-        console.error("HTTP Status:", error.response.status);
-        try {
-          const errorText = await error.response.text();
-          console.error("Full Error Response Text:", errorText);
-          try {
-            const errorJson = JSON.parse(errorText);
-            console.error("Parsed Error JSON:", errorJson);
-          } catch (jsonParseError) {
-            console.error("Failed to parse error response as JSON:", jsonParseError);
-          }
-          console.error("=== transformError finished ===");
-          return errorText || error.message || 'An error occurred while upserting vectors';
-        } catch (readError) {
-          console.error("Error reading error.response text:", readError);
-        }
-      }
-      console.error("No response property on error. Full error object:", error);
-    } catch (e) {
-      console.error("Error in transformError itself:", e);
-    }
-    console.error("=== transformError ended with no detailed logs ===");
-    return error.message;
-  }
+  transformError: (error) => `Qdrant insert failed: ${error.message}`,
 }

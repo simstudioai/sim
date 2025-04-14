@@ -58,6 +58,10 @@ export const retrieveVectorsTool: ToolConfig<RetrieveVectorsParams, QdrantRespon
   },
 
   transformResponse: async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
     const data = await response.json();
     console.log("Retrieve response data:", data);
     return {
@@ -66,19 +70,5 @@ export const retrieveVectorsTool: ToolConfig<RetrieveVectorsParams, QdrantRespon
     };
   },
 
-  transformError: async (error) => {
-    console.error("=== retrieveVectorsTool transformError called ===");
-    if (error.response) {
-      console.error("HTTP Status:", error.response.status);
-      try {
-        const errorText = await error.response.text();
-        console.error("Error Response Text:", errorText);
-        return errorText || error.message || 'An error occurred while retrieving vectors';
-      } catch (readErr) {
-        console.error("Error reading error response:", readErr);
-      }
-    }
-    console.error("Full error object:", error);
-    return error.message || 'An error occurred while retrieving vectors';
-  },
+  transformError: (error) => `Qdrant fetch failed: ${error.message}`,
 }

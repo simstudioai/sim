@@ -62,7 +62,7 @@ export {
   GoogleDocsBlock,
   WhatsAppBlock,
   GoogleSheetsBlock,
-  QdrantBlock
+  QdrantBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
