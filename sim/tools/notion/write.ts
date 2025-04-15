@@ -1,35 +1,32 @@
 import { ToolConfig } from '../types'
-import { NotionResponse } from './read'
-
-export interface NotionWriteParams {
-  pageId: string
-  content: string
-  apiKey: string
-}
+import { NotionResponse, NotionWriteParams } from './types'
 
 export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   id: 'notion_write',
-  name: 'Notion Writer',
-  description: 'Write content to a Notion page',
+  name: 'Notion Content Appender',
+  description: 'Append content to a Notion page',
   version: '1.0.0',
-
+  oauth: {
+    required: true,
+    provider: 'notion',
+    additionalScopes: ['workspace.content', 'page.write'],
+  },
   params: {
     pageId: {
       type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: 'The ID of the Notion page to write to',
+      description: 'The ID of the Notion page to append content to',
     },
     content: {
       type: 'string',
       required: true,
-      description: 'The content to write to the page',
+      description: 'The content to append to the page',
     },
-    apiKey: {
+    accessToken: {
       type: 'string',
       required: true,
-      requiredForToolCall: true,
-      description: 'Your Notion API key',
+      description: 'Notion OAuth access token',
     },
   },
 
@@ -40,11 +37,18 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
       return `https://api.notion.com/v1/blocks/${formattedId}/children`
     },
     method: 'PATCH',
-    headers: (params: NotionWriteParams) => ({
-      Authorization: `Bearer ${params.apiKey}`,
-      'Notion-Version': '2022-06-28',
-      'Content-Type': 'application/json',
-    }),
+    headers: (params: NotionWriteParams) => {
+      // Validate access token
+      if (!params.accessToken) {
+        throw new Error('Access token is required')
+      }
+
+      return {
+        Authorization: `Bearer ${params.accessToken}`,
+        'Notion-Version': '2022-06-28',
+        'Content-Type': 'application/json',
+      }
+    },
     body: (params: NotionWriteParams) => ({
       children: [
         {
@@ -76,6 +80,6 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to write to Notion page'
+    return error instanceof Error ? error.message : 'Failed to append content to Notion page'
   },
 }
