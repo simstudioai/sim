@@ -69,8 +69,8 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     }
 
     // Now fetch the page content using blocks endpoint
-    const pageId = params?.pageId || ''
-    const accessToken = params?.accessToken || ''
+    const pageId = params?.pageId
+    const accessToken = params?.accessToken
 
     if (!pageId || !accessToken) {
       return {

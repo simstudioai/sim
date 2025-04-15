@@ -33,7 +33,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       requiredScopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       placeholder: 'Select Notion account',
     },
-    // Read/Write/Update operation - Page ID
+    // Read/Write operation - Page ID
     {
       id: 'pageId',
       title: 'Page ID',
@@ -124,7 +124,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
     },
   ],
   tools: {
-    access: ['notion_read', 'notion_write', 'notion_create_page', 'notion_update_page'],
+    access: ['notion_read', 'notion_write', 'notion_create_page'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -141,7 +141,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
       params: (params) => {
         const { credential, operation, properties, ...rest } = params
 
-        // Parse properties from JSON string for create/update operations
+        // Parse properties from JSON string for create operations
         let parsedProperties
         if (operation === 'create_notion' && properties) {
           try {
