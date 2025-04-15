@@ -1,7 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Code, Cpu, ExternalLink } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import {
+  ChevronDown,
+  ChevronDownSquare,
+  ChevronRight,
+  ChevronUpSquare,
+  Code,
+  Cpu,
+  ExternalLink,
+} from 'lucide-react'
 import {
   AgentIcon,
   ApiIcon,
@@ -43,6 +51,36 @@ export function TraceSpansDisplay({
     return startTime < earliest ? startTime : earliest
   }, Infinity)
 
+  // Find the latest end time among all spans
+  const workflowEndTime = traceSpans.reduce((latest, span) => {
+    const endTime = span.endTime ? new Date(span.endTime).getTime() : 0
+    return endTime > latest ? endTime : latest
+  }, 0)
+
+  // Calculate the actual total workflow duration from start to end
+  // This ensures parallel spans are represented correctly in the timeline
+  const actualTotalDuration = workflowEndTime - workflowStartTime
+
+  // Function to collect all span IDs recursively (for expand all functionality)
+  const collectAllSpanIds = (spans: TraceSpan[]): string[] => {
+    const ids: string[] = []
+
+    const collectIds = (span: TraceSpan) => {
+      const spanId = span.id || `span-${span.name}-${span.startTime}`
+      ids.push(spanId)
+
+      // Process children
+      if (span.children && span.children.length > 0) {
+        span.children.forEach(collectIds)
+      }
+    }
+
+    spans.forEach(collectIds)
+    return ids
+  }
+
+  const allSpanIds = useMemo(() => collectAllSpanIds(traceSpans), [traceSpans])
+
   // Handle span toggling
   const handleSpanToggle = (spanId: string, expanded: boolean, hasSubItems: boolean) => {
     const newExpandedSpans = new Set(expandedSpans)
@@ -59,8 +97,49 @@ export function TraceSpansDisplay({
     }
   }
 
+  // Handle expand all / collapse all
+  const handleExpandAll = () => {
+    const newExpandedSpans = new Set(allSpanIds)
+    setExpandedSpans(newExpandedSpans)
+
+    if (onExpansionChange) {
+      onExpansionChange(true)
+    }
+  }
+
+  const handleCollapseAll = () => {
+    setExpandedSpans(new Set())
+
+    if (onExpansionChange) {
+      onExpansionChange(false)
+    }
+  }
+
+  // Determine if all spans are currently expanded
+  const allExpanded = allSpanIds.length > 0 && allSpanIds.every((id) => expandedSpans.has(id))
+
   return (
     <div className="w-full">
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-xs font-medium text-muted-foreground">Trace Spans</div>
+        <button
+          onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          title={allExpanded ? 'Collapse all spans' : 'Expand all spans'}
+        >
+          {allExpanded ? (
+            <>
+              <ChevronUpSquare className="h-3.5 w-3.5" />
+              <span>Collapse</span>
+            </>
+          ) : (
+            <>
+              <ChevronDownSquare className="h-3.5 w-3.5" />
+              <span>Expand</span>
+            </>
+          )}
+        </button>
+      </div>
       <div className="rounded-md border shadow-sm overflow-hidden">
         {traceSpans.map((span, index) => {
           const hasSubItems =
@@ -71,7 +150,9 @@ export function TraceSpansDisplay({
               key={index}
               span={span}
               depth={0}
-              totalDuration={totalDuration}
+              totalDuration={
+                actualTotalDuration !== undefined ? actualTotalDuration : totalDuration
+              }
               isLast={index === traceSpans.length - 1}
               parentStartTime={new Date(span.startTime).getTime()}
               workflowStartTime={workflowStartTime}
@@ -121,14 +202,17 @@ function TraceSpanItem({
   const duration = span.duration || spanEndTime - spanStartTime
   const startOffset = spanStartTime - parentStartTime // Time from parent start to this span's start
 
-  // Calculate the position relative to the workflow start time (for Gantt chart style)
+  // Calculate the position relative to the workflow start time for accurate timeline visualization
+  // For parallel execution, this ensures spans align correctly based on their actual start time
   const relativeStartPercent =
     totalDuration > 0 ? ((spanStartTime - workflowStartTime) / totalDuration) * 100 : 0
-  const durationPercent = totalDuration > 0 ? (duration / totalDuration) * 100 : 0
+
+  // Calculate width based on the span's actual duration relative to total workflow duration
+  const actualDurationPercent = totalDuration > 0 ? (duration / totalDuration) * 100 : 0
 
   // Ensure values are within valid range
   const safeStartPercent = Math.min(100, Math.max(0, relativeStartPercent))
-  const safeWidthPercent = Math.max(2, Math.min(100 - safeStartPercent, durationPercent))
+  const safeWidthPercent = Math.max(2, Math.min(100 - safeStartPercent, actualDurationPercent))
 
   // For parent-relative timing display
   const startOffsetPercentage = totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0
@@ -305,13 +389,26 @@ function TraceSpanItem({
                     : formatRelativeTime(startOffset)}
                 </span>
               )}
+              {depth === 0 && (
+                <span
+                  className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0"
+                  title={`Start time: ${new Date(span.startTime).toLocaleTimeString()}`}
+                >
+                  {new Date(span.startTime).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                  })}
+                </span>
+              )}
             </div>
             <span className="text-xs text-muted-foreground block">{formatDuration(duration)}</span>
           </div>
 
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
             {/* Timeline visualization - responsive width based on container size */}
-            <div className="h-2 bg-accent/40 rounded-full overflow-hidden relative flex-shrink-0 hidden sm:block sm:w-16 md:w-24 lg:w-32 xl:w-40">
+            <div className="h-2 bg-accent/40 rounded-full overflow-hidden relative flex-shrink-0 hidden sm:block sm:w-24 md:w-32 lg:w-40 xl:w-56">
               <div
                 className="h-full rounded-full absolute"
                 style={{
@@ -319,11 +416,12 @@ function TraceSpanItem({
                   width: `${safeWidthPercent}%`,
                   backgroundColor: spanColor,
                 }}
+                title={`Start: ${new Date(span.startTime).toISOString()}, End: ${new Date(span.endTime).toISOString()}, Duration: ${duration}ms`}
               />
             </div>
 
             {/* Duration text - always show in ms */}
-            <span className="text-xs text-muted-foreground w-[52px] text-right font-mono tabular-nums flex-shrink-0">
+            <span className="text-xs text-muted-foreground w-[65px] text-right font-mono tabular-nums flex-shrink-0">
               {`${duration}ms`}
             </span>
           </div>
