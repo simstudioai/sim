@@ -314,6 +314,13 @@ export async function POST(
     }
   })();
   
+  // Store reference to processing task to prevent garbage collection
+  const taskId = `${requestId}:${Date.now()}`;
+  activeProcessingTasks.set(taskId, processingPromise.finally(() => {
+    logger.info(`[${requestId}] Processing complete, removing from active tasks`);
+    activeProcessingTasks.delete(taskId);
+  }));
+  
   // Race processing against timeout to ensure fast response
   return Promise.race([timeoutPromise, processingPromise]);
 }
