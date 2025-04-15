@@ -276,7 +276,7 @@ export async function POST(
   // --- For all other webhook types: Use async processing with timeout ---
   
   // Create timeout promise for fast initial response (2.5 seconds)
-  const timeoutDuration = 2500;
+  const timeoutDuration = 25000;
   const timeoutPromise = new Promise<NextResponse>((resolve) => {
     setTimeout(() => {
       logger.info(`[${requestId}] Fast response timeout activated`);
@@ -313,13 +313,6 @@ export async function POST(
       return new NextResponse(`Internal server error: ${error.message}`, { status: 500 });
     }
   })();
-  
-  // Store reference to processing task to prevent garbage collection
-  const taskId = `${requestId}:${Date.now()}`;
-  activeProcessingTasks.set(taskId, processingPromise.finally(() => {
-    logger.info(`[${requestId}] Processing complete, removing from active tasks`);
-    activeProcessingTasks.delete(taskId);
-  }));
   
   // Race processing against timeout to ensure fast response
   return Promise.race([timeoutPromise, processingPromise]);
