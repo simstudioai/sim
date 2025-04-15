@@ -51,6 +51,7 @@ export async function POST(request: Request) {
 
       // Use executeTool with skipProxy=true to prevent recursive proxy calls, and skipPostProcess=true to prevent duplicate post-processing
       const result = await executeTool(toolId, params, true, true)
+      console.log('result', JSON.stringify(result.output, null, 2))
 
       if (!result.success) {
         logger.warn(`[${requestId}] Tool execution failed`, {

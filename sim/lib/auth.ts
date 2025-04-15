@@ -52,7 +52,15 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
-      trustedProviders: ['google', 'github', 'email-password', 'confluence', 'supabase', 'x'],
+      trustedProviders: [
+        'google',
+        'github',
+        'email-password',
+        'confluence',
+        'supabase',
+        'x',
+        'notion',
+      ],
     },
   },
   socialProviders: {
@@ -484,6 +492,57 @@ export const auth = betterAuth({
           authentication: 'basic',
           prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
+        },
+
+        // Notion provider
+        {
+          providerId: 'notion',
+          clientId: process.env.NOTION_CLIENT_ID as string,
+          clientSecret: process.env.NOTION_CLIENT_SECRET as string,
+          authorizationUrl: 'https://api.notion.com/v1/oauth/authorize',
+          tokenUrl: 'https://api.notion.com/v1/oauth/token',
+          userInfoUrl: 'https://api.notion.com/v1/users/me',
+          scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
+          responseType: 'code',
+          pkce: false, // Notion doesn't support PKCE
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/notion`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.notion.com/v1/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'Notion-Version': '2022-06-28', // Specify the Notion API version
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Notion user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+              const now = new Date()
+
+              return {
+                id: profile.bot?.owner?.user?.id || profile.id,
+                name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
+                email: profile.person?.email || `${profile.id}@notion.user`,
+                image: null, // Notion API doesn't provide profile images
+                emailVerified: profile.person?.email ? true : false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Notion getUserInfo:', { error })
+              return null
+            }
+          },
         },
       ],
     }),
