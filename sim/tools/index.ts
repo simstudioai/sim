@@ -28,7 +28,7 @@ import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
 import { mistralParserTool } from './mistral'
-import { notionReadTool, notionWriteTool } from './notion'
+import { notionCreatePageTool, notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
 import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
 import { perplexityChatTool } from './perplexity'
@@ -86,6 +86,7 @@ export const tools: Record<string, ToolConfig> = {
   youtube_search: youtubeSearchTool,
   notion_read: notionReadTool,
   notion_write: notionWriteTool,
+  notion_create_page: notionCreatePageTool,
   gmail_send: gmailSendTool,
   gmail_read: gmailReadTool,
   gmail_search: gmailSearchTool,

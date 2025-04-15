@@ -9,6 +9,7 @@ import {
   GoogleDriveIcon,
   GoogleIcon,
   GoogleSheetsIcon,
+  NotionIcon,
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'
@@ -24,6 +25,7 @@ export type OAuthProvider =
   | 'supabase'
   | 'confluence'
   | 'airtable'
+  | 'notion'
   | string
 export type OAuthService =
   | 'google'
@@ -36,6 +38,7 @@ export type OAuthService =
   | 'supabase'
   | 'confluence'
   | 'airtable'
+  | 'notion'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -210,6 +213,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'airtable',
   },
+  notion: {
+    id: 'notion',
+    name: 'Notion',
+    icon: (props) => NotionIcon(props),
+    services: {
+      notion: {
+        id: 'notion',
+        name: 'Notion',
+        description: 'Connect to your Notion workspace to manage pages and databases.',
+        providerId: 'notion',
+        icon: (props) => NotionIcon(props),
+        baseProviderIcon: (props) => NotionIcon(props),
+        scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
+      },
+    },
+    defaultService: 'notion',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -260,6 +280,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'confluence'
   } else if (provider === 'airtable') {
     return 'airtable'
+  } else if (provider === 'notion') {
+    return 'notion'
   }
 
   return providerConfig.defaultService
@@ -370,6 +392,11 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
         clientId = process.env.SUPABASE_CLIENT_ID
         clientSecret = process.env.SUPABASE_CLIENT_SECRET
+        break
+      case 'notion':
+        tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
+        clientId = process.env.NOTION_CLIENT_ID
+        clientSecret = process.env.NOTION_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)

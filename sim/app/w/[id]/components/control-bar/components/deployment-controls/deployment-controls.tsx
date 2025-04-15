@@ -101,7 +101,7 @@ export function DeploymentControls({
           content: endpoint,
         },
         {
-          label: 'API Key',
+          label: 'x-api-key',
           content: apiKey,
         },
         {
@@ -134,7 +134,7 @@ export function DeploymentControls({
 
           // Fetch API key from the existing notification
           const apiKey =
-            apiNotification.options?.sections?.find((s) => s.label === 'API Key')?.content || ''
+            apiNotification.options?.sections?.find((s) => s.label === 'x-api-key')?.content || ''
 
           createApiNotification(
             needsRedeployment

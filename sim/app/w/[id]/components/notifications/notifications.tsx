@@ -397,7 +397,8 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
                 {/* Optional sections with copyable content */}
                 {options?.sections?.map((section, index) => {
                   // Get the API key from the sections to use in curl command formatting
-                  const apiKey = options.sections?.find((s) => s.label === 'API Key')?.content || ''
+                  const apiKey =
+                    options.sections?.find((s) => s.label === 'x-api-key')?.content || ''
 
                   return (
                     <div key={index} className="space-y-1.5">
@@ -407,7 +408,7 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
 
                       {/* Copyable code block */}
                       <div className="relative group rounded-md border bg-muted/50 hover:bg-muted/80 transition-colors">
-                        {section.label === 'API Key' ? (
+                        {section.label === 'x-api-key' ? (
                           <>
                             <pre
                               className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto cursor-pointer"
@@ -504,14 +505,6 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
 
                             // Get the response data
                             const data = await response.json()
-
-                            // Get the API key from the existing notification sections
-                            const apiKey =
-                              options?.sections?.find((s) => s.label === 'API Key')?.content || ''
-                            const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
-
-                            // Get input format example for curl command
-                            const inputFormatExample = ''
 
                             // Update deployment status in the store (resets needsRedeployment flag)
                             updateDeploymentStatus(

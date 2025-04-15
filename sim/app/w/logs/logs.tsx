@@ -140,9 +140,6 @@ export default function Logs() {
 
         const data: LogsResponse = await response.json()
 
-        // Log the response to console
-        logger.info('Workflow logs response:', data)
-
         setLogs(data.data)
         setError(null)
       } catch (err) {

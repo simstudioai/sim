@@ -34,7 +34,7 @@ export interface ExaSearchResponse extends ToolResponse {
 
 // Get Contents tool types
 export interface ExaGetContentsParams extends ExaBaseParams {
-  urls: string[]
+  urls: string
   text?: boolean
   summaryQuery?: string
 }

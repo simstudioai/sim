@@ -63,6 +63,13 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'data.records:read': 'Read your records',
   'data.records:write': 'Write to your records',
   'webhook:manage': 'Manage your webhooks',
+  'page.read': 'Read your Notion pages',
+  'page.write': 'Write to your Notion pages',
+  'workspace.content': 'Read your Notion content',
+  'workspace.name': 'Read your Notion workspace name',
+  'workspace.read': 'Read your Notion workspace',
+  'workspace.write': 'Write to your Notion workspace',
+  'user.email:read': 'Read your email address',
 }
 
 // Convert OAuth scope to user-friendly description
