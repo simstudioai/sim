@@ -211,7 +211,8 @@ export function CustomToolModal({
 
       // Check for duplicate tool name
       const toolName = parsed.function.name
-      const existingTools = useCustomToolsStore.getState().getAllTools()
+      const customToolsStore = useCustomToolsStore.getState()
+      const existingTools = customToolsStore.getAllTools()
 
       // If editing, we need to find the original tool to get its ID
       let originalToolId = toolId
@@ -251,22 +252,26 @@ export function CustomToolModal({
       const name = schema.function.name
       const description = schema.function.description || ''
 
+      let finalToolId: string | undefined = originalToolId
+
+      // Only save to the store if we're not reusing an existing tool
       if (isEditing && originalToolId) {
-        // Update existing tool
+        // Update existing tool in store
         updateTool(originalToolId, {
           title: name,
           schema,
           code: functionCode || '',
         })
       } else {
-        // Add new tool
-        originalToolId = addTool({
+        // Add new tool to store
+        finalToolId = addTool({
           title: name,
           schema,
           code: functionCode || '',
         })
       }
 
+      // Create the custom tool object for the parent component
       const customTool: CustomTool = {
         type: 'custom-tool',
         title: name,
@@ -278,7 +283,10 @@ export function CustomToolModal({
         isExpanded: true,
       }
 
+      // Pass the tool to parent component
       onSave(customTool)
+
+      // Close the modal
       handleClose()
     } catch (error) {
       logger.error('Error saving custom tool:', { error })

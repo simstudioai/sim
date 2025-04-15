@@ -1,13 +1,5 @@
 import { useCallback, useState } from 'react'
-import {
-  BrainIcon,
-  CircleSlashIcon,
-  GaugeIcon,
-  PlusIcon,
-  WrenchIcon,
-  XIcon,
-  ZapIcon,
-} from 'lucide-react'
+import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -162,6 +154,33 @@ const initializeToolParams = (
   }
 
   return initialParams
+}
+
+// Helper function to check if a tool has expandable content
+const hasExpandableContent = (
+  isCustomTool: boolean,
+  hasOperations: boolean,
+  operationOptions: { label: string; id: string }[],
+  toolId: string | null | undefined,
+  requiredParams: ToolParam[]
+): boolean => {
+  // Custom tools are always expandable and handle their own content
+  if (isCustomTool) return true
+
+  // Check if it has operations
+  if (hasOperations && operationOptions.length > 0) return true
+
+  // Check if it has OAuth requirements
+  if (toolId) {
+    const oauthConfig = getOAuthConfig(toolId)
+    if (oauthConfig?.required) return true
+  }
+
+  // Check if it has required parameters
+  if (requiredParams.length > 0) return true
+
+  // No expandable content
+  return false
 }
 
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
@@ -568,6 +587,15 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                 ? getRequiredToolParams(toolId)
                 : []
 
+            // Check if the tool has any expandable content
+            const isExpandable = hasExpandableContent(
+              isCustomTool,
+              hasOperations,
+              operationOptions,
+              toolId,
+              requiredParams
+            )
+
             return (
               <div
                 key={`${tool.type}-${toolIndex}`}
@@ -575,18 +603,21 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
               >
                 <div className="flex flex-col rounded-md border bg-card overflow-visible">
                   <div
-                    className="flex items-center justify-between p-2 bg-accent/50 cursor-pointer"
+                    className={cn(
+                      'flex items-center justify-between p-2 bg-accent/50',
+                      isExpandable ? 'cursor-pointer' : 'cursor-default'
+                    )}
                     onClick={() => {
                       if (isCustomTool) {
                         handleEditCustomTool(toolIndex)
-                      } else {
+                      } else if (isExpandable) {
                         toggleToolExpansion(toolIndex)
                       }
                     }}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-shrink-1 overflow-hidden">
                       <div
-                        className="flex items-center justify-center w-5 h-5 rounded"
+                        className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded"
                         style={{
                           backgroundColor: isCustomTool
                             ? '#3B82F6' // blue-500 for custom tools
@@ -599,95 +630,83 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                           <IconComponent icon={toolBlock?.icon} className="w-3 h-3 text-white" />
                         )}
                       </div>
-                      <span
-                        className={`text-sm font-medium truncate ${
-                          isWide ? 'max-w-[134px]' : 'max-w-[180px]'
-                        }`}
-                      >
-                        {tool.title}
-                      </span>
+                      <span className="text-sm font-medium truncate">{tool.title}</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                       {/* Only render the tool usage control if the provider supports it */}
                       {supportsToolControl && (
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Toggle
-                                className="group h-6 w-6 p-0 rounded-sm data-[state=on]:bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 flex items-center justify-center"
-                                pressed={true}
-                                onPressedChange={() => {}}
-                                onClick={(e: React.MouseEvent) => {
-                                  e.stopPropagation()
-                                  // Cycle through the states: auto -> force -> none -> auto
-                                  const currentState = tool.usageControl || 'auto'
-                                  const nextState =
-                                    currentState === 'auto'
-                                      ? 'force'
-                                      : currentState === 'force'
-                                        ? 'none'
-                                        : 'auto'
-                                  handleUsageControlChange(toolIndex, nextState)
-                                }}
-                                aria-label="Toggle tool usage control"
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Toggle
+                              className="group h-6 px-2 py-0 rounded-sm data-[state=on]:bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 flex items-center justify-center"
+                              pressed={true}
+                              onPressedChange={() => {}}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation()
+                                // Cycle through the states: auto -> force -> none -> auto
+                                const currentState = tool.usageControl || 'auto'
+                                const nextState =
+                                  currentState === 'auto'
+                                    ? 'force'
+                                    : currentState === 'force'
+                                      ? 'none'
+                                      : 'auto'
+                                handleUsageControlChange(toolIndex, nextState)
+                              }}
+                              aria-label="Toggle tool usage control"
+                            >
+                              {/* Text boxes instead of icons */}
+                              <span
+                                className={`text-xs font-medium ${
+                                  tool.usageControl === 'auto'
+                                    ? 'block text-muted-foreground'
+                                    : 'hidden'
+                                }`}
                               >
-                                {/* Auto - Brain icon */}
-                                <BrainIcon
-                                  size={14}
-                                  className={`absolute shrink-0 transition-all ${
-                                    tool.usageControl === 'auto'
-                                      ? 'scale-100 opacity-100 text-muted-foreground'
-                                      : 'scale-0 opacity-0'
-                                  }`}
-                                  aria-hidden="true"
-                                />
-
-                                {/* Force - Zap/Lightning icon */}
-                                <ZapIcon
-                                  size={14}
-                                  className={`absolute shrink-0 transition-all ${
-                                    tool.usageControl === 'force'
-                                      ? 'scale-100 opacity-100 text-muted-foreground'
-                                      : 'scale-0 opacity-0'
-                                  }`}
-                                  aria-hidden="true"
-                                />
-
-                                {/* None - Circle slash icon */}
-                                <CircleSlashIcon
-                                  size={14}
-                                  className={`absolute shrink-0 transition-all ${
-                                    tool.usageControl === 'none'
-                                      ? 'scale-100 opacity-100 text-muted-foreground'
-                                      : 'scale-0 opacity-0'
-                                  }`}
-                                  aria-hidden="true"
-                                />
-                              </Toggle>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom" className="p-2 max-w-[240px]">
-                              <p className="text-xs">
-                                {tool.usageControl === 'auto' && (
-                                  <span>
-                                    <span className="font-medium">Auto:</span> Let the agent decide
-                                    when to use the tool
-                                  </span>
-                                )}
-                                {tool.usageControl === 'force' && (
-                                  <span>
-                                    <span className="font-medium">Force:</span> Always use this tool
-                                    in the response
-                                  </span>
-                                )}
-                                {tool.usageControl === 'none' && (
-                                  <span>
-                                    <span className="font-medium">None:</span> Never use this tool
-                                  </span>
-                                )}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                                Auto
+                              </span>
+                              <span
+                                className={`text-xs font-medium ${
+                                  tool.usageControl === 'force'
+                                    ? 'block text-muted-foreground'
+                                    : 'hidden'
+                                }`}
+                              >
+                                Force
+                              </span>
+                              <span
+                                className={`text-xs font-medium ${
+                                  tool.usageControl === 'none'
+                                    ? 'block text-muted-foreground'
+                                    : 'hidden'
+                                }`}
+                              >
+                                Deny
+                              </span>
+                            </Toggle>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="p-2 max-w-[240px]">
+                            <p className="text-xs">
+                              {tool.usageControl === 'auto' && (
+                                <span>
+                                  <span className="font-medium">Auto:</span> Let the agent decide
+                                  when to use the tool
+                                </span>
+                              )}
+                              {tool.usageControl === 'force' && (
+                                <span>
+                                  <span className="font-medium">Force:</span> Always use this tool
+                                  in the response
+                                </span>
+                              )}
+                              {tool.usageControl === 'none' && (
+                                <span>
+                                  <span className="font-medium">Deny:</span> Never use this tool
+                                </span>
+                              )}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                       <button
                         onClick={(e) => {
@@ -701,7 +720,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     </div>
                   </div>
 
-                  {tool.isExpanded && !isCustomTool && (
+                  {tool.isExpanded && !isCustomTool && isExpandable && (
                     <div
                       className="p-3 space-y-3"
                       onClick={(e) => {
