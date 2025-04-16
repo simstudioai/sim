@@ -15,6 +15,9 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
+// Add debug log for NEXT_PUBLIC_APP_URL
+logger.info('NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL)
+
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
 
@@ -369,7 +372,7 @@ export const auth = betterAuth({
             'read:me',
             'offline_access',
           ],
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira`,
+          redirectURI: `https://cdac-47-181-34-169.ngrok-free.app/api/auth/oauth2/callback/jira`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://api.atlassian.com/me', {
