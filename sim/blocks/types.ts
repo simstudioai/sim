@@ -97,6 +97,7 @@ export interface SubBlockConfig {
   password?: boolean
   connectionDroppable?: boolean
   hidden?: boolean
+  description?: string
   value?: (params: Record<string, any>) => string
   condition?: {
     field: string

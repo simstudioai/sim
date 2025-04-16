@@ -14,6 +14,7 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { mem0AddMemoriesTool, mem0SearchMemoriesTool, mem0GetMemoriesTool } from './mem0'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
@@ -109,4 +110,7 @@ export const tools: Record<string, ToolConfig> = {
   thinking_tool: thinkingTool,
   stagehand_extract: stagehandExtractTool,
   stagehand_agent: stagehandAgentTool,
+  mem0_add_memories: mem0AddMemoriesTool,
+  mem0_search_memories: mem0SearchMemoriesTool,
+  mem0_get_memories: mem0GetMemoriesTool,
 } 
