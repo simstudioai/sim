@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { ConsoleEntry, ConsoleStore } from './types'
+import { useChatStore } from '../chat/store'
 
 // MAX across all workflows
 const MAX_ENTRIES = 50
@@ -39,6 +40,28 @@ const redactApiKeys = (obj: any): any => {
   return result
 }
 
+/**
+ * Gets a nested property value from an object using a path string
+ * @param obj The object to get the value from
+ * @param path The path to the value (e.g. 'response.content')
+ * @returns The value at the path, or undefined if not found
+ */
+const getValueByPath = (obj: any, path: string): any => {
+  if (!obj || !path) return undefined;
+  
+  const pathParts = path.split('.');
+  let current = obj;
+  
+  for (const part of pathParts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = current[part];
+  }
+  
+  return current;
+}
+
 export const useConsoleStore = create<ConsoleStore>()(
   devtools(
     persist(
@@ -64,6 +87,57 @@ export const useConsoleStore = create<ConsoleStore>()(
 
             // Keep only the last MAX_ENTRIES
             const newEntries = [newEntry, ...state.entries].slice(0, MAX_ENTRIES)
+
+            // Check if this block matches a selected workflow output
+            if (entry.workflowId && entry.blockName) {
+              const chatStore = useChatStore.getState()
+              const selectedOutputId = chatStore.getSelectedWorkflowOutput(entry.workflowId)
+              
+              if (selectedOutputId) {
+                // The selectedOutputId format is "{blockId}_{path}"
+                // We need to extract both components
+                const idParts = selectedOutputId.split('_');
+                const selectedBlockId = idParts[0];
+                // Reconstruct the path by removing the blockId part
+                const selectedPath = idParts.slice(1).join('.');
+                
+                console.log(`[Chat Output] Selected Output ID: ${selectedOutputId}`);
+                console.log(`[Chat Output] Block ID: ${selectedBlockId}, Path: ${selectedPath}`);
+                console.log(`[Chat Output] Current Block ID: ${entry.blockId}`);
+                
+                // If this block matches the selected output for this workflow
+                if (selectedBlockId && entry.blockId === selectedBlockId) {
+                  // Extract the specific value from the output using the path
+                  let specificValue: any = undefined;
+                  
+                  if (selectedPath) {
+                    specificValue = getValueByPath(entry.output, selectedPath);
+                    console.log(`[Chat Output] Found value:`, specificValue);
+                  } else {
+                    console.log(`[Chat Output] No path specified, using entire output`);
+                    specificValue = entry.output;
+                  }
+                  
+                  // Format the value appropriately for display
+                  let formattedValue: string;
+                  if (specificValue === undefined) {
+                    formattedValue = "Output value not found";
+                  } else if (typeof specificValue === 'object') {
+                    formattedValue = JSON.stringify(specificValue, null, 2);
+                  } else {
+                    formattedValue = String(specificValue);
+                  }
+                  
+                  // Add the specific value to chat, not the whole output
+                  chatStore.addMessage({
+                    content: formattedValue,
+                    workflowId: entry.workflowId,
+                    type: 'workflow',
+                    blockId: entry.blockId,
+                  })
+                }
+              }
+            }
 
             return { entries: newEntries }
           })

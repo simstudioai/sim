@@ -20,7 +20,7 @@ export function Console({ panelWidth }: ConsoleProps) {
 
   return (
     <ScrollArea className="h-full">
-      <div className="pb-16">
+      <div>
         {filteredEntries.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-sm text-muted-foreground pt-4">
             No console entries

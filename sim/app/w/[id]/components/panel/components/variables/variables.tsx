@@ -156,7 +156,7 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-4 pb-16 space-y-3">
+      <div className="p-4 space-y-3">
         {/* Variables List */}
         {workflowVariables.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-sm text-muted-foreground pt-4">

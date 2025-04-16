@@ -775,6 +775,7 @@ export class Executor {
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
         timestamp: blockLog.startedAt,
+        blockId: block.id,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })

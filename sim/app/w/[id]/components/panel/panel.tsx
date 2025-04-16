@@ -3,15 +3,18 @@
 import { useEffect, useState } from 'react'
 import { PanelRight } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { usePanelStore } from '../../../../../stores/panel/store'
+import { Chat } from './components/chat/chat'
 import { Console } from './components/console/console'
 import { Variables } from './components/variables/variables'
 
 export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)
   const [isDragging, setIsDragging] = useState(false)
+  const [chatMessage, setChatMessage] = useState<string>('')
 
   const isOpen = usePanelStore((state) => state.isOpen)
   const togglePanel = usePanelStore((state) => state.togglePanel)
@@ -19,6 +22,7 @@ export function Panel() {
   const setActiveTab = usePanelStore((state) => state.setActiveTab)
 
   const clearConsole = useConsoleStore((state) => state.clearConsole)
+  const clearChat = useChatStore((state) => state.clearChat)
   const { activeWorkflowId } = useWorkflowRegistry()
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -68,7 +72,7 @@ export function Panel() {
 
   return (
     <div
-      className="fixed right-0 top-16 z-10 h-[calc(100vh-4rem)] border-l bg-background"
+      className="fixed right-0 top-16 z-10 h-[calc(100vh-4rem)] border-l bg-background flex flex-col"
       style={{ width: `${width}px` }}
     >
       <div
@@ -76,8 +80,19 @@ export function Panel() {
         onMouseDown={handleMouseDown}
       />
 
-      <div className="flex items-center justify-between h-14 px-4 border-b">
+      {/* Panel Header */}
+      <div className="flex-none flex items-center justify-between h-14 px-4 border-b">
         <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              activeTab === 'chat'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            }`}
+          >
+            Chat
+          </button>
           <button
             onClick={() => setActiveTab('console')}
             className={`px-3 py-1 text-sm rounded-md transition-colors ${
@@ -100,9 +115,11 @@ export function Panel() {
           </button>
         </div>
 
-        {activeTab === 'console' && (
+        {(activeTab === 'console' || activeTab === 'chat') && (
           <button
-            onClick={() => clearConsole(activeWorkflowId)}
+            onClick={() =>
+              activeTab === 'console' ? clearConsole(activeWorkflowId) : clearChat(activeWorkflowId)
+            }
             className={`px-3 py-1 text-sm rounded-md transition-colors ${
               true ? 'text-muted-foreground hover:text-foreground hover:bg-accent/50' : ''
             }`}
@@ -112,20 +129,24 @@ export function Panel() {
         )}
       </div>
 
-      <div className="h-[calc(100%-4rem)]">
-        {activeTab === 'console' ? (
+      {/* Panel Content */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === 'chat' ? (
+          <Chat panelWidth={width} chatMessage={chatMessage} setChatMessage={setChatMessage} />
+        ) : activeTab === 'console' ? (
           <Console panelWidth={width} />
         ) : (
           <Variables panelWidth={width} />
         )}
       </div>
 
-      <div className="absolute left-0 right-0 bottom-0 h-16 bg-background border-t">
+      {/* Panel Footer */}
+      <div className="flex-none h-16 bg-background border-t flex items-center">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               onClick={togglePanel}
-              className="absolute left-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+              className="ml-4 flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
             >
               <PanelRight className="h-5 w-5 transform rotate-180" />
               <span className="sr-only">Close Panel</span>
