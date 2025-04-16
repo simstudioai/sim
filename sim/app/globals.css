@@ -166,6 +166,10 @@
     display: none;
   }
 
+  .animate-orbit {
+    animation: orbit calc(var(--duration, 2) * 1s) linear infinite;
+  }
+
   /* Code Editor Streaming Effect */
   @keyframes code-shimmer {
     0% {
@@ -175,6 +179,15 @@
       transform: translateX(100%);
     }
   }
+
+  @keyframes orbit {
+    0% {
+      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
+      }
+    100% {
+      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg));
+      }
+    }
 
   .streaming-effect {
     @apply relative overflow-hidden;
