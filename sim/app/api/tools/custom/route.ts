@@ -88,22 +88,51 @@ export async function POST(req: NextRequest) {
       // Validate the request body
       const { tools } = CustomToolSchema.parse(body)
       
-      // Process each tool: either update existing or create new
-      for (const tool of tools) {
-        const nowTime = new Date()
-        
-        if (tool.id) {
-          // First check if this tool belongs to the user
-          const existingTool = await db
-            .select()
-            .from(customTools)
-            .where(eq(customTools.id, tool.id))
-            .limit(1)
-            
-          if (existingTool.length === 0) {
-            // Tool doesn't exist, create it
-            await db.insert(customTools).values({
-              id: tool.id,
+      // Use a transaction for multi-step database operations
+      return await db.transaction(async (tx) => {
+        // Process each tool: either update existing or create new
+        for (const tool of tools) {
+          const nowTime = new Date()
+          
+          if (tool.id) {
+            // First check if this tool belongs to the user
+            const existingTool = await tx
+              .select()
+              .from(customTools)
+              .where(eq(customTools.id, tool.id))
+              .limit(1)
+              
+            if (existingTool.length === 0) {
+              // Tool doesn't exist, create it
+              await tx.insert(customTools).values({
+                id: tool.id,
+                userId: session.user.id,
+                title: tool.title,
+                schema: tool.schema,
+                code: tool.code,
+                createdAt: nowTime,
+                updatedAt: nowTime,
+              })
+            } else if (existingTool[0].userId === session.user.id) {
+              // Tool exists and belongs to user, update it
+              await tx
+                .update(customTools)
+                .set({
+                  title: tool.title,
+                  schema: tool.schema,
+                  code: tool.code,
+                  updatedAt: nowTime,
+                })
+                .where(eq(customTools.id, tool.id))
+            } else {
+              // Log and silently continue if user attempts to update a tool they don't own
+              logger.warn(`[${requestId}] Silent continuation on unauthorized tool update attempt: ${tool.id}`)
+              continue
+            }
+          } else {
+            // No ID provided, create a new tool
+            await tx.insert(customTools).values({
+              id: crypto.randomUUID(),
               userId: session.user.id,
               title: tool.title,
               schema: tool.schema,
@@ -111,37 +140,11 @@ export async function POST(req: NextRequest) {
               createdAt: nowTime,
               updatedAt: nowTime,
             })
-          } else if (existingTool[0].userId === session.user.id) {
-            // Tool exists and belongs to user, update it
-            await db
-              .update(customTools)
-              .set({
-                title: tool.title,
-                schema: tool.schema,
-                code: tool.code,
-                updatedAt: nowTime,
-              })
-              .where(eq(customTools.id, tool.id))
-          } else {
-            logger.warn(`[${requestId}] User attempted to update a tool they don't own: ${tool.id}`)
-            // Skip this tool as it doesn't belong to the user
-            continue
           }
-        } else {
-          // No ID provided, create a new tool
-          await db.insert(customTools).values({
-            id: crypto.randomUUID(),
-            userId: session.user.id,
-            title: tool.title,
-            schema: tool.schema,
-            code: tool.code,
-            createdAt: nowTime,
-            updatedAt: nowTime,
-          })
         }
-      }
-      
-      return NextResponse.json({ success: true })
+        
+        return NextResponse.json({ success: true })
+      });
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
         logger.warn(`[${requestId}] Invalid custom tools data`, {

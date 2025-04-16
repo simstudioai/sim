@@ -97,6 +97,15 @@ describe('Custom Tools API Routes', () => {
         insert: mockInsert,
         update: mockUpdate,
         delete: mockDelete,
+        transaction: vi.fn().mockImplementation(async (callback) => {
+          // Execute the callback with a transaction object that has the same methods
+          return await callback({
+            select: mockSelect,
+            insert: mockInsert,
+            update: mockUpdate,
+            delete: mockDelete,
+          });
+        }),
       },
     }))
 

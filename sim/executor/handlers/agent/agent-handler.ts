@@ -237,7 +237,7 @@ export class AgentBlockHandler implements BlockHandler {
                     list: result.toolCalls.map((tc: any) => ({
                       ...tc,
                       // Strip the 'custom_' prefix from tool names for display
-                      name: stripCustomPrefix(tc.name),
+                      name: stripCustomToolPrefix(tc.name),
                       // Preserve timing information if available
                       startTime: tc.startTime,
                       endTime: tc.endTime,
@@ -273,7 +273,7 @@ export class AgentBlockHandler implements BlockHandler {
                   ? result.toolCalls.map((tc: any) => ({
                       ...tc,
                       // Strip the 'custom_' prefix from tool names for display
-                      name: stripCustomPrefix(tc.name),
+                      name: stripCustomToolPrefix(tc.name),
                       // Preserve timing information if available
                       startTime: tc.startTime,
                       endTime: tc.endTime,
@@ -306,7 +306,7 @@ export class AgentBlockHandler implements BlockHandler {
               ? result.toolCalls.map((tc: any) => ({
                   ...tc,
                   // Strip the 'custom_' prefix from tool names for display
-                  name: stripCustomPrefix(tc.name),
+                  name: stripCustomToolPrefix(tc.name),
                   // Preserve timing information if available
                   startTime: tc.startTime,
                   endTime: tc.endTime,
@@ -328,6 +328,6 @@ export class AgentBlockHandler implements BlockHandler {
   }
 }
 
-function stripCustomPrefix(name: string) {
+export function stripCustomToolPrefix(name: string) {
   return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }

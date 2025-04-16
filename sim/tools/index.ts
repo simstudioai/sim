@@ -434,7 +434,7 @@ async function handleInternalRequest(
     // Prepare request options
     const requestOptions = {
       method: requestParams.method,
-      headers: requestParams.headers,
+      headers: new Headers(requestParams.headers),
       body: requestParams.body,
     };
 
@@ -564,7 +564,7 @@ function validateClientSideParams(
   }
 
   // Internal parameters that should be excluded from validation
-  const internalParams = ['_context', 'workflowId']
+  const internalParamSet = new Set(['_context', 'workflowId'])
 
   // Check required parameters
   if (schema.required) {
@@ -578,7 +578,7 @@ function validateClientSideParams(
   // Check parameter types (basic validation)
   for (const [paramName, paramValue] of Object.entries(params)) {
     // Skip validation for internal parameters
-    if (internalParams.includes(paramName)) {
+    if (internalParamSet.has(paramName)) {
       continue
     }
     

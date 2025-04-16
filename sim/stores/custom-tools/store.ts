@@ -32,6 +32,25 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
               throw new Error('Invalid response format')
             }
             
+            // Validate each tool object's structure before processing
+            data.forEach((tool, index) => {
+              if (!tool || typeof tool !== 'object') {
+                throw new Error(`Invalid tool format at index ${index}: not an object`)
+              }
+              if (!tool.id || typeof tool.id !== 'string') {
+                throw new Error(`Invalid tool format at index ${index}: missing or invalid id`)
+              }
+              if (!tool.title || typeof tool.title !== 'string') {
+                throw new Error(`Invalid tool format at index ${index}: missing or invalid title`)
+              }
+              if (!tool.schema || typeof tool.schema !== 'object') {
+                throw new Error(`Invalid tool format at index ${index}: missing or invalid schema`)
+              }
+              if (!tool.code || typeof tool.code !== 'string') {
+                throw new Error(`Invalid tool format at index ${index}: missing or invalid code`)
+              }
+            })
+            
             // Transform to local format and set
             const transformedTools = data.reduce(
               (acc, tool) => ({
@@ -62,6 +81,12 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
               error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false
             })
+            
+            // Add a delay before reloading to prevent race conditions
+            setTimeout(() => {
+              // Reload from server to ensure consistency
+              get().loadCustomTools()
+            }, 500)
           }
         },
 
@@ -110,8 +135,11 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
               isLoading: false
             })
             
-            // Reload from server to ensure consistency
-            get().loadCustomTools()
+            // Add a delay before reloading to prevent race conditions
+            setTimeout(() => {
+              // Reload from server to ensure consistency
+              get().loadCustomTools()
+            }, 500)
           }
         },
 

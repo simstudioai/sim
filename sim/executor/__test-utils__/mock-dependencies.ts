@@ -63,3 +63,6 @@ vi.mock('@/blocks')
 
 // Mock fetch for server requests
 global.fetch = vi.fn()
+
+// Mock process.env
+process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'

@@ -2,8 +2,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { TableRow } from './types'
 import { ToolConfig, ToolResponse } from './types'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { tools } from '.'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { tools } from '@/tools'
 
 const logger = createLogger('Tools Utils')
 
@@ -337,7 +337,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
 
           // Add environment variables to the params
           Object.entries(envVars).forEach(([key, variable]) => {
-            if (variable.value && !mergedParams[key]) {
+            if (mergedParams[key] === undefined && variable.value) {
               mergedParams[key] = variable.value
             }
           })
@@ -352,7 +352,8 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
             // Look for the variable in our environment store first, then in params
             const envVar = envVars[varName]
             const varValue = envVar ? envVar.value : mergedParams[varName] || ''
-            resolvedCode = resolvedCode.replace(match, varValue)
+            
+            resolvedCode = resolvedCode.replaceAll(match, varValue)
           }
 
           // Resolve tags with <tag_name> syntax
