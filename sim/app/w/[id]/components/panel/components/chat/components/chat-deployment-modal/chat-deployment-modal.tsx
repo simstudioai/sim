@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 
 const logger = createLogger('ChatbotDeploymentModal')
 
@@ -76,6 +77,8 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
   // Existing chatbot state
   const [existingChatbot, setExistingChatbot] = useState<any | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [dataFetched, setDataFetched] = useState(false)
   
   // Confirmation dialogs
   const [showEditConfirmation, setShowEditConfirmation] = useState(false)
@@ -84,6 +87,8 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
   // Fetch existing chatbot data when modal opens
   useEffect(() => {
     if (isOpen && workflowId) {
+      setIsLoading(true)
+      setDataFetched(false)
       fetchExistingChatbot()
     }
   }, [isOpen, workflowId])
@@ -125,6 +130,9 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       }
     } catch (error) {
       logger.error('Error fetching chatbot status:', error)
+    } finally {
+      setIsLoading(false)
+      setDataFetched(true)
     }
   }
 
@@ -146,6 +154,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setNewEmail('')
       setEmailError('')
       setExistingChatbot(null)
+      setDataFetched(false)
       onClose()
     }
   }
@@ -374,7 +383,14 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
             </DialogDescription>
           </DialogHeader>
 
-          {deployedChatbotUrl ? (
+          {isLoading && (
+            <div className="py-12 flex flex-col items-center justify-center space-y-4">
+              <LoadingAgent size="lg" />
+              <p className="text-sm text-muted-foreground">Loading chatbot information...</p>
+            </div>
+          )}
+
+          {!isLoading && deployedChatbotUrl ? (
             // Success view
             <div className="space-y-6 py-4">
               <Card className="border-green-200 bg-green-50">
@@ -405,7 +421,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                 </ul>
               </div>
             </div>
-          ) : (
+          ) : !isLoading && dataFetched ? (
             // Form view
             <form onSubmit={handleSubmit} className="space-y-6 py-4">
               <div className="grid gap-6">
@@ -748,7 +764,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                 </div>
               </DialogFooter>
             </form>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
 
