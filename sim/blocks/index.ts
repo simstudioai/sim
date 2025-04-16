@@ -18,6 +18,7 @@ import { GmailBlock } from './blocks/gmail'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
+
 import { MistralParseBlock } from './blocks/mistral-parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
