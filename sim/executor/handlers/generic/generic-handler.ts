@@ -1,7 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { BlockOutput } from '@/blocks/types'
 import { SerializedBlock } from '@/serializer/types'
-import { executeTool, getTool } from '@/tools'
+import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
 import { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('GenericBlockHandler')

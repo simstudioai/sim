@@ -1,342 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { CustomToolDefinition } from '@/stores/custom-tools/types'
-import { EnvironmentVariable } from '@/stores/settings/environment/types'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import {
-  airtableCreateRecordsTool,
-  airtableGetRecordTool,
-  airtableListRecordsTool,
-  airtableUpdateRecordTool,
-} from '@/tools/airtable'
-import { autoblocksPromptManagerTool } from '@/tools/autoblocks'
-import { browserUseRunTaskTool } from './browserUse'
-import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
-import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
-import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
-import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
-import { fileParseTool } from './file'
-import { scrapeTool } from './firecrawl/scrape'
-import { functionExecuteTool } from './function'
-import {
-  githubCommentTool,
-  githubLatestCommitTool,
-  githubPrTool,
-  githubRepoInfoTool,
-} from './github'
-import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
-import { guestyGuestTool, guestyReservationTool } from './guesty'
-import { requestTool as httpRequest } from './http/request'
-import { contactsTool as hubspotContacts } from './hubspot/contacts'
-import { readUrlTool } from './jina/reader'
-import { 
-  mem0AddMemoriesTool, 
-  mem0SearchMemoriesTool, 
-  mem0GetMemoriesTool, 
-} from './mem0'
-import { mistralParserTool } from './mistral'
-import { notionCreatePageTool, notionReadTool, notionWriteTool } from './notion'
-import { dalleTool } from './openai/dalle'
-import { embeddingsTool as openAIEmbeddings } from './openai/embeddings'
-import { perplexityChatTool } from './perplexity'
-import {
-  pineconeFetchTool,
-  pineconeGenerateEmbeddingsTool,
-  pineconeSearchTextTool,
-  pineconeSearchVectorTool,
-  pineconeUpsertTextTool,
-} from './pinecone'
-import { redditHotPostsTool } from './reddit'
-import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
-import { searchTool as serperSearch } from './serper/search'
-import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
-import { slackMessageTool } from './slack/message'
-import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
-import { supabaseInsertTool, supabaseQueryTool } from './supabase'
-import { tavilyExtractTool, tavilySearchTool } from './tavily'
-import { thinkingTool } from './thinking/thinking'
-import { sendSMSTool } from './twilio/send'
-import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
+import { getToolAsync, getTool } from './utils'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, transformTable, validateToolRequest } from './utils'
-import { visionTool } from './vision/vision'
-import { whatsappSendMessageTool } from './whatsapp'
-import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
-import { youtubeSearchTool } from './youtube/search'
+import { formatRequestParams, validateToolRequest } from './utils'
 
 const logger = createLogger('Tools')
-
-// Add type declaration for process if @types/node is not installed
-declare const process: {
-  env: {
-    NEXT_PUBLIC_APP_URL?: string;
-    [key: string]: string | undefined;
-  };
-};
-
-// Registry of all available tools
-export const tools: Record<string, ToolConfig> = {
-  browser_use_run_task: browserUseRunTaskTool,
-  autoblocks_prompt_manager: autoblocksPromptManagerTool,
-  openai_embeddings: openAIEmbeddings,
-  http_request: httpRequest,
-  hubspot_contacts: hubspotContacts,
-  salesforce_opportunities: salesforceOpportunities,
-  function_execute: functionExecuteTool,
-  vision_tool: visionTool,
-  file_parser: fileParseTool,
-  firecrawl_scrape: scrapeTool,
-  jina_readurl: readUrlTool,
-  slack_message: slackMessageTool,
-  github_repoinfo: githubRepoInfoTool,
-  github_latest_commit: githubLatestCommitTool,
-  serper_search: serperSearch,
-  tavily_search: tavilySearchTool,
-  tavily_extract: tavilyExtractTool,
-  supabase_query: supabaseQueryTool,
-  supabase_insert: supabaseInsertTool,
-  typeform_responses: typeformResponsesTool,
-  typeform_files: typeformFilesTool,
-  typeform_insights: typeformInsightsTool,
-  youtube_search: youtubeSearchTool,
-  notion_read: notionReadTool,
-  notion_write: notionWriteTool,
-  notion_create_page: notionCreatePageTool,
-  gmail_send: gmailSendTool,
-  gmail_read: gmailReadTool,
-  gmail_search: gmailSearchTool,
-  whatsapp_send_message: whatsappSendMessageTool,
-  x_write: xWriteTool,
-  x_read: xReadTool,
-  x_search: xSearchTool,
-  x_user: xUserTool,
-  pinecone_fetch: pineconeFetchTool,
-  pinecone_generate_embeddings: pineconeGenerateEmbeddingsTool,
-  pinecone_search_text: pineconeSearchTextTool,
-  pinecone_search_vector: pineconeSearchVectorTool,
-  pinecone_upsert_text: pineconeUpsertTextTool,
-  perplexity_chat: perplexityChatTool,
-  mem0_add_memories: mem0AddMemoriesTool,
-  mem0_search_memories: mem0SearchMemoriesTool,
-  mem0_get_memories: mem0GetMemoriesTool,
-  mistral_parser: mistralParserTool,
-  exa_search: exaSearchTool,
-  exa_answer: exaAnswerTool,
-  exa_find_similar_links: exaFindSimilarLinksTool,
-  exa_get_contents: exaGetContentsTool,
-  airtable_create_records: airtableCreateRecordsTool,
-  airtable_get_record: airtableGetRecordTool,
-  airtable_list_records: airtableListRecordsTool,
-  airtable_update_record: airtableUpdateRecordTool,
-  docs_create: docsCreateTool,
-  docs_read: docsReadTool,
-  docs_write: docsWriteTool,
-  drive_download: driveDownloadTool,
-  drive_list: driveListTool,
-  drive_upload: driveUploadTool,
-  github_comment: githubCommentTool,
-  github_pr: githubPrTool,
-  guesty_guest: guestyGuestTool,
-  guesty_reservation: guestyReservationTool,
-  reddit_hot_posts: redditHotPostsTool,
-  sheets_read: sheetsReadTool,
-  sheets_update: sheetsUpdateTool,
-  sheets_write: sheetsWriteTool,
-  stagehand_agent: stagehandAgentTool,
-  stagehand_extract: stagehandExtractTool,
-  thinking: thinkingTool,
-  twilio_send_sms: sendSMSTool,
-}
-
-// Get a tool by its ID
-export function getTool(toolId: string): ToolConfig | undefined {
-  // Check for built-in tools
-  const builtInTool = tools[toolId]
-  if (builtInTool) return builtInTool
-
-  // Check if it's a custom tool
-  if (toolId.startsWith('custom_')) {
-    return getCustomTool(toolId)
-  }
-
-  return undefined
-}
-
-// Check if we're running in the browser
-function isBrowser(): boolean {
-  return typeof window !== 'undefined'
-}
-
-// Check if Freestyle is available
-function isFreestyleAvailable(): boolean {
-  return isBrowser() && !!window.crossOriginIsolated
-}
-
-// Create a tool config from a custom tool definition
-function getCustomTool(customToolId: string): ToolConfig | undefined {
-  // Extract the identifier part (could be UUID or title)
-  const identifier = customToolId.replace('custom_', '')
-
-  const customToolsStore = useCustomToolsStore.getState()
-
-  // Try to find the tool directly by ID first
-  let customTool = customToolsStore.getTool(identifier)
-
-  // If not found by ID, try to find by title (for backward compatibility)
-  if (!customTool) {
-    const allTools = customToolsStore.getAllTools()
-    customTool = allTools.find((tool: CustomToolDefinition) => tool.title === identifier)
-  }
-
-  if (!customTool) {
-    logger.error(`Custom tool not found: ${identifier}`)
-    return undefined
-  }
-
-  // Create a parameter schema from the custom tool schema
-  const params: Record<string, any> = {}
-
-  if (customTool.schema.function?.parameters?.properties) {
-    Object.entries(customTool.schema.function.parameters.properties).forEach(([key, config]) => {
-      params[key] = {
-        type: (config as { type?: string; description?: string }).type || 'string',
-        required: customTool.schema.function.parameters.required?.includes(key) || false,
-        requiredForToolCall: customTool.schema.function.parameters.required?.includes(key) || false,
-        description: (config as { type?: string; description?: string }).description || '',
-      }
-    })
-  }
-
-  // Create a tool config for the custom tool
-  return {
-    id: customToolId,
-    name: customTool.title,
-    description: customTool.schema.function?.description || '',
-    version: '1.0.0',
-    params,
-
-    // Request configuration - for custom tools we'll use the execute endpoint
-    request: {
-      url: '/api/function/execute',
-      method: 'POST',
-      headers: () => ({ 'Content-Type': 'application/json' }),
-      body: (params: Record<string, any>) => {
-        // Get environment variables from the store
-        const envStore = useEnvironmentStore.getState()
-        const allEnvVars = envStore.getAllVariables()
-
-        // Convert environment variables to a simple key-value object
-        const envVars = Object.entries(allEnvVars).reduce(
-          (acc, [key, variable]) => {
-            acc[key] = (variable as EnvironmentVariable).value
-            return acc
-          },
-          {} as Record<string, string>
-        )
-
-        // Include everything needed for execution
-        return {
-          code: customTool.code,
-          params: params, // These will be available in the VM context
-          schema: customTool.schema.function.parameters, // For validation on the client side
-          envVars: envVars, // Pass environment variables for server-side resolution
-        }
-      },
-      isInternalRoute: true,
-    },
-
-    // Direct execution support for browser environment with Freestyle
-    directExecution: async (params: Record<string, any>) => {
-      // If there's no code, we can't execute directly
-      if (!customTool.code) {
-        return {
-          success: false,
-          output: {},
-          error: 'No code provided for tool execution',
-        }
-      }
-
-      // If we're in a browser with Freestyle available, use it
-      if (isFreestyleAvailable()) {
-        try {
-          // Get environment variables from the store
-          const envStore = useEnvironmentStore.getState()
-          const envVars = envStore.getAllVariables()
-
-          // Create a merged params object that includes environment variables
-          const mergedParams = { ...params }
-
-          // Add environment variables to the params
-          Object.entries(envVars).forEach(([key, variable]) => {
-            if ((variable as EnvironmentVariable).value && !mergedParams[key]) {
-              mergedParams[key] = (variable as EnvironmentVariable).value
-            }
-          })
-
-          // Resolve environment variables and tags in the code
-          let resolvedCode = customTool.code
-
-          // Resolve environment variables with {{var_name}} syntax
-          const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
-          for (const match of envVarMatches) {
-            const varName = match.slice(2, -2).trim()
-            // Look for the variable in our environment store first, then in params
-            const envVar = envVars[varName]
-            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
-            resolvedCode = resolvedCode.replace(match, varValue)
-          }
-
-          // Resolve tags with <tag_name> syntax
-          const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
-          for (const match of tagMatches) {
-            const tagName = match.slice(1, -1).trim()
-            const tagValue = mergedParams[tagName] || ''
-            resolvedCode = resolvedCode.replace(match, tagValue)
-          }
-
-          // Dynamically import Freestyle to execute code
-          const { executeCode } = await import('@/lib/freestyle')
-
-          const result = await executeCode(resolvedCode, mergedParams)
-
-          if (!result.success) {
-            throw new Error(result.error || 'Freestyle execution failed')
-          }
-
-          return {
-            success: true,
-            output: result.output.result || result.output,
-            error: undefined,
-          }
-        } catch (error: any) {
-          logger.warn('Freestyle execution failed, falling back to API:', error.message)
-          // Fall back to API route if Freestyle fails
-          return undefined
-        }
-      }
-
-      // No Freestyle or not in browser, return undefined to use regular API route
-      return undefined
-    },
-
-    // Response handling
-    transformResponse: async (response: Response, params: Record<string, any>) => {
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Custom tool execution failed')
-      }
-
-      return {
-        success: true,
-        output: data.output.result || data.output,
-        error: undefined,
-      }
-    },
-    transformError: async (error: any) =>
-      `Custom tool execution error: ${error.message || 'Unknown error'}`,
-  }
-}
 
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
 export async function executeTool(
@@ -350,7 +17,17 @@ export async function executeTool(
   const startTimeISO = startTime.toISOString()
 
   try {
-    const tool = getTool(toolId)
+    let tool: ToolConfig | undefined
+    
+    // If it's a custom tool, use the async version with workflowId
+    if (toolId.startsWith('custom_')) {
+      const workflowId = params._context?.workflowId
+      tool = await getToolAsync(toolId, workflowId)
+    } else {
+      // For built-in tools, use the synchronous version
+      tool = getTool(toolId)
+    }
+    
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
 
@@ -522,19 +199,6 @@ export async function executeTool(
   } catch (error: any) {
     logger.error(`Error executing tool ${toolId}:`, { error })
 
-    // For custom tools, provide more helpful error information
-    if (toolId.startsWith('custom_')) {
-      const identifier = toolId.replace('custom_', '')
-      const allTools = useCustomToolsStore.getState().getAllTools()
-      const availableTools = allTools.map((t: CustomToolDefinition) => ({
-        id: t.id,
-        title: t.title,
-      }))
-
-      logger.error('Available custom tools:', availableTools)
-      logger.error(`Looking for custom tool with identifier: ${identifier}`)
-    }
-
     // Process the error to ensure we have a useful message
     let errorMessage = 'Unknown error occurred'
     let errorDetails = {}
@@ -630,21 +294,31 @@ async function handleInternalRequest(
     if (toolId.startsWith('custom_') && tool.request.body) {
       const requestBody = tool.request.body(params)
       if (requestBody.schema && requestBody.params) {
-        validateClientSideParams(requestBody.params, requestBody.schema)
+        try {
+          validateClientSideParams(requestBody.params, requestBody.schema)
+        } catch (validationError) {
+          logger.error(`Custom tool params validation failed: ${validationError}`)
+          throw validationError
+        }
       }
     }
 
-    const response = await fetch(fullUrl, {
+    // Prepare request options
+    const requestOptions = {
       method: requestParams.method,
-      headers: requestParams.headers,
+      headers: new Headers(requestParams.headers),
       body: requestParams.body,
-    })
+    };
+
+    const response = await fetch(fullUrl, requestOptions)
 
     if (!response.ok) {
-      let errorData
+      let errorData;
       try {
         errorData = await response.json()
-      } catch {
+        logger.error(`Error response data: ${JSON.stringify(errorData)}`)
+      } catch (e) {
+        logger.error(`Failed to parse error response: ${e}`)
         throw new Error(response.statusText || `Request failed with status ${response.status}`)
       }
 
@@ -659,18 +333,29 @@ async function handleInternalRequest(
 
     // Use the tool's response transformer if available
     if (tool.transformResponse) {
-      return await tool.transformResponse(response, params)
+      try {
+        const data = await tool.transformResponse(response, params)
+        return data
+      } catch (transformError) {
+        logger.error(`Error in tool.transformResponse: ${transformError}`)
+        throw transformError
+      }
     }
 
     // Default response handling
-    const data = await response.json()
-    return {
-      success: true,
-      output: data.output || data,
-      error: undefined,
+    try {
+      const data = await response.json()
+      return {
+        success: true,
+        output: data.output || data,
+        error: undefined,
+      }
+    } catch (jsonError) {
+      logger.error(`Error parsing JSON response: ${jsonError}`)
+      throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
     }
   } catch (error: any) {
-    logger.error(`Error executing internal tool ${toolId}:`, { error })
+    logger.error(`Error executing internal tool ${toolId}:`, { error: error.stack || error.message || error })
 
     // Use the tool's error transformer if available
     if (tool.transformError) {
@@ -750,6 +435,9 @@ function validateClientSideParams(
     throw new Error('Invalid schema format')
   }
 
+  // Internal parameters that should be excluded from validation
+  const internalParamSet = new Set(['_context', 'workflowId'])
+
   // Check required parameters
   if (schema.required) {
     for (const requiredParam of schema.required) {
@@ -761,6 +449,11 @@ function validateClientSideParams(
 
   // Check parameter types (basic validation)
   for (const [paramName, paramValue] of Object.entries(params)) {
+    // Skip validation for internal parameters
+    if (internalParamSet.has(paramName)) {
+      continue
+    }
+    
     const paramSchema = schema.properties[paramName]
     if (!paramSchema) {
       throw new Error(`Unknown parameter: ${paramName}`)

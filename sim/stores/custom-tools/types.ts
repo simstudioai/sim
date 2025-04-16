@@ -22,6 +22,10 @@ export interface CustomToolDefinition {
 
 export interface CustomToolsStore {
   tools: Record<string, CustomToolDefinition>
+  isLoading: boolean
+  error: string | null
+  
+  // CRUD operations
   addTool: (tool: Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>) => string
   updateTool: (
     id: string,
@@ -30,4 +34,8 @@ export interface CustomToolsStore {
   removeTool: (id: string) => void
   getTool: (id: string) => CustomToolDefinition | undefined
   getAllTools: () => CustomToolDefinition[]
+  
+  // Server sync operations
+  loadCustomTools: () => Promise<void>
+  sync: () => Promise<void>
 }

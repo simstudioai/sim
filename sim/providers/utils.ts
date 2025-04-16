@@ -60,7 +60,6 @@ export const providers: Record<
     ...groqProvider,
     models: [
       'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-      'groq/llama-3.3-70b-specdec',
       'groq/deepseek-r1-distill-llama-70b',
       'groq/qwen-2.5-32b',
     ],
@@ -306,15 +305,16 @@ export function getCustomTools(): ProviderToolConfig[] {
  * @param options Additional options including dependencies and selected operation
  * @returns The provider tool config or null if transform fails
  */
-export function transformBlockTool(
+export async function transformBlockTool(
   block: any,
   options: {
     selectedOperation?: string
     getAllBlocks: () => any[]
     getTool: (toolId: string) => any
+    getToolAsync?: (toolId: string) => Promise<any>
   }
-): ProviderToolConfig | null {
-  const { selectedOperation, getAllBlocks, getTool } = options
+): Promise<ProviderToolConfig | null> {
+  const { selectedOperation, getAllBlocks, getTool, getToolAsync } = options
 
   // Get the block definition
   const blockDef = getAllBlocks().find((b: any) => b.type === block.type)
@@ -357,8 +357,17 @@ export function transformBlockTool(
     return null
   }
 
-  // Get the tool config
-  const toolConfig = getTool(toolId)
+  // Get the tool config - check if it's a custom tool that needs async fetching
+  let toolConfig: any
+  
+  if (toolId.startsWith('custom_') && getToolAsync) {
+    // Use the async version for custom tools
+    toolConfig = await getToolAsync(toolId)
+  } else {
+    // Use the synchronous version for built-in tools
+    toolConfig = getTool(toolId)
+  }
+  
   if (!toolConfig) {
     logger.warn(`Tool config not found for ID: ${toolId}`)
     return null

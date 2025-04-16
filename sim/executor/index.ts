@@ -775,6 +775,7 @@ export class Executor {
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
         timestamp: blockLog.startedAt,
+        blockId: block.id,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
@@ -795,6 +796,22 @@ export class Executor {
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
+
+      // Log the error even if we'll continue execution through error path
+      context.blockLogs.push(blockLog)
+      addConsole({
+        output: {},
+        error:
+          error.message ||
+          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
+        durationMs: blockLog.durationMs,
+        startedAt: blockLog.startedAt,
+        endedAt: blockLog.endedAt,
+        workflowId: context.workflowId,
+        timestamp: blockLog.startedAt,
+        blockName: block.metadata?.name || 'Unnamed Block',
+        blockType: block.metadata?.id || 'unknown',
+      })
 
       // Check for error connections and follow them if they exist
       const hasErrorPath = this.activateErrorPath(blockId, context)
