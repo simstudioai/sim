@@ -13,7 +13,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
-import { ChatMessage } from './components/chat-message'
+import { ChatMessage } from './components/chat-message/chat-message'
 
 interface ChatProps {
   panelWidth: number
