@@ -188,7 +188,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                   }
                 }
               }
-            } catch (e) {
+            } catch (e: any) {
               errors.push("Messages must be valid JSON");
             }
           }
@@ -218,9 +218,10 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
 
         const operation = params.operation || 'add';
         
-        // Add operation-specific debugging
-        console.log(`Mem0 Block: Processing ${operation} operation`, params);
+        // Add safe debugging log that doesn't include credentials
+        console.log('Mem0 operation:', operation, ', User ID:', result.userId || 'Not specified');
         
+        // Process operation-specific parameters
         switch (operation) {
           case 'add':
             if (params.messages) {
@@ -241,36 +242,38 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                   }
                   if (validMessages) {
                     result.messages = messagesArray;
+                    console.log('Adding memories - message count:', messagesArray.length);
                   } else {
-                    console.error('Invalid message format - each message must have role and content');
+                    // Consistent with other error handling - collect in errors array
+                    errors.push('Invalid message format - each message must have role and content');
+                    throw new Error(`Mem0 Block Error: Invalid message format - each message must have role and content`);
                   }
                 } else {
-                  console.error('Messages must be a non-empty array');
+                  // Consistent with other error handling
+                  errors.push('Messages must be a non-empty array');
+                  throw new Error(`Mem0 Block Error: Messages must be a non-empty array`);
                 }
-              } catch (e) {
-                console.error('Error parsing messages JSON:', e);
+              } catch (e: any) {
+                if (!errors.includes('Messages must be valid JSON')) {
+                  errors.push('Messages must be valid JSON');
+                }
+                throw new Error(`Mem0 Block Error: ${e.message || 'Messages must be valid JSON'}`);
               }
             }
             break;
           case 'search':
             if (params.query) {
               result.query = params.query;
-              console.log('Search query:', params.query);
+              console.log('Searching memories - query:', params.query, ', limit:', result.limit || 'default');
               
               // Check if we have at least one identifier for search
-              let hasIdentifier = false;
-              
-              if (params.userId) {
-                result.userId = params.userId;
-                hasIdentifier = true;
-                console.log('Using user_id for search:', params.userId);
-              }
-              
-              if (!hasIdentifier) {
-                console.error('CRITICAL ERROR: Search requires at least one ID (userId)');
+              if (!params.userId) {
+                errors.push('Search requires a User ID');
+                throw new Error(`Mem0 Block Error: Search requires a User ID`);
               }
             } else {
-              console.error('CRITICAL ERROR: Search requires a query parameter');
+              errors.push('Search requires a query parameter');
+              throw new Error(`Mem0 Block Error: Search requires a query parameter`);
             }
             
             // Include limit if specified
@@ -279,23 +282,25 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
             }
             break;
           case 'get':
-            if (params.memoryId) result.memoryId = params.memoryId;
+            if (params.memoryId) {
+              result.memoryId = params.memoryId;
+              console.log('Getting specific memory - ID:', params.memoryId);
+            } else {
+              console.log('Getting memories - date filters:', 
+                params.startDate || params.endDate ? 'Yes' : 'No', 
+                ', limit:', params.limit || 'default');
+            }
             
             // Add date range filtering for v2 get memories
             if (params.startDate) {
               result.startDate = params.startDate;
-              console.log('Filtering memories from date:', params.startDate);
             }
             
             if (params.endDate) {
               result.endDate = params.endDate;
-              console.log('Filtering memories to date:', params.endDate);
             }
             break;
         }
-        
-        // Add debugging log
-        console.log('Mem0 params being sent to tool:', JSON.stringify(result, null, 2));
         
         return result;
       },

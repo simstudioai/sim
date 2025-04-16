@@ -357,15 +357,17 @@ export const mem0GetMemoriesTool: ToolConfig = {
     },
   },
   request: {
-    url: (params) => {
+    url: (params: Record<string, any>) => {
       // For a specific memory ID, use the get single memory endpoint
       if (params.memoryId) {
-        return `https://api.mem0.ai/v1/memories/${params.memoryId}/`
+        // Dynamically set method to GET for memory ID requests
+        params.method = 'GET';
+        return `https://api.mem0.ai/v1/memories/${params.memoryId}/`;
       }
       // Otherwise use v2 memories endpoint with filters
       return 'https://api.mem0.ai/v2/memories/';
     },
-    method: 'POST', // Default to POST, which is used for the v2 filtering endpoint
+    method: 'POST', // Default to POST for filtering
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Token ${params.apiKey}`,
