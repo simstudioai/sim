@@ -52,6 +52,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
     // Process blocks to extract outputs
     Object.values(blocks).forEach((block) => {
+      // Skip starter/start blocks
+      if (block.type === 'starter') return
+
       const blockName = block.name.replace(/\s+/g, '').toLowerCase()
 
       // Add response outputs
@@ -194,6 +197,44 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   // Group output options by block
   const groupedOutputs = useMemo(() => {
     const groups: Record<string, typeof workflowOutputs> = {}
+    const blockDistances: Record<string, number> = {}
+    const edges = useWorkflowStore.getState().edges
+
+    // Find the starter block
+    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
+    const starterBlockId = starterBlock?.id
+
+    // Calculate distances from starter block if it exists
+    if (starterBlockId) {
+      // Build an adjacency list for faster traversal
+      const adjList: Record<string, string[]> = {}
+      for (const edge of edges) {
+        if (!adjList[edge.source]) {
+          adjList[edge.source] = []
+        }
+        adjList[edge.source].push(edge.target)
+      }
+
+      // BFS to find distances from starter block
+      const visited = new Set<string>()
+      const queue: [string, number][] = [[starterBlockId, 0]] // [nodeId, distance]
+
+      while (queue.length > 0) {
+        const [currentNodeId, distance] = queue.shift()!
+
+        if (visited.has(currentNodeId)) continue
+        visited.add(currentNodeId)
+        blockDistances[currentNodeId] = distance
+
+        // Get all outgoing edges from the adjacency list
+        const outgoingNodeIds = adjList[currentNodeId] || []
+
+        // Add all target nodes to the queue with incremented distance
+        for (const targetId of outgoingNodeIds) {
+          queue.push([targetId, distance + 1])
+        }
+      }
+    }
 
     // Group by block name
     workflowOutputs.forEach((output) => {
@@ -203,8 +244,27 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       groups[output.blockName].push(output)
     })
 
-    return groups
-  }, [workflowOutputs])
+    // Convert to array of [blockName, outputs] for sorting
+    const groupsArray = Object.entries(groups).map(([blockName, outputs]) => {
+      // Find the blockId for this group (using the first output's blockId)
+      const blockId = outputs[0]?.blockId
+      // Get the distance for this block (or default to 0 if not found)
+      const distance = blockId ? blockDistances[blockId] || 0 : 0
+      return { blockName, outputs, distance }
+    })
+
+    // Sort by distance (descending - furthest first)
+    groupsArray.sort((a, b) => b.distance - a.distance)
+
+    // Convert back to record
+    return groupsArray.reduce(
+      (acc, { blockName, outputs }) => {
+        acc[blockName] = outputs
+        return acc
+      },
+      {} as Record<string, typeof workflowOutputs>
+    )
+  }, [workflowOutputs, blocks])
 
   // Get block color for an output
   const getOutputColor = (blockId: string, blockType: string) => {
@@ -255,7 +315,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           </button>
 
           {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-            <div className="absolute z-50 mt-1 w-full bg-popover rounded-md border shadow-md overflow-hidden">
+            <div className="absolute z-50 mt-1 pt-1 w-full bg-popover rounded-md border shadow-md overflow-hidden">
               <div className="max-h-[240px] overflow-y-auto">
                 {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
                   <div key={blockName}>

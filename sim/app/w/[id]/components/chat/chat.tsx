@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useChatStore } from '@/stores/chat/store'
 
 export function Chat() {
-  const { messages, isProcessing, error, sendMessage } = useChatStore()
+  const { sendMessage } = useChatStore()
   const [isOpen, setIsOpen] = useState(false)
   const [message, setMessage] = useState('')
 
