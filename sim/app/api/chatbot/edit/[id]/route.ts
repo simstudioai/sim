@@ -61,10 +61,16 @@ export async function GET(
     // Create a new result object without the password
     const { password, ...safeData } = chatbot[0]
     
+    // Check if we're in development or production
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    const chatbotUrl = isDevelopment
+      ? `http://${chatbot[0].subdomain}.localhost:3000`
+      : `https://${chatbot[0].subdomain}.simstudio.ai`
+    
     // For security, don't return the actual password value
     const result = {
       ...safeData,
-      chatbotUrl: `https://${chatbot[0].subdomain}.simstudio.ai`,
+      chatbotUrl,
       // Include password presence flag but not the actual value
       hasPassword: !!password
     }
@@ -167,7 +173,11 @@ export async function PATCH(
       
       // Return success response
       const updatedSubdomain = subdomain || existingChatbot[0].subdomain
-      const chatbotUrl = `https://${updatedSubdomain}.simstudio.ai`
+      // Check if we're in development or production
+      const isDevelopment = process.env.NODE_ENV === 'development'
+      const chatbotUrl = isDevelopment
+        ? `http://${updatedSubdomain}.localhost:3000`
+        : `https://${updatedSubdomain}.simstudio.ai`
       
       logger.info(`Chatbot "${chatbotId}" updated successfully`)
       

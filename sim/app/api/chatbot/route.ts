@@ -136,7 +136,11 @@ export async function POST(request: NextRequest) {
       })
       
       // Return successful response with chatbot URL
-      const chatbotUrl = `https://${subdomain}.simstudio.ai`
+      // Check if we're in development or production
+      const isDevelopment = process.env.NODE_ENV === 'development'
+      const chatbotUrl = isDevelopment 
+        ? `http://${subdomain}.localhost:3000`
+        : `https://${subdomain}.simstudio.ai`
       
       logger.info(`Chatbot "${title}" deployed successfully at ${chatbotUrl}`)
 
