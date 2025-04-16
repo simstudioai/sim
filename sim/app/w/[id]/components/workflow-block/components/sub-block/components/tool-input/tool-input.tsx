@@ -364,6 +364,28 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     setValue(selectedTools.filter((_, index) => index !== toolIndex))
   }
 
+  // New handler for when a custom tool is completely deleted from the store
+  const handleDeleteTool = (toolId: string) => {
+    // Find any instances of this tool in the current workflow and remove them
+    const updatedTools = selectedTools.filter(tool => {
+      // For custom tools, we need to check if it matches the deleted tool
+      if (tool.type === 'custom-tool' && 
+          tool.schema?.function?.name &&
+          customTools.some(customTool => 
+            customTool.id === toolId && 
+            customTool.schema.function.name === tool.schema.function.name
+          )) {
+        return false
+      }
+      return true
+    })
+    
+    // Update the workflow value if any tools were removed
+    if (updatedTools.length !== selectedTools.length) {
+      setValue(updatedTools)
+    }
+  }
+
   const handleParamChange = (toolIndex: number, paramId: string, paramValue: string) => {
     // Store the value in the tool params store for future use
     const tool = selectedTools[toolIndex]
@@ -945,10 +967,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
           if (!open) setEditingToolIndex(null)
         }}
         onSave={editingToolIndex !== null ? handleSaveCustomTool : handleAddCustomTool}
+        onDelete={handleDeleteTool}
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? {
-                id: '',
+                id: customTools.find(tool => 
+                    tool.schema.function.name === selectedTools[editingToolIndex].schema.function.name
+                )?.id,
                 schema: selectedTools[editingToolIndex].schema,
                 code: selectedTools[editingToolIndex].code || '',
               }

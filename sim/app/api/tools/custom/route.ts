@@ -159,3 +159,51 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update custom tools' }, { status: 500 })
   }
 }
+
+// DELETE - Delete a custom tool by ID
+export async function DELETE(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const searchParams = request.nextUrl.searchParams
+  const toolId = searchParams.get('id')
+  
+  if (!toolId) {
+    logger.warn(`[${requestId}] Missing tool ID for deletion`)
+    return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 })
+  }
+  
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized custom tool deletion attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if the tool exists and belongs to the user
+    const existingTool = await db
+      .select()
+      .from(customTools)
+      .where(eq(customTools.id, toolId))
+      .limit(1)
+    
+    if (existingTool.length === 0) {
+      logger.warn(`[${requestId}] Tool not found: ${toolId}`)
+      return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
+    }
+    
+    if (existingTool[0].userId !== session.user.id) {
+      logger.warn(`[${requestId}] User attempted to delete a tool they don't own: ${toolId}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    }
+    
+    // Delete the tool
+    await db
+      .delete(customTools)
+      .where(eq(customTools.id, toolId))
+    
+    logger.info(`[${requestId}] Deleted tool: ${toolId}`)
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    logger.error(`[${requestId}] Error deleting custom tool:`, error)
+    return NextResponse.json({ error: 'Failed to delete custom tool' }, { status: 500 })
+  }
+}
