@@ -2147,3 +2147,26 @@ l57 -85 -48 -124 c-203 -517 -79 -930 346 -1155 159 -85 441 -71 585 28 l111
     </svg>
   )
 }
+
+export function Mem0Icon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg 
+      {...props}
+      viewBox="0 0 24 24" 
+      fill="none"
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 12h8" />
+      <path d="M12 8v8" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M4.93 4.93l2.83 2.83" />
+      <path d="M16.24 7.76l2.83-2.83" />
+      <path d="M19.07 19.07l-2.83-2.83" />
+      <path d="M7.76 16.24l-2.83 2.83" />
+    </svg>
+  )
+} 

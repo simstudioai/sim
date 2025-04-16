@@ -1,5 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { CustomToolDefinition } from '@/stores/custom-tools/types'
+import { EnvironmentVariable } from '@/stores/settings/environment/types'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import {
   airtableCreateRecordsTool,
@@ -27,6 +29,11 @@ import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { 
+  mem0AddMemoriesTool, 
+  mem0SearchMemoriesTool, 
+  mem0GetMemoriesTool, 
+} from './mem0'
 import { mistralParserTool } from './mistral'
 import { notionCreatePageTool, notionReadTool, notionWriteTool } from './notion'
 import { dalleTool } from './openai/dalle'
@@ -58,6 +65,14 @@ import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 
 const logger = createLogger('Tools')
+
+// Add type declaration for process if @types/node is not installed
+declare const process: {
+  env: {
+    NEXT_PUBLIC_APP_URL?: string;
+    [key: string]: string | undefined;
+  };
+};
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -100,38 +115,37 @@ export const tools: Record<string, ToolConfig> = {
   pinecone_search_text: pineconeSearchTextTool,
   pinecone_search_vector: pineconeSearchVectorTool,
   pinecone_upsert_text: pineconeUpsertTextTool,
-  github_pr: githubPrTool,
-  github_comment: githubCommentTool,
-  exa_search: exaSearchTool,
-  exa_get_contents: exaGetContentsTool,
-  exa_find_similar_links: exaFindSimilarLinksTool,
-  exa_answer: exaAnswerTool,
-  reddit_hot_posts: redditHotPostsTool,
-  google_drive_download: driveDownloadTool,
-  google_drive_list: driveListTool,
-  google_drive_upload: driveUploadTool,
-  google_docs_read: docsReadTool,
-  google_docs_write: docsWriteTool,
-  google_docs_create: docsCreateTool,
-  google_sheets_read: sheetsReadTool,
-  google_sheets_write: sheetsWriteTool,
-  google_sheets_update: sheetsUpdateTool,
-  guesty_reservation: guestyReservationTool,
-  guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
-  confluence_retrieve: confluenceRetrieveTool,
-  confluence_list: confluenceListTool,
-  confluence_update: confluenceUpdateTool,
-  twilio_send_sms: sendSMSTool,
-  dalle_generate: dalleTool,
+  mem0_add_memories: mem0AddMemoriesTool,
+  mem0_search_memories: mem0SearchMemoriesTool,
+  mem0_get_memories: mem0GetMemoriesTool,
+  mistral_parser: mistralParserTool,
+  exa_search: exaSearchTool,
+  exa_answer: exaAnswerTool,
+  exa_find_similar_links: exaFindSimilarLinksTool,
+  exa_get_contents: exaGetContentsTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,
   airtable_update_record: airtableUpdateRecordTool,
-  mistral_parser: mistralParserTool,
-  thinking_tool: thinkingTool,
-  stagehand_extract: stagehandExtractTool,
+  docs_create: docsCreateTool,
+  docs_read: docsReadTool,
+  docs_write: docsWriteTool,
+  drive_download: driveDownloadTool,
+  drive_list: driveListTool,
+  drive_upload: driveUploadTool,
+  github_comment: githubCommentTool,
+  github_pr: githubPrTool,
+  guesty_guest: guestyGuestTool,
+  guesty_reservation: guestyReservationTool,
+  reddit_hot_posts: redditHotPostsTool,
+  sheets_read: sheetsReadTool,
+  sheets_update: sheetsUpdateTool,
+  sheets_write: sheetsWriteTool,
   stagehand_agent: stagehandAgentTool,
+  stagehand_extract: stagehandExtractTool,
+  thinking: thinkingTool,
+  twilio_send_sms: sendSMSTool,
 }
 
 // Get a tool by its ID
@@ -171,7 +185,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
   // If not found by ID, try to find by title (for backward compatibility)
   if (!customTool) {
     const allTools = customToolsStore.getAllTools()
-    customTool = allTools.find((tool) => tool.title === identifier)
+    customTool = allTools.find((tool: CustomToolDefinition) => tool.title === identifier)
   }
 
   if (!customTool) {
@@ -185,10 +199,10 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
   if (customTool.schema.function?.parameters?.properties) {
     Object.entries(customTool.schema.function.parameters.properties).forEach(([key, config]) => {
       params[key] = {
-        type: config.type || 'string',
+        type: (config as { type?: string; description?: string }).type || 'string',
         required: customTool.schema.function.parameters.required?.includes(key) || false,
         requiredForToolCall: customTool.schema.function.parameters.required?.includes(key) || false,
-        description: config.description || '',
+        description: (config as { type?: string; description?: string }).description || '',
       }
     })
   }
@@ -214,7 +228,7 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
         // Convert environment variables to a simple key-value object
         const envVars = Object.entries(allEnvVars).reduce(
           (acc, [key, variable]) => {
-            acc[key] = variable.value
+            acc[key] = (variable as EnvironmentVariable).value
             return acc
           },
           {} as Record<string, string>
@@ -254,8 +268,8 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
 
           // Add environment variables to the params
           Object.entries(envVars).forEach(([key, variable]) => {
-            if (variable.value && !mergedParams[key]) {
-              mergedParams[key] = variable.value
+            if ((variable as EnvironmentVariable).value && !mergedParams[key]) {
+              mergedParams[key] = (variable as EnvironmentVariable).value
             }
           })
 
@@ -512,7 +526,7 @@ export async function executeTool(
     if (toolId.startsWith('custom_')) {
       const identifier = toolId.replace('custom_', '')
       const allTools = useCustomToolsStore.getState().getAllTools()
-      const availableTools = allTools.map((t) => ({
+      const availableTools = allTools.map((t: CustomToolDefinition) => ({
         id: t.id,
         title: t.title,
       }))
