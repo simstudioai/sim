@@ -2,6 +2,7 @@ import GitHubStars from './components/github-stars'
 import NavClient from './components/nav-client'
 import Features from './components/sections/features'
 import Hero from './components/sections/hero'
+import Integrations from './components/sections/integrations'
 
 export default function Landing() {
   return (
@@ -12,6 +13,7 @@ export default function Landing() {
 
       <Hero/>
       <Features/>
+      <Integrations/>
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 text-white/60">
