@@ -56,12 +56,9 @@ import { tavilyExtractTool, tavilySearchTool } from './tavily'
 import { thinkingTool } from './thinking/thinking'
 import { sendSMSTool } from './twilio/send'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
+import { getToolAsync, getTool } from './utils'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, transformTable, validateToolRequest } from './utils'
-import { visionTool } from './vision/vision'
-import { whatsappSendMessageTool } from './whatsapp'
-import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
-import { youtubeSearchTool } from './youtube/search'
+import { formatRequestParams, validateToolRequest } from './utils'
 
 const logger = createLogger('Tools')
 
@@ -334,6 +331,8 @@ function getCustomTool(customToolId: string): ToolConfig | undefined {
   }
 }
 
+=======
+>>>>>>> af97c01 (fix(custom-tools): fixed custom tools for agent, added the ability to delete a custom tool (#268))
 // Execute a tool by calling either the proxy for external APIs or directly for internal routes
 export async function executeTool(
   toolId: string,
@@ -346,7 +345,17 @@ export async function executeTool(
   const startTimeISO = startTime.toISOString()
 
   try {
-    const tool = getTool(toolId)
+    let tool: ToolConfig | undefined
+    
+    // If it's a custom tool, use the async version with workflowId
+    if (toolId.startsWith('custom_')) {
+      const workflowId = params._context?.workflowId
+      tool = await getToolAsync(toolId, workflowId)
+    } else {
+      // For built-in tools, use the synchronous version
+      tool = getTool(toolId)
+    }
+    
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
 
@@ -518,19 +527,6 @@ export async function executeTool(
   } catch (error: any) {
     logger.error(`Error executing tool ${toolId}:`, { error })
 
-    // For custom tools, provide more helpful error information
-    if (toolId.startsWith('custom_')) {
-      const identifier = toolId.replace('custom_', '')
-      const allTools = useCustomToolsStore.getState().getAllTools()
-      const availableTools = allTools.map((t) => ({
-        id: t.id,
-        title: t.title,
-      }))
-
-      logger.error('Available custom tools:', availableTools)
-      logger.error(`Looking for custom tool with identifier: ${identifier}`)
-    }
-
     // Process the error to ensure we have a useful message
     let errorMessage = 'Unknown error occurred'
     let errorDetails = {}
@@ -626,21 +622,31 @@ async function handleInternalRequest(
     if (toolId.startsWith('custom_') && tool.request.body) {
       const requestBody = tool.request.body(params)
       if (requestBody.schema && requestBody.params) {
-        validateClientSideParams(requestBody.params, requestBody.schema)
+        try {
+          validateClientSideParams(requestBody.params, requestBody.schema)
+        } catch (validationError) {
+          logger.error(`Custom tool params validation failed: ${validationError}`)
+          throw validationError
+        }
       }
     }
 
-    const response = await fetch(fullUrl, {
+    // Prepare request options
+    const requestOptions = {
       method: requestParams.method,
-      headers: requestParams.headers,
+      headers: new Headers(requestParams.headers),
       body: requestParams.body,
-    })
+    };
+
+    const response = await fetch(fullUrl, requestOptions)
 
     if (!response.ok) {
-      let errorData
+      let errorData;
       try {
         errorData = await response.json()
-      } catch {
+        logger.error(`Error response data: ${JSON.stringify(errorData)}`)
+      } catch (e) {
+        logger.error(`Failed to parse error response: ${e}`)
         throw new Error(response.statusText || `Request failed with status ${response.status}`)
       }
 
@@ -655,18 +661,29 @@ async function handleInternalRequest(
 
     // Use the tool's response transformer if available
     if (tool.transformResponse) {
-      return await tool.transformResponse(response, params)
+      try {
+        const data = await tool.transformResponse(response, params)
+        return data
+      } catch (transformError) {
+        logger.error(`Error in tool.transformResponse: ${transformError}`)
+        throw transformError
+      }
     }
 
     // Default response handling
-    const data = await response.json()
-    return {
-      success: true,
-      output: data.output || data,
-      error: undefined,
+    try {
+      const data = await response.json()
+      return {
+        success: true,
+        output: data.output || data,
+        error: undefined,
+      }
+    } catch (jsonError) {
+      logger.error(`Error parsing JSON response: ${jsonError}`)
+      throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
     }
   } catch (error: any) {
-    logger.error(`Error executing internal tool ${toolId}:`, { error })
+    logger.error(`Error executing internal tool ${toolId}:`, { error: error.stack || error.message || error })
 
     // Use the tool's error transformer if available
     if (tool.transformError) {
@@ -746,6 +763,9 @@ function validateClientSideParams(
     throw new Error('Invalid schema format')
   }
 
+  // Internal parameters that should be excluded from validation
+  const internalParamSet = new Set(['_context', 'workflowId'])
+
   // Check required parameters
   if (schema.required) {
     for (const requiredParam of schema.required) {
@@ -757,6 +777,11 @@ function validateClientSideParams(
 
   // Check parameter types (basic validation)
   for (const [paramName, paramValue] of Object.entries(params)) {
+    // Skip validation for internal parameters
+    if (internalParamSet.has(paramName)) {
+      continue
+    }
+    
     const paramSchema = schema.properties[paramName]
     if (!paramSchema) {
       throw new Error(`Unknown parameter: ${paramName}`)

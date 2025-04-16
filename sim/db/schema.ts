@@ -208,3 +208,15 @@ export const userStats = pgTable('user_stats', {
   totalCost: decimal('total_cost').notNull().default('0'),
   lastActive: timestamp('last_active').notNull().defaultNow(),
 })
+
+export const customTools = pgTable('custom_tools', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  schema: json('schema').notNull(),
+  code: text('code').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
