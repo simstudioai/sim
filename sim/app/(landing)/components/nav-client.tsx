@@ -69,7 +69,7 @@ const mobileNavItemVariants = {
 // Component for Navigation Links
 const NavLinks = ({ mobile }: { mobile?: boolean }) => {
   const links = [
-    { href: "/", label: "Marketplace" },
+    // { href: "/", label: "Marketplace" },
     { href: "/", label: "Blogs" },
     { href: "/", label: "Docs" },
   ];
@@ -158,7 +158,7 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated])
 
   return (
-    <nav className="absolute top-1 left-0 right-0 z-10 px-4 py-8">
+    <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
       <div className="max-w-7xl mx-auto flex justify-between items-center relative">
         <div className="flex-1">
           <div className="text-xl text-white">sim studio</div>

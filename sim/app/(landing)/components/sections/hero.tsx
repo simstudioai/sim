@@ -6,7 +6,7 @@ import HeroWorkflowProvider from '../hero-workflow'
 
 function Hero() {
   return (
-    <section className="min-h-screen pt-36 sm:pt-48 md:pt-56 text-white relative">
+    <section className="min-h-screen pt-36 sm:pt-48 md:pt-56 text-white relative border-b border-[#181818]">
         <GridPattern 
           x={-5}
           y={-5}
@@ -15,7 +15,7 @@ function Hero() {
           height={90}
         />
 
-        <div className="absolute inset-0 z-10 flex items-center justify-center">
+        <div className="absolute inset-0 z-10 flex items-center justify-center h-full">
            <HeroWorkflowProvider />
         </div>
 
