@@ -311,6 +311,9 @@ export function hasWorkflowChanged(
     }
   }
 
-  // No meaningful changes detected
   return false
+}
+
+export function stripCustomToolPrefix(name: string) {
+  return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }

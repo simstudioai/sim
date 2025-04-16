@@ -86,12 +86,6 @@ const modelPricing: ModelPricingMap = {
   },
 
   // Groq Models
-  'groq/llama-3.3-70b-specdec': {
-    input: 0.59,
-    cachedInput: 0.3,
-    output: 0.99,
-    updatedAt: '2025-03-21',
-  },
   'groq/meta-llama/llama-4-scout-17b-16e-instruct': {
     input: 0.4,
     cachedInput: 0.2,

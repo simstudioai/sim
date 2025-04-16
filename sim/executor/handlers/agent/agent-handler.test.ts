@@ -4,17 +4,16 @@ import { isHostedVersion } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { executeTool, getTool } from '@/tools'
+import { executeTool } from '@/tools'
 import { ExecutionContext } from '../../types'
 import { AgentBlockHandler } from './agent-handler'
 
-const mockFetch = global.fetch as Mock
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockExecuteTool = executeTool as Mock
+const mockIsHostedVersion = isHostedVersion as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
-const mockExecuteTool = executeTool as Mock
-const mockGetTool = getTool as Mock
-const mockGetAllBlocks = getAllBlocks as Mock
-const mockIsHostedVersion = isHostedVersion as Mock
+const mockFetch = global.fetch as Mock
 
 describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler
@@ -46,7 +45,7 @@ describe('AgentBlockHandler', () => {
       workflowId: 'test-workflow',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: { startTime: new Date().toISOString() },
+      metadata: { startTime: new Date().toISOString(), duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
@@ -87,7 +86,6 @@ describe('AgentBlockHandler', () => {
       parameters: { type: 'object', properties: {} },
     }))
     mockGetAllBlocks.mockReturnValue([])
-    mockGetTool.mockReturnValue(undefined)
 
     // Set up executeTool mock
     mockExecuteTool.mockImplementation((toolId, params) => {

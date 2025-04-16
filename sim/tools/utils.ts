@@ -1,6 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { TableRow } from './types'
 import { ToolConfig, ToolResponse } from './types'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { tools } from './registry'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
 
 const logger = createLogger('Tools Utils')
 
@@ -21,16 +24,6 @@ export const transformTable = (table: TableRow[] | null): Record<string, any> =>
 
         // Store the correctly typed value in the result object
         acc[row.cells.Key] = value
-
-        // Log for debugging with more details about value type
-        const valueType = typeof value
-        // Use JSON.stringify for a clearer representation in logs
-        const valueDisplay = JSON.stringify(value)
-
-        // Log the actual type and the stringified representation
-        logger.debug(
-          `[transformTable] Row ${row.id}: ${row.cells.Key} = ${valueDisplay} (type: ${valueType})`
-        )
       }
       return acc
     },
@@ -167,5 +160,330 @@ export function validateToolRequest(
     if (paramConfig.requiredForToolCall && !(paramName in params)) {
       throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
     }
+  }
+}
+
+// Check if we're running in the browser
+function isBrowser(): boolean {
+  return typeof window !== 'undefined'
+}
+
+// Check if Freestyle is available
+function isFreestyleAvailable(): boolean {
+  return isBrowser() && !!window.crossOriginIsolated
+}
+
+/**
+ * Creates parameter schema from custom tool schema
+ */
+export function createParamSchema(customTool: any): Record<string, any> {
+  const params: Record<string, any> = {}
+
+  if (customTool.schema.function?.parameters?.properties) {
+    Object.entries(customTool.schema.function.parameters.properties).forEach(([key, config]: [string, any]) => {
+      params[key] = {
+        type: config.type || 'string',
+        required: customTool.schema.function.parameters.required?.includes(key) || false,
+        requiredForToolCall: customTool.schema.function.parameters.required?.includes(key) || false,
+        description: config.description || '',
+      }
+    })
+  }
+
+  return params;
+}
+
+/**
+ * Get environment variables from store (client-side only)
+ * @param getStore Optional function to get the store (useful for testing)
+ */
+export function getClientEnvVars(getStore?: () => any): Record<string, string> {
+  if (!isBrowser()) return {};
+  
+  try {
+    // Allow injecting the store for testing
+    const envStore = getStore ? getStore() : useEnvironmentStore.getState()
+    const allEnvVars = envStore.getAllVariables()
+
+    // Convert environment variables to a simple key-value object
+    return Object.entries(allEnvVars).reduce(
+      (acc, [key, variable]: [string, any]) => {
+        acc[key] = variable.value
+        return acc
+      },
+      {} as Record<string, string>
+    )
+  } catch (error) {
+    // In case of any errors (like in testing), return empty object
+    return {}
+  }
+}
+
+/**
+ * Creates the request body configuration for custom tools
+ * @param customTool The custom tool configuration
+ * @param isClient Whether running on client side
+ * @param workflowId Optional workflow ID for server-side
+ * @param getStore Optional function to get the store (useful for testing)
+ */
+export function createCustomToolRequestBody(
+  customTool: any, 
+  isClient: boolean = true, 
+  workflowId?: string,
+  getStore?: () => any
+) {
+  return (params: Record<string, any>) => {
+    // Get environment variables - empty on server, from store on client
+    const envVars = isClient ? getClientEnvVars(getStore) : {}
+
+    // Include everything needed for execution
+    return {
+      code: customTool.code,
+      params: params, // These will be available in the VM context
+      schema: customTool.schema.function.parameters, // For validation
+      envVars: envVars, // Environment variables
+      workflowId: workflowId, // Pass workflowId for server-side context
+      isCustomTool: true, // Flag to indicate this is a custom tool execution
+    }
+  }
+}
+
+// Get a tool by its ID
+export function getTool(toolId: string): ToolConfig | undefined {
+  // Check for built-in tools
+  const builtInTool = tools[toolId]
+  if (builtInTool) return builtInTool
+
+  // Check if it's a custom tool
+  if (toolId.startsWith('custom_') && typeof window !== 'undefined') {
+    // Only try to use the sync version on the client
+    const customToolsStore = useCustomToolsStore.getState()
+    const identifier = toolId.replace('custom_', '')
+    
+    // Try to find the tool directly by ID first
+    let customTool = customToolsStore.getTool(identifier)
+
+    // If not found by ID, try to find by title (for backward compatibility)
+    if (!customTool) {
+      const allTools = customToolsStore.getAllTools()
+      customTool = allTools.find((tool) => tool.title === identifier)
+    }
+
+    if (customTool) {
+      return createToolConfig(customTool, toolId)
+    }
+  }
+
+  // If not found or running on the server, return undefined
+  return undefined
+}
+
+// Get a tool by its ID asynchronously (supports server-side)
+export async function getToolAsync(toolId: string, workflowId?: string): Promise<ToolConfig | undefined> {
+  // Check for built-in tools
+  const builtInTool = tools[toolId]
+  if (builtInTool) return builtInTool
+
+  // Check if it's a custom tool
+  if (toolId.startsWith('custom_')) {
+    return getCustomTool(toolId, workflowId)
+  }
+
+  return undefined
+}
+
+// Helper function to create a tool config from a custom tool
+function createToolConfig(customTool: any, customToolId: string): ToolConfig {
+  // Create a parameter schema from the custom tool schema
+  const params = createParamSchema(customTool);
+
+  // Create a tool config for the custom tool
+  return {
+    id: customToolId,
+    name: customTool.title,
+    description: customTool.schema.function?.description || '',
+    version: '1.0.0',
+    params,
+
+    // Request configuration - for custom tools we'll use the execute endpoint
+    request: {
+      url: '/api/function/execute',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: createCustomToolRequestBody(customTool, true),
+      isInternalRoute: true,
+    },
+
+    // Direct execution support for browser environment with Freestyle
+    directExecution: async (params: Record<string, any>) => {
+      // If there's no code, we can't execute directly
+      if (!customTool.code) {
+        return {
+          success: false,
+          output: {},
+          error: 'No code provided for tool execution',
+        }
+      }
+
+      // If we're in a browser with Freestyle available, use it
+      if (isFreestyleAvailable()) {
+        try {
+          // Get environment variables from the store
+          const envStore = useEnvironmentStore.getState()
+          const envVars = envStore.getAllVariables()
+
+          // Create a merged params object that includes environment variables
+          const mergedParams = { ...params }
+
+          // Add environment variables to the params
+          Object.entries(envVars).forEach(([key, variable]) => {
+            if (mergedParams[key] === undefined && variable.value) {
+              mergedParams[key] = variable.value
+            }
+          })
+
+          // Resolve environment variables and tags in the code
+          let resolvedCode = customTool.code
+
+          // Resolve environment variables with {{var_name}} syntax
+          const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
+          for (const match of envVarMatches) {
+            const varName = match.slice(2, -2).trim()
+            // Look for the variable in our environment store first, then in params
+            const envVar = envVars[varName]
+            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
+            
+            resolvedCode = resolvedCode.replaceAll(match, varValue)
+          }
+
+          // Resolve tags with <tag_name> syntax
+          const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
+          for (const match of tagMatches) {
+            const tagName = match.slice(1, -1).trim()
+            const tagValue = mergedParams[tagName] || ''
+            resolvedCode = resolvedCode.replace(match, tagValue)
+          }
+
+          // Dynamically import Freestyle to execute code
+          const { executeCode } = await import('@/lib/freestyle')
+
+          const result = await executeCode(resolvedCode, mergedParams)
+
+          if (!result.success) {
+            throw new Error(result.error || 'Freestyle execution failed')
+          }
+
+          return {
+            success: true,
+            output: result.output.result || result.output,
+            error: undefined,
+          }
+        } catch (error: any) {
+          logger.warn('Freestyle execution failed, falling back to API:', error.message)
+          // Fall back to API route if Freestyle fails
+          return undefined
+        }
+      }
+
+      // No Freestyle or not in browser, return undefined to use regular API route
+      return undefined
+    },
+
+    // Standard response handling for custom tools
+    transformResponse: async (response: Response, params: Record<string, any>) => {
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.error || 'Custom tool execution failed')
+      }
+
+      return {
+        success: true,
+        output: data.output.result || data.output,
+        error: undefined,
+      }
+    },
+    transformError: async (error: any) =>
+      `Custom tool execution error: ${error.message || 'Unknown error'}`,
+  }
+}
+
+// Create a tool config from a custom tool definition
+async function getCustomTool(customToolId: string, workflowId?: string): Promise<ToolConfig | undefined> {
+  const identifier = customToolId.replace('custom_', '')
+  
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const url = new URL('/api/tools/custom', baseUrl)
+    
+    // Add workflowId as a query parameter if available
+    if (workflowId) {
+      url.searchParams.append('workflowId', workflowId)
+    }
+    
+    const response = await fetch(url.toString())
+    
+    if (!response.ok) {
+      logger.error(`Failed to fetch custom tools: ${response.statusText}`)
+      return undefined
+    }
+    
+    const result = await response.json()
+
+    if (!result.data || !Array.isArray(result.data)) {
+      logger.error(`Invalid response when fetching custom tools: ${JSON.stringify(result)}`)
+      return undefined
+    }
+    
+    // Try to find the tool by ID or title
+    const customTool = result.data.find((tool: any) => 
+      tool.id === identifier || tool.title === identifier
+    )
+    
+    if (!customTool) {
+      logger.error(`Custom tool not found: ${identifier}`)
+      return undefined
+    }
+    
+    // Create a parameter schema
+    const params = createParamSchema(customTool);
+
+    // Create a tool config for the custom tool
+    return {
+      id: customToolId,
+      name: customTool.title,
+      description: customTool.schema.function?.description || '',
+      version: '1.0.0',
+      params,
+
+      // Request configuration - for custom tools we'll use the execute endpoint
+      request: {
+        url: '/api/function/execute',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: createCustomToolRequestBody(customTool, false, workflowId),
+        isInternalRoute: true,
+      },
+
+      // Same response handling as client-side
+      transformResponse: async (response: Response, params: Record<string, any>) => {
+        const data = await response.json()
+
+        if (!data.success) {
+          throw new Error(data.error || 'Custom tool execution failed')
+        }
+
+        return {
+          success: true,
+          output: data.output.result || data.output,
+          error: undefined,
+        }
+      },
+      transformError: async (error: any) =>
+        `Custom tool execution error: ${error.message || 'Unknown error'}`,
+    }
+  } catch (error) {
+    logger.error(`Error fetching custom tool ${identifier} from API:`, error)
+    return undefined
   }
 }

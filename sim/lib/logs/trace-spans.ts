@@ -158,7 +158,7 @@ export function buildTraceSpans(result: ExecutionResult): {
         // When using provider timing without segments, still add tool calls if they exist
         if (log.output?.response?.toolCalls?.list) {
           span.toolCalls = log.output.response.toolCalls.list.map((tc: any) => ({
-            name: tc.name,
+            name: stripCustomToolPrefix(tc.name),
             duration: tc.duration || 0,
             startTime: tc.startTime || log.startedAt,
             endTime: tc.endTime || log.endedAt,
@@ -173,7 +173,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       // When not using provider timing at all, add tool calls if they exist
       if (log.output?.response?.toolCalls?.list) {
         span.toolCalls = log.output.response.toolCalls.list.map((tc: any) => ({
-          name: tc.name,
+          name: stripCustomToolPrefix(tc.name),
           duration: tc.duration || 0,
           startTime: tc.startTime || log.startedAt,
           endTime: tc.endTime || log.endedAt,
@@ -387,4 +387,8 @@ export function buildTraceSpans(result: ExecutionResult): {
   }
 
   return { traceSpans: rootSpans, totalDuration }
+}
+
+export function stripCustomToolPrefix(name: string) {
+  return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }

@@ -43,6 +43,9 @@ async function initializeApplication(): Promise<void> {
   try {
     // Load environment variables directly from DB
     await useEnvironmentStore.getState().loadEnvironmentVariables()
+    
+    // Load custom tools from server
+    await useCustomToolsStore.getState().loadCustomTools()
 
     // Set a flag in sessionStorage to detect new login sessions
     // This helps identify fresh logins in private browsers

@@ -11,12 +11,11 @@ export const groqProvider: ProviderConfig = {
   description: "Groq's LLM models with high-performance inference",
   version: '1.0.0',
   models: [
-    'groq/llama-3.3-70b-specdec',
     'groq/meta-llama/llama-4-scout-17b-16e-instruct',
     'groq/deepseek-r1-distill-llama-70b',
     'groq/qwen-2.5-32b',
   ],
-  defaultModel: 'groq/llama-3.3-70b-specdec',
+  defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
     if (!request.apiKey) {
@@ -68,7 +67,7 @@ export const groqProvider: ProviderConfig = {
 
       // Build the request payload
       const payload: any = {
-        model: (request.model || 'groq/llama-3.3-70b-specdec').replace('groq/', ''),
+        model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace('groq/', ''),
         messages: allMessages,
       }
 

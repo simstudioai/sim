@@ -3,7 +3,8 @@ import { getAllBlocks } from '@/blocks'
 import { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
-import { executeTool, getTool } from '@/tools'
+import { executeTool } from '@/tools'
+import { getToolAsync, getTool } from '@/tools/utils'
 import { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('AgentBlockHandler')
@@ -137,9 +138,10 @@ export class AgentBlockHandler implements BlockHandler {
                 }
 
                 // Handle regular block tools with operation selection
-                const transformedTool = transformBlockTool(tool, {
+                const transformedTool = await transformBlockTool(tool, {
                   selectedOperation: tool.operation,
                   getAllBlocks,
+                  getToolAsync: (toolId: string) => getToolAsync(toolId, context.workflowId),
                   getTool,
                 })
 
@@ -181,11 +183,11 @@ export class AgentBlockHandler implements BlockHandler {
       workflowId: providerRequest.workflowId,
     })
 
-    // Get the app URL from environment variable or use default
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const url = new URL('/api/providers', baseUrl)
 
     try {
-      const response = await fetch(`${appUrl ? appUrl : ''}/api/providers`, {
+      const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -234,6 +236,8 @@ export class AgentBlockHandler implements BlockHandler {
                 ? {
                     list: result.toolCalls.map((tc: any) => ({
                       ...tc,
+                      // Strip the 'custom_' prefix from tool names for display
+                      name: stripCustomToolPrefix(tc.name),
                       // Preserve timing information if available
                       startTime: tc.startTime,
                       endTime: tc.endTime,
@@ -268,6 +272,8 @@ export class AgentBlockHandler implements BlockHandler {
                 list: result.toolCalls
                   ? result.toolCalls.map((tc: any) => ({
                       ...tc,
+                      // Strip the 'custom_' prefix from tool names for display
+                      name: stripCustomToolPrefix(tc.name),
                       // Preserve timing information if available
                       startTime: tc.startTime,
                       endTime: tc.endTime,
@@ -299,6 +305,8 @@ export class AgentBlockHandler implements BlockHandler {
             list: result.toolCalls
               ? result.toolCalls.map((tc: any) => ({
                   ...tc,
+                  // Strip the 'custom_' prefix from tool names for display
+                  name: stripCustomToolPrefix(tc.name),
                   // Preserve timing information if available
                   startTime: tc.startTime,
                   endTime: tc.endTime,
@@ -318,4 +326,8 @@ export class AgentBlockHandler implements BlockHandler {
       throw error
     }
   }
+}
+
+export function stripCustomToolPrefix(name: string) {
+  return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }

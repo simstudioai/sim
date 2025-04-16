@@ -1,19 +1,20 @@
 import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
-import { Tool } from '@/executor/types'
 import { SerializedBlock } from '@/serializer/types'
-import { executeTool, getTool } from '@/tools'
+import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
 import { ExecutionContext } from '../../types'
 import { ApiBlockHandler } from './api-handler'
+import { ToolConfig } from '@/tools/types'
 
-const mockGetTool = getTool as Mock
+const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
 
 describe('ApiBlockHandler', () => {
   let handler: ApiBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
-  let mockApiTool: Tool
+  let mockApiTool: ToolConfig
 
   beforeEach(() => {
     handler = new ApiBlockHandler()
@@ -30,13 +31,14 @@ describe('ApiBlockHandler', () => {
       workflowId: 'test-workflow-id',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: {},
+      metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
       loopItems: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
+      completedLoops: new Set(),
     }
     mockApiTool = {
       id: 'http_request',
@@ -49,13 +51,26 @@ describe('ApiBlockHandler', () => {
         headers: { type: 'object' },
         body: { type: 'any' },
       },
+      request: {
+        url: 'https://example.com/api',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (params) => params
+      }
     }
 
     // Reset mocks using vi
     vi.clearAllMocks()
 
+    // Set up mockGetTool to return the mockApiTool
+    mockGetTool.mockImplementation((toolId) => {
+      if (toolId === 'http_request') {
+        return mockApiTool
+      }
+      return undefined
+    })
+
     // Default mock implementations
-    mockGetTool.mockReturnValue(mockApiTool)
     mockExecuteTool.mockResolvedValue({ success: true, output: { data: 'Success' } })
   })
 
@@ -186,8 +201,10 @@ describe('ApiBlockHandler', () => {
   })
 
   it('should throw error if tool is not found', async () => {
-    mockGetTool.mockReturnValue(undefined)
     const inputs = { url: 'https://example.com' }
+
+    // Override mock to return undefined for this test
+    mockGetTool.mockImplementation(() => undefined)
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       'Tool not found: http_request'
