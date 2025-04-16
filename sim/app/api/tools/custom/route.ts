@@ -5,6 +5,7 @@ import { customTools } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('CustomToolsAPI')
 
@@ -32,20 +33,36 @@ const CustomToolSchema = z.object({
 })
 
 // GET - Fetch all custom tools for the user
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const searchParams = request.nextUrl.searchParams
+  const workflowId = searchParams.get('workflowId')
   
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    let userId: string | undefined
+
+    // If workflowId is provided, get userId from the workflow
+    if (workflowId) {
+      userId = await getUserId(requestId, workflowId)
+      
+      if (!userId) {
+        logger.warn(`[${requestId}] No valid user found for workflow: ${workflowId}`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+    } else {
+      // Otherwise use session-based auth (for client-side)
+      const session = await getSession()
+      if (!session?.user?.id) {
+        logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = session.user.id
     }
 
     const result = await db
       .select()
       .from(customTools)
-      .where(eq(customTools.userId, session.user.id))
+      .where(eq(customTools.userId, userId))
 
     return NextResponse.json({ data: result }, { status: 200 })
   } catch (error) {
