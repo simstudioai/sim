@@ -1,23 +1,27 @@
 'use client'
 
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, ChevronDown, Send } from 'lucide-react'
+import { ArrowUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
+import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
+import { ChatMessage } from './components/chat-message'
 
 interface ChatProps {
   panelWidth: number
+  chatMessage: string
+  setChatMessage: (message: string) => void
 }
 
-export function Chat({ panelWidth }: ChatProps) {
-  const [inputMessage, setInputMessage] = useState('')
+export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const { activeWorkflowId } = useWorkflowRegistry()
   const { messages, addMessage, selectedWorkflowOutputs, setSelectedWorkflowOutput } =
@@ -26,6 +30,12 @@ export function Chat({ panelWidth }: ChatProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Use the execution store state to track if a workflow is executing
+  const { isExecuting } = useExecutionStore()
+
+  // Get workflow execution functionality
+  const { handleRunWorkflow, executionResult } = useWorkflowExecution()
 
   // Get workflow outputs for the dropdown
   const workflowOutputs = useMemo(() => {
@@ -144,30 +154,25 @@ export function Chat({ panelWidth }: ChatProps) {
   }, [])
 
   // Handle send message
-  const handleSendMessage = () => {
-    if (!inputMessage.trim() || !activeWorkflowId) return
+  const handleSendMessage = async () => {
+    if (!chatMessage.trim() || !activeWorkflowId || isExecuting) return
+
+    // Store the message being sent for reference
+    const sentMessage = chatMessage.trim()
 
     // Add user message
     addMessage({
-      content: inputMessage,
+      content: sentMessage,
       workflowId: activeWorkflowId,
       type: 'user',
     })
 
     // Clear input
-    setInputMessage('')
+    setChatMessage('')
 
-    // If an output is selected, send a workflow response
-    if (selectedOutput) {
-      const selectedEntry = outputEntries.find((entry) => entry.id === selectedOutput)
-      if (selectedEntry) {
-        addMessage({
-          content: selectedEntry.output,
-          workflowId: activeWorkflowId,
-          type: 'workflow',
-        })
-      }
-    }
+    // Execute the workflow to generate a response, passing the chat message as input
+    // The workflow execution will trigger block executions which will add messages to the chat via the console store
+    await handleRunWorkflow({ input: sentMessage })
   }
 
   // Handle key press
@@ -184,14 +189,6 @@ export function Chat({ panelWidth }: ChatProps) {
       setSelectedWorkflowOutput(activeWorkflowId, value)
       setIsOutputDropdownOpen(false)
     }
-  }
-
-  // Format message content based on type
-  const formatContent = (content: any) => {
-    if (typeof content === 'object') {
-      return JSON.stringify(content, null, 2)
-    }
-    return String(content)
   }
 
   // Group output options by block
@@ -304,28 +301,14 @@ export function Chat({ panelWidth }: ChatProps) {
         {/* Chat messages section - Scrollable area */}
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
-            <div className="space-y-3 p-4 pb-0">
+            <div>
               {workflowMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
                   No messages yet
                 </div>
               ) : (
                 workflowMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`p-3 rounded-lg max-w-[85%] ${
-                      message.type === 'user'
-                        ? 'bg-primary text-primary-foreground ml-auto'
-                        : 'bg-muted text-foreground'
-                    }`}
-                  >
-                    <pre className="whitespace-pre-wrap text-sm font-sans">
-                      {formatContent(message.content)}
-                    </pre>
-                    <div className="text-xs opacity-70 mt-1">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </div>
-                  </div>
+                  <ChatMessage key={message.id} message={message} containerWidth={panelWidth} />
                 ))
               )}
               <div ref={messagesEndRef} />
@@ -334,20 +317,20 @@ export function Chat({ panelWidth }: ChatProps) {
         </div>
 
         {/* Input section - Fixed height */}
-        <div className="flex-none border-t bg-background py-4 px-4">
+        <div className="flex-none border-t bg-background pt-4 px-4 pb-4 relative -mt-[1px]">
           <div className="flex gap-2">
             <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Type a message..."
               className="flex-1 focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
-              disabled={!activeWorkflowId}
+              disabled={!activeWorkflowId || isExecuting}
             />
             <Button
               onClick={handleSendMessage}
               size="icon"
-              disabled={!inputMessage.trim() || !activeWorkflowId}
+              disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
               className="h-10 w-10 bg-[#802FFF] hover:bg-[#7028E6] text-white"
             >
               <ArrowUp className="h-4 w-4" />

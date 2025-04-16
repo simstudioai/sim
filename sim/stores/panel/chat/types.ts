@@ -4,6 +4,7 @@ export interface ChatMessage {
   workflowId: string | null
   type: 'user' | 'workflow'
   timestamp: string
+  blockId?: string
 }
 
 export interface ChatStore {

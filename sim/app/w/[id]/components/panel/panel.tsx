@@ -14,6 +14,7 @@ import { Variables } from './components/variables/variables'
 export function Panel() {
   const [width, setWidth] = useState(336) // 84 * 4 = 336px (default width)
   const [isDragging, setIsDragging] = useState(false)
+  const [chatMessage, setChatMessage] = useState<string>('')
 
   const isOpen = usePanelStore((state) => state.isOpen)
   const togglePanel = usePanelStore((state) => state.togglePanel)
@@ -131,7 +132,7 @@ export function Panel() {
       {/* Panel Content */}
       <div className="flex-1 overflow-hidden">
         {activeTab === 'chat' ? (
-          <Chat panelWidth={width} />
+          <Chat panelWidth={width} chatMessage={chatMessage} setChatMessage={setChatMessage} />
         ) : activeTab === 'console' ? (
           <Console panelWidth={width} />
         ) : (
