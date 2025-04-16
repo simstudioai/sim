@@ -1,14 +1,14 @@
 import { Mem0Icon } from '@/components/icons'
 import { BlockConfig } from '../types'
-import { Mem0Response } from '@/tools/mem0'
+import { Mem0Response } from '@/tools/mem0/types'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
   type: 'mem0',
   name: 'Mem0',
-  description: 'Memory Management',
+  description: 'Agent memory management',
   longDescription:
     'Add, search, retrieve, and delete memories using Mem0. Store conversation history, user preferences, and context across workflow executions for enhanced AI agent capabilities.',
-  bgColor: '#8B5CF6',
+  bgColor: '#181C1E',
   icon: Mem0Icon,
   category: 'tools',
   subBlocks: [
@@ -31,7 +31,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       layout: 'full',
       placeholder: 'Enter your Mem0 API key',
       password: true,
-      description: 'Get your API key from mem0.ai',
     },
     {
       id: 'userId',
@@ -39,7 +38,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'Enter user identifier',
-      description: 'User ID for associating memories',
       value: () => 'userid', // Default to the working user ID from curl example
     },
     {
@@ -51,7 +49,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         { label: 'v2 (Default)', id: 'v2' },
         { label: 'v1', id: 'v1' }
       ],
-      description: 'API version to use - default is v2',
     },
     {
       id: 'messages',
@@ -64,7 +61,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'add',
       },
-      description: 'Required format: [{"role": "user", "content": "Hello"}, {"role": "assistant", "content": "Hi there!"}]',
     },
     {
       id: 'query',
@@ -76,7 +72,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'search',
       },
-      description: 'Use natural language to describe what you\'re looking for. Example: "Conversations about travel plans" or "Information about user preferences"',
     },
     {
       id: 'memoryId',
@@ -88,7 +83,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'get',
       },
-      description: 'ID from a previous memory operation',
     },
     {
       id: 'startDate',
@@ -100,7 +94,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'get',
       },
-      description: 'Filter memories created on or after this date',
     },
     {
       id: 'endDate',
@@ -112,7 +105,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: 'get',
       },
-      description: 'Filter memories created on or before this date',
     },
     {
       id: 'limit',
@@ -125,7 +117,6 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         field: 'operation',
         value: ['search', 'get'],
       },
-      description: 'Maximum number of results to return',
     },
   ],
   tools: {

@@ -202,9 +202,6 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         </Label>
       )}
       {renderInput()}
-      {config.description && (
-        <p className="text-xs text-muted-foreground mt-1">{config.description}</p>
-      )}
     </div>
   )
 }
