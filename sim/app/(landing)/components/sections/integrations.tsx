@@ -7,6 +7,7 @@ import { File, FileArchive, GitBranch, RefreshCcw, Settings } from 'lucide-react
 import Image from 'next/image';
 import ReactFlow, { ReactFlowProvider, Position, ConnectionLineType } from 'reactflow';
 import { HeroBlock } from '../hero-block';
+import { motion } from 'framer-motion';
 
 function Integrations() {
   return (
@@ -14,14 +15,25 @@ function Integrations() {
       className='flex flex-col py-20 w-full gap-16 px-8 md:px-16 lg:px-28 xl:px-32'
     >
       <div className='flex flex-col gap-7'>
-        <p className='text-white font-medium tracking-normal text-5xl'>
-          Everything you need,
-          <br/>
+        <motion.p
+          className='text-white font-medium tracking-normal text-5xl'
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
+        >
+          Everything you need,<br/>
           connected
-        </p>
-        <p className='text-white/60 text-xl tracking-normal max-w-md font-light'>
+        </motion.p>
+        <motion.p
+          className='text-white/60 text-xl tracking-normal max-w-md font-light'
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.2 }}
+          transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
+        >
           Seamlessly connect your agents with the tools you already use—no extra setup required.
-        </p>
+        </motion.p>
       </div>
 
       <div
@@ -117,21 +129,37 @@ function Integrations() {
       <div className='flex flex-col lg:flex-row gap-28 w-full relative text-white'>
         <div className='flex flex-col w-full gap-12'>
           <div className='flex flex-col gap-6'>
-            <div className='flex gap-6 items-center'>
+            <motion.div
+              className='flex gap-6 items-center'
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
+            >
               <RefreshCcw size={24}/>
-              <p className='text-2xl'>
-                Sync Knowledge in Seconds
-              </p>
-            </div>
-            <p className='font-light text-lg text-white/60 max-w-lg'>
-            Import data from your favorite tools to power your AI agents' knowledge bases—no manual uploads needed.
-            </p>
+              <span className='text-2xl'>Sync Knowledge in Seconds</span>
+            </motion.div>
+            <motion.p
+              className='font-light text-lg text-white/60 max-w-lg'
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, delay: 0.18, ease: 'easeOut' }}
+            >
+              Import data from your favorite tools to power your AI agents' knowledge bases—no manual uploads needed.
+            </motion.p>
           </div>
           <div
           className='relative w-full flex justify-center items-center bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl h-96 z-10 overflow-hidden'
           >
           <DotPattern className='rounded-3xl opacity-10 z-0' x={-5} y={-5} />
-          <div className='w-full h-full flex justify-end z-10'>
+          <motion.div
+            className='w-full h-full flex justify-end z-10'
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+          >
             <ReactFlowProvider>
               <ReactFlow
                 nodes={[
@@ -160,28 +188,43 @@ function Integrations() {
                 style={{ width: '100%', height: '100%' }}
               />
             </ReactFlowProvider>
-          </div>
-
+          </motion.div>
           </div>
         </div>
         <div className='flex flex-col w-full gap-12'>
           <div className='flex flex-col gap-6'>
-            <div className='flex gap-6 items-center'>
+            <motion.div
+              className='flex gap-6 items-center'
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+            >
               <GitBranch size={24}/>
-              <p className='text-2xl'>
-              Automate Workflows with Ease
-              </p>
-            </div>
-            <p className='font-light text-lg text-white/60 max-w-lg'>
-            Trigger actions and automate tasks across your apps with pre-built integrations.
-            </p>
+              <span className='text-2xl'>Automate Workflows with Ease</span>
+            </motion.div>
+            <motion.p
+              className='font-light text-lg text-white/60 max-w-lg'
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, delay: 0.28, ease: 'easeOut' }}
+            >
+              Trigger actions and automate tasks across your apps with pre-built integrations.
+            </motion.p>
           </div>
           <div
           className='relative w-full flex justify-center items-center bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl h-96 z-10 overflow-hidden'
           >
           <DotPattern className='rounded-3xl opacity-10 z-0' x={-5} y={-5} />
         
-          <div className='w-full h-full flex justify-end z-10'>
+          <motion.div
+            className='w-full h-full flex justify-end z-10'
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
+          >
             <ReactFlowProvider>
               <ReactFlow
                 nodes={[
@@ -210,7 +253,7 @@ function Integrations() {
                 style={{ width: '100%', height: '100%' }}
               />
             </ReactFlowProvider>
-          </div>
+          </motion.div>
           </div>
         </div>
       </div>
