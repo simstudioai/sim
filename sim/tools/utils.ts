@@ -2,8 +2,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { TableRow } from './types'
 import { ToolConfig, ToolResponse } from './types'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { tools } from './registry'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { tools } from '@/tools'
 
 const logger = createLogger('Tools Utils')
 

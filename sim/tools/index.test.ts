@@ -8,7 +8,8 @@
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { mockEnvironmentVariables } from './__test-utils__/test-tools'
-import { executeTool, tools } from './index'
+import { executeTool } from './index'
+import { tools } from './registry'
 import { getTool } from './utils'
 
 describe('Tools Registry', () => {
