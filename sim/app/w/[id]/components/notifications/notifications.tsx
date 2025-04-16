@@ -238,7 +238,7 @@ export function NotificationList() {
     <>
       <AnimationStyles />
       <div
-        className="absolute left-1/2 z-50 space-y-2 max-w-lg w-full pointer-events-none"
+        className="absolute left-1/2 z-[60] space-y-2 max-w-lg w-full pointer-events-none"
         style={{
           top: '30px',
           transform: 'translateX(-50%)',
