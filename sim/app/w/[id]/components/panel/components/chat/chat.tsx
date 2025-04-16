@@ -1,10 +1,11 @@
 'use client'
 
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowUp, ChevronDown } from 'lucide-react'
+import { ArrowUp, ChevronDown, MessageSquareShare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
@@ -14,6 +15,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
+import { ChatbotDeploymentModal } from './components/chat-deployment-modal/chat-deployment-modal'
 
 interface ChatProps {
   panelWidth: number
@@ -30,6 +32,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [isChatbotModalOpen, setIsChatbotModalOpen] = useState(false)
+  const { isDeployed } = useWorkflowStore()
+  const [hasChatbotDeployment, setHasChatbotDeployment] = useState(false)
 
   // Use the execution store state to track if a workflow is executing
   const { isExecuting } = useExecutionStore()
@@ -273,86 +278,152 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     return blockConfig?.bgColor || '#2F55FF' // Default blue if not found
   }
 
+  // Check if this workflow has an active chatbot deployment
+  useEffect(() => {
+    if (!activeWorkflowId || !isDeployed) {
+      setHasChatbotDeployment(false)
+      return
+    }
+
+    const checkChatbotDeployment = async () => {
+      try {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/chatbot/status`)
+        if (response.ok) {
+          const data = await response.json()
+          setHasChatbotDeployment(data.isDeployed || false)
+        } else {
+          setHasChatbotDeployment(false)
+        }
+      } catch (error) {
+        console.error('Error checking chatbot deployment status:', error)
+        setHasChatbotDeployment(false)
+      }
+    }
+
+    checkChatbotDeployment()
+  }, [activeWorkflowId, isDeployed, isChatbotModalOpen])
+
   return (
     <div className="flex flex-col h-full">
       {/* Output Source Dropdown */}
       <div className="flex-none border-b px-4 py-2" ref={dropdownRef}>
-        <div className="relative">
-          <button
-            onClick={() => setIsOutputDropdownOpen(!isOutputDropdownOpen)}
-            className={`flex w-full items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
-              isOutputDropdownOpen
-                ? 'bg-accent text-foreground'
-                : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-            }`}
-            disabled={workflowOutputs.length === 0}
-          >
-            {selectedOutputInfo ? (
-              <div className="flex items-center gap-2 w-[calc(100%-24px)] overflow-hidden">
-                <div
-                  className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
-                  style={{
-                    backgroundColor: getOutputColor(
-                      selectedOutputInfo.blockId,
-                      selectedOutputInfo.blockType
-                    ),
-                  }}
-                >
-                  <span className="w-3 h-3 text-white font-bold text-xs">
-                    {selectedOutputInfo.blockName.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <span className="truncate">{selectedOutputDisplayName}</span>
-              </div>
-            ) : (
-              <span className="truncate w-[calc(100%-24px)]">{selectedOutputDisplayName}</span>
-            )}
-            <ChevronDown
-              className={`h-4 w-4 transition-transform ml-1 flex-shrink-0 ${
-                isOutputDropdownOpen ? 'rotate-180' : ''
+        <div className="flex justify-between items-center">
+          <div className="relative flex-1">
+            <button
+              onClick={() => setIsOutputDropdownOpen(!isOutputDropdownOpen)}
+              className={`flex w-full items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
+                isOutputDropdownOpen
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
               }`}
-            />
-          </button>
-
-          {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-            <div className="absolute z-50 mt-1 pt-1 w-full bg-popover rounded-md border shadow-md overflow-hidden">
-              <div className="max-h-[240px] overflow-y-auto">
-                {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
-                  <div key={blockName}>
-                    <div className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground border-t first:border-t-0">
-                      {blockName}
-                    </div>
-                    <div>
-                      {outputs.map((output) => (
-                        <button
-                          key={output.id}
-                          onClick={() => handleOutputSelection(output.id)}
-                          className={cn(
-                            'flex items-center gap-2 text-sm text-left w-full px-3 py-1.5',
-                            'hover:bg-accent hover:text-accent-foreground',
-                            'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                            selectedOutput === output.id && 'bg-accent text-accent-foreground'
-                          )}
-                        >
-                          <div
-                            className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
-                            style={{
-                              backgroundColor: getOutputColor(output.blockId, output.blockType),
-                            }}
-                          >
-                            <span className="w-3 h-3 text-white font-bold text-xs">
-                              {blockName.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="truncate max-w-[calc(100%-28px)]">{output.path}</span>
-                        </button>
-                      ))}
-                    </div>
+              disabled={workflowOutputs.length === 0}
+            >
+              {selectedOutputInfo ? (
+                <div className="flex items-center gap-2 w-[calc(100%-24px)] overflow-hidden">
+                  <div
+                    className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+                    style={{
+                      backgroundColor: getOutputColor(
+                        selectedOutputInfo.blockId,
+                        selectedOutputInfo.blockType
+                      ),
+                    }}
+                  >
+                    <span className="w-3 h-3 text-white font-bold text-xs">
+                      {selectedOutputInfo.blockName.charAt(0).toUpperCase()}
+                    </span>
                   </div>
-                ))}
+                  <span className="truncate">{selectedOutputDisplayName}</span>
+                </div>
+              ) : (
+                <span className="truncate w-[calc(100%-24px)]">{selectedOutputDisplayName}</span>
+              )}
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ml-1 flex-shrink-0 ${
+                  isOutputDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {isOutputDropdownOpen && workflowOutputs.length > 0 && (
+              <div className="absolute z-50 mt-1 pt-1 w-full bg-popover rounded-md border shadow-md overflow-hidden">
+                <div className="max-h-[240px] overflow-y-auto">
+                  {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
+                    <div key={blockName}>
+                      <div className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground border-t first:border-t-0">
+                        {blockName}
+                      </div>
+                      <div>
+                        {outputs.map((output) => (
+                          <button
+                            key={output.id}
+                            onClick={() => handleOutputSelection(output.id)}
+                            className={cn(
+                              'flex items-center gap-2 text-sm text-left w-full px-3 py-1.5',
+                              'hover:bg-accent hover:text-accent-foreground',
+                              'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                              selectedOutput === output.id && 'bg-accent text-accent-foreground'
+                            )}
+                          >
+                            <div
+                              className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+                              style={{
+                                backgroundColor: getOutputColor(output.blockId, output.blockType),
+                              }}
+                            >
+                              <span className="w-3 h-3 text-white font-bold text-xs">
+                                {blockName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <span className="truncate max-w-[calc(100%-28px)]">{output.path}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+          
+          {/* Chatbot Deploy Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "ml-2 text-muted-foreground hover:text-foreground",
+                    hasChatbotDeployment && "text-emerald-500 hover:text-emerald-600"
+                  )}
+                  onClick={() => setIsChatbotModalOpen(true)}
+                  disabled={!activeWorkflowId || !isDeployed}
+                >
+                  <MessageSquareShare className="h-4 w-4" />
+                  <span className="sr-only">Deploy as Chatbot</span>
+                </Button>
+                
+                {/* Active chatbot deployment indicator */}
+                {hasChatbotDeployment && (
+                  <div className="absolute top-0.5 right-0.5 flex items-center justify-center">
+                    <div className="relative">
+                      <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500/50 animate-pulse"></div>
+                      <div className="relative w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-background animate-in zoom-in fade-in duration-300"></div>
+                    </div>
+                    <span className="sr-only">Active Chatbot</span>
+                  </div>
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {!isDeployed 
+                ? 'Deploy workflow first to enable chatbot'
+                : hasChatbotDeployment
+                  ? 'Manage Chatbot Deployment'
+                  : 'Deploy as Chatbot'}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -398,6 +469,15 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           </div>
         </div>
       </div>
+
+      {/* Chatbot Deployment Modal */}
+      {activeWorkflowId && (
+        <ChatbotDeploymentModal
+          isOpen={isChatbotModalOpen}
+          onClose={() => setIsChatbotModalOpen(false)}
+          workflowId={activeWorkflowId}
+        />
+      )}
     </div>
   )
 }

@@ -1,1 +1,0 @@
-ALTER TABLE "workflow_schedule" ADD COLUMN "timezone" text DEFAULT 'UTC' NOT NULL;
