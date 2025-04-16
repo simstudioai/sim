@@ -79,7 +79,7 @@ export const workflow = pgTable('workflow', {
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
   marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' }
-  
+
   // These columns are kept for backward compatibility during migration
   // @deprecated - Use marketplaceData instead
   isPublished: boolean('is_published').notNull().default(false),
@@ -207,4 +207,16 @@ export const userStats = pgTable('user_stats', {
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   lastActive: timestamp('last_active').notNull().defaultNow(),
+})
+
+export const customTools = pgTable('custom_tools', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  schema: json('schema').notNull(),
+  code: text('code').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })

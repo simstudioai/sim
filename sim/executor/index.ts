@@ -126,6 +126,10 @@ export class Executor {
                 pendingBlocks: nextLayer,
                 isDebugSession: true,
                 context: context, // Include context for resumption
+                workflowConnections: this.workflow.connections.map((conn) => ({
+                  source: conn.source,
+                  target: conn.target,
+                })),
               },
               logs: context.blockLogs,
             }
@@ -141,9 +145,13 @@ export class Executor {
               finalOutput = outputs[outputs.length - 1]
             }
 
-            const hasLoopReachedMaxIterations =
-              await this.loopManager.processLoopIterations(context)
-            if (hasLoopReachedMaxIterations) {
+            // Process loop iterations - this will activate external paths when loops complete
+            await this.loopManager.processLoopIterations(context)
+
+            // Continue execution for any newly activated paths
+            // Only stop execution if there are no more blocks to execute
+            const updatedNextLayer = this.getNextExecutionLayer(context)
+            if (updatedNextLayer.length === 0) {
               hasMoreLayers = false
             }
           }
@@ -162,6 +170,10 @@ export class Executor {
           duration: endTime.getTime() - startTime.getTime(),
           startTime: context.metadata.startTime!,
           endTime: context.metadata.endTime!,
+          workflowConnections: this.workflow.connections.map((conn) => ({
+            source: conn.source,
+            target: conn.target,
+          })),
         },
         logs: context.blockLogs,
       }
@@ -199,7 +211,6 @@ export class Executor {
       if (outputs.length > 0) {
         finalOutput = outputs[outputs.length - 1]
       }
-
       await this.loopManager.processLoopIterations(context)
       const nextLayer = this.getNextExecutionLayer(context)
       setPendingBlocks(nextLayer)
@@ -220,6 +231,10 @@ export class Executor {
             endTime: context.metadata.endTime!,
             pendingBlocks: [],
             isDebugSession: false,
+            workflowConnections: this.workflow.connections.map((conn) => ({
+              source: conn.source,
+              target: conn.target,
+            })),
           },
           logs: context.blockLogs,
         }
@@ -239,7 +254,7 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      console.error('Debug step execution failed:', this.sanitizeError(error))
+      logger.error('Debug step execution failed:', this.sanitizeError(error))
 
       return {
         success: false,
@@ -293,10 +308,6 @@ export class Executor {
         }
       }
 
-      if (loop.nodes.length < 2) {
-        throw new Error(`Loop ${loopId} must contain at least 2 blocks`)
-      }
-
       if (loop.iterations <= 0) {
         throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
@@ -318,6 +329,7 @@ export class Executor {
       blockLogs: [],
       metadata: {
         startTime: startTime.toISOString(),
+        duration: 0, // Initialize with zero, will be updated throughout execution
       },
       environmentVariables: this.environmentVariables,
       decisions: {
@@ -326,6 +338,7 @@ export class Executor {
       },
       loopIterations: new Map(),
       loopItems: new Map(),
+      completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: this.workflow,
@@ -443,18 +456,6 @@ export class Executor {
             },
           }
 
-          logger.info(`[Executor] API input for starter block:`, {
-            type: typeof inputData,
-            isArray: Array.isArray(inputData),
-            keys: Object.keys(inputData),
-            inputData: JSON.stringify(inputData, null, 2),
-          })
-
-          logger.info(
-            `[Executor] Final starter block output:`,
-            JSON.stringify(starterOutput, null, 2)
-          )
-
           context.blockStates.set(starterBlock.id, {
             output: starterOutput,
             executed: true,
@@ -467,8 +468,6 @@ export class Executor {
               input: this.workflowInput,
             },
           }
-
-          logger.info(`[Executor] Simple starter output:`, JSON.stringify(starterOutput, null, 2))
 
           context.blockStates.set(starterBlock.id, {
             output: starterOutput,
@@ -483,7 +482,7 @@ export class Executor {
         // Fallback to raw input with both paths accessible
         // Ensure we handle both input formats
         const inputData =
-          this.workflowInput.input !== undefined
+          this.workflowInput?.input !== undefined
             ? this.workflowInput.input // Use nested input if available
             : this.workflowInput // Fallback to direct input
 
@@ -545,11 +544,32 @@ export class Executor {
         (conn) => conn.target === block.id
       )
 
-      const isInLoop = Object.values(this.workflow.loops || {}).some((loop) =>
+      // Find all loops that this block is a part of
+      const containingLoops = Object.values(this.workflow.loops || {}).filter((loop) =>
         loop.nodes.includes(block.id)
       )
 
+      const isInLoop = containingLoops.length > 0
+
       if (isInLoop) {
+        // Check if this block is part of a self-loop (single-node loop)
+        const isInSelfLoop = containingLoops.some(
+          (loop) => loop.nodes.length === 1 && loop.nodes[0] === block.id
+        )
+
+        // Check if there's a direct self-connection
+        const hasSelfConnection = this.workflow.connections.some(
+          (conn) => conn.source === block.id && conn.target === block.id
+        )
+
+        if (isInSelfLoop || hasSelfConnection) {
+          // For self-loops, we only need the node to be in the active execution path
+          // It will be reset after each iteration by the loop manager
+          pendingBlocks.add(block.id)
+          continue
+        }
+
+        // For regular multi-node loops
         const hasValidPath = incomingConnections.some((conn) => {
           return executedBlocks.has(conn.source)
         })
@@ -558,6 +578,7 @@ export class Executor {
           pendingBlocks.add(block.id)
         }
       } else {
+        // Regular non-loop block handling (unchanged)
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
           const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
@@ -640,7 +661,8 @@ export class Executor {
     const { setActiveBlocks } = useExecutionStore.getState()
 
     try {
-      setActiveBlocks(new Set(blockIds))
+      // Set all blocks in this layer as active
+      useExecutionStore.setState({ activeBlockIds: new Set(blockIds) })
 
       const results = await Promise.all(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -653,8 +675,10 @@ export class Executor {
       this.pathTracker.updateExecutionPaths(blockIds, context)
 
       return results
-    } finally {
-      setActiveBlocks(new Set())
+    } catch (error) {
+      // If there's an uncaught error, clear all active blocks as a safety measure
+      useExecutionStore.setState({ activeBlockIds: new Set() })
+      throw error
     }
   }
 
@@ -686,6 +710,7 @@ export class Executor {
 
     const blockLog = this.createBlockLog(block)
     const addConsole = useConsoleStore.getState().addConsole
+    const { setActiveBlocks } = useExecutionStore.getState()
 
     try {
       if (block.enabled === false) {
@@ -701,20 +726,11 @@ export class Executor {
           logger.warn(
             `Starter block state not found when executing ${block.metadata?.name || blockId}. This may cause reference errors.`
           )
-        } else {
-          logger.debug(
-            `Starter block state available for ${block.metadata?.name || blockId}:`,
-            JSON.stringify(starterState.output || {}, null, 2)
-          )
         }
       }
 
       // Resolve inputs (which will look up references to other blocks including starter)
       const inputs = this.resolver.resolveInputs(block, context)
-      logger.debug(
-        `Resolved inputs for ${block.metadata?.name || blockId}:`,
-        JSON.stringify(inputs, null, 2)
-      )
 
       // Find the appropriate handler
       const handler = this.blockHandlers.find((h) => h.canHandle(block))
@@ -726,6 +742,14 @@ export class Executor {
       const startTime = performance.now()
       const rawOutput = await handler.execute(block, inputs, context)
       const executionTime = performance.now() - startTime
+
+      // Remove this block from active blocks immediately after execution
+      // This ensures the pulse effect stops as soon as the block completes
+      useExecutionStore.setState((state) => {
+        const updatedActiveBlockIds = new Set(state.activeBlockIds)
+        updatedActiveBlockIds.delete(blockId)
+        return { activeBlockIds: updatedActiveBlockIds }
+      })
 
       // Normalize the output
       const output = this.normalizeBlockOutput(rawOutput, block)
@@ -751,12 +775,20 @@ export class Executor {
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
         timestamp: blockLog.startedAt,
+        blockId: block.id,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
 
       return output
     } catch (error: any) {
+      // Remove this block from active blocks if there's an error
+      useExecutionStore.setState((state) => {
+        const updatedActiveBlockIds = new Set(state.activeBlockIds)
+        updatedActiveBlockIds.delete(blockId)
+        return { activeBlockIds: updatedActiveBlockIds }
+      })
+
       blockLog.success = false
       blockLog.error =
         error.message ||
@@ -781,6 +813,15 @@ export class Executor {
         blockType: block.metadata?.id || 'unknown',
       })
 
+      // Check for error connections and follow them if they exist
+      const hasErrorPath = this.activateErrorPath(blockId, context)
+
+      // Log the error for visibility
+      logger.error(
+        `Error executing block ${block.metadata?.name || blockId}:`,
+        this.sanitizeError(error)
+      )
+
       // Create error output with appropriate structure
       const errorOutput: NormalizedBlockOutput = {
         response: {
@@ -796,15 +837,6 @@ export class Executor {
         executed: true,
         executionTime: blockLog.durationMs,
       })
-
-      // Check for error connections and follow them if they exist
-      const hasErrorPath = this.activateErrorPath(blockId, context)
-
-      // Console.error the error for visibility
-      logger.error(
-        `Error executing block ${block.metadata?.name || blockId}:`,
-        this.sanitizeError(error)
-      )
 
       // If there are error paths to follow, return error output instead of throwing
       if (hasErrorPath) {

@@ -1,6 +1,6 @@
-import { AlertTriangle, Check, CheckCircle, Copy } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Notice } from '@/components/ui/notice'
 import { cn } from '@/lib/utils'
 
 interface TestResultDisplayProps {
@@ -29,18 +29,26 @@ export function TestResultDisplay({
 }: TestResultDisplayProps) {
   if (!testResult) return null
 
-  const Icon = testResult.success ? CheckCircle : AlertTriangle
-
   return (
-    <Alert
-      variant={testResult.success ? 'default' : 'destructive'}
+    <Notice
+      variant={testResult.success ? 'success' : 'error'}
+      title={testResult.success ? 'Webhook Test Successful' : 'Webhook Test Failed'}
+      icon={testResult.success ? null : undefined}
       className={cn(
-        testResult.success &&
-          'border-green-500/50 text-green-700 dark:border-green-500/60 dark:text-green-400 [&>svg]:text-green-500 dark:[&>svg]:text-green-400'
+        'mb-4',
+        testResult.success
+          ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800/50'
+          : 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/50'
       )}
     >
-      <Icon className="h-4 w-4" />
-      <AlertDescription>
+      <div
+        className={cn(
+          'text-sm',
+          testResult.success
+            ? 'text-green-800 dark:text-green-300'
+            : 'text-red-800 dark:text-red-300'
+        )}
+      >
         {testResult.message}
 
         {showCurlCommand && testResult.success && testResult.test?.curlCommand && (
@@ -67,7 +75,7 @@ export function TestResultDisplay({
             </pre>
           </div>
         )}
-      </AlertDescription>
-    </Alert>
+      </div>
+    </Notice>
   )
 }

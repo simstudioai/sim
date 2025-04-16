@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
@@ -10,7 +10,7 @@ const logger = createLogger('MarketplaceUnpublishAPI')
 
 /**
  * API endpoint to unpublish a workflow from the marketplace by its marketplace ID
- * 
+ *
  * Security:
  * - Requires authentication
  * - Validates that the current user is the author of the marketplace entry
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const { id } = await params
-    
+
     // Get the session first for authorization
     const session = await getSession()
     if (!session?.user?.id) {
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const userId = session.user.id
-    
+
     // Get the marketplace entry using the marketplace ID
     const marketplaceEntry = await db
       .select({
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.warn(`[${requestId}] No marketplace entry found with ID: ${id}`)
       return createErrorResponse('Marketplace entry not found', 404)
     }
-    
+
     // Check if the user is the author of the marketplace entry
     if (marketplaceEntry.authorId !== userId) {
       logger.warn(
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const workflowId = marketplaceEntry.workflowId
-    
+
     // Verify the workflow exists and belongs to the user
     const workflow = await db
       .select({
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .where(eq(schema.workflow.id, workflowId))
       .limit(1)
       .then((rows) => rows[0])
-    
+
     if (!workflow) {
       logger.warn(`[${requestId}] Associated workflow not found: ${workflowId}`)
       // We'll still delete the marketplace entry even if the workflow is missing
@@ -79,20 +79,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       )
       return createErrorResponse('You do not have permission to unpublish this workflow', 403)
     }
-    
+
     try {
       // Delete the marketplace entry - this is the primary action
       await db.delete(schema.marketplace).where(eq(schema.marketplace.id, id))
-      
+
       // Update the workflow to mark it as unpublished if it exists
       if (workflow) {
-        await db.update(schema.workflow)
+        await db
+          .update(schema.workflow)
           .set({ isPublished: false })
           .where(eq(schema.workflow.id, workflowId))
       }
-      
-      logger.info(`[${requestId}] Workflow "${marketplaceEntry.name}" unpublished from marketplace: ID=${id}, workflowId=${workflowId}`)
-      
+
+      logger.info(
+        `[${requestId}] Workflow "${marketplaceEntry.name}" unpublished from marketplace: ID=${id}, workflowId=${workflowId}`
+      )
+
       return createSuccessResponse({
         success: true,
         message: 'Workflow successfully unpublished from marketplace',

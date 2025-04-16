@@ -59,6 +59,11 @@ export interface BlockLog {
 export interface ExecutionMetadata {
   startTime?: string // ISO timestamp when workflow execution started
   endTime?: string // ISO timestamp when workflow execution completed
+  duration: number // Duration of workflow execution in milliseconds
+  pendingBlocks?: string[] // List of block IDs that are pending execution
+  isDebugSession?: boolean // Whether the workflow is running in debug mode
+  context?: ExecutionContext // Runtime context for the workflow
+  workflowConnections?: Array<{ source: string; target: string }> // Connections between workflow blocks
 }
 
 /**
@@ -88,6 +93,7 @@ export interface ExecutionContext {
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
   loopItems: Map<string, any> // Tracks current item for forEach loops
+  completedLoops: Set<string> // Tracks which loops have completed all iterations
 
   // Execution tracking
   executedBlocks: Set<string> // Set of block IDs that have been executed
@@ -104,14 +110,7 @@ export interface ExecutionResult {
   output: NormalizedBlockOutput // Final output data from the workflow
   error?: string // Error message if execution failed
   logs?: BlockLog[] // Execution logs for all blocks
-  metadata?: {
-    duration: number // Total execution time in milliseconds
-    startTime: string // ISO timestamp when execution started
-    endTime?: string // ISO timestamp when execution completed
-    pendingBlocks?: string[] // Blocks pending execution in debug mode
-    isDebugSession?: boolean // Whether this is a debug session
-    context?: ExecutionContext // Execution context for resuming in debug mode
-  }
+  metadata?: ExecutionMetadata
 }
 
 /**

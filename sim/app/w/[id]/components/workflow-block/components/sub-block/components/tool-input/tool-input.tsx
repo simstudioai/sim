@@ -1,15 +1,6 @@
 import { useCallback, useState } from 'react'
-import { PencilIcon, PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
+import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
@@ -18,17 +9,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Toggle } from '@/components/ui/toggle'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getAllBlocks } from '@/blocks'
-import { getTool } from '@/tools'
+import { supportsToolUsageControl } from '@/providers/model-capabilities'
+import { getProviderFromModel } from '@/providers/utils'
+import { getTool } from '@/tools/utils'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
+
+const logger = createLogger('ToolInput')
 
 interface ToolInputProps {
   blockId: string
@@ -43,6 +43,7 @@ interface StoredTool {
   schema?: any // For custom tools
   code?: string // For custom tools implementation
   operation?: string // For tools with multiple operations
+  usageControl?: 'auto' | 'force' | 'none' // Control how the tool is used
 }
 
 interface ToolParam {
@@ -125,6 +126,63 @@ const getOperationOptions = (blockType: string): { label: string; id: string }[]
   })
 }
 
+// Helper function to initialize tool parameters
+const initializeToolParams = (
+  toolId: string,
+  params: ToolParam[],
+  subBlockStore: {
+    resolveToolParamValue: (
+      toolId: string,
+      paramId: string,
+      instanceId?: string
+    ) => string | undefined
+  },
+  isAutoFillEnabled: boolean,
+  instanceId?: string
+): Record<string, string> => {
+  const initialParams: Record<string, string> = {}
+
+  // Only auto-fill parameters if the setting is enabled
+  if (isAutoFillEnabled) {
+    // For each parameter, check if we have a stored/resolved value
+    params.forEach((param) => {
+      const resolvedValue = subBlockStore.resolveToolParamValue(toolId, param.id, instanceId)
+      if (resolvedValue) {
+        initialParams[param.id] = resolvedValue
+      }
+    })
+  }
+
+  return initialParams
+}
+
+// Helper function to check if a tool has expandable content
+const hasExpandableContent = (
+  isCustomTool: boolean,
+  hasOperations: boolean,
+  operationOptions: { label: string; id: string }[],
+  toolId: string | null | undefined,
+  requiredParams: ToolParam[]
+): boolean => {
+  // Custom tools are always expandable and handle their own content
+  if (isCustomTool) return true
+
+  // Check if it has operations
+  if (hasOperations && operationOptions.length > 0) return true
+
+  // Check if it has OAuth requirements
+  if (toolId) {
+    const oauthConfig = getOAuthConfig(toolId)
+    if (oauthConfig?.required) return true
+  }
+
+  // Check if it has required parameters
+  if (requiredParams.length > 0) return true
+
+  // No expandable content
+  return false
+}
+
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -133,6 +191,14 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
+  const subBlockStore = useSubBlockStore()
+  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
+
+  // Get the current model from the 'model' subblock
+  const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
+  const model = typeof modelValue === 'string' ? modelValue : ''
+  const provider = model ? getProviderFromModel(model) : ''
+  const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
 
@@ -166,12 +232,25 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const operationOptions = hasOperations ? getOperationOptions(toolBlock.type) : []
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
 
+    const toolId = getToolIdFromBlock(toolBlock.type) || toolBlock.type
+    const requiredParams = toolId ? getRequiredToolParams(toolId) : []
+
+    // Use the helper function to initialize parameters with blockId as instanceId
+    const initialParams = initializeToolParams(
+      toolId,
+      requiredParams,
+      subBlockStore,
+      isAutoFillEnvVarsEnabled,
+      blockId
+    )
+
     const newTool: StoredTool = {
       type: toolBlock.type,
       title: toolBlock.name,
-      params: {},
+      params: initialParams,
       isExpanded: true,
       operation: defaultOperation,
+      usageControl: 'auto',
     }
 
     // If isWide, keep tools in the same row expanded
@@ -204,13 +283,29 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       return
     }
 
+    // Get custom tool parameters from schema
+    const toolParams = getCustomToolParams(customTool.schema)
+
+    // Create tool ID for the custom tool
+    const toolId = `custom-${customTool.schema.function.name}`
+
+    // Use the helper function to initialize parameters with blockId as instanceId
+    const initialParams = initializeToolParams(
+      toolId,
+      toolParams,
+      subBlockStore,
+      isAutoFillEnvVarsEnabled,
+      blockId
+    )
+
     const newTool: StoredTool = {
       type: 'custom-tool',
       title: customTool.title,
-      params: {},
+      params: initialParams,
       isExpanded: true,
       schema: customTool.schema,
       code: customTool.code || '',
+      usageControl: 'auto',
     }
 
     // If isWide, keep tools in the same row expanded
@@ -269,7 +364,42 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     setValue(selectedTools.filter((_, index) => index !== toolIndex))
   }
 
+  // New handler for when a custom tool is completely deleted from the store
+  const handleDeleteTool = (toolId: string) => {
+    // Find any instances of this tool in the current workflow and remove them
+    const updatedTools = selectedTools.filter(tool => {
+      // For custom tools, we need to check if it matches the deleted tool
+      if (tool.type === 'custom-tool' && 
+          tool.schema?.function?.name &&
+          customTools.some(customTool => 
+            customTool.id === toolId && 
+            customTool.schema.function.name === tool.schema.function.name
+          )) {
+        return false
+      }
+      return true
+    })
+    
+    // Update the workflow value if any tools were removed
+    if (updatedTools.length !== selectedTools.length) {
+      setValue(updatedTools)
+    }
+  }
+
   const handleParamChange = (toolIndex: number, paramId: string, paramValue: string) => {
+    // Store the value in the tool params store for future use
+    const tool = selectedTools[toolIndex]
+    const toolId =
+      tool.type === 'custom-tool'
+        ? `custom-${tool.schema?.function?.name || 'tool'}`
+        : getToolIdFromBlock(tool.type) || tool.type
+
+    // Only store non-empty values
+    if (paramValue.trim()) {
+      subBlockStore.setToolParam(toolId, paramId, paramValue)
+    }
+
+    // Update the value in the workflow
     setValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
@@ -308,6 +438,19 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                 ...tool.params,
                 credential: credentialId,
               },
+            }
+          : tool
+      )
+    )
+  }
+
+  const handleUsageControlChange = (toolIndex: number, usageControl: string) => {
+    setValue(
+      selectedTools.map((tool, index) =>
+        index === toolIndex
+          ? {
+              ...tool,
+              usageControl: usageControl as 'auto' | 'force' | 'none',
             }
           : tool
       )
@@ -379,6 +522,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 isExpanded: true,
                                 schema: customTool.schema,
                                 code: customTool.code,
+                                usageControl: 'auto',
                               }
 
                               if (isWide) {
@@ -465,6 +609,15 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                 ? getRequiredToolParams(toolId)
                 : []
 
+            // Check if the tool has any expandable content
+            const isExpandable = hasExpandableContent(
+              isCustomTool,
+              hasOperations,
+              operationOptions,
+              toolId,
+              requiredParams
+            )
+
             return (
               <div
                 key={`${tool.type}-${toolIndex}`}
@@ -472,18 +625,21 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
               >
                 <div className="flex flex-col rounded-md border bg-card overflow-visible">
                   <div
-                    className="flex items-center justify-between p-2 bg-accent/50 cursor-pointer"
+                    className={cn(
+                      'flex items-center justify-between p-2 bg-accent/50',
+                      isExpandable ? 'cursor-pointer' : 'cursor-default'
+                    )}
                     onClick={() => {
                       if (isCustomTool) {
                         handleEditCustomTool(toolIndex)
-                      } else {
+                      } else if (isExpandable) {
                         toggleToolExpansion(toolIndex)
                       }
                     }}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-shrink-1 overflow-hidden">
                       <div
-                        className="flex items-center justify-center w-5 h-5 rounded"
+                        className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded"
                         style={{
                           backgroundColor: isCustomTool
                             ? '#3B82F6' // blue-500 for custom tools
@@ -496,15 +652,84 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                           <IconComponent icon={toolBlock?.icon} className="w-3 h-3 text-white" />
                         )}
                       </div>
-                      <span
-                        className={`text-sm font-medium truncate ${
-                          isWide ? 'max-w-[134px]' : 'max-w-[180px]'
-                        }`}
-                      >
-                        {tool.title}
-                      </span>
+                      <span className="text-sm font-medium truncate">{tool.title}</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                      {/* Only render the tool usage control if the provider supports it */}
+                      {supportsToolControl && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Toggle
+                              className="group h-6 px-2 py-0 rounded-sm data-[state=on]:bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 flex items-center justify-center"
+                              pressed={true}
+                              onPressedChange={() => {}}
+                              onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation()
+                                // Cycle through the states: auto -> force -> none -> auto
+                                const currentState = tool.usageControl || 'auto'
+                                const nextState =
+                                  currentState === 'auto'
+                                    ? 'force'
+                                    : currentState === 'force'
+                                      ? 'none'
+                                      : 'auto'
+                                handleUsageControlChange(toolIndex, nextState)
+                              }}
+                              aria-label="Toggle tool usage control"
+                            >
+                              {/* Text boxes instead of icons */}
+                              <span
+                                className={`text-xs font-medium ${
+                                  tool.usageControl === 'auto'
+                                    ? 'block text-muted-foreground'
+                                    : 'hidden'
+                                }`}
+                              >
+                                Auto
+                              </span>
+                              <span
+                                className={`text-xs font-medium ${
+                                  tool.usageControl === 'force'
+                                    ? 'block text-muted-foreground'
+                                    : 'hidden'
+                                }`}
+                              >
+                                Force
+                              </span>
+                              <span
+                                className={`text-xs font-medium ${
+                                  tool.usageControl === 'none'
+                                    ? 'block text-muted-foreground'
+                                    : 'hidden'
+                                }`}
+                              >
+                                Deny
+                              </span>
+                            </Toggle>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="p-2 max-w-[240px]">
+                            <p className="text-xs">
+                              {tool.usageControl === 'auto' && (
+                                <span>
+                                  <span className="font-medium">Auto:</span> Let the agent decide
+                                  when to use the tool
+                                </span>
+                              )}
+                              {tool.usageControl === 'force' && (
+                                <span>
+                                  <span className="font-medium">Force:</span> Always use this tool
+                                  in the response
+                                </span>
+                              )}
+                              {tool.usageControl === 'none' && (
+                                <span>
+                                  <span className="font-medium">Deny:</span> Never use this tool
+                                </span>
+                              )}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
@@ -517,7 +742,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     </div>
                   </div>
 
-                  {tool.isExpanded && !isCustomTool && (
+                  {tool.isExpanded && !isCustomTool && isExpandable && (
                     <div
                       className="p-3 space-y-3"
                       onClick={(e) => {
@@ -661,6 +886,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                   isExpanded: true,
                                   schema: customTool.schema,
                                   code: customTool.code,
+                                  usageControl: 'auto',
                                 }
 
                                 if (isWide) {
@@ -741,10 +967,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
           if (!open) setEditingToolIndex(null)
         }}
         onSave={editingToolIndex !== null ? handleSaveCustomTool : handleAddCustomTool}
+        onDelete={handleDeleteTool}
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? {
-                id: '',
+                id: customTools.find(tool => 
+                    tool.schema.function.name === selectedTools[editingToolIndex].schema.function.name
+                )?.id,
                 schema: selectedTools[editingToolIndex].schema,
                 code: selectedTools[editingToolIndex].code || '',
               }

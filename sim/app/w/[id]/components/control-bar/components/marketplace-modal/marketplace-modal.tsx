@@ -2,29 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { formatDistanceToNow } from 'date-fns'
-import {
-  Atom,
-  BotMessageSquare,
-  Brain,
-  BrainCircuit,
-  ChartBar,
-  Code,
-  Database,
-  Eye,
-  HelpCircle,
-  Info,
-  LineChart,
-  MailIcon,
-  NotebookPen,
-  Store,
-  TimerIcon,
-  Trash,
-  X,
-} from 'lucide-react'
+import { Eye, HelpCircle, Info, Trash, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -38,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { Notice } from '@/components/ui/notice'
 import {
   Select,
   SelectContent,
@@ -45,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -468,12 +448,9 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderPublishForm = () => (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="mb-4 rounded-md bg-amber-50 p-3 border border-amber-200">
-          <p className="text-sm text-amber-800">
-            <span className="font-medium text-amber-800">Security:</span> API keys and environment
-            variables will be automatically removed before publishing.
-          </p>
-        </div>
+        <Notice variant="warning" title="Security">
+          API keys and environment variables will be automatically removed before publishing.
+        </Notice>
 
         <FormField
           control={form.control}

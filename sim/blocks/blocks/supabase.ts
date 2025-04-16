@@ -81,15 +81,15 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         const { data, ...rest } = params
 
         // Parse JSON data if it's a string
-        let parsedData;
+        let parsedData
         if (data && typeof data === 'string') {
           try {
-            parsedData = JSON.parse(data);
+            parsedData = JSON.parse(data)
           } catch (e) {
-            throw new Error('Invalid JSON data format');
+            throw new Error('Invalid JSON data format')
           }
         } else {
-          parsedData = data;
+          parsedData = data
         }
 
         return {
@@ -111,8 +111,8 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
     response: {
       type: {
         message: 'string',
-        results: 'json'
-      }
+        results: 'json',
+      },
     },
   },
 }

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
@@ -69,8 +68,8 @@ export function Sidebar({
   hasPrev = false,
 }: LogSidebarProps) {
   const MIN_WIDTH = 400
-  const DEFAULT_WIDTH = 500
-  const EXPANDED_WIDTH = 650
+  const DEFAULT_WIDTH = 600
+  const EXPANDED_WIDTH = 800
 
   const [width, setWidth] = useState(DEFAULT_WIDTH) // Start with default width
   const [isDragging, setIsDragging] = useState(false)
@@ -357,7 +356,6 @@ export function Sidebar({
               {/* Trace Spans (if available and this is a workflow execution log) */}
               {isWorkflowExecutionLog && log.metadata?.traceSpans && (
                 <div className="w-full">
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Trace Spans</h3>
                   <div className="w-full overflow-x-hidden">
                     <TraceSpansDisplay
                       traceSpans={log.metadata.traceSpans}

@@ -13,12 +13,29 @@ vi.mock('@/lib/logs/console-logger', () => ({
 }))
 
 // Tools
+vi.mock('@/tools/utils', () => ({
+  getTool: vi.fn(),
+  getToolAsync: vi.fn(),
+  validateToolRequest: vi.fn(),
+  formatRequestParams: vi.fn(),
+  transformTable: vi.fn(),
+  createParamSchema: vi.fn(),
+  getClientEnvVars: vi.fn(),
+  createCustomToolRequestBody: vi.fn(),
+}))
+
+// Utils
+vi.mock('@/lib/utils', () => ({
+  isHostedVersion: vi.fn().mockReturnValue(false),
+  getRotatingApiKey: vi.fn(),
+}))
+
+// Tools
 vi.mock('@/tools')
 
 // Providers
 vi.mock('@/providers', () => ({
   executeProviderRequest: vi.fn(),
-  // Add other exports from '@/providers' if they are used and need mocking
 }))
 vi.mock('@/providers/utils', async (importOriginal) => {
   const actual = await importOriginal()
@@ -35,7 +52,7 @@ vi.mock('@/providers/utils', async (importOriginal) => {
 // Executor utilities
 vi.mock('../../path')
 vi.mock('../../resolver', () => ({
-  InputResolver: vi.fn(), // Simple mock constructor
+  InputResolver: vi.fn(),
 }))
 
 // Specific block utilities (like router prompt generator)
@@ -43,3 +60,9 @@ vi.mock('@/blocks/blocks/router')
 
 // Mock blocks - needed by agent handler for transformBlockTool
 vi.mock('@/blocks')
+
+// Mock fetch for server requests
+global.fetch = vi.fn()
+
+// Mock process.env
+process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'

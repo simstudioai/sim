@@ -10,6 +10,7 @@ export interface ConsoleEntry {
   timestamp: string
   blockName?: string
   blockType?: string
+  blockId?: string
 }
 
 export interface ConsoleStore {

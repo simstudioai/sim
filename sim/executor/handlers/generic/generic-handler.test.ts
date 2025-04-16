@@ -1,20 +1,21 @@
 import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
 import { BlockOutput } from '@/blocks/types'
-import { Tool } from '@/executor/types'
 import { SerializedBlock } from '@/serializer/types'
-import { executeTool, getTool } from '@/tools'
+import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
 import { ExecutionContext } from '../../types'
 import { GenericBlockHandler } from './generic-handler'
+import { ToolConfig } from '@/tools/types'
 
-const mockGetTool = getTool as Mock
+const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
 
 describe('GenericBlockHandler', () => {
   let handler: GenericBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
-  let mockTool: Tool
+  let mockTool: ToolConfig
 
   beforeEach(() => {
     handler = new GenericBlockHandler()
@@ -33,13 +34,14 @@ describe('GenericBlockHandler', () => {
       workflowId: 'test-workflow-id',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: {},
+      metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
       loopItems: new Map(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
+      completedLoops: new Set(),
     }
 
     mockTool = {
@@ -48,13 +50,26 @@ describe('GenericBlockHandler', () => {
       description: 'Does something custom',
       version: '1.0',
       params: { param1: { type: 'string' } },
+      request: {
+        url: 'https://example.com/api',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        body: (params) => params
+      }
     }
 
     // Reset mocks using vi
     vi.clearAllMocks()
+    
+    // Set up mockGetTool to return mockTool
+    mockGetTool.mockImplementation((toolId) => {
+      if (toolId === 'some_custom_tool') {
+        return mockTool
+      }
+      return undefined
+    })
 
     // Default mock implementations
-    mockGetTool.mockReturnValue(mockTool)
     mockExecuteTool.mockResolvedValue({ success: true, output: { customResult: 'OK' } })
   })
 
@@ -82,8 +97,10 @@ describe('GenericBlockHandler', () => {
   })
 
   it('should throw error if the associated tool is not found', async () => {
-    mockGetTool.mockReturnValue(undefined)
     const inputs = { param1: 'value' }
+    
+    // Override mock to return undefined for this test
+    mockGetTool.mockImplementation(() => undefined)
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       'Tool not found: some_custom_tool'

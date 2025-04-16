@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import { SparklesIcon } from 'lucide-react'
+import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -304,9 +304,9 @@ export function Code({
               onClick={isPromptVisible ? hidePromptInline : showPromptInline}
               disabled={isAiLoading || isAiStreaming}
               aria-label="Generate code with AI"
-              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              className="h-8 w-8 rounded-full bg-muted/80 hover:bg-muted shadow-sm hover:shadow text-muted-foreground hover:text-primary transition-all duration-200 border border-transparent hover:border-primary/20"
             >
-              <SparklesIcon className="h-4 w-4" />
+              <Wand2 className="h-4 w-4" />
             </Button>
           )}
 

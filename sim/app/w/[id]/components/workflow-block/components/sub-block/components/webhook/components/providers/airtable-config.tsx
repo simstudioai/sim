@@ -7,6 +7,7 @@ import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
+import { WebhookConfigField } from '../ui/webhook-config-field'
 
 interface AirtableConfigProps {
   baseId: string
@@ -21,6 +22,7 @@ interface AirtableConfigProps {
   copyToClipboard: (text: string, type: string) => void
   testWebhook?: () => void // Optional test function
   webhookId?: string // Webhook ID to enable testing
+  webhookUrl: string // Added webhook URL
 }
 
 export function AirtableConfig({
@@ -34,12 +36,25 @@ export function AirtableConfig({
   testResult,
   copied,
   copyToClipboard,
-  testWebhook, // We might need this later for instructions
-  webhookId, // We might need this later for instructions
+  testWebhook,
+  webhookId,
+  webhookUrl,
 }: AirtableConfigProps) {
   return (
     <div className="space-y-4">
       <ConfigSection title="Airtable Configuration">
+        <WebhookConfigField
+          id="webhook-url"
+          label="Webhook URL"
+          value={webhookUrl}
+          description="This is the URL that will receive webhook requests"
+          isLoading={isLoadingToken}
+          copied={copied}
+          copyType="url"
+          copyToClipboard={copyToClipboard}
+          readOnly={true}
+        />
+
         <ConfigField
           id="airtable-base-id"
           label="Base ID *"

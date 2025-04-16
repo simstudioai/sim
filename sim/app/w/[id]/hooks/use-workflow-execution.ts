@@ -23,7 +23,7 @@ export function useWorkflowExecution() {
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
   const { toggleConsole } = useConsoleStore()
-  const { togglePanel, setActiveTab } = usePanelStore()
+  const { togglePanel, setActiveTab, activeTab } = usePanelStore()
   const { getAllVariables } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
@@ -38,6 +38,7 @@ export function useWorkflowExecution() {
     setPendingBlocks,
     setExecutor,
     setDebugContext,
+    setActiveBlocks,
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
@@ -72,7 +73,7 @@ export function useWorkflowExecution() {
     }
   }
 
-  const handleRunWorkflow = useCallback(async () => {
+  const handleRunWorkflow = useCallback(async (workflowInput?: any) => {
     if (!activeWorkflowId) return
 
     // Reset execution result and set execution state
@@ -91,7 +92,9 @@ export function useWorkflowExecution() {
     }
 
     // Set active tab to console
-    setActiveTab('console')
+    if (activeTab !== 'console' && activeTab !== 'chat') {
+      setActiveTab('console')
+    }
 
     const executionId = uuidv4()
 
@@ -143,7 +146,7 @@ export function useWorkflowExecution() {
         workflow,
         currentBlockStates,
         envVarValues,
-        undefined,
+        workflowInput,
         workflowVariables
       )
       setExecutor(newExecutor)
@@ -168,6 +171,7 @@ export function useWorkflowExecution() {
           // Reset execution states right away for UI to update
           setIsExecuting(false)
           setIsDebugging(false)
+          setActiveBlocks(new Set())
         }
 
         // Show notification
@@ -239,6 +243,7 @@ export function useWorkflowExecution() {
       setExecutionResult(errorResult)
       setIsExecuting(false)
       setIsDebugging(false)
+      setActiveBlocks(new Set())
 
       // Create a more user-friendly notification message
       let notificationMessage = `Workflow execution failed`
@@ -288,6 +293,7 @@ export function useWorkflowExecution() {
     setIsDebugging,
     isDebugModeEnabled,
     isDebugging,
+    setActiveBlocks,
   ])
 
   /**
@@ -318,6 +324,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       setIsDebugging(false)
       setIsExecuting(false)
+      setActiveBlocks(new Set())
       return
     }
 
@@ -362,6 +369,7 @@ export function useWorkflowExecution() {
         setDebugContext(null)
         setExecutor(null)
         setPendingBlocks([])
+        setActiveBlocks(new Set())
       } else {
         // Debug session continues - update UI with new pending blocks
         logger.info('Debug step completed, next blocks pending', {
@@ -403,6 +411,7 @@ export function useWorkflowExecution() {
       setDebugContext(null)
       setExecutor(null)
       setPendingBlocks([])
+      setActiveBlocks(new Set())
     }
   }, [
     executor,
@@ -415,6 +424,7 @@ export function useWorkflowExecution() {
     setPendingBlocks,
     setDebugContext,
     setExecutor,
+    setActiveBlocks,
   ])
 
   /**
@@ -445,6 +455,7 @@ export function useWorkflowExecution() {
       // Reset debug state
       setIsDebugging(false)
       setIsExecuting(false)
+      setActiveBlocks(new Set())
       return
     }
 
@@ -550,6 +561,7 @@ export function useWorkflowExecution() {
       setDebugContext(null)
       setExecutor(null)
       setPendingBlocks([])
+      setActiveBlocks(new Set())
     } catch (error: any) {
       logger.error('Debug Resume Error:', error)
 
@@ -582,6 +594,7 @@ export function useWorkflowExecution() {
       setDebugContext(null)
       setExecutor(null)
       setPendingBlocks([])
+      setActiveBlocks(new Set())
     }
   }, [
     executor,
@@ -594,6 +607,7 @@ export function useWorkflowExecution() {
     setPendingBlocks,
     setDebugContext,
     setExecutor,
+    setActiveBlocks,
   ])
 
   /**
@@ -605,7 +619,15 @@ export function useWorkflowExecution() {
     setDebugContext(null)
     setExecutor(null)
     setPendingBlocks([])
-  }, [setIsExecuting, setIsDebugging, setDebugContext, setExecutor, setPendingBlocks])
+    setActiveBlocks(new Set())
+  }, [
+    setIsExecuting,
+    setIsDebugging,
+    setDebugContext,
+    setExecutor,
+    setPendingBlocks,
+    setActiveBlocks,
+  ])
 
   return {
     isExecuting,

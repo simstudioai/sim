@@ -12,68 +12,66 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
     additionalScopes: ['database.write', 'projects.read'],
   },
   params: {
-    apiKey: { 
-      type: 'string', 
-      required: true, 
+    apiKey: {
+      type: 'string',
+      required: true,
       requiredForToolCall: true,
-      description: 'Your Supabase client anon key'
+      description: 'Your Supabase client anon key',
     },
-    projectId: { 
-      type: 'string', 
-      required: true, 
+    projectId: {
+      type: 'string',
+      required: true,
       requiredForToolCall: true,
-      description: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)'
+      description: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
     },
     table: { type: 'string', required: true },
     data: { type: 'any', required: true },
   },
   request: {
-    url: (params) =>
-      `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
+    url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`,
     method: 'POST',
     headers: (params) => ({
-      'apikey': params.apiKey,
-      'Authorization': `Bearer ${params.apiKey}`,
+      apikey: params.apiKey,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
+      Prefer: 'return=representation',
     }),
     body: (params) => {
       // If data is an object but not an array, wrap it in an array
       if (typeof params.data === 'object' && !Array.isArray(params.data)) {
-        return [params.data];
+        return [params.data]
       }
       // If it's already an array, return as is
-      return params.data;
+      return params.data
     },
   },
   directExecution: async (params: SupabaseInsertParams) => {
     try {
       // Construct the URL for the Supabase REST API with select=* to return inserted data
-      const url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`;
-      
+      const url = `https://${params.projectId}.supabase.co/rest/v1/${params.table}?select=*`
+
       // Prepare the data - if it's an object but not an array, wrap it in an array
-      const dataToSend = typeof params.data === 'object' && !Array.isArray(params.data)
-        ? [params.data]
-        : params.data;
-      
+      const dataToSend =
+        typeof params.data === 'object' && !Array.isArray(params.data) ? [params.data] : params.data
+
       // Insert the data
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'apikey': params.apiKey,
-          'Authorization': `Bearer ${params.apiKey}`,
+          apikey: params.apiKey,
+          Authorization: `Bearer ${params.apiKey}`,
           'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
+          Prefer: 'return=representation',
         },
         body: JSON.stringify(dataToSend),
-      });
-      
+      })
+
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error from Supabase: ${response.status} ${errorText}`);
+        const errorText = await response.text()
+        throw new Error(`Error from Supabase: ${response.status} ${errorText}`)
       }
-      
-      const data = await response.json();
+
+      const data = await response.json()
 
       return {
         success: true,
@@ -96,12 +94,12 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to insert data into Supabase');
+      const error = await response.json()
+      throw new Error(error.message || 'Failed to insert data into Supabase')
     }
 
     // Handle empty response case
-    const text = await response.text();
+    const text = await response.text()
     if (!text || text.trim() === '') {
       return {
         success: true,
@@ -113,7 +111,7 @@ export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse
       }
     }
 
-    const data = JSON.parse(text);
+    const data = JSON.parse(text)
 
     return {
       success: true,

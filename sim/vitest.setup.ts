@@ -1,5 +1,5 @@
-import '@testing-library/jest-dom'
 import { afterAll, vi } from 'vitest'
+import '@testing-library/jest-dom'
 
 // Mock global fetch
 global.fetch = vi.fn(() =>

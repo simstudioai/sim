@@ -10,6 +10,7 @@ import {
   GoogleDriveIcon,
   GoogleIcon,
   GoogleSheetsIcon,
+  NotionIcon,
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'
@@ -26,6 +27,7 @@ export type OAuthProvider =
   | 'confluence'
   | 'airtable'
   | 'jira'
+  | 'notion'
   | string
 export type OAuthService =
   | 'google'
@@ -39,6 +41,7 @@ export type OAuthService =
   | 'confluence'
   | 'jira'
   | 'airtable'
+  | 'notion'
 
 
 // Define the interface for OAuth provider configuration
@@ -135,16 +138,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'github-repo',
         icon: (props) => GithubIcon(props),
         baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ['repo', 'user'],
-      },
-      'github-workflow': {
-        id: 'github-workflow',
-        name: 'GitHub Actions',
-        description: 'Trigger and manage GitHub Actions workflows.',
-        providerId: 'github-workflow',
-        icon: (props) => GithubIcon(props),
-        baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ['repo', 'workflow'],
+        scopes: ['repo', 'user:email', 'read:user', 'workflow'],
       },
     },
     defaultService: 'github',
@@ -250,6 +244,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'airtable',
   },
+  notion: {
+    id: 'notion',
+    name: 'Notion',
+    icon: (props) => NotionIcon(props),
+    services: {
+      notion: {
+        id: 'notion',
+        name: 'Notion',
+        description: 'Connect to your Notion workspace to manage pages and databases.',
+        providerId: 'notion',
+        icon: (props) => NotionIcon(props),
+        baseProviderIcon: (props) => NotionIcon(props),
+        scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
+      },
+    },
+    defaultService: 'notion',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -291,9 +302,7 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
       return 'google-calendar'
     }
   } else if (provider === 'github') {
-    if (scopes.some((scope) => scope.includes('workflow'))) {
-      return 'github-workflow'
-    }
+    return 'github'
   } else if (provider === 'supabase') {
     return 'supabase'
   } else if (provider === 'x') {
@@ -304,6 +313,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'jira'
   } else if (provider === 'airtable') {
     return 'airtable'
+  } else if (provider === 'notion') {
+    return 'notion'
   }
 
   return providerConfig.defaultService
@@ -397,6 +408,7 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.x.com/2/oauth2/token'
         clientId = process.env.X_CLIENT_ID
         clientSecret = process.env.X_CLIENT_SECRET
+        useBasicAuth = true
         break
       case 'confluence':
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
@@ -417,6 +429,11 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
         clientId = process.env.SUPABASE_CLIENT_ID
         clientSecret = process.env.SUPABASE_CLIENT_SECRET
+        break
+      case 'notion':
+        tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
+        clientId = process.env.NOTION_CLIENT_ID
+        clientSecret = process.env.NOTION_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
@@ -455,6 +472,15 @@ export async function refreshOAuthToken(
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
+    } else if (provider === 'x') {
+      // Handle X differently
+      // Confidential client - use Basic Auth
+      const authString = `${clientId}:${clientSecret}`
+      const basicAuth = Buffer.from(authString).toString('base64')
+      headers['Authorization'] = `Basic ${basicAuth}`
+
+      // When using Basic Auth, don't include client_id in body
+      delete bodyParams.client_id
     } else {
       // For other providers, use the general approach
       if (useBasicAuth) {
@@ -477,15 +503,20 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorText = await response.text()
+      let errorData = errorText
+
+      // Try to parse the error as JSON for better diagnostics
+      try {
+        errorData = JSON.parse(errorText)
+      } catch (e) {
+        // Not JSON, keep as text
+      }
+
       logger.error('Token refresh failed:', {
         status: response.status,
         error: errorText,
+        parsedError: errorData,
         provider,
-        headers: JSON.stringify(headers, null, 2).replace(
-          /"Authorization":"[^"]*"/,
-          '"Authorization":"[REDACTED]"'
-        ),
-        bodyParams: JSON.stringify(bodyParams),
       })
       throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
     }

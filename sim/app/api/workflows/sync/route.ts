@@ -9,10 +9,13 @@ import { workflow } from '@/db/schema'
 const logger = createLogger('WorkflowAPI')
 
 // Define marketplace data schema
-const MarketplaceDataSchema = z.object({
-  id: z.string(),
-  status: z.enum(['owner', 'temp'])
-}).nullable().optional()
+const MarketplaceDataSchema = z
+  .object({
+    id: z.string(),
+    status: z.enum(['owner', 'temp']),
+  })
+  .nullable()
+  .optional()
 
 // Schema for workflow data
 const WorkflowStateSchema = z.object({
@@ -26,7 +29,7 @@ const WorkflowStateSchema = z.object({
     .optional()
     .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
   isPublished: z.boolean().optional(),
-  marketplaceData: MarketplaceDataSchema
+  marketplaceData: MarketplaceDataSchema,
 })
 
 const WorkflowSchema = z.object({
@@ -35,7 +38,7 @@ const WorkflowSchema = z.object({
   description: z.string().optional(),
   color: z.string().optional(),
   state: WorkflowStateSchema,
-  marketplaceData: MarketplaceDataSchema
+  marketplaceData: MarketplaceDataSchema,
 })
 
 const SyncPayloadSchema = z.object({
@@ -151,7 +154,8 @@ export async function POST(req: NextRequest) {
             dbWorkflow.name !== clientWorkflow.name ||
             dbWorkflow.description !== clientWorkflow.description ||
             dbWorkflow.color !== clientWorkflow.color ||
-            JSON.stringify(dbWorkflow.marketplaceData) !== JSON.stringify(clientWorkflow.marketplaceData)
+            JSON.stringify(dbWorkflow.marketplaceData) !==
+              JSON.stringify(clientWorkflow.marketplaceData)
 
           if (needsUpdate) {
             operations.push(

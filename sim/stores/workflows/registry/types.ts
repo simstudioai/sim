@@ -1,5 +1,5 @@
 export interface MarketplaceData {
-  id: string  // Marketplace entry ID to track original marketplace source
+  id: string // Marketplace entry ID to track original marketplace source
   status: 'owner' | 'temp'
 }
 
@@ -23,11 +23,11 @@ export interface WorkflowRegistryActions {
   setActiveWorkflow: (id: string) => Promise<void>
   removeWorkflow: (id: string) => void
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
-  createWorkflow: (options?: { 
-    isInitial?: boolean, 
-    marketplaceId?: string, 
-    marketplaceState?: any,
-    name?: string,
+  createWorkflow: (options?: {
+    isInitial?: boolean
+    marketplaceId?: string
+    marketplaceState?: any
+    name?: string
     description?: string
   }) => string
 }

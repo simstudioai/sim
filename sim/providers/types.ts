@@ -92,6 +92,8 @@ export interface ProviderResponse {
   }
 }
 
+export type ToolUsageControl = 'auto' | 'force' | 'none'
+
 export interface ProviderToolConfig {
   id: string
   name: string
@@ -102,6 +104,7 @@ export interface ProviderToolConfig {
     properties: Record<string, any>
     required: string[]
   }
+  usageControl?: ToolUsageControl
 }
 
 export interface Message {
@@ -138,6 +141,7 @@ export interface ProviderRequest {
     strict?: boolean
   }
   local_execution?: boolean
+  workflowId?: string // Optional workflow ID for authentication context
 }
 
 // Map of provider IDs to their configurations

@@ -55,7 +55,15 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       allowDifferentEmails: true,
-      trustedProviders: ['google', 'github', 'email-password', 'confluence', 'jira'],
+      trustedProviders: [
+        'google',
+        'github',
+        'email-password',
+        'confluence',
+        'supabase',
+        'x',
+        'notion',
+      ],
     },
   },
   socialProviders: {
@@ -148,27 +156,82 @@ export const auth = betterAuth({
       config: [
         {
           providerId: 'github-repo',
-          clientId: process.env.GITHUB_CLIENT_ID as string,
-          clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+          clientId: process.env.GITHUB_REPO_CLIENT_ID as string,
+          clientSecret: process.env.GITHUB_REPO_CLIENT_SECRET as string,
           authorizationUrl: 'https://github.com/login/oauth/authorize',
           accessType: 'offline',
           prompt: 'consent',
           tokenUrl: 'https://github.com/login/oauth/access_token',
           userInfoUrl: 'https://api.github.com/user',
-          scopes: ['user:email', 'repo'],
+          scopes: ['user:email', 'repo', 'read:user', 'workflow'],
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-repo`,
-        },
-        {
-          providerId: 'github-workflow',
-          clientId: process.env.GITHUB_CLIENT_ID as string,
-          clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
-          authorizationUrl: 'https://github.com/login/oauth/authorize',
-          accessType: 'offline',
-          tokenUrl: 'https://github.com/login/oauth/access_token',
-          userInfoUrl: 'https://api.github.com/user',
-          scopes: ['workflow', 'repo'],
-          prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-workflow`,
+          getUserInfo: async (tokens) => {
+            try {
+              // Fetch user profile
+              const profileResponse = await fetch('https://api.github.com/user', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'User-Agent': 'sim-studio',
+                },
+              })
+
+              if (!profileResponse.ok) {
+                logger.error('Failed to fetch GitHub profile', {
+                  status: profileResponse.status,
+                  statusText: profileResponse.statusText,
+                })
+                throw new Error(`Failed to fetch GitHub profile: ${profileResponse.statusText}`)
+              }
+
+              const profile = await profileResponse.json()
+
+              // If email is null, fetch emails separately
+              if (!profile.email) {
+                const emailsResponse = await fetch('https://api.github.com/user/emails', {
+                  headers: {
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                    'User-Agent': 'sim-studio',
+                  },
+                })
+
+                if (emailsResponse.ok) {
+                  const emails = await emailsResponse.json()
+
+                  // Find primary email or use the first one
+                  const primaryEmail =
+                    emails.find(
+                      (email: { primary: boolean; email: string; verified: boolean }) =>
+                        email.primary
+                    ) || emails[0]
+                  if (primaryEmail) {
+                    profile.email = primaryEmail.email
+                    // Add information about email verification
+                    profile.emailVerified = primaryEmail.verified || false
+                  }
+                } else {
+                  logger.warn('Failed to fetch GitHub emails', {
+                    status: emailsResponse.status,
+                    statusText: emailsResponse.statusText,
+                  })
+                }
+              }
+
+              const now = new Date()
+
+              return {
+                id: profile.id.toString(),
+                name: profile.name || profile.login,
+                email: profile.email,
+                image: profile.avatar_url,
+                emailVerified: profile.emailVerified || false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in GitHub getUserInfo', { error })
+              throw error
+            }
+          },
         },
 
         // Google providers for different purposes
@@ -272,6 +335,9 @@ export const auth = betterAuth({
           accessType: 'offline',
           scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
           pkce: true,
+          responseType: 'code',
+          prompt: 'consent',
+          authentication: 'basic',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
           getUserInfo: async (tokens) => {
             const response = await fetch(
@@ -424,6 +490,57 @@ export const auth = betterAuth({
           authentication: 'basic',
           prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
+        },
+
+        // Notion provider
+        {
+          providerId: 'notion',
+          clientId: process.env.NOTION_CLIENT_ID as string,
+          clientSecret: process.env.NOTION_CLIENT_SECRET as string,
+          authorizationUrl: 'https://api.notion.com/v1/oauth/authorize',
+          tokenUrl: 'https://api.notion.com/v1/oauth/token',
+          userInfoUrl: 'https://api.notion.com/v1/users/me',
+          scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
+          responseType: 'code',
+          pkce: false, // Notion doesn't support PKCE
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/notion`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.notion.com/v1/users/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                  'Notion-Version': '2022-06-28', // Specify the Notion API version
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Notion user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+              const now = new Date()
+
+              return {
+                id: profile.bot?.owner?.user?.id || profile.id,
+                name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
+                email: profile.person?.email || `${profile.id}@notion.user`,
+                image: null, // Notion API doesn't provide profile images
+                emailVerified: profile.person?.email ? true : false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Notion getUserInfo:', { error })
+              return null
+            }
+          },
         },
       ],
     }),

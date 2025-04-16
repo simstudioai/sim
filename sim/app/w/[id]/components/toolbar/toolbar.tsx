@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAllBlocks, getBlocksByCategory } from '@/blocks'
-import { BlockCategory, BlockConfig } from '@/blocks/types'
+import { BlockCategory } from '@/blocks/types'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 

@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
+import { stripCustomToolPrefix } from '../workflows/utils'
 
 const logger = createLogger('ExecutionLogger')
 
@@ -118,7 +119,7 @@ export async function persistExecutionLogs(
           if (response.toolCalls && response.toolCalls.list) {
             metadata = {
               toolCalls: response.toolCalls.list.map((tc: any) => ({
-                name: tc.name,
+                name: stripCustomToolPrefix(tc.name),
                 duration: tc.duration || 0,
                 startTime: tc.startTime || new Date().toISOString(),
                 endTime: tc.endTime || new Date().toISOString(),
@@ -182,7 +183,7 @@ export async function persistExecutionLogs(
           // Log raw timing data for debugging
           log.output.toolCalls.forEach((tc: any, idx: number) => {
             logger.debug(`Tool call ${idx} raw timing data:`, {
-              name: tc.name,
+              name: stripCustomToolPrefix(tc.name),
               startTime: tc.startTime,
               endTime: tc.endTime,
               duration: tc.duration,
@@ -229,7 +230,7 @@ export async function persistExecutionLogs(
           // Log raw timing data for debugging
           log.output.toolCalls.list.forEach((tc: any, idx: number) => {
             logger.debug(`Tool call list ${idx} raw timing data:`, {
-              name: tc.name,
+              name: stripCustomToolPrefix(tc.name),
               startTime: tc.startTime,
               endTime: tc.endTime,
               duration: tc.duration,
@@ -280,7 +281,7 @@ export async function persistExecutionLogs(
           // Log raw timing data for debugging
           toolCalls.forEach((tc: any, idx: number) => {
             logger.debug(`Response tool call ${idx} raw timing data:`, {
-              name: tc.name,
+              name: stripCustomToolPrefix(tc.name),
               startTime: tc.startTime,
               endTime: tc.endTime,
               duration: tc.duration,
@@ -333,7 +334,7 @@ export async function persistExecutionLogs(
           // Log raw timing data for debugging
           toolCalls.list.forEach((tc: any, idx: number) => {
             logger.debug(`toolCalls object list ${idx} raw timing data:`, {
-              name: tc.name,
+              name: stripCustomToolPrefix(tc.name),
               startTime: tc.startTime,
               endTime: tc.endTime,
               duration: tc.duration,
@@ -388,7 +389,7 @@ export async function persistExecutionLogs(
               // Log raw timing data for debugging
               list.forEach((tc: any, idx: number) => {
                 logger.debug(`Parsed response ${idx} raw timing data:`, {
-                  name: tc.name,
+                  name: stripCustomToolPrefix(tc.name),
                   startTime: tc.startTime,
                   endTime: tc.endTime,
                   duration: tc.duration,
@@ -492,6 +493,16 @@ export async function persistExecutionLogs(
       .filter((log) => log.success)
       .reduce((sum, log) => sum + log.durationMs, 0)
 
+    // For parallel execution, calculate the actual duration from start to end times
+    let actualDuration = totalDuration
+    if (result.metadata?.startTime && result.metadata?.endTime) {
+      const startTime = result.metadata.startTime
+        ? new Date(result.metadata.startTime).getTime()
+        : 0
+      const endTime = new Date(result.metadata.endTime).getTime()
+      actualDuration = endTime - startTime
+    }
+
     // Get trigger-specific message
     const successMessage = getTriggerSuccessMessage(triggerType)
     const errorPrefix = getTriggerErrorPrefix(triggerType)
@@ -499,7 +510,7 @@ export async function persistExecutionLogs(
     // Create workflow-level metadata with aggregated cost information
     const workflowMetadata: any = {
       traceSpans: (result as any).traceSpans || [],
-      totalDuration: (result as any).totalDuration || totalDuration,
+      totalDuration: (result as any).totalDuration || actualDuration,
     }
 
     // Add accumulated cost data to workflow-level log
@@ -569,7 +580,7 @@ export async function persistExecutionLogs(
       executionId,
       level: result.success ? 'info' : 'error',
       message: result.success ? successMessage : `${errorPrefix} execution failed: ${result.error}`,
-      duration: result.success ? `${totalDuration}ms` : 'NA',
+      duration: result.success ? `${actualDuration}ms` : 'NA',
       trigger: triggerType,
       createdAt: new Date(),
       metadata: workflowMetadata,

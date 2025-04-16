@@ -1,5 +1,29 @@
 import { HttpMethod, TableRow, ToolConfig, ToolResponse } from '../types'
-import { transformTable } from '../utils'
+
+/**
+ * Transforms a table from the store format to a key-value object
+ * Local copy of the function to break circular dependencies
+ * @param table Array of table rows from the store
+ * @returns Record of key-value pairs
+ */
+const transformTable = (table: TableRow[] | null): Record<string, any> => {
+  if (!table) return {}
+
+  return table.reduce(
+    (acc, row) => {
+      if (row.cells?.Key && row.cells?.Value !== undefined) {
+        // Extract the Value cell as is - it should already be properly resolved
+        // by the InputResolver based on variable type (number, string, boolean etc.)
+        const value = row.cells.Value
+
+        // Store the correctly typed value in the result object
+        acc[row.cells.Key] = value
+      }
+      return acc
+    },
+    {} as Record<string, any>
+  )
+}
 
 export interface RequestParams {
   url: string
@@ -78,14 +102,14 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         method: params.method || 'GET',
         headers: transformTable(params.headers || null),
       }
-      
+
       // Add body for non-GET requests
       if (params.method && params.method !== 'GET' && params.body) {
         if (typeof params.body === 'object') {
           fetchOptions.body = JSON.stringify(params.body)
           // Ensure Content-Type is set
           if (fetchOptions.headers) {
-            (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
+            ;(fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
           } else {
             fetchOptions.headers = { 'Content-Type': 'application/json' }
           }
@@ -93,7 +117,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           fetchOptions.body = params.body
         }
       }
-      
+
       // Handle form data
       if (params.formData) {
         const formData = new FormData()
@@ -102,45 +126,57 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         })
         fetchOptions.body = formData
       }
-      
+
       // Handle timeout
       const controller = new AbortController()
       const timeout = params.timeout || 50000
       const timeoutId = setTimeout(() => controller.abort(), timeout)
       fetchOptions.signal = controller.signal
-      
+
       try {
         // Process URL with path parameters and query params
         let url = params.url
-        
+
+        // Strip any surrounding quotes that might have been added during resolution
+        if (typeof url === 'string') {
+          if (
+            (url.startsWith('"') && url.endsWith('"')) ||
+            (url.startsWith("'") && url.endsWith("'"))
+          ) {
+            url = url.slice(1, -1)
+            // Update the params with unquoted URL
+            params.url = url
+          }
+        }
+
         // Replace path parameters
         if (params.pathParams) {
           Object.entries(params.pathParams).forEach(([key, value]) => {
             url = url.replace(`:${key}`, encodeURIComponent(value))
           })
         }
-        
+
         // Handle query parameters
         const queryParamsObj = transformTable(params.params || null)
         const queryString = Object.entries(queryParamsObj)
           .filter(([_, value]) => value !== undefined && value !== null)
-          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
           .join('&')
-        
+
         if (queryString) {
           url += (url.includes('?') ? '&' : '?') + queryString
         }
-        
+
         // Make the actual fetch request
         const response = await fetch(url, fetchOptions)
         clearTimeout(timeoutId)
-        
+
         // Convert Headers to a plain object
         const headers: Record<string, string> = {}
         response.headers.forEach((value, key) => {
           headers[key] = value
         })
-        
+
         // Parse response based on content type
         let data
         try {
@@ -152,7 +188,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         } catch (error) {
           data = await response.text()
         }
-        
+
         return {
           success: response.ok,
           output: {
@@ -160,11 +196,11 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
             status: response.status,
             headers,
           },
-          error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`
+          error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`,
         }
       } catch (error: any) {
         clearTimeout(timeoutId)
-        
+
         // Handle specific abort error
         if (error.name === 'AbortError') {
           return {
@@ -174,10 +210,10 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
               status: 0,
               headers: {},
             },
-            error: `Request timeout after ${timeout}ms`
+            error: `Request timeout after ${timeout}ms`,
           }
         }
-        
+
         return {
           success: false,
           output: {
@@ -185,7 +221,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
             status: 0,
             headers: {},
           },
-          error: error.message || 'Failed to fetch'
+          error: error.message || 'Failed to fetch',
         }
       }
     } catch (error: any) {
@@ -196,7 +232,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           status: 0,
           headers: {},
         },
-        error: error.message || 'Error preparing HTTP request'
+        error: error.message || 'Error preparing HTTP request',
       }
     }
   },
@@ -204,6 +240,18 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   request: {
     url: (params: RequestParams) => {
       let url = params.url
+
+      // Strip any surrounding quotes that might have been added during resolution
+      if (typeof url === 'string') {
+        if (
+          (url.startsWith('"') && url.endsWith('"')) ||
+          (url.startsWith("'") && url.endsWith("'"))
+        ) {
+          url = url.slice(1, -1)
+          // Update the params with unquoted URL
+          params.url = url
+        }
+      }
 
       // Replace path parameters
       if (params.pathParams) {
@@ -216,7 +264,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       const queryParamsObj = transformTable(params.params || null)
       const queryString = Object.entries(queryParamsObj)
         .filter(([_, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
         .join('&')
 
       if (queryString) {

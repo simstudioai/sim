@@ -1,9 +1,9 @@
-import { Loader2, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { DialogFooter } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 
 interface WebhookDialogFooterProps {
-  webhookId: string | undefined
+  webhookId?: string
   webhookProvider: string
   isSaving: boolean
   isDeleting: boolean
@@ -12,13 +12,12 @@ interface WebhookDialogFooterProps {
   isCurrentConfigValid: boolean
   onSave: () => void
   onDelete: () => void
-  onTest?: () => void
+  onTest: () => void
   onClose: () => void
 }
 
 export function WebhookDialogFooter({
   webhookId,
-  webhookProvider,
   isSaving,
   isDeleting,
   isLoadingToken,
@@ -29,71 +28,62 @@ export function WebhookDialogFooter({
   onTest,
   onClose,
 }: WebhookDialogFooterProps) {
-  const showTestButton =
-    webhookId &&
-    (webhookProvider === 'whatsapp' ||
-      webhookProvider === 'generic' ||
-      webhookProvider === 'slack' ||
-      webhookProvider === 'airtable') &&
-    onTest
-
   return (
-    <DialogFooter className="flex justify-between sticky bottom-0 py-3 bg-background border-t z-10 mt-auto w-full">
+    <div className="flex w-full justify-between">
       <div>
         {webhookId && (
-          <div className="flex space-x-3">
-            <Button
-              variant="destructive"
-              onClick={onDelete}
-              disabled={isDeleting || isLoadingToken}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </>
-              )}
-            </Button>
-            {showTestButton && (
-              <Button variant="outline" onClick={onTest} disabled={isTesting || isLoadingToken}>
-                {isTesting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Testing...
-                  </>
-                ) : (
-                  'Test'
-                )}
-              </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={onDelete}
+            disabled={isDeleting || isSaving || isLoadingToken}
+            size="default"
+            className="h-10"
+          >
+            {isDeleting ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-2" />
             )}
-          </div>
+            {isDeleting ? 'Deleting...' : 'Delete Webhook'}
+          </Button>
         )}
       </div>
-      <div className="flex space-x-3">
-        <Button variant="outline" onClick={onClose}>
+      <div className="flex gap-2">
+        {webhookId && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onTest}
+            disabled={isTesting || isSaving || isDeleting || isLoadingToken || !webhookId}
+            className="h-10"
+          >
+            {isTesting && (
+              <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+            )}
+            {isTesting ? 'Testing...' : 'Test Webhook'}
+          </Button>
+        )}
+        <Button variant="outline" onClick={onClose} size="default" className="h-10">
           Cancel
         </Button>
         <Button
-          variant="default"
           onClick={onSave}
-          disabled={isSaving || isLoadingToken || !isCurrentConfigValid}
-          className="bg-primary"
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            'Save'
+          disabled={isLoadingToken || isSaving || !isCurrentConfigValid}
+          className={cn(
+            'h-10',
+            !isLoadingToken && isCurrentConfigValid ? 'bg-primary hover:bg-primary/90' : '',
+            isSaving &&
+              'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20'
           )}
+          size="default"
+        >
+          {isSaving && (
+            <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+          )}
+          {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
-    </DialogFooter>
+    </div>
   )
 }

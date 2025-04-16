@@ -53,7 +53,11 @@ export function CopyableField({
             value={value}
             onChange={onChange ? (e) => onChange(e.target.value) : undefined}
             placeholder={placeholder}
-            className={cn('flex-1', isSecret ? 'pr-10' : '')}
+            className={cn(
+              'flex-1',
+              isSecret ? 'pr-10' : '',
+              'focus-visible:ring-2 focus-visible:ring-primary/20'
+            )}
             readOnly={readOnly}
           />
           {isSecret && (
@@ -61,7 +65,10 @@ export function CopyableField({
               type="button"
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground"
+              className={cn(
+                'absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground',
+                'hover:text-foreground hover:bg-transparent transition-colors'
+              )}
               onClick={toggleShowSecret}
               aria-label={showSecret ? 'Hide secret' : 'Show secret'}
             >
@@ -77,7 +84,7 @@ export function CopyableField({
         size="icon"
         onClick={() => copyToClipboard(value, copyType)}
         disabled={isLoading || !value}
-        className="shrink-0"
+        className={cn('shrink-0', 'hover:bg-primary/5 transition-colors')}
         aria-label="Copy value"
       >
         {copied === copyType ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
