@@ -1,4 +1,4 @@
-import { ToolConfig } from "../types";
+import { ToolConfig } from "../types"
 
 // Search Memories Tool
 export const mem0SearchMemoriesTool: ToolConfig = {
@@ -44,9 +44,6 @@ export const mem0SearchMemoriesTool: ToolConfig = {
       }),
       body: (params) => {
         try {
-          // Log all parameters for debugging
-          console.log('All search params:', JSON.stringify(params, null, 2));
-          
           // Create the request body with the format that the curl test confirms works
           const body: Record<string, any> = {
             query: params.query || "test",
@@ -54,26 +51,21 @@ export const mem0SearchMemoriesTool: ToolConfig = {
               user_id: params.userId
             },
             top_k: params.limit || 10
-          };
+          }
           
-          // Log the final request payload
-          console.log('Final search request payload:', JSON.stringify(body, null, 2));
-          return body;
+          return body
         } catch (error) {
-          console.error('Error building search request:', error);
-          throw error;
+          throw error
         }
       },
     },
     transformResponse: async (response) => {
       try {
         // Get raw response for debugging
-        const responseText = await response.clone().text();
-        console.log('Raw API response:', responseText);
+        const responseText = await response.clone().text()
         
         // Parse the response
-        const data = JSON.parse(responseText);
-        console.log('Parsed API response:', JSON.stringify(data, null, 2));
+        const data = JSON.parse(responseText)
         
         // Handle empty results
         if (!data || (Array.isArray(data) && data.length === 0)) {
@@ -83,7 +75,7 @@ export const mem0SearchMemoriesTool: ToolConfig = {
               searchResults: [],
               ids: [],
             }
-          };
+          }
         }
         
         // For array results (standard format)
@@ -92,9 +84,9 @@ export const mem0SearchMemoriesTool: ToolConfig = {
             id: item.id,
             data: { memory: item.memory || "" },
             score: item.score || 0
-          }));
+          }))
           
-          const ids = data.map(item => item.id).filter(Boolean);
+          const ids = data.map(item => item.id).filter(Boolean)
           
           return {
             success: true,
@@ -102,7 +94,7 @@ export const mem0SearchMemoriesTool: ToolConfig = {
               searchResults,
               ids,
             }
-          };
+          }
         }
         
         // Fallback for unexpected response format
@@ -111,44 +103,23 @@ export const mem0SearchMemoriesTool: ToolConfig = {
           output: {
             searchResults: [],
           }
-        };
+        }
       } catch (error: any) {
-        console.error('Error processing search response:', error);
         return {
           success: false,
           output: {
             error: `Failed to process search response: ${error.message}`,
           }
-        };
+        }
       }
     },
     transformError: async (error) => {
-      console.error('API error details:', error);
-      
-      if (error.response) {
-        try {
-          const errorText = await error.response.text();
-          console.error('API error response text:', errorText);
-          
-          try {
-            const errorData = JSON.parse(errorText);
-            console.error(`API Error: ${JSON.stringify(errorData)}`);
-          } catch {
-            console.error(`API Error: ${error.response.status} - ${errorText || error.message}`);
-          }
-        } catch {
-          console.error(`API Error: ${error.response.status} - ${error.message || 'Unknown error'}`);
-        }
-      } else if (error.message) {
-        console.error(error.message);
-      }
-      
       return {
         success: false,
         output: {
           ids: [],
           searchResults: [],
         }
-      };
+      }
     },
   }

@@ -141,58 +141,57 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       },
       params: (params: Record<string, any>) => {
         // Create detailed error information for any missing required fields
-        const errors: string[] = [];
+        const errors: string[] = []
         
         // Validate required API key for all operations
         if (!params.apiKey) {
-          errors.push("API Key is required");
+          errors.push("API Key is required")
         }
         
         // For search operation, validate required fields
         if (params.operation === 'search') {
           if (!params.query || params.query.trim() === '') {
-            errors.push("Search Query is required");
+            errors.push("Search Query is required")
           }
           
           if (!params.userId) {
-            errors.push("User ID is required");
+            errors.push("User ID is required")
           }
         }
         
         // For add operation, validate required fields
         if (params.operation === 'add') {
           if (!params.messages) {
-            errors.push("Messages are required for add operation");
+            errors.push("Messages are required for add operation")
           } else {
             try {
               const messagesArray = typeof params.messages === 'string' 
                 ? JSON.parse(params.messages) 
-                : params.messages;
+                : params.messages
               
               if (!Array.isArray(messagesArray) || messagesArray.length === 0) {
-                errors.push("Messages must be a non-empty array");
+                errors.push("Messages must be a non-empty array")
               } else {
                 for (const msg of messagesArray) {
                   if (!msg.role || !msg.content) {
-                    errors.push("Each message must have 'role' and 'content' properties");
-                    break;
+                    errors.push("Each message must have 'role' and 'content' properties")
+                    break
                   }
                 }
               }
             } catch (e: any) {
-              errors.push("Messages must be valid JSON");
+              errors.push("Messages must be valid JSON")
             }
           }
           
           if (!params.userId) {
-            errors.push("User ID is required");
+            errors.push("User ID is required")
           }
         }
         
         // Throw error if any required fields are missing
         if (errors.length > 0) {
-          console.error('Validation errors:', errors);
-          throw new Error(`Mem0 Block Error: ${errors.join(', ')}`);
+          throw new Error(`Mem0 Block Error: ${errors.join(', ')}`)
         }
         
         const result: Record<string, any> = {
@@ -200,17 +199,14 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
         }
 
         // Add any identifiers that are present
-        if (params.userId) result.userId = params.userId;
+        if (params.userId) result.userId = params.userId
         
         // Add version if specified
-        if (params.version) result.version = params.version;
+        if (params.version) result.version = params.version
 
-        if (params.limit) result.limit = params.limit;
+        if (params.limit) result.limit = params.limit
 
-        const operation = params.operation || 'add';
-        
-        // Add safe debugging log that doesn't include credentials
-        console.log('Mem0 operation:', operation, ', User ID:', result.userId || 'Not specified');
+        const operation = params.operation || 'add'
         
         // Process operation-specific parameters
         switch (operation) {
@@ -220,80 +216,73 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                 // Ensure messages are properly formatted
                 const messagesArray = typeof params.messages === 'string' 
                   ? JSON.parse(params.messages) 
-                  : params.messages;
+                  : params.messages
                 
                 // Validate message structure
                 if (Array.isArray(messagesArray) && messagesArray.length > 0) {
-                  let validMessages = true;
+                  let validMessages = true
                   for (const msg of messagesArray) {
                     if (!msg.role || !msg.content) {
-                      validMessages = false;
-                      break;
+                      validMessages = false
+                      break
                     }
                   }
                   if (validMessages) {
-                    result.messages = messagesArray;
-                    console.log('Adding memories - message count:', messagesArray.length);
+                    result.messages = messagesArray
                   } else {
                     // Consistent with other error handling - collect in errors array
-                    errors.push('Invalid message format - each message must have role and content');
-                    throw new Error(`Mem0 Block Error: Invalid message format - each message must have role and content`);
+                    errors.push('Invalid message format - each message must have role and content')
+                    throw new Error(`Mem0 Block Error: Invalid message format - each message must have role and content`)
                   }
                 } else {
                   // Consistent with other error handling
-                  errors.push('Messages must be a non-empty array');
-                  throw new Error(`Mem0 Block Error: Messages must be a non-empty array`);
+                  errors.push('Messages must be a non-empty array')
+                  throw new Error(`Mem0 Block Error: Messages must be a non-empty array`)
                 }
               } catch (e: any) {
                 if (!errors.includes('Messages must be valid JSON')) {
-                  errors.push('Messages must be valid JSON');
+                  errors.push('Messages must be valid JSON')
                 }
-                throw new Error(`Mem0 Block Error: ${e.message || 'Messages must be valid JSON'}`);
+                throw new Error(`Mem0 Block Error: ${e.message || 'Messages must be valid JSON'}`)
               }
             }
-            break;
+            break
           case 'search':
             if (params.query) {
-              result.query = params.query;
-              console.log('Searching memories - query:', params.query, ', limit:', result.limit || 'default');
+              result.query = params.query
               
               // Check if we have at least one identifier for search
               if (!params.userId) {
-                errors.push('Search requires a User ID');
-                throw new Error(`Mem0 Block Error: Search requires a User ID`);
+                errors.push('Search requires a User ID')
+                throw new Error(`Mem0 Block Error: Search requires a User ID`)
               }
             } else {
-              errors.push('Search requires a query parameter');
-              throw new Error(`Mem0 Block Error: Search requires a query parameter`);
+              errors.push('Search requires a query parameter')
+              throw new Error(`Mem0 Block Error: Search requires a query parameter`)
             }
             
             // Include limit if specified
             if (params.limit) {
-              result.limit = Number(params.limit);
+              result.limit = Number(params.limit)
             }
-            break;
+            break
           case 'get':
             if (params.memoryId) {
-              result.memoryId = params.memoryId;
-              console.log('Getting specific memory - ID:', params.memoryId);
-            } else {
-              console.log('Getting memories - date filters:', 
-                params.startDate || params.endDate ? 'Yes' : 'No', 
-                ', limit:', params.limit || 'default');
+              result.memoryId = params.memoryId
             }
             
             // Add date range filtering for v2 get memories
             if (params.startDate) {
-              result.startDate = params.startDate;
+              result.startDate = params.startDate
             }
             
             if (params.endDate) {
-              result.endDate = params.endDate;
+              result.endDate = params.endDate
             }
-            break;
+            break
         }
         
-        return result;
+        return result
       },
     },
   },

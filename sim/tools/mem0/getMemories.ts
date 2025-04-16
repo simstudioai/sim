@@ -1,4 +1,4 @@
-import { ToolConfig } from "../types";
+import { ToolConfig } from "../types"
 
 // Get Memories Tool
 export const mem0GetMemoriesTool: ToolConfig = {
@@ -50,11 +50,11 @@ export const mem0GetMemoriesTool: ToolConfig = {
         // For a specific memory ID, use the get single memory endpoint
         if (params.memoryId) {
           // Dynamically set method to GET for memory ID requests
-          params.method = 'GET';
-          return `https://api.mem0.ai/v1/memories/${params.memoryId}/`;
+          params.method = 'GET'
+          return `https://api.mem0.ai/v1/memories/${params.memoryId}/`
         }
         // Otherwise use v2 memories endpoint with filters
-        return 'https://api.mem0.ai/v2/memories/';
+        return 'https://api.mem0.ai/v2/memories/'
       },
       method: 'POST', // Default to POST for filtering
       headers: (params) => ({
@@ -65,61 +65,56 @@ export const mem0GetMemoriesTool: ToolConfig = {
         // For specific memory ID, we'll use GET method instead and don't need a body
         // But we still need to return an empty object to satisfy the type
         if (params.memoryId) {
-          return {};
+          return {}
         }
         
-        console.log('Get memories params:', JSON.stringify(params, null, 2));
-        
         // Build filters array for AND condition
-        const andConditions = [];
+        const andConditions = []
         
         // Add user filter
-        andConditions.push({ "user_id": params.userId });
+        andConditions.push({ "user_id": params.userId })
         
         // Add date range filter if provided
         if (params.startDate || params.endDate) {
-          const dateFilter: Record<string, any> = {};
+          const dateFilter: Record<string, any> = {}
           
           if (params.startDate) {
-            dateFilter.gte = params.startDate;
+            dateFilter.gte = params.startDate
           }
           
           if (params.endDate) {
-            dateFilter.lte = params.endDate;
+            dateFilter.lte = params.endDate
           }
           
-          andConditions.push({ "created_at": dateFilter });
+          andConditions.push({ "created_at": dateFilter })
         }
         
         // Build final filters object
         const body: Record<string, any> = {
           page_size: params.limit || 10
-        };
+        }
         
         // Only add filters if we have any conditions
         if (andConditions.length > 0) {
-          body.filters = { "AND": andConditions };
+          body.filters = { "AND": andConditions }
         }
         
-        console.log('Get memories request body:', JSON.stringify(body, null, 2));
-        return body;
+        return body
       },
     },
     transformResponse: async (response, params) => {
       try {
         // Get raw response for debugging
-        const responseText = await response.clone().text();
-        console.log('Raw Get Memories API response:', responseText);
+        const responseText = await response.clone().text()
         
         // Parse the response
-        const data = JSON.parse(responseText);
-        console.log('Parsed Get Memories API response:', JSON.stringify(data, null, 2));
+        const data = JSON.parse(responseText)
         
         // Format the memories for display
-        const memories = Array.isArray(data) ? data : [data];
+        const memories = Array.isArray(data) ? data : [data]
         
         // Extract IDs if available
-        const ids = memories.map(memory => memory.id).filter(Boolean);
+        const ids = memories.map(memory => memory.id).filter(Boolean)
         
         return {
           success: true,
@@ -127,44 +122,23 @@ export const mem0GetMemoriesTool: ToolConfig = {
             memories,
             ids,
           },
-        };
+        }
       } catch (error: any) {
-        console.error('Error processing get memories response:', error);
         return {
           success: false,
           output: {
             error: `Failed to process get memories response: ${error.message}`,
           }
-        };
+        }
       }
     },
     transformError: async (error) => {
-      console.error('API error details:', error);
-      
-      if (error.response) {
-        try {
-          const errorText = await error.response.text();
-          console.error('API error response text:', errorText);
-          
-          try {
-            const errorData = JSON.parse(errorText);
-            console.error(`API Error: ${JSON.stringify(errorData)}`);
-          } catch {
-            console.error(`API Error: ${error.response.status} - ${errorText || error.message}`);
-          }
-        } catch {
-          console.error(`API Error: ${error.response.status} - ${error.message || 'Unknown error'}`);
-        }
-      } else if (error.message) {
-        console.error(error.message);
-      }
-      
       return {
         success: false,
         output: {
           ids: [],
           memories: [],
         }
-      };
+      }
     },
   } 
