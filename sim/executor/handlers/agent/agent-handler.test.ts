@@ -5,24 +5,9 @@ import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import * as toolsUtils from '@/tools/utils'
 import { ExecutionContext } from '../../types'
 import { AgentBlockHandler } from './agent-handler'
 
-// Create a mock implementation of getTool
-vi.mock('@/tools/utils', () => ({
-  getTool: vi.fn(),
-  getToolAsync: vi.fn(),
-  validateToolRequest: vi.fn(),
-  formatRequestParams: vi.fn(),
-  transformTable: vi.fn(),
-  createParamSchema: vi.fn(),
-  getClientEnvVars: vi.fn(),
-  createCustomToolRequestBody: vi.fn(),
-}))
-
-const mockGetTool = vi.mocked(toolsUtils.getTool)
-const mockGetToolAsync = vi.mocked(toolsUtils.getToolAsync)
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
 const mockIsHostedVersion = isHostedVersion as Mock

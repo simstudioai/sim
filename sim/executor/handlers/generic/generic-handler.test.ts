@@ -8,17 +8,6 @@ import { ExecutionContext } from '../../types'
 import { GenericBlockHandler } from './generic-handler'
 import { ToolConfig } from '@/tools/types'
 
-// Create a mock implementation of getTool
-vi.mock('@/tools/utils', () => ({
-  getTool: vi.fn(),
-  validateToolRequest: vi.fn(),
-  formatRequestParams: vi.fn(),
-  transformTable: vi.fn(),
-  createParamSchema: vi.fn(),
-  getClientEnvVars: vi.fn(),
-  createCustomToolRequestBody: vi.fn(),
-}))
-
 const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
 
@@ -75,9 +64,9 @@ describe('GenericBlockHandler', () => {
     // Set up mockGetTool to return mockTool
     mockGetTool.mockImplementation((toolId) => {
       if (toolId === 'some_custom_tool') {
-        return mockTool;
+        return mockTool
       }
-      return undefined;
+      return undefined
     })
 
     // Default mock implementations

@@ -183,11 +183,11 @@ export class AgentBlockHandler implements BlockHandler {
       workflowId: providerRequest.workflowId,
     })
 
-    // Get the app URL from environment variable or use default
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const url = new URL('/api/providers', baseUrl)
 
     try {
-      const response = await fetch(`${appUrl ? appUrl : ''}/api/providers`, {
+      const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +237,7 @@ export class AgentBlockHandler implements BlockHandler {
                     list: result.toolCalls.map((tc: any) => ({
                       ...tc,
                       // Strip the 'custom_' prefix from tool names for display
-                      name: tc.name?.startsWith('custom_') ? tc.name.replace('custom_', '') : tc.name,
+                      name: stripCustomPrefix(tc.name),
                       // Preserve timing information if available
                       startTime: tc.startTime,
                       endTime: tc.endTime,
@@ -273,7 +273,7 @@ export class AgentBlockHandler implements BlockHandler {
                   ? result.toolCalls.map((tc: any) => ({
                       ...tc,
                       // Strip the 'custom_' prefix from tool names for display
-                      name: tc.name?.startsWith('custom_') ? tc.name.replace('custom_', '') : tc.name,
+                      name: stripCustomPrefix(tc.name),
                       // Preserve timing information if available
                       startTime: tc.startTime,
                       endTime: tc.endTime,
@@ -306,7 +306,7 @@ export class AgentBlockHandler implements BlockHandler {
               ? result.toolCalls.map((tc: any) => ({
                   ...tc,
                   // Strip the 'custom_' prefix from tool names for display
-                  name: tc.name?.startsWith('custom_') ? tc.name.replace('custom_', '') : tc.name,
+                  name: stripCustomPrefix(tc.name),
                   // Preserve timing information if available
                   startTime: tc.startTime,
                   endTime: tc.endTime,
@@ -326,4 +326,8 @@ export class AgentBlockHandler implements BlockHandler {
       throw error
     }
   }
+}
+
+function stripCustomPrefix(name: string) {
+  return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }
