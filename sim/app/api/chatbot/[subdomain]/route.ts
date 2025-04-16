@@ -200,8 +200,8 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
 }
 
 // This endpoint returns information about the chatbot
-export async function GET(request: NextRequest, { params }: { params: { subdomain: string } }) {
-  const { subdomain } = params
+export async function GET(request: NextRequest, { params }: { params: Promise<{ subdomain: string }> }) {
+  const { subdomain } = await params
   const requestId = crypto.randomUUID().slice(0, 8)
   
   try {

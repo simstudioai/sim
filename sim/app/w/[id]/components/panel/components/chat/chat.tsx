@@ -393,10 +393,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn(
-                    "ml-2 text-muted-foreground hover:text-foreground",
-                    hasChatbotDeployment && "text-emerald-500 hover:text-emerald-600"
-                  )}
+                  className="ml-2 text-muted-foreground hover:text-foreground"
                   onClick={() => setIsChatbotModalOpen(true)}
                   disabled={!activeWorkflowId || !isDeployed}
                 >
@@ -404,12 +401,12 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   <span className="sr-only">Deploy as Chatbot</span>
                 </Button>
                 
-                {/* Active chatbot deployment indicator */}
+                {/* Active chatbot deployment indicator - more subtle positioning */}
                 {hasChatbotDeployment && (
-                  <div className="absolute top-0.5 right-0.5 flex items-center justify-center">
+                  <div className="absolute top-0 right-0 flex items-center justify-center">
                     <div className="relative">
                       <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500/50 animate-pulse"></div>
-                      <div className="relative w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-background animate-in zoom-in fade-in duration-300"></div>
+                      <div className="relative w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-background"></div>
                     </div>
                     <span className="sr-only">Active Chatbot</span>
                   </div>
