@@ -3,6 +3,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { createLogger } from '@/lib/logs/console-logger'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
+import { ThemeProvider } from '../components/theme-provider'
 
 const logger = createLogger('RootLayout')
 
@@ -65,17 +66,26 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className="dark">
       <head>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
       </head>
-      <body suppressHydrationWarning>
-        <ZoomPrevention />
-        <SpeedInsights />
-        {children}
+      <body suppressHydrationWarning className="min-h-screen bg-background antialiased">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <div className="relative flex min-h-screen flex-col bg-background">
+            <ZoomPrevention />
+            <SpeedInsights />
+            {children}
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   )
