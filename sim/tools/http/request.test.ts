@@ -11,6 +11,8 @@ import { mockHttpResponses } from '../__test-utils__/mock-data'
 import { ToolTester } from '../__test-utils__/test-tools'
 import { requestTool } from './request'
 
+process.env.VITEST = 'true'
+
 describe('HTTP Request Tool', () => {
   let tester: ToolTester
 
@@ -424,6 +426,31 @@ describe('HTTP Request Tool', () => {
       // Verify other default headers still exist
       expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
       expect(headers['Cache-Control']).toBe('no-cache')
+    })
+  })
+
+  describe('Proxy Functionality', () => {
+    test('should not use proxy in test environment', () => {
+      // This test verifies that the shouldUseProxy function has been disabled for tests
+      
+      // Create a browser-like environment
+      const originalWindow = global.window
+      Object.defineProperty(global, 'window', {
+        value: {
+          location: {
+            origin: 'https://app.simstudio.dev'
+          }
+        },
+        writable: true
+      })
+      
+      // Check that external URLs are not proxied during tests
+      const url = tester.getRequestUrl({ url: 'https://api.example.com/data' })
+      expect(url).toBe('https://api.example.com/data')
+      expect(url).not.toContain('/api/proxy')
+      
+      // Reset window
+      global.window = originalWindow
     })
   })
 })

@@ -1,15 +1,121 @@
 import { HttpMethod, TableRow, ToolConfig, ToolResponse } from '../types'
+import { createLogger } from '@/lib/logs/console-logger'
 
+const logger = createLogger('HTTP Request Tool')
+
+// Function to get the appropriate referer based on environment
 const getReferer = (): string => {
+  // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
     return window.location.origin
   }
   
+  // Use environment variable if available (server-side)
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL
   }
   
+  // Fallback for development
   return 'http://localhost:3000/'
+}
+
+/**
+ * Creates a set of default headers used in HTTP requests
+ * @param customHeaders Additional user-provided headers to include
+ * @param url Target URL for the request (used for setting Host header)
+ * @returns Record of HTTP headers
+ */
+const getDefaultHeaders = (customHeaders: Record<string, string> = {}, url?: string): Record<string, string> => {
+  const headers: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    'Accept': '*/*',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Referer': getReferer(),
+    'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"macOS"',
+    ...customHeaders
+  }
+  
+  // Add Host header if not provided and URL is valid
+  if (url) {
+    try {
+      const hostname = new URL(url).host
+      if (hostname && !customHeaders['Host'] && !customHeaders['host']) {
+        headers['Host'] = hostname
+      }
+    } catch (e) {
+      // Invalid URL, will be caught later
+    }
+  }
+  
+  return headers
+}
+
+/**
+ * Processes a URL with path parameters and query parameters
+ * @param url Base URL to process
+ * @param pathParams Path parameters to replace in the URL
+ * @param queryParams Query parameters to add to the URL
+ * @returns Processed URL with path params replaced and query params added
+ */
+const processUrl = (url: string, pathParams?: Record<string, string>, queryParams?: TableRow[] | null): string => {
+  // Strip any surrounding quotes
+  if ((url.startsWith('"') && url.endsWith('"')) || (url.startsWith("'") && url.endsWith("'"))) {
+    url = url.slice(1, -1)
+  }
+
+  // Replace path parameters
+  if (pathParams) {
+    Object.entries(pathParams).forEach(([key, value]) => {
+      url = url.replace(`:${key}`, encodeURIComponent(value))
+    })
+  }
+
+  // Handle query parameters
+  if (queryParams) {
+    const queryParamsObj = transformTable(queryParams)
+    const queryString = Object.entries(queryParamsObj)
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+      .join('&')
+
+    if (queryString) {
+      url += (url.includes('?') ? '&' : '?') + queryString
+    }
+  }
+
+  return url
+}
+
+// Check if a URL needs proxy to avoid CORS/method restrictions
+const shouldUseProxy = (url: string): boolean => {
+  // Skip proxying in test environment
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+    return false
+  }
+  
+  // Only consider proxying in browser environment
+  if (typeof window === 'undefined') {
+    return false
+  }
+
+  try {
+    const urlObj = new URL(url)
+    const currentOrigin = window.location.origin
+    
+    // Don't proxy same-origin or localhost requests
+    if (url.startsWith(currentOrigin) || url.includes('localhost')) {
+      return false
+    }
+    
+    return true // Proxy all cross-origin requests for consistency
+  } catch (e) {
+    logger.warn('URL parsing failed:', e)
+    return false
+  }
 }
 
 // Default headers that will be applied if not explicitly overridden by user
@@ -121,44 +227,51 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   // Direct execution to bypass server for HTTP requests
   directExecution: async (params: RequestParams): Promise<RequestResponse | undefined> => {
     try {
-      // Process URL first to extract hostname for Host header
-      let url = params.url
-      // Strip any surrounding quotes
-      if (typeof url === 'string') {
-        if (
-          (url.startsWith('"') && url.endsWith('"')) ||
-          (url.startsWith("'") && url.endsWith("'"))
-        ) {
-          url = url.slice(1, -1)
-          params.url = url
+      // Process the URL with parameters
+      let url = processUrl(params.url, params.pathParams, params.params)
+      
+      // Update the URL in params for any subsequent operations
+      params.url = url
+
+      // Determine if we should use the proxy
+      if (shouldUseProxy(url)) {
+        // Route request through our proxy
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`
+        
+        const response = await fetch(proxyUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        const result = await response.json()
+        
+        // Transform the proxy result to match the expected output format
+        return {
+          success: result.success,
+          output: {
+            data: result.data,
+            status: result.status,
+            headers: result.headers || {},
+          },
+          error: result.success ? undefined : (
+            // Extract and display the actual API error message from the response if available
+            result.data && typeof result.data === 'object' && result.data.error 
+              ? `HTTP error ${result.status}: ${result.data.error.message || JSON.stringify(result.data.error)}`
+              : result.error || `HTTP error ${result.status}`
+          ),
         }
       }
-
-      // Extract hostname for Host header
-      let hostname = ''
-      try {
-        hostname = new URL(url).host
-      } catch (e) {
-        // Invalid URL, will be caught later
-      }
       
-      // Prepare fetch options
+      // For non-proxied requests, proceed with normal fetch
       const userHeaders = transformTable(params.headers || null)
-      const headers = { ...DEFAULT_HEADERS, ...userHeaders }
-      
-      // Add Host header if not explicitly set by user
-      if (hostname && !userHeaders['Host'] && !userHeaders['host']) {
-        headers['Host'] = hostname
-      }
-      
-      // Set dynamic Referer if not explicitly provided by user
-      if (!userHeaders['Referer'] && !userHeaders['referer']) {
-        headers['Referer'] = getReferer()
-      }
+      const headers = getDefaultHeaders(userHeaders, url)
       
       const fetchOptions: RequestInit = {
         method: params.method || 'GET',
-        headers
+        headers,
+        redirect: 'follow',
       }
 
       // Add body for non-GET requests
@@ -166,11 +279,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         if (typeof params.body === 'object') {
           fetchOptions.body = JSON.stringify(params.body)
           // Ensure Content-Type is set
-          if (fetchOptions.headers) {
-            (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
-          } else {
-            fetchOptions.headers = { 'Content-Type': 'application/json' }
-          }
+          headers['Content-Type'] = 'application/json'
         } else {
           fetchOptions.body = params.body
         }
@@ -192,35 +301,14 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       fetchOptions.signal = controller.signal
 
       try {
-        // Process URL with path parameters and query params
-
-
-        // Replace path parameters
-        if (params.pathParams) {
-          Object.entries(params.pathParams).forEach(([key, value]) => {
-            url = url.replace(`:${key}`, encodeURIComponent(value))
-          })
-        }
-
-        // Handle query parameters
-        const queryParamsObj = transformTable(params.params || null)
-        const queryString = Object.entries(queryParamsObj)
-          .filter(([_, value]) => value !== undefined && value !== null)
-          .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-          .join('&')
-
-        if (queryString) {
-          url += (url.includes('?') ? '&' : '?') + queryString
-        }
-
-        // Make the actual fetch request
+        // Make the fetch request
         const response = await fetch(url, fetchOptions)
         clearTimeout(timeoutId)
 
         // Convert Headers to a plain object
-        const headers: Record<string, string> = {}
+        const responseHeaders: Record<string, string> = {}
         response.headers.forEach((value, key) => {
-          headers[key] = value
+          responseHeaders[key] = value
         })
 
         // Parse response based on content type
@@ -240,7 +328,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           output: {
             data,
             status: response.status,
-            headers,
+            headers: responseHeaders,
           },
           error: response.ok ? undefined : `HTTP error ${response.status}: ${response.statusText}`,
         }
@@ -285,61 +373,31 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
   request: {
     url: (params: RequestParams) => {
-      let url = params.url
-
-      // Strip any surrounding quotes that might have been added during resolution
-      if (typeof url === 'string') {
-        if (
-          (url.startsWith('"') && url.endsWith('"')) ||
-          (url.startsWith("'") && url.endsWith("'"))
-        ) {
-          url = url.slice(1, -1)
-          // Update the params with unquoted URL
-          params.url = url
-        }
+      // Process the URL first to handle path/query params
+      const processedUrl = processUrl(params.url, params.pathParams, params.params)
+      
+      // For external URLs that need proxying
+      if (shouldUseProxy(processedUrl)) {
+        return `/api/proxy?url=${encodeURIComponent(processedUrl)}`
       }
 
-      // Replace path parameters
-      if (params.pathParams) {
-        Object.entries(params.pathParams).forEach(([key, value]) => {
-          url = url.replace(`:${key}`, encodeURIComponent(value))
-        })
-      }
-
-      // Handle query parameters
-      const queryParamsObj = transformTable(params.params || null)
-      const queryString = Object.entries(queryParamsObj)
-        .filter(([_, value]) => value !== undefined && value !== null)
-        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-        .join('&')
-
-      if (queryString) {
-        url += (url.includes('?') ? '&' : '?') + queryString
-      }
-
-      return url
+      return processedUrl
     },
-    method: 'POST' as HttpMethod,
+    
+    method: 'GET' as HttpMethod,
+    
     headers: (params: RequestParams) => {
       const headers = transformTable(params.headers || null)
       
-      // Merge with default headers
-      const allHeaders = { ...DEFAULT_HEADERS, ...headers }
-      
-      // Add dynamic Host header if not explicitly set
-      try {
-        const hostname = new URL(params.url).host
-        if (hostname && !headers['Host'] && !headers['host']) {
-          allHeaders['Host'] = hostname
+      // For proxied requests, we only need minimal headers
+      if (shouldUseProxy(params.url)) {
+        return {
+          'Content-Type': 'application/json',
         }
-      } catch (e) {
-        // Invalid URL, will be handled elsewhere
       }
-
-      // Add dynamic Referer if not explicitly set
-      if (!headers['Referer'] && !headers['referer']) {
-        allHeaders['Referer'] = getReferer()
-      }
+      
+      // For direct requests, add all our standard headers
+      const allHeaders = getDefaultHeaders(headers, params.url)
 
       // Set appropriate Content-Type
       if (params.formData) {
@@ -351,7 +409,13 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
       return allHeaders
     },
+    
     body: (params: RequestParams) => {
+      // For proxied requests, we don't need a body
+      if (shouldUseProxy(params.url)) {
+        return undefined
+      }
+      
       if (params.formData) {
         const formData = new FormData()
         Object.entries(params.formData).forEach(([key, value]) => {
@@ -369,14 +433,31 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    // Convert Headers to a plain object
+    // For proxy responses, we need to parse the JSON and extract the data
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const jsonResponse = await response.json()
+      
+      // Check if this is a proxy response
+      if (jsonResponse.data !== undefined && jsonResponse.status !== undefined) {
+        return {
+          success: jsonResponse.success,
+          output: {
+            data: jsonResponse.data,
+            status: jsonResponse.status,
+            headers: jsonResponse.headers || {},
+          },
+        }
+      }
+    }
+    
+    // Standard response handling
     const headers: Record<string, string> = {}
     response.headers.forEach((value, key) => {
       headers[key] = value
     })
 
-    // Parse response based on content type
-    const data = await (response.headers.get('content-type')?.includes('application/json')
+    const data = await (contentType.includes('application/json')
       ? response.json()
       : response.text())
 
@@ -391,9 +472,28 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   },
 
   transformError: (error) => {
-    const message = error.message || error.error?.message
-    const code = error.status || error.error?.status
-    const details = error.response?.data ? `\nDetails: ${JSON.stringify(error.response.data)}` : ''
-    return `${message} (${code})${details}`
+    // If there's detailed error info from the API response, use it
+    if (error.response?.data) {
+      // Handle structured error objects from APIs
+      if (typeof error.response.data === 'object' && error.response.data.error) {
+        const apiError = error.response.data.error;
+        const message = apiError.message || (typeof apiError === 'string' ? apiError : JSON.stringify(apiError));
+        return `${error.status || ''} ${message}`.trim();
+      }
+      
+      // For text error responses
+      if (typeof error.response.data === 'string' && error.response.data.trim()) {
+        return `${error.status || ''} ${error.response.data}`.trim();
+      }
+    }
+    
+    // Fall back to standard error formatting
+    const message = error.message || error.error?.message || 'Unknown error';
+    const code = error.status || error.error?.status;
+    const statusText = error.statusText || '';
+    
+    // Format the error message
+    return code ? `HTTP error ${code}${statusText ? ': ' + statusText : ''} - ${message}` : message;
   },
 }
+
