@@ -25,6 +25,7 @@ import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper/search'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
+import { semrushDomainOverviewTool, semrushDomainKeywordsTool, semrushKeywordOverviewTool, semrushUrlKeywordsTool } from './semrush'
 import { slackMessageTool } from './slack/message'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
 import { supabaseInsertTool, supabaseQueryTool } from './supabase'
@@ -113,4 +114,8 @@ export const tools: Record<string, ToolConfig> = {
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
+  semrush_domain_overview: semrushDomainOverviewTool,
+  semrush_domain_keywords: semrushDomainKeywordsTool,
+  semrush_keyword_overview: semrushKeywordOverviewTool,
+  semrush_url_keywords: semrushUrlKeywordsTool,
 } 
