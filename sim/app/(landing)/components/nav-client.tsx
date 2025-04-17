@@ -182,7 +182,7 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
               <>
                 <AuthLinks isAuthenticated={isAuthenticated} hasPreviouslyLoggedIn={hasPreviouslyLoggedIn} />
                 {children}
-                <Button variant={"secondary"} className='bg-[#802fce] font-normal text-base text-neutral-200 font-geist-sans'>
+                <Button className='bg-[#802fff] font-normal text-base text-neutral-200 font-geist-sans'>
                   Get Started
                 </Button>
               </>
