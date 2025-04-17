@@ -196,7 +196,7 @@ function Features() {
   const selectedFeature = features[open]
 
   return (
-    <motion.div
+    <motion.section
       className='flex flex-col py-20 w-full gap-20 px-8 md:px-0'
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
@@ -232,7 +232,7 @@ function Features() {
 
       <div className='flex w-full'>
         <motion.div
-          className='lg:flex relative w-full hidden flex-col bg-[#0f0f0f] border border-[#606060]/30 rounded-r-3xl min-h-[44rem] z-10'
+          className='flex relative flex-col bg-[#0f0f0f] border border-[#606060]/30 rounded-r-3xl min-h-[32rem] lg:min-h-[44rem] z-10'
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
@@ -315,7 +315,7 @@ function Features() {
           </motion.div>
       </div>
       </div>
-    </motion.div>
+    </motion.section>
   )
 }
 

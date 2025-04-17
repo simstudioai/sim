@@ -11,7 +11,7 @@ import { motion } from 'framer-motion';
 
 function Integrations() {
   return (
-    <div
+    <section
       className='flex flex-col py-20 w-full gap-16 px-8 md:px-16 lg:px-28 xl:px-32'
     >
       <div className='flex flex-col gap-7'>
@@ -146,7 +146,7 @@ function Integrations() {
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.7, delay: 0.18, ease: 'easeOut' }}
             >
-              Import data from your favorite tools to power your AI agents' knowledge bases—no manual uploads needed.
+              Import data from your favorite tools to power your AI agents&apos; knowledge bases—no manual uploads needed.
             </motion.p>
           </div>
           <div
@@ -257,7 +257,7 @@ function Integrations() {
           </div>
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
