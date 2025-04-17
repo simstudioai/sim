@@ -1,10 +1,26 @@
-import React from 'react'
+"use client";
+
+import React, { useEffect } from 'react'
 import { GridPattern } from '../grid-pattern'
 import { Button } from '@/components/ui/button'
 import { Command, CornerDownLeft } from 'lucide-react'
 import HeroWorkflowProvider from '../hero-workflow'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 function Hero() {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        router.push('/login');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [router]);
+
   return (
     <section className="min-h-screen pt-36 sm:pt-48 md:pt-56 text-white relative border-b border-[#181818] overflow-hidden">
         <GridPattern 
@@ -74,7 +90,9 @@ function Hero() {
 
           <div className="animate-fade-up pt-4 [animation-delay:600ms] opacity-0 translate-y-[-10px]">
             <Button variant={"secondary"} className='bg-[#802fff] font-geist-sans items-center px-7 py-6 text-lg text-neutral-100 font-normal tracking-normal shadow-lg shadow-[#802fff]/30 hover:bg-[#701ffc]'>
-              Start now
+                <Link href={"/login"}>
+                  Start now
+                </Link>
 
               <div className='flex items-center gap-1 pl-2 opacity-80'>
                 <Command size={24}/>
