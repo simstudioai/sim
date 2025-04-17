@@ -183,7 +183,9 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
                 <AuthLinks isAuthenticated={isAuthenticated} hasPreviouslyLoggedIn={hasPreviouslyLoggedIn} />
                 {children}
                 <Button className='bg-[#802fff] font-normal text-base text-neutral-200 font-geist-sans'>
-                  Get Started
+                  <Link href={"/login"}>
+                    Get Started
+                  </Link>
                 </Button>
               </>
             )}
@@ -234,7 +236,9 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
                           <motion.div variants={mobileNavItemVariants} className="mt-auto">
                             <SheetClose asChild>
                               <Button variant={"secondary"} className='w-full bg-[#802fce] font-medium text-base text-white font-geist-sans'>
+                              <Link href={"/login"}>
                                 Get Started
+                              </Link>
                               </Button>
                             </SheetClose>
                           </motion.div>

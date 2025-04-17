@@ -45,7 +45,9 @@ function Footer() {
             transition={{ duration: 0.7, delay: 0.22, ease: 'easeOut' }}
           >
             <Button className='bg-[#B5A1D4] text-[#1C1C1C] w-fit' size={"lg"} variant={"secondary"}>
-              Get Started
+                <Link href={"/login"}>
+                  Get Started
+                </Link>
             </Button>
           </motion.div>
         </motion.div>
