@@ -17,14 +17,20 @@ const modelPricing: ModelPricingMap = {
   o1: {
     input: 15.0,
     cachedInput: 7.5, // 50% discount for cached input
-    output: 75.0,
-    updatedAt: '2025-03-21',
+    output: 60,
+    updatedAt: '2025-04-16',
   },
-  'o3-mini': {
-    input: 0.5,
-    cachedInput: 0.25,
-    output: 1.5,
-    updatedAt: '2025-03-21',
+  'o3': {
+    input: 10,
+    cachedInput: 2.5,
+    output: 40,
+    updatedAt: '2025-04-16',
+  },
+  'o4-mini': {
+    input: 1.1,
+    cachedInput: 0.275,
+    output: 4.4,
+    updatedAt: '2025-04-16',
   },
 
   // Anthropic Models
@@ -86,12 +92,6 @@ const modelPricing: ModelPricingMap = {
   },
 
   // Groq Models
-  'groq/llama-3.3-70b-specdec': {
-    input: 0.59,
-    cachedInput: 0.3,
-    output: 0.99,
-    updatedAt: '2025-03-21',
-  },
   'groq/meta-llama/llama-4-scout-17b-16e-instruct': {
     input: 0.4,
     cachedInput: 0.2,

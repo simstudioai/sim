@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { executeTool, getTool } from '@/tools'
+import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
 import { validateToolRequest } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')

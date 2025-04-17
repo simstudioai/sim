@@ -52,16 +52,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const { code, params = {}, timeout = 3000, envVars = {} } = body
-
-    logger.debug(`[${requestId}] Executing function with params`, {
-      hasParams: Object.keys(params).length > 0,
-      timeout,
-      hasEnvVars: Object.keys(envVars).length > 0,
-    })
+    const { code, params = {}, timeout = 5000, envVars = {}, workflowId, isCustomTool = false } = body
+    
+    // Extract internal parameters that shouldn't be passed to the execution context
+    const executionParams = { ...params }
+    delete executionParams._context
 
     // Resolve variables in the code with workflow environment variables
-    const resolvedCode = resolveCodeVariables(code, params, envVars)
+    const resolvedCode = resolveCodeVariables(code, executionParams, envVars)
 
     let result: any
     let executionMethod = 'vm' // Default execution method
@@ -98,7 +96,13 @@ export async function POST(req: NextRequest) {
         })
 
         // Wrap code in export default to match Freestyle's expectations
-        const wrappedCode = `export default async () => { ${resolvedCode} }`
+        const wrappedCode = isCustomTool 
+          ? `export default async () => { 
+              // For custom tools, directly declare parameters as variables
+              ${Object.entries(executionParams).map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`).join('\n              ')}
+              ${resolvedCode} 
+            }`
+          : `export default async () => { ${resolvedCode} }`
 
         // Execute the code with Freestyle
         const res = await freestyle.executeScript(wrappedCode, {
@@ -155,7 +159,7 @@ export async function POST(req: NextRequest) {
 
         // Continue to VM execution
         const context = createContext({
-          params,
+          params: executionParams,
           environmentVariables: envVars,
           console: {
             log: (...args: any[]) => {
@@ -179,6 +183,10 @@ export async function POST(req: NextRequest) {
         const script = new Script(`
           (async () => {
             try {
+              ${isCustomTool 
+                ? `// For custom tools, make parameters directly accessible
+                  ${Object.keys(executionParams).map(key => `const ${key} = params.${key};`).join('\n                  ')}` 
+                : ''}
               ${resolvedCode}
             } catch (error) {
               console.error(error);
@@ -202,7 +210,7 @@ export async function POST(req: NextRequest) {
 
       // Create a secure context with console logging
       const context = createContext({
-        params,
+        params: executionParams,
         environmentVariables: envVars,
         console: {
           log: (...args: any[]) => {
@@ -226,6 +234,10 @@ export async function POST(req: NextRequest) {
       const script = new Script(`
         (async () => {
           try {
+            ${isCustomTool 
+              ? `// For custom tools, make parameters directly accessible
+                ${Object.keys(executionParams).map(key => `const ${key} = params.${key};`).join('\n                ')}` 
+              : ''}
             ${resolvedCode}
           } catch (error) {
             console.error(error);

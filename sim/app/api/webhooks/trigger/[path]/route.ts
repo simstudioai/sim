@@ -276,7 +276,7 @@ export async function POST(
   // --- For all other webhook types: Use async processing with timeout ---
   
   // Create timeout promise for fast initial response (2.5 seconds)
-  const timeoutDuration = 2500;
+  const timeoutDuration = 25000;
   const timeoutPromise = new Promise<NextResponse>((resolve) => {
     setTimeout(() => {
       logger.info(`[${requestId}] Fast response timeout activated`);
