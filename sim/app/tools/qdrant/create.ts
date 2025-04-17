@@ -21,7 +21,7 @@ export const createCollectionTool: ToolConfig<CreateCollectionParams, QdrantResp
     indexHost: {
       type: 'string',
       required: true,
-      description: 'The Qdrant index host URL (e.g., https://your-endpoint)',
+      description: 'The Qdrant index host URL',
     },
     dimension: {
       type: 'number',

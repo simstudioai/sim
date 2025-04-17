@@ -44,7 +44,7 @@ export const QdrantBlock: BlockConfig<QdrantResponse> = {
       title: 'Index Host',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter your Qdrant index host URL (e.g., https://your-endpoint)',
+      placeholder: 'Enter your Qdrant index host URL',
     },
     // Fields specific to Create Collection
     {

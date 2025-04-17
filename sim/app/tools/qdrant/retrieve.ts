@@ -21,7 +21,7 @@ export const retrieveVectorsTool: ToolConfig<RetrieveVectorsParams, QdrantRespon
     indexHost: {
       type: 'string',
       required: true,
-      description: 'The Qdrant index host URL (e.g., https://your-endpoint)',
+      description: 'The Qdrant index host URL',
     },
     ids: {
       type: 'array',

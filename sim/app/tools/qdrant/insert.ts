@@ -21,7 +21,7 @@ export const upsertVectorsTool: ToolConfig<UpsertVectorsParams, QdrantResponse> 
     indexHost: {
       type: 'string',
       required: true,
-      description: 'The Qdrant index host URL (e.g., https://your-endpoint)',
+      description: 'The Qdrant index host URL',
     },
     vectors: {
       type: 'array',
