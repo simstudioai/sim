@@ -1,14 +1,13 @@
 import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
 import { BlockOutput } from '@/blocks/types'
-import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
 import { ExecutionContext } from '../../types'
 import { EvaluatorBlockHandler } from './evaluator-handler'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockExecuteProviderRequest = executeProviderRequest as Mock
+const mockFetch = global.fetch as Mock
 
 describe('EvaluatorBlockHandler', () => {
   let handler: EvaluatorBlockHandler
@@ -37,11 +36,12 @@ describe('EvaluatorBlockHandler', () => {
       workflowId: 'test-workflow-id',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: {},
+      metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
       loopItems: new Map(),
+      completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
     }
@@ -51,12 +51,20 @@ describe('EvaluatorBlockHandler', () => {
 
     // Default mock implementations
     mockGetProviderFromModel.mockReturnValue('openai')
-    mockExecuteProviderRequest.mockResolvedValue({
-      content: JSON.stringify({ score1: 5, score2: 8 }),
-      model: 'mock-model',
-      tokens: { prompt: 50, completion: 10, total: 60 },
-      cost: 0.002,
-      timing: { total: 200 },
+    
+    // Set up fetch mock to return a successful response
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ score1: 5, score2: 8 }),
+            model: 'mock-model',
+            tokens: { prompt: 50, completion: 10, total: 60 },
+            cost: 0.002,
+            timing: { total: 200 },
+          }),
+      })
     })
   })
 
@@ -77,27 +85,6 @@ describe('EvaluatorBlockHandler', () => {
       temperature: 0.1,
     }
 
-    const expectedProviderRequest = {
-      model: 'gpt-4o',
-      systemPrompt: expect.stringContaining(inputs.content),
-      responseFormat: {
-        name: 'evaluation_response',
-        schema: {
-          type: 'object',
-          properties: {
-            score1: { type: 'number' },
-            score2: { type: 'number' },
-          },
-          required: ['score1', 'score2'],
-          additionalProperties: false,
-        },
-        strict: true,
-      },
-      messages: [{ role: 'user', content: expect.stringContaining('Please evaluate the content') }],
-      temperature: 0.1,
-      apiKey: undefined,
-    }
-
     const expectedOutput: BlockOutput = {
       response: {
         content: 'This is the content to evaluate.',
@@ -111,7 +98,36 @@ describe('EvaluatorBlockHandler', () => {
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-    expect(mockExecuteProviderRequest).toHaveBeenCalledWith('openai', expectedProviderRequest)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String), 
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.any(Object),
+        body: expect.any(String),
+      })
+    )
+    
+    // Verify the request body contains the expected data
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+    expect(requestBody).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-4o',
+      systemPrompt: expect.stringContaining(inputs.content),
+      responseFormat: expect.objectContaining({
+        schema: {
+          type: 'object',
+          properties: {
+            score1: { type: 'number' },
+            score2: { type: 'number' },
+          },
+          required: ['score1', 'score2'],
+          additionalProperties: false,
+        }
+      }),
+      temperature: 0.1,
+    })
+    
     expect(result).toEqual(expectedOutput)
   })
 
@@ -121,22 +137,28 @@ describe('EvaluatorBlockHandler', () => {
       content: JSON.stringify(contentObj),
       metrics: [{ name: 'clarity', description: 'Clarity score', range: { min: 1, max: 5 } }],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({ clarity: 4 }),
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ clarity: 4 }),
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     await handler.execute(mockBlock, inputs, mockContext)
 
-    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        systemPrompt: expect.stringContaining(JSON.stringify(contentObj, null, 2)),
-      })
-    )
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+    expect(requestBody).toMatchObject({
+      systemPrompt: expect.stringContaining(JSON.stringify(contentObj, null, 2)),
+    })
   })
 
   it('should process object content correctly', async () => {
@@ -147,22 +169,28 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'completeness', description: 'Data completeness', range: { min: 0, max: 1 } },
       ],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({ completeness: 1 }),
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ completeness: 1 }),
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     await handler.execute(mockBlock, inputs, mockContext)
 
-    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({
-        systemPrompt: expect.stringContaining(JSON.stringify(contentObj, null, 2)),
-      })
-    )
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+    expect(requestBody).toMatchObject({
+      systemPrompt: expect.stringContaining(JSON.stringify(contentObj, null, 2)),
+    })
   })
 
   it('should parse valid JSON response correctly', async () => {
@@ -170,12 +198,19 @@ describe('EvaluatorBlockHandler', () => {
       content: 'Test content',
       metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: '```json\n{ "quality": 9 }\n```',
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: '```json\n{ "quality": 9 }\n```',
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -188,12 +223,19 @@ describe('EvaluatorBlockHandler', () => {
       content: 'Test content',
       metrics: [{ name: 'score', description: 'Score', range: { min: 0, max: 5 } }],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: 'Sorry, I cannot provide a score.',
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: 'Sorry, I cannot provide a score.',
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -209,12 +251,19 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'fluency', description: 'Flu', range: { min: 0, max: 1 } },
       ],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: '{ "accuracy": 1, "fluency": invalid }',
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: '{ "accuracy": 1, "fluency": invalid }',
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -227,12 +276,19 @@ describe('EvaluatorBlockHandler', () => {
       content: 'Test',
       metrics: [{ name: 'CamelCaseScore', description: 'Desc', range: { min: 0, max: 10 } }],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({ camelcasescore: 7 }),
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ camelcasescore: 7 }),
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -248,17 +304,39 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'missingScore', description: 'Desc2', range: { min: 0, max: 5 } },
       ],
     }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({ presentScore: 4 }),
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: JSON.stringify({ presentScore: 4 }),
+            model: 'm',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     const result = await handler.execute(mockBlock, inputs, mockContext)
 
     expect((result as any).response.presentscore).toBe(4)
     expect((result as any).response.missingscore).toBe(0)
+  })
+  
+  it('should handle server error responses', async () => {
+    const inputs = { content: 'Test error handling.' }
+    
+    // Override fetch mock to return an error
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'Server error' }),
+      })
+    })
+
+    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow('Server error')
   })
 })
