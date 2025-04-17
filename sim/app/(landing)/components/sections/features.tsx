@@ -231,20 +231,36 @@ function Features() {
       </motion.div>
 
       <div className='flex w-full'>
-        <motion.div
-          className='flex relative flex-col bg-[#0f0f0f] border border-[#606060]/30 rounded-r-3xl min-h-[32rem] lg:min-h-[44rem] z-10'
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
-        >
-          <DotPattern className='rounded-r-3xl opacity-20' x={-5} y={-5} />
-          <div className="flex-1 flex items-center justify-center w-full">
-            <ReactFlowProvider>
-              <FeaturesFlow nodes={selectedFeature.nodes} edges={selectedFeature.edges} />
-            </ReactFlowProvider>
+        <div className='lg:flex relative w-full hidden'>
+          <div className='absolute -top-48 left-0'>
+            <svg width="1021" height="1126" viewBox="0 0 1021 1126" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <g filter="url(#filter0_f_82_4275)">
+              <ellipse cx="342.5" cy="556" rx="278.5" ry="280" fill="#593859"/>
+              </g>
+              <defs>
+              <filter id="filter0_f_82_4275" x="-336" y="-124" width="1357" height="1360" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+              <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+              <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+              <feGaussianBlur stdDeviation="200" result="effect1_foregroundBlur_82_4275"/>
+              </filter>
+              </defs>
+            </svg>
           </div>
-        </motion.div>
+          <motion.div
+            className='lg:flex relative w-full hidden flex-col bg-[#0f0f0f] border border-[#606060]/30 rounded-r-3xl min-h-[44rem] z-10 overflow-hidden'
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+          >
+            <DotPattern className='rounded-r-3xl opacity-20' x={-5} y={-5} />
+            <div className="flex-1 flex items-center justify-center w-full">
+              <ReactFlowProvider>
+                <FeaturesFlow nodes={selectedFeature.nodes} edges={selectedFeature.edges} />
+              </ReactFlowProvider>
+            </div>
+          </motion.div>
+        </div>
         <div className='w-full flex px-4 md:px-24 lg:px-32 xl:px-48'>
           <motion.div
             className='w-full bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl flex flex-col overflow-hidden'
