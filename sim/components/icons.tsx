@@ -1673,6 +1673,7 @@ export function EyeIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 <<<<<<< HEAD:sim/components/icons.tsx
+<<<<<<< HEAD:sim/components/icons.tsx
 export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -1821,6 +1822,8 @@ export function MistralIcon(props: SVGProps<SVGSVGElement>) {
         <clipPath id="clip0_1621_58">
           <rect width="24" height="22" fill="white" />
 
+=======
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/components/icons.tsx
 export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -1848,6 +1851,7 @@ export function QdrantIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+<<<<<<< HEAD:sim/components/icons.tsx
 export function BrainIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="currentColor">
@@ -1872,6 +1876,8 @@ export function StagehandIcon(props: SVGProps<SVGSVGElement>) {
       height="159"
       viewBox="0 0 108 159"
 
+=======
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/components/icons.tsx
 export function SemrushIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -1883,6 +1889,7 @@ export function SemrushIcon(props: SVGProps<SVGSVGElement>) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
+<<<<<<< HEAD:sim/components/icons.tsx
         d="M15 26C22.8234 31.822 23.619 41.405 25.3125 50.3867C25.8461 53.1914 26.4211 55.9689 27.0625 58.75C27.7987 61.9868 28.4177 65.2319 29 68.5C29.332 70.3336 29.6653 72.1669 30 74C30.1418 74.7863 30.2836 75.5727 30.4297 76.3828C31.8011 83.2882 33.3851 90.5397 39.4375 94.75C40.3405 95.3069 40.3405 95.3069 41.2617 95.875C43.8517 97.5512 45.826 99.826 48 102C50.6705 102.89 52.3407 103.143 55.0898 103.211C55.8742 103.239 56.6586 103.268 57.4668 103.297C59.1098 103.349 60.7531 103.393 62.3965 103.43C65.8896 103.567 68.4123 103.705 71.5664 105.289C73 107 73 107 73 111C73.66 111 74.32 111 75 111C74.0759 106.912 74.0759 106.912 71.4766 103.828C67.0509 102.348 62.3634 102.64 57.7305 102.609C52.3632 102.449 49.2783 101.537 45 98C41.8212 94.0795 41.5303 90.9791 42 86C44.9846 83.0154 48.2994 83.6556 52.3047 83.6289C53.139 83.6199 53.9734 83.6108 54.833 83.6015C56.6067 83.587 58.3805 83.5782 60.1543 83.5745C62.8304 83.5627 65.5041 83.5137 68.1797 83.4629C81.1788 83.34 91.8042 85.3227 102 94C106.37 100.042 105.483 106.273 104.754 113.406C103.821 119.026 101.968 124.375 100.125 129.75C99.8806 130.471 99.6361 131.193 99.3843 131.936C97.7783 136.447 95.9466 140.206 93 144C92.34 144 91.68 144 91 144C91 144.66 91 145.32 91 146C79.0816 156.115 63.9798 156.979 49 156C36.6394 154.226 26.7567 148.879 19 139C11.0548 125.712 11.6846 105.465 11.3782 90.4719C11.0579 77.4745 8.03411 64.8142 5.4536 52.1135C5.04373 50.0912 4.64233 48.0673 4.24218 46.043C4.00354 44.8573 3.7649 43.6716 3.51903 42.45C2.14425 33.3121 2.14425 33.3121 4.87499 29.125C8.18297 25.817 10.3605 25.4542 15 26Z"
         fill="#FDFDFD"
       />
@@ -2189,6 +2196,8 @@ export function Mem0Icon(props: SVGProps<SVGSVGElement>) {
 =======
 >>>>>>> 97ec7d1 (feat/added new qdrant block/tool):sim/app/components/icons.tsx
 =======
+=======
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/components/icons.tsx
         d="M431.18,148.03c0,9.31-4.67,10.75-16.49,10.75c-12.54,0-14.7-2.15-16.13-11.47
           c-2.51-24.01-18.65-44.45-45.87-46.59c-8.6-0.72-10.75-3.95-10.75-14.7c0-10.03,1.43-14.7,9.31-14.7
           C398.55,71.33,431.18,109.32,431.18,148.03z M500,148.03C500,76,451.26,0,338.7,0H114.97c-4.51,0-7.31,2.36-7.31,6.48
@@ -2203,4 +2212,7 @@ export function Mem0Icon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+<<<<<<< HEAD:sim/components/icons.tsx
 >>>>>>> cfcfdc1 (feat(api): added frontend block and one api endpoint for semrush):sim/app/components/icons.tsx
+=======
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/components/icons.tsx

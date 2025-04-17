@@ -39,14 +39,23 @@ export const domainKeywordsTool: ToolConfig<SemrushDomainKeywordsParams, Semrush
   },
 
   transformResponse: async (response: Response): Promise<SemrushDomainKeywordsResponse> => {
+<<<<<<< HEAD
     const data = await response.json();
     console.log("Domain Keywords response:", data);
+=======
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    const data = await response.json();
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110
     return { 
       success: true,
       output: data
     };
   },
 
+<<<<<<< HEAD
   transformError: async (error) => {
     console.error("=== domainKeywordsTool transformError called ===");
     if (error.response) {
@@ -60,4 +69,7 @@ export const domainKeywordsTool: ToolConfig<SemrushDomainKeywordsParams, Semrush
     }
     return error.message || 'An error occurred while retrieving domain keywords';
   }
+=======
+  transformError: (error) => `Domain keywords fetching failed: ${error.message}`
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110
 }

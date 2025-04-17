@@ -85,6 +85,7 @@ export {
   GoogleDocsBlock,
   WhatsAppBlock,
   GoogleSheetsBlock,
+<<<<<<< HEAD:sim/blocks/index.ts
   PerplexityBlock,
   ConfluenceBlock,
   TwilioSMSBlock,
@@ -94,6 +95,9 @@ export {
   StagehandBlock,
   StagehandAgentBlock,
   QdrantBlock,
+=======
+  QdrantBlock
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/blocks/index.ts
 }
 
 // Registry of all block configurations, alphabetically sorted

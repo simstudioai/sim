@@ -76,7 +76,11 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
       'semrush_domain_overview',
       'semrush_domain_keywords',
       'semrush_keyword_overview',
+<<<<<<< HEAD:sim/blocks/blocks/semrush.ts
       'semrush_url'
+=======
+      'semrush_url_keywords'
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/blocks/blocks/semrush.ts
     ],
     config: {
       tool: (params: Record<string, any>) => {
@@ -95,11 +99,19 @@ export const SemrushBlock: BlockConfig<SemrushBlockResponse> = {
   inputs: {
     apiKey: { type: 'string', required: true },
     // When a domain is needed.
+<<<<<<< HEAD:sim/blocks/blocks/semrush.ts
     domain: { type: 'string', required: false },
     // When a keyword is needed.
     keyword: { type: 'string', required: false },
     // When a URL is needed.
     url: { type: 'string', required: false },
+=======
+    domain: { type: 'string', required: true },
+    // When a keyword is needed.
+    keyword: { type: 'string', required: true },
+    // When a URL is needed.
+    url: { type: 'string', required: true },
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/blocks/blocks/semrush.ts
     operation: { type: 'string', required: true }
   },
 

@@ -39,14 +39,23 @@ export const keywordOverviewTool: ToolConfig<SemrushKeywordOverviewParams, Semru
   },
 
   transformResponse: async (response: Response): Promise<SemrushKeywordOverviewResponse> => {
+<<<<<<< HEAD
     const data = await response.json();
     console.log("Keyword Overview response:", data);
+=======
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+    const data = await response.json();
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110
     return {
       success: true,
       output: data
     };
   },
 
+<<<<<<< HEAD
   transformError: async (error) => {
     console.error("=== keywordOverviewTool transformError called ===");
     if (error.response) {
@@ -60,4 +69,7 @@ export const keywordOverviewTool: ToolConfig<SemrushKeywordOverviewParams, Semru
     }
     return error.message || 'An error occurred while retrieving keyword overview';
   }
+=======
+  transformError: (error) => `Keyword overviews fetching failed: ${error.message}`
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110
 }
