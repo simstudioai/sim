@@ -1,7 +1,7 @@
 'use client'
 
 import { KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { ArrowUp } from 'lucide-react'
+import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -26,6 +26,7 @@ interface ChatbotConfig {
     welcomeMessage?: string
     headerText?: string
   }
+  authType?: 'public' | 'password' | 'email'
 }
 
 export default function ChatbotClient({ subdomain }: { subdomain: string }) {
@@ -36,33 +37,53 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
+  // Authentication state
+  const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
+  const [password, setPassword] = useState('')
+  const [email, setEmail] = useState('')
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
+  
   // Fetch chatbot config on mount
   useEffect(() => {
     async function fetchChatbotConfig() {
       try {
-        // Use relative URL with credentials
-        const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/chatbot/${subdomain}`, {
+        // Use relative URL instead of absolute URL with process.env.NEXT_PUBLIC_APP_URL
+        const response = await fetch(`/api/chatbot/${subdomain}`, {
           credentials: 'same-origin',
           headers: {
             'X-Requested-With': 'XMLHttpRequest'
           }
         })
         
-        console.log('response', response)
-        
         if (!response.ok) {
-          throw new Error('Failed to load chatbot configuration')
+          // Check if auth is required
+          if (response.status === 401) {
+            const errorData = await response.json()
+            
+            if (errorData.error === 'auth_required_password') {
+              setAuthRequired('password')
+              return
+            } else if (errorData.error === 'auth_required_email') {
+              setAuthRequired('email')
+              return
+            }
+          }
+          
+          throw new Error(`Failed to load chatbot configuration: ${response.status}`)
         }
         
         const data = await response.json()
-        setChatbotConfig(data.data)
+        
+        // The API returns the data directly without a wrapper
+        setChatbotConfig(data)
         
         // Add welcome message if configured
-        if (data.data?.customizations?.welcomeMessage) {
+        if (data?.customizations?.welcomeMessage) {
           setMessages([
             {
               id: 'welcome',
-              content: data.data.customizations.welcomeMessage,
+              content: data.customizations.welcomeMessage,
               type: 'assistant',
               timestamp: new Date(),
             },
@@ -76,6 +97,74 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
     
     fetchChatbotConfig()
   }, [subdomain])
+  
+  // Handle authentication
+  const handleAuthenticate = async () => {
+    setAuthError(null)
+    setIsAuthenticating(true)
+    
+    try {
+      const payload = authRequired === 'password' 
+        ? { password } 
+        : { email }
+      
+      const response = await fetch(`/api/chatbot/${subdomain}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(payload),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        setAuthError(errorData.error || 'Authentication failed')
+        return
+      }
+      
+      await response.json()
+      
+      // Authentication successful, fetch config again
+      const configResponse = await fetch(`/api/chatbot/${subdomain}`, {
+        credentials: 'same-origin',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      
+      if (!configResponse.ok) {
+        throw new Error('Failed to load chatbot configuration after authentication')
+      }
+      
+      const data = await configResponse.json()
+      setChatbotConfig(data)
+      
+      // Add welcome message if configured
+      if (data?.customizations?.welcomeMessage) {
+        setMessages([
+          {
+            id: 'welcome',
+            content: data.customizations.welcomeMessage,
+            type: 'assistant',
+            timestamp: new Date(),
+          },
+        ])
+      }
+      
+      // Reset auth state
+      setAuthRequired(null)
+      setPassword('')
+      setEmail('')
+      
+    } catch (error) {
+      console.error('Authentication error:', error)
+      setAuthError('An error occurred during authentication')
+    } finally {
+      setIsAuthenticating(false)
+    }
+  }
   
   // Scroll to bottom of messages
   useEffect(() => {
@@ -115,11 +204,12 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
         throw new Error('Failed to get response')
       }
       
-      const data = await response.json()
+      const responseData = await response.json()
+      console.log('Message response:', responseData)
       
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        content: data.data.output || 'Sorry, I couldn\'t process your request.',
+        content: responseData.output || 'Sorry, I couldn\'t process your request.',
         type: 'assistant',
         timestamp: new Date(),
       }
@@ -149,6 +239,14 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
     }
   }
   
+  // Handle auth form keyboard input
+  const handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAuthenticate()
+    }
+  }
+  
   // If error, show error message
   if (error) {
     return (
@@ -156,6 +254,80 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
         <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-md">
           <h2 className="text-xl font-bold text-red-500 mb-2">Error</h2>
           <p className="text-gray-700">{error}</p>
+        </div>
+      </div>
+    )
+  }
+  
+  // If authentication is required, show auth form
+  if (authRequired) {
+    // Get title and description from the URL params or use defaults
+    const title = new URLSearchParams(window.location.search).get('title') || 'Chatbot'
+    const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
+    
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="p-6 max-w-md w-full mx-auto bg-white rounded-xl shadow-md">
+          <div className="text-center mb-6">
+            <h2 className="text-xl font-bold mb-2">{title}</h2>
+            <p className="text-gray-600">
+              {authRequired === 'password' 
+                ? 'This chatbot is password-protected. Please enter the password to continue.' 
+                : 'This chatbot requires email verification. Please enter your email to continue.'}
+            </p>
+          </div>
+          
+          {authError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md">
+              {authError}
+            </div>
+          )}
+          
+          <div className="space-y-4">
+            {authRequired === 'password' ? (
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handleAuthKeyDown}
+                  placeholder="Enter password"
+                  className="pl-10"
+                  disabled={isAuthenticating}
+                />
+              </div>
+            ) : (
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={handleAuthKeyDown}
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  disabled={isAuthenticating}
+                />
+              </div>
+            )}
+            
+            <Button 
+              onClick={handleAuthenticate} 
+              className="w-full"
+              style={{ backgroundColor: primaryColor }}
+              disabled={isAuthenticating || (authRequired === 'password' ? !password : !email)}
+            >
+              {isAuthenticating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Authenticating...
+                </>
+              ) : (
+                'Continue'
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     )

@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
 
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
-  
+    
   // Extract subdomain
   const isCustomDomain = hostname !== BASE_DOMAIN && 
                          !hostname.startsWith('www.') && 
@@ -36,6 +36,12 @@ export async function middleware(request: NextRequest) {
   
   // Handle chatbot subdomains
   if (subdomain && isCustomDomain) {
+    // Special case for API requests from the subdomain
+    if (url.pathname.startsWith('/api/chatbot/')) {
+      // Already an API request, let it go through
+      return NextResponse.next()
+    }
+    
     // Rewrite to the chatbot page but preserve the URL in browser
     return NextResponse.rewrite(new URL(`/chatbot/${subdomain}${url.pathname}`, request.url))
   }

@@ -41,6 +41,8 @@ interface ChatDeploymentModalProps {
 
 type AuthType = 'public' | 'password' | 'email'
 
+const isDevelopment = process.env.NODE_ENV === 'development'
+
 // Define Zod schema for API request validation
 const chatbotSchema = z.object({
   workflowId: z.string().min(1, "Workflow ID is required"),
@@ -80,6 +82,18 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
   const [isLoading, setIsLoading] = useState(false)
   const [dataFetched, setDataFetched] = useState(false)
   
+  // Track original values to detect changes
+  const [originalValues, setOriginalValues] = useState<{
+    subdomain: string
+    title: string
+    description: string
+    authType: AuthType
+    emails: string[]
+  } | null>(null)
+  
+  // State to track if any changes have been made
+  const [hasChanges, setHasChanges] = useState(false)
+  
   // Confirmation dialogs
   const [showEditConfirmation, setShowEditConfirmation] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
@@ -92,6 +106,35 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       fetchExistingChatbot()
     }
   }, [isOpen, workflowId])
+
+  // Check for changes when form values update
+  useEffect(() => {
+    if (originalValues && existingChatbot) {
+      const currentAuthTypeChanged = authType !== originalValues.authType
+      const subdomainChanged = subdomain !== originalValues.subdomain
+      const titleChanged = title !== originalValues.title
+      const descriptionChanged = description !== originalValues.description
+      
+      // Check if emails have changed
+      const emailsChanged = 
+        emails.length !== originalValues.emails.length || 
+        emails.some(email => !originalValues.emails.includes(email))
+      
+      // Check if password has changed - any value in password field means change
+      const passwordChanged = password.length > 0
+      
+      // Determine if any changes have been made
+      const changed = 
+        subdomainChanged || 
+        titleChanged || 
+        descriptionChanged || 
+        currentAuthTypeChanged || 
+        emailsChanged || 
+        passwordChanged
+      
+      setHasChanges(changed)
+    }
+  }, [subdomain, title, description, authType, emails, password, originalValues])
 
   // Fetch existing chatbot data for this workflow
   const fetchExistingChatbot = async () => {
@@ -115,6 +158,15 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
             setDescription(chatbotDetail.description || '')
             setAuthType(chatbotDetail.authType || 'public')
             
+            // Store original values for change detection
+            setOriginalValues({
+              subdomain: chatbotDetail.subdomain || '',
+              title: chatbotDetail.title || '',
+              description: chatbotDetail.description || '',
+              authType: chatbotDetail.authType || 'public',
+              emails: Array.isArray(chatbotDetail.allowedEmails) ? [...chatbotDetail.allowedEmails] : []
+            })
+            
             // Set emails if using email auth
             if (chatbotDetail.authType === 'email' && Array.isArray(chatbotDetail.allowedEmails)) {
               setEmails(chatbotDetail.allowedEmails)
@@ -126,6 +178,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
           }
         } else {
           setExistingChatbot(null)
+          setOriginalValues(null)
         }
       }
     } catch (error) {
@@ -133,6 +186,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
     } finally {
       setIsLoading(false)
       setDataFetched(true)
+      setHasChanges(false) // Reset changes detection after loading
     }
   }
 
@@ -155,6 +209,8 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setEmailError('')
       setExistingChatbot(null)
       setDataFetched(false)
+      setOriginalValues(null)
+      setHasChanges(false)
       onClose()
     }
   }
@@ -393,13 +449,13 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
           {!isLoading && deployedChatbotUrl ? (
             // Success view
             <div className="space-y-6 py-4">
-              <Card className="border-green-200 bg-green-50">
-                <CardContent className="p-6 text-green-800">
+              <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20">
+                <CardContent className="p-6 text-green-800 dark:text-green-400">
                   <h3 className="text-base font-medium mb-2">
                     Chatbot {existingChatbot ? 'Update' : 'Deployment'} Successful
                   </h3>
                   <p className="mb-3">Your chatbot is now available at:</p>
-                  <div className="bg-white/50 p-3 rounded-md border border-green-200">
+                  <div className="bg-white/50 dark:bg-gray-900/50 p-3 rounded-md border border-green-200 dark:border-green-900/50">
                     <a 
                       href={deployedChatbotUrl} 
                       target="_blank" 
@@ -449,7 +505,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                           disabled={isDeploying}
                         />
                         <div className="h-10 px-3 flex items-center border rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
-                          .simstudio.ai
+                          {isDevelopment ? '.localhost:3000' : '.simstudio.ai'}
                         </div>
                       </div>
                       {subdomainError && (
@@ -581,44 +637,61 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                             </Button>
                           </div>
                           <div className="relative">
-                            <Input
-                              type={showPassword ? 'text' : 'password'}
-                              placeholder={existingChatbot ? "Enter new password (leave empty to keep current)" : "Enter password"}
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              disabled={isDeploying}
-                              className="pr-20"
-                              required={!existingChatbot && authType === 'password'}
-                            />
-                            <div className="absolute right-0 top-0 h-full flex">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => copyToClipboard(password)}
-                                disabled={!password || isDeploying}
-                                className="h-full opacity-70 hover:opacity-100"
-                                title="Copy password"
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="h-full opacity-70 hover:opacity-100"
-                                title={showPassword ? "Hide password" : "Show password"}
-                              >
-                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
+                            {/* Add visual password indicator for existing passwords */}
+                            {existingChatbot && existingChatbot.authType === 'password' && !password && (
+                              <div className="mb-2 text-xs flex items-center text-muted-foreground">
+                                <div className="mr-2 bg-primary/10 text-primary font-medium rounded-full px-2 py-0.5">Password set</div>
+                                <span>Current password is securely stored</span>
+                              </div>
+                            )}
+                            <div className="relative">
+                              <Input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder={existingChatbot ? "Enter new password (leave empty to keep current)" : "Enter password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                disabled={isDeploying}
+                                className="pr-20"
+                                required={!existingChatbot && authType === 'password'}
+                              />
+                              <div className="absolute right-0 top-0 h-full flex">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => copyToClipboard(password)}
+                                  disabled={!password || isDeploying}
+                                  className="px-2"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  <span className="sr-only">Copy password</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                  disabled={isDeploying}
+                                  className="px-2"
+                                >
+                                  {showPassword ? (
+                                    <EyeOff className="h-4 w-4" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
+                                  <span className="sr-only">
+                                    {showPassword ? "Hide password" : "Show password"}
+                                  </span>
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                          {existingChatbot && authType === 'password' && !password && (
-                            <p className="text-xs text-muted-foreground">
-                              Leaving this empty will keep the current password. Enter a new password to change it.
-                            </p>
-                          )}
+                          {/* Add helper text to explain password behavior */}
+                          <p className="text-xs text-muted-foreground italic mt-1">
+                            {existingChatbot && existingChatbot.authType === 'password'
+                              ? "Leaving this empty will keep the current password. Enter a new password to change it."
+                              : "This password will be required to access your chatbot."}
+                          </p>
                         </CardContent>
                       </Card>
                     )}
@@ -707,61 +780,59 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                 )}
               </div>
               
-              <DialogFooter className="flex justify-between items-center sm:justify-between">
-                <div>
-                  {existingChatbot && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      onClick={() => setShowDeleteConfirmation(true)}
-                      disabled={isDeploying || isDeleting}
-                      size="sm"
-                    >
-                      {isDeleting ? (
-                        <>
-                          <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="mr-2 h-3.5 w-3.5" />
-                          Delete
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-                <div className="flex gap-2">
+              <DialogFooter>
+                {existingChatbot && (
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={onClose}
+                    variant="destructive"
+                    onClick={() => setShowDeleteConfirmation(true)}
                     disabled={isDeploying || isDeleting}
+                    size="sm"
+                    className="mr-auto"
                   >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={
-                      isDeploying || 
-                      isDeleting || 
-                      !subdomain || 
-                      !title || 
-                      !!subdomainError || 
-                      (authType === 'password' && !password && !existingChatbot) ||
-                      (authType === 'email' && emails.length === 0)
-                    }
-                  >
-                    {isDeploying ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {existingChatbot ? 'Updating...' : 'Deploying...'}
-                      </>
+                    {isDeleting ? (
+                      <span className="flex items-center">
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                        Deleting...
+                      </span>
                     ) : (
-                      getSubmitButtonLabel()
+                      <span className="flex items-center">
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        Delete
+                      </span>
                     )}
                   </Button>
-                </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleOpenChange(false)}
+                  disabled={isDeploying || isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={
+                    isDeploying || 
+                    isDeleting || 
+                    !subdomain || 
+                    !title || 
+                    !!subdomainError || 
+                    (authType === 'password' && !password && !existingChatbot) ||
+                    (authType === 'email' && emails.length === 0) ||
+                    (existingChatbot && !hasChanges) // Add change detection check
+                  }
+                >
+                  {isDeploying ? (
+                    <span className="flex items-center">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {existingChatbot ? 'Updating...' : 'Deploying...'}
+                    </span>
+                  ) : (
+                    getSubmitButtonLabel()
+                  )}
+                </Button>
               </DialogFooter>
             </form>
           ) : null}
@@ -789,10 +860,10 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
               disabled={isDeploying}
             >
               {isDeploying ? (
-                <>
+                <span className="flex items-center">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating...
-                </>
+                </span>
               ) : (
                 'Update Chatbot'
               )}
@@ -821,10 +892,10 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
               className="bg-destructive hover:bg-destructive/90"
             >
               {isDeleting ? (
-                <>
+                <span className="flex items-center">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
-                </>
+                </span>
               ) : (
                 'Delete'
               )}
