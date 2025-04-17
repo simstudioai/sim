@@ -43,7 +43,7 @@ const blockConfig = {
   },
   slack: {
     icon: SlackIcon, // Assuming custom SlackIcon
-    color: '#ca8a04', // Slack-like color (adjust if needed)
+    color: '#611F69', // Slack-like color (adjust if needed)
     name: 'Slack 1',
   },
 }

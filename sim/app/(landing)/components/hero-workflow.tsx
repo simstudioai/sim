@@ -107,7 +107,7 @@ export function HeroWorkflow() {
 
   return (
     <motion.div 
-      className="absolute inset-0 pointer-events-none h-[110dvh]"
+      className="absolute inset-0 pointer-events-none h-screen"
       variants={workflowVariants}
       initial="hidden"
       animate="visible"
