@@ -1,5 +1,29 @@
 import { HttpMethod, TableRow, ToolConfig, ToolResponse } from '../types'
 
+const getReferer = (): string => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin
+  }
+  
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL
+  }
+  
+  return 'http://localhost:3000/'
+}
+
+// Default headers that will be applied if not explicitly overridden by user
+const DEFAULT_HEADERS: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+  'Accept': '*/*',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  'Connection': 'keep-alive',
+  'Sec-Ch-Ua': '"Chromium"v="135", "Not-A.Brand"v="8"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"macOS"'
+}
+
 /**
  * Transforms a table from the store format to a key-value object
  * Local copy of the function to break circular dependencies
@@ -97,10 +121,44 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   // Direct execution to bypass server for HTTP requests
   directExecution: async (params: RequestParams): Promise<RequestResponse | undefined> => {
     try {
+      // Process URL first to extract hostname for Host header
+      let url = params.url
+      // Strip any surrounding quotes
+      if (typeof url === 'string') {
+        if (
+          (url.startsWith('"') && url.endsWith('"')) ||
+          (url.startsWith("'") && url.endsWith("'"))
+        ) {
+          url = url.slice(1, -1)
+          params.url = url
+        }
+      }
+
+      // Extract hostname for Host header
+      let hostname = ''
+      try {
+        hostname = new URL(url).host
+      } catch (e) {
+        // Invalid URL, will be caught later
+      }
+      
       // Prepare fetch options
+      const userHeaders = transformTable(params.headers || null)
+      const headers = { ...DEFAULT_HEADERS, ...userHeaders }
+      
+      // Add Host header if not explicitly set by user
+      if (hostname && !userHeaders['Host'] && !userHeaders['host']) {
+        headers['Host'] = hostname
+      }
+      
+      // Set dynamic Referer if not explicitly provided by user
+      if (!userHeaders['Referer'] && !userHeaders['referer']) {
+        headers['Referer'] = getReferer()
+      }
+      
       const fetchOptions: RequestInit = {
         method: params.method || 'GET',
-        headers: transformTable(params.headers || null),
+        headers
       }
 
       // Add body for non-GET requests
@@ -109,7 +167,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           fetchOptions.body = JSON.stringify(params.body)
           // Ensure Content-Type is set
           if (fetchOptions.headers) {
-            ;(fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
+            (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
           } else {
             fetchOptions.headers = { 'Content-Type': 'application/json' }
           }
@@ -135,19 +193,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
       try {
         // Process URL with path parameters and query params
-        let url = params.url
 
-        // Strip any surrounding quotes that might have been added during resolution
-        if (typeof url === 'string') {
-          if (
-            (url.startsWith('"') && url.endsWith('"')) ||
-            (url.startsWith("'") && url.endsWith("'"))
-          ) {
-            url = url.slice(1, -1)
-            // Update the params with unquoted URL
-            params.url = url
-          }
-        }
 
         // Replace path parameters
         if (params.pathParams) {
@@ -276,16 +322,34 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     method: 'POST' as HttpMethod,
     headers: (params: RequestParams) => {
       const headers = transformTable(params.headers || null)
+      
+      // Merge with default headers
+      const allHeaders = { ...DEFAULT_HEADERS, ...headers }
+      
+      // Add dynamic Host header if not explicitly set
+      try {
+        const hostname = new URL(params.url).host
+        if (hostname && !headers['Host'] && !headers['host']) {
+          allHeaders['Host'] = hostname
+        }
+      } catch (e) {
+        // Invalid URL, will be handled elsewhere
+      }
+
+      // Add dynamic Referer if not explicitly set
+      if (!headers['Referer'] && !headers['referer']) {
+        allHeaders['Referer'] = getReferer()
+      }
 
       // Set appropriate Content-Type
       if (params.formData) {
         // Don't set Content-Type for FormData, browser will set it with boundary
-        return headers
+        return allHeaders
       } else if (params.body) {
-        headers['Content-Type'] = 'application/json'
+        allHeaders['Content-Type'] = 'application/json'
       }
 
-      return headers
+      return allHeaders
     },
     body: (params: RequestParams) => {
       if (params.formData) {
