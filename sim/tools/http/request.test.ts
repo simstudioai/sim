@@ -106,9 +106,102 @@ describe('HTTP Request Tool', () => {
         'Content-Type': 'application/json',
       })
     })
+
+    test('should set dynamic Referer header correctly', async () => {
+      const originalWindow = global.window
+      Object.defineProperty(global, 'window', {
+        value: {
+          location: {
+            origin: 'https://app.simstudio.dev'
+          }
+        },
+        writable: true
+      })
+
+      // Setup mock response
+      tester.setup(mockHttpResponses.simple)
+
+      // Execute with real request to check Referer header
+      await tester.execute({
+        url: 'https://api.example.com',
+        method: 'GET'
+      })
+
+      // Verify the Referer header was set
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      expect(fetchCall[1].headers.Referer).toBe('https://app.simstudio.dev')
+
+      // Reset window
+      global.window = originalWindow
+    })
+
+    test('should set dynamic Host header correctly', async () => {
+      // Setup mock response
+      tester.setup(mockHttpResponses.simple)
+
+      // Execute with real request to check Host header
+      await tester.execute({
+        url: 'https://api.example.com/endpoint',
+        method: 'GET'
+      })
+
+      // Verify the Host header was set
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      expect(fetchCall[1].headers.Host).toBe('api.example.com')
+      
+      // Test user-provided Host takes precedence
+      await tester.execute({
+        url: 'https://api.example.com/endpoint',
+        method: 'GET',
+        headers: [{ cells: { Key: 'Host', Value: 'custom-host.com' } }]
+      })
+      
+      // Verify the user's Host was used
+      const userHeaderCall = (global.fetch as any).mock.calls[1]
+      expect(userHeaderCall[1].headers.Host).toBe('custom-host.com')
+    })
   })
 
   describe('Request Execution', () => {
+    test('should apply default and dynamic headers to requests', async () => {
+      // Setup mock response
+      tester.setup(mockHttpResponses.simple)
+
+      // Set up browser-like environment
+      const originalWindow = global.window
+      Object.defineProperty(global, 'window', {
+        value: {
+          location: {
+            origin: 'https://app.simstudio.dev'
+          }
+        },
+        writable: true
+      })
+
+      // Execute the tool with method explicitly set to GET
+      await tester.execute({
+        url: 'https://api.example.com/data',
+        method: 'GET',
+      })
+
+      // Verify fetch was called with expected headers
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const headers = fetchCall[1].headers
+
+      // Check specific header values
+      expect(headers['Host']).toBe('api.example.com')
+      expect(headers['Referer']).toBe('https://app.simstudio.dev')
+      expect(headers['User-Agent']).toContain('Mozilla')
+      expect(headers['Accept']).toBe('*/*')
+      expect(headers['Accept-Encoding']).toContain('gzip')
+      expect(headers['Cache-Control']).toBe('no-cache')
+      expect(headers['Connection']).toBe('keep-alive')
+      expect(headers['Sec-Ch-Ua']).toContain('Chromium')
+
+      // Reset window
+      global.window = originalWindow
+    })
+
     test('should handle successful GET requests', async () => {
       // Setup mock response
       tester.setup(mockHttpResponses.simple)
@@ -261,6 +354,76 @@ describe('HTTP Request Tool', () => {
       // Check error response
       expect(result.success).toBe(false)
       expect(result.output).toEqual({})
+    })
+  })
+
+  describe('Default Headers', () => {
+    test('should apply all default headers correctly', async () => {
+      // Setup mock response
+      tester.setup(mockHttpResponses.simple)
+
+      // Set up browser-like environment
+      const originalWindow = global.window
+      Object.defineProperty(global, 'window', {
+        value: {
+          location: {
+            origin: 'https://app.simstudio.dev'
+          }
+        },
+        writable: true
+      })
+
+      // Execute the tool
+      await tester.execute({
+        url: 'https://api.example.com/data',
+        method: 'GET',
+      })
+
+      // Get the headers from the fetch call
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const headers = fetchCall[1].headers
+
+      // Check all default headers exist with expected values
+      expect(headers['User-Agent']).toMatch(/Mozilla\/5\.0.*Chrome.*Safari/)
+      expect(headers['Accept']).toBe('*/*')
+      expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
+      expect(headers['Cache-Control']).toBe('no-cache')
+      expect(headers['Connection']).toBe('keep-alive')
+      expect(headers['Sec-Ch-Ua']).toMatch(/Chromium.*Not-A\.Brand/)
+      expect(headers['Sec-Ch-Ua-Mobile']).toBe('?0')
+      expect(headers['Sec-Ch-Ua-Platform']).toBe('"macOS"')
+      expect(headers['Referer']).toBe('https://app.simstudio.dev')
+      expect(headers['Host']).toBe('api.example.com')
+
+      // Reset window
+      global.window = originalWindow
+    })
+
+    test('should allow overriding default headers', async () => {
+      // Setup mock response
+      tester.setup(mockHttpResponses.simple)
+
+      // Execute with custom headers that override defaults
+      await tester.execute({
+        url: 'https://api.example.com/data',
+        method: 'GET',
+        headers: [
+          { cells: { Key: 'User-Agent', Value: 'Custom Agent' } },
+          { cells: { Key: 'Accept', Value: 'application/json' } }
+        ]
+      })
+
+      // Get the headers from the fetch call
+      const fetchCall = (global.fetch as any).mock.calls[0]
+      const headers = fetchCall[1].headers
+
+      // Verify overridden headers
+      expect(headers['User-Agent']).toBe('Custom Agent')
+      expect(headers['Accept']).toBe('application/json')
+      
+      // Verify other default headers still exist
+      expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
+      expect(headers['Cache-Control']).toBe('no-cache')
     })
   })
 })
