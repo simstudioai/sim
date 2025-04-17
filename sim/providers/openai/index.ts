@@ -14,7 +14,7 @@ export const openaiProvider: ProviderConfig = {
   name: 'OpenAI',
   description: "OpenAI's GPT models",
   version: '1.0.0',
-  models: ['gpt-4o', 'o1', 'o3-mini'],
+  models: ['gpt-4o', 'o1', 'o3', 'o4-mini'],
   defaultModel: 'gpt-4o',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
