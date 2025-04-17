@@ -124,7 +124,7 @@ function DeleteApiConfirmation({
 }) {
   return (
     <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent>
+      <AlertDialogContent className="z-[100]">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete API Deployment</AlertDialogTitle>
           <AlertDialogDescription>
