@@ -55,7 +55,7 @@ ID: ${block.id}
 Type: ${block.type}
 Title: ${block.title}
 Description: ${block.description}
-Category: ${block.category}
+System Prompt: ${JSON.stringify(block.subBlocks?.systemPrompt || '')}
 Configuration: ${JSON.stringify(block.subBlocks, null, 2)}
 ${block.currentState ? `Current State: ${JSON.stringify(block.currentState, null, 2)}` : ''}
 ---`
@@ -64,7 +64,8 @@ ${block.currentState ? `Current State: ${JSON.stringify(block.currentState, null
 
 Routing Instructions:
 1. Analyze the input request carefully against each block's:
-   - Primary purpose (from description)
+   - Primary purpose (from title, description, and system prompt)
+   - Look for keywords in the system prompt that match the user's request
    - Configuration settings
    - Current state (if available)
    - Processing capabilities

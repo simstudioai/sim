@@ -2,7 +2,6 @@ import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, Mocked, MockedClass, vi } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
-import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel } from '@/providers/utils'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { PathTracker } from '../../path'
@@ -11,8 +10,8 @@ import { RouterBlockHandler } from './router-handler'
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockExecuteProviderRequest = executeProviderRequest as Mock
 const MockPathTracker = PathTracker as MockedClass<typeof PathTracker>
+const mockFetch = global.fetch as Mock
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler
@@ -66,11 +65,12 @@ describe('RouterBlockHandler', () => {
       workflowId: 'test-workflow-id',
       blockStates: new Map(),
       blockLogs: [],
-      metadata: {},
+      metadata: { duration: 0 },
       environmentVariables: {},
       decisions: { router: new Map(), condition: new Map() },
       loopIterations: new Map(),
       loopItems: new Map(),
+      completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
       workflow: mockWorkflow as SerializedWorkflow,
@@ -82,12 +82,20 @@ describe('RouterBlockHandler', () => {
     // Default mock implementations
     mockGetProviderFromModel.mockReturnValue('openai')
     mockGenerateRouterPrompt.mockReturnValue('Generated System Prompt')
-    mockExecuteProviderRequest.mockResolvedValue({
-      content: 'target-block-1',
-      model: 'mock-model',
-      tokens: { prompt: 100, completion: 5, total: 105 },
-      cost: 0.003,
-      timing: { total: 300 },
+    
+    // Set up fetch mock to return a successful response
+    mockFetch.mockImplementation(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: 'target-block-1',
+            model: 'mock-model',
+            tokens: { prompt: 100, completion: 5, total: 105 },
+            cost: 0.003,
+            timing: { total: 300 },
+          }),
+      })
     })
   })
 
@@ -110,7 +118,10 @@ describe('RouterBlockHandler', () => {
         type: 'target',
         title: 'Option A',
         description: 'Choose A',
-        subBlocks: { p: 'a' },
+        subBlocks: { 
+          p: 'a',
+          systemPrompt: ''
+        },
         currentState: undefined,
       },
       {
@@ -118,18 +129,13 @@ describe('RouterBlockHandler', () => {
         type: 'target',
         title: 'Option B',
         description: 'Choose B',
-        subBlocks: { p: 'b' },
+        subBlocks: { 
+          p: 'b',
+          systemPrompt: ''
+        },
         currentState: undefined,
       },
     ]
-
-    const expectedProviderRequest = {
-      model: 'gpt-4o',
-      systemPrompt: 'Generated System Prompt',
-      messages: [{ role: 'user', content: 'Choose the best option.' }],
-      temperature: 0.5,
-      apiKey: undefined,
-    }
 
     const expectedOutput: BlockOutput = {
       response: {
@@ -148,7 +154,26 @@ describe('RouterBlockHandler', () => {
 
     expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(inputs.prompt, expectedTargetBlocks)
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-    expect(mockExecuteProviderRequest).toHaveBeenCalledWith('openai', expectedProviderRequest)
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.any(String), 
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.any(Object),
+        body: expect.any(String),
+      })
+    )
+    
+    // Verify the request body contains the expected data
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+    expect(requestBody).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-4o',
+      systemPrompt: 'Generated System Prompt',
+      context: JSON.stringify([{ role: 'user', content: 'Choose the best option.' }]),
+      temperature: 0.5,
+    })
+    
     expect(result).toEqual(expectedOutput)
   })
 
@@ -160,17 +185,25 @@ describe('RouterBlockHandler', () => {
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       'Target block target-block-1 not found'
     )
-    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('should throw error if LLM response is not a valid target block ID', async () => {
     const inputs = { prompt: 'Test' }
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: 'invalid-block-id',
-      model: 'm',
-      tokens: {},
-      cost: 0,
-      timing: {},
+    
+    // Override fetch mock to return an invalid block ID
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            content: 'invalid-block-id',
+            model: 'mock-model',
+            tokens: {},
+            cost: 0,
+            timing: {},
+          }),
+      })
     })
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
@@ -184,9 +217,27 @@ describe('RouterBlockHandler', () => {
     await handler.execute(mockBlock, inputs, mockContext)
 
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ model: 'gpt-4o', temperature: 0 })
-    )
+    
+    const fetchCallArgs = mockFetch.mock.calls[0]
+    const requestBody = JSON.parse(fetchCallArgs[1].body)
+    expect(requestBody).toMatchObject({
+      model: 'gpt-4o', 
+      temperature: 0
+    })
+  })
+  
+  it('should handle server error responses', async () => {
+    const inputs = { prompt: 'Test error handling.' }
+    
+    // Override fetch mock to return an error
+    mockFetch.mockImplementationOnce(() => {
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'Server error' }),
+      })
+    })
+
+    await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow('Server error')
   })
 })

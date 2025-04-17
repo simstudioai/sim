@@ -41,6 +41,41 @@ function handleAgentBlockApiKey(
 }
 
 /**
+ * Helper to handle API key auto-fill for router blocks
+ */
+function handleRouterBlockApiKey(
+  blockId: string,
+  subBlockId: string,
+  modelValue: string | null | undefined,
+  storeValue: any
+) {
+  // Only proceed if we have a model selected
+  if (!modelValue) return
+
+  // Get the provider for this model
+  const provider = getProviderFromModel(modelValue)
+
+  // Skip if we couldn't determine a provider
+  if (!provider || provider === 'ollama') return
+
+  const subBlockStore = useSubBlockStore.getState()
+
+  // Try to get a saved API key for this provider
+  const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+
+  // If we have a valid API key, use it
+  if (savedValue && savedValue !== '') {
+    // Always update the value when switching models, even if it appears the same
+    // This handles cases where the field shows masked values but needs to update
+    subBlockStore.setValue(blockId, subBlockId, savedValue)
+  } else {
+    // Always clear the field when switching to a model with no API key
+    // Don't wait for user interaction to clear it
+    subBlockStore.setValue(blockId, subBlockId, '')
+  }
+}
+
+/**
  * Helper to handle API key auto-fill for non-agent blocks
  */
 function handleStandardBlockApiKey(
@@ -120,7 +155,7 @@ function storeApiKeyValue(
   }
 
   // For agent blocks, store the API key under the provider name
-  if (blockType === 'agent' && modelValue) {
+  if ((blockType === 'agent' || blockType === 'router') && modelValue) {
     const provider = getProviderFromModel(modelValue)
     if (provider && provider !== 'ollama') {
       subBlockStore.setToolParam(provider, 'apiKey', String(newValue))
@@ -179,68 +214,12 @@ export function useSubBlockValue<T = any>(
     blockId ? state.getValue(blockId, 'model') : null
   )
 
-  // Compute the modelValue after the hook call
-  const modelValue = blockType === 'agent' ? (modelSubBlockValue as string) : null
+  // Compute the modelValue based on block type
+  const modelValue = blockType === 'agent' || blockType === 'router' 
+    ? (modelSubBlockValue as string) 
+    : null
 
-  // When model changes for an agent block's API key, immediately check if we need to clear it
-  useEffect(() => {
-    // Only run for agent blocks with API key fields when model changes
-    if (blockType === 'agent' && isApiKey && modelValue !== prevModelRef.current) {
-      // Update the previous model reference
-      prevModelRef.current = modelValue
-
-      // For agent blocks, always clear the field if needed
-      // But only fill with saved values if auto-fill is enabled
-      if (modelValue) {
-        const provider = getProviderFromModel(modelValue)
-
-        // Skip if we couldn't determine a provider
-        if (!provider || provider === 'ollama') return
-
-        const subBlockStore = useSubBlockStore.getState()
-
-        // Check if there's a saved value for this provider
-        const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
-
-        if (savedValue && savedValue !== '' && isAutoFillEnvVarsEnabled) {
-          // Only auto-fill if the feature is enabled
-          subBlockStore.setValue(blockId, subBlockId, savedValue)
-        } else {
-          // Always clear immediately when switching to a model with no saved key
-          // or when auto-fill is disabled
-          subBlockStore.setValue(blockId, subBlockId, '')
-        }
-      }
-    }
-  }, [blockId, subBlockId, blockType, isApiKey, modelValue, isAutoFillEnvVarsEnabled, storeValue])
-
-  // When component mounts, check for existing API key in toolParamsStore
-  useEffect(() => {
-    // Skip autofill if the feature is disabled in settings
-    if (!isAutoFillEnvVarsEnabled) return
-
-    // Only process API key fields
-    if (!isApiKey) return
-
-    // Handle agent blocks differently, they need to use the model to determine provider
-    if (blockType === 'agent') {
-      handleAgentBlockApiKey(blockId, subBlockId, modelValue, storeValue)
-    } else {
-      // Normal handling for non-agent blocks
-      handleStandardBlockApiKey(blockId, subBlockId, blockType, storeValue)
-    }
-  }, [blockId, subBlockId, blockType, storeValue, isApiKey, isAutoFillEnvVarsEnabled, modelValue])
-
-  // Update the ref if the store value changes
-  // This ensures we're always working with the latest value
-  useEffect(() => {
-    // Use deep comparison for objects to prevent unnecessary updates
-    if (!isEqual(valueRef.current, storeValue)) {
-      valueRef.current = storeValue !== undefined ? storeValue : initialValue
-    }
-  }, [storeValue, initialValue])
-
-  // Set value function that handles deep equality for complex objects
+  // Hook to set a value in the subblock store
   const setValue = useCallback(
     (newValue: T) => {
       // Use deep comparison to avoid unnecessary updates for complex objects
@@ -272,6 +251,73 @@ export function useSubBlockValue<T = any>(
     [blockId, subBlockId, blockType, isApiKey, storeValue, triggerWorkflowUpdate, modelValue]
   )
 
-  // Return the current value and setter
+  // Initialize valueRef on first render
+  useEffect(() => {
+    valueRef.current = storeValue !== undefined ? storeValue : initialValue
+  }, [])
+
+  // When component mounts, check for existing API key in toolParamsStore
+  useEffect(() => {
+    // Skip autofill if the feature is disabled in settings
+    if (!isAutoFillEnvVarsEnabled) return
+
+    // Only process API key fields
+    if (!isApiKey) return
+
+    // Handle different block types
+    if (blockType === 'agent') {
+      handleAgentBlockApiKey(blockId, subBlockId, modelValue, storeValue)
+    } else if (blockType === 'router') {
+      handleRouterBlockApiKey(blockId, subBlockId, modelValue, storeValue)
+    } else {
+      // Normal handling for non-agent blocks
+      handleStandardBlockApiKey(blockId, subBlockId, blockType, storeValue)
+    }
+  }, [blockId, subBlockId, blockType, storeValue, isApiKey, isAutoFillEnvVarsEnabled, modelValue])
+
+  // Monitor for model changes in agent blocks
+  useEffect(() => {
+    // Only process API key fields in agent blocks
+    if (!isApiKey || (blockType !== 'agent' && blockType !== 'router')) return
+
+    // Check if the model has changed
+    if (modelValue !== prevModelRef.current) {
+      // Update the previous model reference
+      prevModelRef.current = modelValue
+
+      // For agent blocks, always clear the field if needed
+      // But only fill with saved values if auto-fill is enabled
+      if (modelValue) {
+        const provider = getProviderFromModel(modelValue)
+
+        // Skip if we couldn't determine a provider
+        if (!provider || provider === 'ollama') return
+
+        const subBlockStore = useSubBlockStore.getState()
+
+        // Check if there's a saved value for this provider
+        const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+
+        if (savedValue && savedValue !== '' && isAutoFillEnvVarsEnabled) {
+          // Only auto-fill if the feature is enabled
+          subBlockStore.setValue(blockId, subBlockId, savedValue)
+        } else {
+          // Always clear immediately when switching to a model with no saved key
+          // or when auto-fill is disabled
+          subBlockStore.setValue(blockId, subBlockId, '')
+        }
+      }
+    }
+  }, [blockId, subBlockId, blockType, isApiKey, modelValue, isAutoFillEnvVarsEnabled, storeValue])
+
+  // Update the ref if the store value changes
+  // This ensures we're always working with the latest value
+  useEffect(() => {
+    // Use deep comparison for objects to prevent unnecessary updates
+    if (!isEqual(valueRef.current, storeValue)) {
+      valueRef.current = storeValue !== undefined ? storeValue : initialValue
+    }
+  }, [storeValue, initialValue])
+
   return [valueRef.current as T | null, setValue] as const
 }
