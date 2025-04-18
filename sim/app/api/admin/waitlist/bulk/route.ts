@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Logger } from '@/lib/logs/console-logger'
-import { approveWaitlistUser, rejectWaitlistUser } from '@/lib/waitlist/service'
+import { approveWaitlistUser, rejectWaitlistUser, resendApprovalEmail } from '@/lib/waitlist/service'
 
 const logger = new Logger('WaitlistBulkAPI')
 
 // Schema for POST request body
 const bulkActionSchema = z.object({
   emails: z.array(z.string().email()),
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['approve', 'reject', 'resend']),
 })
 
 // Admin password from environment variables
@@ -64,9 +64,16 @@ export async function POST(request: NextRequest) {
     let results
     try {
       results = await Promise.allSettled(
-        emails.map((email) =>
-          action === 'approve' ? approveWaitlistUser(email) : rejectWaitlistUser(email)
-        )
+        emails.map((email) => {
+          if (action === 'approve') {
+            return approveWaitlistUser(email)
+          } else if (action === 'reject') {
+            return rejectWaitlistUser(email)
+          } else if (action === 'resend') {
+            return resendApprovalEmail(email)
+          }
+          throw new Error('Invalid action')
+        })
       )
 
       // Check if there's a JWT_SECRET error

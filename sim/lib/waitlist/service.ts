@@ -353,3 +353,65 @@ export async function markWaitlistUserAsSignedUp(
     }
   }
 }
+
+// Resend approval email to an already approved user
+export async function resendApprovalEmail(
+  email: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { user, normalizedEmail } = await findUserByEmail(email)
+
+    if (!user) {
+      return {
+        success: false,
+        message: 'User not found in waitlist',
+      }
+    }
+
+    if (user.status !== 'approved') {
+      return {
+        success: false,
+        message: 'User is not approved',
+      }
+    }
+
+    // Create a special signup token
+    const token = await createToken({
+      email: normalizedEmail,
+      type: 'waitlist-approval',
+      expiresIn: '7d',
+    })
+
+    // Generate signup link with token
+    const signupLink = `${process.env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
+
+    // Send approval email
+    try {
+      const emailHtml = await renderWaitlistApprovalEmail(normalizedEmail, signupLink)
+      const subject = getEmailSubject('waitlist-approval')
+
+      await sendEmail({
+        to: normalizedEmail,
+        subject,
+        html: emailHtml,
+      })
+    } catch (emailError) {
+      console.error('Error sending approval email:', emailError)
+      return {
+        success: false,
+        message: 'Failed to send approval email',
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Approval email resent successfully',
+    }
+  } catch (error) {
+    console.error('Error resending approval email:', error)
+    return {
+      success: false,
+      message: 'An error occurred while resending approval email',
+    }
+  }
+}

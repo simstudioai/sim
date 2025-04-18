@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Logger } from '@/lib/logs/console-logger'
-import { approveWaitlistUser, getWaitlistEntries, rejectWaitlistUser } from '@/lib/waitlist/service'
+import { 
+  approveWaitlistUser, 
+  getWaitlistEntries, 
+  rejectWaitlistUser,
+  resendApprovalEmail 
+} from '@/lib/waitlist/service'
 
 const logger = new Logger('WaitlistAPI')
 
@@ -16,7 +21,7 @@ const getQuerySchema = z.object({
 // Schema for POST request body
 const actionSchema = z.object({
   email: z.string().email(),
-  action: z.enum(['approve', 'reject']),
+  action: z.enum(['approve', 'reject', 'resend']),
 })
 
 // Admin password from environment variables
@@ -78,13 +83,6 @@ export async function GET(request: NextRequest) {
       validatedParams.data.status,
       validatedParams.data.search
     )
-
-    // Log all approved users' emails
-    const approvedUsers = entries.entries
-      .filter(entry => entry.status === 'approved')
-      .map(entry => entry.email.trim())
-    
-    console.log(approvedUsers)
 
     logger.info(
       `API route: Returning ${entries.entries.length} entries for status: "${status}", total: ${entries.total}`
@@ -172,6 +170,30 @@ export async function POST(request: NextRequest) {
           {
             success: false,
             message: error instanceof Error ? error.message : 'Failed to reject user',
+          },
+          { status: 500 }
+        )
+      }
+    } else if (action === 'resend') {
+      try {
+        result = await resendApprovalEmail(email)
+      } catch (error) {
+        logger.error('Error resending approval email:', error)
+        // Check if it's the JWT_SECRET missing error
+        if (error instanceof Error && error.message.includes('JWT_SECRET')) {
+          return NextResponse.json(
+            {
+              success: false,
+              message:
+                'Configuration error: JWT_SECRET environment variable is missing. Please contact the administrator.',
+            },
+            { status: 500 }
+          )
+        }
+        return NextResponse.json(
+          {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to resend approval email',
           },
           { status: 500 }
         )

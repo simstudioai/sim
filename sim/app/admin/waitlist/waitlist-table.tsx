@@ -222,6 +222,37 @@ export function WaitlistTable() {
     }
   }
 
+  // Handle resending approval email
+  const handleResendApproval = async (email: string, id: string) => {
+    try {
+      setActionLoading(id)
+      setError(null)
+
+      const response = await fetch('/api/admin/waitlist', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({ email, action: 'resend' }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to resend approval email')
+      }
+
+      // Refresh the data
+      fetchEntries()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to resend approval email')
+      logger.error('Error resending approval email:', error)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   // Handle bulk approval
   const handleBulkApprove = async () => {
     if (selectedIds.size === 0) return
@@ -297,6 +328,52 @@ export function WaitlistTable() {
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to reject selected users')
       logger.error('Error rejecting users:', error)
+    } finally {
+      setBulkActionLoading(false)
+    }
+  }
+
+  // Handle bulk resend approval
+  const handleBulkResend = async () => {
+    if (selectedIds.size === 0) return
+
+    setBulkActionLoading(true)
+    setError(null)
+
+    try {
+      const selectedEmails = filteredEntries
+        .filter((entry) => selectedIds.has(entry.id) && entry.status === 'approved')
+        .map((entry) => entry.email)
+
+      if (selectedEmails.length === 0) {
+        setError('No approved users selected')
+        setBulkActionLoading(false)
+        return
+      }
+
+      const response = await fetch('/api/admin/waitlist/bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiToken}`,
+        },
+        body: JSON.stringify({
+          emails: selectedEmails,
+          action: 'resend',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to resend approval emails')
+      }
+
+      // Refresh data
+      fetchEntries()
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to resend approval emails')
+      logger.error('Error resending approval emails:', error)
     } finally {
       setBulkActionLoading(false)
     }
@@ -462,6 +539,29 @@ export function WaitlistTable() {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+
+              {status === 'approved' && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={handleBulkResend}
+                        disabled={bulkActionLoading || loading}
+                        size="sm"
+                        className="bg-blue-500 hover:bg-blue-600 text-white"
+                      >
+                        {bulkActionLoading ? (
+                          <RotateCcwIcon className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <MailIcon className="h-4 w-4 mr-1" />
+                        )}
+                        Resend All
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Resend approval emails to all selected users</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
 
               <TooltipProvider>
                 <Tooltip>
@@ -634,6 +734,34 @@ export function WaitlistTable() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Approve user and send access email</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
+                        {entry.status === 'approved' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleResendApproval(entry.email, entry.id)}
+                                  disabled={actionLoading === entry.id}
+                                  className="hover:border-blue-500 hover:text-blue-600"
+                                >
+                                  {actionLoading === entry.id ? (
+                                    <RotateCcwIcon className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <MailIcon className="h-4 w-4 mr-1" />
+                                      Resend Approval
+                                    </>
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Resend approval email with sign-up link
+                              </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         )}
