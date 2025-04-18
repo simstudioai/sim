@@ -11,6 +11,7 @@ docs/node_modules
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+./package-lock.json
 
 # testing
 /coverage
@@ -66,3 +67,4 @@ docs/.content-collections
 
 # database instantiation
 **/postgres_data/
+node_modules
