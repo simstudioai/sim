@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
+import { NextRequest } from 'next/server'
 
 // Create a logger for this module
 const logger = createLogger('UserStatsAPI')
@@ -49,7 +50,7 @@ interface Workflow {
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { email: string } }
 ) {
   try {
