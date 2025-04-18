@@ -26,7 +26,7 @@ export const providers: Record<
 > = {
   openai: {
     ...openaiProvider,
-    models: ['gpt-4o', 'o1', 'o3-mini'],
+    models: ['gpt-4o', 'o1', 'o3', 'o4-mini'],
     computerUseModels: ['computer-use-preview'],
     modelPatterns: [/^gpt/, /^o1/],
   },
@@ -48,7 +48,7 @@ export const providers: Record<
   },
   xai: {
     ...xAIProvider,
-    models: ['grok-2-latest'],
+    models: ['grok-3-latest', 'grok-3-fast-latest'],
     modelPatterns: [/^grok/],
   },
   cerebras: {

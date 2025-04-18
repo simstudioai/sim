@@ -26,26 +26,18 @@ interface WaitlistState {
   page: number
   totalEntries: number
 
-  // Selection
-  selectedIds: Set<string>
-
   // Loading states
   actionLoading: string | null
-  bulkActionLoading: boolean
 
   // Actions
   setStatus: (status: string) => void
   setSearchTerm: (searchTerm: string) => void
   setPage: (page: number) => void
-  toggleSelectEntry: (id: string) => void
-  selectAll: () => void
-  deselectAll: () => void
   fetchEntries: () => Promise<void>
   setEntries: (entries: WaitlistEntry[]) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   setActionLoading: (id: string | null) => void
-  setBulkActionLoading: (loading: boolean) => void
 }
 
 export const useWaitlistStore = create<WaitlistState>((set, get) => ({
@@ -63,12 +55,8 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
   page: 1,
   totalEntries: 0,
 
-  // Selection
-  selectedIds: new Set<string>(),
-
   // Loading states
   actionLoading: null,
-  bulkActionLoading: false,
 
   // Filter actions
   setStatus: (status) => {
@@ -77,7 +65,6 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
       status,
       page: 1,
       searchTerm: '',
-      selectedIds: new Set(),
       loading: true,
     })
     get().fetchEntries()
@@ -93,26 +80,6 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
     get().fetchEntries()
   },
 
-  // Selection actions
-  toggleSelectEntry: (id) => {
-    const newSelectedIds = new Set(get().selectedIds)
-    if (newSelectedIds.has(id)) {
-      newSelectedIds.delete(id)
-    } else {
-      newSelectedIds.add(id)
-    }
-    set({ selectedIds: newSelectedIds })
-  },
-
-  selectAll: () => {
-    const allIds = get().filteredEntries.map((entry) => entry.id)
-    set({ selectedIds: new Set(allIds) })
-  },
-
-  deselectAll: () => {
-    set({ selectedIds: new Set() })
-  },
-
   // Data actions
   setEntries: (entries) => {
     set({
@@ -126,7 +93,6 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
   setActionLoading: (id) => set({ actionLoading: id }),
-  setBulkActionLoading: (loading) => set({ bulkActionLoading: loading }),
 
   // Fetch data
   fetchEntries: async () => {
@@ -152,7 +118,19 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
       })
 
       if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`)
+        let errorMessage = `Error ${response.status}: ${response.statusText}`
+        
+        // Try to parse the error message from the response body
+        try {
+          const errorData = await response.json()
+          if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError)
+        }
+        
+        throw new Error(errorMessage)
       }
 
       const data = await response.json()

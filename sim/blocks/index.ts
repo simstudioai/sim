@@ -43,6 +43,7 @@ import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
+import { Mem0Block } from './blocks/mem0'
 
 // Export blocks for ease of use
 export {
@@ -51,6 +52,7 @@ export {
   ApiBlock,
   BrowserUseBlock,
   // AutoblocksBlock,
+  Mem0Block,
   MistralParseBlock,
   FunctionBlock,
   VisionBlock,
@@ -114,6 +116,7 @@ const blocks: Record<string, BlockConfig> = {
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   jira: JiraBlock,
+  mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
