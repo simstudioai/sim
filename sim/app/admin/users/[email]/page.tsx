@@ -1,33 +1,60 @@
-import { Metadata } from 'next'
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { UserStatsCard } from '@/components/user-stats-card'
 
-export const metadata: Metadata = {
-  title: 'User Statistics | Sim Studio',
-  description: 'View user statistics and analytics',
-}
+export default function UserStatsPage() {
+  const params = useParams<{ email: string }>()
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-interface PageProps {
-  params: {
-    email: string
+  // If no params are available, show error
+  if (!params?.email) {
+    return <div className="container mx-auto py-8 text-red-500">Invalid user email</div>
   }
-}
 
-export default async function UserStatsPage({ params }: PageProps) {
-  const response = await fetch(
-    `/api/admin/users/${encodeURIComponent(params.email)}/stats`,
-    {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+  useEffect(() => {
+    const fetchUserStats = async () => {
+      try {
+        const response = await fetch(
+          `/api/admin/users/${encodeURIComponent(params.email)}/stats`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user statistics')
+        }
+
+        const userData = await response.json()
+        setData(userData)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      } finally {
+        setLoading(false)
+      }
     }
-  )
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch user statistics')
+    fetchUserStats()
+  }, [params.email])
+
+  if (loading) {
+    return <div className="container mx-auto py-8">Loading...</div>
   }
 
-  const data = await response.json()
+  if (error) {
+    return <div className="container mx-auto py-8 text-red-500">{error}</div>
+  }
+
+  if (!data) {
+    return <div className="container mx-auto py-8">No data available</div>
+  }
 
   return (
     <div className="container mx-auto py-8">
@@ -35,10 +62,13 @@ export default async function UserStatsPage({ params }: PageProps) {
         firstName={data.firstName}
         workflows={data.workflows}
         blockUsage={data.blockUsage}
-        apiUsage={data.apiUsage}
         totalBlocks={data.totalBlocks}
         avgBlocksPerWorkflow={data.avgBlocksPerWorkflow}
+        totalCost={data.totalCost}
       />
     </div>
   )
-} 
+}
+
+// Metadata can be moved to a separate layout.tsx file if needed
+// since this is now a client component 

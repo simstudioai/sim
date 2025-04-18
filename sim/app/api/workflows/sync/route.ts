@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { workflow, user } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -49,17 +49,33 @@ export async function GET(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    // Get the session directly in the API route
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow access attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = session.user.id
+    // Verify user exists
+    const userExists = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .then(results => results.length > 0)
+      .catch(error => {
+        logger.error(`[${requestId}] Error checking user existence:`, error)
+        return false
+      })
+
+    if (!userExists) {
+      logger.error(`[${requestId}] User not found in database:`, { userId: session.user.id })
+      return NextResponse.json({ 
+        error: 'User not found',
+        message: 'Please try logging out and logging in again'
+      }, { status: 404 })
+    }
 
     // Fetch all workflows for the user
-    const workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
+    const workflows = await db.select().from(workflow).where(eq(workflow.userId, session.user.id))
 
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })
@@ -77,6 +93,25 @@ export async function POST(req: NextRequest) {
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow sync attempt`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Verify user exists
+    const userExists = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .then(results => results.length > 0)
+      .catch(error => {
+        logger.error(`[${requestId}] Error checking user existence:`, error)
+        return false
+      })
+
+    if (!userExists) {
+      logger.error(`[${requestId}] User not found in database:`, { userId: session.user.id })
+      return NextResponse.json({ 
+        error: 'User not found',
+        message: 'Please try logging out and logging in again'
+      }, { status: 404 })
     }
 
     const body = await req.json()
