@@ -35,11 +35,19 @@ export interface BlockStats {
 }
 
 export interface DashboardData {
-  overview: {
+  stats: {
     totalWorkflows: number
     activeWorkflows: number
-    totalExecutions: number
-    avgBlocksPerWorkflow: number
+    recentActivity: number
+    workflows: Array<{
+      id: string
+      name: string
+      ownerName: string
+      blockCount: number
+      runCount: number
+      isDeployed: boolean
+      state: Record<string, any>
+    }>
   }
   topUsers: UserStats[]
   topBlocks: { type: string; count: number }[]

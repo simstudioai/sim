@@ -11,7 +11,10 @@ import {
   Code,
 } from 'lucide-react'
 
-export const formatBlockName = (name: string): string => {
+export const formatBlockName = (name: string | undefined | null): string => {
+  // Handle undefined or null values
+  if (!name) return 'Unknown Block'
+  
   // Remove underscores and convert to title case
   return name
     .split('_')

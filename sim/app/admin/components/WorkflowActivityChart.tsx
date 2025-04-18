@@ -16,7 +16,7 @@ interface WorkflowActivityChartProps {
   executions: WorkflowExecution[]
 }
 
-type TimeRange = '1h' | '24h' | '7d'
+type TimeRange = '1h' | '6h' | '12h' | '24h' | '7d'
 
 export default function WorkflowActivityChart({ executions }: WorkflowActivityChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1h')
@@ -30,9 +30,13 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
     const now = new Date()
     const cutoff = timeRange === '1h' 
       ? subHours(now, 1)
-      : timeRange === '24h'
-        ? subHours(now, 24)
-        : subDays(now, 7)
+      : timeRange === '6h'
+        ? subHours(now, 6)
+        : timeRange === '12h'
+          ? subHours(now, 12)
+          : timeRange === '24h'
+            ? subHours(now, 24)
+            : subDays(now, 7)
 
     // Debug log
     console.log('Time range:', timeRange, 'Cutoff:', cutoff)
@@ -48,8 +52,19 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
     console.log('Filtered executions:', filteredExecutions)
 
     // Group executions by time interval
-    const intervals = timeRange === '1h' ? 12 : timeRange === '24h' ? 24 : 7
-    const intervalSize = timeRange === '1h' ? 5 : timeRange === '24h' ? 60 : 1440 // minutes
+    const intervals = 
+      timeRange === '1h' ? 12 : // 5 min intervals
+      timeRange === '6h' ? 12 : // 30 min intervals
+      timeRange === '12h' ? 12 : // 1 hour intervals
+      timeRange === '24h' ? 24 : // 1 hour intervals
+      7 // 1 day intervals
+
+    const intervalSize = 
+      timeRange === '1h' ? 5 : // 5 minutes
+      timeRange === '6h' ? 30 : // 30 minutes
+      timeRange === '12h' ? 60 : // 60 minutes
+      timeRange === '24h' ? 60 : // 60 minutes
+      1440 // minutes in a day
 
     const timeSlots = Array.from({ length: intervals }, (_, i) => {
       const slotTime = timeRange === '7d'
@@ -119,8 +134,10 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium">Workflow Activity</CardTitle>
         <Tabs value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-          <TabsList className="grid w-full grid-cols-3 lg:w-[200px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[300px]">
             <TabsTrigger value="1h">1h</TabsTrigger>
+            <TabsTrigger value="6h">6h</TabsTrigger>
+            <TabsTrigger value="12h">12h</TabsTrigger>
             <TabsTrigger value="24h">24h</TabsTrigger>
             <TabsTrigger value="7d">7d</TabsTrigger>
           </TabsList>

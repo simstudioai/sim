@@ -1,3 +1,5 @@
+'use client'
+
 import {
   Dialog,
   DialogContent,
@@ -8,6 +10,24 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { WorkflowLogsModal } from './WorkflowLogsModal'
 import { useState } from 'react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { formatBlockName } from './block-utils'
+
+function getBlocksFromState(state: any): { type: string }[] {
+  if (!state) return []
+  
+  // Handle array format
+  if (Array.isArray(state.blocks)) {
+    return state.blocks
+  }
+  
+  // Handle object format
+  if (typeof state.blocks === 'object') {
+    return Object.values(state.blocks)
+  }
+  
+  return []
+}
 
 interface WorkflowDetailsModalProps {
   workflow: {
@@ -17,6 +37,13 @@ interface WorkflowDetailsModalProps {
     blockCount: number
     runCount: number
     isDeployed: boolean
+    state?: {
+      blocks: Array<{
+        id: string
+        type: string
+        data?: any
+      }>
+    }
   } | null
   isOpen: boolean
   onClose: () => void
@@ -27,6 +54,13 @@ export function WorkflowDetailsModal({ workflow, isOpen, onClose }: WorkflowDeta
 
   if (!workflow) return null
 
+  // Extract unique block types and their counts
+  const blockTypes = getBlocksFromState(workflow.state).reduce<{ [key: string]: number }>((acc, block) => {
+    const type = block.type
+    acc[type] = (acc[type] || 0) + 1
+    return acc
+  }, {})
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
@@ -35,7 +69,7 @@ export function WorkflowDetailsModal({ workflow, isOpen, onClose }: WorkflowDeta
             <DialogTitle>Workflow Details</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground">Name</h3>
@@ -66,6 +100,31 @@ export function WorkflowDetailsModal({ workflow, isOpen, onClose }: WorkflowDeta
                 </Badge>
               </div>
             </div>
+
+            {Object.keys(blockTypes).length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground mb-2">Blocks Used</h3>
+                <ScrollArea className="h-[120px] rounded-md border">
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(blockTypes)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([type, count]) => (
+                          <div 
+                            key={type} 
+                            className="flex items-center justify-between p-2 rounded-lg bg-accent/50"
+                          >
+                            <span className="text-sm font-medium">{formatBlockName(type)}</span>
+                            <Badge variant="secondary" className="ml-2 bg-background">
+                              {count}
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setShowLogs(true)}>

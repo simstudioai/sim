@@ -13,8 +13,9 @@ import {
   Legend,
   ChartData,
   ChartOptions,
+  ArcElement,
 } from 'chart.js'
-import { Line, Bar } from 'react-chartjs-2'
+import { Line, Bar, Doughnut } from 'react-chartjs-2'
 
 ChartJS.register(
   CategoryScale,
@@ -22,15 +23,16 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend
 )
 
 interface ChartProps {
-  type: 'line' | 'bar'
-  data: ChartData<'line' | 'bar'>
-  options?: ChartOptions<'line' | 'bar'>
+  type: 'line' | 'bar' | 'doughnut'
+  data: ChartData<'line' | 'bar' | 'doughnut'>
+  options?: ChartOptions<'line' | 'bar' | 'doughnut'>
   className?: string
   height?: number
 }
@@ -59,6 +61,16 @@ const defaultOptions: ChartOptions = {
   },
 }
 
+const doughnutOptions: ChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'bottom' as const,
+    },
+  },
+}
+
 export default function Chart({
   type,
   data,
@@ -67,10 +79,10 @@ export default function Chart({
   height = 300,
 }: ChartProps) {
   const mergedOptions = {
-    ...defaultOptions,
+    ...(type === 'doughnut' ? doughnutOptions : defaultOptions),
     ...options,
     plugins: {
-      ...defaultOptions.plugins,
+      ...(type === 'doughnut' ? doughnutOptions.plugins : defaultOptions.plugins),
       ...options.plugins,
     },
   }
@@ -80,8 +92,10 @@ export default function Chart({
       <div style={{ height }}>
         {type === 'line' ? (
           <Line data={data} options={mergedOptions} />
-        ) : (
+        ) : type === 'bar' ? (
           <Bar data={data} options={mergedOptions} />
+        ) : (
+          <Doughnut data={data} options={mergedOptions} />
         )}
       </div>
     </Card>

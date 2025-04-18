@@ -25,6 +25,13 @@ interface Workflow {
   blockCount: number
   runCount: number
   isDeployed: boolean
+  state?: {
+    blocks: Array<{
+      id: string
+      type: string
+      data?: any
+    }>
+  }
 }
 
 interface WorkflowsModalProps {

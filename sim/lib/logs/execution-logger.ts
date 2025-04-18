@@ -476,7 +476,12 @@ export async function persistExecutionLogs(
         duration: log.success ? `${log.durationMs}ms` : 'NA',
         trigger: triggerType,
         createdAt: new Date(log.endedAt || log.startedAt),
-        metadata,
+        metadata: {
+          ...(metadata || {}),
+          blockType: log.blockType || 'unknown',
+          blockId: log.blockId,
+          blockName: log.blockName
+        }
       })
 
       if (metadata) {

@@ -1,5 +1,23 @@
-import { createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { db } from '@/db'
+import { workflow, workflowLogs } from '@/db/schema'
+import { gte, asc } from 'drizzle-orm'
+
+function getBlocksFromState(state: any): { type: string }[] {
+  if (!state) return []
+  
+  // Handle array format
+  if (Array.isArray(state.blocks)) {
+    return state.blocks
+  }
+  
+  // Handle object format
+  if (typeof state.blocks === 'object') {
+    return Object.values(state.blocks)
+  }
+  
+  return []
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -8,8 +26,6 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid timeRange parameter' }, { status: 400 })
   }
 
-  const supabase = createServerClient()
-
   // Calculate date range
   const now = new Date()
   const startDate = new Date(now)
@@ -17,22 +33,18 @@ export async function GET(request: Request) {
 
   try {
     // Fetch workflows created in the time range
-    const { data: workflows, error: workflowsError } = await supabase
-      .from('workflows')
-      .select('id, created_at, blocks')
-      .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: true })
-
-    if (workflowsError) throw workflowsError
+    const workflows = await db
+      .select()
+      .from(workflow)
+      .where(gte(workflow.createdAt, startDate))
+      .orderBy(asc(workflow.createdAt))
 
     // Fetch workflow logs in the time range
-    const { data: logs, error: logsError } = await supabase
-      .from('workflow_logs')
-      .select('id, created_at, workflow_id')
-      .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: true })
-
-    if (logsError) throw logsError
+    const logs = await db
+      .select()
+      .from(workflowLogs)
+      .where(gte(workflowLogs.createdAt, startDate))
+      .orderBy(asc(workflowLogs.createdAt))
 
     // Calculate daily trends
     const dailyData: Record<string, { workflows: number; executions: number }> = {}
@@ -46,23 +58,25 @@ export async function GET(request: Request) {
     }
 
     // Process workflows
-    workflows?.forEach((workflow) => {
-      const date = new Date(workflow.created_at).toISOString().split('T')[0]
+    workflows.forEach((workflow) => {
+      const date = new Date(workflow.createdAt).toISOString().split('T')[0]
       if (dailyData[date]) {
         dailyData[date].workflows++
       }
 
       // Count block usage
-      const blocks = workflow.blocks as { type: string }[] || []
+      const blocks = getBlocksFromState(workflow.state)
       blocks.forEach((block) => {
-        blockUsage[block.type] = (blockUsage[block.type] || 0) + 1
-        totalBlocks++
+        if (block && block.type) {
+          blockUsage[block.type] = (blockUsage[block.type] || 0) + 1
+          totalBlocks++
+        }
       })
     })
 
     // Process logs
-    logs?.forEach((log) => {
-      const date = new Date(log.created_at).toISOString().split('T')[0]
+    logs.forEach((log) => {
+      const date = new Date(log.createdAt).toISOString().split('T')[0]
       if (dailyData[date]) {
         dailyData[date].executions++
       }
@@ -88,10 +102,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       overview: {
-        totalWorkflows: workflows?.length || 0,
-        activeWorkflows: new Set(logs?.map(log => log.workflow_id))?.size || 0,
-        totalExecutions: logs?.length || 0,
-        avgBlocksPerWorkflow: workflows?.length ? totalBlocks / workflows.length : 0
+        totalWorkflows: workflows.length,
+        activeWorkflows: new Set(logs.map(log => log.workflowId)).size,
+        totalExecutions: logs.length,
+        avgBlocksPerWorkflow: workflows.length ? totalBlocks / workflows.length : 0
       },
       workflowTrends,
       blockUsage: blockUsageData

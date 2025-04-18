@@ -11,6 +11,8 @@ import { UserStatsModal } from '@/app/admin/components/UserStatsModal'
 import WorkflowsModal from '@/app/admin/components/WorkflowsModal'
 import { ThemeToggle } from '../components/theme-toggle'
 import WorkflowActivityChart from '../components/WorkflowActivityChart'
+import LatencyAnalysis from '../components/LatencyAnalysis'
+import UserDemographics from '../components/UserDemographics'
 
 interface DashboardData {
   overview: {
@@ -18,6 +20,32 @@ interface DashboardData {
     activeWorkflows: number
     totalExecutions: number
     avgBlocksPerWorkflow: number
+  }
+  userDemographics: {
+    totalUsers: number
+    inactiveUsers: number
+    inactivePercentage: number
+    usersWithNoWorkflows: number
+    usersWithNoRuns: number
+    averageWorkflowsPerUser: number
+    modifiedAndRan: number
+    modifiedAndRanPercentage: number
+    modifiedNoRun: number
+    modifiedNoRunPercentage: number
+    createdMultiple: number
+    createdMultiplePercentage: number
+    baseStateOnly: number
+    baseStateOnlyPercentage: number
+    totalSessions: number
+    averageSessionsPerUser: number
+    returningUsers: number
+    returningUsersPercentage: number
+    topReturningUsers: Array<{
+      name: string
+      email: string
+      sessionCount: number
+      lastSeen: string
+    }>
   }
   topUsers: Array<{
     email: string
@@ -57,6 +85,15 @@ interface DashboardData {
     blockCount: number
     runCount: number
     isDeployed: boolean
+  }>
+  blockLatencies: Array<{
+    type: string
+    avgLatency: number
+    p50Latency: number
+    p75Latency: number
+    p99Latency: number
+    p100Latency: number
+    samples: number
   }>
 }
 
@@ -247,10 +284,12 @@ export default function Dashboard() {
                   <CardTitle>Most Used Blocks</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <BlockUsageChart
-                    blocks={data.topBlocks.map(block => block.type)}
-                    count={data.topBlocks.map(block => block.count)}
-                  />
+                  <ScrollArea className="h-[300px]">
+                    <BlockUsageChart
+                      blocks={data.topBlocks.map(block => block.type)}
+                      count={data.topBlocks.map(block => block.count)}
+                    />
+                  </ScrollArea>
                 </CardContent>
               </Card>
             ) : (
@@ -265,6 +304,11 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* User Demographics */}
+      {!loading && data?.userDemographics && (
+        <UserDemographics demographics={data.userDemographics} />
+      )}
 
       {/* Recent Activity */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -308,6 +352,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Block Latency Analysis */}
+      {!loading && data?.blockLatencies && data.blockLatencies.length > 0 && (
+        <LatencyAnalysis blockLatencies={data.blockLatencies} />
+      )}
 
       {/* User Stats Modal */}
       {selectedUser && (

@@ -1,57 +1,54 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { db } from '@/db'
+import { workflow, workflowLogs } from '@/db/schema'
+import { eq, desc } from 'drizzle-orm'
 
 export async function GET(
   request: Request,
-  context: { params: { id: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
-    // Ensure we await the params
-    const { id } = await Promise.resolve(context.params)
+    // Ensure params is properly awaited
+    const workflowId = await Promise.resolve(params.id)
+    if (!workflowId) {
+      return NextResponse.json(
+        { error: 'Workflow ID is required' },
+        { status: 400 }
+      )
+    }
 
     // First get the workflow details
-    const { data: workflow, error: workflowError } = await supabase
-      .from('workflow')
-      .select('name')
-      .eq('id', id)
-      .single()
+    const workflowData = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .limit(1)
 
-    if (workflowError) {
-      throw workflowError
+    if (!workflowData || workflowData.length === 0) {
+      return NextResponse.json(
+        { error: 'Workflow not found' },
+        { status: 404 }
+      )
     }
 
     // Then get the logs
-    const { data: logs, error: logsError } = await supabase
-      .from('workflow_logs')
-      .select(`
-        id,
-        workflow_id,
-        execution_id,
-        level,
-        message,
-        duration,
-        trigger,
-        created_at,
-        metadata
-      `)
-      .eq('workflow_id', id)
-      .order('created_at', { ascending: false })
-
-    if (logsError) {
-      throw logsError
-    }
+    const logs = await db
+      .select()
+      .from(workflowLogs)
+      .where(eq(workflowLogs.workflowId, workflowId))
+      .orderBy(desc(workflowLogs.createdAt))
 
     // Transform logs to include workflow name and success status
-    const transformedLogs = (logs || []).map(log => ({
+    const transformedLogs = logs.map(log => ({
       ...log,
-      workflowName: workflow?.name || 'Unknown Workflow',
-      success: log.duration !== 'NA' && log.level !== 'error'
+      workflowName: workflowData[0]?.name || 'Unknown Workflow',
+      success: log.duration !== 'NA' && log.level !== 'error',
+      // Map camelCase to snake_case for frontend compatibility
+      workflow_id: log.workflowId,
+      execution_id: log.executionId || 'N/A',
+      created_at: log.createdAt instanceof Date 
+        ? log.createdAt.toISOString() 
+        : new Date().toISOString()
     }))
 
     return NextResponse.json({ logs: transformedLogs })
