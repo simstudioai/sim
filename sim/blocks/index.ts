@@ -26,6 +26,7 @@ import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
 import { RouterBlock } from './blocks/router'
+import { SemrushBlock } from './blocks/semrush'
 import { SerperBlock } from './blocks/serper'
 import { GoogleSheetsBlock } from './blocks/sheets'
 import { SlackBlock } from './blocks/slack'
@@ -42,6 +43,7 @@ import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
+import { QdrantBlock } from './blocks/qdrant'
 import { BlockConfig } from './types'
 import { Mem0Block } from './blocks/mem0'
 
@@ -64,6 +66,7 @@ export {
   SlackBlock,
   GitHubBlock,
   ConditionBlock,
+  SemrushBlock,
   SerperBlock,
   TavilyBlock,
   RouterBlock,
@@ -82,6 +85,7 @@ export {
   GoogleDocsBlock,
   WhatsAppBlock,
   GoogleSheetsBlock,
+<<<<<<< HEAD:sim/blocks/index.ts
   PerplexityBlock,
   ConfluenceBlock,
   TwilioSMSBlock,
@@ -90,6 +94,10 @@ export {
   ThinkingBlock,
   StagehandBlock,
   StagehandAgentBlock,
+  QdrantBlock,
+=======
+  QdrantBlock
+>>>>>>> bdd0ab88cdcd053991e20edd0f509fa4f5f75110:sim/app/blocks/index.ts
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -120,7 +128,9 @@ const blocks: Record<string, BlockConfig> = {
   openai: OpenAIBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  qdrant: QdrantBlock,
   reddit: RedditBlock,
+  semrush: SemrushBlock,
   router: RouterBlock,
   serper: SerperBlock,
   stagehand: StagehandBlock,
