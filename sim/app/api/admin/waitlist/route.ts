@@ -79,6 +79,13 @@ export async function GET(request: NextRequest) {
       validatedParams.data.search
     )
 
+    // Log all approved users' emails
+    const approvedUsers = entries.entries
+      .filter(entry => entry.status === 'approved')
+      .map(entry => entry.email.trim())
+    
+    console.log(approvedUsers)
+
     logger.info(
       `API route: Returning ${entries.entries.length} entries for status: "${status}", total: ${entries.total}`
     )
