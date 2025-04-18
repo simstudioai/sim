@@ -24,16 +24,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Handle admin routes - allow access for authenticated users
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    const sessionCookie = getSessionCookie(request)
-    if (!sessionCookie) {
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
-    
-    return NextResponse.next()
-  }
-
   // Skip waitlist protection for development environment
   if (isDevelopment) {
     return NextResponse.next()

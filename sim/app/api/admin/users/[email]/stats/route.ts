@@ -1,22 +1,51 @@
-import { NextResponse } from 'next/server'
-import { db } from '@/db'
-import { workflow, workflowLogs, user, userStats } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { createLogger } from '@/lib/logs/console-logger'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
 
-function getBlocksFromState(state: any): { type: string }[] {
-  if (!state) return []
-  
-  // Handle array format
-  if (Array.isArray(state.blocks)) {
-    return state.blocks
-  }
-  
-  // Handle object format
-  if (typeof state.blocks === 'object') {
-    return Object.values(state.blocks)
-  }
-  
-  return []
+// Create a logger for this module
+const logger = createLogger('UserStatsAPI')
+
+// Define interfaces based on DB schema
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  image: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface Block {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: any;
+}
+
+interface WorkflowState {
+  blocks: Block[];
+  [key: string]: any;
+}
+
+interface Workflow {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  state: WorkflowState;
+  color: string;
+  lastSynced: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  isDeployed: boolean;
+  deployedState: any;
+  deployedAt: Date | null;
+  collaborators: string[];
+  runCount: number;
+  lastRunAt: Date | null;
+  variables: Record<string, any>;
 }
 
 export async function GET(
@@ -24,106 +53,107 @@ export async function GET(
   { params }: { params: { email: string } }
 ) {
   try {
-    // Ensure params is properly awaited
-    const emailParam = params.email
-    if (!emailParam) {
-      return NextResponse.json(
-        { error: 'Email parameter is required' },
-        { status: 400 }
-      )
-    }
-    
-    const email = decodeURIComponent(emailParam)
-
-    // Get user by email
-    const userData = await db
+    // Get the user by email
+    const users = await db
       .select()
-      .from(user)
-      .where(eq(user.email, email))
-      .limit(1)
+      .from(schema.user)
+      .where(eq(schema.user.email, params.email));
 
-    if (!userData || userData.length === 0) {
-      return NextResponse.json(
-        { error: 'User not found' },
+    if (!users || users.length === 0) {
+      return Response.json(
+        { error: "User not found" },
         { status: 404 }
-      )
+      );
     }
 
-    const userId = userData[0].id
+    const user = users[0] as User;
 
-    // Get user's workflows
-    const workflows = await db
+    // Get all workflows for this user
+    const workflowsResult = await db
       .select()
-      .from(workflow)
-      .where(eq(workflow.userId, userId))
+      .from(schema.workflow)
+      .where(eq(schema.workflow.userId, user.id));
+      
+    // Cast to our Workflow interface
+    const workflows = workflowsResult.map(w => ({
+      ...w,
+      state: w.state as WorkflowState
+    })) as Workflow[];
 
-    // Get user's stats
-    const stats = await db
+    // Calculate statistics
+    const workflowCount = workflows.length;
+    const blockCount = workflows.reduce((total, workflow) => {
+      // Safely access blocks with proper type checking
+      return total + (workflow.state?.blocks?.length || 0);
+    }, 0);
+
+    // Get execution statistics from logs
+    const logs = await db
       .select()
-      .from(userStats)
-      .where(eq(userStats.userId, userId))
-      .limit(1)
+      .from(schema.workflowLogs)
+      .where(
+        eq(schema.workflowLogs.level, "execution")
+      );
 
-    // Calculate workflow statistics
-    const workflowCount = workflows.length
-    const blockCount = workflows.reduce((acc, w) => {
-      const blocks = getBlocksFromState(w.state)
-      return acc + blocks.length
-    }, 0)
+    const userLogs = logs.filter(log => {
+      const workflowId = log.workflowId;
+      return workflows.some(workflow => workflow.id === workflowId);
+    });
 
-    // Calculate block usage
-    const blockUsage = workflows.reduce((acc: Record<string, number>, w) => {
-      const blocks = getBlocksFromState(w.state)
-      blocks.forEach(block => {
-        if (block && block.type) {
-          const type = block.type
-          if (!acc[type]) acc[type] = 0
-          acc[type]++
-        }
-      })
-      return acc
-    }, {})
+    const executionCount = userLogs.length;
+    
+    // Filter successful executions
+    const successfulExecutions = userLogs.filter(log => {
+      try {
+        const metadata = log.metadata as any;
+        return metadata?.status === "success";
+      } catch (e) {
+        return false;
+      }
+    }).length;
+    
+    const successRate = executionCount > 0 
+      ? (successfulExecutions / executionCount) * 100 
+      : 0;
 
-    // Get execution stats from userStats or use defaults
-    const executionStats = stats[0] ? {
-      manual: stats[0].totalManualExecutions,
-      webhook: stats[0].totalWebhookTriggers,
-      scheduled: stats[0].totalScheduledExecutions,
-      api: stats[0].totalApiCalls
-    } : {
-      manual: 0,
-      webhook: 0,
-      scheduled: 0,
-      api: 0
-    }
+    // Get user stats to retrieve total cost
+    const userStatsResult = await db
+      .select()
+      .from(schema.userStats)
+      .where(eq(schema.userStats.userId, user.id));
 
-    return NextResponse.json({
-      firstName: userData[0].name,
-      email: userData[0].email,
-      workflowCount,
-      blockCount,
-      workflows: workflows.map(w => ({
-        id: w.id,
-        name: w.name,
-        created_at: w.createdAt.toISOString(),
-        blocks: getBlocksFromState(w.state)
+    const totalCost = userStatsResult.length > 0 
+      ? parseFloat(userStatsResult[0].totalCost as string) || 0 
+      : 0;
+
+    // Return the user stats
+    return Response.json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt
+      },
+      workflows: workflows.map(workflow => ({
+        id: workflow.id,
+        name: workflow.name,
+        blockCount: workflow.state?.blocks?.length || 0,
+        createdAt: workflow.createdAt
       })),
-      blockUsage: Object.entries(blockUsage)
-        .sort(([, a], [, b]) => b - a)
-        .map(([type, count]) => ({
-          type,
-          count
-        })),
-      totalBlocks: blockCount,
-      avgBlocksPerWorkflow: workflowCount > 0 ? blockCount / workflowCount : 0,
-      totalCost: Number(stats[0]?.totalCost || 0),
-      executionStats
-    })
+      stats: {
+        workflowCount,
+        blockCount,
+        executionCount,
+        successfulExecutions,
+        successRate,
+        totalCost
+      }
+    });
   } catch (error) {
-    console.error('Error fetching user stats:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch user stats' },
+    logger.error("Error fetching user stats", error);
+    return Response.json(
+      { error: "Failed to fetch user statistics" },
       { status: 500 }
-    )
+    );
   }
 } 

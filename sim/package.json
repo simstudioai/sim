@@ -24,8 +24,7 @@
     "cli:start": "cd packages/simstudio && node ./dist/index.js start",
     "build:standalone": "node scripts/build-standalone.js",
     "build:cli": "npm run cli:build && npm run build:standalone",
-    "publish:cli": "npm run build:cli && npm run cli:publish",
-    "test:posthog": "ts-node scripts/test-posthog.ts"
+    "publish:cli": "npm run build:cli && npm run cli:publish"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -56,6 +55,7 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@tremor/react": "^3.18.7",
+    "@types/chart.js": "^2.9.41",
     "@vercel/og": "^0.6.5",
     "@vercel/speed-insights": "^1.2.0",
     "ai": "^4.3.2",

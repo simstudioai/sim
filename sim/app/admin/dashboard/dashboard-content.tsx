@@ -1,11 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar } from 'lucide-react'
+import { Calendar, RefreshCw } from 'lucide-react'
 
 interface DashboardData {
   overview: {
@@ -35,28 +34,40 @@ export function DashboardContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState('7d')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [activeFilter, setActiveFilter] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true)
-        const response = await fetch('/api/admin/dashboard')
-        if (!response.ok) {
-          throw new Error('Failed to fetch dashboard data')
-        }
-        const dashboardData = await response.json()
-        setData(dashboardData)
-        setError(null)
-      } catch (err) {
-        console.error('Error loading dashboard data:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
-      } finally {
-        setLoading(false)
+  // Create a reusable function to fetch dashboard data
+  const fetchDashboardData = useCallback(async () => {
+    try {
+      setIsRefreshing(true)
+      const response = await fetch('/api/admin/dashboard')
+      if (!response.ok) {
+        throw new Error('Failed to fetch dashboard data')
       }
+      const dashboardData = await response.json()
+      setData(dashboardData)
+      setError(null)
+    } catch (err) {
+      console.error('Error loading dashboard data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+      setIsRefreshing(false)
     }
-    loadData()
-  }, [timeRange])
+  }, [])
+
+  // Initial data load
+  useEffect(() => {
+    fetchDashboardData()
+  }, [timeRange, fetchDashboardData])
+
+  // Handle filter selection
+  const handleFilterClick = (filter: string) => {
+    setActiveFilter(activeFilter === filter ? null : filter)
+    // Here you would typically filter the data based on the selected filter
+    // For now, we're just toggling the active state
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center h-full">Loading dashboard data...</div>
@@ -88,21 +99,22 @@ export function DashboardContent() {
         </div>
 
         <div>
-          <h3 className="text-sm font-medium mb-2">Search</h3>
-          <Input
-            placeholder="Search users..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        <div>
           <h3 className="text-sm font-medium mb-2">Quick Filters</h3>
           <div className="space-y-2">
-            <Button variant="outline" size="sm" className="w-full justify-start">
+            <Button 
+              variant={activeFilter === 'active' ? "default" : "outline"} 
+              size="sm" 
+              className="w-full justify-start"
+              onClick={() => handleFilterClick('active')}
+            >
               Active Workflows
             </Button>
-            <Button variant="outline" size="sm" className="w-full justify-start">
+            <Button 
+              variant={activeFilter === 'recent' ? "default" : "outline"} 
+              size="sm" 
+              className="w-full justify-start"
+              onClick={() => handleFilterClick('recent')}
+            >
               Recent Executions
             </Button>
           </div>
@@ -119,7 +131,14 @@ export function DashboardContent() {
                 <Calendar className="h-4 w-4 mr-2" />
                 Today
               </Button>
-              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={fetchDashboardData}
+                disabled={isRefreshing}
+                className={isRefreshing ? "animate-spin" : ""}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
             </div>
@@ -164,7 +183,11 @@ export function DashboardContent() {
                 <CardTitle className="text-sm font-medium">Avg Blocks/Workflow</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{data.overview.avgBlocksPerWorkflow.toFixed(1)}</div>
+                <div className="text-2xl font-bold">
+                  {data.overview.avgBlocksPerWorkflow != null 
+                    ? data.overview.avgBlocksPerWorkflow.toFixed(1) 
+                    : '0.0'}
+                </div>
               </CardContent>
             </Card>
           </div>

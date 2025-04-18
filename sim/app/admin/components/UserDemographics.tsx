@@ -318,18 +318,18 @@ export default function UserDemographics({ demographics }: UserDemographicsProps
                   <h3 className="text-sm font-medium">Top Returning Users</h3>
                   <ScrollArea className="h-[200px]">
                     <div className="space-y-2">
-                      {demographics.topReturningUsers.map((user, i) => (
-                        <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-accent/50">
+                      {demographics.topReturningUsers.map((user) => (
+                        <div key={`${user.email}-${user.sessionCount}`} className="flex items-center justify-between p-2 rounded-lg bg-accent/50">
                           <div className="space-y-1">
-                            <p className="text-sm font-medium leading-none">
+                            <p className="text-sm font-medium leading-none capitalize">
                               {user.name}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              Last seen: {new Date(user.lastSeen).toLocaleDateString()}
+                              {user.email}
                             </p>
                           </div>
                           <div className="text-sm font-medium">
-                            {user.sessionCount} sessions
+                            {user.sessionCount} {user.sessionCount === 1 ? 'session' : 'sessions'}
                           </div>
                         </div>
                       ))}

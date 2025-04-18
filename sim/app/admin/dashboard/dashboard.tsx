@@ -135,17 +135,6 @@ export default function Dashboard() {
     }
   }
 
-  const fetchUserStats = async (email: string) => {
-    try {
-      const response = await fetch(`/api/admin/users/${encodeURIComponent(email)}/stats`)
-      if (!response.ok) throw new Error('Failed to fetch user stats')
-      return await response.json()
-    } catch (error) {
-      console.error('Error fetching user stats:', error)
-      return null
-    }
-  }
-
   useEffect(() => {
     fetchDashboardData()
   }, [])
@@ -401,26 +390,34 @@ export default function Dashboard() {
         )}
 
         {/* User Stats Modal */}
-        {selectedUser && (
+        {selectedUser && data && (
           <UserStatsModal
             isOpen={!!selectedUser}
             onClose={() => setSelectedUser(null)}
             stats={{
-              firstName: data?.topUsers.find(u => u.email === selectedUser)?.name || selectedUser.split('@')[0],
-              email: selectedUser,
-              workflowCount: data?.topUsers.find(u => u.email === selectedUser)?.workflowCount || 0,
-              blockCount: data?.topUsers.find(u => u.email === selectedUser)?.blockCount || 0,
-              workflows: data?.topUsers.find(u => u.email === selectedUser)?.workflows || [],
-              blockUsage: data?.topUsers.find(u => u.email === selectedUser)?.blockUsage || [],
-              totalBlocks: data?.topUsers.find(u => u.email === selectedUser)?.totalBlocks || 0,
-              avgBlocksPerWorkflow: data?.topUsers.find(u => u.email === selectedUser)?.avgBlocksPerWorkflow || 0,
-              totalCost: data?.topUsers.find(u => u.email === selectedUser)?.totalCost || 0,
-              executionStats: data?.topUsers.find(u => u.email === selectedUser)?.executionStats || {
-                manual: 0,
-                webhook: 0,
-                scheduled: 0,
-                api: 0
-              }
+              ...((() => {
+                // Look up the selected user data once and store in a variable
+                const selectedUserData = data.topUsers.find(u => u.email === selectedUser);
+                
+                // Return user stats with proper fallbacks for all properties
+                return {
+                  firstName: selectedUserData?.name || selectedUser.split('@')[0],
+                  email: selectedUser,
+                  workflowCount: selectedUserData?.workflowCount || 0,
+                  blockCount: selectedUserData?.blockCount || 0,
+                  workflows: selectedUserData?.workflows || [],
+                  blockUsage: selectedUserData?.blockUsage || [],
+                  totalBlocks: selectedUserData?.totalBlocks || 0,
+                  avgBlocksPerWorkflow: selectedUserData?.avgBlocksPerWorkflow || 0,
+                  totalCost: selectedUserData?.totalCost || 0,
+                  executionStats: selectedUserData?.executionStats || {
+                    manual: 0,
+                    webhook: 0,
+                    scheduled: 0,
+                    api: 0
+                  }
+                };
+              })())
             }}
           />
         )}

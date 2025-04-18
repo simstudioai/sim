@@ -18,6 +18,17 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { WorkflowDetailsModal } from './WorkflowDetailsModal'
 
+// Define a more specific type for block data
+interface BlockData {
+  [key: string]: string | number | boolean | null | undefined
+}
+
+interface WorkflowBlock {
+  id: string
+  type: string
+  data?: BlockData
+}
+
 interface Workflow {
   id: string
   name: string
@@ -26,11 +37,7 @@ interface Workflow {
   runCount: number
   isDeployed: boolean
   state?: {
-    blocks: Array<{
-      id: string
-      type: string
-      data?: any
-    }>
+    blocks: WorkflowBlock[]
   }
 }
 
@@ -47,9 +54,18 @@ export default function WorkflowsModal({ isOpen, onClose, workflows }: Workflows
     setSelectedWorkflow(workflow)
   }
 
+  // Handle dialog open state change
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      // Reset selected workflow when dialog is closed
+      setSelectedWorkflow(null)
+    }
+    onClose()
+  }
+
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>All Workflows</DialogTitle>
@@ -76,6 +92,15 @@ export default function WorkflowsModal({ isOpen, onClose, workflows }: Workflows
                     key={workflow.id}
                     className="cursor-pointer hover:bg-accent/50 transition-colors"
                     onClick={() => handleWorkflowClick(workflow)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleWorkflowClick(workflow)
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View details for workflow ${workflow.name}`}
                   >
                     <TableCell>{workflow.name}</TableCell>
                     <TableCell>{workflow.ownerName}</TableCell>

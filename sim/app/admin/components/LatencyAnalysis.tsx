@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Zap, Snail } from 'lucide-react'
@@ -19,18 +19,24 @@ interface BlockLatency {
 
 interface LatencyAnalysisProps {
   blockLatencies: BlockLatency[]
+  /**
+   * Threshold in milliseconds to determine if a block's execution is considered fast
+   * @default 1000 (1 second)
+   */
+  fastThreshold?: number
 }
 
+// Define valid percentile keys
+type PercentileKey = 'p50Latency' | 'p75Latency' | 'p99Latency' | 'p100Latency'
+
 interface PercentileOption {
-  value: keyof BlockLatency
+  value: PercentileKey
   label: string
   color: {
     bg: string
     border: string
   }
 }
-
-const FAST_THRESHOLD = 1000 // 1 second
 
 const PERCENTILE_OPTIONS: PercentileOption[] = [
   {
@@ -67,13 +73,21 @@ const PERCENTILE_OPTIONS: PercentileOption[] = [
   }
 ]
 
-export default function LatencyAnalysis({ blockLatencies }: LatencyAnalysisProps) {
-  const [selectedPercentiles, setSelectedPercentiles] = useState<Set<string>>(new Set(['p99Latency']))
+export default function LatencyAnalysis({ 
+  blockLatencies,
+  fastThreshold = 1000 // Default to 1 second
+}: LatencyAnalysisProps) {
+  const [selectedPercentiles, setSelectedPercentiles] = useState<Set<PercentileKey>>(
+    new Set(['p99Latency'])
+  )
   
-  // Sort blocks by average latency
-  const sortedBlocks = [...blockLatencies].sort((a, b) => a.avgLatency - b.avgLatency)
+  // Memoize sorted blocks to prevent unnecessary re-sorting
+  const sortedBlocks = useMemo(() => 
+    [...blockLatencies].sort((a, b) => a.avgLatency - b.avgLatency),
+    [blockLatencies]
+  )
 
-  const togglePercentile = (value: string) => {
+  const togglePercentile = (value: PercentileKey) => {
     const newSelected = new Set(selectedPercentiles)
     if (newSelected.has(value)) {
       newSelected.delete(value)
@@ -86,16 +100,20 @@ export default function LatencyAnalysis({ blockLatencies }: LatencyAnalysisProps
     }
   }
 
-  const datasets = Array.from(selectedPercentiles).map(percentile => {
-    const option = PERCENTILE_OPTIONS.find(opt => opt.value === percentile)
-    return {
-      label: option?.label || '',
-      data: sortedBlocks.map(block => block[percentile as keyof BlockLatency] as number),
-      backgroundColor: option?.color.bg || '',
-      borderColor: option?.color.border || '',
-      borderWidth: 1,
-    }
-  })
+  // Memoize datasets to prevent unnecessary recalculations
+  const datasets = useMemo(() => 
+    Array.from(selectedPercentiles).map(percentile => {
+      const option = PERCENTILE_OPTIONS.find(opt => opt.value === percentile)
+      return {
+        label: option?.label || '',
+        data: sortedBlocks.map(block => block[percentile] as number),
+        backgroundColor: option?.color.bg || '',
+        borderColor: option?.color.border || '',
+        borderWidth: 1,
+      }
+    }),
+    [selectedPercentiles, sortedBlocks]
+  )
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -112,7 +130,7 @@ export default function LatencyAnalysis({ blockLatencies }: LatencyAnalysisProps
                   className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    {block.avgLatency <= FAST_THRESHOLD ? (
+                    {block.avgLatency <= fastThreshold ? (
                       <Zap className="h-4 w-4 text-green-500" />
                     ) : (
                       <Snail className="h-4 w-4 text-yellow-500" />

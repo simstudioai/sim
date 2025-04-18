@@ -10,9 +10,7 @@ export const metadata: Metadata = {
 export default function DashboardPage() {
   return (
     <PasswordAuth>
-      <div className="flex-1 bg-background min-h-screen">
-        <Dashboard />
-      </div>
+      <Dashboard />
     </PasswordAuth>
   )
 } 

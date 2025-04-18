@@ -71,6 +71,40 @@ const doughnutOptions: ChartOptions = {
   },
 }
 
+// Deep merge function to handle nested properties
+function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  const output = { ...target }
+  
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      const sourceValue = source[key as keyof typeof source]
+      const targetValue = target[key as keyof typeof target]
+      
+      if (isObject(sourceValue)) {
+        if (!(key in target)) {
+          Object.assign(output, { [key]: sourceValue })
+        } else if (isObject(targetValue)) {
+          // Ensure both values are objects before recursive merge
+          const mergedValue = deepMerge(
+            targetValue as Record<string, any>,
+            sourceValue as Record<string, any>
+          )
+          output[key as keyof T] = mergedValue as T[keyof T]
+        }
+      } else {
+        Object.assign(output, { [key]: sourceValue })
+      }
+    })
+  }
+  
+  return output as T
+}
+
+// Helper function to check if value is an object
+function isObject(item: unknown): item is Record<string, any> {
+  return Boolean(item && typeof item === 'object' && !Array.isArray(item))
+}
+
 export default function Chart({
   type,
   data,
@@ -78,14 +112,8 @@ export default function Chart({
   className = '',
   height = 300,
 }: ChartProps) {
-  const mergedOptions = {
-    ...(type === 'doughnut' ? doughnutOptions : defaultOptions),
-    ...options,
-    plugins: {
-      ...(type === 'doughnut' ? doughnutOptions.plugins : defaultOptions.plugins),
-      ...options.plugins,
-    },
-  }
+  const baseOptions = type === 'doughnut' ? doughnutOptions : defaultOptions
+  const mergedOptions = deepMerge(baseOptions, options)
 
   return (
     <Card className={`p-4 ${className}`}>

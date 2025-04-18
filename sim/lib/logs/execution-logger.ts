@@ -479,12 +479,12 @@ export async function persistExecutionLogs(
         metadata: {
           ...(metadata || {}),
           blockType: log.blockType || 'unknown',
-          blockId: log.blockId,
-          blockName: log.blockName
+          blockId: log.blockId || 'unknown',
+          blockName: log.blockName || 'unknown'
         }
       })
 
-      if (metadata) {
+      if (metadata && Object.keys(metadata).length > 0) {
         logger.debug('Persisted log with metadata', {
           logId: uuidv4(),
           executionId,

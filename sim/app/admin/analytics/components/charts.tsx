@@ -4,7 +4,7 @@ import { Line, Bar } from 'react-chartjs-2'
 import 'chart.js/auto'
 import { Card } from '@/components/ui/card'
 
-interface ChartData {
+interface AnalyticsChartData {
   labels: string[]
   datasets: {
     label: string
@@ -16,7 +16,7 @@ interface ChartData {
 
 interface ChartProps {
   title: string
-  data: ChartData
+  data: AnalyticsChartData
   type: 'line' | 'bar'
 }
 

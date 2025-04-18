@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -12,10 +12,18 @@ interface CursorPosition {
   y: number
 }
 
+interface TooltipPosition {
+  x: number
+  y: number
+  placement: 'top' | 'bottom' | 'left' | 'right'
+}
+
 interface ExtendedWorkflow extends BaseWorkflow {
   is_deployed?: boolean
   run_count?: number
   variables?: string[]
+  blockTypes?: string[]
+  blockCount?: number
 }
 
 interface WorkflowListProps {
@@ -26,10 +34,80 @@ interface WorkflowListProps {
 export default function WorkflowList({ workflows, loading }: WorkflowListProps) {
   const [hoveredWorkflow, setHoveredWorkflow] = useState<ExtendedWorkflow | null>(null)
   const [cursorPosition, setCursorPosition] = useState<CursorPosition>({ x: 0, y: 0 })
+  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({ 
+    x: 0, 
+    y: 0, 
+    placement: 'top' 
+  })
+  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 })
+
+  // Update viewport size on mount and resize
+  useEffect(() => {
+    const updateViewportSize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      })
+    }
+
+    updateViewportSize()
+    window.addEventListener('resize', updateViewportSize)
+    return () => window.removeEventListener('resize', updateViewportSize)
+  }, [])
 
   const handleMouseMove = (e: React.MouseEvent) => {
     setCursorPosition({ x: e.clientX, y: e.clientY })
   }
+
+  // Calculate optimal tooltip position based on cursor position and viewport boundaries
+  useEffect(() => {
+    if (!hoveredWorkflow || !tooltipRef.current) return
+
+    const tooltip = tooltipRef.current
+    const tooltipRect = tooltip.getBoundingClientRect()
+    const padding = 10 // Padding from viewport edges
+    
+    // Default position (top placement)
+    let x = cursorPosition.x
+    let y = cursorPosition.y - 10
+    let placement: 'top' | 'bottom' | 'left' | 'right' = 'top'
+    
+    // Check if tooltip would go off the right edge
+    if (x + tooltipRect.width / 2 > viewportSize.width - padding) {
+      x = viewportSize.width - tooltipRect.width / 2 - padding
+    }
+    
+    // Check if tooltip would go off the left edge
+    if (x - tooltipRect.width / 2 < padding) {
+      x = tooltipRect.width / 2 + padding
+    }
+    
+    // Check if tooltip would go off the top edge
+    if (y - tooltipRect.height < padding) {
+      // Switch to bottom placement
+      y = cursorPosition.y + 10
+      placement = 'bottom'
+    }
+    
+    // Check if tooltip would go off the bottom edge
+    if (y + tooltipRect.height > viewportSize.height - padding) {
+      // If it would go off the bottom too, try left or right placement
+      if (x > viewportSize.width / 2) {
+        // Place on the left side of cursor
+        x = cursorPosition.x - 10
+        y = cursorPosition.y
+        placement = 'left'
+      } else {
+        // Place on the right side of cursor
+        x = cursorPosition.x + 10
+        y = cursorPosition.y
+        placement = 'right'
+      }
+    }
+    
+    setTooltipPosition({ x, y, placement })
+  }, [cursorPosition, hoveredWorkflow, viewportSize])
 
   if (loading) {
     return (
@@ -46,6 +124,42 @@ export default function WorkflowList({ workflows, loading }: WorkflowListProps) 
 
   if (!workflows || workflows.length === 0) {
     return <p className="text-sm text-muted-foreground">No workflows found</p>
+  }
+
+  const getBlockCount = (workflow: ExtendedWorkflow): number => {
+    if (typeof workflow.blockCount === 'number') {
+      return workflow.blockCount;
+    }
+    if (workflow.blockTypes?.length) {
+      return workflow.blockTypes.length;
+    }
+    if (workflow.blocks?.length) {
+      return workflow.blocks.length;
+    }
+    return 0;
+  }
+
+  const getBlocksForDisplay = (workflow: ExtendedWorkflow) => {
+    if (workflow.blockTypes && workflow.blockTypes.length > 0) {
+      return workflow.blockTypes.map(type => ({ type }));
+    }
+    return workflow.blocks || [];
+  }
+
+  // Get transform style based on placement
+  const getTransformStyle = () => {
+    switch (tooltipPosition.placement) {
+      case 'top':
+        return 'translate(-50%, -100%)'
+      case 'bottom':
+        return 'translate(-50%, 0)'
+      case 'left':
+        return 'translate(-100%, -50%)'
+      case 'right':
+        return 'translate(0, -50%)'
+      default:
+        return 'translate(-50%, -100%)'
+    }
   }
 
   return (
@@ -66,7 +180,7 @@ export default function WorkflowList({ workflows, loading }: WorkflowListProps) 
               </p>
             </div>
             <div className="text-sm text-muted-foreground">
-              {workflow.blocks.length} blocks
+              {getBlockCount(workflow)} blocks
             </div>
           </div>
         ))}
@@ -75,6 +189,7 @@ export default function WorkflowList({ workflows, loading }: WorkflowListProps) 
       {/* Floating Tooltip */}
       {hoveredWorkflow && (
         <div
+          ref={tooltipRef}
           className={cn(
             "fixed z-50 p-4 rounded-lg shadow-lg",
             "bg-popover border border-border",
@@ -83,9 +198,9 @@ export default function WorkflowList({ workflows, loading }: WorkflowListProps) 
             "max-w-sm"
           )}
           style={{
-            left: `${cursorPosition.x}px`,
-            top: `${cursorPosition.y - 10}px`,
-            transform: 'translate(-50%, -100%)',
+            left: `${tooltipPosition.x}px`,
+            top: `${tooltipPosition.y}px`,
+            transform: getTransformStyle(),
           }}
         >
           <div className="space-y-3">
@@ -99,7 +214,7 @@ export default function WorkflowList({ workflows, loading }: WorkflowListProps) 
             <div className="space-y-1">
               <p className="text-sm font-medium">Blocks Used:</p>
               <div className="grid grid-cols-2 gap-1">
-                {hoveredWorkflow.blocks.map((block, index) => (
+                {getBlocksForDisplay(hoveredWorkflow).map((block, index) => (
                   <p key={index} className="text-xs text-muted-foreground">
                     • {formatBlockName(block.type)}
                   </p>

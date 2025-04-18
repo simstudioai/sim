@@ -32,15 +32,23 @@ export default function AnalyticsContent() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const abortController = new AbortController()
+
     const fetchData = async () => {
       try {
         setLoading(true)
-        const response = await fetch(`/api/admin/analytics?timeRange=${timeRange}`)
+        const response = await fetch(`/api/admin/analytics?timeRange=${timeRange}`, {
+          signal: abortController.signal
+        })
         if (!response.ok) throw new Error('Failed to fetch analytics data')
         const analyticsData = await response.json()
         setData(analyticsData)
         setError(null)
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          // Ignore abort errors
+          return
+        }
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setLoading(false)
@@ -48,6 +56,10 @@ export default function AnalyticsContent() {
     }
 
     fetchData()
+
+    return () => {
+      abortController.abort()
+    }
   }, [timeRange])
 
   if (loading) return <div>Loading analytics...</div>

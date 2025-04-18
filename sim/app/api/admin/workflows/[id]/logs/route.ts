@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Ensure params is properly awaited
-    const workflowId = await Promise.resolve(params.id)
+    // Get the workflow ID from params
+    const workflowId = params.id
     if (!workflowId) {
       return NextResponse.json(
         { error: 'Workflow ID is required' },

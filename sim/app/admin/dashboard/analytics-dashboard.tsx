@@ -12,7 +12,7 @@ interface DashboardData {
     totalWorkflows: number
     activeWorkflows: number
     totalExecutions: number
-    avgBlocksPerWorkflow: number
+    avgBlocksPerWorkflow: number | null
   }
   topUsers: Array<{
     email: string
@@ -42,7 +42,7 @@ export function AnalyticsDashboard() {
       if (!session?.user) return
       setLoading(true)
       try {
-        const response = await fetch('/api/admin/dashboard')
+        const response = await fetch(`/api/admin/dashboard?timeRange=${timeRange}`)
         if (!response.ok) {
           throw new Error('Failed to fetch analytics data')
         }
@@ -70,6 +70,11 @@ export function AnalyticsDashboard() {
 
   if (!data) {
     return <div className="flex items-center justify-center h-full">No analytics data available</div>
+  }
+
+  const formatAvgBlocks = (value: number | null) => {
+    if (value === null || value === undefined) return 'N/A'
+    return value.toFixed(1)
   }
 
   return (
@@ -115,7 +120,7 @@ export function AnalyticsDashboard() {
             <CardTitle className="text-sm font-medium">Avg Blocks/Workflow</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.overview.avgBlocksPerWorkflow.toFixed(1)}</div>
+            <div className="text-2xl font-bold">{formatAvgBlocks(data.overview.avgBlocksPerWorkflow)}</div>
           </CardContent>
         </Card>
       </div>

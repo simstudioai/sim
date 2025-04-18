@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { format, subHours, subDays } from 'date-fns'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -21,25 +21,31 @@ type TimeRange = '1h' | '6h' | '12h' | '24h' | '7d'
 export default function WorkflowActivityChart({ executions }: WorkflowActivityChartProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1h')
 
-  // Debug log
-  useEffect(() => {
-    console.log('WorkflowActivityChart executions:', executions)
-  }, [executions])
-
-  const getTimeRangeData = () => {
+  // Memoize the getTimeRangeData function
+  const getTimeRangeData = useCallback(() => {
     const now = new Date()
-    const cutoff = timeRange === '1h' 
-      ? subHours(now, 1)
-      : timeRange === '6h'
-        ? subHours(now, 6)
-        : timeRange === '12h'
-          ? subHours(now, 12)
-          : timeRange === '24h'
-            ? subHours(now, 24)
-            : subDays(now, 7)
-
-    // Debug log
-    console.log('Time range:', timeRange, 'Cutoff:', cutoff)
+    
+    // Calculate cutoff time based on selected time range
+    let cutoff: Date
+    switch (timeRange) {
+      case '1h':
+        cutoff = subHours(now, 1)
+        break
+      case '6h':
+        cutoff = subHours(now, 6)
+        break
+      case '12h':
+        cutoff = subHours(now, 12)
+        break
+      case '24h':
+        cutoff = subHours(now, 24)
+        break
+      case '7d':
+        cutoff = subDays(now, 7)
+        break
+      default:
+        cutoff = subHours(now, 1) // Default to 1h if somehow timeRange is invalid
+    }
 
     // Filter executions within the time range
     const filteredExecutions = executions.filter(exec => {
@@ -48,23 +54,34 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
       return isInRange
     })
 
-    // Debug log
-    console.log('Filtered executions:', filteredExecutions)
-
-    // Group executions by time interval
-    const intervals = 
-      timeRange === '1h' ? 12 : // 5 min intervals
-      timeRange === '6h' ? 12 : // 30 min intervals
-      timeRange === '12h' ? 12 : // 1 hour intervals
-      timeRange === '24h' ? 24 : // 1 hour intervals
-      7 // 1 day intervals
-
-    const intervalSize = 
-      timeRange === '1h' ? 5 : // 5 minutes
-      timeRange === '6h' ? 30 : // 30 minutes
-      timeRange === '12h' ? 60 : // 60 minutes
-      timeRange === '24h' ? 60 : // 60 minutes
-      1440 // minutes in a day
+    // Get interval configuration based on time range
+    let intervals: number
+    let intervalSize: number
+    switch (timeRange) {
+      case '1h':
+        intervals = 12 // 5 min intervals
+        intervalSize = 5
+        break
+      case '6h':
+        intervals = 12 // 30 min intervals
+        intervalSize = 30
+        break
+      case '12h':
+        intervals = 12 // 1 hour intervals
+        intervalSize = 60
+        break
+      case '24h':
+        intervals = 24 // 1 hour intervals
+        intervalSize = 60
+        break
+      case '7d':
+        intervals = 7 // 1 day intervals
+        intervalSize = 1440
+        break
+      default:
+        intervals = 12
+        intervalSize = 5
+    }
 
     const timeSlots = Array.from({ length: intervals }, (_, i) => {
       const slotTime = timeRange === '7d'
@@ -97,9 +114,6 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
       }
     })
 
-    // Debug log
-    console.log('Time slots:', timeSlots)
-
     return {
       labels: timeSlots.map(slot => 
         timeRange === '7d'
@@ -125,9 +139,38 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
         }
       ]
     }
-  }
+  }, [timeRange, executions]) // Only recreate when timeRange or executions change
 
-  const chartData = getTimeRangeData()
+  // Memoize the chart data
+  const chartData = useMemo(() => getTimeRangeData(), [getTimeRangeData])
+
+  // Memoize chart options
+  const chartOptions = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        align: 'end' as const,
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+        },
+      },
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+        },
+        ticks: {
+          stepSize: 1,
+        },
+      },
+    },
+  }), []) // Empty dependency array since options don't depend on any props or state
 
   return (
     <Card>
@@ -152,32 +195,7 @@ export default function WorkflowActivityChart({ executions }: WorkflowActivityCh
           <Chart
             type="line"
             data={chartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: {
-                  position: 'top',
-                  align: 'end',
-                },
-              },
-              scales: {
-                x: {
-                  grid: {
-                    display: false,
-                  },
-                },
-                y: {
-                  beginAtZero: true,
-                  grid: {
-                    color: 'rgba(0, 0, 0, 0.1)',
-                  },
-                  ticks: {
-                    stepSize: 1,
-                  },
-                },
-              },
-            }}
+            options={chartOptions}
             height={300}
           />
         )}

@@ -9,7 +9,7 @@ import {
 
 interface ErrorMessageDialogProps {
   isOpen: boolean
-  onClose: () => void
+  onClose: (open?: boolean) => void
   title: string
   message: string
 }

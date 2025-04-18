@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -53,6 +53,13 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
   const [selectedError, setSelectedError] = useState<{ title: string; message: string } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
+  // Reset copied state when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setCopiedId(null)
+    }
+  }, [isOpen])
+
   useEffect(() => {
     async function fetchLogs() {
       if (!isOpen || !workflowId) return
@@ -92,24 +99,42 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
     }
   }
 
+  // Handle copy with proper cleanup
+  const handleCopy = useCallback(async (executionId: string) => {
+    try {
+      await navigator.clipboard.writeText(executionId)
+      setCopiedId(executionId)
+      
+      const timeoutId = setTimeout(() => {
+        setCopiedId(null)
+      }, 2000)
+
+      return () => clearTimeout(timeoutId)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [])
+
+  // Effect to manage copy timeout
+  useEffect(() => {
+    let cleanup: (() => void) | undefined
+
+    if (copiedId) {
+      // Use Promise.resolve to handle the async function
+      Promise.resolve(handleCopy(copiedId)).then(cleanupFn => {
+        cleanup = cleanupFn
+      })
+    }
+
+    return () => {
+      if (cleanup) cleanup()
+    }
+  }, [copiedId, handleCopy])
+
   // Helper function to display execution ID with copy functionality
   const displayExecutionId = (executionId: string | undefined | null) => {
     if (!executionId || executionId === 'N/A') {
       return <span className="text-muted-foreground">-</span>
-    }
-
-    const handleCopy = async () => {
-      try {
-        await navigator.clipboard.writeText(executionId)
-        setCopiedId(executionId)
-        setTimeout(() => {
-          if (setCopiedId) {
-            setCopiedId(null)
-          }
-        }, 2000)
-      } catch (err) {
-        console.error('Failed to copy:', err)
-      }
     }
 
     const isCopied = copiedId === executionId
@@ -120,7 +145,7 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
           <TooltipTrigger asChild>
             <div 
               className="flex items-center gap-2 cursor-pointer group"
-              onClick={handleCopy}
+              onClick={() => handleCopy(executionId)}
             >
               <span className="font-mono truncate">
                 {executionId}
@@ -198,22 +223,14 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
                         {displayExecutionId(log.execution_id)}
                       </TableCell>
                       <TableCell>{log.trigger || '-'}</TableCell>
+                      <TableCell>{formatDate(log.created_at)}</TableCell>
+                      <TableCell>{log.duration || '-'}</TableCell>
                       <TableCell>
-                        {formatDate(log.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        {log.duration === 'NA' ? '-' : log.duration}
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={log.success ? "default" : "destructive"}
-                          className={`
-                            cursor-pointer
-                            ${log.success 
-                              ? "bg-green-500/10 text-green-500 hover:bg-green-500/20" 
-                              : "bg-red-500/10 text-red-500 hover:bg-red-500/20"
-                            }
-                          `}
+                        <Badge
+                          variant={log.success ? 'default' : 'destructive'}
+                          className={`cursor-pointer ${
+                            log.success ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' : ''
+                          }`}
                           onClick={() => handleErrorClick(log)}
                         >
                           {log.success ? 'Success' : 'Failed'}
@@ -228,13 +245,12 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
         </DialogContent>
       </Dialog>
 
-      {/* Error Message Dialog */}
       {selectedError && (
         <ErrorMessageDialog
-          isOpen={!!selectedError}
-          onClose={() => setSelectedError(null)}
           title={selectedError.title}
           message={selectedError.message}
+          isOpen={!!selectedError}
+          onClose={() => setSelectedError(null)}
         />
       )}
     </>

@@ -2,22 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/db'
 import { workflow, workflowLogs } from '@/db/schema'
 import { gte, asc } from 'drizzle-orm'
-
-function getBlocksFromState(state: any): { type: string }[] {
-  if (!state) return []
-  
-  // Handle array format
-  if (Array.isArray(state.blocks)) {
-    return state.blocks
-  }
-  
-  // Handle object format
-  if (typeof state.blocks === 'object') {
-    return Object.values(state.blocks)
-  }
-  
-  return []
-}
+import { getBlocksFromState } from '@/lib/utils/workflow-utils'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

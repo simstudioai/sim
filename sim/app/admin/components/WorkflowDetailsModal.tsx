@@ -9,24 +9,20 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { WorkflowLogsModal } from './WorkflowLogsModal'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatBlockName } from './block-utils'
+import { getBlocksFromState } from '@/lib/utils/workflow-utils'
 
-function getBlocksFromState(state: any): { type: string }[] {
-  if (!state) return []
-  
-  // Handle array format
-  if (Array.isArray(state.blocks)) {
-    return state.blocks
-  }
-  
-  // Handle object format
-  if (typeof state.blocks === 'object') {
-    return Object.values(state.blocks)
-  }
-  
-  return []
+// Define a more specific type for block data
+interface BlockData {
+  [key: string]: string | number | boolean | null | undefined
+}
+
+interface WorkflowBlock {
+  id: string
+  type: string
+  data?: BlockData
 }
 
 interface WorkflowDetailsModalProps {
@@ -38,11 +34,7 @@ interface WorkflowDetailsModalProps {
     runCount: number
     isDeployed: boolean
     state?: {
-      blocks: Array<{
-        id: string
-        type: string
-        data?: any
-      }>
+      blocks: WorkflowBlock[]
     }
   } | null
   isOpen: boolean
@@ -54,12 +46,17 @@ export function WorkflowDetailsModal({ workflow, isOpen, onClose }: WorkflowDeta
 
   if (!workflow) return null
 
-  // Extract unique block types and their counts
-  const blockTypes = getBlocksFromState(workflow.state).reduce<{ [key: string]: number }>((acc, block) => {
-    const type = block.type
-    acc[type] = (acc[type] || 0) + 1
-    return acc
-  }, {})
+  // Extract unique block types and their counts using useMemo to avoid recalculation on every render
+  const blockTypes = useMemo(() => {
+    return getBlocksFromState(workflow.state).reduce<{ [key: string]: number }>((acc, block) => {
+      // Validate that block.type exists before using it
+      if (block && typeof block.type === 'string') {
+        const type = block.type
+        acc[type] = (acc[type] || 0) + 1
+      }
+      return acc
+    }, {})
+  }, [workflow.state]) // Only recalculate when workflow.state changes
 
   return (
     <>
