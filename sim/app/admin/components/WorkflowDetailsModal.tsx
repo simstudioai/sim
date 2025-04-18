@@ -44,10 +44,10 @@ interface WorkflowDetailsModalProps {
 export function WorkflowDetailsModal({ workflow, isOpen, onClose }: WorkflowDetailsModalProps) {
   const [showLogs, setShowLogs] = useState(false)
 
-  if (!workflow) return null
-
   // Extract unique block types and their counts using useMemo to avoid recalculation on every render
   const blockTypes = useMemo(() => {
+    if (!workflow || !workflow.state) return {}
+    
     return getBlocksFromState(workflow.state).reduce<{ [key: string]: number }>((acc, block) => {
       // Validate that block.type exists before using it
       if (block && typeof block.type === 'string') {
@@ -56,7 +56,9 @@ export function WorkflowDetailsModal({ workflow, isOpen, onClose }: WorkflowDeta
       }
       return acc
     }, {})
-  }, [workflow.state]) // Only recalculate when workflow.state changes
+  }, [workflow?.state]) // Only recalculate when workflow.state changes
+
+  if (!workflow) return null
 
   return (
     <>
