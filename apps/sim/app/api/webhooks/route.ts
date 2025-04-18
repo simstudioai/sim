@@ -182,6 +182,40 @@ export async function POST(request: NextRequest) {
     }
     // --- End Telegram specific logic ---
 
+    // --- Gmail webhook setup ---
+    if (savedWebhook && provider === 'gmail') {
+      logger.info(
+        `[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`
+      )
+      try {
+        const { configureGmailPolling } = await import('@/lib/webhooks/utils')
+        const success = await configureGmailPolling(userId, savedWebhook, requestId)
+        
+        if (!success) {
+          logger.error(`[${requestId}] Failed to configure Gmail polling`)
+          return NextResponse.json(
+            {
+              error: 'Failed to configure Gmail polling',
+              details: 'Please check your Gmail account permissions and try again',
+            },
+            { status: 500 }
+          )
+        }
+        
+        logger.info(`[${requestId}] Successfully configured Gmail polling`)
+      } catch (err) {
+        logger.error(`[${requestId}] Error setting up Gmail webhook configuration`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to configure Gmail webhook',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Gmail specific logic ---
+
     const status = existingWebhooks.length > 0 ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {

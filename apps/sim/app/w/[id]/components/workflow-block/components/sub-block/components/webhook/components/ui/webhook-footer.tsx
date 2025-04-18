@@ -45,7 +45,7 @@ export function WebhookDialogFooter({
             ) : (
               <Trash2 className="h-4 w-4 mr-2" />
             )}
-            {isDeleting ? 'Deleting...' : 'Delete Webhook'}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         )}
       </div>
