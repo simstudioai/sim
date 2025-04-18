@@ -20,7 +20,8 @@ export const MODELS_TEMP_RANGE_0_1 = [
   'claude-3-5-sonnet-20240620',
   'claude-3-7-sonnet-20250219',
   // xAI models
-  'grok-2-latest',
+  'grok-3-latest',
+  'grok-3-fast-latest',
 ]
 
 // All models that support temperature (combined list)

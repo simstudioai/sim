@@ -76,11 +76,17 @@ const modelPricing: ModelPricingMap = {
   },
 
   // xAI Models
-  'grok-2-latest': {
-    input: 2.0,
-    cachedInput: 1.0,
-    output: 10.0,
-    updatedAt: '2025-03-21',
+  'grok-3-latest': {
+    input: 3.0,
+    cachedInput: 1.5,
+    output: 15.0,
+    updatedAt: '2025-04-17',
+  },
+  'grok-3-fast-latest': {
+    input: 5.0,
+    cachedInput: 2.5,
+    output: 25.0,
+    updatedAt: '2025-04-17',
   },
 
   // Cerebras Models

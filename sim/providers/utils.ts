@@ -48,7 +48,7 @@ export const providers: Record<
   },
   xai: {
     ...xAIProvider,
-    models: ['grok-2-latest'],
+    models: ['grok-3-latest', 'grok-3-fast-latest'],
     modelPatterns: [/^grok/],
   },
   cerebras: {

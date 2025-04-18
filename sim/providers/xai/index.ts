@@ -11,8 +11,8 @@ export const xAIProvider: ProviderConfig = {
   name: 'xAI',
   description: "xAI's Grok models",
   version: '1.0.0',
-  models: ['grok-2-latest'],
-  defaultModel: 'grok-2-latest',
+  models: ['grok-3-latest', 'grok-3-fast-latest'],
+  defaultModel: 'grok-3-latest',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
     if (!request.apiKey) {
@@ -61,7 +61,7 @@ export const xAIProvider: ProviderConfig = {
         : undefined
 
       const payload: any = {
-        model: request.model || 'grok-2-latest',
+        model: request.model || 'grok-3-latest',
         messages: allMessages,
       }
 
@@ -111,7 +111,7 @@ export const xAIProvider: ProviderConfig = {
                     : toolChoice.type === 'any'
                       ? `force:${toolChoice.any?.name || 'unknown'}`
                       : 'unknown',
-            model: request.model || 'grok-2-latest',
+            model: request.model || 'grok-3-latest',
           })
         }
       }
