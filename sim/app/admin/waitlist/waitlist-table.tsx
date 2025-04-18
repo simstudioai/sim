@@ -5,18 +5,20 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertCircleIcon,
   CheckIcon,
-  CheckSquareIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
   InfoIcon,
   MailIcon,
   RotateCcwIcon,
   SearchIcon,
-  SquareIcon,
   UserCheckIcon,
   UserIcon,
   UserXIcon,
   XIcon,
 } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,6 +44,9 @@ interface FilterButtonProps {
   label: string
   className?: string
 }
+
+// Alert types for more specific error display
+type AlertType = 'error' | 'email-error' | 'rate-limit' | null
 
 // Filter button component
 const FilterButton = ({ active, onClick, icon, label, className }: FilterButtonProps) => (
@@ -70,17 +75,11 @@ export function WaitlistTable() {
     totalEntries,
     loading,
     error,
-    selectedIds,
     actionLoading,
-    bulkActionLoading,
     setStatus,
     setSearchTerm,
     setPage,
-    toggleSelectEntry,
-    selectAll,
-    deselectAll,
     setActionLoading,
-    setBulkActionLoading,
     setError,
     fetchEntries,
   } = useWaitlistStore()
@@ -88,6 +87,23 @@ export function WaitlistTable() {
   // Local state for search input with debounce
   const [searchInputValue, setSearchInputValue] = useState(searchTerm)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Enhanced error state
+  const [alertInfo, setAlertInfo] = useState<{
+    type: AlertType
+    message: string
+    entryId?: string
+  }>({ type: null, message: '' })
+
+  // Auto-dismiss alert after 7 seconds
+  useEffect(() => {
+    if (alertInfo.type) {
+      const timer = setTimeout(() => {
+        setAlertInfo({ type: null, message: '' })
+      }, 7000)
+      return () => clearTimeout(timer)
+    }
+  }, [alertInfo])
 
   // Auth token for API calls
   const [apiToken, setApiToken] = useState('')
@@ -151,20 +167,12 @@ export function WaitlistTable() {
     }, 500) // 500ms debounce
   }
 
-  // Toggle selection of all entries
-  const handleToggleSelectAll = () => {
-    if (selectedIds.size === filteredEntries.length) {
-      deselectAll()
-    } else {
-      selectAll()
-    }
-  }
-
   // Handle individual approval
   const handleApprove = async (email: string, id: string) => {
     try {
       setActionLoading(id)
       setError(null)
+      setAlertInfo({ type: null, message: '' })
 
       const response = await fetch('/api/admin/waitlist', {
         method: 'POST',
@@ -177,14 +185,58 @@ export function WaitlistTable() {
 
       const data = await response.json()
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to approve user')
+      if (!response.ok) {
+        // Handle specific error types
+        if (response.status === 429) {
+          setAlertInfo({
+            type: 'rate-limit',
+            message: 'Rate limit exceeded. Please try again later.',
+            entryId: id,
+          })
+          return
+        } else if (data.message?.includes('email') || data.message?.includes('resend')) {
+          setAlertInfo({
+            type: 'email-error',
+            message: `Email delivery failed: ${data.message}`,
+            entryId: id,
+          })
+          return
+        } else {
+          setAlertInfo({
+            type: 'error',
+            message: data.message || 'Failed to approve user',
+            entryId: id,
+          })
+          return
+        }
       }
 
-      // Refresh the data
-      fetchEntries()
+      if (!data.success) {
+        if (data.message?.includes('email') || data.message?.includes('resend')) {
+          setAlertInfo({
+            type: 'email-error',
+            message: `Email delivery failed: ${data.message}`,
+            entryId: id,
+          })
+          return
+        } else {
+          setAlertInfo({
+            type: 'error',
+            message: data.message || 'Failed to approve user',
+            entryId: id,
+          })
+          return
+        }
+      }
+
+      // Success - don't refresh the table, just clear any errors
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to approve user')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to approve user'
+      setAlertInfo({
+        type: 'error',
+        message: errorMessage,
+        entryId: id,
+      })
       logger.error('Error approving user:', error)
     } finally {
       setActionLoading(null)
@@ -196,6 +248,7 @@ export function WaitlistTable() {
     try {
       setActionLoading(id)
       setError(null)
+      setAlertInfo({ type: null, message: '' })
 
       const response = await fetch('/api/admin/waitlist', {
         method: 'POST',
@@ -209,13 +262,22 @@ export function WaitlistTable() {
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to reject user')
+        setAlertInfo({
+          type: 'error',
+          message: data.message || 'Failed to reject user',
+          entryId: id,
+        })
+        return
       }
 
-      // Refresh the data
-      fetchEntries()
+      // Success - don't refresh the table
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reject user')
+      const errorMessage = error instanceof Error ? error.message : 'Failed to reject user'
+      setAlertInfo({
+        type: 'error',
+        message: errorMessage,
+        entryId: id,
+      })
       logger.error('Error rejecting user:', error)
     } finally {
       setActionLoading(null)
@@ -227,6 +289,7 @@ export function WaitlistTable() {
     try {
       setActionLoading(id)
       setError(null)
+      setAlertInfo({ type: null, message: '' })
 
       const response = await fetch('/api/admin/waitlist', {
         method: 'POST',
@@ -239,150 +302,77 @@ export function WaitlistTable() {
 
       const data = await response.json()
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to resend approval email')
+      if (!response.ok) {
+        // Handle specific error types
+        if (response.status === 429) {
+          setAlertInfo({
+            type: 'rate-limit',
+            message: 'Rate limit exceeded. Please try again later.',
+            entryId: id,
+          })
+          return
+        } else if (data.message?.includes('email') || data.message?.includes('resend')) {
+          setAlertInfo({
+            type: 'email-error',
+            message: `Email delivery failed: ${data.message}`,
+            entryId: id,
+          })
+          return
+        } else {
+          setAlertInfo({
+            type: 'error',
+            message: data.message || 'Failed to resend approval email',
+            entryId: id,
+          })
+          return
+        }
       }
 
-      // Refresh the data
-      fetchEntries()
+      if (!data.success) {
+        if (data.message?.includes('email') || data.message?.includes('resend')) {
+          setAlertInfo({
+            type: 'email-error',
+            message: `Email delivery failed: ${data.message}`,
+            entryId: id,
+          })
+          return
+        } else {
+          setAlertInfo({
+            type: 'error',
+            message: data.message || 'Failed to resend approval email',
+            entryId: id,
+          })
+          return
+        }
+      }
+
+      // No UI update needed on success, just clear error state
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to resend approval email')
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to resend approval email'
+      setAlertInfo({
+        type: 'email-error',
+        message: errorMessage,
+        entryId: id,
+      })
       logger.error('Error resending approval email:', error)
     } finally {
       setActionLoading(null)
     }
   }
 
-  // Handle bulk approval
-  const handleBulkApprove = async () => {
-    if (selectedIds.size === 0) return
-
-    setBulkActionLoading(true)
-    setError(null)
-
-    try {
-      const selectedEmails = filteredEntries
-        .filter((entry) => selectedIds.has(entry.id))
-        .map((entry) => entry.email)
-
-      const response = await fetch('/api/admin/waitlist/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
-          emails: selectedEmails,
-          action: 'approve',
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to approve selected users')
-      }
-
-      // Refresh data
-      fetchEntries()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to approve selected users')
-      logger.error('Error approving users:', error)
-    } finally {
-      setBulkActionLoading(false)
-    }
-  }
-
-  // Handle bulk rejection
-  const handleBulkReject = async () => {
-    if (selectedIds.size === 0) return
-
-    setBulkActionLoading(true)
-    setError(null)
-
-    try {
-      const selectedEmails = filteredEntries
-        .filter((entry) => selectedIds.has(entry.id))
-        .map((entry) => entry.email)
-
-      const response = await fetch('/api/admin/waitlist/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
-          emails: selectedEmails,
-          action: 'reject',
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to reject selected users')
-      }
-
-      // Refresh data
-      fetchEntries()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reject selected users')
-      logger.error('Error rejecting users:', error)
-    } finally {
-      setBulkActionLoading(false)
-    }
-  }
-
-  // Handle bulk resend approval
-  const handleBulkResend = async () => {
-    if (selectedIds.size === 0) return
-
-    setBulkActionLoading(true)
-    setError(null)
-
-    try {
-      const selectedEmails = filteredEntries
-        .filter((entry) => selectedIds.has(entry.id) && entry.status === 'approved')
-        .map((entry) => entry.email)
-
-      if (selectedEmails.length === 0) {
-        setError('No approved users selected')
-        setBulkActionLoading(false)
-        return
-      }
-
-      const response = await fetch('/api/admin/waitlist/bulk', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiToken}`,
-        },
-        body: JSON.stringify({
-          emails: selectedEmails,
-          action: 'resend',
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Failed to resend approval emails')
-      }
-
-      // Refresh data
-      fetchEntries()
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to resend approval emails')
-      logger.error('Error resending approval emails:', error)
-    } finally {
-      setBulkActionLoading(false)
-    }
-  }
-
   // Navigation
   const handleNextPage = () => setPage(page + 1)
   const handlePrevPage = () => setPage(Math.max(page - 1, 1))
-  const handleRefresh = () => fetchEntries()
+  const handleFirstPage = () => setPage(1)
+  const handleLastPage = () => {
+    const lastPage = Math.max(1, Math.ceil(totalEntries / 50))
+    setPage(lastPage)
+  }
+  const handleRefresh = () => {
+    fetchEntries()
+    setAlertInfo({ type: null, message: '' })
+  }
 
   // Format date helper
   const formatDate = (date: Date) => {
@@ -486,7 +476,7 @@ export function WaitlistTable() {
         </div>
       </div>
 
-      {/* Search and bulk actions bar */}
+      {/* Search and refresh bar */}
       <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4 md:items-center px-6">
         <div className="relative flex-1">
           <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -510,86 +500,47 @@ export function WaitlistTable() {
           >
             <RotateCcwIcon className={`h-4 w-4 ${loading ? 'animate-spin text-blue-500' : ''}`} />
           </Button>
-
-          {selectedIds.size > 0 && (
-            <>
-              <span className="text-sm text-muted-foreground whitespace-nowrap ml-2">
-                {selectedIds.size} selected
-              </span>
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleBulkApprove}
-                      disabled={bulkActionLoading || status === 'approved' || loading}
-                      size="sm"
-                      className="bg-green-500 hover:bg-green-600 text-white"
-                    >
-                      {bulkActionLoading ? (
-                        <RotateCcwIcon className="h-4 w-4 mr-1 animate-spin" />
-                      ) : (
-                        <CheckIcon className="h-4 w-4 mr-1" />
-                      )}
-                      Approve All
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    Approve all selected users and send them access emails
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              {status === 'approved' && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        onClick={handleBulkResend}
-                        disabled={bulkActionLoading || loading}
-                        size="sm"
-                        className="bg-blue-500 hover:bg-blue-600 text-white"
-                      >
-                        {bulkActionLoading ? (
-                          <RotateCcwIcon className="h-4 w-4 mr-1 animate-spin" />
-                        ) : (
-                          <MailIcon className="h-4 w-4 mr-1" />
-                        )}
-                        Resend All
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Resend approval emails to all selected users</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      onClick={handleBulkReject}
-                      disabled={bulkActionLoading || status === 'rejected' || loading}
-                      size="sm"
-                      variant="destructive"
-                    >
-                      {bulkActionLoading ? (
-                        <RotateCcwIcon className="h-4 w-4 mr-1 animate-spin" />
-                      ) : (
-                        <XIcon className="h-4 w-4 mr-1" />
-                      )}
-                      Reject All
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Reject all selected users</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </>
-          )}
         </div>
       </div>
 
-      {/* Error alert */}
-      {error && (
+      {/* Enhanced Alert system */}
+      {alertInfo.type && (
+        <Alert
+          variant={
+            alertInfo.type === 'error'
+              ? 'destructive'
+              : alertInfo.type === 'email-error'
+                ? 'destructive'
+                : alertInfo.type === 'rate-limit'
+                  ? 'default'
+                  : 'default'
+          }
+          className="mx-6 w-auto"
+        >
+          <AlertCircleIcon className="h-4 w-4" />
+          <AlertTitle className="ml-2">
+            {alertInfo.type === 'email-error'
+              ? 'Email Delivery Failed'
+              : alertInfo.type === 'rate-limit'
+                ? 'Rate Limit Exceeded'
+                : 'Error'}
+          </AlertTitle>
+          <AlertDescription className="ml-2 flex items-center justify-between">
+            <span>{alertInfo.message}</span>
+            <Button
+              onClick={() => setAlertInfo({ type: null, message: '' })}
+              variant="outline"
+              size="sm"
+              className="ml-4"
+            >
+              Dismiss
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Original error alert - kept for backward compatibility */}
+      {error && !alertInfo.type && (
         <Alert variant="destructive" className="mx-6 w-auto">
           <AlertCircleIcon className="h-4 w-4" />
           <AlertDescription className="ml-2">
@@ -629,17 +580,6 @@ export function WaitlistTable() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">
-                    <div className="flex items-center">
-                      <button onClick={handleToggleSelectAll} className="focus:outline-none">
-                        {selectedIds.size === filteredEntries.length ? (
-                          <CheckSquareIcon className="h-4 w-4 text-primary" />
-                        ) : (
-                          <SquareIcon className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </button>
-                    </div>
-                  </TableHead>
                   <TableHead className="min-w-[180px]">Email</TableHead>
                   <TableHead className="min-w-[150px]">Joined</TableHead>
                   <TableHead>Status</TableHead>
@@ -648,19 +588,16 @@ export function WaitlistTable() {
               </TableHeader>
               <TableBody>
                 {filteredEntries.map((entry) => (
-                  <TableRow key={entry.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <button
-                        onClick={() => toggleSelectEntry(entry.id)}
-                        className="focus:outline-none"
-                      >
-                        {selectedIds.has(entry.id) ? (
-                          <CheckSquareIcon className="h-4 w-4 text-primary" />
-                        ) : (
-                          <SquareIcon className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </button>
-                    </TableCell>
+                  <TableRow
+                    key={entry.id}
+                    className={`hover:bg-muted/30 ${
+                      alertInfo.entryId === entry.id && alertInfo.type
+                        ? alertInfo.type === 'error' || alertInfo.type === 'email-error'
+                          ? 'bg-red-50'
+                          : 'bg-amber-50'
+                        : ''
+                    }`}
+                  >
                     <TableCell className="font-medium">{entry.email}</TableCell>
                     <TableCell>
                       <TooltipProvider>
@@ -818,23 +755,54 @@ export function WaitlistTable() {
 
           {/* Pagination */}
           {!searchTerm && (
-            <div className="flex items-center justify-between mx-6 my-4 pb-2">
-              <Button variant="outline" size="sm" onClick={handlePrevPage} disabled={page === 1}>
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-center gap-2 mx-6 my-4 pb-2">
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFirstPage}
+                  disabled={page === 1 || loading}
+                  title="First Page"
+                >
+                  <ChevronsLeftIcon className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevPage}
+                  disabled={page === 1 || loading}
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                  <span className="ml-1">Prev</span>
+                </Button>
+              </div>
+
+              <span className="text-sm text-muted-foreground mx-2">
                 Page {page} of {Math.ceil(totalEntries / 50) || 1}
                 &nbsp;•&nbsp;
                 {totalEntries} total entries
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextPage}
-                disabled={page >= Math.ceil(totalEntries / 50)}
-              >
-                Next
-              </Button>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={page >= Math.ceil(totalEntries / 50) || loading}
+                >
+                  <span className="mr-1">Next</span>
+                  <ChevronRightIcon className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLastPage}
+                  disabled={page >= Math.ceil(totalEntries / 50) || loading}
+                  title="Last Page"
+                >
+                  <ChevronsRightIcon className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           )}
         </>

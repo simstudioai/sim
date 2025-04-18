@@ -170,7 +170,7 @@ export async function getWaitlistEntries(
 // Approve a user from the waitlist and send approval email
 export async function approveWaitlistUser(
   email: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; emailError?: any; rateLimited?: boolean }> {
   try {
     const { user, normalizedEmail } = await findUserByEmail(email)
 
@@ -188,15 +188,6 @@ export async function approveWaitlistUser(
       }
     }
 
-    // Update status to approved
-    await db
-      .update(waitlist)
-      .set({
-        status: 'approved',
-        updatedAt: new Date(),
-      })
-      .where(eq(waitlist.email, normalizedEmail))
-
     // Create a special signup token
     const token = await createToken({
       email: normalizedEmail,
@@ -207,30 +198,79 @@ export async function approveWaitlistUser(
     // Generate signup link with token
     const signupLink = `${process.env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
 
-    // Send approval email
+    // IMPORTANT: Send approval email BEFORE updating the status
+    // This ensures we don't mark users as approved if email fails
     try {
       const emailHtml = await renderWaitlistApprovalEmail(normalizedEmail, signupLink)
       const subject = getEmailSubject('waitlist-approval')
 
-      await sendEmail({
+      const emailResult = await sendEmail({
         to: normalizedEmail,
         subject,
         html: emailHtml,
       })
+
+      // If email sending failed, don't update the user status
+      if (!emailResult.success) {
+        console.error('Error sending approval email:', emailResult.message)
+        
+        // Check if it's a rate limit error
+        if (emailResult.message?.toLowerCase().includes('rate') || 
+            emailResult.message?.toLowerCase().includes('too many') ||
+            emailResult.message?.toLowerCase().includes('limit')) {
+          return {
+            success: false,
+            message: 'Rate limit exceeded for email sending',
+            rateLimited: true
+          }
+        }
+        
+        return {
+          success: false,
+          message: emailResult.message || 'Failed to send approval email',
+          emailError: emailResult
+        }
+      }
+
+      // Email sent successfully, now update status to approved
+      await db
+        .update(waitlist)
+        .set({
+          status: 'approved',
+          updatedAt: new Date(),
+        })
+        .where(eq(waitlist.email, normalizedEmail))
+
+      return {
+        success: true,
+        message: 'User approved and email sent'
+      }
     } catch (emailError) {
       console.error('Error sending approval email:', emailError)
-      // Continue even if email fails - user is still approved in db
-    }
-
-    return {
-      success: true,
-      message: 'User approved and email sent',
+      
+      // Check if it's a rate limit error
+      if (emailError instanceof Error && 
+          (emailError.message.toLowerCase().includes('rate') || 
+           emailError.message.toLowerCase().includes('too many') ||
+           emailError.message.toLowerCase().includes('limit'))) {
+        return {
+          success: false,
+          message: 'Rate limit exceeded for email sending',
+          rateLimited: true
+        }
+      }
+      
+      return {
+        success: false,
+        message: 'Failed to send approval email',
+        emailError
+      }
     }
   } catch (error) {
     console.error('Error approving waitlist user:', error)
     return {
       success: false,
-      message: 'An error occurred while approving user',
+      message: 'An error occurred while approving user'
     }
   }
 }
@@ -357,7 +397,7 @@ export async function markWaitlistUserAsSignedUp(
 // Resend approval email to an already approved user
 export async function resendApprovalEmail(
   email: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; emailError?: any; rateLimited?: boolean }> {
   try {
     const { user, normalizedEmail } = await findUserByEmail(email)
 
@@ -390,22 +430,58 @@ export async function resendApprovalEmail(
       const emailHtml = await renderWaitlistApprovalEmail(normalizedEmail, signupLink)
       const subject = getEmailSubject('waitlist-approval')
 
-      await sendEmail({
+      const emailResult = await sendEmail({
         to: normalizedEmail,
         subject,
         html: emailHtml,
       })
+
+      // Check for email sending failures
+      if (!emailResult.success) {
+        console.error('Error sending approval email:', emailResult.message)
+        
+        // Check if it's a rate limit error
+        if (emailResult.message?.toLowerCase().includes('rate') || 
+            emailResult.message?.toLowerCase().includes('too many') ||
+            emailResult.message?.toLowerCase().includes('limit')) {
+          return {
+            success: false,
+            message: 'Rate limit exceeded for email sending',
+            rateLimited: true
+          }
+        }
+        
+        return {
+          success: false,
+          message: emailResult.message || 'Failed to send approval email',
+          emailError: emailResult
+        }
+      }
+
+      return {
+        success: true,
+        message: 'Approval email resent successfully',
+      }
     } catch (emailError) {
       console.error('Error sending approval email:', emailError)
+      
+      // Check if it's a rate limit error
+      if (emailError instanceof Error && 
+          (emailError.message.toLowerCase().includes('rate') || 
+           emailError.message.toLowerCase().includes('too many') ||
+           emailError.message.toLowerCase().includes('limit'))) {
+        return {
+          success: false,
+          message: 'Rate limit exceeded for email sending',
+          rateLimited: true
+        }
+      }
+      
       return {
         success: false,
         message: 'Failed to send approval email',
+        emailError
       }
-    }
-
-    return {
-      success: true,
-      message: 'Approval email resent successfully',
     }
   } catch (error) {
     console.error('Error resending approval email:', error)
