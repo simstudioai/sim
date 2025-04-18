@@ -7,7 +7,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
   name: 'API',
   description: 'Use any API',
   longDescription:
-    'Connect to any external API with support for all standard HTTP methods and customizable request parameters. Configure headers, query parameters, and request bodies.',
+    'Connect to any external API with support for all standard HTTP methods and customizable request parameters. Configure headers, query parameters, and request bodies. Standard headers (User-Agent, Accept, Cache-Control, etc.) are automatically included.',
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ApiIcon,
@@ -39,6 +39,7 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       type: 'table',
       layout: 'full',
       columns: ['Key', 'Value'],
+      description: 'Custom headers (standard headers like User-Agent, Accept, etc. are added automatically)',
     },
     {
       id: 'body',
