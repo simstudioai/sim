@@ -29,7 +29,8 @@ describe('supportsTemperature', () => {
       'gpt-4o',
       'gemini-2.0-flash',
       'claude-3-5-sonnet-20240620',
-      'grok-2-latest',
+      `grok-3-latest`,
+      `grok-3-fast-latest`
     ]
 
     for (const model of supportedModels) {
@@ -56,7 +57,7 @@ describe('getMaxTemperature', () => {
   })
 
   it('should return 1 for models with temperature range 0-1', () => {
-    const models = ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219', 'grok-2-latest']
+    const models = ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219', 'grok-3-latest', 'grok-3-fast-latest']
 
     for (const model of models) {
       expect(getMaxTemperature(model)).toBe(1)
