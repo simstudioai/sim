@@ -7,6 +7,7 @@ import {
   GithubIcon,
   SlackIcon,
   StripeIcon,
+  TwilioIcon,
   WhatsAppIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -62,6 +63,8 @@ export interface SlackConfig {
   signingSecret: string
 }
 
+export interface TwilioConfig {
+  sendReply?: boolean
 // Define Airtable-specific configuration type
 export interface AirtableWebhookConfig {
   baseId: string
@@ -78,6 +81,7 @@ export type ProviderConfig =
   | StripeConfig
   | GeneralWebhookConfig
   | SlackConfig
+  | TwilioConfig
   | AirtableWebhookConfig
   | Record<string, never>
 
@@ -191,6 +195,16 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
       },
     },
   },
+  twilio: {
+    id: 'twilio',
+    name: 'Twilio',
+    icon: (props) => <TwilioIcon className={props.className} />,
+    configFields: {
+      sendReply: {
+        type: 'boolean',
+        label: 'Send Reply Messages',
+        defaultValue: true,
+        description: 'Whether to send automatic reply messages when SMS/MMS is received.',
   airtable: {
     id: 'airtable',
     name: 'Airtable',

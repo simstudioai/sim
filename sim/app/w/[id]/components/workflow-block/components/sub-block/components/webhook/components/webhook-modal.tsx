@@ -18,6 +18,7 @@ import { GithubConfig } from './providers/github-config'
 import { SlackConfig } from './providers/slack-config'
 import { StripeConfig } from './providers/stripe-config'
 import { WhatsAppConfig } from './providers/whatsapp-config'
+import { TwilioConfig } from './providers/twilio-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
@@ -96,11 +97,15 @@ export function WebhookModal({
     discordWebhookName: '',
     discordAvatarUrl: '',
     slackSigningSecret: '',
+    sendReply: true,
     airtableWebhookSecret: '',
     airtableBaseId: '',
     airtableTableId: '',
     airtableIncludeCellValues: false,
   })
+
+  // Add Twilio specific state
+  const [sendReply, setSendReply] = useState(true)
 
   // Get the current provider configuration
   const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
@@ -198,6 +203,8 @@ export function WebhookModal({
                 const signingSecret = config.signingSecret || ''
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
+              } else if (webhookProvider === 'twilio') {
+                setSendReply(config.sendReply !== false)
               } else if (webhookProvider === 'airtable') {
                 const baseIdVal = config.baseId || ''
                 const tableIdVal = config.tableId || ''
@@ -246,6 +253,8 @@ export function WebhookModal({
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
       (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
+      (webhookProvider === 'twilio' &&
+        sendReply !== originalValues.sendReply)
       (webhookProvider === 'airtable' &&
         (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
           airtableBaseId !== originalValues.airtableBaseId ||
@@ -265,6 +274,7 @@ export function WebhookModal({
     allowedIps,
     originalValues,
     slackSigningSecret,
+    sendReply,
     airtableWebhookSecret,
     airtableBaseId,
     airtableTableId,
@@ -348,6 +358,9 @@ export function WebhookModal({
         }
       case 'slack':
         return { signingSecret: slackSigningSecret }
+      case 'twilio':
+        return {
+          sendReply,
       case 'airtable':
         return {
           webhookSecret: airtableWebhookSecret || undefined,
@@ -384,7 +397,6 @@ export function WebhookModal({
         await new Promise((resolve) => setTimeout(resolve, 100))
         const saveSuccessful = await onSave(pathToSave, providerConfig)
         await new Promise((resolve) => setTimeout(resolve, 100))
-
         if (saveSuccessful) {
           setOriginalValues({
             whatsappVerificationToken,
@@ -485,6 +497,7 @@ export function WebhookModal({
 
         throw new Error(errorMessage)
       }
+      logger.info('response ok', response)
 
       // Parse JSON only after confirming response is ok
       const data = await response.json()
@@ -595,6 +608,16 @@ export function WebhookModal({
             testWebhook={testWebhook}
             webhookId={webhookId}
             webhookUrl={webhookUrl}
+          />
+        )
+      case 'twilio':
+        return (
+          <TwilioConfig
+            sendReply={sendReply}
+            setSendReply={setSendReply}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
           />
         )
       case 'generic':
