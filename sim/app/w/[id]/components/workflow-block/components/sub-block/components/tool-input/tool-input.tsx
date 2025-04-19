@@ -183,6 +183,38 @@ const hasExpandableContent = (
   return false
 }
 
+// Helper to format parameter IDs into human-readable labels
+const formatParamId = (paramId: string): string => {
+  // Special case for common parameter names
+  if (paramId === 'apiKey') return 'API Key'
+  if (paramId === 'apiVersion') return 'API Version'
+  
+  // Handle underscore and hyphen separated words
+  if (paramId.includes('_') || paramId.includes('-')) {
+    return paramId
+      .split(/[-_]/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  }
+  
+  // Handle single character parameters
+  if (paramId.length === 1) return paramId.toUpperCase()
+  
+  // Handle camelCase
+  if (/[A-Z]/.test(paramId)) {
+    const result = paramId.replace(/([A-Z])/g, ' $1')
+    return result.charAt(0).toUpperCase() + result.slice(1)
+      .replace(/ Api/g, ' API')
+      .replace(/ Id/g, ' ID')
+      .replace(/ Url/g, ' URL')
+      .replace(/ Uri/g, ' URI')
+      .replace(/ Ui/g, ' UI')
+  }
+  
+  // Simple case - just capitalize first letter
+  return paramId.charAt(0).toUpperCase() + paramId.slice(1)
+}
+
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -801,15 +833,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       {requiredParams.map((param) => (
                         <div key={param.id} className="space-y-1.5 relative">
                           <div className="text-xs font-medium text-muted-foreground">
-                            {param.id === 'apiKey'
-                              ? 'API Key'
-                              : param.id.length === 1 ||
-                                  param.id.includes('_') ||
-                                  param.id.includes('-')
-                                ? param.id.toUpperCase()
-                                : param.id.match(/^[a-z]+$/)
-                                  ? param.id.charAt(0).toUpperCase() + param.id.slice(1)
-                                  : param.id}
+                            {formatParamId(param.id)}
                           </div>
                           <div className="relative">
                             <ShortInput

@@ -8,6 +8,7 @@ import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
 import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
+import { ElevenLabsBlock } from './blocks/elevenlabs'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
 import { FileBlock } from './blocks/file'
@@ -52,6 +53,7 @@ export {
   ApiBlock,
   BrowserUseBlock,
   // AutoblocksBlock,
+  ElevenLabsBlock,
   Mem0Block,
   MistralParseBlock,
   FunctionBlock,
@@ -101,6 +103,7 @@ const blocks: Record<string, BlockConfig> = {
   // autoblocks: AutoblocksBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
+  elevenlabs_tts: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   firecrawl: FirecrawlBlock,

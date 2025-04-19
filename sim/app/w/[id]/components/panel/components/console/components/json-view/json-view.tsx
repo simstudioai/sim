@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { AudioPlayer } from '../audio-player/audio-player'
 
 interface JSONViewProps {
   data: any
@@ -43,6 +44,16 @@ const copyToClipboard = (data: any) => {
 // Helper function to check if an object contains an image URL
 const isImageData = (obj: any): boolean => {
   return obj && typeof obj === 'object' && 'url' in obj && typeof obj.url === 'string'
+}
+
+// Helper function to check if an object contains an audio URL
+const isAudioData = (obj: any): boolean => {
+  return (
+    obj && 
+    typeof obj === 'object' && 
+    'audioUrl' in obj && 
+    typeof obj.audioUrl === 'string'
+  )
 }
 
 // Helper function to check if a string is likely a base64 image
@@ -127,7 +138,7 @@ const ImagePreview = ({
         blob = new Blob([arrayBuffer], { type: 'image/png' })
       } else if (imageUrl && imageUrl.length > 0) {
         // Use proxy endpoint to fetch image
-        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`
+        const proxyUrl = `/api/proxy/image?url=${encodeURIComponent(imageUrl)}`
         const response = await fetch(proxyUrl)
         if (!response.ok) {
           throw new Error(`Failed to download image: ${response.statusText}`)
@@ -239,6 +250,9 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
   // Check if current object contains image URL
   const hasImageUrl = isImageData(data)
+  
+  // Check if current object contains audio URL
+  const hasAudioUrl = isAudioData(data)
 
   // Check if this is a response object with the new image format
   const isResponseWithImage = hasImageContent(data)
@@ -556,6 +570,9 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
       {/* Direct image render for objects with image URLs */}
       {!isCollapsed && hasImageUrl && <ImagePreview imageUrl={data.url} />}
+      
+      {/* Direct audio render for objects with audio URLs */}
+      {!isCollapsed && hasAudioUrl && <AudioPlayer audioUrl={data.audioUrl} />}
 
       {contextMenuPosition && (
         <div
