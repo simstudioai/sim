@@ -65,7 +65,7 @@ export function useVerification({
 
       // Only send verification OTP if we're coming from login page
       // Skip this if coming from signup since the OTP is already sent
-      if (!searchParams.get('fromSignup')) {
+      if (!searchParams?.get('fromSignup')) {
         client.emailOtp
           .sendVerificationOtp({
             email,

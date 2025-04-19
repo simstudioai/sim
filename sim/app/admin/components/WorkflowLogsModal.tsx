@@ -228,9 +228,11 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
                       <TableCell>
                         <Badge
                           variant={log.success ? 'default' : 'destructive'}
-                          className={`cursor-pointer ${
-                            log.success ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' : ''
-                          }`}
+                          className={
+                            log.success 
+                              ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
+                              : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                          }
                           onClick={() => handleErrorClick(log)}
                         >
                           {log.success ? 'Success' : 'Failed'}

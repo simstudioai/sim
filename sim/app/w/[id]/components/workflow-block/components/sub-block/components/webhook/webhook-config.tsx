@@ -227,7 +227,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const [error, setError] = useState<string | null>(null)
   const [webhookId, setWebhookId] = useState<string | null>(null)
   const params = useParams()
-  const workflowId = params.id as string
+  const workflowId = params?.id as string
   const [isLoading, setIsLoading] = useState(false)
 
   // Get workflow store function to update webhook status

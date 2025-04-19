@@ -60,13 +60,13 @@ function SignupFormContent({
 
   useEffect(() => {
     setMounted(true)
-    const emailParam = searchParams.get('email')
+    const emailParam = searchParams?.get('email') ?? null
     if (emailParam) {
       setEmail(emailParam)
     }
 
     // Check for waitlist token
-    const tokenParam = searchParams.get('token')
+    const tokenParam = searchParams?.get('token')
     if (tokenParam) {
       setWaitlistToken(tokenParam)
       // Verify the token and get the email

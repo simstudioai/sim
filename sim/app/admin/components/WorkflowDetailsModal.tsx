@@ -12,7 +12,7 @@ import { WorkflowLogsModal } from './WorkflowLogsModal'
 import { useState, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatBlockName } from './block-utils'
-import { getBlocksFromState } from '@/lib/utils/workflow-utils'
+import { getBlocksFromState } from '@/app/admin/analytics/utils/workflow-utils'
 
 // Define a more specific type for block data
 interface BlockData {

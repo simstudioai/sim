@@ -246,7 +246,7 @@ function WorkflowContent() {
 
     const validateAndNavigate = async () => {
       const workflowIds = Object.keys(workflows)
-      const currentId = params.id as string
+      const currentId = params?.id as string
 
       if (workflowIds.length === 0) {
         // Create initial workflow using the centralized function
@@ -286,7 +286,7 @@ function WorkflowContent() {
 
     validateAndNavigate()
   }, [
-    params.id,
+    params?.id,
     workflows,
     setActiveWorkflow,
     createWorkflow,

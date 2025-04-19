@@ -133,9 +133,9 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
   // Check for OAuth callback
   useEffect(() => {
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const error = searchParams.get('error')
+    const code = searchParams?.get('code')
+    const state = searchParams?.get('state')
+    const error = searchParams?.get('error')
 
     // Handle OAuth callback
     if (code && state) {

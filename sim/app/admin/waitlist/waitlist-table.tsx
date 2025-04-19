@@ -131,7 +131,7 @@ export function WaitlistTable() {
   useEffect(() => {
     if (!authChecked) return
 
-    const urlStatus = searchParams.get('status') || 'all'
+    const urlStatus = searchParams?.get('status') || 'all'
     // Make sure it's a valid status
     const validStatus = ['all', 'pending', 'approved', 'rejected'].includes(urlStatus)
       ? urlStatus

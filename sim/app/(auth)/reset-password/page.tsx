@@ -19,7 +19,7 @@ const logger = createLogger('ResetPasswordPage')
 function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const token = searchParams.get('token')
+  const token = searchParams?.get('token') ?? null
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState<{

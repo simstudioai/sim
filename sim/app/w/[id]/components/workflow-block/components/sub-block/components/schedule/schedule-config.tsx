@@ -35,7 +35,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const [refreshCounter, setRefreshCounter] = useState(0)
 
   const params = useParams()
-  const workflowId = params.id as string
+  const workflowId = params?.id as string
 
   // Get workflow state from store
   const setScheduleStatus = useWorkflowStore((state) => state.setScheduleStatus)

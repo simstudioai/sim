@@ -3,14 +3,17 @@ import { db } from '@/db'
 import { workflow, workflowLogs } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   try {
-    // Get the workflow ID from params
-    const workflowId = params.id
-    if (!workflowId) {
+    // Validate workflow ID
+    if (!id) {
       return NextResponse.json(
         { error: 'Workflow ID is required' },
         { status: 400 }
@@ -21,7 +24,7 @@ export async function GET(
     const workflowData = await db
       .select()
       .from(workflow)
-      .where(eq(workflow.id, workflowId))
+      .where(eq(workflow.id, id))
       .limit(1)
 
     if (!workflowData || workflowData.length === 0) {
@@ -35,7 +38,7 @@ export async function GET(
     const logs = await db
       .select()
       .from(workflowLogs)
-      .where(eq(workflowLogs.workflowId, workflowId))
+      .where(eq(workflowLogs.workflowId, id))
       .orderBy(desc(workflowLogs.createdAt))
 
     // Transform logs to include workflow name and success status

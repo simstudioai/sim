@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/db'
 import { workflow, workflowLogs } from '@/db/schema'
 import { gte, asc } from 'drizzle-orm'
-import { getBlocksFromState } from '@/lib/utils/workflow-utils'
+import { getBlocksFromState } from '@/app/admin/analytics/utils/workflow-utils'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
       }
 
       // Count block usage
-      const blocks = getBlocksFromState(workflow.state)
+      const blocks = getBlocksFromState(workflow.state as WorkflowState)
       blocks.forEach((block) => {
         if (block && block.type) {
           blockUsage[block.type] = (blockUsage[block.type] || 0) + 1
