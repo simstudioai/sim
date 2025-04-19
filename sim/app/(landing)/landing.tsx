@@ -1,6 +1,7 @@
 import GitHubStars from './components/github-stars'
 import { LenisWrapper } from './components/lenis-wrapper'
 import NavClient from './components/nav-client'
+import Blogs from './components/sections/blogs'
 import Features from './components/sections/features'
 import Footer from './components/sections/footer'
 import Hero from './components/sections/hero'
@@ -20,6 +21,7 @@ export default function Landing() {
         <Features/>
         <Integrations/>
         <Testimonials/>
+        <Blogs/>
 
         {/* Footer */}
         <Footer/>
