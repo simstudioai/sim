@@ -303,7 +303,7 @@ export async function POST(
       if (body.email) {
         logger.info(`[${requestId}] Processing Gmail email`, {
           emailId: body.email.id,
-          subject: body.email.payload?.headers?.find((h: any) => h.name === 'Subject')?.value
+          subject: body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value || 'No subject'
         });
         
         // Execute the workflow with this webhook as trigger

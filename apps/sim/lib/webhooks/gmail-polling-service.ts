@@ -171,9 +171,14 @@ async function fetchNewEmails(
       
       if (!historyResponse.ok) {
         const errorData = await historyResponse.json()
-        logger.error(`[${requestId}] Gmail history API error:`, errorData)
+        logger.error(`[${requestId}] Gmail history API error:`, {
+          status: historyResponse.status,
+          statusText: historyResponse.statusText,
+          error: errorData
+        })
         
         // Fall back to search if history API fails
+        logger.info(`[${requestId}] Falling back to search API after history API failure`)
         return await searchEmails(accessToken, config, requestId)
       }
       
@@ -243,7 +248,12 @@ async function searchEmails(
     
     if (!searchResponse.ok) {
       const errorData = await searchResponse.json()
-      logger.error(`[${requestId}] Gmail search API error:`, errorData)
+      logger.error(`[${requestId}] Gmail search API error:`, {
+        status: searchResponse.status,
+        statusText: searchResponse.statusText,
+        query: query,
+        error: errorData
+      })
       return []
     }
     
@@ -278,7 +288,8 @@ async function getEmailDetails(accessToken: string, messageId: string) {
   })
   
   if (!messageResponse.ok) {
-    throw new Error(`Failed to fetch email details: ${messageResponse.statusText}`)
+    const errorData = await messageResponse.json().catch(() => ({}))
+    throw new Error(`Failed to fetch email details for message ${messageId}: ${messageResponse.status} ${messageResponse.statusText} - ${JSON.stringify(errorData)}`)
   }
   
   return await messageResponse.json()
@@ -367,14 +378,13 @@ async function markEmailAsRead(accessToken: string, messageId: string) {
 }
 
 async function updateWebhookLastChecked(webhookId: string, timestamp: string, historyId?: string) {
-  await db
-    .update(webhook)
-    .set({
-      providerConfig: {
-        lastCheckedTimestamp: timestamp,
-        ...(historyId ? { historyId } : {}),
-      },
-      updatedAt: new Date(),
-    })
-    .where(eq(webhook.id, webhookId))
+  const existingConfig = (await db.select().from(webhook).where(eq(webhook.id, webhookId)))[0]?.providerConfig || {};
+  await db.update(webhook).set({
+    providerConfig: {
+      ...existingConfig,
+      lastCheckedTimestamp: timestamp,
+      ...(historyId ? { historyId } : {}),
+    },
+    updatedAt: new Date(),
+  }).where(eq(webhook.id, webhookId))
 } 

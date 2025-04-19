@@ -13,12 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'
-import { WebhookConfigField } from '../ui/webhook-config-field'
 import { Logger } from '@/lib/logs/console-logger'
-import { Input } from '@/components/ui/input'
-import { Slider } from '@/components/ui/slider'
 
 const logger = new Logger('GmailConfig')
 
@@ -108,10 +104,6 @@ interface GmailConfigProps {
   webhookUrl: string
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
-  maxEmailsPerPoll?: number
-  setMaxEmailsPerPoll?: (max: number) => void
-  pollingInterval?: number
-  setPollingInterval?: (interval: number) => void
 }
 
 export function GmailConfig({
@@ -129,10 +121,6 @@ export function GmailConfig({
   webhookUrl,
   markAsRead = false,
   setMarkAsRead = () => {},
-  maxEmailsPerPoll = 10,
-  setMaxEmailsPerPoll = () => {},
-  pollingInterval = 5,
-  setPollingInterval = () => {},
 }: GmailConfigProps) {
   const [labels, setLabels] = useState<GmailLabel[]>([])
   const [isLoadingLabels, setIsLoadingLabels] = useState(false)
@@ -199,7 +187,7 @@ export function GmailConfig({
       <ConfigSection title="Email Monitoring Configuration">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Select which email labels to monitor. The system will regularly check for new emails in these labels.
+            Select which email labels to monitor. The system will automatically detect and process new emails in these labels.
           </p>
           
           {isLoadingLabels ? (
@@ -247,48 +235,6 @@ export function GmailConfig({
               {labelFilterBehavior === 'INCLUDE' 
                 ? 'Your workflow will process emails with the selected labels.' 
                 : 'Your workflow will process emails without the selected labels.'}
-            </p>
-          </div>
-        </div>
-      </ConfigSection>
-
-      <ConfigSection title="Polling Settings">
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="polling-interval" className="mb-1 block">Polling Interval (minutes)</Label>
-            <div className="flex items-center gap-2">
-              <Slider
-                id="polling-interval"
-                min={1}
-                max={60}
-                step={1}
-                value={[pollingInterval]}
-                onValueChange={([value]) => setPollingInterval(value)}
-                className="flex-1"
-              />
-              <span className="w-10 text-center text-sm">{pollingInterval}</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              How often to check for new emails. Shorter intervals may reach Gmail API rate limits.
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="max-emails" className="mb-1 block">Maximum Emails Per Poll</Label>
-            <div className="flex items-center gap-2">
-              <Slider
-                id="max-emails"
-                min={1}
-                max={50}
-                step={1}
-                value={[maxEmailsPerPoll]}
-                onValueChange={([value]) => setMaxEmailsPerPoll(value)}
-                className="flex-1"
-              />
-              <span className="w-10 text-center text-sm">{maxEmailsPerPoll}</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Maximum number of emails to process in each check. Higher values may impact performance.
             </p>
           </div>
         </div>
