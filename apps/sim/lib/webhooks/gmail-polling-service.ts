@@ -12,10 +12,11 @@ interface GmailWebhookConfig {
   labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
   processIncomingEmails: boolean
   markAsRead: boolean
-  maxEmailsPerPoll: number
-  pollingInterval: number
+  maxEmailsPerPoll?: number
+  singleEmailMode: boolean
   lastCheckedTimestamp?: string
   historyId?: string
+  processedEmailIds?: string[]
 }
 
 export async function pollGmailWebhooks() {
@@ -72,52 +73,76 @@ export async function pollGmailWebhooks() {
             return { success: false, webhookId, error: 'Not configured to process emails' }
           }
           
-          // Check if it's time to poll this webhook
+          // Remove the polling interval check since we're controlling execution frequency via CRON
+          // We always want to check for new emails every time this function is called
+          
           const now = new Date()
-          const lastChecked = config.lastCheckedTimestamp 
-            ? new Date(config.lastCheckedTimestamp) 
-            : new Date(0)
-          
-          const minutesSinceLastCheck = (now.getTime() - lastChecked.getTime()) / (1000 * 60)
-          
-          if (minutesSinceLastCheck < config.pollingInterval) {
-            logger.debug(`[${requestId}] Skipping webhook ${webhookId}, not due for polling yet`)
-            return { success: true, webhookId, status: 'skipped' }
-          }
           
           // Fetch new emails
-          const emails = await fetchNewEmails(
+          const fetchResult = await fetchNewEmails(
             accessToken, 
             config, 
             requestId
           )
           
+          const { emails, latestHistoryId } = fetchResult
+          
           if (!emails || !emails.length) {
             // Update last checked timestamp
-            await updateWebhookLastChecked(webhookId, now.toISOString(), config.historyId)
+            await updateWebhookLastChecked(webhookId, now.toISOString(), latestHistoryId || config.historyId)
             logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
             return { success: true, webhookId, status: 'no_emails' }
           }
           
           logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
           
+          // Get processed email IDs (to avoid duplicates)
+          const processedEmailIds = config.processedEmailIds || []
+          
+          // Filter out emails that have already been processed
+          const newEmails = emails.filter(email => !processedEmailIds.includes(email.id))
+          
+          if (newEmails.length === 0) {
+            logger.info(`[${requestId}] All emails have already been processed for webhook ${webhookId}`)
+            await updateWebhookLastChecked(webhookId, now.toISOString(), latestHistoryId || config.historyId)
+            return { success: true, webhookId, status: 'already_processed' }
+          }
+          
+          logger.info(`[${requestId}] Processing ${newEmails.length} new emails for webhook ${webhookId}`)
+          
+          // If configured to only process the most recent email (simulating webhook behavior)
+          // and there are multiple new emails, just take the most recent one
+          const emailsToProcess = config.singleEmailMode === true && newEmails.length > 1
+            ? [newEmails[0]] // Gmail returns emails in reverse chronological order
+            : newEmails
+          
           // Process emails
           const processed = await processEmails(
-            emails,
+            emailsToProcess,
             webhookData,
             config,
             accessToken,
             requestId
           )
           
-          // Update webhook with latest history ID and timestamp
-          const latestHistoryId = emails[0].historyId
-          await updateWebhookLastChecked(webhookId, now.toISOString(), latestHistoryId)
+          // Record which email IDs have been processed
+          const newProcessedIds = [...processedEmailIds, ...emailsToProcess.map(email => email.id)]
+          // Keep only the most recent 100 IDs to prevent the list from growing too large
+          const trimmedProcessedIds = newProcessedIds.slice(-100)
+          
+          // Update webhook with latest history ID, timestamp, and processed email IDs
+          await updateWebhookData(
+            webhookId, 
+            now.toISOString(), 
+            latestHistoryId || config.historyId,
+            trimmedProcessedIds
+          )
           
           return { 
             success: true, 
             webhookId, 
             emailsFound: emails.length,
+            newEmails: newEmails.length,
             emailsProcessed: processed 
           }
         } catch (error) {
@@ -158,6 +183,7 @@ async function fetchNewEmails(
     // Determine whether to use history API or search
     const useHistoryApi = !!config.historyId
     let emails = []
+    let latestHistoryId = config.historyId
     
     if (useHistoryApi) {
       // Use history API to get changes since last check
@@ -179,13 +205,22 @@ async function fetchNewEmails(
         
         // Fall back to search if history API fails
         logger.info(`[${requestId}] Falling back to search API after history API failure`)
-        return await searchEmails(accessToken, config, requestId)
+        const searchResult = await searchEmails(accessToken, config, requestId)
+        return { 
+          emails: searchResult.emails,
+          latestHistoryId: searchResult.latestHistoryId
+        }
       }
       
       const historyData = await historyResponse.json()
       
       if (!historyData.history || !historyData.history.length) {
-        return []
+        return { emails: [], latestHistoryId }
+      }
+      
+      // Update the latest history ID
+      if (historyData.historyId) {
+        latestHistoryId = historyData.historyId
       }
       
       // Extract message IDs from history
@@ -199,9 +234,29 @@ async function fetchNewEmails(
         }
       }
       
+      if (messageIds.size === 0) {
+        return { emails: [], latestHistoryId }
+      }
+      
+      // Sort IDs by recency (reverse order)
+      const sortedIds = [...messageIds].sort().reverse()
+      
+      // Determine which message IDs to fetch based on configuration
+      let idsToFetch = sortedIds
+      
+      // If we only want to process the most recent email (simulating a webhook)
+      if (config.singleEmailMode === true && sortedIds.length > 0) {
+        // Just take the most recent email if we want to simulate webhook behavior
+        idsToFetch = [sortedIds[0]]
+        logger.info(`[${requestId}] Processing only the most recent email ${sortedIds[0]} to simulate webhook behavior`)
+      } else {
+        // Otherwise, limit by max emails per poll
+        idsToFetch = sortedIds.slice(0, config.maxEmailsPerPoll || 100)
+      }
+      
       // Fetch full email details for each message
       emails = await Promise.all(
-        [...messageIds].slice(0, config.maxEmailsPerPoll).map(async (messageId) => {
+        idsToFetch.map(async (messageId) => {
           return await getEmailDetails(accessToken, messageId)
         })
       )
@@ -210,14 +265,15 @@ async function fetchNewEmails(
       emails = filterEmailsByLabels(emails, config)
     } else {
       // Use search if no history ID is available
-      emails = await searchEmails(accessToken, config, requestId)
+      const searchResult = await searchEmails(accessToken, config, requestId)
+      return searchResult
     }
     
-    return emails
+    return { emails, latestHistoryId }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] Error fetching new emails:`, errorMessage)
-    return []
+    return { emails: [], latestHistoryId: config.historyId }
   }
 }
 
@@ -228,9 +284,9 @@ async function searchEmails(
 ) {
   try {
     // Build query parameters for label filtering
-    const labelQuery = config.labelIds
-      .map(label => `label:${label}`)
-      .join(' ')
+    const labelQuery = config.labelIds && config.labelIds.length > 0
+      ? config.labelIds.map(label => `label:${label}`).join(' ')
+      : 'in:inbox'
     
     // Combine with is:unread or custom query if needed
     const query = config.labelFilterBehavior === 'INCLUDE'
@@ -254,27 +310,45 @@ async function searchEmails(
         query: query,
         error: errorData
       })
-      return []
+      return { emails: [], latestHistoryId: config.historyId }
     }
     
     const searchData = await searchResponse.json()
     
     if (!searchData.messages || !searchData.messages.length) {
-      return []
+      return { emails: [], latestHistoryId: config.historyId }
+    }
+    
+    let idsToFetch = searchData.messages
+    let latestHistoryId = config.historyId
+    
+    // If we only want to process the most recent email (simulating a webhook)
+    if (config.singleEmailMode === true && searchData.messages.length > 0) {
+      // Gmail returns them in reverse chronological order, so the first one is the newest
+      idsToFetch = [searchData.messages[0]]
+      logger.info(`[${requestId}] Processing only the most recent email ${idsToFetch[0].id} to simulate webhook behavior`)
+    } else {
+      // Otherwise, respect the configured limit
+      idsToFetch = searchData.messages.slice(0, config.maxEmailsPerPoll || 100)
     }
     
     // Fetch full email details for each message
     const emails = await Promise.all(
-      searchData.messages.map(async (message: { id: string }) => {
+      idsToFetch.map(async (message: { id: string }) => {
         return await getEmailDetails(accessToken, message.id)
       })
     )
     
-    return emails
+    // Get the latest history ID from the first email (most recent)
+    if (emails.length > 0 && emails[0].historyId) {
+      latestHistoryId = emails[0].historyId
+    }
+    
+    return { emails, latestHistoryId }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(`[${requestId}] Error searching emails:`, errorMessage)
-    return []
+    return { emails: [], latestHistoryId: config.historyId }
   }
 }
 
@@ -384,6 +458,25 @@ async function updateWebhookLastChecked(webhookId: string, timestamp: string, hi
       ...existingConfig,
       lastCheckedTimestamp: timestamp,
       ...(historyId ? { historyId } : {}),
+    },
+    updatedAt: new Date(),
+  }).where(eq(webhook.id, webhookId))
+}
+
+async function updateWebhookData(
+  webhookId: string, 
+  timestamp: string, 
+  historyId?: string,
+  processedEmailIds?: string[]
+) {
+  const existingConfig = (await db.select().from(webhook).where(eq(webhook.id, webhookId)))[0]?.providerConfig || {};
+  
+  await db.update(webhook).set({
+    providerConfig: {
+      ...existingConfig,
+      lastCheckedTimestamp: timestamp,
+      ...(historyId ? { historyId } : {}),
+      ...(processedEmailIds ? { processedEmailIds } : {}),
     },
     updatedAt: new Date(),
   }).where(eq(webhook.id, webhookId))

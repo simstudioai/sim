@@ -104,6 +104,8 @@ interface GmailConfigProps {
   webhookUrl: string
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
+  singleEmailMode?: boolean
+  setSingleEmailMode?: (singleMode: boolean) => void
 }
 
 export function GmailConfig({
@@ -121,6 +123,8 @@ export function GmailConfig({
   webhookUrl,
   markAsRead = false,
   setMarkAsRead = () => {},
+  singleEmailMode = true,
+  setSingleEmailMode = () => {},
 }: GmailConfigProps) {
   const [labels, setLabels] = useState<GmailLabel[]>([])
   const [isLoadingLabels, setIsLoadingLabels] = useState(false)
@@ -274,6 +278,24 @@ export function GmailConfig({
           </div>
           <p className="text-xs text-muted-foreground ml-6">
             Emails will be marked as read after being processed by your workflow.
+          </p>
+
+          <div className="flex items-center space-x-2 mt-3">
+            <Checkbox 
+              id="single-email-mode"
+              checked={singleEmailMode}
+              onCheckedChange={(checked) => setSingleEmailMode(checked as boolean)}
+            />
+            <Label 
+              htmlFor="single-email-mode" 
+              className="text-sm font-medium cursor-pointer"
+            >
+              Process only one email per polling interval
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground ml-6">
+            When enabled, only the most recent email will be processed each minute. 
+            When disabled, multiple emails will be processed in each polling interval.
           </p>
         </div>
       </ConfigSection>

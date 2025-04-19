@@ -8,6 +8,12 @@ const logger = new Logger('GmailPollingEndpoint')
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // Allow up to 5 minutes for polling to complete
 
+/**
+ * Gmail webhook polling endpoint
+ * Designed to be called at a fixed 1-minute interval via CRON job
+ * This endpoint checks for new emails in Gmail and processes them
+ * to simulate webhook behavior
+ */
 export async function GET(request: NextRequest) {
   const requestId = nanoid()
   logger.info(`[${requestId}] Gmail webhook polling triggered`)
