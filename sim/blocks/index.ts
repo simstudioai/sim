@@ -21,10 +21,12 @@ import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
 
 import { MistralParseBlock } from './blocks/mistral-parse'
+import { MySQLBlock } from './blocks/mysql'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
 import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
+import { PostgreSQLBlock } from './blocks/postgresql'
 import { RedditBlock } from './blocks/reddit'
 import { RouterBlock } from './blocks/router'
 import { SerperBlock } from './blocks/serper'
@@ -92,6 +94,8 @@ export {
   ThinkingBlock,
   StagehandBlock,
   StagehandAgentBlock,
+  MySQLBlock,
+  PostgreSQLBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -119,10 +123,12 @@ const blocks: Record<string, BlockConfig> = {
   jina: JinaBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
+  mysql: MySQLBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
+  postgresql: PostgreSQLBlock,
   reddit: RedditBlock,
   router: RouterBlock,
   serper: SerperBlock,

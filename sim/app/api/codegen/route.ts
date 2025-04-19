@@ -24,6 +24,7 @@ type GenerationType =
   | 'javascript-function-body'
   | 'typescript-function-body'
   | 'custom-tool-schema'
+  | 'sql-query'
 
 // Define the structure for a single message in the history
 interface ChatMessage {
@@ -34,6 +35,7 @@ interface ChatMessage {
 interface RequestBody {
   prompt: string
   generationType: GenerationType
+  type?: string // Add this for backward compatibility
   context?: string
   stream?: boolean
   history?: ChatMessage[] // Optional conversation history
@@ -280,6 +282,49 @@ if (!response.ok) {
 const data: unknown = await response.json()
 // Add type checking/assertion if necessary
 return data // Ensure you return a value if expected`,
+  'sql-query': `You are an expert SQL programmer specializing in writing efficient and correct SQL queries.
+Generate ONLY the raw SQL query based on the user's request.
+The output MUST be a single, valid SQL query that can be executed in both MySQL and PostgreSQL databases.
+Do not include any JavaScript/TypeScript code, variable assignments, return statements, or semicolons at the end.
+Do not include any explanations, markdown formatting, or other text.
+Focus on writing standard SQL that works across both database systems.
+
+Guidelines:
+1. Use standard SQL syntax that works in both MySQL and PostgreSQL
+2. Avoid database-specific functions or syntax
+3. Include proper table and column names
+4. Use appropriate JOIN types when needed
+5. Include WHERE clauses for filtering
+6. Use proper ORDER BY, GROUP BY, and HAVING clauses when needed
+7. For complex queries, use subqueries or CTEs (Common Table Expressions) when appropriate
+8. Ensure proper escaping of string values
+9. Use parameterized queries with placeholders (?) for values that would be provided at runtime
+
+Example Outputs:
+
+SELECT id, name, email 
+FROM users 
+WHERE active = true 
+ORDER BY name ASC
+
+SELECT u.id, u.name, o.order_date, o.total_amount
+FROM users u
+JOIN orders o ON u.id = o.user_id
+WHERE o.order_date >= '2023-01-01'
+ORDER BY o.order_date DESC
+
+SELECT category, COUNT(*) as product_count, AVG(price) as avg_price
+FROM products
+WHERE in_stock = true
+GROUP BY category
+HAVING COUNT(*) > 5
+ORDER BY avg_price DESC
+
+SELECT id, name, email
+FROM users
+WHERE role = ? AND created_at >= ?
+ORDER BY created_at DESC
+LIMIT ?`
 }
 
 export async function POST(req: NextRequest) {
@@ -299,7 +344,7 @@ export async function POST(req: NextRequest) {
     noStore()
 
     // Destructure history along with other fields
-    const { prompt, generationType, context, stream = false, history = [] } = body
+    const { prompt, generationType, type, context, stream = false, history = [] } = body
 
     if (!prompt || !generationType) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt or generationType.`)
@@ -440,9 +485,7 @@ export async function POST(req: NextRequest) {
 
     // For non-streaming responses (original implementation)
     const completion = await openai!.chat.completions.create({
-      // Use non-null assertion
       model: 'gpt-4o',
-      // Pass the constructed messages array
       messages: messages,
       temperature: 0.2,
       max_tokens: 1500,
@@ -475,6 +518,81 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         )
       }
+    } else if (generationType === 'sql-query') {
+      if (!prompt) {
+        return NextResponse.json(
+          { error: 'Prompt is required for SQL query generation' },
+          { status: 400 }
+        )
+      }
+
+      // Reuse the existing completion code for SQL query generation
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a SQL expert. Generate a safe and efficient SQL query based on the user's request. 
+            Follow these rules:
+            1. Use parameterized queries to prevent SQL injection
+            2. Include proper table and column names
+            3. Add appropriate WHERE clauses for data filtering
+            4. Use proper JOIN syntax when combining tables
+            5. Include ORDER BY for sorted results
+            6. Add LIMIT for large result sets
+            7. Use proper data types in conditions
+            8. Include helpful comments explaining the query
+            9. Validate input parameters
+            10. Handle NULL values appropriately`
+          },
+          ...(history || []),
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 1000
+      })
+
+      const generatedQuery = completion.choices[0]?.message?.content
+
+      if (!generatedQuery) {
+        return NextResponse.json(
+          { error: 'Failed to generate SQL query' },
+          { status: 500 }
+        )
+      }
+
+      // Validate the generated query
+      const query = generatedQuery.trim()
+      if (!query) {
+        return NextResponse.json(
+          { error: 'Generated SQL query is empty' },
+          { status: 500 }
+        )
+      }
+
+      // Check for potentially dangerous SQL patterns
+      const dangerousPatterns = [
+        /--/,                // SQL comments
+        /;.*;/,             // Multiple statements
+        /EXEC\s+xp_/i,      // Extended stored procedures
+        /EXEC\s+sp_/i,      // System stored procedures
+        /INTO\s+OUTFILE/i,  // File operations
+        /LOAD_FILE/i,       // File operations
+        /UNION\s+ALL/i,     // UNION injections
+        /UNION\s+SELECT/i,  // UNION injections
+        /\/\*/,             // Block comments
+        /xp_cmdshell/i,     // Command execution
+      ]
+
+      const hasDangerousPattern = dangerousPatterns.some(pattern => pattern.test(query))
+      if (hasDangerousPattern) {
+        return NextResponse.json(
+          { error: 'Generated SQL query contains potentially dangerous patterns' },
+          { status: 400 }
+        )
+      }
+
+      return NextResponse.json({ generatedContent: query })
     } else {
       return NextResponse.json({ success: true, generatedContent })
     }
