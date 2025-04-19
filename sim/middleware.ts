@@ -4,15 +4,37 @@ import { verifyToken } from './lib/waitlist/token'
 
 // Environment flag to check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development'
+const BASE_DOMAIN = isDevelopment ? 'localhost:3000' : 'simstudio.ai'
 
 export async function middleware(request: NextRequest) {
+  const url = request.nextUrl
+  const hostname = request.headers.get('host') || ''
+    
+  // Extract subdomain
+  const isCustomDomain = hostname !== BASE_DOMAIN && 
+                         !hostname.startsWith('www.') && 
+                         hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
+  const subdomain = isCustomDomain ? hostname.split('.')[0] : null
+  
+  // Handle chat subdomains
+  if (subdomain && isCustomDomain) {
+    // Special case for API requests from the subdomain
+    if (url.pathname.startsWith('/api/chat/')) {
+      // Already an API request, let it go through
+      return NextResponse.next()
+    }
+    
+    // Rewrite to the chat page but preserve the URL in browser
+    return NextResponse.rewrite(new URL(`/chat/${subdomain}${url.pathname}`, request.url))
+  }
+  
   // Check if the path is exactly /w
-  if (request.nextUrl.pathname === '/w') {
+  if (url.pathname === '/w') {
     return NextResponse.redirect(new URL('/w/1', request.url))
   }
 
   // Handle protected routes that require authentication
-  if (request.nextUrl.pathname.startsWith('/w/') || request.nextUrl.pathname === '/w') {
+  if (url.pathname.startsWith('/w/') || url.pathname === '/w') {
     const sessionCookie = getSessionCookie(request)
     if (!sessionCookie) {
       return NextResponse.redirect(new URL('/login', request.url))
@@ -30,9 +52,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Handle waitlist protection for login and signup in production
-  if (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') {
+  if (url.pathname === '/login' || url.pathname === '/signup') {
     // Check for a waitlist token in the URL
-    const waitlistToken = request.nextUrl.searchParams.get('token')
+    const waitlistToken = url.searchParams.get('token')
 
     // Validate the token if present
     if (waitlistToken) {
@@ -50,19 +72,19 @@ export async function middleware(request: NextRequest) {
         }
 
         // Token is invalid, expired, or wrong type - redirect to home
-        if (request.nextUrl.pathname === '/signup') {
+        if (url.pathname === '/signup') {
           return NextResponse.redirect(new URL('/', request.url))
         }
       } catch (error) {
         console.error('Token validation error:', error)
         // In case of error, redirect signup attempts to home
-        if (request.nextUrl.pathname === '/signup') {
+        if (url.pathname === '/signup') {
           return NextResponse.redirect(new URL('/', request.url))
         }
       }
     } else {
       // If no token for signup, redirect to home
-      if (request.nextUrl.pathname === '/signup') {
+      if (url.pathname === '/signup') {
         return NextResponse.redirect(new URL('/', request.url))
       }
     }
@@ -71,12 +93,14 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-// Update matcher to include admin routes
+// Update matcher to include subdomains and preserve existing routes
 export const config = {
   matcher: [
     '/w', // Match exactly /w
     '/w/:path*', // Match protected routes
     '/login',
     '/signup',
+    // Path matcher to catch all paths except certain ones
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 }

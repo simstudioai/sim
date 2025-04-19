@@ -3,12 +3,12 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useEnvironmentStore } from '../settings/environment/store'
 import { useWorkflowStore } from '../workflows/workflow/store'
-import { ChatMessage, ChatStore } from './types'
+import { CopilotMessage, CopilotStore } from './types'
 import { calculateBlockPosition, getNextBlockNumber } from './utils'
 
-const logger = createLogger('Chat Store')
+const logger = createLogger('Copilot Store')
 
-export const useChatStore = create<ChatStore>()(
+export const useCopilotStore = create<CopilotStore>()(
   devtools(
     (set, get) => ({
       messages: [],
@@ -29,7 +29,7 @@ export const useChatStore = create<ChatStore>()(
           }
 
           // User message
-          const newMessage: ChatMessage = {
+          const newMessage: CopilotMessage = {
             id: crypto.randomUUID(),
             role: 'user',
             content: content.trim(),
@@ -53,7 +53,7 @@ export const useChatStore = create<ChatStore>()(
             messages: [...state.messages, newMessage],
           }))
 
-          const response = await fetch('/api/chat', {
+          const response = await fetch('/api/copilot', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ export const useChatStore = create<ChatStore>()(
             }))
           }
         } catch (error) {
-          logger.error('Chat error:', { error })
+          logger.error('Copilot error:', { error })
           set({
             error: error instanceof Error ? error.message : 'Unknown error',
           })
@@ -145,9 +145,9 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
-      clearChat: () => set({ messages: [], error: null }),
+      clearCopilot: () => set({ messages: [], error: null }),
       setError: (error) => set({ error }),
     }),
-    { name: 'chat-store' }
+    { name: 'copilot-store' }
   )
 )

@@ -220,3 +220,33 @@ export const customTools = pgTable('custom_tools', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const chatDeployment = pgTable('chat', {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    subdomain: text('subdomain').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    isActive: boolean('is_active').notNull().default(true),
+    customizations: json('customizations').default('{}'), // For UI customization options
+    
+    // Authentication options
+    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
+    password: text('password'), // Stored hashed, populated when authType is 'password'
+    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email'
+    
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Ensure subdomains are unique
+      subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
+    }
+  }
+)
