@@ -1,4 +1,4 @@
-import { getBlocksFromState } from './analytics/utils/workflow-utils'
+import { getBlocksFromState } from '../analytics/utils/workflow-utils'
 import { WorkflowLog, UserWorkflowStats, UserEngagement, UserStats, WorkflowWithUser, Session } from './dashboard'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 

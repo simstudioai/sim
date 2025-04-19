@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import AnalyticsContent from './analytics-content'
 import { ErrorBoundary } from '@/app/w/[id]/components/error'
+import { ThemeProvider } from '@/app/w/components/providers/theme-provider'
 
 export const metadata: Metadata = {
   title: 'Analytics | Sim Studio',
@@ -29,7 +30,9 @@ export default async function AnalyticsPage() {
           </div>
         </div>
       }>
-        <AnalyticsContent />
+        <ThemeProvider>
+          <AnalyticsContent/>
+        </ThemeProvider>
       </ErrorBoundary>
     </div>
   )

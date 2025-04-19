@@ -25,7 +25,7 @@ import {
   formatTopUsersData,
   formatWorkflowsData
 } from '@/app/admin/dashboard/utils'
-import { getBlocksFromState } from '@/app/admin/dashboard/analytics/utils/workflow-utils'
+import { getBlocksFromState } from '@/app/admin/analytics/utils/workflow-utils'
 
 // Helper function to fetch workflows with their users
 async function fetchWorkflowsWithUsers(): Promise<WorkflowWithUser[]> {

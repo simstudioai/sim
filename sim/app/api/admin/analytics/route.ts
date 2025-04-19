@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/db'
 import { workflow, workflowLogs } from '@/db/schema'
 import { gte, asc } from 'drizzle-orm'
-import { getBlocksFromState } from '@/app/admin/dashboard/analytics/utils/workflow-utils'
+import { getBlocksFromState } from '@/app/admin/analytics/utils/workflow-utils'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export async function GET(request: Request) {
