@@ -18,7 +18,7 @@ import { GmailBlock } from './blocks/gmail'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
-
+import { JiraBlock } from './blocks/jira'
 import { MistralParseBlock } from './blocks/mistral-parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -84,6 +84,7 @@ export {
   GoogleSheetsBlock,
   PerplexityBlock,
   ConfluenceBlock,
+  JiraBlock,
   TwilioSMSBlock,
   ImageGeneratorBlock,
   TypeformBlock,
@@ -114,6 +115,7 @@ const blocks: Record<string, BlockConfig> = {
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
+  jira: JiraBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,

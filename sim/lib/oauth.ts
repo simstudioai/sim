@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import {
+  JiraIcon,
   AirtableIcon,
   ConfluenceIcon,
   GithubIcon,
@@ -17,7 +18,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('OAuth')
 
-// Define the base OAuth provider type
+// Define the base OAuth provider tye
 export type OAuthProvider =
   | 'google'
   | 'github'
@@ -25,6 +26,7 @@ export type OAuthProvider =
   | 'supabase'
   | 'confluence'
   | 'airtable'
+  | 'jira'
   | 'notion'
   | string
 export type OAuthService =
@@ -37,8 +39,10 @@ export type OAuthService =
   | 'x'
   | 'supabase'
   | 'confluence'
+  | 'jira'
   | 'airtable'
   | 'notion'
+
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -196,6 +200,33 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'confluence',
   },
+
+  jira: {
+    id: 'jira',
+    name: 'Jira',
+    icon: (props) => JiraIcon(props),
+    services: {
+      jira: {
+        id: 'jira',
+        name: 'Jira',
+        description: 'Access Jira content and issues.',
+        providerId: 'jira',
+        icon: (props) => JiraIcon(props),
+        baseProviderIcon: (props) => JiraIcon(props),
+        scopes: [
+          'read:jira-user',
+          'read:jira-work',
+          'write:jira-work',
+          'read:issue-type:jira',
+          'read:project:jira',
+          'read:me',
+          'offline_access',
+        ],
+      },
+    },
+    defaultService: 'jira',
+  },
+
   airtable: {
     id: 'airtable',
     name: 'Airtable',
@@ -278,6 +309,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'x'
   } else if (provider === 'confluence') {
     return 'confluence'
+  } else if (provider === 'jira') {
+    return 'jira'
   } else if (provider === 'airtable') {
     return 'airtable'
   } else if (provider === 'notion') {
@@ -382,6 +415,10 @@ export async function refreshOAuthToken(
         clientId = process.env.CONFLUENCE_CLIENT_ID
         clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
         break
+      case 'jira':
+        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
+        clientId = process.env.JIRA_CLIENT_ID
+        clientSecret = process.env.JIRA_CLIENT_SECRET
       case 'airtable':
         tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
         clientId = process.env.AIRTABLE_CLIENT_ID

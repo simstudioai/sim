@@ -1692,6 +1692,26 @@ export function ConfluenceIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+
+export function JiraIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 30 30"
+      width="24"
+      height="24"
+      focusable="false"
+      aria-hidden="true"
+    >
+        <path
+        fill="#1868DB" 
+        d="M11.034 21.99h-2.22c-3.346 0-5.747-2.05-5.747-5.052h11.932c.619 0 1.019.44 1.019 1.062v12.007c-2.983 0-4.984-2.416-4.984-5.784zm5.893-5.967h-2.219c-3.347 0-5.748-2.013-5.748-5.015h11.933c.618 0 1.055.402 1.055 1.025V24.04c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.219c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.018.439 1.018 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z"
+        />
+    </svg>
+  )
+}
+
 export function TwilioIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
@@ -1730,17 +1750,20 @@ export function TypeformIcon(props: SVGProps<SVGSVGElement>) {
       {...props}
       width="24"
       height="24"
-      viewBox="0 0 24 24"
+      viewBox="0 3 21 24"
+      focusable="false"
       fill="none"
+      aria-hidden="true"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <g transform="translate(1, 4)">
-        <rect x="0" y="0" width="5" height="16" rx="2.5" fill="currentColor" />
-        <rect x="8" y="0" width="14" height="16" rx="4" fill="currentColor" />
-      </g>
+      <path 
+      fill="#1868DB" 
+      d="M7.967 21.323H5.748C2.401 21.323 0 19.273 0 16.271h11.933c.618 0 1.018.44 1.018 1.062V29.34c-2.983 0-4.984-2.416-4.984-5.784zm5.894-5.967h-2.22c-3.346 0-5.747-2.013-5.747-5.015h11.932c.618 0 1.055.402 1.055 1.025v12.007c-2.983 0-5.02-2.416-5.02-5.784zm5.93-5.93h-2.22c-3.347 0-5.748-2.05-5.748-5.052h11.933c.618 0 1.019.439 1.019 1.025v12.007c-2.983 0-4.984-2.416-4.984-5.784z"
+      />
     </svg>
-  )
+  );
 }
+
 
 export function DocumentIcon(props: SVGProps<SVGSVGElement>) {
   return (

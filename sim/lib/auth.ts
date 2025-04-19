@@ -15,6 +15,9 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
+// Add debug log for NEXT_PUBLIC_APP_URL
+logger.info('NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL)
+
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
 
@@ -312,54 +315,13 @@ export const auth = betterAuth({
           clientId: process.env.SUPABASE_CLIENT_ID as string,
           clientSecret: process.env.SUPABASE_CLIENT_SECRET as string,
           authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
+          accessType: 'offline',
           tokenUrl: 'https://api.supabase.com/v1/oauth/token',
-          // Supabase doesn't have a standard userInfo endpoint that works with our flow,
-          // so we use a dummy URL and rely on our custom getUserInfo implementation
-          userInfoUrl: 'https://dummy-not-used.supabase.co',
+          userInfoUrl: 'https://api.supabase.com/v1/oauth/userinfo',
           scopes: ['database.read', 'database.write', 'projects.read'],
           responseType: 'code',
           pkce: true,
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/supabase`,
-          getUserInfo: async (tokens) => {
-            try {
-              logger.info('Creating Supabase user profile from token data')
-
-              // Extract user identifier from tokens if possible
-              let userId = 'supabase-user'
-              if (tokens.idToken) {
-                try {
-                  // Try to decode the JWT to get user information
-                  const decodedToken = JSON.parse(
-                    Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
-                  )
-                  if (decodedToken.sub) {
-                    userId = decodedToken.sub
-                  }
-                } catch (e) {
-                  logger.warn('Failed to decode Supabase ID token', { error: e })
-                }
-              }
-
-              // Generate a unique enough identifier
-              const uniqueId = `${userId}-${Date.now()}`
-
-              const now = new Date()
-
-              // Create a synthetic user profile since we can't fetch one
-              return {
-                id: uniqueId,
-                name: 'Supabase User',
-                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@supabase.user`,
-                image: null,
-                emailVerified: false,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (error) {
-              logger.error('Error creating Supabase user profile:', { error })
-              return null
-            }
-          },
         },
 
         // X provider
@@ -378,45 +340,27 @@ export const auth = betterAuth({
           authentication: 'basic',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
           getUserInfo: async (tokens) => {
-            try {
-              const response = await fetch(
-                'https://api.x.com/2/users/me?user.fields=profile_image_url,username,name,verified',
-                {
-                  headers: {
-                    Authorization: `Bearer ${tokens.accessToken}`,
-                  },
-                }
-              )
-
-              if (!response.ok) {
-                logger.error('Error fetching X user info:', {
-                  status: response.status,
-                  statusText: response.statusText,
-                })
-                return null
+            const response = await fetch(
+              'https://api.x.com/2/users/me?user.fields=profile_image_url',
+              {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
               }
+            )
 
-              const profile = await response.json()
+            const profile = await response.json()
 
-              if (!profile.data) {
-                logger.error('Invalid X profile response:', profile)
-                return null
-              }
+            const now = new Date()
 
-              const now = new Date()
-
-              return {
-                id: profile.data.id,
-                name: profile.data.name || 'X User',
-                email: `${profile.data.username}@x.com`, // Create synthetic email with username
-                image: profile.data.profile_image_url,
-                emailVerified: profile.data.verified || false,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (error) {
-              logger.error('Error in X getUserInfo:', { error })
-              return null
+            return {
+              id: profile.data.id,
+              name: profile.data.name,
+              email: profile.data.username || null, // Use username as email
+              image: profile.data.profile_image_url,
+              emailVerified: profile.data.verified || false,
+              createdAt: now,
+              updatedAt: now,
             }
           },
         },
@@ -477,6 +421,62 @@ export const auth = betterAuth({
           },
         },
 
+        // Jira provider
+        {
+          providerId: 'jira',
+          clientId: process.env.JIRA_CLIENT_ID as string,
+          clientSecret: process.env.JIRA_CLIENT_SECRET as string,
+          authorizationUrl: 'https://auth.atlassian.com/authorize',
+          audience: 'api.atlassian.com',
+          prompt: 'consent',
+          tokenUrl: 'https://auth.atlassian.com/oauth/token',
+          userInfoUrl: 'https://api.atlassian.com/me',
+          scopes: [
+            'read:jira-user',
+            'read:jira-work',
+            'write:jira-work',
+            'read:project:jira',
+            'read:issue-type:jira',
+            'read:me',
+            'offline_access',
+          ],
+          redirectURI: `https://2f7d-4-39-199-2.ngrok-free.app/api/auth/oauth2/callback/jira`, //TODO: change back to ${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.atlassian.com/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                logger.error('Error fetching Jira user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+
+              const profile = await response.json()
+
+              const now = new Date()
+
+              return {
+                id: profile.account_id,
+                name: profile.name || profile.display_name || 'Jira User',
+                email: profile.email || `${profile.account_id}@atlassian.com`,
+                image: profile.picture || null,
+                emailVerified: true, // Assume verified since it's an Atlassian account
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error in Jira getUserInfo:', { error })
+              return null
+            }
+          },
+        },
+
         // Airtable provider
         {
           providerId: 'airtable',
@@ -487,7 +487,7 @@ export const auth = betterAuth({
           userInfoUrl: 'https://api.airtable.com/v0/meta/whoami',
           scopes: ['data.records:read', 'data.records:write', 'user.email:read', 'webhook:manage'],
           responseType: 'code',
-          pkce: true,
+          pkce: false, //TODO: change back to true
           accessType: 'offline',
           authentication: 'basic',
           prompt: 'consent',
