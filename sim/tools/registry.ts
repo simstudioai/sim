@@ -11,6 +11,7 @@ import { functionExecuteTool } from './function'
 import { githubCommentTool, githubLatestCommitTool, githubPrTool, githubRepoInfoTool } from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { guestyGuestTool, guestyReservationTool } from './guesty'
+import { searchTool as googleSearchTool } from './google'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
@@ -51,6 +52,7 @@ export const tools: Record<string, ToolConfig> = {
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
+  google_search: googleSearchTool,
   jina_readurl: readUrlTool,
   slack_message: slackMessageTool,
   github_repoinfo: githubRepoInfoTool,
