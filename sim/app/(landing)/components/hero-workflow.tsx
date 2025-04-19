@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import ReactFlow, {
   ConnectionLineType,
   Edge,
+  EdgeTypes,
   MarkerType,
   Node,
   NodeTypes,
@@ -11,151 +13,253 @@ import ReactFlow, {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
+  Viewport,
 } from 'reactflow'
-import { motion } from 'framer-motion'
 import 'reactflow/dist/style.css'
 import { HeroBlock } from './hero-block'
+import { HeroEdge } from './hero-edge'
 import { useWindowSize } from './use-window-size'
 
-const nodeTypes: NodeTypes = {
-  heroBlock: HeroBlock,
-}
+const nodeTypes: NodeTypes = { heroBlock: HeroBlock }
+const edgeTypes: EdgeTypes = { heroEdge: HeroEdge }
 
-// Desktop Layout - Precise positions matching the image
+// Desktop layout
 const desktopNodes: Node[] = [
-  { id: 'start', type: 'heroBlock', position: { x: 150, y: 200 }, data: { type: 'start' }, sourcePosition: Position.Right, targetPosition: Position.Left },
-  { id: 'function1', type: 'heroBlock', position: { x: 330, y: 470 }, data: { type: 'function' }, sourcePosition: Position.Right, targetPosition: Position.Left },
-  { id: 'agent1', type: 'heroBlock', position: { x: 820, y: 600 }, data: { type: 'agent' }, sourcePosition: Position.Right, targetPosition: Position.Left },
-  { id: 'slack1', type: 'heroBlock', position: { x: 1180, y: 470 }, data: { type: 'slack' }, sourcePosition: Position.Left, targetPosition: Position.Right },
-  { id: 'router1', type: 'heroBlock', position: { x: 1520, y: 200 }, data: { type: 'router' }, sourcePosition: Position.Left, targetPosition: Position.Right },
-];
+  {
+    id: 'function1',
+    type: 'heroBlock',
+    position: { x: 150, y: 400 },
+    data: { type: 'function' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+  {
+    id: 'agent1',
+    type: 'heroBlock',
+    position: { x: 600, y: 600 },
+    data: { type: 'agent' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+  {
+    id: 'router1',
+    type: 'heroBlock',
+    position: { x: 1050, y: 600 },
+    data: { type: 'router' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+  {
+    id: 'slack1',
+    type: 'heroBlock',
+    position: { x: 1500, y: 400 },
+    data: { type: 'slack' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+]
 
 const desktopEdges: Edge[] = [
-  { id: 'start-func1', source: 'start', target: 'function1', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-  { id: 'func1-agent1', source: 'function1', target: 'agent1', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-  { id: 'agent1-slack1', source: 'agent1', target: 'slack1', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-  { id: 'agent1-router1', source: 'slack1', target: 'router1', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true, markerEnd: { type: MarkerType.ArrowClosed } },
-];
+  {
+    id: 'func1-agent1',
+    source: 'function1',
+    target: 'agent1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+  {
+    id: 'agent1-router1',
+    source: 'agent1',
+    target: 'router1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+  {
+    id: 'router1-slack1',
+    source: 'router1',
+    target: 'slack1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+]
 
-// Tablet Layout - Adjusted to match image proportions
 const tabletNodes: Node[] = [
-  { id: 'start', type: 'heroBlock', position: { x: -180, y: 480 }, data: { type: 'start' } },
-  { id: 'function1', type: 'heroBlock', position: { x: 120, y: 660 }, data: { type: 'function' } },
-  { id: 'agent1', type: 'heroBlock', position: { x: 400, y: 660 }, data: { type: 'agent' } },
-  { id: 'router1', type: 'heroBlock', position: { x: 800, y: 320 }, data: { type: 'router' } },
-  { id: 'slack1', type: 'heroBlock', position: { x: 680, y: 660 }, data: { type: 'slack' } },
-].map(n => ({ ...n, sourcePosition: Position.Right, targetPosition: Position.Left }));
-const tabletEdges: Edge[] = desktopEdges;
+  { id: 'function1', type: 'heroBlock', position: { x: 50, y: 480 }, data: { type: 'function' } },
+  { id: 'agent1', type: 'heroBlock', position: { x: 300, y: 660 }, data: { type: 'agent' } },
+  { id: 'router1', type: 'heroBlock', position: { x: 550, y: 660 }, data: { type: 'router' } },
+  { id: 'slack1', type: 'heroBlock', position: { x: 800, y: 480 }, data: { type: 'slack' } },
+].map((n) => ({ ...n, sourcePosition: Position.Right, targetPosition: Position.Left }))
 
-// Mobile Layout - Vertically stacked with adjusted spacing
-const mobileNodes: Node[] = [
-  { id: 'start', type: 'heroBlock', position: { x: 40, y: 180 }, data: { type: 'start' } },
-  { id: 'function1', type: 'heroBlock', position: { x: 40, y: 380 }, data: { type: 'function' } },
-  { id: 'agent1', type: 'heroBlock', position: { x: 40, y: 630 }, data: { type: 'agent' } },
-  { id: 'slack1', type: 'heroBlock', position: { x: 40, y: 930 }, data: { type: 'slack' } },
-  { id: 'router1', type: 'heroBlock', position: { x: 40, y: 1180 }, data: { type: 'router' } },
-].map(n => ({ ...n, sourcePosition: Position.Bottom, targetPosition: Position.Top }));
+const tabletEdges = desktopEdges.map((edge) => ({
+  ...edge,
+  sourceHandle: 'source',
+  targetHandle: 'target',
+  type: 'heroEdge',
+}))
+
+// Mobile: only the agent node, centered under text
+const makeMobileNodes = (w: number, h: number): Node[] => {
+  const BLOCK_HALF = 100
+  return [
+    {
+      id: 'agent1',
+      type: 'heroBlock',
+      position: { x: w / 2 - BLOCK_HALF - 180, y: h / 2 },
+      data: { type: 'agent' },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    },
+    {
+      id: 'slack1',
+      type: 'heroBlock',
+      position: { x: w / 2 - BLOCK_HALF + 180, y: h / 2 + 200 },
+      data: { type: 'slack' },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    },
+  ]
+}
 
 const mobileEdges: Edge[] = [
-  { id: 'start-func1-m', source: 'start', target: 'function1', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-  { id: 'func1-agent1-m', source: 'function1', target: 'agent1', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-  { id: 'agent1-slack1-m', source: 'agent1', target: 'slack1', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-  { id: 'slack1-router1-m', source: 'slack1', target: 'router1', sourceHandle: 'bottom', targetHandle: 'top', type: 'smoothstep', style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }, animated: true },
-];
+  {
+    id: 'agent1-slack1',
+    source: 'agent1',
+    target: 'slack1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+]
 
-// Framer motion variants for load animation
 const workflowVariants = {
   hidden: { opacity: 0, scale: 0.98 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 0.5, delay: 0.1, ease: "easeOut" },
-  },
-};
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, delay: 0.1, ease: 'easeOut' } },
+}
 
 export function HeroWorkflow() {
-  const { width } = useWindowSize();
-  const isMobile = width !== undefined && width < 768;
-  const isTablet = width !== undefined && width >= 768 && width < 1024;
+  const { width = 0, height = 0 } = useWindowSize()
+  const isMobile = width < 768
+  const isTablet = width >= 768 && width < 1024
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
+  const { fitView } = useReactFlow()
 
-  // Set initial viewport based on device size
-  const defaultViewport = useMemo(() => {
-    if (isMobile) {
-      return { x: 0, y: 0, zoom: 0.5 };
-    } else if (isTablet) {
-      return { x: 0, y: 0, zoom: 0.65 };
-    } else {
-      return { x: 0, y: 0, zoom: 1 };
-    }
-  }, [isMobile, isTablet]);
+  // Default viewport to make elements smaller
+  const defaultViewport: Viewport = useMemo(() => ({ x: 0, y: 0, zoom: 0.8 }), [])
 
+  // Load layout
   useEffect(() => {
     if (isMobile) {
-      setNodes(mobileNodes);
-      setEdges(mobileEdges);
+      setNodes(makeMobileNodes(width, height))
+      setEdges(mobileEdges)
     } else if (isTablet) {
-      setNodes(tabletNodes);
-      setEdges(tabletEdges); 
-    } else { // Desktop
-      setNodes(desktopNodes);
-      setEdges(desktopEdges);
+      setNodes(tabletNodes)
+      setEdges(tabletEdges)
+    } else {
+      setNodes(desktopNodes)
+      setEdges(desktopEdges)
     }
-  }, [isMobile, isTablet, setNodes, setEdges]);
+  }, [width, height, isMobile, isTablet, setNodes, setEdges])
+
+  // Center and scale
+  useEffect(() => {
+    if (nodes.length) {
+      if (isMobile) {
+        fitView({ padding: 0.2 }) // reduced padding to zoom in more
+      } else {
+        fitView({ padding: 0.2 }) // added padding to create more space around elements
+      }
+    }
+  }, [nodes, edges, fitView, isMobile])
 
   return (
-    <motion.div 
-      className="absolute inset-0 pointer-events-none h-screen"
+    <motion.div
+      className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none"
+      style={{
+        height: '100%',
+        width: '100%',
+        position: 'absolute',
+        top: '140px',
+        left: 0,
+        willChange: 'opacity, transform',
+      }}
       variants={workflowVariants}
       initial="hidden"
       animate="visible"
     >
-       <style jsx global>{`
+      <style jsx global>{`
         .react-flow__edge-path {
-          stroke-dasharray: 4;
-          animation: dashdraw .5s linear infinite;
+          stroke-dasharray: 5, 5;
+          stroke-width: 2;
+          animation: dash 1s linear infinite;
         }
-        @keyframes dashdraw {
-          from { stroke-dashoffset: 8; }
+        @keyframes dash {
+          to {
+            stroke-dashoffset: 10;
+          }
         }
+        /* Make handles always visible in hero workflow with high z-index */
         .react-flow__handle {
-          opacity: 0;
+          opacity: 1 !important;
+          z-index: 1000 !important;
+          cursor: default !important;
         }
-        .react-flow__node:hover .react-flow__handle {
-          opacity: 1;
+        /* Force edges to stay below handles */
+        .react-flow__edge {
+          z-index: 5 !important;
         }
+        /* Ensure nodes are above edges */
+        .react-flow__node {
+          z-index: 10 !important;
+        }
+        /* Proper z-index stacking for the entire flow */
         .react-flow__renderer {
-          z-index: 5;
+          z-index: 1;
         }
       `}</style>
-      <div className="w-full h-full relative">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          nodeTypes={nodeTypes}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          connectionLineStyle={{ stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' }}
-          defaultViewport={defaultViewport}
-          minZoom={0.1} 
-          maxZoom={1.5} 
-          proOptions={{ hideAttribution: true }}
-          nodesDraggable={false} 
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnScroll={false} 
-          zoomOnScroll={false} 
-          zoomOnPinch={false} 
-          zoomOnDoubleClick={false}
-          panOnDrag={false} 
-          selectionOnDrag={false}
-          preventScrolling={true}
-        >
-        </ReactFlow>
-      </div>
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={{ type: 'heroEdge', animated: true }}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineStyle={{ stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' }}
+        minZoom={0.1}
+        maxZoom={1.5}
+        proOptions={{ hideAttribution: true }}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        panOnScroll={false}
+        zoomOnScroll={false}
+        zoomOnPinch={false}
+        zoomOnDoubleClick={false}
+        panOnDrag={false}
+        selectionOnDrag={false}
+        preventScrolling={true}
+        defaultViewport={defaultViewport}
+      />
     </motion.div>
   )
 }

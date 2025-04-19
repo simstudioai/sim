@@ -22,17 +22,24 @@ function Hero() {
   }, [router])
 
   return (
-    <section className="min-h-screen pt-36 sm:pt-48 md:pt-56 text-white relative border-b border-[#181818] overflow-hidden">
+    <section
+      className="min-h-screen pt-24 sm:pt-32 md:pt-36 text-white relative border-b border-[#181818] overflow-hidden will-change-[opacity,transform] animation-container"
+      aria-label="Main hero section"
+    >
       <GridPattern
         x={-5}
         y={-5}
         className="stroke-[#ababab]/5 absolute inset-0 z-0"
         width={90}
         height={90}
+        aria-hidden="true"
       />
 
       {/* Centered black background behind text and button */}
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-4xl w-full">
+      <div
+        className="absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 max-w-4xl w-full"
+        aria-hidden="true"
+      >
         <svg
           width="100%"
           height="100%"
@@ -40,6 +47,7 @@ function Hero() {
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
         >
           <g filter="url(#filter0_f_0_1)">
             <rect x="50" y="50" width="700" height="400" rx="20" fill="#0C0C0C" />
@@ -62,31 +70,35 @@ function Hero() {
         </svg>
       </div>
 
-      <div className="absolute inset-0 z-10 flex items-center justify-center h-full">
+      <div
+        className="absolute inset-0 z-10 flex items-center justify-center h-full"
+        aria-hidden="true"
+      >
         <HeroWorkflowProvider />
       </div>
 
-      <div className="text-center space-y-4 relative z-20 px-4">
-        <h1 className="text-5xl md:text-[72px] leading-[1.10] font-semibold animate-fade-up [animation-delay:200ms] opacity-0">
+      <div className="text-center space-y-4 relative z-20 px-4 animation-container">
+        <h1 className="text-5xl md:text-[72px] leading-[1.10] font-semibold animate-fade-up [animation-delay:200ms] opacity-0 will-change-[opacity,transform] animation-container">
           Build and Deploy
           <br />
           Agent Workflows
         </h1>
 
-        <p className="text-base md:text-xl text-neutral-400/80 font-normal max-w-3xl mx-auto animate-fade-up leading-[1.5] tracking-normal [animation-delay:400ms] opacity-0">
+        <p className="text-base md:text-xl text-neutral-400/80 font-normal max-w-3xl mx-auto animate-fade-up leading-[1.5] tracking-normal [animation-delay:400ms] opacity-0 will-change-[opacity,transform] animation-container">
           Launch agentic workflows with an open source, <br />
           user-friendly environment for devs and agents
         </p>
 
-        <div className="animate-fade-up pt-4 [animation-delay:600ms] opacity-0 translate-y-[-10px]">
+        <div className="animate-fade-up pt-4 pb-10 [animation-delay:600ms] opacity-0 translate-y-[-10px] will-change-[opacity,transform] animation-container">
           <Button
             variant={'secondary'}
             onClick={() => router.push('/login')}
             className="bg-[#701ffc] font-geist-sans items-center px-7 py-6 text-lg text-neutral-100 font-[420] tracking-normal shadow-lg shadow-[#701ffc]/30 hover:bg-[#802FFF]"
+            aria-label="Start using the platform"
           >
             <div className="text-[1.15rem]">Start now</div>
 
-            <div className="flex items-center gap-1 pl-2 opacity-80">
+            <div className="flex items-center gap-1 pl-2 opacity-80" aria-hidden="true">
               <Command size={24} />
               <CornerDownLeft />
             </div>

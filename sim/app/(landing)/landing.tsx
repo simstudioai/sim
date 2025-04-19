@@ -8,13 +8,13 @@ import Testimonials from './components/sections/testimonials'
 
 export default function Landing() {
   return (
-    <main className="bg-[#0C0C0C] relative overflow-x-hidden font-geist-sans">
+    <main className="bg-[#0C0C0C] relative min-h-screen font-geist-sans">
       <NavClient>
         <GitHubStars />
       </NavClient>
 
       <Hero />
-      <Features />
+      {/* <Features /> */}
       <Integrations />
       <Testimonials />
 

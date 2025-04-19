@@ -103,6 +103,12 @@
   body {
     @apply bg-background text-foreground;
     overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+    min-height: 100vh;
+    /* Prevent layout shifts when scrollbar appears/disappears */
+    scrollbar-gutter: stable;
+    /* Improve animation performance */
+    text-rendering: optimizeSpeed;
   }
 
   /* Global Scrollbar Styling */
@@ -134,6 +140,12 @@
 
 /* Custom Animations */
 @layer utilities {
+  /* Animation containment to avoid layout shifts */
+  .animation-container {
+    contain: paint layout style;
+    will-change: opacity, transform;
+  }
+
   @keyframes pulse-ring {
     0% {
       box-shadow: 0 0 0 0 hsl(var(--border));
