@@ -1,16 +1,13 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { useSession } from '@/lib/auth-client'
-import PasswordAuth from '../../../password-auth'
+import PasswordAuth from '../../password-auth'
 
 interface DashboardLayoutProps {
   children: ReactNode
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { data: session } = useSession()
-
   return (
     <PasswordAuth>
       <div className="min-h-screen bg-gray-100">

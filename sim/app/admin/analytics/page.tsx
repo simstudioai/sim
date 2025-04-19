@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
-import AnalyticsContent from './analytics-content'
+import AnalyticsContent  from './analytics'
 import { ErrorBoundary } from '@/app/w/[id]/components/error'
 import { ThemeProvider } from '@/app/w/components/providers/theme-provider'
 

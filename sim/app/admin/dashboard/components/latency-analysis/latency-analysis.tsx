@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Zap, Snail } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
-import Chart from '../charts/chart'
+import Chart from '../charts/charts'
 
 interface BlockLatency {
   type: string

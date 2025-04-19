@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSession } from '@/lib/auth-client'
-import Chart from '../charts/chart'
+import Chart from '../charts/charts'
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 

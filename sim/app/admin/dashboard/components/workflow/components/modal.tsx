@@ -23,8 +23,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { format, isValid, parseISO } from 'date-fns'
-import { ErrorMessageDialog } from '../errors/error-message-dialog'
+import { ErrorMessageDialog } from '../../errors/error-message-dialog'
 import { Check, Copy } from 'lucide-react'
+import { fetchWorkflowLogs } from '@/app/admin/dashboard/utils'
 
 interface WorkflowLog {
   id: string
@@ -52,6 +53,7 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
   const [error, setError] = useState<string | null>(null)
   const [selectedError, setSelectedError] = useState<{ title: string; message: string } | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
 
   // Reset copied state when modal closes
   useEffect(() => {
@@ -61,38 +63,31 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
   }, [isOpen])
 
   useEffect(() => {
-    async function fetchLogs() {
-      if (!isOpen || !workflowId) return
-
+    if (isOpen && workflowId) {
       setLoading(true)
       setError(null)
-
-      try {
-        const response = await fetch(`/api/admin/workflows/${encodeURIComponent(workflowId)}/logs`, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-          cache: 'no-store',
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'Failed to fetch logs')
+      
+      async function loadLogs() {
+        try {
+          const logsData = await fetchWorkflowLogs(workflowId)
+          setLogs(logsData)
+        } catch (err) {
+          console.error('Error fetching logs:', err)
+          const errorMessage = err instanceof Error ? err.message : 'Failed to fetch logs'
+          setError(errorMessage)
+          
+          // If it's a 404 error, we can still show the UI with an empty logs array
+          if (errorMessage.includes('No logs found')) {
+            setLogs([])
+          }
+        } finally {
+          setLoading(false)
         }
-
-        const data = await response.json()
-        setLogs(data.logs || [])
-      } catch (err) {
-        console.error('Error fetching logs:', err)
-        setError(err instanceof Error ? err.message : 'Failed to fetch logs')
-      } finally {
-        setLoading(false)
       }
+      
+      loadLogs()
     }
-
-    fetchLogs()
-  }, [workflowId, isOpen])
+  }, [isOpen, workflowId])
 
   // Helper function to safely format dates
   const formatDate = (dateString: string) => {
@@ -200,7 +195,7 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
 
           {loading && <p className="text-center py-4">Loading logs...</p>}
           
-          {error && (
+          {error && !error.includes('No logs found') && (
             <div className="text-red-500 text-center py-4">
               Error: {error}
             </div>
@@ -209,6 +204,17 @@ export function WorkflowLogsModal({ workflowId, isOpen, onClose }: WorkflowLogsM
           {!loading && !error && logs.length === 0 && (
             <p className="text-center py-4 text-muted-foreground">
               No logs found for this workflow
+            </p>
+          )}
+
+          {!loading && error && error.includes('No logs found') && (
+            <p className="text-center py-4 text-muted-foreground">
+              No logs found for this workflow. This could be because:
+              <ul className="list-disc list-inside mt-2 text-left max-w-md mx-auto">
+                <li>The workflow has never been executed</li>
+                <li>The logs have been cleared</li>
+                <li>The workflow ID is incorrect</li>
+              </ul>
             </p>
           )}
 

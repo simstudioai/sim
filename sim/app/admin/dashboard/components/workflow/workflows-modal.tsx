@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { WorkflowDetailsModal } from './workflow-details-modal'
+import { WorkflowDetailsModal } from './components/details-modal'
 
 // Define a more specific type for block data
 interface BlockData {

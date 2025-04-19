@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { format, subHours, subDays } from 'date-fns'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import Chart from '../charts/chart'
+import Chart from '../../charts/charts'
 
 interface WorkflowExecution {
   workflow_id: string

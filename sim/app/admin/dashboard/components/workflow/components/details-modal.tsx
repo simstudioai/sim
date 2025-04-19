@@ -8,11 +8,11 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { WorkflowLogsModal } from './workflow-logs-modal'
+import { WorkflowLogsModal } from './modal'
 import { useState, useMemo } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { formatBlockName } from '../charts/block-utils'
-import { getBlocksFromState } from '../../../analytics/utils/workflow-utils'
+import { formatBlockName } from '../../charts/components/block-utils'
+import { getBlocksFromState } from '../../../../analytics/utils/workflow-utils'
 
 // Define a more specific type for block data
 interface BlockData {

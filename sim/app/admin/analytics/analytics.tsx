@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import Chart from '../dashboard/components/charts/chart'
-import BlockUsageChart from '../dashboard/components/charts/block-usage-chart'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import Chart from '../dashboard/components/charts/charts'
+import BlockUsageChart from '../dashboard/components/charts/components/block-usage-chart'
 import { ChartData } from 'chart.js'
-import { ThemeProvider } from '@/app/w/components/providers/theme-provider'
 
 interface AnalyticsData {
   overview: {

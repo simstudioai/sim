@@ -9,7 +9,7 @@ import {
   WorkflowWithUser, 
   UserStats as UserStatsType,
   Session as SessionType
-} from '@/app/admin/dashboard/dashboard'
+} from '@/app/admin/dashboard/types'
 import {
   parseLatency,
   calculatePercentile,

@@ -1,6 +1,86 @@
 import { getBlocksFromState } from '../analytics/utils/workflow-utils'
-import { WorkflowLog, UserWorkflowStats, UserEngagement, UserStats, WorkflowWithUser, Session } from './dashboard'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
+import { UserEngagement, UserStats, WorkflowLog, WorkflowWithUser, UserWorkflowStats, Session } from './types'
+import { redirect } from 'next/navigation'
+
+/**
+ * Check if the user is authenticated in the admin dashboard
+ * This function can be used in server components to check authentication status
+ * @returns boolean indicating if the user is authenticated
+ */
+export function isAdminAuthenticated(): boolean {
+  // This is a server-side check that can be used in server components
+  // For client components, the PasswordAuth component already handles this
+  return true // In a real implementation, this would check a server-side session
+}
+
+/**
+ * Get the admin session and redirect if not authenticated
+ * This function should be used in server components to handle authentication
+ * @param callbackUrl - The URL to redirect to after login
+ * @returns The session object if authenticated
+ */
+export async function getAdminSession(callbackUrl: string = '/admin/dashboard') {
+  // In a real implementation, this would fetch the session from a server-side auth provider
+  // For now, we'll use a placeholder implementation
+  const isAuthenticated = isAdminAuthenticated()
+  
+  if (!isAuthenticated) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
+  }
+  
+  // Return a placeholder session object
+  return {
+    user: {
+      email: 'admin@example.com',
+      name: 'Admin User'
+    }
+  }
+}
+
+/**
+ * Fetch workflow logs with proper error handling
+ * @param workflowId - The ID of the workflow to fetch logs for
+ * @returns The logs data or throws an error with a descriptive message
+ */
+export async function fetchWorkflowLogs(workflowId: string) {
+  try {
+    const response = await fetch(`/api/workflows/${encodeURIComponent(workflowId)}/log`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      // Handle specific HTTP status codes
+      if (response.status === 404) {
+        throw new Error(`No logs found for workflow ID: ${workflowId}`)
+      }
+      
+      // Try to get error details from the response
+      let errorMessage = 'Failed to fetch logs'
+      try {
+        const errorData = await response.json()
+        if (errorData.error) {
+          errorMessage = errorData.error
+        } else {
+          errorMessage = `Failed to fetch logs: ${response.status} ${response.statusText}`
+        }
+      } catch (e) {
+        // If we can't parse the error JSON, use the status text
+        errorMessage = `Failed to fetch logs: ${response.status} ${response.statusText}`
+      }
+      throw new Error(errorMessage)
+    }
+
+    const data = await response.json()
+    return data.logs || []
+  } catch (err) {
+    console.error('Error fetching workflow logs:', err)
+    throw err instanceof Error ? err : new Error('Failed to fetch logs')
+  }
+}
 
 /**
  * Parse latency duration string to number

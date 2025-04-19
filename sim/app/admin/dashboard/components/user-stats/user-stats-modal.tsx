@@ -8,8 +8,8 @@ import {
 } from '@/components/ui/dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Terminal, Webhook, Clock, Globe, Box } from 'lucide-react'
-import BlockUsageChart from '../charts/block-usage-chart'
-import WorkflowList from '../workflow/workflow-list'
+import BlockUsageChart from '../charts/components/block-usage-chart'
+import WorkflowList from '../workflow/components/list'
 import { Workflow } from '@/app/api/admin/dashboard/types'
 import { useState, useEffect } from 'react'
 

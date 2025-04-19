@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, UserX, UserCheck, UserPlus } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import Chart from '../charts/chart'
+import Chart from '../charts/charts'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface UserDemographicsProps {

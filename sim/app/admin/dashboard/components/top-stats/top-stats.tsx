@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import BlockUsageChart from '../charts/block-usage-chart'
+import BlockUsageChart from '../charts/components/block-usage-chart'
 
 interface TopStatsProps {
   topUsers: Array<{

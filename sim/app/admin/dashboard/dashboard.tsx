@@ -6,16 +6,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Activity, Box, RefreshCw, Users, Workflow } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ErrorBoundary } from '../error-boundary'
-import { ThemeToggle } from './theme-toggle'
-import BlockUsageChart from '../charts/block-usage-chart'
-import { UserStatsModal } from '../user-stats/user-stats-modal'
-import WorkflowsModal from '../workflow/workflows-modal'
-import WorkflowActivityChart from '../workflow/workflow-activity-chart'
-import LatencyAnalysis from '../latency/latency-analysis'
-import UserDemographics from '../user-demographics/user-demographics'
+import { ErrorBoundary } from './components/error-boundary/error-boundary'
+import { ThemeToggle } from './components/theme-toggle/theme-toggle'
+import BlockUsageChart from './components/charts/components/block-usage-chart'
+import { UserStatsModal } from './components/user-stats/user-stats-modal'
+import WorkflowsModal from './components/workflow/workflows-modal'
+import WorkflowActivityChart from './components/workflow/components/activity-chart'
+import LatencyAnalysis from './components/latency-analysis/latency-analysis'
+import UserDemographics from './components/user-demographics/user-demographics'
 
-interface DashboardData {
+export interface DashboardData {
   overview: {
     totalWorkflows: number
     activeWorkflows: number
