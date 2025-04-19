@@ -14,8 +14,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
+import { ChatDeploymentModal } from './components/chat-deployment-modal/chat-deployment-modal'
 import { ChatMessage } from './components/chat-message/chat-message'
-import { ChatbotDeploymentModal } from './components/chat-deployment-modal/chat-deployment-modal'
 
 interface ChatProps {
   panelWidth: number
@@ -32,9 +32,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const [isChatbotModalOpen, setIsChatbotModalOpen] = useState(false)
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false)
   const { isDeployed } = useWorkflowStore()
-  const [hasChatbotDeployment, setHasChatbotDeployment] = useState(false)
+  const [hasChatDeployment, setHasChatDeployment] = useState(false)
 
   // Use the execution store state to track if a workflow is executing
   const { isExecuting } = useExecutionStore()
@@ -278,30 +278,30 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     return blockConfig?.bgColor || '#2F55FF' // Default blue if not found
   }
 
-  // Check if this workflow has an active chatbot deployment
+  // Check if this workflow has an active chat deployment
   useEffect(() => {
     if (!activeWorkflowId || !isDeployed) {
-      setHasChatbotDeployment(false)
+      setHasChatDeployment(false)
       return
     }
 
-    const checkChatbotDeployment = async () => {
+    const checkChatDeployment = async () => {
       try {
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/chatbot/status`)
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/chat/status`)
         if (response.ok) {
           const data = await response.json()
-          setHasChatbotDeployment(data.isDeployed || false)
+          setHasChatDeployment(data.isDeployed || false)
         } else {
-          setHasChatbotDeployment(false)
+          setHasChatDeployment(false)
         }
       } catch (error) {
-        console.error('Error checking chatbot deployment status:', error)
-        setHasChatbotDeployment(false)
+        console.error('Error checking chat deployment status:', error)
+        setHasChatDeployment(false)
       }
     }
 
-    checkChatbotDeployment()
-  }, [activeWorkflowId, isDeployed, isChatbotModalOpen])
+    checkChatDeployment()
+  }, [activeWorkflowId, isDeployed, isChatModalOpen])
 
   return (
     <div className="flex flex-col h-full">
@@ -385,8 +385,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
               </div>
             )}
           </div>
-          
-          {/* Chatbot Deploy Button */}
+
+          {/* Chat Deploy Button */}
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="relative">
@@ -394,31 +394,31 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   variant="ghost"
                   size="icon"
                   className="ml-2 text-muted-foreground hover:text-foreground"
-                  onClick={() => setIsChatbotModalOpen(true)}
+                  onClick={() => setIsChatModalOpen(true)}
                   disabled={!activeWorkflowId || !isDeployed}
                 >
                   <MessageSquareShare className="h-4 w-4" />
-                  <span className="sr-only">Deploy as Chatbot</span>
+                  <span className="sr-only">Deploy as Chat</span>
                 </Button>
-                
-                {/* Active chatbot deployment indicator - more subtle positioning */}
-                {hasChatbotDeployment && (
+
+                {/* Active chat deployment indicator - more subtle positioning */}
+                {hasChatDeployment && (
                   <div className="absolute top-0 right-0 flex items-center justify-center">
                     <div className="relative">
                       <div className="absolute inset-0 w-2 h-2 rounded-full bg-emerald-500/50 animate-pulse"></div>
                       <div className="relative w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-background"></div>
                     </div>
-                    <span className="sr-only">Active Chatbot</span>
+                    <span className="sr-only">Active Chat</span>
                   </div>
                 )}
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              {!isDeployed 
-                ? 'Deploy workflow first to enable chatbot'
-                : hasChatbotDeployment
-                  ? 'Manage Chatbot Deployment'
-                  : 'Deploy as Chatbot'}
+              {!isDeployed
+                ? 'Deploy workflow first to enable chat'
+                : hasChatDeployment
+                  ? 'Manage Chat Deployment'
+                  : 'Deploy as Chat'}
             </TooltipContent>
           </Tooltip>
         </div>
@@ -467,11 +467,11 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         </div>
       </div>
 
-      {/* Chatbot Deployment Modal */}
+      {/* Chat Deployment Modal */}
       {activeWorkflowId && (
-        <ChatbotDeploymentModal
-          isOpen={isChatbotModalOpen}
-          onClose={() => setIsChatbotModalOpen(false)}
+        <ChatDeploymentModal
+          isOpen={isChatModalOpen}
+          onClose={() => setIsChatModalOpen(false)}
           workflowId={activeWorkflowId}
         />
       )}

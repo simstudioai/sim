@@ -1,18 +1,20 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
-import { z } from 'zod'
-import { AlertTriangle, Check, Circle, Copy, Eye, EyeOff, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  AlertTriangle,
+  Check,
+  Circle,
+  Copy,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
+import { z } from 'zod'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,15 +25,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
-import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { LoadingAgent } from '@/components/ui/loading-agent'
 
-const logger = createLogger('ChatbotDeploymentModal')
+const logger = createLogger('ChatDeploymentModal')
 
 interface ChatDeploymentModalProps {
   isOpen: boolean
@@ -44,30 +55,33 @@ type AuthType = 'public' | 'password' | 'email'
 const isDevelopment = process.env.NODE_ENV === 'development'
 
 // Define Zod schema for API request validation
-const chatbotSchema = z.object({
-  workflowId: z.string().min(1, "Workflow ID is required"),
-  subdomain: z.string().min(1, "Subdomain is required").regex(/^[a-z0-9-]+$/, "Subdomain can only contain lowercase letters, numbers, and hyphens"),
-  title: z.string().min(1, "Title is required"),
+const chatSchema = z.object({
+  workflowId: z.string().min(1, 'Workflow ID is required'),
+  subdomain: z
+    .string()
+    .min(1, 'Subdomain is required')
+    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens'),
+  title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   customizations: z.object({
     primaryColor: z.string(),
     welcomeMessage: z.string(),
   }),
-  authType: z.enum(["public", "password", "email"]),
+  authType: z.enum(['public', 'password', 'email']),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
 })
 
-export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDeploymentModalProps) {
+export function ChatDeploymentModal({ isOpen, onClose, workflowId }: ChatDeploymentModalProps) {
   // Form state
   const [subdomain, setSubdomain] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [isDeploying, setIsDeploying] = useState(false)
   const [subdomainError, setSubdomainError] = useState('')
-  const [deployedChatbotUrl, setDeployedChatbotUrl] = useState<string | null>(null)
+  const [deployedChatUrl, setDeployedChatUrl] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  
+
   // Authentication options
   const [authType, setAuthType] = useState<AuthType>('public')
   const [password, setPassword] = useState('')
@@ -76,12 +90,12 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
   const [newEmail, setNewEmail] = useState('')
   const [emailError, setEmailError] = useState('')
 
-  // Existing chatbot state
-  const [existingChatbot, setExistingChatbot] = useState<any | null>(null)
+  // Existing chat state
+  const [existingChat, setExistingChat] = useState<any | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [dataFetched, setDataFetched] = useState(false)
-  
+
   // Track original values to detect changes
   const [originalValues, setOriginalValues] = useState<{
     subdomain: string
@@ -90,99 +104,99 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
     authType: AuthType
     emails: string[]
   } | null>(null)
-  
+
   // State to track if any changes have been made
   const [hasChanges, setHasChanges] = useState(false)
-  
+
   // Confirmation dialogs
   const [showEditConfirmation, setShowEditConfirmation] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
 
-  // Fetch existing chatbot data when modal opens
+  // Fetch existing chat data when modal opens
   useEffect(() => {
     if (isOpen && workflowId) {
       setIsLoading(true)
       setDataFetched(false)
-      fetchExistingChatbot()
+      fetchExistingChat()
     }
   }, [isOpen, workflowId])
 
   // Check for changes when form values update
   useEffect(() => {
-    if (originalValues && existingChatbot) {
+    if (originalValues && existingChat) {
       const currentAuthTypeChanged = authType !== originalValues.authType
       const subdomainChanged = subdomain !== originalValues.subdomain
       const titleChanged = title !== originalValues.title
       const descriptionChanged = description !== originalValues.description
-      
+
       // Check if emails have changed
-      const emailsChanged = 
-        emails.length !== originalValues.emails.length || 
-        emails.some(email => !originalValues.emails.includes(email))
-      
+      const emailsChanged =
+        emails.length !== originalValues.emails.length ||
+        emails.some((email) => !originalValues.emails.includes(email))
+
       // Check if password has changed - any value in password field means change
       const passwordChanged = password.length > 0
-      
+
       // Determine if any changes have been made
-      const changed = 
-        subdomainChanged || 
-        titleChanged || 
-        descriptionChanged || 
-        currentAuthTypeChanged || 
-        emailsChanged || 
+      const changed =
+        subdomainChanged ||
+        titleChanged ||
+        descriptionChanged ||
+        currentAuthTypeChanged ||
+        emailsChanged ||
         passwordChanged
-      
+
       setHasChanges(changed)
     }
   }, [subdomain, title, description, authType, emails, password, originalValues])
 
-  // Fetch existing chatbot data for this workflow
-  const fetchExistingChatbot = async () => {
+  // Fetch existing chat data for this workflow
+  const fetchExistingChat = async () => {
     try {
-      const response = await fetch(`/api/workflows/${workflowId}/chatbot/status`)
-      
+      const response = await fetch(`/api/workflows/${workflowId}/chat/status`)
+
       if (response.ok) {
         const data = await response.json()
-        
+
         if (data.isDeployed && data.deployment) {
-          // Get detailed chatbot info
-          const detailResponse = await fetch(`/api/chatbot/edit/${data.deployment.id}`)
-          
+          // Get detailed chat info
+          const detailResponse = await fetch(`/api/chat/edit/${data.deployment.id}`)
+
           if (detailResponse.ok) {
-            const chatbotDetail = await detailResponse.json()
-            setExistingChatbot(chatbotDetail)
-            
+            const chatDetail = await detailResponse.json()
+            setExistingChat(chatDetail)
+
             // Populate form with existing data
-            setSubdomain(chatbotDetail.subdomain || '')
-            setTitle(chatbotDetail.title || '')
-            setDescription(chatbotDetail.description || '')
-            setAuthType(chatbotDetail.authType || 'public')
-            
+            setSubdomain(chatDetail.subdomain || '')
+            setTitle(chatDetail.title || '')
+            setDescription(chatDetail.description || '')
+            setAuthType(chatDetail.authType || 'public')
+
             // Store original values for change detection
             setOriginalValues({
-              subdomain: chatbotDetail.subdomain || '',
-              title: chatbotDetail.title || '',
-              description: chatbotDetail.description || '',
-              authType: chatbotDetail.authType || 'public',
-              emails: Array.isArray(chatbotDetail.allowedEmails) ? [...chatbotDetail.allowedEmails] : []
+              subdomain: chatDetail.subdomain || '',
+              title: chatDetail.title || '',
+              description: chatDetail.description || '',
+              authType: chatDetail.authType || 'public',
+              emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
             })
-            
+
             // Set emails if using email auth
-            if (chatbotDetail.authType === 'email' && Array.isArray(chatbotDetail.allowedEmails)) {
-              setEmails(chatbotDetail.allowedEmails)
+            if (chatDetail.authType === 'email' && Array.isArray(chatDetail.allowedEmails)) {
+              setEmails(chatDetail.allowedEmails)
             }
-            
+
             // For security, we don't populate password - user will need to enter a new one if changing it
           } else {
-            logger.error('Failed to fetch chatbot details')
+            logger.error('Failed to fetch chat details')
           }
         } else {
-          setExistingChatbot(null)
+          setExistingChat(null)
           setOriginalValues(null)
         }
       }
     } catch (error) {
-      logger.error('Error fetching chatbot status:', error)
+      logger.error('Error fetching chat status:', error)
     } finally {
       setIsLoading(false)
       setDataFetched(true)
@@ -198,7 +212,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setTitle('')
       setDescription('')
       setSubdomainError('')
-      setDeployedChatbotUrl(null)
+      setDeployedChatUrl(null)
       setErrorMessage(null)
       setIsDeploying(false)
       setAuthType('public')
@@ -207,7 +221,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setEmails([])
       setNewEmail('')
       setEmailError('')
-      setExistingChatbot(null)
+      setExistingChat(null)
       setDataFetched(false)
       setOriginalValues(null)
       setHasChanges(false)
@@ -219,7 +233,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
   const handleSubdomainChange = (value: string) => {
     const lowercaseValue = value.toLowerCase()
     setSubdomain(lowercaseValue)
-    
+
     // Validate subdomain format
     if (lowercaseValue && !/^[a-z0-9-]+$/.test(lowercaseValue)) {
       setSubdomainError('Subdomain can only contain lowercase letters, numbers, and hyphens')
@@ -227,7 +241,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setSubdomainError('')
     }
   }
-  
+
   // Validate and add email
   const handleAddEmail = () => {
     // Basic email validation
@@ -235,7 +249,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setEmailError('Please enter a valid email or domain (e.g., user@example.com or @example.com)')
       return
     }
-    
+
     // Add email if it's not already in the list
     if (!emails.includes(newEmail)) {
       setEmails([...emails, newEmail])
@@ -245,10 +259,10 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       setEmailError('This email or domain is already in the list')
     }
   }
-  
+
   // Remove email from the list
   const handleRemoveEmail = (email: string) => {
-    setEmails(emails.filter(e => e !== email))
+    setEmails(emails.filter((e) => e !== email))
   }
 
   // Password generation and copy functionality
@@ -256,38 +270,38 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
     let result = ''
     const length = 24
-    
+
     for (let i = 0; i < length; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length))
     }
-    
+
     setPassword(result)
     setShowPassword(false)
   }
-  
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
   }
 
   const handleDelete = async () => {
-    if (!existingChatbot || !existingChatbot.id) return
+    if (!existingChat || !existingChat.id) return
 
     try {
       setIsDeleting(true)
-      
-      const response = await fetch(`/api/chatbot/edit/${existingChatbot.id}`, {
+
+      const response = await fetch(`/api/chat/edit/${existingChat.id}`, {
         method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to delete chatbot')
+        throw new Error(error.error || 'Failed to delete chat')
       }
-      
+
       // Close dialog after successful deletion
       handleOpenChange(false)
     } catch (error: any) {
-      logger.error('Failed to delete chatbot:', error)
+      logger.error('Failed to delete chat:', error)
       setErrorMessage(error.message || 'An unexpected error occurred while deleting')
     } finally {
       setIsDeleting(false)
@@ -295,53 +309,54 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
     }
   }
 
-  // Deploy or update chatbot
+  // Deploy or update chat
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    
+
     if (!workflowId || !subdomain.trim() || !title.trim()) {
       return
     }
-    
+
     if (subdomainError) {
       return
     }
-    
+
     // Validate authentication options
-    if (authType === 'password' && !password.trim() && !existingChatbot) {
+    if (authType === 'password' && !password.trim() && !existingChat) {
       setErrorMessage('Password is required when using password protection')
       return
     }
-    
+
     if (authType === 'email' && emails.length === 0) {
       setErrorMessage('At least one email or domain is required when using email access control')
       return
     }
-    
-    // If editing an existing chatbot, check if we should show confirmation
-    if (existingChatbot && existingChatbot.isActive) {
-      const majorChanges = 
-        subdomain !== existingChatbot.subdomain || 
-        authType !== existingChatbot.authType ||
-        (authType === 'email' && JSON.stringify(emails) !== JSON.stringify(existingChatbot.allowedEmails))
-      
+
+    // If editing an existing chat, check if we should show confirmation
+    if (existingChat && existingChat.isActive) {
+      const majorChanges =
+        subdomain !== existingChat.subdomain ||
+        authType !== existingChat.authType ||
+        (authType === 'email' &&
+          JSON.stringify(emails) !== JSON.stringify(existingChat.allowedEmails))
+
       if (majorChanges) {
         setShowEditConfirmation(true)
         return
       }
     }
-    
+
     // Proceed with create/update
-    await deployOrUpdateChatbot()
+    await deployOrUpdateChat()
   }
 
   // Actual deployment/update logic
-  const deployOrUpdateChatbot = async () => {
+  const deployOrUpdateChat = async () => {
     setErrorMessage(null)
-    
+
     try {
       setIsDeploying(true)
-      
+
       // Create request payload
       const payload: any = {
         workflowId,
@@ -354,29 +369,29 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
         },
         authType,
       }
-      
+
       // Add authentication options based on type
       if (authType === 'password' && password) {
         payload.password = password
       }
-      
+
       if (authType === 'email') {
         payload.allowedEmails = emails
       }
-      
+
       // Make API request - different endpoints for create vs update
-      let endpoint = '/api/chatbot'
+      let endpoint = '/api/chat'
       let method = 'POST'
-      
-      // If updating existing chatbot, use the edit/ID endpoint with PATCH method
-      if (existingChatbot && existingChatbot.id) {
-        endpoint = `/api/chatbot/edit/${existingChatbot.id}`
+
+      // If updating existing chat, use the edit/ID endpoint with PATCH method
+      if (existingChat && existingChat.id) {
+        endpoint = `/api/chat/edit/${existingChat.id}`
         method = 'PATCH'
       }
-      
+
       // Validate with Zod
       try {
-        chatbotSchema.parse(payload)
+        chatSchema.parse(payload)
       } catch (validationError: any) {
         if (validationError instanceof z.ZodError) {
           const errorMessage = validationError.errors[0]?.message || 'Invalid form data'
@@ -384,7 +399,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
           return
         }
       }
-      
+
       const response = await fetch(endpoint, {
         method,
         headers: {
@@ -392,23 +407,23 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
         },
         body: JSON.stringify(payload),
       })
-      
+
       const result = await response.json()
-      
+
       if (!response.ok) {
-        throw new Error(result.error || `Failed to ${existingChatbot ? 'update' : 'deploy'} chatbot`)
+        throw new Error(result.error || `Failed to ${existingChat ? 'update' : 'deploy'} chat`)
       }
-      
-      const { chatbotUrl } = result
-      
-      if (chatbotUrl) {
-        logger.info(`Chatbot ${existingChatbot ? 'updated' : 'deployed'} successfully:`, chatbotUrl)
-        setDeployedChatbotUrl(chatbotUrl)
+
+      const { chatUrl } = result
+
+      if (chatUrl) {
+        logger.info(`Chat ${existingChat ? 'updated' : 'deployed'} successfully:`, chatUrl)
+        setDeployedChatUrl(chatUrl)
       } else {
-        throw new Error('Response missing chatbotUrl')
+        throw new Error('Response missing chatUrl')
       }
     } catch (error: any) {
-      logger.error(`Failed to ${existingChatbot ? 'update' : 'deploy'} chatbot:`, error)
+      logger.error(`Failed to ${existingChat ? 'update' : 'deploy'} chat:`, error)
       setErrorMessage(error.message || 'An unexpected error occurred')
     } finally {
       setIsDeploying(false)
@@ -419,9 +434,9 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
   // Determine button label based on state
   const getSubmitButtonLabel = () => {
     if (isDeploying) {
-      return existingChatbot ? 'Updating...' : 'Deploying...'
+      return existingChat ? 'Updating...' : 'Deploying...'
     }
-    return existingChatbot ? 'Update Chatbot' : 'Deploy Chatbot'
+    return existingChat ? 'Update Chat' : 'Deploy Chat'
   }
 
   return (
@@ -430,50 +445,50 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
         <DialogContent className="w-[600px] max-w-[calc(100vw-32px)]">
           <DialogHeader>
             <DialogTitle className="text-xl">
-              {existingChatbot ? 'Manage Chatbot Deployment' : 'Deploy Workflow as Chatbot'}
+              {existingChat ? 'Manage Chat Deployment' : 'Deploy Workflow as Chat'}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground mt-1.5">
-              {existingChatbot 
-                ? 'Update your chatbot configuration or delete the deployment.' 
-                : 'Create a chatbot interface for your workflow that others can access via a custom URL.'}
+              {existingChat
+                ? 'Update your chat configuration or delete the deployment.'
+                : 'Create a chat interface for your workflow that others can access via a custom URL.'}
             </DialogDescription>
           </DialogHeader>
 
           {isLoading && (
             <div className="py-12 flex flex-col items-center justify-center space-y-4">
               <LoadingAgent size="lg" />
-              <p className="text-sm text-muted-foreground">Loading chatbot information...</p>
+              <p className="text-sm text-muted-foreground">Loading chat information...</p>
             </div>
           )}
 
-          {!isLoading && deployedChatbotUrl ? (
+          {!isLoading && deployedChatUrl ? (
             // Success view
             <div className="space-y-6 py-4">
               <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20">
                 <CardContent className="p-6 text-green-800 dark:text-green-400">
                   <h3 className="text-base font-medium mb-2">
-                    Chatbot {existingChatbot ? 'Update' : 'Deployment'} Successful
+                    Chat {existingChat ? 'Update' : 'Deployment'} Successful
                   </h3>
-                  <p className="mb-3">Your chatbot is now available at:</p>
+                  <p className="mb-3">Your chat is now available at:</p>
                   <div className="bg-white/50 dark:bg-gray-900/50 p-3 rounded-md border border-green-200 dark:border-green-900/50">
-                    <a 
-                      href={deployedChatbotUrl} 
-                      target="_blank" 
+                    <a
+                      href={deployedChatUrl}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="text-sm font-medium text-primary underline break-all block"
                     >
-                      {deployedChatbotUrl}
+                      {deployedChatUrl}
                     </a>
                   </div>
                 </CardContent>
               </Card>
-              
+
               <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
                 <h4 className="font-medium">Next Steps</h4>
                 <ul className="space-y-2 list-disc list-inside text-muted-foreground">
                   <li>Share this URL with your users</li>
-                  <li>Visit the URL to test your chatbot</li>
-                  <li>Manage your chatbots from the Deployments page</li>
+                  <li>Visit the URL to test your chat</li>
+                  <li>Manage your chats from the Deployments page</li>
                 </ul>
               </div>
             </div>
@@ -487,7 +502,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                     <AlertDescription>{errorMessage}</AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="space-y-4">
                   <div className="space-y-4">
                     <div className="space-y-2">
@@ -515,7 +530,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
 
                     <div className="space-y-2">
                       <Label htmlFor="title" className="text-sm font-medium">
-                        Chatbot Title
+                        Chat Title
                       </Label>
                       <Input
                         id="title"
@@ -527,14 +542,14 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="description" className="text-sm font-medium">
                       Description (Optional)
                     </Label>
                     <Textarea
                       id="description"
-                      placeholder="A brief description of what this chatbot does"
+                      placeholder="A brief description of what this chat does"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={3}
@@ -542,18 +557,18 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                     />
                   </div>
                 </div>
-                
+
                 {/* Authentication Options */}
                 <div className="space-y-4">
                   <div>
                     <Label className="text-sm font-medium">Access Control</Label>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <Card 
+                    <Card
                       className={cn(
-                        "cursor-pointer overflow-hidden border transition-colors hover:border-primary/50",
-                        authType === "public" ? "border-primary bg-primary/5" : "border-border"
+                        'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
+                        authType === 'public' ? 'border-primary bg-primary/5' : 'border-border'
                       )}
                       onClick={() => !isDeploying && setAuthType('public')}
                     >
@@ -567,15 +582,17 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                         </div>
                         <div>
                           <h3 className="font-medium text-sm">Public Access</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Anyone can access your chatbot</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Anyone can access your chat
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
-                    
-                    <Card 
+
+                    <Card
                       className={cn(
-                        "cursor-pointer overflow-hidden border transition-colors hover:border-primary/50",
-                        authType === "password" ? "border-primary bg-primary/5" : "border-border"
+                        'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
+                        authType === 'password' ? 'border-primary bg-primary/5' : 'border-border'
                       )}
                       onClick={() => !isDeploying && setAuthType('password')}
                     >
@@ -589,15 +606,17 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                         </div>
                         <div>
                           <h3 className="font-medium text-sm">Password Protected</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Secure with a single password</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Secure with a single password
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
-                    
-                    <Card 
+
+                    <Card
                       className={cn(
-                        "cursor-pointer overflow-hidden border transition-colors hover:border-primary/50",
-                        authType === "email" ? "border-primary bg-primary/5" : "border-border"
+                        'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
+                        authType === 'email' ? 'border-primary bg-primary/5' : 'border-border'
                       )}
                       onClick={() => !isDeploying && setAuthType('email')}
                     >
@@ -611,12 +630,14 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                         </div>
                         <div>
                           <h3 className="font-medium text-sm">Email Access</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Restrict to specific emails</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Restrict to specific emails
+                          </p>
                         </div>
                       </CardContent>
                     </Card>
                   </div>
-                  
+
                   {/* Auth settings section - maintain consistent height */}
                   <div className="min-h-[200px]">
                     {authType === 'password' && (
@@ -624,9 +645,9 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                         <CardContent className="p-4 space-y-4">
                           <div className="flex justify-between items-center">
                             <h3 className="text-sm font-medium">Password Settings</h3>
-                            <Button 
-                              type="button" 
-                              variant="outline" 
+                            <Button
+                              type="button"
+                              variant="outline"
                               size="sm"
                               onClick={generatePassword}
                               disabled={isDeploying}
@@ -638,21 +659,27 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                           </div>
                           <div className="relative">
                             {/* Add visual password indicator for existing passwords */}
-                            {existingChatbot && existingChatbot.authType === 'password' && !password && (
+                            {existingChat && existingChat.authType === 'password' && !password && (
                               <div className="mb-2 text-xs flex items-center text-muted-foreground">
-                                <div className="mr-2 bg-primary/10 text-primary font-medium rounded-full px-2 py-0.5">Password set</div>
+                                <div className="mr-2 bg-primary/10 text-primary font-medium rounded-full px-2 py-0.5">
+                                  Password set
+                                </div>
                                 <span>Current password is securely stored</span>
                               </div>
                             )}
                             <div className="relative">
                               <Input
                                 type={showPassword ? 'text' : 'password'}
-                                placeholder={existingChatbot ? "Enter new password (leave empty to keep current)" : "Enter password"}
+                                placeholder={
+                                  existingChat
+                                    ? 'Enter new password (leave empty to keep current)'
+                                    : 'Enter password'
+                                }
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 disabled={isDeploying}
                                 className="pr-20"
-                                required={!existingChatbot && authType === 'password'}
+                                required={!existingChat && authType === 'password'}
                               />
                               <div className="absolute right-0 top-0 h-full flex">
                                 <Button
@@ -680,7 +707,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                                     <Eye className="h-4 w-4" />
                                   )}
                                   <span className="sr-only">
-                                    {showPassword ? "Hide password" : "Show password"}
+                                    {showPassword ? 'Hide password' : 'Show password'}
                                   </span>
                                 </Button>
                               </div>
@@ -688,14 +715,14 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                           </div>
                           {/* Add helper text to explain password behavior */}
                           <p className="text-xs text-muted-foreground italic mt-1">
-                            {existingChatbot && existingChatbot.authType === 'password'
-                              ? "Leaving this empty will keep the current password. Enter a new password to change it."
-                              : "This password will be required to access your chatbot."}
+                            {existingChat && existingChat.authType === 'password'
+                              ? 'Leaving this empty will keep the current password. Enter a new password to change it.'
+                              : 'This password will be required to access your chat.'}
                           </p>
                         </CardContent>
                       </Card>
                     )}
-                    
+
                     {authType === 'email' && (
                       <Card className="border-border/40">
                         <CardContent className="p-4 space-y-4">
@@ -705,7 +732,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                               Add specific emails or entire domains (@example.com)
                             </p>
                           </div>
-                          
+
                           <div className="flex gap-2">
                             <Input
                               placeholder="user@example.com or @domain.com"
@@ -725,16 +752,17 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                               Add
                             </Button>
                           </div>
-                          
-                          {emailError && (
-                            <p className="text-sm text-destructive">{emailError}</p>
-                          )}
-                          
+
+                          {emailError && <p className="text-sm text-destructive">{emailError}</p>}
+
                           {emails.length > 0 && (
                             <div className="bg-muted/50 rounded-lg border border-muted p-3 max-h-[100px] overflow-y-auto">
                               <ul className="space-y-2 divide-y divide-border/40">
                                 {emails.map((email) => (
-                                  <li key={email} className="flex justify-between items-center py-1.5 text-sm">
+                                  <li
+                                    key={email}
+                                    className="flex justify-between items-center py-1.5 text-sm"
+                                  >
                                     <span className="font-medium">{email}</span>
                                     <Button
                                       type="button"
@@ -754,14 +782,14 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                         </CardContent>
                       </Card>
                     )}
-                    
+
                     {authType === 'public' && (
                       <Card className="border-border/40">
                         <CardContent className="p-4 space-y-4">
                           <div>
                             <h3 className="text-sm font-medium mb-2">Public Access Settings</h3>
                             <p className="text-xs text-muted-foreground">
-                              This chatbot will be publicly accessible to anyone with the link.
+                              This chat will be publicly accessible to anyone with the link.
                             </p>
                           </div>
                         </CardContent>
@@ -769,19 +797,19 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                     )}
                   </div>
                 </div>
-                
-                {!existingChatbot && (
+
+                {!existingChat && (
                   <Alert className="bg-muted/30 border-muted">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription className="text-sm text-muted-foreground">
-                      Your workflow must be deployed before creating a chatbot.
+                      Your workflow must be deployed before creating a chat.
                     </AlertDescription>
                   </Alert>
                 )}
               </div>
-              
+
               <DialogFooter>
-                {existingChatbot && (
+                {existingChat && (
                   <Button
                     type="button"
                     variant="destructive"
@@ -811,23 +839,23 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={
-                    isDeploying || 
-                    isDeleting || 
-                    !subdomain || 
-                    !title || 
-                    !!subdomainError || 
-                    (authType === 'password' && !password && !existingChatbot) ||
+                    isDeploying ||
+                    isDeleting ||
+                    !subdomain ||
+                    !title ||
+                    !!subdomainError ||
+                    (authType === 'password' && !password && !existingChat) ||
                     (authType === 'email' && emails.length === 0) ||
-                    (existingChatbot && !hasChanges) // Add change detection check
+                    (existingChat && !hasChanges) // Add change detection check
                   }
                 >
                   {isDeploying ? (
                     <span className="flex items-center">
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {existingChatbot ? 'Updating...' : 'Deploying...'}
+                      {existingChat ? 'Updating...' : 'Deploying...'}
                     </span>
                   ) : (
                     getSubmitButtonLabel()
@@ -843,29 +871,27 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       <AlertDialog open={showEditConfirmation} onOpenChange={setShowEditConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Update Active Chatbot?</AlertDialogTitle>
+            <AlertDialogTitle>Update Active Chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to change an active chatbot deployment. These changes will immediately affect all users of your chatbot.
-              {subdomain !== existingChatbot?.subdomain && (
+              You are about to change an active chat deployment. These changes will immediately
+              affect all users of your chat.
+              {subdomain !== existingChat?.subdomain && (
                 <p className="mt-2 font-medium">
-                  The URL of your chatbot will change, and any links to the old URL will stop working.
+                  The URL of your chat will change, and any links to the old URL will stop working.
                 </p>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeploying}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => deployOrUpdateChatbot()}
-              disabled={isDeploying}
-            >
+            <AlertDialogAction onClick={() => deployOrUpdateChat()} disabled={isDeploying}>
               {isDeploying ? (
                 <span className="flex items-center">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Updating...
                 </span>
               ) : (
-                'Update Chatbot'
+                'Update Chat'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -876,9 +902,10 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
       <AlertDialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Chatbot?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete your chatbot deployment at <span className="font-mono text-destructive">{subdomain}.simstudio.ai</span>.
+              This will permanently delete your chat deployment at{' '}
+              <span className="font-mono text-destructive">{subdomain}.simstudio.ai</span>.
               <p className="mt-2">
                 All users will lose access immediately, and this action cannot be undone.
               </p>
@@ -886,7 +913,7 @@ export function ChatbotDeploymentModal({ isOpen, onClose, workflowId }: ChatDepl
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
               className="bg-destructive hover:bg-destructive/90"

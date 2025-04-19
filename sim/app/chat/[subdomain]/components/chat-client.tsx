@@ -15,8 +15,8 @@ interface ChatMessage {
   timestamp: Date
 }
 
-// Define chatbot config type
-interface ChatbotConfig {
+// Define chat config type
+interface ChatConfig {
   id: string
   title: string
   description: string
@@ -29,38 +29,38 @@ interface ChatbotConfig {
   authType?: 'public' | 'password' | 'email'
 }
 
-export default function ChatbotClient({ subdomain }: { subdomain: string }) {
+export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [chatbotConfig, setChatbotConfig] = useState<ChatbotConfig | null>(null)
+  const [chatConfig, setChatConfig] = useState<ChatConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  
+
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
   const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
-  
-  // Fetch chatbot config on mount
+
+  // Fetch chat config on mount
   useEffect(() => {
-    async function fetchChatbotConfig() {
+    async function fetchChatConfig() {
       try {
         // Use relative URL instead of absolute URL with process.env.NEXT_PUBLIC_APP_URL
-        const response = await fetch(`/api/chatbot/${subdomain}`, {
+        const response = await fetch(`/api/chat/${subdomain}`, {
           credentials: 'same-origin',
           headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-          }
+            'X-Requested-With': 'XMLHttpRequest',
+          },
         })
-        
+
         if (!response.ok) {
           // Check if auth is required
           if (response.status === 401) {
             const errorData = await response.json()
-            
+
             if (errorData.error === 'auth_required_password') {
               setAuthRequired('password')
               return
@@ -69,15 +69,15 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
               return
             }
           }
-          
-          throw new Error(`Failed to load chatbot configuration: ${response.status}`)
+
+          throw new Error(`Failed to load chat configuration: ${response.status}`)
         }
-        
+
         const data = await response.json()
-        
+
         // The API returns the data directly without a wrapper
-        setChatbotConfig(data)
-        
+        setChatConfig(data)
+
         // Add welcome message if configured
         if (data?.customizations?.welcomeMessage) {
           setMessages([
@@ -90,57 +90,55 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
           ])
         }
       } catch (error) {
-        console.error('Error fetching chatbot config:', error)
-        setError('This chatbot is currently unavailable. Please try again later.')
+        console.error('Error fetching chat config:', error)
+        setError('This chat is currently unavailable. Please try again later.')
       }
     }
-    
-    fetchChatbotConfig()
+
+    fetchChatConfig()
   }, [subdomain])
-  
+
   // Handle authentication
   const handleAuthenticate = async () => {
     setAuthError(null)
     setIsAuthenticating(true)
-    
+
     try {
-      const payload = authRequired === 'password' 
-        ? { password } 
-        : { email }
-      
-      const response = await fetch(`/api/chatbot/${subdomain}`, {
+      const payload = authRequired === 'password' ? { password } : { email }
+
+      const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(payload),
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         setAuthError(errorData.error || 'Authentication failed')
         return
       }
-      
+
       await response.json()
-      
+
       // Authentication successful, fetch config again
-      const configResponse = await fetch(`/api/chatbot/${subdomain}`, {
+      const configResponse = await fetch(`/api/chat/${subdomain}`, {
         credentials: 'same-origin',
         headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        }
+          'X-Requested-With': 'XMLHttpRequest',
+        },
       })
-      
+
       if (!configResponse.ok) {
-        throw new Error('Failed to load chatbot configuration after authentication')
+        throw new Error('Failed to load chat configuration after authentication')
       }
-      
+
       const data = await configResponse.json()
-      setChatbotConfig(data)
-      
+      setChatConfig(data)
+
       // Add welcome message if configured
       if (data?.customizations?.welcomeMessage) {
         setMessages([
@@ -152,12 +150,11 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
           },
         ])
       }
-      
+
       // Reset auth state
       setAuthRequired(null)
       setPassword('')
       setEmail('')
-      
     } catch (error) {
       console.error('Authentication error:', error)
       setAuthError('An error occurred during authentication')
@@ -165,72 +162,72 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       setIsAuthenticating(false)
     }
   }
-  
+
   // Scroll to bottom of messages
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages])
-  
+
   // Handle sending a message
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
-    
+
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       content: inputValue,
       type: 'user',
       timestamp: new Date(),
     }
-    
+
     setMessages((prev) => [...prev, userMessage])
     setInputValue('')
     setIsLoading(true)
-    
+
     try {
       // Use relative URL with credentials
-      const response = await fetch(`/api/chatbot/${subdomain}`, {
+      const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ message: userMessage.content }),
       })
-      
+
       if (!response.ok) {
         throw new Error('Failed to get response')
       }
-      
+
       const responseData = await response.json()
       console.log('Message response:', responseData)
-      
+
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        content: responseData.output || 'Sorry, I couldn\'t process your request.',
+        content: responseData.output || "Sorry, I couldn't process your request.",
         type: 'assistant',
         timestamp: new Date(),
       }
-      
+
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       console.error('Error sending message:', error)
-      
+
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         content: 'Sorry, there was an error processing your message. Please try again.',
         type: 'assistant',
         timestamp: new Date(),
       }
-      
+
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
     }
   }
-  
+
   // Handle keyboard input
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -238,7 +235,7 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       handleSendMessage()
     }
   }
-  
+
   // Handle auth form keyboard input
   const handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -246,7 +243,7 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       handleAuthenticate()
     }
   }
-  
+
   // If error, show error message
   if (error) {
     return (
@@ -258,31 +255,31 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       </div>
     )
   }
-  
+
   // If authentication is required, show auth form
   if (authRequired) {
     // Get title and description from the URL params or use defaults
-    const title = new URLSearchParams(window.location.search).get('title') || 'Chatbot'
+    const title = new URLSearchParams(window.location.search).get('title') || 'chat'
     const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
-    
+
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="p-6 max-w-md w-full mx-auto bg-white rounded-xl shadow-md">
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold mb-2">{title}</h2>
             <p className="text-gray-600">
-              {authRequired === 'password' 
-                ? 'This chatbot is password-protected. Please enter the password to continue.' 
-                : 'This chatbot requires email verification. Please enter your email to continue.'}
+              {authRequired === 'password'
+                ? 'This chat is password-protected. Please enter the password to continue.'
+                : 'This chat requires email verification. Please enter your email to continue.'}
             </p>
           </div>
-          
+
           {authError && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md">
               {authError}
             </div>
           )}
-          
+
           <div className="space-y-4">
             {authRequired === 'password' ? (
               <div className="relative">
@@ -311,9 +308,9 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
                 />
               </div>
             )}
-            
-            <Button 
-              onClick={handleAuthenticate} 
+
+            <Button
+              onClick={handleAuthenticate}
               className="w-full"
               style={{ backgroundColor: primaryColor }}
               disabled={isAuthenticating || (authRequired === 'password' ? !password : !email)}
@@ -332,9 +329,9 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       </div>
     )
   }
-  
+
   // Loading state while fetching config
-  if (!chatbotConfig) {
+  if (!chatConfig) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="animate-pulse text-center">
@@ -344,29 +341,29 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       </div>
     )
   }
-  
+
   // Get primary color from customizations or use default
-  const primaryColor = chatbotConfig.customizations?.primaryColor || '#802FFF'
-  
+  const primaryColor = chatConfig.customizations?.primaryColor || '#802FFF'
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <header 
-        className="p-4 shadow-sm flex items-center" 
+      <header
+        className="p-4 shadow-sm flex items-center"
         style={{ backgroundColor: primaryColor, color: 'white' }}
       >
-        {chatbotConfig.customizations?.logoUrl && (
-          <img 
-            src={chatbotConfig.customizations.logoUrl} 
-            alt={`${chatbotConfig.title} logo`} 
+        {chatConfig.customizations?.logoUrl && (
+          <img
+            src={chatConfig.customizations.logoUrl}
+            alt={`${chatConfig.title} logo`}
             className="h-8 w-8 object-contain mr-3"
           />
         )}
         <h1 className="text-lg font-medium">
-          {chatbotConfig.customizations?.headerText || chatbotConfig.title}
+          {chatConfig.customizations?.headerText || chatConfig.title}
         </h1>
       </header>
-      
+
       {/* Chat area */}
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full p-4">
@@ -399,8 +396,14 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
               <div className="flex items-center px-4 py-3 rounded-lg bg-white border mr-auto">
                 <div className="flex space-x-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '0.2s' }}
+                  ></div>
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: '0.4s' }}
+                  ></div>
                 </div>
               </div>
             )}
@@ -408,7 +411,7 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
           </div>
         </ScrollArea>
       </div>
-      
+
       {/* Input area */}
       <div className="p-4 border-t bg-white">
         <div className="flex max-w-3xl mx-auto">
@@ -433,4 +436,4 @@ export default function ChatbotClient({ subdomain }: { subdomain: string }) {
       </div>
     </div>
   )
-} 
+}

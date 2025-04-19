@@ -1,13 +1,13 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { chatbotDeployment } from '@/db/schema'
+import { chatDeployment } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
-const logger = createLogger('ChatbotStatusAPI')
+const logger = createLogger('ChatStatusAPI')
 
 /**
- * GET endpoint to check if a workflow has an active chatbot deployment
+ * GET endpoint to check if a workflow has an active chat deployment
  */
 export async function GET(
   _request: Request,
@@ -17,17 +17,17 @@ export async function GET(
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    logger.debug(`[${requestId}] Checking chatbot deployment status for workflow: ${id}`)
+    logger.debug(`[${requestId}] Checking chat deployment status for workflow: ${id}`)
 
-    // Find any active chatbot deployments for this workflow
+    // Find any active chat deployments for this workflow
     const deploymentResults = await db
       .select({
-        id: chatbotDeployment.id,
-        subdomain: chatbotDeployment.subdomain,
-        isActive: chatbotDeployment.isActive,
+        id: chatDeployment.id,
+        subdomain: chatDeployment.subdomain,
+        isActive: chatDeployment.isActive,
       })
-      .from(chatbotDeployment)
-      .where(eq(chatbotDeployment.workflowId, id))
+      .from(chatDeployment)
+      .where(eq(chatDeployment.workflowId, id))
       .limit(1)
 
     const isDeployed = deploymentResults.length > 0 && deploymentResults[0].isActive
@@ -43,7 +43,7 @@ export async function GET(
       deployment: deploymentInfo,
     })
   } catch (error: any) {
-    logger.error(`[${requestId}] Error checking chatbot deployment status:`, error)
-    return createErrorResponse(error.message || 'Failed to check chatbot deployment status', 500)
+    logger.error(`[${requestId}] Error checking chat deployment status:`, error)
+    return createErrorResponse(error.message || 'Failed to check chat deployment status', 500)
   }
 } 

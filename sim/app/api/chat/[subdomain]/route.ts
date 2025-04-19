@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { chatbotDeployment, workflow, apiKey as apiKeyTable } from '@/db/schema'
+import { chatDeployment, workflow, apiKey as apiKeyTable } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { addCorsHeaders, validateChatbotAuth, setChatbotAuthCookie, validateAuthToken } from '../utils'
+import { addCorsHeaders, validateChatAuth, setChatAuthCookie, validateAuthToken } from '../utils'
 
-const logger = createLogger('ChatbotSubdomainAPI')
+const logger = createLogger('ChatSubdomainAPI')
 
 // This endpoint handles chat interactions via the subdomain
 export async function POST(request: NextRequest, { params }: { params: { subdomain: string } }) {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    logger.debug(`[${requestId}] Processing chatbot request for subdomain: ${subdomain}`)
+    logger.debug(`[${requestId}] Processing chat request for subdomain: ${subdomain}`)
     
     // Parse the request body once
     let parsedBody
@@ -24,36 +24,36 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
       return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
     }
     
-    // Find the chatbot deployment for this subdomain
+    // Find the chat deployment for this subdomain
     const deploymentResult = await db
       .select({
-        id: chatbotDeployment.id,
-        workflowId: chatbotDeployment.workflowId,
-        userId: chatbotDeployment.userId,
-        isActive: chatbotDeployment.isActive,
-        authType: chatbotDeployment.authType,
-        password: chatbotDeployment.password,
-        allowedEmails: chatbotDeployment.allowedEmails,
+        id: chatDeployment.id,
+        workflowId: chatDeployment.workflowId,
+        userId: chatDeployment.userId,
+        isActive: chatDeployment.isActive,
+        authType: chatDeployment.authType,
+        password: chatDeployment.password,
+        allowedEmails: chatDeployment.allowedEmails,
       })
-      .from(chatbotDeployment)
-      .where(eq(chatbotDeployment.subdomain, subdomain))
+      .from(chatDeployment)
+      .where(eq(chatDeployment.subdomain, subdomain))
       .limit(1)
     
     if (deploymentResult.length === 0) {
-      logger.warn(`[${requestId}] Chatbot not found for subdomain: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('Chatbot not found', 404), request)
+      logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
+      return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
     
     const deployment = deploymentResult[0]
     
-    // Check if the chatbot is active
+    // Check if the chat is active
     if (!deployment.isActive) {
-      logger.warn(`[${requestId}] Chatbot is not active: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('This chatbot is currently unavailable', 403), request)
+      logger.warn(`[${requestId}] Chat is not active: ${subdomain}`)
+      return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
     
     // Validate authentication with the parsed body
-    const authResult = await validateChatbotAuth(requestId, deployment, request, parsedBody)
+    const authResult = await validateChatAuth(requestId, deployment, request, parsedBody)
     if (!authResult.authorized) {
       return addCorsHeaders(createErrorResponse(authResult.error || 'Authentication required', 401), request)
     }
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
       const response = addCorsHeaders(createSuccessResponse({ authenticated: true }), request)
       
       // Set authentication cookie
-      setChatbotAuthCookie(response, deployment.id, deployment.authType)
+      setChatAuthCookie(response, deployment.id, deployment.authType)
       
       return response
     }
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
       return addCorsHeaders(createErrorResponse('No message provided', 400), request)
     }
     
-    // Get the workflow for this chatbot
+    // Get the workflow for this chat
     const workflowResult = await db
       .select({
         isDeployed: workflow.isDeployed,
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
     
     if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
       logger.warn(`[${requestId}] Workflow not found or not deployed: ${deployment.workflowId}`)
-      return addCorsHeaders(createErrorResponse('Chatbot workflow is not available', 503), request)
+      return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
     }
     
     // Get the API key for the user
@@ -129,55 +129,55 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
     // Add CORS headers before returning the response
     return addCorsHeaders(createSuccessResponse(result), request)
   } catch (error: any) {
-    logger.error(`[${requestId}] Error processing chatbot request:`, error)
+    logger.error(`[${requestId}] Error processing chat request:`, error)
     return addCorsHeaders(createErrorResponse(error.message || 'Failed to process request', 500), request)
   }
 }
 
-// This endpoint returns information about the chatbot
+// This endpoint returns information about the chat
 export async function GET(request: NextRequest, { params }: { params: Promise<{ subdomain: string }> }) {
   const { subdomain } = await params
   const requestId = crypto.randomUUID().slice(0, 8)
   
   try {
-    logger.debug(`[${requestId}] Fetching chatbot info for subdomain: ${subdomain}`)
+    logger.debug(`[${requestId}] Fetching chat info for subdomain: ${subdomain}`)
     
-    // Find the chatbot deployment for this subdomain
+    // Find the chat deployment for this subdomain
     const deploymentResult = await db
       .select({
-        id: chatbotDeployment.id,
-        title: chatbotDeployment.title,
-        description: chatbotDeployment.description,
-        customizations: chatbotDeployment.customizations,
-        isActive: chatbotDeployment.isActive,
-        workflowId: chatbotDeployment.workflowId,
-        authType: chatbotDeployment.authType,
-        password: chatbotDeployment.password,
-        allowedEmails: chatbotDeployment.allowedEmails,
+        id: chatDeployment.id,
+        title: chatDeployment.title,
+        description: chatDeployment.description,
+        customizations: chatDeployment.customizations,
+        isActive: chatDeployment.isActive,
+        workflowId: chatDeployment.workflowId,
+        authType: chatDeployment.authType,
+        password: chatDeployment.password,
+        allowedEmails: chatDeployment.allowedEmails,
       })
-      .from(chatbotDeployment)
-      .where(eq(chatbotDeployment.subdomain, subdomain))
+      .from(chatDeployment)
+      .where(eq(chatDeployment.subdomain, subdomain))
       .limit(1)
     
     if (deploymentResult.length === 0) {
-      logger.warn(`[${requestId}] Chatbot not found for subdomain: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('Chatbot not found', 404), request)
+      logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
+      return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
     }
     
     const deployment = deploymentResult[0]
     
-    // Check if the chatbot is active
+    // Check if the chat is active
     if (!deployment.isActive) {
-      logger.warn(`[${requestId}] Chatbot is not active: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('This chatbot is currently unavailable', 403), request)
+      logger.warn(`[${requestId}] Chat is not active: ${subdomain}`)
+      return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
     }
     
     // Check for auth cookie first
-    const cookieName = `chatbot_auth_${deployment.id}`
+    const cookieName = `chat_auth_${deployment.id}`
     const authCookie = request.cookies.get(cookieName)
     
     if (deployment.authType !== 'public' && authCookie && validateAuthToken(authCookie.value, deployment.id)) {
-      // Cookie valid, return chatbot info
+      // Cookie valid, return chat info
       return addCorsHeaders(createSuccessResponse({
         id: deployment.id,
         title: deployment.title,
@@ -188,13 +188,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     
     // If no valid cookie, proceed with standard auth check
-    const authResult = await validateChatbotAuth(requestId, deployment, request)
+    const authResult = await validateChatAuth(requestId, deployment, request)
     if (!authResult.authorized) {
-      logger.info(`[${requestId}] Authentication required for chatbot: ${subdomain}, type: ${deployment.authType}`)
+      logger.info(`[${requestId}] Authentication required for chat: ${subdomain}, type: ${deployment.authType}`)
       return addCorsHeaders(createErrorResponse(authResult.error || 'Authentication required', 401), request)
     }
     
-    // Return public information about the chatbot including auth type
+    // Return public information about the chat including auth type
     return addCorsHeaders(createSuccessResponse({
       id: deployment.id,
       title: deployment.title,
@@ -203,7 +203,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       authType: deployment.authType,
     }), request)
   } catch (error: any) {
-    logger.error(`[${requestId}] Error fetching chatbot info:`, error)
-    return addCorsHeaders(createErrorResponse(error.message || 'Failed to fetch chatbot information', 500), request)
+    logger.error(`[${requestId}] Error fetching chat info:`, error)
+    return addCorsHeaders(createErrorResponse(error.message || 'Failed to fetch chat information', 500), request)
   }
 } 

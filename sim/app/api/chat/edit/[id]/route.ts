@@ -3,15 +3,15 @@ import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { chatbotDeployment } from '@/db/schema'
+import { chatDeployment } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { z } from 'zod'
 import { encryptSecret } from '@/lib/utils'
 
-const logger = createLogger('ChatbotDetailAPI')
+const logger = createLogger('ChatDetailAPI')
 
-// Schema for updating an existing chatbot
-const chatbotUpdateSchema = z.object({
+// Schema for updating an existing chat
+const chatUpdateSchema = z.object({
   workflowId: z.string().min(1, "Workflow ID is required").optional(),
   subdomain: z.string().min(1, "Subdomain is required")
     .regex(/^[a-z0-9-]+$/, "Subdomain can only contain lowercase letters, numbers, and hyphens")
@@ -28,14 +28,14 @@ const chatbotUpdateSchema = z.object({
 })
 
 /**
- * GET endpoint to fetch a specific chatbot deployment by ID
+ * GET endpoint to fetch a specific chat deployment by ID
  */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const chatbotId = id
+  const chatId = id
   
   try {
     const session = await getSession()
@@ -44,53 +44,53 @@ export async function GET(
       return createErrorResponse('Unauthorized', 401)
     }
     
-    // Get the specific chatbot deployment
-    const chatbot = await db
+    // Get the specific chat deployment
+    const chat = await db
       .select()
-      .from(chatbotDeployment)
+      .from(chatDeployment)
       .where(and(
-        eq(chatbotDeployment.id, chatbotId),
-        eq(chatbotDeployment.userId, session.user.id)
+        eq(chatDeployment.id, chatId),
+        eq(chatDeployment.userId, session.user.id)
       ))
       .limit(1)
     
-    if (chatbot.length === 0) {
-      return createErrorResponse('Chatbot not found or access denied', 404)
+    if (chat.length === 0) {
+      return createErrorResponse('Chat not found or access denied', 404)
     }
     
     // Create a new result object without the password
-    const { password, ...safeData } = chatbot[0]
+    const { password, ...safeData } = chat[0]
     
     // Check if we're in development or production
     const isDevelopment = process.env.NODE_ENV === 'development'
-    const chatbotUrl = isDevelopment
-      ? `http://${chatbot[0].subdomain}.localhost:3000`
-      : `https://${chatbot[0].subdomain}.simstudio.ai`
+    const chatUrl = isDevelopment
+      ? `http://${chat[0].subdomain}.localhost:3000`
+      : `https://${chat[0].subdomain}.simstudio.ai`
     
     // For security, don't return the actual password value
     const result = {
       ...safeData,
-      chatbotUrl,
+      chatUrl,
       // Include password presence flag but not the actual value
       hasPassword: !!password
     }
     
     return createSuccessResponse(result)
   } catch (error: any) {
-    logger.error('Error fetching chatbot deployment:', error)
-    return createErrorResponse(error.message || 'Failed to fetch chatbot deployment', 500)
+    logger.error('Error fetching chat deployment:', error)
+    return createErrorResponse(error.message || 'Failed to fetch chat deployment', 500)
   }
 }
 
 /**
- * PATCH endpoint to update an existing chatbot deployment
+ * PATCH endpoint to update an existing chat deployment
  */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  const chatbotId = id
+  const chatId = id
   
   try {
     const session = await getSession()
@@ -102,20 +102,20 @@ export async function PATCH(
     const body = await request.json()
     
     try {
-      const validatedData = chatbotUpdateSchema.parse(body)
+      const validatedData = chatUpdateSchema.parse(body)
       
-      // Verify the chatbot exists and belongs to the user
-      const existingChatbot = await db
+      // Verify the chat exists and belongs to the user
+      const existingChat = await db
         .select()
-        .from(chatbotDeployment)
+        .from(chatDeployment)
         .where(and(
-          eq(chatbotDeployment.id, chatbotId),
-          eq(chatbotDeployment.userId, session.user.id)
+          eq(chatDeployment.id, chatId),
+          eq(chatDeployment.userId, session.user.id)
         ))
         .limit(1)
       
-      if (existingChatbot.length === 0) {
-        return createErrorResponse('Chatbot not found or access denied', 404)
+      if (existingChat.length === 0) {
+        return createErrorResponse('Chat not found or access denied', 404)
       }
       
       // Extract validated data
@@ -131,14 +131,14 @@ export async function PATCH(
       } = validatedData
       
       // Check if subdomain is changing and if it's available
-      if (subdomain && subdomain !== existingChatbot[0].subdomain) {
+      if (subdomain && subdomain !== existingChat[0].subdomain) {
         const existingSubdomain = await db
           .select()
-          .from(chatbotDeployment)
-          .where(eq(chatbotDeployment.subdomain, subdomain))
+          .from(chatDeployment)
+          .where(eq(chatDeployment.subdomain, subdomain))
           .limit(1)
         
-        if (existingSubdomain.length > 0 && existingSubdomain[0].id !== chatbotId) {
+        if (existingSubdomain.length > 0 && existingSubdomain[0].id !== chatId) {
           return createErrorResponse('Subdomain already in use', 400)
         }
       }
@@ -165,26 +165,26 @@ export async function PATCH(
       if (encryptedPassword) updateData.password = encryptedPassword
       if (allowedEmails) updateData.allowedEmails = allowedEmails
       
-      // Update the chatbot deployment
+      // Update the chat deployment
       await db
-        .update(chatbotDeployment)
+        .update(chatDeployment)
         .set(updateData)
-        .where(eq(chatbotDeployment.id, chatbotId))
+        .where(eq(chatDeployment.id, chatId))
       
       // Return success response
-      const updatedSubdomain = subdomain || existingChatbot[0].subdomain
+      const updatedSubdomain = subdomain || existingChat[0].subdomain
       // Check if we're in development or production
       const isDevelopment = process.env.NODE_ENV === 'development'
-      const chatbotUrl = isDevelopment
+      const chatUrl = isDevelopment
         ? `http://${updatedSubdomain}.localhost:3000`
         : `https://${updatedSubdomain}.simstudio.ai`
       
-      logger.info(`Chatbot "${chatbotId}" updated successfully`)
+      logger.info(`Chat "${chatId}" updated successfully`)
       
       return createSuccessResponse({
-        id: chatbotId,
-        chatbotUrl,
-        message: 'Chatbot deployment updated successfully'
+        id: chatId,
+        chatUrl,
+        message: 'Chat deployment updated successfully'
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
@@ -194,19 +194,19 @@ export async function PATCH(
       throw validationError
     }
   } catch (error: any) {
-    logger.error('Error updating chatbot deployment:', error)
-    return createErrorResponse(error.message || 'Failed to update chatbot deployment', 500)
+    logger.error('Error updating chat deployment:', error)
+    return createErrorResponse(error.message || 'Failed to update chat deployment', 500)
   }
 }
 
 /**
- * DELETE endpoint to remove a chatbot deployment
+ * DELETE endpoint to remove a chat deployment
  */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const chatbotId = params.id
+  const chatId = params.id
   
   try {
     const session = await getSession()
@@ -215,32 +215,32 @@ export async function DELETE(
       return createErrorResponse('Unauthorized', 401)
     }
     
-    // Verify the chatbot exists and belongs to the user
-    const existingChatbot = await db
+    // Verify the chat exists and belongs to the user
+    const existingChat = await db
       .select()
-      .from(chatbotDeployment)
+      .from(chatDeployment)
       .where(and(
-        eq(chatbotDeployment.id, chatbotId),
-        eq(chatbotDeployment.userId, session.user.id)
+        eq(chatDeployment.id, chatId),
+        eq(chatDeployment.userId, session.user.id)
       ))
       .limit(1)
     
-    if (existingChatbot.length === 0) {
-      return createErrorResponse('Chatbot not found or access denied', 404)
+    if (existingChat.length === 0) {
+      return createErrorResponse('Chat not found or access denied', 404)
     }
     
-    // Delete the chatbot deployment
+    // Delete the chat deployment
     await db
-      .delete(chatbotDeployment)
-      .where(eq(chatbotDeployment.id, chatbotId))
+      .delete(chatDeployment)
+      .where(eq(chatDeployment.id, chatId))
     
-    logger.info(`Chatbot "${chatbotId}" deleted successfully`)
+    logger.info(`Chat "${chatId}" deleted successfully`)
     
     return createSuccessResponse({
-      message: 'Chatbot deployment deleted successfully'
+      message: 'Chat deployment deleted successfully'
     })
   } catch (error: any) {
-    logger.error('Error deleting chatbot deployment:', error)
-    return createErrorResponse(error.message || 'Failed to delete chatbot deployment', 500)
+    logger.error('Error deleting chat deployment:', error)
+    return createErrorResponse(error.message || 'Failed to delete chat deployment', 500)
   }
 } 

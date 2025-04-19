@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { decryptSecret } from '@/lib/utils'
 
-const logger = createLogger('ChatbotAuthUtils')
+const logger = createLogger('ChatAuthUtils')
 const isDevelopment = process.env.NODE_ENV === 'development'
 
 // Simple encryption for the auth token
@@ -37,11 +37,11 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
   }
   
   // Set cookie helper function
-  export const setChatbotAuthCookie = (response: NextResponse, subdomainId: string, type: string): void => {
+  export const setChatAuthCookie = (response: NextResponse, subdomainId: string, type: string): void => {
     const token = encryptAuthToken(subdomainId, type)
     // Set cookie with HttpOnly and secure flags
     response.cookies.set({
-      name: `chatbot_auth_${subdomainId}`,
+      name: `chat_auth_${subdomainId}`,
       value: token,
       httpOnly: true,
       secure: !isDevelopment,
@@ -75,8 +75,8 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
     return addCorsHeaders(response, request)
   }
   
-  // Validate authentication for chatbot access
-  export async function validateChatbotAuth(
+  // Validate authentication for chat access
+  export async function validateChatAuth(
     requestId: string,
     deployment: any,
     request: NextRequest,
@@ -84,13 +84,13 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
   ): Promise<{ authorized: boolean, error?: string }> {
     const authType = deployment.authType || 'public'
     
-    // Public chatbots are accessible to everyone
+    // Public chats are accessible to everyone
     if (authType === 'public') {
       return { authorized: true }
     }
     
     // Check for auth cookie first
-    const cookieName = `chatbot_auth_${deployment.id}`
+    const cookieName = `chat_auth_${deployment.id}`
     const authCookie = request.cookies.get(cookieName)
     
     if (authCookie && validateAuthToken(authCookie.value, deployment.id)) {
@@ -122,7 +122,7 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
         }
         
         if (!deployment.password) {
-          logger.error(`[${requestId}] No password set for password-protected chatbot: ${deployment.id}`)
+          logger.error(`[${requestId}] No password set for password-protected chat: ${deployment.id}`)
           return { authorized: false, error: 'Authentication configuration error' }
         }
         

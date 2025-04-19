@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { SubBlockType } from '@/blocks/types'
-import { useChatStore } from './chat/store'
+import { useCopilotStore } from './copilot/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
 import { useNotificationStore } from './notifications/store'
@@ -251,7 +251,7 @@ export {
   useEnvironmentStore,
   useExecutionStore,
   useConsoleStore,
-  useChatStore,
+  useCopilotStore,
   useCustomToolsStore,
   useVariablesStore,
 }
@@ -276,7 +276,7 @@ export const resetAllStores = () => {
   })
   useExecutionStore.getState().reset()
   useConsoleStore.setState({ entries: [], isOpen: false })
-  useChatStore.setState({ messages: [], isProcessing: false, error: null })
+  useCopilotStore.setState({ messages: [], isProcessing: false, error: null })
   useCustomToolsStore.setState({ tools: {} })
   useVariablesStore.getState().resetLoaded() // Reset variables store tracking
 }
@@ -290,7 +290,7 @@ export const logAllStores = () => {
     environment: useEnvironmentStore.getState(),
     execution: useExecutionStore.getState(),
     console: useConsoleStore.getState(),
-    chat: useChatStore.getState(),
+    copilot: useCopilotStore.getState(),
     customTools: useCustomToolsStore.getState(),
     subBlock: useSubBlockStore.getState(),
     variables: useVariablesStore.getState(),

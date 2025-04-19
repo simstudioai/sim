@@ -34,16 +34,16 @@ export async function middleware(request: NextRequest) {
                          hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
   const subdomain = isCustomDomain ? hostname.split('.')[0] : null
   
-  // Handle chatbot subdomains
+  // Handle chat subdomains
   if (subdomain && isCustomDomain) {
     // Special case for API requests from the subdomain
-    if (url.pathname.startsWith('/api/chatbot/')) {
+    if (url.pathname.startsWith('/api/chat/')) {
       // Already an API request, let it go through
       return NextResponse.next()
     }
     
-    // Rewrite to the chatbot page but preserve the URL in browser
-    return NextResponse.rewrite(new URL(`/chatbot/${subdomain}${url.pathname}`, request.url))
+    // Rewrite to the chat page but preserve the URL in browser
+    return NextResponse.rewrite(new URL(`/chat/${subdomain}${url.pathname}`, request.url))
   }
   
   // Check if the path is exactly /w
