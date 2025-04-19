@@ -1,4 +1,7 @@
 import { ToolConfig, ToolResponse } from '../types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('DalleTool')
 
 export interface DalleResponse extends ToolResponse {
   output: {
@@ -72,23 +75,23 @@ export const dalleTool: ToolConfig = {
     try {
       const data = await response.json()
 
-      console.log('DALL-E API response:', JSON.stringify(data, null, 2))
+      logger.info('DALL-E API response:', JSON.stringify(data, null, 2))
 
       if (!data.data?.[0]?.url) {
-        console.error('No image URL in DALL-E response:', data)
+        logger.error('No image URL in DALL-E response:', data)
         throw new Error('No image URL in response')
       }
 
       const imageUrl = data.data[0].url
       const modelName = data.model || params?.model || 'dall-e'
 
-      console.log('Got image URL:', imageUrl)
-      console.log('Using model:', modelName)
+      logger.info('Got image URL:', imageUrl)
+      logger.info('Using model:', modelName)
 
       try {
-        // Fetch the image using the proxy-image endpoint instead of direct fetch
-        console.log('Fetching image from URL via proxy...')
-        const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(imageUrl)}`
+        // Fetch the image using the proxy/image endpoint instead of direct fetch
+        logger.info('Fetching image from URL via proxy...')
+        const proxyUrl = `/api/proxy/image?url=${encodeURIComponent(imageUrl)}`
 
         const imageResponse = await fetch(proxyUrl, {
           headers: {
@@ -98,20 +101,14 @@ export const dalleTool: ToolConfig = {
         })
 
         if (!imageResponse.ok) {
-          console.error('Failed to fetch image:', imageResponse.status, imageResponse.statusText)
+          logger.error('Failed to fetch image:', imageResponse.status, imageResponse.statusText)
           throw new Error(`Failed to fetch image: ${imageResponse.statusText}`)
         }
 
-        console.log(
-          'Image fetch successful, content-type:',
-          imageResponse.headers.get('content-type')
-        )
-
         const imageBlob = await imageResponse.blob()
-        console.log('Image blob size:', imageBlob.size)
 
         if (imageBlob.size === 0) {
-          console.error('Empty image blob received')
+          logger.error('Empty image blob received')
           throw new Error('Empty image received')
         }
 
@@ -126,15 +123,14 @@ export const dalleTool: ToolConfig = {
               }
 
               const base64Content = base64data.split(',')[1] // Remove the data URL prefix
-              console.log('Successfully converted image to base64, length:', base64Content.length)
               resolve(base64Content)
             } catch (err) {
-              console.error('Error in FileReader onloadend:', err)
+              logger.error('Error in FileReader onloadend:', err)
               reject(err)
             }
           }
           reader.onerror = (err) => {
-            console.error('FileReader error:', err)
+            logger.error('FileReader error:', err)
             reject(new Error('Failed to read image data'))
           }
           reader.readAsDataURL(imageBlob)
@@ -142,7 +138,6 @@ export const dalleTool: ToolConfig = {
 
         const base64Image = await base64Promise
 
-        console.log('Returning success response with image data')
         return {
           success: true,
           output: {
@@ -155,11 +150,11 @@ export const dalleTool: ToolConfig = {
         }
       } catch (error) {
         // Log the error but continue with returning the URL
-        console.error('Error fetching or processing image:', error)
+        logger.error('Error fetching or processing image:', error)
 
         // Try again with a direct browser fetch as fallback
         try {
-          console.log('Attempting fallback with direct browser fetch...')
+          logger.info('Attempting fallback with direct browser fetch...')
           const directImageResponse = await fetch(imageUrl, {
             cache: 'no-store',
             headers: {
@@ -188,7 +183,7 @@ export const dalleTool: ToolConfig = {
                 }
 
                 const base64Content = base64data.split(',')[1]
-                console.log(
+                logger.info(
                   'Successfully converted image to base64 via direct fetch, length:',
                   base64Content.length
                 )
@@ -214,7 +209,7 @@ export const dalleTool: ToolConfig = {
             },
           }
         } catch (fallbackError) {
-          console.error('Fallback fetch also failed:', fallbackError)
+          logger.error('Fallback fetch also failed:', fallbackError)
 
           // Even if both attempts fail, still return the URL and metadata
           return {
@@ -230,12 +225,12 @@ export const dalleTool: ToolConfig = {
         }
       }
     } catch (error) {
-      console.error('Error in DALL-E response handling:', error)
+      logger.error('Error in DALL-E response handling:', error)
       throw error
     }
   },
   transformError: (error) => {
-    console.error('DALL-E error:', error)
+    logger.error('DALL-E error:', error)
     if (error.response?.data?.error?.message) {
       return error.response.data.error.message
     }

@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('ProxyImage')
 
 export async function GET(request: Request) {
   try {
@@ -6,11 +9,11 @@ export async function GET(request: Request) {
     const imageUrl = searchParams.get('url')
 
     if (!imageUrl) {
-      console.error('Missing URL parameter in proxy-image request')
+      logger.error('Missing URL parameter in proxy image request')
       return new NextResponse('Missing URL parameter', { status: 400 })
     }
 
-    console.log('Proxying image from:', imageUrl)
+    logger.info('Proxying image from:', imageUrl)
 
     // Add appropriate headers for fetching images
     const response = await fetch(imageUrl, {
