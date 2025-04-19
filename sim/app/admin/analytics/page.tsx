@@ -1,9 +1,8 @@
 import { Metadata } from 'next'
-import { redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
-import AnalyticsContent  from './analytics'
+import AnalyticsContent from './analytics'
 import { ErrorBoundary } from '@/app/w/[id]/components/error'
 import { ThemeProvider } from '@/app/w/components/providers/theme-provider'
+import { getAnalyticsSession } from './utils/session'
 
 export const metadata: Metadata = {
   title: 'Analytics | Sim Studio',
@@ -11,11 +10,8 @@ export const metadata: Metadata = {
 }
 
 export default async function AnalyticsPage() {
-  const session = await getSession()
-  
-  if (!session?.user?.email) {
-    redirect('/login?callbackUrl=/admin/analytics')
-  }
+  // Get session using the utility function
+  await getAnalyticsSession()
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
