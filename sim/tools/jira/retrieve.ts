@@ -11,6 +11,12 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     oauth: {
         required: true,
         provider: 'jira',
+        additionalScopes: [
+            'read:jira-work',
+            'read:jira-user',
+            'read:me',
+            'offline_access',
+        ],
     },
 
     //TODO: modify params to match the Jira API
@@ -36,7 +42,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
     
       request: {
         url: (params: JiraRetrieveParams) => {
-          return `https://${params.domain}/rest/api/3/issue/${params.issueKey}`
+          return `https://${params.domain}/rest/api/2/events/` //TODO: possibly change the endpoint
         },
         method: 'PUT',
         headers: (params: JiraRetrieveParams) => {

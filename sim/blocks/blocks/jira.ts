@@ -44,6 +44,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         'read:jira-work',
         'read:jira-user',
         'write:jira-work',
+        'read:issue-event:jira',
         'read:me',
         'offline_access',
       ],

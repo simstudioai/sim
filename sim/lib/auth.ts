@@ -427,6 +427,8 @@ export const auth = betterAuth({
           clientId: process.env.JIRA_CLIENT_ID as string,
           clientSecret: process.env.JIRA_CLIENT_SECRET as string,
           authorizationUrl: 'https://auth.atlassian.com/authorize',
+          audience: 'api.atlassian.com',
+          prompt: 'consent',
           tokenUrl: 'https://auth.atlassian.com/oauth/token',
           userInfoUrl: 'https://api.atlassian.com/me',
           scopes: [
@@ -438,7 +440,7 @@ export const auth = betterAuth({
             'read:me',
             'offline_access',
           ],
-          redirectURI: `https://cdac-47-181-34-169.ngrok-free.app/api/auth/oauth2/callback/jira`,
+          redirectURI: `https://2f7d-4-39-199-2.ngrok-free.app/api/auth/oauth2/callback/jira`, //TODO: change back to ${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://api.atlassian.com/me', {

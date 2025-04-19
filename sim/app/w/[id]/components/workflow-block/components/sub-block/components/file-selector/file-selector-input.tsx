@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
-// import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
+import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 
 interface FileSelectorInputProps {
@@ -18,7 +18,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
-  // const [issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
+  const [issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -47,7 +47,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   // Handle issue selection
   const handleIssueChange = (issueId: string, info?: any) => {
     setSelectedIssueId(issueId)
-    // setIssueInfo(info || null)
+    setIssueInfo(info || null)
     setValue(blockId, subBlock.id, issueId)
   }
 
@@ -73,22 +73,22 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
     )
   }
 
-  // if (isJira) {
-  //   return (
-  //     <JiraIssueSelector
-  //       value={selectedIssueId}
-  //       onChange={handleIssueChange}
-  //       domain={domain}
-  //       provider="jira"
-  //       requiredScopes={subBlock.requiredScopes || []}
-  //       serviceId={subBlock.serviceId}
-  //       label={subBlock.placeholder || 'Select Jira issue'}
-  //       disabled={disabled}
-  //       showPreview={true}
-  //       onFileInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
-  //     />
-  //   )
-  // }
+  if (isJira) {
+    return (
+      <JiraIssueSelector
+        value={selectedIssueId}
+        onChange={handleIssueChange}
+        domain={domain}
+        provider="jira"
+        requiredScopes={subBlock.requiredScopes || []}
+        serviceId={subBlock.serviceId}
+        label={subBlock.placeholder || 'Select Jira issue'}
+        disabled={false}
+        showPreview={true}
+        onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
+      />
+    )
+  }
 
   // Default to Google Drive picker
   return (
