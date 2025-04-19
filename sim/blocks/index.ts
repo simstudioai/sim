@@ -22,6 +22,7 @@ import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
 import { LinkupBlock } from './blocks/linkup'
 import { MistralParseBlock } from './blocks/mistral_parse'
+import { JiraBlock } from './blocks/jira'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
 import { PerplexityBlock } from './blocks/perplexity'
@@ -66,6 +67,7 @@ export {
   GoogleSearchBlock,
   JinaBlock,
   LinkupBlock,
+  JiraBlock,
   TranslateBlock,
   SlackBlock,
   GitHubBlock,
@@ -124,6 +126,7 @@ const blocks: Record<string, BlockConfig> = {
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   linkup: LinkupBlock,
+  jira: JiraBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
