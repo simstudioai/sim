@@ -148,7 +148,15 @@ export function JiraIssueSelector({
   // Fetch issue info when we have a selected issue ID
   const fetchIssueInfo = useCallback(
     async (issueId: string) => {
-      if (!selectedCredentialId || !domain) return
+      // Add validation to prevent unnecessary API calls
+      if (!issueId || !issueId.trim() || !selectedCredentialId || !domain) {
+        console.log('Skipping issue info fetch due to missing required data:', {
+          hasIssueId: !!issueId,
+          hasCredential: !!selectedCredentialId,
+          hasDomain: !!domain
+        })
+        return
+      }
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
@@ -182,8 +190,12 @@ export function JiraIssueSelector({
         const tokenData = await tokenResponse.json()
         const accessToken = tokenData.accessToken
 
+        if (!accessToken) {
+          throw new Error('No access token received')
+        }
+
         // Use the access token to fetch the issue info
-        const response = await fetch(`/api/auth/oauth/jira/issue`, {
+        const response = await fetch('/api/auth/oauth/jira/issue', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -208,6 +220,9 @@ export function JiraIssueSelector({
       } catch (error) {
         console.error('Error fetching issue info:', error)
         setError((error as Error).message)
+        // Clear selection on error to prevent infinite retry loops
+        setSelectedIssue(null)
+        onIssueInfoChange?.(null)
       } finally {
         setIsLoading(false)
       }
@@ -354,17 +369,23 @@ export function JiraIssueSelector({
   // Update selected issue when value changes externally 
   useEffect(() => {
     if (value !== selectedIssueId) {
-        setSelectedIssueId(value)
+      setSelectedIssueId(value)
 
-      // Find issue info if we have issues loaded
-      if (issues.length > 0) {
-        const issueInfo = issues.find((issue) => issue.id === value) || null
-        setSelectedIssue(issueInfo)
-        onIssueInfoChange?.(issueInfo)
-      } else if (value && !selectedIssue && selectedCredentialId && domain && domain.includes('.')) {
-        // If we don't have issues loaded yet but have a value, try to fetch the issue info
-        // Only make the API call if we have everything we need and a proper domain
-        fetchIssueInfo(value)
+      // Only fetch issue info if we have a valid value
+      if (value && value.trim() !== '') {
+        // Find issue info if we have issues loaded
+        if (issues.length > 0) {
+          const issueInfo = issues.find((issue) => issue.id === value) || null
+          setSelectedIssue(issueInfo)
+          onIssueInfoChange?.(issueInfo)
+        } else if (!selectedIssue && selectedCredentialId && domain && domain.includes('.')) {
+          // If we don't have issues loaded yet but have a value, try to fetch the issue info
+          fetchIssueInfo(value)
+        }
+      } else {
+        // If value is empty or undefined, clear the selection without triggering API calls
+        setSelectedIssue(null)
+        onIssueInfoChange?.(null)
       }
     }
   }, [value, issues, selectedIssue, selectedCredentialId, domain, onIssueInfoChange, fetchIssueInfo])
@@ -398,6 +419,7 @@ export function JiraIssueSelector({
   const handleClearSelection = () => {
     setSelectedIssueId('')
     setSelectedIssue(null)
+    setError(null) // Clear any existing errors
     onChange('', undefined)
     onIssueInfoChange?.(null)
   }

@@ -24,12 +24,41 @@ export async function POST(request: Request) {
       issueKeysCount: issueKeys.length
     })
 
-    // Build the URL for Jira API - using the bulkfetch endpoint
-    const url = `https://${domain}/rest/api/3/issue/bulkfetch`
+    // First, get the cloudId using accessible-resources
+    const accessibleResourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json'
+      }
+    })
+
+    if (!accessibleResourcesRes.ok) {
+      return NextResponse.json(
+        { error: 'Failed to fetch accessible resources' },
+        { status: accessibleResourcesRes.status }
+      )
+    }
+
+    const accessibleResources = await accessibleResourcesRes.json()
+    const normalizedInput = `https://${domain}`.toLowerCase()
+    const matchedResource = accessibleResources.find((r: any) => r.url.toLowerCase() === normalizedInput)
+
+    if (!matchedResource) {
+      return NextResponse.json(
+        { error: 'Could not find matching Jira site for provided domain' },
+        { status: 404 }
+      )
+    }
+
+    const cloudId = matchedResource.id
+
+    // Build the URL using cloudId for Jira API
+    const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
     
     console.log(`Fetching Jira issues from: ${url}`)
 
-    // Prepare the request body for bulkfetch
+    // Prepare the request body for bulk fetch
     const requestBody = {
       expand: ["names"],
       fields: ["summary", "status", "assignee", "updated", "project"],
