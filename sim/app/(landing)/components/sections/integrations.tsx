@@ -442,9 +442,9 @@ function Integrations() {
                       id: 'function1',
                       type: 'heroBlock',
                       position: { x: 450, y: 80 },
-                      data: { type: 'function' },
-                      sourcePosition: Position.Left,
-                      targetPosition: Position.Right,
+                      data: { type: 'function', isHeroSection: false },
+                      sourcePosition: Position.Right,
+                      targetPosition: Position.Left,
                     },
                   ]}
                   edges={[

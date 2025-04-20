@@ -30,7 +30,7 @@ const desktopNodes: Node[] = [
     id: 'function1',
     type: 'heroBlock',
     position: { x: 150, y: 400 },
-    data: { type: 'function' },
+    data: { type: 'function', isHeroSection: true },
     sourcePosition: Position.Right,
     targetPosition: Position.Left,
   },
@@ -97,7 +97,12 @@ const desktopEdges: Edge[] = [
 ]
 
 const tabletNodes: Node[] = [
-  { id: 'function1', type: 'heroBlock', position: { x: 50, y: 480 }, data: { type: 'function' } },
+  {
+    id: 'function1',
+    type: 'heroBlock',
+    position: { x: 50, y: 480 },
+    data: { type: 'function', isHeroSection: true },
+  },
   { id: 'agent1', type: 'heroBlock', position: { x: 300, y: 660 }, data: { type: 'agent' } },
   { id: 'router1', type: 'heroBlock', position: { x: 550, y: 660 }, data: { type: 'router' } },
   { id: 'slack1', type: 'heroBlock', position: { x: 800, y: 480 }, data: { type: 'slack' } },
@@ -196,7 +201,7 @@ export function HeroWorkflow() {
         height: '100%',
         width: '100%',
         position: 'absolute',
-        top: '140px',
+        top: '160px',
         left: 0,
         willChange: 'opacity, transform',
       }}

@@ -14,18 +14,7 @@ import {
 import { Handle, NodeProps, Position } from 'reactflow'
 // Assuming custom icons exist for Sim specific things, otherwise use Lucide
 import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { CodeBlock } from '@/components/ui/code-block'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 // Removed DotPattern import
@@ -67,11 +56,16 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
   const iconBgColor = config.color // Get color from config
   const horizontalHandles = true // Default to horizontal handles like in workflow-block
 
+  // Determine if we should show the input handle
+  // Don't show for start blocks, function1 in hero section, or id=function1
+  const showInputHandle =
+    type !== 'start' && !(type === 'function' && id === 'function1' && data.isHeroSection)
+
   return (
     // Apply group relative here for handles
-    <div className="flex flex-col items-center group relative opacity-70">
+    <div className="flex flex-col items-center group relative opacity-90">
       {/* Don't show input handle for starter blocks or function1 */}
-      {type !== 'start' && id !== 'function1' && (
+      {showInputHandle && (
         <Handle
           type="target"
           position={Position.Left}

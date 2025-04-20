@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Menu } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -15,7 +15,6 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWindowSize } from './use-window-size'
 
 const logger = createLogger('NavClient')
 
@@ -34,7 +33,6 @@ const desktopNavContainerVariants = {
 }
 
 const mobileSheetContainerVariants = {
-  // Renamed for clarity
   hidden: { x: '100%' },
   visible: {
     x: 0,
@@ -65,15 +63,24 @@ const mobileNavItemVariants = {
     transition: { duration: 0.3, ease: 'easeOut' },
   },
 }
+
+const mobileButtonVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' },
+  },
+}
 // --- End Framer Motion Variants ---
 
 // Component for Navigation Links
 const NavLinks = ({ mobile }: { mobile?: boolean }) => {
   const links = [
     // { href: "/", label: "Marketplace" },
-    { href: '/', label: 'Docs' },
-    { href: '/', label: 'Blog' },
-    { href: '/', label: 'Contributors' },
+    { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
+    // { href: '/', label: 'Blog' },
+    { href: 'https://github.com/simstudioai/sim', label: 'Contributors', external: true },
   ]
 
   return (
@@ -83,7 +90,10 @@ const NavLinks = ({ mobile }: { mobile?: boolean }) => {
           <motion.div variants={mobile ? mobileNavItemVariants : undefined} key={link.label}>
             <Link
               href={link.href}
-              className="text-white/60 hover:text-white/100 text-base p-1.5 rounded-md transition-colors duration-200 block md:inline-block"
+              className={`text-white/60 hover:text-white/100 text-base ${
+                mobile ? 'p-2.5 text-lg font-medium' : 'p-1.5'
+              } rounded-md transition-colors duration-200 block md:inline-block`}
+              {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             >
               {link.label}
             </Link>
@@ -102,12 +112,40 @@ const NavLinks = ({ mobile }: { mobile?: boolean }) => {
   )
 }
 
-export default function NavClient({ children }: { children: React.ReactNode }) {
-  const { width } = useWindowSize()
-  const isMobile = width !== undefined && width < 768 // Adjusted breakpoint to md
-  const [isSheetOpen, setIsSheetOpen] = useState(false) // State for sheet open/close
+interface NavClientProps {
+  children: React.ReactNode
+  initialIsMobile?: boolean
+}
 
+export default function NavClient({ children, initialIsMobile }: NavClientProps) {
+  const [mounted, setMounted] = useState(false)
+  const [isMobile, setIsMobile] = useState(initialIsMobile ?? false)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Handle initial loading state - don't render anything that could cause layout shift
+  // until we've measured the viewport
+  if (!mounted) {
+    return (
+      <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
+        <div className="max-w-7xl mx-auto flex justify-between items-center relative">
+          <div className="flex-1"></div>
+          <div className="flex-1 flex justify-end">
+            <div className="w-[43px] h-[43px]"></div>
+          </div>
+        </div>
+      </nav>
+    )
+  }
 
   return (
     <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
@@ -131,12 +169,24 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
             {!isMobile && (
               <>
                 <div className="flex items-center">{children}</div>
-                <Button
-                  onClick={() => router.push('/login')}
-                  className="bg-[#701ffc] hover:bg-[#802FFF] font-[420] text-base h-auto py-2 px-6 text-neutral-100 font-geist-sans transition-colors duration-200"
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeOut', delay: 0.4 }}
                 >
-                  Get Started
-                </Button>
+                  <Button
+                    onClick={() =>
+                      window.open(
+                        'https://calendly.com/emir-simstudio/15min',
+                        '_blank',
+                        'noopener,noreferrer'
+                      )
+                    }
+                    className="bg-[#701ffc] hover:bg-[#802FFF] h-[43px] font-medium text-base py-2 px-6 text-neutral-100 font-geist-sans transition-colors duration-200"
+                  >
+                    Contact
+                  </Button>
+                </motion.div>
               </>
             )}
 
@@ -163,15 +213,17 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
                     >
                       <SheetContent
                         side="right"
-                        className="bg-neutral-900 border-l border-neutral-800 text-white w-[250px] sm:w-[300px] pt-12 p-6 flex flex-col h-full"
+                        className="bg-[#0C0C0C] border-l border-[#181818] text-white w-[280px] sm:w-[320px] pt-12 p-6 flex flex-col h-full shadow-xl [&>button]:hidden"
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
                       >
-                        <SheetHeader className="mb-4 text-left">
-                          <SheetTitle className="text-white">Menu</SheetTitle>
+                        <SheetHeader className="mb-6 text-left flex flex-row items-center justify-between">
+                          <SheetTitle className="text-white text-xl font-semibold m-0 p-0">
+                            Menu
+                          </SheetTitle>
                         </SheetHeader>
                         <motion.div
-                          className="flex flex-col gap-4 flex-grow"
+                          className="flex flex-col gap-5 flex-grow"
                           variants={mobileNavItemsContainerVariants}
                           initial="hidden"
                           animate="visible"
@@ -182,13 +234,19 @@ export default function NavClient({ children }: { children: React.ReactNode }) {
                               <SheetClose asChild>{children}</SheetClose>
                             </motion.div>
                           )}
-                          <motion.div variants={mobileNavItemVariants} className="mt-auto">
+                          <motion.div variants={mobileButtonVariants} className="mt-auto pt-6">
                             <SheetClose asChild>
                               <Button
-                                variant={'secondary'}
-                                className="w-full bg-[#802FFF] hover:bg-[#6A27D9] font-[450] text-base text-neutral-100 font-geist-sans transition-colors duration-200"
+                                onClick={() =>
+                                  window.open(
+                                    'https://calendly.com/emir-simstudio/15min',
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
+                                }
+                                className="w-full bg-[#701ffc] hover:bg-[#802FFF] font-medium py-6 text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200"
                               >
-                                <Link href={'/login'}>Get Started</Link>
+                                Contact
                               </Button>
                             </SheetClose>
                           </motion.div>
