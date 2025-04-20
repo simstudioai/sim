@@ -2,6 +2,7 @@ import { SendIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { useEffect, useRef, useState } from 'react'
 
 interface CodePromptBarProps {
   isVisible: boolean
@@ -26,16 +27,64 @@ export function CodePromptBar({
   placeholder = 'Describe the JavaScript code to generate...',
   className,
 }: CodePromptBarProps) {
-  if (!isVisible && !isStreaming) {
+  const promptBarRef = useRef<HTMLDivElement>(null)
+  const [isExiting, setIsExiting] = useState(false)
+
+  // Handle the fade-out animation
+  const handleCancel = () => {
+    if (!isLoading && !isStreaming) {
+      setIsExiting(true)
+      // Wait for animation to complete before actual cancellation
+      setTimeout(() => {
+        setIsExiting(false)
+        onCancel()
+      }, 150) // Matches the CSS transition duration
+    }
+  }
+
+  useEffect(() => {
+    // Handle click outside
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        promptBarRef.current && 
+        !promptBarRef.current.contains(event.target as Node) && 
+        isVisible && 
+        !isStreaming && 
+        !isLoading && 
+        !isExiting
+      ) {
+        handleCancel()
+      }
+    }
+
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside)
+    
+    // Cleanup event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isVisible, isStreaming, isLoading, isExiting, onCancel])
+
+  // Reset the exit state when visibility changes
+  useEffect(() => {
+    if (isVisible) {
+      setIsExiting(false)
+    }
+  }, [isVisible])
+
+  if ((!isVisible && !isStreaming) && !isExiting) {
     return null
   }
 
   return (
     <div
+      ref={promptBarRef}
       className={cn(
         'absolute -top-20 left-0 right-0',
         'bg-background rounded-xl shadow-lg border',
-        'transition-all duration-200 z-9999999',
+        'transition-all duration-150 z-9999999',
+        isExiting ? 'opacity-0' : 'opacity-100',
         className
       )}
     >
@@ -56,7 +105,7 @@ export function CodePromptBar({
               if (e.key === 'Enter' && !isLoading && !isStreaming && promptValue.trim()) {
                 onSubmit(promptValue)
               } else if (e.key === 'Escape') {
-                onCancel()
+                handleCancel()
               }
             }}
             disabled={isLoading || isStreaming}
@@ -72,7 +121,7 @@ export function CodePromptBar({
         <Button
           variant="ghost"
           size="icon"
-          onClick={onCancel}
+          onClick={handleCancel}
           className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent/50"
         >
           <XIcon className="h-4 w-4" />
