@@ -156,6 +156,7 @@ export function validateToolRequest(
   }
 
   // Ensure all required parameters for tool call are provided
+  // Note: optionalToolInput parameters are not checked here as they're optional
   for (const [paramName, paramConfig] of Object.entries(tool.params)) {
     if (paramConfig.requiredForToolCall && !(paramName in params)) {
       throw new Error(`Parameter "${paramName}" is required for ${toolId} but was not provided`)
@@ -180,11 +181,19 @@ export function createParamSchema(customTool: any): Record<string, any> {
   const params: Record<string, any> = {}
 
   if (customTool.schema.function?.parameters?.properties) {
-    Object.entries(customTool.schema.function.parameters.properties).forEach(([key, config]: [string, any]) => {
+    const properties = customTool.schema.function.parameters.properties;
+    const required = customTool.schema.function.parameters.required || [];
+    const optionalToolInputs = customTool.schema.function.parameters.optionalToolInputs || [];
+    
+    Object.entries(properties).forEach(([key, config]: [string, any]) => {
+      const isRequired = required.includes(key);
+      const isOptionalInput = optionalToolInputs.includes(key);
+      
       params[key] = {
         type: config.type || 'string',
-        required: customTool.schema.function.parameters.required?.includes(key) || false,
-        requiredForToolCall: customTool.schema.function.parameters.required?.includes(key) || false,
+        required: isRequired,
+        requiredForToolCall: isRequired,
+        optionalToolInput: isOptionalInput,
         description: config.description || '',
       }
     })
