@@ -75,9 +75,10 @@ const mobileButtonVariants = {
 // --- End Framer Motion Variants ---
 
 // Component for Navigation Links
-const NavLinks = ({ mobile }: { mobile?: boolean }) => {
+const NavLinks = ({ mobile, currentPath }: { mobile?: boolean; currentPath?: string }) => {
   const links = [
     // { href: "/", label: "Marketplace" },
+    ...(currentPath !== '/' ? [{ href: '/', label: 'Home' }] : []),
     { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
     // { href: '/', label: 'Blog' },
     { href: 'https://github.com/simstudioai/sim', label: 'Contributors', external: true },
@@ -115,9 +116,10 @@ const NavLinks = ({ mobile }: { mobile?: boolean }) => {
 interface NavClientProps {
   children: React.ReactNode
   initialIsMobile?: boolean
+  currentPath?: string
 }
 
-export default function NavClient({ children, initialIsMobile }: NavClientProps) {
+export default function NavClient({ children, initialIsMobile, currentPath }: NavClientProps) {
   const [mounted, setMounted] = useState(false)
   const [isMobile, setIsMobile] = useState(initialIsMobile ?? false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -159,7 +161,7 @@ export default function NavClient({ children, initialIsMobile }: NavClientProps)
             initial="hidden"
             animate="visible"
           >
-            <NavLinks />
+            <NavLinks currentPath={currentPath} />
           </motion.div>
         )}
         {isMobile && <div className="flex-1"></div>}
@@ -226,7 +228,7 @@ export default function NavClient({ children, initialIsMobile }: NavClientProps)
                           initial="hidden"
                           animate="visible"
                         >
-                          <NavLinks mobile />
+                          <NavLinks mobile currentPath={currentPath} />
                           {children && (
                             <motion.div variants={mobileNavItemVariants}>
                               <SheetClose asChild>{children}</SheetClose>

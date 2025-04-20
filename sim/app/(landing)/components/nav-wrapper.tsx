@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { getFormattedGitHubStars } from '../actions/github'
 import GitHubStarsClient from './github-stars-client'
@@ -11,6 +12,7 @@ export default function NavWrapper() {
   // This avoids trying to use server-side UA detection
   // which has compatibility challenges
 
+  const pathname = usePathname()
   const [initialIsMobile, setInitialIsMobile] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   // Default to a reasonable number and update it later
@@ -59,7 +61,7 @@ export default function NavWrapper() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.3 }}
         >
-          <NavClient initialIsMobile={initialIsMobile}>
+          <NavClient initialIsMobile={initialIsMobile} currentPath={pathname}>
             <GitHubStarsClient stars={starCount} />
           </NavClient>
         </motion.div>

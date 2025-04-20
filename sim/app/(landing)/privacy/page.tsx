@@ -1,306 +1,385 @@
 'use client'
 
 import Link from 'next/link'
+import { GridPattern } from '../components/grid-pattern'
+import NavWrapper from '../components/nav-wrapper'
+import Footer from '../components/sections/footer'
 
 export default function PrivacyPolicy() {
   return (
-    <main className="bg-[#020817] min-h-screen text-white">
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
+    <main className="bg-[#0C0C0C] min-h-screen text-white relative overflow-hidden">
+      {/* Grid pattern background - only covers content area */}
+      <div className="absolute inset-0 bottom-[400px] z-0 overflow-hidden">
+        <GridPattern
+          x={-5}
+          y={-5}
+          className="stroke-[#ababab]/5 absolute inset-0"
+          width={90}
+          height={90}
+          aria-hidden="true"
+        />
+      </div>
+      
+      {/* Header/Navigation */}
+      <NavWrapper />
+      
+      {/* SVG background blur centered behind content */}
+      <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[95%] md:w-[90%] lg:w-[80%] max-w-5xl z-[1] h-full" aria-hidden="true">
+        <svg
+          width="100%"
+          height="100%"
+          viewBox="0 0 600 1600"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="xMidYMid slice"
+          className="h-full w-full"
+        >
+          <g filter="url(#filter0_b_privacy)">
+            <rect width="600" height="1600" rx="0" fill="#0C0C0C" />
+          </g>
+          <defs>
+            <filter
+              id="filter0_b_privacy"
+              x="-20"
+              y="-20"
+              width="640"
+              height="1640"
+              filterUnits="userSpaceOnUse"
+              colorInterpolationFilters="sRGB"
+            >
+              <feGaussianBlur stdDeviation="7" />
+            </filter>
+          </defs>
+        </svg>
+      </div>
 
-        <div className="space-y-8 text-white/80">
-          <section>
-            <p className="mb-4">Last Updated: March 12, 2025</p>
-            <p>
-              This Privacy Policy describes how Sim Studio, Inc ("we", "us", or "our") collects,
-              uses, and discloses your information when you use our platform for building, testing,
-              and optimizing agentic workflows (the "Service").
-            </p>
-          </section>
+      {/* Content */}
+      <div className="relative z-10">
+        <div className="max-w-4xl mx-auto px-4 py-16 pt-36">
+          <div className="relative px-4 sm:px-8 py-4">
+            <h1 className="text-4xl font-bold mb-8 text-white">Privacy Policy</h1>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Information We Collect</h2>
-            <p className="mb-4">We collect information that you provide directly to us when you:</p>
-            <ul className="list-disc pl-6 space-y-2 mb-4">
-              <li>Create an account or user profile</li>
-              <li>Use our platform to build and deploy agent workflows</li>
-              <li>Contact our customer support</li>
-              <li>Subscribe to our newsletters or marketing communications</li>
-              <li>Participate in surveys, contests, or other promotional activities</li>
-            </ul>
+            <div className="space-y-8 text-white/80">
+              <section>
+                <p className="mb-4">Last Updated: April 20, 2025</p>
+                <p>
+                  This Privacy Policy describes how your personal information is collected, used, and
+                  shared when you visit or use Sim Studio ("the Service", "we", "us", or "our").
+                </p>
+                <p className="mt-4">
+                  By using the Service, you agree to the collection and use of information in
+                  accordance with this policy. Unless otherwise defined in this Privacy Policy, terms
+                  used in this Privacy Policy have the same meanings as in our Terms of Service.
+                </p>
+              </section>
 
-            <p className="mb-4">The types of information we collect may include:</p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>Contact information (such as name, email address)</li>
-              <li>Account credentials</li>
-              <li>Profile information</li>
-              <li>Payment information (processed by our payment processors)</li>
-              <li>Usage data and analytics</li>
-              <li>Communications with us</li>
-              <li>Any other information you choose to provide</li>
-            </ul>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  1. Information We Collect
+                </h2>
+                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Personal Information</h3>
+                <p className="mb-4">
+                  While using our Service, we may ask you to provide us with certain personally
+                  identifiable information that can be used to contact or identify you (<span className="text-[#B5A1D4]">"Personal Information"</span>). Personally identifiable information may include, but is not limited
+                  to:
+                </p>
+                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                  <li>Email address</li>
+                  <li>First name and last name</li>
+                  <li>Phone number</li>
+                  <li>Address, State, Province, ZIP/Postal code, City</li>
+                  <li>Cookies and Usage Data</li>
+                </ul>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Google User Data</h2>
-            <p className="mb-4">
-              Sim Studio provides functionality that allows you to connect to various Google
-              services through our platform. When you choose to use these features, we may access
-              certain Google user data as described below:
-            </p>
+                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Usage Data</h3>
+                <p className="mb-4">
+                  We may also collect information on how the Service is accessed and used (<span className="text-[#B5A1D4]">"Usage
+                  Data"</span>). This Usage Data may include information such as your computer's Internet
+                  Protocol address (e.g. IP address), browser type, browser version, the pages of our
+                  Service that you visit, the time and date of your visit, the time spent on those
+                  pages, unique device identifiers and other diagnostic data.
+                </p>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">Gmail Data</h3>
-            <p className="mb-4">When you use our Gmail block functionality, we may access:</p>
-            <ul className="list-disc pl-6 space-y-2 mb-4">
-              <li>Email messages and their contents</li>
-              <li>Email labels and folders</li>
-              <li>Email metadata (such as sender, recipient, date, subject)</li>
-            </ul>
-            <p className="mb-4">
-              This access is used solely to enable the functionality you request within your
-              workflows, such as reading emails from specific folders or sending emails as part of
-              your automated processes.
-            </p>
+                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Tracking & Cookies Data</h3>
+                <p className="mb-4">
+                  We use cookies and similar tracking technologies to track the activity on our Service
+                  and hold certain information.
+                </p>
+                <p className="mb-4">
+                  Cookies are files with small amount of data which may include an anonymous unique
+                  identifier. Cookies are sent to your browser from a website and stored on your
+                  device. Tracking technologies also used are beacons, tags, and scripts to collect and
+                  track information and to improve and analyze our Service.
+                </p>
+                <p>
+                  You can instruct your browser to refuse all cookies or to indicate when a cookie is
+                  being sent. However, if you do not accept cookies, you may not be able to use some
+                  portions of our Service.
+                </p>
+              </section>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">Google Drive Data</h3>
-            <p className="mb-4">When you use our Drive block functionality, we may access:</p>
-            <ul className="list-disc pl-6 space-y-2 mb-4">
-              <li>File and folder listings</li>
-              <li>File contents</li>
-              <li>File metadata (such as creation date, modification date, sharing settings)</li>
-            </ul>
-            <p className="mb-4">
-              This access is used solely to enable the functionality you request within your
-              workflows, such as reading from or writing to specific files.
-            </p>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  2. How We Use Your Information
+                </h2>
+                <p className="mb-4">
+                  We use the collected data for various purposes:
+                </p>
+                <ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
+                  <li>To provide and maintain the Service</li>
+                  <li>To notify you about changes to our Service</li>
+                  <li>
+                    To allow you to participate in interactive features of our Service when you choose
+                    to do so
+                  </li>
+                  <li>To provide customer care and support</li>
+                  <li>To provide analysis or valuable information so that we can improve the Service</li>
+                  <li>To monitor the usage of the Service</li>
+                  <li>To detect, prevent and address technical issues</li>
+                </ul>
+              </section>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">Google Sheets Data</h3>
-            <p className="mb-4">When you use our Sheets block functionality, we may access:</p>
-            <ul className="list-disc pl-6 space-y-2 mb-4">
-              <li>Spreadsheet contents</li>
-              <li>Sheet names and structure</li>
-              <li>Cell data and formatting</li>
-            </ul>
-            <p className="mb-4">
-              This access is used solely to enable the functionality you request within your
-              workflows, such as reading data from or writing data to specific spreadsheets.
-            </p>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  3. Transfer Of Data
+                </h2>
+                <p className="mb-4">
+                  Your information, including Personal Information, may be transferred to — and
+                  maintained on — computers located outside of your state, province, country or other
+                  governmental jurisdiction where the data protection laws may differ than those from
+                  your jurisdiction.
+                </p>
+                <p className="mb-4">
+                  If you are located outside United States and choose to provide information to us,
+                  please note that we transfer the data, including Personal Information, to United
+                  States and process it there.
+                </p>
+                <p>
+                  Your consent to this Privacy Policy followed by your submission of such information
+                  represents your agreement to that transfer.
+                </p>
+              </section>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">Data Storage and Retention</h3>
-            <p className="mb-4">
-              <strong>Important:</strong> Sim Studio does not store your Google user data on our
-              servers. All data processing occurs within your browser during workflow execution. We
-              do not retain, store, or use your Google user data for any purpose other than to
-              provide the specific functionality you request.
-            </p>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  4. Disclosure Of Data
+                </h2>
+                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Legal Requirements</h3>
+                <p className="mb-4">
+                  Sim Studio may disclose your Personal Information in the good faith belief that such
+                  action is necessary to:
+                </p>
+                <ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
+                  <li>To comply with a legal obligation</li>
+                  <li>To protect and defend the rights or property of Sim Studio</li>
+                  <li>To prevent or investigate possible wrongdoing in connection with the Service</li>
+                  <li>To protect the personal safety of users of the Service or the public</li>
+                  <li>To protect against legal liability</li>
+                </ul>
+              </section>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">AI/ML Training</h3>
-            <p className="mb-4">
-              Sim Studio does not use any Google user data to develop, improve, or train generalized
-              AI and/or ML models. Your data remains private and is only used for the specific
-              purposes you authorize within your workflows.
-            </p>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  5. Security Of Data
+                </h2>
+                <p className="mb-4">
+                  The security of your data is important to us, but remember that no method of
+                  transmission over the Internet, or method of electronic storage is 100% secure. While
+                  we strive to use commercially acceptable means to protect your Personal Information,
+                  we cannot guarantee its absolute security.
+                </p>
+              </section>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">Data Protection</h3>
-            <p className="mb-4">
-              We implement appropriate technical and organizational measures to protect your Google
-              user data during processing. Since we do not store your Google user data on our
-              servers, the risk of unauthorized access to this data is minimized.
-            </p>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  6. Service Providers
+                </h2>
+                <p className="mb-4">
+                  We may employ third party companies and individuals to facilitate our Service
+                  (<span className="text-[#B5A1D4]">"Service Providers"</span>), to provide the Service on our behalf, to perform
+                  Service-related services or to assist us in analyzing how our Service is used.
+                </p>
+                <p>
+                  These third parties have access to your Personal Information only to perform these
+                  tasks on our behalf and are obligated not to disclose or use it for any other
+                  purpose.
+                </p>
+              </section>
 
-            <h3 className="text-xl font-semibold mb-2 text-white">Revoking Access</h3>
-            <p className="mb-4">
-              You can revoke Sim Studio's access to your Google user data at any time by:
-            </p>
-            <ul className="list-disc pl-6 space-y-2 mb-4">
-              <li>
-                Within Sim Studio: Going to Settings, Credentials, and disconnecting the service
-              </li>
-              <li>
-                Directly through Google: Visiting{' '}
-                <a
-                  href="https://myaccount.google.com/permissions"
-                  className="text-blue-400 hover:underline"
-                >
-                  Google Account Permissions
-                </a>{' '}
-                and removing Sim Studio from your list of connected applications
-              </li>
-              <li>
-                Contacting us at privacy@simstudio.ai to request assistance with access revocation
-              </li>
-            </ul>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  7. Analytics
+                </h2>
+                <p className="mb-4">
+                  We may use third-party Service Providers to monitor and analyze the use of our
+                  Service.
+                </p>
+                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Google Analytics</h3>
+                <p className="mb-4">
+                  Google Analytics is a web analytics service offered by Google that tracks and reports
+                  website traffic. Google uses the data collected to track and monitor the use of our
+                  Service. This data is shared with other Google services. Google may use the collected
+                  data to contextualize and personalize the ads of its own advertising network.
+                </p>
+                <p className="mb-4">
+                  You can opt-out of having made your activity on the Service available to Google
+                  Analytics by installing the Google Analytics opt-out browser add-on. The add-on
+                  prevents the Google Analytics JavaScript (ga.js, analytics.js, and dc.js) from
+                  sharing information with Google Analytics about visits activity.
+                </p>
+                <p>
+                  For more information on the privacy practices of Google, please visit the Google
+                  Privacy & Terms web page:{' '}
+                  <Link
+                    href="https://policies.google.com/privacy?hl=en"
+                    className="text-[#B5A1D4] hover:text-[#701ffc]"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    https://policies.google.com/privacy
+                  </Link>
+                </p>
+              </section>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">
-              Information Collected Automatically
-            </h2>
-            <p className="mb-4">
-              When you access or use our Service, we may automatically collect information about
-              you, including:
-            </p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>Log information (such as IP address, browser type, pages visited)</li>
-              <li>Device information (such as device identifiers, operating system)</li>
-              <li>Usage information (such as features used, actions taken)</li>
-              <li>Location information (such as general location derived from IP address)</li>
-              <li>Cookies and similar technologies (as described in our Cookie Policy)</li>
-            </ul>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  8. Links To Other Sites
+                </h2>
+                <p className="mb-4">
+                  Our Service may contain links to other sites that are not operated by us. If you
+                  click on a third party link, you will be directed to that third party's site. We
+                  strongly advise you to review the Privacy Policy of every site you visit.
+                </p>
+                <p>
+                  We have no control over and assume no responsibility for the content, privacy
+                  policies or practices of any third party sites or services.
+                </p>
+              </section>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">How We Use Your Information</h2>
-            <p className="mb-4">We use the information we collect to:</p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>Provide, maintain, and improve our Service</li>
-              <li>Process transactions and manage your account</li>
-              <li>Send you technical notices, updates, security alerts, and support messages</li>
-              <li>Respond to your comments, questions, and requests</li>
-              <li>Communicate with you about products, services, offers, and events</li>
-              <li>
-                Monitor and analyze trends, usage, and activities in connection with our Service
-              </li>
-              <li>
-                Detect, investigate, and prevent fraudulent transactions and other illegal
-                activities
-              </li>
-              <li>Personalize and improve your experience</li>
-              <li>Facilitate contests, sweepstakes, and promotions</li>
-              <li>
-                Carry out any other purpose described to you at the time the information was
-                collected
-              </li>
-            </ul>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  9. Children's Privacy
+                </h2>
+                <p className="mb-4">
+                  Our Service does not address anyone under the age of 18 (<span className="text-[#B5A1D4]">"Children"</span>).
+                </p>
+                <p className="mb-4">
+                  We do not knowingly collect personally identifiable information from anyone under the
+                  age of 18. If you are a parent or guardian and you are aware that your Children has
+                  provided us with Personal Information, please contact us. If we become aware that we
+                  have collected Personal Information from children without verification of parental
+                  consent, we take steps to remove that information from our servers.
+                </p>
+              </section>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Sharing of Information</h2>
-            <p className="mb-4">We may share information about you as follows:</p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>
-                With vendors, consultants, and other service providers who need access to such
-                information to carry out work on our behalf
-              </li>
-              <li>
-                In response to a request for information if we believe disclosure is in accordance
-                with any applicable law, regulation, or legal process
-              </li>
-              <li>
-                If we believe your actions are inconsistent with our user agreements or policies, or
-                to protect the rights, property, and safety of Sim Studio, Inc or others
-              </li>
-              <li>
-                In connection with, or during negotiations of, any merger, sale of company assets,
-                financing, or acquisition of all or a portion of our business by another company
-              </li>
-              <li>
-                Between and among Sim Studio, Inc and our current and future parents, affiliates,
-                subsidiaries, and other companies under common control and ownership
-              </li>
-              <li>With your consent or at your direction</li>
-            </ul>
-            <p className="mt-4">
-              We may also share aggregated or de-identified information that cannot reasonably be
-              used to identify you.
-            </p>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  10. Changes To This Privacy Policy
+                </h2>
+                <p className="mb-4">
+                  We may update our Privacy Policy from time to time. We will notify you of any changes
+                  by posting the new Privacy Policy on this page.
+                </p>
+                <p className="mb-4">
+                  We will let you know via email and/or a prominent notice on our Service, prior to the
+                  change becoming effective and update the "Last updated" date at the top of this
+                  Privacy Policy.
+                </p>
+                <p>
+                  You are advised to review this Privacy Policy periodically for any changes. Changes
+                  to this Privacy Policy are effective when they are posted on this page.
+                </p>
+              </section>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Data Retention</h2>
-            <p>
-              We store the information we collect about you for as long as is necessary for the
-              purpose(s) for which we originally collected it. We may retain certain information for
-              legitimate business purposes or as required by law.
-            </p>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  11. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
+                </h2>
+                <p className="mb-4">
+                  If you are a resident of the European Economic Area (EEA), you have certain data
+                  protection rights. Sim Studio aims to take reasonable steps to allow you to correct,
+                  amend, delete, or limit the use of your Personal Information.
+                </p>
+                <p className="mb-4">
+                  If you wish to be informed what Personal Information we hold about you and if you
+                  want it to be removed from our systems, please contact us.
+                </p>
+                <p className="mb-4">
+                  In certain circumstances, you have the following data protection rights:
+                </p>
+                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                  <li>
+                    The right to access, update or to delete the information we have on you.
+                  </li>
+                  <li>
+                    The right of rectification. You have the right to have your information rectified
+                    if that information is inaccurate or incomplete.
+                  </li>
+                  <li>
+                    The right to object. You have the right to object to our processing of your
+                    Personal Information.
+                  </li>
+                  <li>
+                    The right of restriction. You have the right to request that we restrict the
+                    processing of your personal information.
+                  </li>
+                  <li>
+                    The right to data portability. You have the right to be provided with a copy of the
+                    information we have on you in a structured, machine-readable and commonly used
+                    format.
+                  </li>
+                  <li>
+                    The right to withdraw consent. You also have the right to withdraw your consent at
+                    any time where Sim Studio relied on your consent to process your personal
+                    information.
+                  </li>
+                </ul>
+                <p className="mb-4">
+                  Please note that we may ask you to verify your identity before responding to such
+                  requests.
+                </p>
+                <p className="mb-4 bg-[#701ffc]/10 p-3 border-l-4 border-[#701ffc]">
+                  You have the right to complain to a Data Protection Authority about our collection
+                  and use of your Personal Information. For more information, please contact your local
+                  data protection authority in the European Economic Area (EEA).
+                </p>
+              </section>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Security</h2>
-            <p>
-              We take reasonable measures to help protect information about you from loss, theft,
-              misuse, unauthorized access, disclosure, alteration, and destruction.
-            </p>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  12. California Privacy Rights
+                </h2>
+                <p className="mb-4">
+                  California Civil Code Section 1798.83, also known as the <span className="text-[#B5A1D4]">"Shine The Light"</span> law,
+                  permits our users who are California residents to request and obtain from us, once a
+                  year and free of charge, information about categories of personal information (if
+                  any) we disclosed to third parties for direct marketing purposes and the names and
+                  addresses of all third parties with which we shared personal information in the
+                  immediately preceding calendar year.
+                </p>
+                <p className="mb-4">
+                  If you are a California resident and would like to make such a request, please submit
+                  your request in writing to us using the contact information provided below.
+                </p>
+              </section>
 
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Your Choices</h2>
-            <p className="mb-4">
-              You have several choices regarding the information we collect and how it's used:
-            </p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>
-                <strong>Account Information:</strong> You may update, correct, or delete your
-                account information at any time by logging into your account or contacting us.
-              </li>
-              <li>
-                <strong>Cookies:</strong> Most web browsers are set to accept cookies by default.
-                You can usually choose to set your browser to remove or reject browser cookies.
-              </li>
-              <li>
-                <strong>Promotional Communications:</strong> You may opt out of receiving
-                promotional emails from us by following the instructions in those emails. If you opt
-                out, we may still send you non-promotional emails, such as those about your account
-                or our ongoing business relations.
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Your Rights</h2>
-            <p className="mb-4">
-              Depending on your location, you may have certain rights regarding your personal
-              information, such as:
-            </p>
-            <ul className="list-disc pl-6 space-y-2">
-              <li>The right to access personal information we hold about you</li>
-              <li>
-                The right to request that we update, correct, or delete your personal information
-              </li>
-              <li>The right to object to or restrict certain processing of your data</li>
-              <li>The right to data portability</li>
-              <li>The right to withdraw consent at any time for processing based on consent</li>
-            </ul>
-            <p className="mt-4">
-              To exercise these rights, please contact us using the information provided below.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Children's Privacy</h2>
-            <p>
-              Our Service is not directed to children under 16, and we do not knowingly collect
-              personal information from children under 16. If we learn we have collected or received
-              personal information from a child under 16 without verification of parental consent,
-              we will delete that information.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">
-              Changes to this Privacy Policy
-            </h2>
-            <p>
-              We may update this Privacy Policy from time to time. If we make material changes, we
-              will notify you as required by applicable law. We encourage you to review the Privacy
-              Policy whenever you access the Service to stay informed about our information
-              practices.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-2xl font-semibold mb-4 text-white">Contact Us</h2>
-            <p>If you have any questions about this Privacy Policy, please contact us at:</p>
-            <p className="mt-2">Sim Studio, Inc</p>
-            <p>Email: privacy@simstudio.ai</p>
-          </section>
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">13. Contact Us</h2>
+                <p>
+                  If you have any questions about this Privacy Policy, please contact us at:{' '}
+                  <Link href="mailto:privacy@simstudio.ai" className="text-[#B5A1D4] hover:text-[#701ffc]">
+                    privacy@simstudio.ai
+                  </Link>
+                </p>
+              </section>
+            </div>
+          </div>
         </div>
-
-        <div className="mt-12 pt-8 border-t border-white/10 text-center">
-          <Link href="/" className="text-white/60 hover:text-white transition-colors duration-200">
-            Return to Home
-          </Link>
-        </div>
+      </div>
+      
+      {/* Footer */}
+      <div className="relative z-20">
+        <Footer />
       </div>
     </main>
   )
