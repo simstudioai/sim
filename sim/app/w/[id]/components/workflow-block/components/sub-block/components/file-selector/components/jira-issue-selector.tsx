@@ -21,6 +21,8 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+import { JiraCloudResource } from '@/tools/jira/types'
+import { getJiraCloudId } from '@/tools/jira/utils'
 
 export interface JiraIssueInfo {
   id: string
@@ -67,6 +69,7 @@ export function JiraIssueSelector({
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
+  const [cloudId, setCloudId] = useState<string | null>(null)
 
   // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -148,7 +151,6 @@ export function JiraIssueSelector({
   // Fetch issue info when we have a selected issue ID
   const fetchIssueInfo = useCallback(
     async (issueId: string) => {
-      // Add validation to prevent unnecessary API calls
       if (!issueId || !issueId.trim() || !selectedCredentialId || !domain) {
         console.log('Skipping issue info fetch due to missing required data:', {
           hasIssueId: !!issueId,
@@ -204,6 +206,7 @@ export function JiraIssueSelector({
             domain,
             accessToken,
             issueId,
+            cloudId
           }),
         })
 
@@ -213,6 +216,9 @@ export function JiraIssueSelector({
         }
 
         const data = await response.json()
+        if (data.cloudId) {
+          setCloudId(data.cloudId)
+        }
         if (data.issue) {
           setSelectedIssue(data.issue)
           onIssueInfoChange?.(data.issue)
@@ -227,7 +233,7 @@ export function JiraIssueSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, onIssueInfoChange]
+    [selectedCredentialId, domain, onIssueInfoChange, cloudId]
   )
 
   // Fetch issues from Jira
@@ -285,7 +291,8 @@ export function JiraIssueSelector({
         const queryParams = new URLSearchParams({
           domain,
           accessToken,
-          query: searchQuery || ''
+          query: searchQuery || '',
+          ...(cloudId && { cloudId })
         })
         
         const response = await fetch(`/api/auth/oauth/jira/issues?${queryParams.toString()}`, {
@@ -302,6 +309,10 @@ export function JiraIssueSelector({
         }
 
         const data = await response.json()
+        
+        if (data.cloudId) {
+          setCloudId(data.cloudId)
+        }
         
         // Process the issue picker results
         let foundIssues: JiraIssueInfo[] = []
@@ -345,7 +356,7 @@ export function JiraIssueSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, selectedIssueId, onIssueInfoChange, fetchIssueInfo]
+    [selectedCredentialId, domain, selectedIssueId, onIssueInfoChange, fetchIssueInfo, cloudId]
   )
 
   // Fetch credentials on initial mount

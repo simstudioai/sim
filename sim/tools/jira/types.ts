@@ -68,53 +68,10 @@ export interface JiraIssue {
   updated: string
 }
 
-export interface JiraProject {
+export interface JiraCloudResource {
   id: string
-  name: string
-  key: string
   url: string
-  lastModified: string
-}
-
-export interface JiraListProjectsParams {
-  accessToken: string
-  domain: string
-  projectId: string
-  title?:string
-  status?: string
-  assignee?: string
-  limit?: number
-  jql?: string
-}
-
-export interface JiraListProjectsResponse extends ToolResponse {
-  output: {
-    ts: string
-    projects: JiraProject[]
-  }
-}
-
-export interface JiraIssueType {
-  id: string
   name: string
-  description: string
-}
-
-export interface JiraListIssueTypesParams {
-  accessToken: string
-  domain: string
-  projectId: string
-  issueTypeId: string
-  title?:string
-  status?: string
-  assignee?: string
-  limit?: number
-  jql?: string
-}
-
-export interface JiraListIssueTypesResponse extends ToolResponse {
-  output: {
-    ts: string
-    issueTypes: JiraIssueType[]
-  }
+  scopes: string[]
+  avatarUrl: string
 }

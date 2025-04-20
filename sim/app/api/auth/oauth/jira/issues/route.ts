@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
+import { getJiraCloudId } from '@/tools/jira/utils'
 
 export async function POST(request: Request) {
   try {
-    const { domain, accessToken, issueKeys = [] } = await request.json()
+    const { domain, accessToken, issueKeys = [], cloudId: providedCloudId } = await request.json()
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -21,37 +22,13 @@ export async function POST(request: Request) {
     console.log('Request details:', {
       domain,
       tokenLength: accessToken ? accessToken.length : 0,
-      issueKeysCount: issueKeys.length
+      issueKeysCount: issueKeys.length,
+      hasCloudId: !!providedCloudId
     })
 
-    // First, get the cloudId using accessible-resources
-    const accessibleResourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!accessibleResourcesRes.ok) {
-      return NextResponse.json(
-        { error: 'Failed to fetch accessible resources' },
-        { status: accessibleResourcesRes.status }
-      )
-    }
-
-    const accessibleResources = await accessibleResourcesRes.json()
-    const normalizedInput = `https://${domain}`.toLowerCase()
-    const matchedResource = accessibleResources.find((r: any) => r.url.toLowerCase() === normalizedInput)
-
-    if (!matchedResource) {
-      return NextResponse.json(
-        { error: 'Could not find matching Jira site for provided domain' },
-        { status: 404 }
-      )
-    }
-
-    const cloudId = matchedResource.id
+    // Use provided cloudId or fetch it if not provided
+    const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
+    console.log('Using cloud ID:', cloudId)
 
     // Build the URL using cloudId for Jira API
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
@@ -130,6 +107,7 @@ export async function POST(request: Request) {
         modifiedTime: issue.fields.updated,
         webViewLink: `https://${domain}/browse/${issue.key}`,
       })) : [],
+      cloudId // Return the cloudId so it can be cached
     })
   } catch (error) {
     console.error('Error fetching Jira issues:', error)
@@ -145,6 +123,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const domain = url.searchParams.get('domain')?.trim()
     const accessToken = url.searchParams.get('accessToken')
+    const providedCloudId = url.searchParams.get('cloudId')
     let query = url.searchParams.get('query') || ''
     
     if (!domain) {
@@ -155,34 +134,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
-    // Get cloudId from accessible-resources
-    const accessibleResourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
-    })
-
-    if (!accessibleResourcesRes.ok) {
-      return NextResponse.json(
-        { error: 'Failed to fetch accessible resources' },
-        { status: accessibleResourcesRes.status }
-      )
-    }
-
-    const accessibleResources = await accessibleResourcesRes.json()
-    const normalizedInput = `https://${domain}`.toLowerCase()
-    const matchedResource = accessibleResources.find((r: any) => r.url.toLowerCase() === normalizedInput)
-
-    if (!matchedResource) {
-      return NextResponse.json(
-        { error: 'Could not find matching Jira site for provided domain' },
-        { status: 404 }
-      )
-    }
-
-    const cloudId = matchedResource.id
+    // Use provided cloudId or fetch it if not provided
+    const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
+    console.log('Using cloud ID:', cloudId)
 
     // Build query parameters
     const params = new URLSearchParams()
@@ -240,7 +194,10 @@ export async function GET(request: Request) {
       })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json({
+      ...data,
+      cloudId // Return the cloudId so it can be cached
+    })
   } catch (error) {
     console.error('Error fetching Jira issue suggestions:', error)
     return NextResponse.json(
