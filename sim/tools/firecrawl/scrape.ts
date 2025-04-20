@@ -48,6 +48,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     url: {
       type: 'string',
       required: true,
+      optionalToolInput: true,
       description: 'The URL to scrape content from',
     },
     scrapeOptions: {

@@ -51,6 +51,7 @@ interface ToolParam {
   type: string
   description?: string
   requiredForToolCall: boolean
+  optionalToolInput?: boolean
 }
 
 // Assumes the first tool in the access array is the tool to be used
@@ -60,17 +61,35 @@ const getToolIdFromBlock = (blockType: string): string | undefined => {
   return block?.tools.access[0]
 }
 
-const getRequiredToolParams = (toolId: string): ToolParam[] => {
+// Get parameters that need to be displayed in the tool input UI
+const getToolDisplayParams = (toolId: string): ToolParam[] => {
   const tool = getTool(toolId)
   if (!tool) return []
 
   return Object.entries(tool.params)
-    .filter(([_, param]) => param.requiredForToolCall)
+    .filter(([_, param]) => param.requiredForToolCall || param.optionalToolInput)
     .map(([paramId, param]) => ({
       id: paramId,
       type: param.type,
       description: param.description,
       requiredForToolCall: param.requiredForToolCall ?? false,
+      optionalToolInput: param.optionalToolInput ?? false,
+    }))
+}
+
+// Keep this for backward compatibility - only get strictly required parameters
+const getRequiredToolParams = (toolId: string): ToolParam[] => {
+  const tool = getTool(toolId)
+  if (!tool) return []
+
+  return Object.entries(tool.params)
+    .filter(([_, param]) => param.requiredForToolCall || param.optionalToolInput)
+    .map(([paramId, param]) => ({
+      id: paramId,
+      type: param.type,
+      description: param.description,
+      requiredForToolCall: param.requiredForToolCall ?? false,
+      optionalToolInput: param.optionalToolInput ?? false,
     }))
 }
 
@@ -86,12 +105,14 @@ const getCustomToolParams = (schema: any): ToolParam[] => {
 
   const properties = schema.function.parameters.properties
   const required = schema.function.parameters.required || []
+  const optionalInputs = schema.function.parameters.optionalToolInputs || []
 
   return Object.entries(properties).map(([paramId, param]: [string, any]) => ({
     id: paramId,
     type: param.type || 'string',
     description: param.description || '',
     requiredForToolCall: required.includes(paramId),
+    optionalToolInput: optionalInputs.includes(paramId),
   }))
 }
 
@@ -188,29 +209,33 @@ const formatParamId = (paramId: string): string => {
   // Special case for common parameter names
   if (paramId === 'apiKey') return 'API Key'
   if (paramId === 'apiVersion') return 'API Version'
-  
+
   // Handle underscore and hyphen separated words
   if (paramId.includes('_') || paramId.includes('-')) {
     return paramId
       .split(/[-_]/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
   }
-  
+
   // Handle single character parameters
   if (paramId.length === 1) return paramId.toUpperCase()
-  
+
   // Handle camelCase
   if (/[A-Z]/.test(paramId)) {
     const result = paramId.replace(/([A-Z])/g, ' $1')
-    return result.charAt(0).toUpperCase() + result.slice(1)
-      .replace(/ Api/g, ' API')
-      .replace(/ Id/g, ' ID')
-      .replace(/ Url/g, ' URL')
-      .replace(/ Uri/g, ' URI')
-      .replace(/ Ui/g, ' UI')
+    return (
+      result.charAt(0).toUpperCase() +
+      result
+        .slice(1)
+        .replace(/ Api/g, ' API')
+        .replace(/ Id/g, ' ID')
+        .replace(/ Url/g, ' URL')
+        .replace(/ Uri/g, ' URI')
+        .replace(/ Ui/g, ' UI')
+    )
   }
-  
+
   // Simple case - just capitalize first letter
   return paramId.charAt(0).toUpperCase() + paramId.slice(1)
 }
@@ -265,12 +290,12 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
 
     const toolId = getToolIdFromBlock(toolBlock.type) || toolBlock.type
-    const requiredParams = toolId ? getRequiredToolParams(toolId) : []
+    const displayParams = toolId ? getToolDisplayParams(toolId) : []
 
     // Use the helper function to initialize parameters with blockId as instanceId
     const initialParams = initializeToolParams(
       toolId,
-      requiredParams,
+      displayParams,
       subBlockStore,
       isAutoFillEnvVarsEnabled,
       blockId
@@ -399,19 +424,22 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   // New handler for when a custom tool is completely deleted from the store
   const handleDeleteTool = (toolId: string) => {
     // Find any instances of this tool in the current workflow and remove them
-    const updatedTools = selectedTools.filter(tool => {
+    const updatedTools = selectedTools.filter((tool) => {
       // For custom tools, we need to check if it matches the deleted tool
-      if (tool.type === 'custom-tool' && 
-          tool.schema?.function?.name &&
-          customTools.some(customTool => 
-            customTool.id === toolId && 
+      if (
+        tool.type === 'custom-tool' &&
+        tool.schema?.function?.name &&
+        customTools.some(
+          (customTool) =>
+            customTool.id === toolId &&
             customTool.schema.function.name === tool.schema.function.name
-          )) {
+        )
+      ) {
         return false
       }
       return true
     })
-    
+
     // Update the workflow value if any tools were removed
     if (updatedTools.length !== selectedTools.length) {
       setValue(updatedTools)
@@ -832,8 +860,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       {/* Existing parameters */}
                       {requiredParams.map((param) => (
                         <div key={param.id} className="space-y-1.5 relative">
-                          <div className="text-xs font-medium text-muted-foreground">
+                          <div className="text-xs font-medium text-muted-foreground flex items-center">
                             {formatParamId(param.id)}
+                            {param.optionalToolInput && !param.requiredForToolCall && (
+                              <span className="ml-1 text-xs text-muted-foreground/60">
+                                (Optional)
+                              </span>
+                            )}
                           </div>
                           <div className="relative">
                             <ShortInput
@@ -995,8 +1028,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
         initialValues={
           editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
             ? {
-                id: customTools.find(tool => 
-                    tool.schema.function.name === selectedTools[editingToolIndex].schema.function.name
+                id: customTools.find(
+                  (tool) =>
+                    tool.schema.function.name ===
+                    selectedTools[editingToolIndex].schema.function.name
                 )?.id,
                 schema: selectedTools[editingToolIndex].schema,
                 code: selectedTools[editingToolIndex].code || '',
