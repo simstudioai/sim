@@ -49,6 +49,43 @@ jobs:
           fail_ci_if_error: false
           verbose: true 
 
+  generate-docs:
+    name: Generate Block Documentation
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Setup documentation generator
+        run: |
+          cd scripts
+          bash ./setup-doc-generator.sh
+          
+      - name: Generate block documentation
+        run: |
+          bash ./scripts/generate-docs.sh
+          
+      - name: Commit updated documentation
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add docs/content/docs/tools/
+          git diff --quiet && git diff --staged --quiet || git commit -m "Auto-generate block documentation"
+          
+      - name: Push changes
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+
   migrations:
     name: Apply Database Migrations
     runs-on: ubuntu-latest

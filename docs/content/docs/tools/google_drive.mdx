@@ -1,0 +1,49 @@
+---
+title: Google Drive
+description: Upload, download, and list files
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# Google Drive
+
+<BlockInfoCard 
+  type="google_drive"
+  color="#E0E0E0"
+  category="tools"
+/>
+
+
+
+Integrate Google Drive functionality to manage files and folders. Upload new files, download existing ones, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.
+
+## Tools Used
+
+- `google_drive_upload`
+- `google_drive_download`
+- `google_drive_list`
+
+## Configuration
+
+No configuration parameters required.
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the Google Drive block
+{
+  type: "google_drive",
+  operation: "example"
+}
+```
+
+## Notes
+
+- Category: `tools`
+- Type: `google_drive`

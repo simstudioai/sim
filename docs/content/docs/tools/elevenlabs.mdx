@@ -1,0 +1,54 @@
+---
+title: ElevenLabs
+description: Convert TTS using ElevenLabs
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# ElevenLabs
+
+<BlockInfoCard 
+  type="elevenlabs"
+  color="#181C1E"
+  category="tools"
+/>
+
+<div className="not-prose my-6 flex justify-center"><svg {...props} xmlns="http://www.w3.org/2000/svg" width="876" height="876" viewBox="0 0 876 876" fill="none">
+      <path d="M498 138H618V738H498V138Z" fill="currentColor"/>
+      <path d="M258 138H378V738H258V138Z" fill="currentColor"/>
+    </svg></div>
+
+Generate realistic speech from text using ElevenLabs voices.
+
+## Tools Used
+
+- `elevenlabs_tts`
+
+## Configuration
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Default/Placeholder |
+| --------- | ---- | -------- | ----------- | ------------------ |
+| `text` | string | No | Text | Enter the text to convert to speech |
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the ElevenLabs block
+{
+  type: "elevenlabs",
+  text: "example"
+}
+```
+
+## Notes
+
+- Category: `tools`
+- Type: `elevenlabs`

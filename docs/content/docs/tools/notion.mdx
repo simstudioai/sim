@@ -1,0 +1,53 @@
+---
+title: Notion
+description: Manage Notion pages
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# Notion
+
+<BlockInfoCard 
+  type="notion"
+  color="#181C1E"
+  category="tools"
+/>
+
+
+
+Integrate with Notion to read content from pages, write new content, and create new pages.
+
+## Tools Used
+
+- `notion_read`
+- `notion_write`
+- `notion_create_page`
+
+## Configuration
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Default/Placeholder |
+| --------- | ---- | -------- | ----------- | ------------------ |
+| `operation` | string | Yes | Operation |  |
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the Notion block
+{
+  type: "notion",
+  operation: "example"
+}
+```
+
+## Notes
+
+- Category: `tools`
+- Type: `notion`

@@ -1,0 +1,66 @@
+---
+title: API
+description: Use any API
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# API
+
+<BlockInfoCard 
+  type="api"
+  color="#2F55FF"
+  category="blocks"
+/>
+
+<div className="not-prose my-6 flex justify-center"><svg
+      {...props}
+      width="30"
+      height="30"
+      viewBox="0 0 30 30"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M5.61111 24.3889C8.5 27.2778 12.4722 25.4722 13.5556 24.3889L15.7222 22.2222L7.77778 14.2778L5.61111 16.4444C4.52778 17.5278 2.72222 21.5 5.61111 24.3889ZM5.61111 24.3889L2 28M24.3889 5.61111C21.5 2.72222 17.5278 4.52778 16.4444 5.61111L14.2778 7.77778L22.2222 15.7222L24.3889 13.5556C25.4722 12.4722 27.2778 8.5 24.3889 5.61111ZM24.3889 5.61111L28 2M15.7222 9.22222L12.8333 12.1111M20.7778 14.2778L17.8889 17.1667"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg></div>
+
+Connect to any external API with support for all standard HTTP methods and customizable request parameters. Configure headers, query parameters, and request bodies. Standard headers (User-Agent, Accept, Cache-Control, etc.) are automatically included.
+
+## Tools Used
+
+- `http_request`
+
+## Configuration
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Default/Placeholder |
+| --------- | ---- | -------- | ----------- | ------------------ |
+| `url` | string | Yes | URL | Enter URL |
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the API block
+{
+  type: "api",
+  url: "https://example.com"
+}
+```
+
+## Notes
+
+- Category: `blocks`
+- Type: `api`

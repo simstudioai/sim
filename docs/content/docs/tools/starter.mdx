@@ -1,0 +1,61 @@
+---
+title: Starter
+description: Start workflow
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# Starter
+
+<BlockInfoCard 
+  type="starter"
+  color="#2FB3FF"
+  category="blocks"
+/>
+
+<div className="not-prose my-6 flex justify-center"><svg
+      {...props}
+      width="26"
+      height="16"
+      viewBox="0 0 26 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M7.8 13C9.23 13 10.4542 12.4908 11.4725 11.4725C12.4908 10.4542 13 9.23 13 7.8C13 6.37 12.4908 5.14583 11.4725 4.1275C10.4542 3.10917 9.23 2.6 7.8 2.6C6.37 2.6 5.14583 3.10917 4.1275 4.1275C3.10917 5.14583 2.6 6.37 2.6 7.8C2.6 9.23 3.10917 10.4542 4.1275 11.4725C5.14583 12.4908 6.37 13 7.8 13ZM7.8 15.6C5.63333 15.6 3.79167 14.8417 2.275 13.325C0.758333 11.8083 0 9.96666 0 7.8C0 5.63333 0.758333 3.79167 2.275 2.275C3.79167 0.758333 5.63333 0 7.8 0C9.75 0 11.4456 0.6175 12.8869 1.8525C14.3282 3.0875 15.2 4.63667 15.5025 6.5H24.7C25.0683 6.5 25.3773 6.6248 25.6269 6.8744C25.8765 7.124 26.0009 7.43253 26 7.8C25.9991 8.16746 25.8743 8.47643 25.6256 8.7269C25.3769 8.97737 25.0683 9.10173 24.7 9.1H15.5025C15.1992 10.9633 14.3269 12.5125 12.8856 13.7475C11.4443 14.9825 9.74913 15.6 7.8 15.6Z"
+        fill="currentColor"
+      />
+    </svg></div>
+
+Initiate your workflow manually, on a schedule, or via webhook triggers. Configure flexible execution patterns with customizable timing options and webhook security.
+
+
+
+## Configuration
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Default/Placeholder |
+| --------- | ---- | -------- | ----------- | ------------------ |
+| `input` | json | No |  |  |
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the Starter block
+{
+  type: "starter",
+  input: "example"
+}
+```
+
+## Notes
+
+- Category: `blocks`
+- Type: `starter`

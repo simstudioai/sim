@@ -1,0 +1,53 @@
+---
+title: Google Sheets
+description: Read, write, and update data
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# Google Sheets
+
+<BlockInfoCard 
+  type="google_sheets"
+  color="#E0E0E0"
+  category="tools"
+/>
+
+
+
+Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, and update existing cells using OAuth authentication. Supports various input and output formats for flexible data handling.
+
+## Tools Used
+
+- `google_sheets_read`
+- `google_sheets_write`
+- `google_sheets_update`
+
+## Configuration
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Default/Placeholder |
+| --------- | ---- | -------- | ----------- | ------------------ |
+| `operation` | string | Yes | Operation |  |
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the Google Sheets block
+{
+  type: "google_sheets",
+  operation: "example"
+}
+```
+
+## Notes
+
+- Category: `tools`
+- Type: `google_sheets`

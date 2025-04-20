@@ -1,59 +1,43 @@
 ---
 title: Tools
-description: Specialized functionality to extend your workflow capabilities
+description: Overview of all available tools in Sim Studio
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
-import { Files, Folder, File } from 'fumadocs-ui/components/files'
+# Tools
 
-Tools in Sim Studio provide specialized functionality that can be used standalone or integrated within blocks to extend capabilities.
+Tools in Sim Studio are the functional components that power your agentic workflows. Each tool provides specific capabilities that can be integrated into your workflows.
 
 ## Available Tools
 
-Sim Studio offers a variety of tools to enhance your workflows:
+This section contains documentation for all available tools in Sim Studio. Each tool page provides:
 
-<Files>
-  <Folder name="Tools" defaultOpen>
-    <File name="Data Transformation" annotation="Process and transform data between blocks" />
-    <File name="Configuration Management" annotation="Handle environment variables and secrets" />
-    <File name="Testing Suite" annotation="Validate workflow behavior with test scenarios" />
-    <File name="Logging & Monitoring" annotation="Track execution and performance metrics" />
-  </Folder>
-</Files>
+- Tool description and purpose
+- Configuration parameters
+- Input and output specifications
+- Example usage
 
-## Using Tools
-
-Tools can be integrated with blocks to provide additional functionality. For example, you can use data transformation tools with Function blocks to process data, or logging tools to track the execution of your workflow.
-
-<Callout type="info">
-  Tools are constantly being added and improved. Check back regularly for new capabilities.
-</Callout>
+You can use the navigation menu to browse through all available tools or search for specific tools by name or category.
 
 ## Tool Categories
 
-<Accordions>
-  <Accordion title="Data Processing Tools">
-    Tools for transforming, validating, and manipulating data as it flows through your workflow.
-    
-    - **Data Validators**: Ensure data meets specific criteria before processing
-    - **Formatters**: Convert data between different formats (JSON, XML, CSV)
-    - **Transformers**: Apply complex transformations to structured data
-  </Accordion>
-  
-  <Accordion title="Integration Tools">
-    Tools for connecting to external services and systems.
-    
-    - **API Connectors**: Pre-built connectors for popular services
-    - **Database Tools**: Tools for querying and manipulating databases
-    - **File System Tools**: Tools for reading and writing files
-  </Accordion>
-  
-  <Accordion title="Utility Tools">
-    General-purpose tools for common tasks.
-    
-    - **Text Processing**: Tools for working with text data
-    - **Math & Statistics**: Tools for numerical calculations
-    - **Date & Time**: Tools for working with temporal data
-  </Accordion>
-</Accordions>
+Tools are organized by category:
+
+- **AI Services**: Tools that integrate with AI models and services (OpenAI, Mistral, etc.)
+- **Data Processing**: Tools that transform, store, or retrieve data
+- **External APIs**: Tools that connect to external services and APIs
+- **Communication**: Tools for messaging and notifications
+- **Utilities**: Tools for file handling, web browsing, and other utility functions
+
+## Using Tools in Workflows
+
+Tools are used as blocks in your workflow diagrams. To add a tool:
+
+1. Drag a tool block from the sidebar into your workflow
+2. Configure the tool's parameters
+3. Connect the tool to other blocks in your workflow
+
+Each tool has specific input requirements and produces outputs that can be used by downstream blocks in your workflow.
+
+## Custom Tools
+
+If you need functionality not provided by the built-in tools, you can create custom tools using the Function block or by developing a custom block implementation.

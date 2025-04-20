@@ -1,0 +1,65 @@
+---
+title: Typeform
+description: Interact with Typeform
+---
+
+import { BlockInfoCard } from "@/components/block-info-card";
+
+# Typeform
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+  category="tools"
+/>
+
+<div className="not-prose my-6 flex justify-center"><svg
+      {...props}
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <g transform="translate(1, 4)">
+        <rect x="0" y="0" width="5" height="16" rx="2.5" fill="currentColor" />
+        <rect x="8" y="0" width="14" height="16" rx="4" fill="currentColor" />
+      </g>
+    </svg></div>
+
+Access and retrieve responses from your Typeform forms. Integrate form submissions data into your workflow for analysis, storage, or processing.
+
+## Tools Used
+
+- `typeform_responses`
+- `typeform_files`
+- `typeform_insights`
+
+## Configuration
+
+### Input Parameters
+
+| Parameter | Type | Required | Description | Default/Placeholder |
+| --------- | ---- | -------- | ----------- | ------------------ |
+| `operation` | string | Yes | Operation |  |
+
+
+
+## Outputs
+
+This block does not produce any outputs.
+
+## Example Usage
+
+```typescript
+// Example of using the Typeform block
+{
+  type: "typeform",
+  operation: "example"
+}
+```
+
+## Notes
+
+- Category: `tools`
+- Type: `typeform`
