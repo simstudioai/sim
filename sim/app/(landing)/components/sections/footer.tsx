@@ -83,7 +83,11 @@ function Footer() {
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
             >
-              <Link href="https://github.com/simstudioai/sim" target="_blank">
+              <Link
+                href="https://github.com/simstudioai/sim"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Button
                   className="bg-[#B5A1D4] text-[#1C1C1C] hover:bg-[#bdaecb] transition-colors duration-500 flex items-center gap-2"
                   size={'lg'}
@@ -107,6 +111,7 @@ function Footer() {
                 <Link
                   href={'https://docs.simstudio.ai/'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
                 >
                   Docs
@@ -114,6 +119,7 @@ function Footer() {
                 <Link
                   href={'https://github.com/simstudioai/sim'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
                 >
                   Contributors
@@ -129,6 +135,7 @@ function Footer() {
                 <Link
                   href={'/terms'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
                 >
                   Terms and Condition
@@ -136,6 +143,7 @@ function Footer() {
                 <Link
                   href={'/privacy'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
                 >
                   Privacy Policy
@@ -155,6 +163,7 @@ function Footer() {
                 <Link
                   href={'https://github.com/simstudioai/sim'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="flex md:hidden text-2xl transition-all duration-500"
                 >
                   <svg
@@ -176,6 +185,7 @@ function Footer() {
                 <Link
                   href={'https://discord.gg/Hr4UWYEcTT'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="text-2xl transition-all duration-500"
                 >
                   <DiscordIcon className="fill-[#9E91AA] hover:fill-[#bdaecb] w-9 h-9 md:w-10 md:h-10" />
@@ -183,6 +193,7 @@ function Footer() {
                 <Link
                   href={'https://x.com/simstudioai'}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="text-2xl transition-all duration-500"
                 >
                   <XIcon className="w-9 h-9 md:w-10 md:h-10 text-[#9E91AA] hover:text-[#bdaecb] transition-all duration-500" />

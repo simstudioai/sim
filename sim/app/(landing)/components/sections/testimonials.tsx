@@ -99,7 +99,9 @@ function Testimonials() {
                 className="bg-[#121212] border border-[#333] p-2 sm:p-3 flex flex-col gap-2 rounded-lg cursor-pointer min-w-[280px] sm:min-w-[320px] max-w-[340px] sm:max-w-[380px] mx-0.5"
                 whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(80, 60, 120, 0.18)' }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                onClick={() => card.tweetUrl && window.open(card.tweetUrl, '_blank')}
+                onClick={() =>
+                  card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
+                }
               >
                 <div className="flex flex-col gap-1">
                   <p className="text-white text-sm sm:text-base font-medium">{card.text}</p>
@@ -138,7 +140,9 @@ function Testimonials() {
                 className="bg-[#121212] border border-[#333] p-2 sm:p-3 flex flex-col gap-2 rounded-lg cursor-pointer min-w-[280px] sm:min-w-[320px] max-w-[340px] sm:max-w-[380px] mx-0.5"
                 whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(80, 60, 120, 0.18)' }}
                 transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                onClick={() => card.tweetUrl && window.open(card.tweetUrl, '_blank')}
+                onClick={() =>
+                  card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
+                }
               >
                 <div className="flex flex-col gap-1">
                   <p className="text-white text-sm sm:text-base font-medium">{card.text}</p>
