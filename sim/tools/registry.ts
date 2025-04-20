@@ -39,6 +39,7 @@ import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
 import { elevenLabsTtsTool } from './elevenlabs'
 import { ToolConfig } from './types'
+import { jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -55,6 +56,9 @@ export const tools: Record<string, ToolConfig> = {
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
+  jira_retrieve: jiraRetrieveTool,
+  jira_update: jiraUpdateTool,
+  jira_write: jiraWriteTool,
   slack_message: slackMessageTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,

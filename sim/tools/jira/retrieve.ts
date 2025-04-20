@@ -31,6 +31,11 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
             requiredForToolCall: true,
             description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
         },
+        cloudId: {
+            type: 'string',
+            required: true,
+            description: 'Jira Cloud ID for the instance',
+        },
         issueKey: {
             type: 'string',
             required: true,
@@ -38,9 +43,10 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
         },
     },
     
-    request: {
+    request: { //TODO: the cloudID is not getting populated with the 404 error, look into adding this cloudID to the params
         url: (params: JiraRetrieveParams) => {
-            return `https://${params.domain}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`
+            // The cloudId is handled in transformResponse since we need to fetch it first
+            return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`
         },
         method: 'GET',
         headers: (params: JiraRetrieveParams) => {
@@ -51,10 +57,47 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
         },
     },
     
-    transformResponse: async (response: Response) => {
-        const data = await response.json()
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to retrieve Jira issue')
+    transformResponse: async (response: Response, params?: JiraRetrieveParams) => {
+        if (!params) {
+            throw new Error('Parameters are required for Jira issue retrieval');
+        }
+
+        const accessibleResourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${params.accessToken}`,
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!accessibleResourcesRes.ok) {
+            throw new Error('Failed to fetch accessible resources');
+        }
+
+        const accessibleResources = await accessibleResourcesRes.json();
+        const normalizedInput = `https://${params.domain}`.toLowerCase();
+        const matchedResource = accessibleResources.find((r: any) => r.url.toLowerCase() === normalizedInput);
+
+        if (!matchedResource) {
+            throw new Error('Could not find matching Jira site for provided domain');
+        }
+
+        const cloudId = matchedResource.id;
+        console.log('Cloud ID:', cloudId);
+        console.log('Issue Key:', params.issueKey);
+        console.log('matchedResource:', matchedResource);
+        const issueUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`;
+        const issueResponse = await fetch(issueUrl, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${params.accessToken}`,
+            }
+        });
+
+        const data = await issueResponse.json();
+        if (!issueResponse.ok) {
+            throw new Error(data.message || 'Failed to retrieve Jira issue');
         }
 
         return {

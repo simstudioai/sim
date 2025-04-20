@@ -4,6 +4,7 @@ export interface JiraRetrieveParams {
   accessToken: string
   issueKey: string
   domain: string
+  cloudId: string
 }
 
 export interface JiraRetrieveResponse extends ToolResponse {
