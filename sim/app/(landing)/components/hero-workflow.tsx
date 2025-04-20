@@ -1,225 +1,259 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import ReactFlow, {
-  Background,
   ConnectionLineType,
   Edge,
+  EdgeTypes,
+  MarkerType,
   Node,
   NodeTypes,
   Position,
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useReactFlow,
+  Viewport,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { HeroBlock } from './hero-block'
+import { HeroEdge } from './hero-edge'
 import { useWindowSize } from './use-window-size'
 
-const nodeTypes: NodeTypes = {
-  heroBlock: HeroBlock,
+const nodeTypes: NodeTypes = { heroBlock: HeroBlock }
+const edgeTypes: EdgeTypes = { heroEdge: HeroEdge }
+
+// Desktop layout
+const desktopNodes: Node[] = [
+  {
+    id: 'function1',
+    type: 'heroBlock',
+    position: { x: 150, y: 400 },
+    data: { type: 'function', isHeroSection: true },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+  {
+    id: 'agent1',
+    type: 'heroBlock',
+    position: { x: 600, y: 600 },
+    data: { type: 'agent' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+  {
+    id: 'router1',
+    type: 'heroBlock',
+    position: { x: 1050, y: 600 },
+    data: { type: 'router' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+  {
+    id: 'slack1',
+    type: 'heroBlock',
+    position: { x: 1500, y: 400 },
+    data: { type: 'slack' },
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+  },
+]
+
+const desktopEdges: Edge[] = [
+  {
+    id: 'func1-agent1',
+    source: 'function1',
+    target: 'agent1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+  {
+    id: 'agent1-router1',
+    source: 'agent1',
+    target: 'router1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+  {
+    id: 'router1-slack1',
+    source: 'router1',
+    target: 'slack1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
+  },
+]
+
+const tabletNodes: Node[] = [
+  {
+    id: 'function1',
+    type: 'heroBlock',
+    position: { x: 50, y: 480 },
+    data: { type: 'function', isHeroSection: true },
+  },
+  { id: 'agent1', type: 'heroBlock', position: { x: 300, y: 660 }, data: { type: 'agent' } },
+  { id: 'router1', type: 'heroBlock', position: { x: 550, y: 660 }, data: { type: 'router' } },
+  { id: 'slack1', type: 'heroBlock', position: { x: 800, y: 480 }, data: { type: 'slack' } },
+].map((n) => ({ ...n, sourcePosition: Position.Right, targetPosition: Position.Left }))
+
+const tabletEdges = desktopEdges.map((edge) => ({
+  ...edge,
+  sourceHandle: 'source',
+  targetHandle: 'target',
+  type: 'heroEdge',
+}))
+
+// Mobile: only the agent node, centered under text
+const makeMobileNodes = (w: number, h: number): Node[] => {
+  const BLOCK_HALF = 100
+  return [
+    {
+      id: 'agent1',
+      type: 'heroBlock',
+      position: { x: w / 2 - BLOCK_HALF - 180, y: h / 2 },
+      data: { type: 'agent' },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    },
+    {
+      id: 'slack1',
+      type: 'heroBlock',
+      position: { x: w / 2 - BLOCK_HALF + 180, y: h / 2 + 200 },
+      data: { type: 'slack' },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    },
+  ]
 }
 
-// Initial nodes configuration
-const initialNodes: Node[] = [
+const mobileEdges: Edge[] = [
   {
-    id: 'api',
-    type: 'heroBlock',
-    position: { x: -150, y: -100 },
-    data: {
-      type: 'api',
-      name: 'API Block',
-      color: '#2F55FF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'router',
-    type: 'heroBlock',
-    position: { x: 125, y: -50 },
-    data: {
-      type: 'router',
-      name: 'Router',
-      color: '#28C43F',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent1',
-    type: 'heroBlock',
-    position: { x: 400, y: -100 },
-    data: {
-      type: 'agent',
-      name: 'Agent 1',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent2',
-    type: 'heroBlock',
-    position: { x: 400, y: 0 },
-    data: {
-      type: 'agent',
-      name: 'Agent 2',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
+    id: 'agent1-slack1',
+    source: 'agent1',
+    target: 'slack1',
+    sourceHandle: 'source',
+    targetHandle: 'target',
+    type: 'heroEdge',
+    animated: true,
+    style: { stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' },
+    zIndex: 5,
   },
 ]
 
-// Consolidated edges configuration
-const baseEdges: Edge[] = [
-  {
-    id: 'api-router',
-    source: 'api',
-    target: 'router',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-  {
-    id: 'router-agent1',
-    source: 'router',
-    target: 'agent1',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-  {
-    id: 'router-agent2',
-    source: 'router',
-    target: 'agent2',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-]
-
-const initialEdges: Edge[] = [
-  ...baseEdges,
-  {
-    id: 'router-agent3',
-    source: 'router',
-    target: 'agent3',
-    type: 'smoothstep',
-    style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '5,5' },
-    className: 'animated-edge',
-  },
-]
-
-// Create mobile node positions
-const getMobileNodes = (): Node[] => [
-  {
-    id: 'api',
-    type: 'heroBlock',
-    position: { x: -25, y: -150 },
-    data: {
-      type: 'api',
-      name: 'API Block',
-      color: '#2F55FF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'router',
-    type: 'heroBlock',
-    position: { x: 0, y: -30 },
-    data: {
-      type: 'router',
-      name: 'Router',
-      color: '#28C43F',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent1',
-    type: 'heroBlock',
-    position: { x: 275, y: -100 },
-    data: {
-      type: 'agent',
-      name: 'Agent 1',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-  {
-    id: 'agent2',
-    type: 'heroBlock',
-    position: { x: 275, y: 0 },
-    data: {
-      type: 'agent',
-      name: 'Agent 2',
-      color: '#802FFF',
-    },
-    dragHandle: '.workflow-drag-handle',
-  },
-]
+const workflowVariants = {
+  hidden: { opacity: 0, scale: 0.98 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, delay: 0.1, ease: 'easeOut' } },
+}
 
 export function HeroWorkflow() {
-  const { width } = useWindowSize()
-  const isMobile = width ? width <= 768 : false
+  const { width = 0, height = 0 } = useWindowSize()
+  const isMobile = width < 768
+  const isTablet = width >= 768 && width < 1024
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(isMobile ? getMobileNodes() : initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(isMobile ? baseEdges : initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
+  const { fitView } = useReactFlow()
 
-  // Handle viewport changes with instant update
+  // Default viewport to make elements smaller
+  const defaultViewport: Viewport = useMemo(() => ({ x: 0, y: 0, zoom: 0.8 }), [])
+
+  // Load layout
   useEffect(() => {
-    const targetNodes = isMobile ? getMobileNodes() : initialNodes
-    const targetEdges = isMobile ? baseEdges : initialEdges
+    if (isMobile) {
+      setNodes(makeMobileNodes(width, height))
+      setEdges(mobileEdges)
+    } else if (isTablet) {
+      setNodes(tabletNodes)
+      setEdges(tabletEdges)
+    } else {
+      setNodes(desktopNodes)
+      setEdges(desktopEdges)
+    }
+  }, [width, height, isMobile, isTablet, setNodes, setEdges])
 
-    setNodes((nds) =>
-      nds.map((node) => {
-        const targetNode = targetNodes.find((n) => n.id === node.id)
-        if (targetNode) {
-          return {
-            ...node,
-            position: {
-              x: targetNode.position.x,
-              y: targetNode.position.y,
-            },
-          }
-        }
-        return node
-      })
-    )
-    setEdges(targetEdges)
-  }, [isMobile, setNodes, setEdges])
+  // Center and scale
+  useEffect(() => {
+    if (nodes.length) {
+      if (isMobile) {
+        fitView({ padding: 0.2 }) // reduced padding to zoom in more
+      } else {
+        fitView({ padding: 0.2 }) // added padding to create more space around elements
+      }
+    }
+  }, [nodes, edges, fitView, isMobile])
 
   return (
-    <div className="w-full h-[240px] md:h-[320px]">
+    <motion.div
+      className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none"
+      style={{
+        height: '100%',
+        width: '100%',
+        position: 'absolute',
+        top: '160px',
+        left: 0,
+        willChange: 'opacity, transform',
+      }}
+      variants={workflowVariants}
+      initial="hidden"
+      animate="visible"
+    >
       <style jsx global>{`
-        .animated-edge {
-          animation: dashdraw 7s linear infinite;
+        .react-flow__edge-path {
+          stroke-dasharray: 5, 5;
+          stroke-width: 2;
+          animation: dash 1s linear infinite;
         }
-        @keyframes dashdraw {
-          from {
-            stroke-dashoffset: 100;
-          }
+        @keyframes dash {
           to {
-            stroke-dashoffset: 0;
+            stroke-dashoffset: 10;
           }
+        }
+        /* Make handles always visible in hero workflow with high z-index */
+        .react-flow__handle {
+          opacity: 1 !important;
+          z-index: 1000 !important;
+          cursor: default !important;
+        }
+        /* Force edges to stay below handles */
+        .react-flow__edge {
+          z-index: 5 !important;
+        }
+        /* Ensure nodes are above edges */
+        .react-flow__node {
+          z-index: 10 !important;
+        }
+        /* Proper z-index stacking for the entire flow */
+        .react-flow__renderer {
+          z-index: 1;
         }
       `}</style>
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        defaultEdgeOptions={{
-          type: 'smoothstep',
-          style: { stroke: '#94a3b8', strokeWidth: 2, strokeDasharray: '8,8' },
-          className: 'animated-edge',
-        }}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={{ type: 'heroEdge', animated: true }}
         connectionLineType={ConnectionLineType.SmoothStep}
-        connectionLineStyle={{ stroke: '#94a3b8', strokeWidth: 2 }}
-        fitView
-        minZoom={0.6}
-        maxZoom={1.35}
-        defaultViewport={{ x: 0, y: 0, zoom: 1 }}
+        connectionLineStyle={{ stroke: '#404040', strokeWidth: 2, strokeDasharray: '5,5' }}
+        minZoom={0.1}
+        maxZoom={1.5}
         proOptions={{ hideAttribution: true }}
-        nodesDraggable={true}
+        nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
         panOnScroll={false}
@@ -229,20 +263,9 @@ export function HeroWorkflow() {
         panOnDrag={false}
         selectionOnDrag={false}
         preventScrolling={true}
-        autoPanOnNodeDrag={false}
-        nodeExtent={
-          isMobile
-            ? [
-                [-50, -175],
-                [500, 75],
-              ]
-            : [
-                [-190, -130],
-                [644, 60],
-              ]
-        }
+        defaultViewport={defaultViewport}
       />
-    </div>
+    </motion.div>
   )
 }
 

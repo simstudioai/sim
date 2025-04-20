@@ -17,12 +17,12 @@ export const EmailFooter = ({
               <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
                 <tr>
                   <td align="center" style={{ padding: '0 8px' }}>
-                    <Link href="https://x.com/simstudioai">
+                    <Link href="https://x.com/simstudioai" rel="noopener noreferrer">
                       <Img src={`${baseUrl}/static/x-icon.png`} width="24" height="24" alt="X" />
                     </Link>
                   </td>
                   <td align="center" style={{ padding: '0 8px' }}>
-                    <Link href="https://discord.gg/Hr4UWYEcTT">
+                    <Link href="https://discord.gg/Hr4UWYEcTT" rel="noopener noreferrer">
                       <Img
                         src={`${baseUrl}/static/discord-icon.png`}
                         width="24"
@@ -32,7 +32,7 @@ export const EmailFooter = ({
                     </Link>
                   </td>
                   <td align="center" style={{ padding: '0 8px' }}>
-                    <Link href="https://github.com/simstudioai/sim">
+                    <Link href="https://github.com/simstudioai/sim" rel="noopener noreferrer">
                       <Img
                         src={`${baseUrl}/static/github-icon.png`}
                         width="24"
@@ -88,6 +88,7 @@ export const EmailFooter = ({
                           fontWeight: 'normal',
                           fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
                         }}
+                        rel="noopener noreferrer"
                       >
                         Privacy Policy
                       </a>{' '}
@@ -100,6 +101,7 @@ export const EmailFooter = ({
                           fontWeight: 'normal',
                           fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
                         }}
+                        rel="noopener noreferrer"
                       >
                         Terms of Service
                       </a>

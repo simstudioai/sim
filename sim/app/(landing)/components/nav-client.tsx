@@ -2,120 +2,262 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useSession } from '@/lib/auth-client'
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWindowSize } from './use-window-size'
 
 const logger = createLogger('NavClient')
 
-const XIcon = () => (
-  <svg
-    data-testid="geist-icon"
-    height="18"
-    strokeLinejoin="round"
-    viewBox="0 0 16 16"
-    width="18"
-    className="w-4.5 h-4.5"
-    style={{ color: 'currentcolor' }}
-  >
-    <path
-      fillRule="evenodd"
-      clipRule="evenodd"
-      d="M0.5 0.5H5.75L9.48421 5.71053L14 0.5H16L10.3895 6.97368L16.5 15.5H11.25L7.51579 10.2895L3 15.5H1L6.61053 9.02632L0.5 0.5ZM12.0204 14L3.42043 2H4.97957L13.5796 14H12.0204Z"
-      fill="currentColor"
-    ></path>
-  </svg>
-)
+// --- Framer Motion Variants ---
+const desktopNavContainerVariants = {
+  hidden: { opacity: 0, y: -10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: 0.2,
+      duration: 0.3,
+      ease: 'easeOut',
+    },
+  },
+}
 
-const DiscordIcon = () => (
-  <svg
-    data-testid="geist-icon"
-    height="18"
-    strokeLinejoin="round"
-    viewBox="0 0 16 16"
-    width="18"
-    className="w-4.5 h-4.5"
-    style={{ color: 'currentcolor' }}
-  >
-    <path
-      d="M13.5535 3.01557C12.5023 2.5343 11.3925 2.19287 10.2526 2C10.0966 2.27886 9.95547 2.56577 9.82976 2.85952C8.6155 2.67655 7.38067 2.67655 6.16641 2.85952C6.04063 2.5658 5.89949 2.27889 5.74357 2C4.60289 2.1945 3.4924 2.53674 2.44013 3.01809C0.351096 6.10885 -0.215207 9.12285 0.0679444 12.0941C1.29133 12.998 2.66066 13.6854 4.11639 14.1265C4.44417 13.6856 4.73422 13.2179 4.98346 12.7283C4.51007 12.5515 4.05317 12.3334 3.61804 12.0764C3.73256 11.9934 3.84456 11.9078 3.95279 11.8248C5.21891 12.4202 6.60083 12.7289 7.99997 12.7289C9.39912 12.7289 10.781 12.4202 12.0472 11.8248C12.1566 11.9141 12.2686 11.9997 12.3819 12.0764C11.9459 12.3338 11.4882 12.5524 11.014 12.7296C11.2629 13.2189 11.553 13.6862 11.881 14.1265C13.338 13.6872 14.7084 13.0001 15.932 12.0953C16.2642 8.64968 15.3644 5.66336 13.5535 3.01557ZM5.34212 10.2668C4.55307 10.2668 3.90119 9.55073 3.90119 8.66981C3.90119 7.78889 4.53042 7.06654 5.3396 7.06654C6.14879 7.06654 6.79563 7.78889 6.78179 8.66981C6.76795 9.55073 6.14627 10.2668 5.34212 10.2668ZM10.6578 10.2668C9.86752 10.2668 9.21815 9.55073 9.21815 8.66981C9.21815 7.78889 9.84738 7.06654 10.6578 7.06654C11.4683 7.06654 12.1101 7.78889 12.0962 8.66981C12.0824 9.55073 11.462 10.2668 10.6578 10.2668Z"
-      fill="currentColor"
-    ></path>
-  </svg>
-)
+const mobileSheetContainerVariants = {
+  hidden: { x: '100%' },
+  visible: {
+    x: 0,
+    transition: { duration: 0.3, ease: 'easeInOut' },
+  },
+  exit: {
+    x: '100%',
+    transition: { duration: 0.2, ease: 'easeIn' },
+  },
+}
 
-export default function NavClient({ children }: { children: React.ReactNode }) {
-  const { width } = useWindowSize()
-  const isMobile = width !== undefined && width < 640
-  const { data: session } = useSession()
-  const isAuthenticated = !!session?.user
-  const [hasPreviouslyLoggedIn, setHasPreviouslyLoggedIn] = useState(false)
+const mobileNavItemsContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.1, // Delay before starting stagger
+      staggerChildren: 0.08, // Stagger delay between items
+    },
+  },
+}
 
-  // Check if user has previously logged in
-  useEffect(() => {
-    // Check localStorage for previous login flag
-    if (typeof window !== 'undefined') {
-      const hasLoggedInBefore = localStorage.getItem('has_logged_in_before') === 'true'
-      setHasPreviouslyLoggedIn(hasLoggedInBefore)
-    }
+const mobileNavItemVariants = {
+  hidden: { opacity: 0, x: 20 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.3, ease: 'easeOut' },
+  },
+}
 
-    // If user is currently authenticated, set the flag for future visits
-    if (isAuthenticated && typeof window !== 'undefined') {
-      localStorage.setItem('has_logged_in_before', 'true')
-    }
-  }, [isAuthenticated])
+const mobileButtonVariants = {
+  hidden: { opacity: 0, y: 10 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' },
+  },
+}
+// --- End Framer Motion Variants ---
+
+// Component for Navigation Links
+const NavLinks = ({ mobile }: { mobile?: boolean }) => {
+  const links = [
+    // { href: "/", label: "Marketplace" },
+    { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
+    // { href: '/', label: 'Blog' },
+    { href: 'https://github.com/simstudioai/sim', label: 'Contributors', external: true },
+  ]
 
   return (
-    <nav className="fixed top-1 left-0 right-0 z-10 backdrop-blur-sm px-4 py-4">
-      <div className="max-w-6xl mx-auto flex justify-between items-center">
-        <div className="text-xl text-white">sim studio</div>
-
-        {/* Navigation and social media icons */}
-        <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
-          {isAuthenticated ? (
+    <>
+      {links.map((link) => {
+        const linkElement = (
+          <motion.div variants={mobile ? mobileNavItemVariants : undefined} key={link.label}>
             <Link
-              href="/w"
-              className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
+              href={link.href}
+              className={`text-white/60 hover:text-white/100 text-base ${
+                mobile ? 'p-2.5 text-lg font-medium' : 'p-1.5'
+              } rounded-md transition-colors duration-200 block md:inline-block`}
+              {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             >
-              workflows
+              {link.label}
             </Link>
-          ) : (
-            hasPreviouslyLoggedIn && (
-              <Link
-                href="/login"
-                className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
-              >
-                login
-              </Link>
-            )
-          )}
-          <a
-            href={`${process.env.NEXT_PUBLIC_DOCS_URL}`}
-            className="text-white/80 hover:text-white/100 text-xl p-2 rounded-md hover:scale-[1.04] transition-colors transition-transform duration-200"
-            rel="noopener noreferrer"
+          </motion.div>
+        )
+        // Wrap the motion.div with SheetClose if mobile
+        return mobile ? (
+          <SheetClose asChild key={link.label}>
+            {linkElement}
+          </SheetClose>
+        ) : (
+          linkElement
+        )
+      })}
+    </>
+  )
+}
+
+interface NavClientProps {
+  children: React.ReactNode
+  initialIsMobile?: boolean
+}
+
+export default function NavClient({ children, initialIsMobile }: NavClientProps) {
+  const [mounted, setMounted] = useState(false)
+  const [isMobile, setIsMobile] = useState(initialIsMobile ?? false)
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
+    checkMobile()
+
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Handle initial loading state - don't render anything that could cause layout shift
+  // until we've measured the viewport
+  if (!mounted) {
+    return (
+      <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
+        <div className="max-w-7xl mx-auto flex justify-between items-center relative">
+          <div className="flex-1"></div>
+          <div className="flex-1 flex justify-end">
+            <div className="w-[43px] h-[43px]"></div>
+          </div>
+        </div>
+      </nav>
+    )
+  }
+
+  return (
+    <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
+      <div className="max-w-7xl mx-auto flex justify-between items-center relative">
+        <div className="flex-1">{/* <div className="text-xl text-white">sim studio</div> */}</div>
+
+        {!isMobile && (
+          <motion.div
+            className="flex items-center gap-4 px-2 py-1 bg-neutral-700/50 rounded-lg"
+            variants={desktopNavContainerVariants}
+            initial="hidden"
+            animate="visible"
           >
-            docs
-          </a>
-          <a
-            href="https://x.com/simstudioai"
-            className="text-white/80 hover:text-white/100 p-2 rounded-md group hover:scale-[1.04] transition-colors transition-transform duration-200"
-            aria-label="Twitter"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <XIcon />
-          </a>
-          <a
-            href="https://discord.gg/Hr4UWYEcTT"
-            className="text-white/80 hover:text-white/100 p-2 rounded-md group hover:scale-[1.04] transition-colors transition-transform duration-200"
-            aria-label="Discord"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <DiscordIcon />
-          </a>
-          {children}
+            <NavLinks />
+          </motion.div>
+        )}
+        {isMobile && <div className="flex-1"></div>}
+
+        <div className="flex-1 flex justify-end">
+          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
+            {!isMobile && (
+              <>
+                <div className="flex items-center">{children}</div>
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeOut', delay: 0.4 }}
+                >
+                  <Button
+                    onClick={() =>
+                      window.open(
+                        'https://calendly.com/emir-simstudio/15min',
+                        '_blank',
+                        'noopener,noreferrer'
+                      )
+                    }
+                    className="bg-[#701ffc] hover:bg-[#802FFF] h-[43px] font-medium text-base py-2 px-6 text-neutral-100 font-geist-sans transition-colors duration-200"
+                  >
+                    Contact
+                  </Button>
+                </motion.div>
+              </>
+            )}
+
+            {isMobile && (
+              <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+                <SheetTrigger asChild>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    className="p-2 rounded-md text-white hover:bg-neutral-700/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    <Menu className="h-6 w-6" />
+                    <span className="sr-only">Toggle menu</span>
+                  </motion.button>
+                </SheetTrigger>
+                <AnimatePresence>
+                  {isSheetOpen && (
+                    <motion.div
+                      key="sheet-content"
+                      variants={mobileSheetContainerVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      className="fixed inset-y-0 right-0 z-50"
+                    >
+                      <SheetContent
+                        side="right"
+                        className="bg-[#0C0C0C] border-l border-[#181818] text-white w-[280px] sm:w-[320px] pt-12 p-6 flex flex-col h-full shadow-xl [&>button]:hidden"
+                        onOpenAutoFocus={(e) => e.preventDefault()}
+                        onCloseAutoFocus={(e) => e.preventDefault()}
+                      >
+                        <SheetHeader className="mb-6 text-left flex flex-row items-center justify-between">
+                          <SheetTitle className="text-white text-xl font-semibold m-0 p-0">
+                            Menu
+                          </SheetTitle>
+                        </SheetHeader>
+                        <motion.div
+                          className="flex flex-col gap-5 flex-grow"
+                          variants={mobileNavItemsContainerVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <NavLinks mobile />
+                          {children && (
+                            <motion.div variants={mobileNavItemVariants}>
+                              <SheetClose asChild>{children}</SheetClose>
+                            </motion.div>
+                          )}
+                          <motion.div variants={mobileButtonVariants} className="mt-auto pt-6">
+                            <SheetClose asChild>
+                              <Button
+                                onClick={() =>
+                                  window.open(
+                                    'https://calendly.com/emir-simstudio/15min',
+                                    '_blank',
+                                    'noopener,noreferrer'
+                                  )
+                                }
+                                className="w-full bg-[#701ffc] hover:bg-[#802FFF] font-medium py-6 text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200"
+                              >
+                                Contact
+                              </Button>
+                            </SheetClose>
+                          </motion.div>
+                        </motion.div>
+                      </SheetContent>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </Sheet>
+            )}
+          </div>
         </div>
       </div>
     </nav>

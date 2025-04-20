@@ -1,65 +1,24 @@
-import GitHubStars from './components/github-stars'
-import HeroWorkflowProvider from './components/hero-workflow'
-import NavClient from './components/nav-client'
-import WaitlistForm from './components/waitlist-form'
+import NavWrapper from './components/nav-wrapper'
+import Blogs from './components/sections/blogs'
+import Features from './components/sections/features'
+import Footer from './components/sections/footer'
+import Hero from './components/sections/hero'
+import Integrations from './components/sections/integrations'
+import Testimonials from './components/sections/testimonials'
 
 export default function Landing() {
   return (
-    <main className="bg-[#020817] relative overflow-x-hidden">
-      <NavClient>
-        <GitHubStars />
-      </NavClient>
+    <main className="bg-[#0C0C0C] relative min-h-screen font-geist-sans">
+      <NavWrapper />
 
-      <section className="min-h-[100dvh] pt-[134px] md:pt-36 text-white relative">
-        <div className="absolute inset-0 z-0">
-          <video
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="auto"
-            className="h-full w-full object-cover"
-            poster="/hero.png"
-          >
-            <source src="/hero.webm" type="video/webm" media="all" />
-          </video>
-        </div>
-        <div className="absolute inset-0 z-0 bg-gradient-to-b from-[#020817]/80 to-[#020817]/40" />
-        <div className="max-w-6xl mx-auto text-center space-y-6 relative z-10 px-4">
-          <h1 className="text-5xl md:text-7xl font-medium animate-fade-up [animation-delay:200ms] opacity-0 translate-y-[-10px]">
-            build / deploy
-            <br />
-            agent workflows
-          </h1>
-
-          <p className="text-[15px] md:text-xl text-muted-foreground max-w-3xl mx-auto animate-fade-up [animation-delay:400ms] opacity-0 translate-y-[-10px]">
-            Launch agentic workflows with an open source, <br />
-            user-friendly environment for devs and agents
-          </p>
-
-          <div className="animate-fade-up [animation-delay:600ms] opacity-0 translate-y-[-10px]">
-            <WaitlistForm />
-          </div>
-
-          <div className="mt-16 -mx-4">
-            <HeroWorkflowProvider />
-          </div>
-        </div>
-      </section>
+      <Hero />
+      <Testimonials />
+      {/* <Features /> */}
+      <Integrations />
+      {/* <Blogs /> */}
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-6 text-white/60">
-        <div className="max-w-6xl mx-auto flex justify-center items-center px-4">
-          <nav className="flex space-x-6 text-sm">
-            <a href="/privacy" className="hover:text-white transition-colors duration-200">
-              Privacy
-            </a>
-            <a href="/terms" className="hover:text-white transition-colors duration-200">
-              Terms
-            </a>
-          </nav>
-        </div>
-      </footer>
+      <Footer />
     </main>
   )
 }
