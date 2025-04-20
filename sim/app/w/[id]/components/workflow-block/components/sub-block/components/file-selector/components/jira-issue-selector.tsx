@@ -79,10 +79,10 @@ export function JiraIssueSelector({
 
     // Set a new timeout
     searchTimeoutRef.current = setTimeout(() => {
-      if (value.length > 2) {
+      if (value.length >= 1) {  // Changed from > 2 to >= 1 to be more responsive
         fetchIssues(value)   
-      } else if (value.length === 0) {
-        fetchIssues()
+      } else {
+        setIssues([])  // Clear issues if search is empty
       }
     }, 500) // 500ms debounce
   }
@@ -270,7 +270,7 @@ export function JiraIssueSelector({
         const queryParams = new URLSearchParams({
           domain,
           accessToken,
-          query: searchQuery || 'example',
+          query: searchQuery || ''
         })
         
         const response = await fetch(`/api/auth/oauth/jira/issues?${queryParams.toString()}`, {
@@ -341,13 +341,13 @@ export function JiraIssueSelector({
     }
   }, [fetchCredentials])
 
-  // Only fetch issues when the dropdown is opened, not on credential selection
+  // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
 
-    // Only fetch issues when opening the dropdown and if we have valid credentials and domain
+    // Only fetch recent/default issues when opening the dropdown
     if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchIssues()
+      fetchIssues('') // Pass empty string to get recent or default issues
     }
   }
 
