@@ -189,13 +189,20 @@ export function createParamSchema(customTool: any): Record<string, any> {
       const isRequired = required.includes(key);
       const isOptionalInput = optionalToolInputs.includes(key);
       
-      params[key] = {
+      // Create the base parameter configuration
+      const paramConfig: Record<string, any> = {
         type: config.type || 'string',
         required: isRequired,
         requiredForToolCall: isRequired,
-        optionalToolInput: isOptionalInput,
         description: config.description || '',
+      };
+      
+      // Only add optionalToolInput if it's true to maintain backward compatibility with tests
+      if (isOptionalInput) {
+        paramConfig.optionalToolInput = true;
       }
+      
+      params[key] = paramConfig;
     })
   }
 
