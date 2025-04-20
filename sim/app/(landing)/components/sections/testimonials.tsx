@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Marquee } from '@/components/magicui/marquee'
+import { Marquee } from '@/app/(landing)/components/magicui/marquee'
 
 const X_TESTIMONIALS = [
   {
