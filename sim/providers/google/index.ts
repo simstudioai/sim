@@ -9,7 +9,7 @@ export const googleProvider: ProviderConfig = {
   name: 'Google',
   description: "Google's Gemini models",
   version: '1.0.0',
-  models: ['gemini-2.0-flash', 'gemini-2.5-pro-exp-03-25'],
+  models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
   defaultModel: 'gemini-2.5-pro-exp-03-25',
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
@@ -59,19 +59,19 @@ export const googleProvider: ProviderConfig = {
 
       // Add structured output format if requested
       if (request.responseFormat) {
-        const responseFormatSchema = request.responseFormat.schema || request.responseFormat;
+        const responseFormatSchema = request.responseFormat.schema || request.responseFormat
         
         // Clean the schema using our helper function
-        const cleanSchema = cleanSchemaForGemini(responseFormatSchema);
+        const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
         
         // Use Gemini's native structured output approach
-        payload.generationConfig.responseMimeType = 'application/json';
-        payload.generationConfig.responseSchema = cleanSchema;
+        payload.generationConfig.responseMimeType = 'application/json'
+        payload.generationConfig.responseSchema = cleanSchema
         
         logger.info('Using Gemini native structured output format', {
           hasSchema: !!cleanSchema,
           mimeType: 'application/json'
-        });
+        })
       }
       
       // Add tools if provided
@@ -102,13 +102,13 @@ export const googleProvider: ProviderConfig = {
       )
 
       if (!response.ok) {
-        const responseText = await response.text();
+        const responseText = await response.text()
         logger.error('Gemini API error details:', { 
           status: response.status, 
           statusText: response.statusText,
           responseBody: responseText
-        });
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        })
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
       }
 
       const firstResponseTime = Date.now() - initialCallTime
@@ -116,15 +116,15 @@ export const googleProvider: ProviderConfig = {
       
       // Check structured output format
       if (payload.generationConfig?.responseSchema) {
-        const candidate = geminiResponse.candidates?.[0];
+        const candidate = geminiResponse.candidates?.[0]
         if (candidate?.content?.parts?.[0]?.text) {
-          const text = candidate.content.parts[0].text;
+          const text = candidate.content.parts[0].text
           try {
             // Validate JSON structure
-            JSON.parse(text);
-            logger.info('Successfully received structured JSON output');
+            JSON.parse(text)
+            logger.info('Successfully received structured JSON output')
           } catch (e) {
-            logger.warn('Failed to parse structured output as JSON');
+            logger.warn('Failed to parse structured output as JSON')
           }
         }
       }
@@ -161,7 +161,7 @@ export const googleProvider: ProviderConfig = {
         const candidate = geminiResponse.candidates?.[0]
         
         // Check if response contains function calls
-        const functionCall = extractFunctionCall(candidate);
+        const functionCall = extractFunctionCall(candidate)
         
         if (functionCall) {
           logger.info(`Received function call from Gemini: ${functionCall.name}`)
@@ -170,7 +170,7 @@ export const googleProvider: ProviderConfig = {
           while (iterationCount < MAX_ITERATIONS) {
             // Get the latest function calls
             const latestResponse = geminiResponse.candidates?.[0]
-            const latestFunctionCall = extractFunctionCall(latestResponse);
+            const latestFunctionCall = extractFunctionCall(latestResponse)
             
             if (!latestFunctionCall) {
               // No more function calls - extract final text content
@@ -195,14 +195,14 @@ export const googleProvider: ProviderConfig = {
               }
               
               // First, identify parameters marked as requiredForToolCall
-              const requiredToolCallParams: Record<string, any> = {};
+              const requiredToolCallParams: Record<string, any> = {}
               if (tool.params) {
                 Object.entries(tool.params).forEach(([key, value]) => {
                   // Check if this parameter is marked as requiredForToolCall
                   if (value?.requiredForToolCall) {
-                    requiredToolCallParams[key] = value;
+                    requiredToolCallParams[key] = value
                   }
-                });
+                })
               }
               
               // Execute the tool
@@ -233,22 +233,22 @@ export const googleProvider: ProviderConfig = {
               
               if (!result.success) {
                 // Check for API key related errors
-                const errorMessage = result.error?.toLowerCase() || '';
+                const errorMessage = result.error?.toLowerCase() || ''
                 if (errorMessage.includes('api key') || errorMessage.includes('apikey') || 
                     errorMessage.includes('x-api-key') || errorMessage.includes('authentication')) {
                   logger.error(`Tool ${toolName} failed with API key error:`, {
                     error: result.error,
                     toolRequiresKey: true
-                  });
+                  })
                   
                   // Add a more helpful error message for the user
-                  content = `Error: The ${toolName} tool requires a valid API key. Please ensure you've provided the correct API key for this specific service.`;
+                  content = `Error: The ${toolName} tool requires a valid API key. Please ensure you've provided the correct API key for this specific service.`
                 } else {
                   // Regular error handling
                   logger.warn(`Tool ${toolName} execution failed`, { 
                     error: result.error,
                     duration: toolCallDuration
-                  });
+                  })
                 }
                 break
               }
@@ -323,7 +323,7 @@ export const googleProvider: ProviderConfig = {
                 )
                 
                 if (!nextResponse.ok) {
-                  const errorBody = await nextResponse.text();
+                  const errorBody = await nextResponse.text()
                   logger.error('Error in Gemini follow-up request:', { 
                     status: nextResponse.status,
                     statusText: nextResponse.statusText,
@@ -450,35 +450,29 @@ export const googleProvider: ProviderConfig = {
 
 /**
  * Helper function to remove additionalProperties from a schema object
+ * and perform a deep copy of the schema to avoid modifying the original
  */
 function cleanSchemaForGemini(schema: any): any {
-  if (!schema || typeof schema !== 'object') return schema;
-  
-  // Create a shallow copy to avoid modifying original
-  const cleanedSchema = { ...schema };
-  
-  // Remove additionalProperties if present
-  if (cleanedSchema.additionalProperties !== undefined) {
-    delete cleanedSchema.additionalProperties;
+  // Handle base cases
+  if (schema === null || schema === undefined) return schema
+  if (typeof schema !== 'object') return schema
+  if (Array.isArray(schema)) {
+    return schema.map(item => cleanSchemaForGemini(item))
   }
   
-  // If the schema has properties, clean each property recursively
-  if (cleanedSchema.properties && typeof cleanedSchema.properties === 'object') {
-    cleanedSchema.properties = { ...cleanedSchema.properties };
-    Object.keys(cleanedSchema.properties).forEach(key => {
-      const prop = cleanedSchema.properties[key];
-      if (prop && typeof prop === 'object') {
-        cleanedSchema.properties[key] = cleanSchemaForGemini(prop);
-      }
-    });
+  // Create a new object for the deep copy
+  const cleanedSchema: any = {}
+  
+  // Process each property in the schema
+  for (const key in schema) {
+    // Skip additionalProperties
+    if (key === 'additionalProperties') continue
+    
+    // Deep copy nested objects
+    cleanedSchema[key] = cleanSchemaForGemini(schema[key])
   }
   
-  // Clean items if present (for array types)
-  if (cleanedSchema.items && typeof cleanedSchema.items === 'object') {
-    cleanedSchema.items = cleanSchemaForGemini(cleanedSchema.items);
-  }
-  
-  return cleanedSchema;
+  return cleanedSchema
 }
 
 /**
@@ -489,11 +483,11 @@ function extractTextContent(candidate: any): string {
   
   // Check for JSON response (typically from structured output)
   if (candidate.content.parts?.length === 1 && candidate.content.parts[0].text) {
-    const text = candidate.content.parts[0].text;
+    const text = candidate.content.parts[0].text
     if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
       try {
-        JSON.parse(text); // Validate JSON
-        return text;      // Return valid JSON as-is
+        JSON.parse(text) // Validate JSON
+        return text      // Return valid JSON as-is
       } catch (e) { /* Not valid JSON, continue with normal extraction */ }
     }
   }
@@ -502,28 +496,28 @@ function extractTextContent(candidate: any): string {
   return candidate.content.parts
     .filter((part: any) => part.text)
     .map((part: any) => part.text)
-    .join('\n');
+    .join('\n')
 }
 
 /**
  * Helper function to extract a function call from a Gemini response
  */
 function extractFunctionCall(candidate: any): { name: string, args: any } | null {
-  if (!candidate?.content?.parts) return null;
+  if (!candidate?.content?.parts) return null
   
   // Check for functionCall in parts
   for (const part of candidate.content.parts) {
     if (part.functionCall) {
-      const args = part.functionCall.args || {};
+      const args = part.functionCall.args || {}
       // Parse string args if they look like JSON
       if (typeof part.functionCall.args === 'string' && part.functionCall.args.trim().startsWith('{')) {
         try {
-          return { name: part.functionCall.name, args: JSON.parse(part.functionCall.args) };
+          return { name: part.functionCall.name, args: JSON.parse(part.functionCall.args) }
         } catch (e) {
-          return { name: part.functionCall.name, args: part.functionCall.args };
+          return { name: part.functionCall.name, args: part.functionCall.args }
         }
       }
-      return { name: part.functionCall.name, args };
+      return { name: part.functionCall.name, args }
     }
   }
   
@@ -531,11 +525,11 @@ function extractFunctionCall(candidate: any): { name: string, args: any } | null
   if (candidate.content.function_call) {
     const args = typeof candidate.content.function_call.arguments === 'string' 
       ? JSON.parse(candidate.content.function_call.arguments || '{}') 
-      : candidate.content.function_call.arguments || {};
-    return { name: candidate.content.function_call.name, args };
+      : candidate.content.function_call.arguments || {}
+    return { name: candidate.content.function_call.name, args }
   }
   
-  return null;
+  return null
 }
 
 /**
@@ -546,17 +540,17 @@ function convertToGeminiFormat(request: ProviderRequest): {
   tools: any[] | undefined,
   systemInstruction: any | undefined
 } {
-  const contents = [];
-  let systemInstruction = undefined;
+  const contents = []
+  let systemInstruction = undefined
   
   // Handle system prompt
   if (request.systemPrompt) {
-    systemInstruction = { parts: [{ text: request.systemPrompt }] };
+    systemInstruction = { parts: [{ text: request.systemPrompt }] }
   }
   
   // Add context as user message if present
   if (request.context) {
-    contents.push({ role: 'user', parts: [{ text: request.context }] });
+    contents.push({ role: 'user', parts: [{ text: request.context }] })
   }
   
   // Process messages
@@ -565,18 +559,18 @@ function convertToGeminiFormat(request: ProviderRequest): {
       if (message.role === 'system') {
         // Add to system instruction
         if (!systemInstruction) {
-          systemInstruction = { parts: [{ text: message.content }] };
+          systemInstruction = { parts: [{ text: message.content }] }
         } else {
           // Append to existing system instruction
-          systemInstruction.parts[0].text = `${systemInstruction.parts[0].text || ''}\n${message.content}`;
+          systemInstruction.parts[0].text = `${systemInstruction.parts[0].text || ''}\n${message.content}`
         }
       } else if (message.role === 'user' || message.role === 'assistant') {
         // Convert to Gemini role format
-        const geminiRole = message.role === 'user' ? 'user' : 'model';
+        const geminiRole = message.role === 'user' ? 'user' : 'model'
         
         // Add text content
         if (message.content) {
-          contents.push({ role: geminiRole, parts: [{ text: message.content }] });
+          contents.push({ role: geminiRole, parts: [{ text: message.content }] })
         }
         
         // Handle tool calls
@@ -586,40 +580,40 @@ function convertToGeminiFormat(request: ProviderRequest): {
               name: toolCall.function?.name,
               args: JSON.parse(toolCall.function?.arguments || '{}')
             }
-          }));
+          }))
           
-          contents.push({ role: 'model', parts: functionCalls });
+          contents.push({ role: 'model', parts: functionCalls })
         }
       } else if (message.role === 'tool') {
         // Convert tool response (Gemini only accepts user/model roles)
         contents.push({
           role: 'user',
           parts: [{ text: `Function result: ${message.content}` }]
-        });
+        })
       }
     }
   }
   
   // Convert tools to Gemini function declarations
   const tools = request.tools?.map(tool => {
-    const toolParameters = { ...(tool.parameters || {}) };
+    const toolParameters = { ...(tool.parameters || {}) }
     
     // Process schema properties
     if (toolParameters.properties) {
-      const properties = { ...toolParameters.properties };
-      let required = toolParameters.required ? [...toolParameters.required] : [];
+      const properties = { ...toolParameters.properties }
+      let required = toolParameters.required ? [...toolParameters.required] : []
       
       // Remove defaults and optional parameters
       for (const key in properties) {
-        const prop = properties[key] as any;
+        const prop = properties[key] as any
         
         if (prop.default !== undefined) {
-          const { default: _, ...cleanProp } = prop;
-          properties[key] = cleanProp;
+          const { default: _, ...cleanProp } = prop
+          properties[key] = cleanProp
         }
         
         if (tool.params?.[key]?.requiredForToolCall && required.includes(key)) {
-          required = required.filter(r => r !== key);
+          required = required.filter(r => r !== key)
         }
       }
       
@@ -628,14 +622,14 @@ function convertToGeminiFormat(request: ProviderRequest): {
         type: toolParameters.type || "object",
         properties,
         ...(required.length > 0 ? { required } : {})
-      };
+      }
       
       // Clean schema for Gemini
       return {
         name: tool.id,
         description: tool.description || `Execute the ${tool.id} function`,
         parameters: cleanSchemaForGemini(parameters)
-      };
+      }
     }
     
     // Simple schema case
@@ -643,8 +637,8 @@ function convertToGeminiFormat(request: ProviderRequest): {
       name: tool.id,
       description: tool.description || `Execute the ${tool.id} function`,
       parameters: cleanSchemaForGemini(toolParameters)
-    };
-  });
+    }
+  })
   
-  return { contents, tools, systemInstruction };
+  return { contents, tools, systemInstruction }
 }
