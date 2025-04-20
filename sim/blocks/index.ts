@@ -20,7 +20,7 @@ import { GoogleSearchBlock } from './blocks/google'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
-
+import { LinkupBlock } from './blocks/linkup'
 import { MistralParseBlock } from './blocks/mistral-parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -64,6 +64,7 @@ export {
   FileBlock,
   GoogleSearchBlock,
   JinaBlock,
+  LinkupBlock,
   TranslateBlock,
   SlackBlock,
   GitHubBlock,
@@ -120,6 +121,7 @@ const blocks: Record<string, BlockConfig> = {
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
+  linkup: LinkupBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,

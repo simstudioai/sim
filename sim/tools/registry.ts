@@ -15,6 +15,7 @@ import { searchTool as googleSearchTool } from './google'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0SearchMemoriesTool, mem0GetMemoriesTool } from './mem0'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
@@ -54,6 +55,7 @@ export const tools: Record<string, ToolConfig> = {
   firecrawl_scrape: scrapeTool,
   google_search: googleSearchTool,
   jina_readurl: readUrlTool,
+  linkup_search: linkupSearchTool,
   slack_message: slackMessageTool,
   github_repoinfo: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
