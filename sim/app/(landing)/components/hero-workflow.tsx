@@ -201,7 +201,7 @@ export function HeroWorkflow() {
         height: '100%',
         width: '100%',
         position: 'absolute',
-        top: '160px',
+        top: isMobile ? '200px' : '160px',
         left: 0,
         willChange: 'opacity, transform',
       }}
