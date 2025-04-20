@@ -33,6 +33,7 @@ export interface ToolConfig<P = any, R = any> {
       type: string
       required?: boolean
       requiredForToolCall?: boolean
+      optionalToolInput?: boolean
       default?: any
       description?: string
     }
