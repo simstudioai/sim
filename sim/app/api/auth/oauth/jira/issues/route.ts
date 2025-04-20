@@ -1,15 +1,5 @@
 import { NextResponse } from 'next/server'
 
-// Add interface at the top of the file
-interface JiraIssue {
-  id: string;
-  name: string;
-  mimeType: string;
-  url: string;
-  modifiedTime: string;
-  webViewLink: string;
-}
-
 export async function POST(request: Request) {
   try {
     const { domain, accessToken, issueKeys = [] } = await request.json()
@@ -63,15 +53,6 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify(requestBody)
     }
-
-    console.log('Making Jira API request with config:', {
-      url,
-      method: requestConfig.method,
-      headers: {
-        ...requestConfig.headers,
-        'Authorization': 'Bearer [REDACTED]' // Don't log the actual token
-      }
-    })
 
     const response = await fetch(url, requestConfig)
 
