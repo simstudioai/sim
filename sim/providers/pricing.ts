@@ -48,17 +48,17 @@ const modelPricing: ModelPricingMap = {
   },
 
   // Google Models
-  'gemini-2.0-flash': {
-    input: 0.1,
-    cachedInput: 0.05,
-    output: 0.4,
-    updatedAt: '2025-03-21',
-  },
   'gemini-2.5-pro-exp-03-25': {
     input: 0.15,
     cachedInput: 0.075,
     output: 0.6,
     updatedAt: '2025-03-25',
+  },
+  'gemini-2.5-flash-preview-04-17': {
+    input: 0.15,
+    cachedInput: 0.075,
+    output: 0.6,
+    updatedAt: '2025-04-19',
   },
 
   // Deepseek Models
