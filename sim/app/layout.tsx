@@ -1,10 +1,23 @@
 import type { Metadata, Viewport } from 'next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import { createLogger } from '@/lib/logs/console-logger'
+import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
 
 const logger = createLogger('RootLayout')
+
+const geistSans = Geist({
+	subsets: ["latin"],
+	variable: '--font-geist-sans',
+	weight: "variable",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+	variable: '--font-geist-mono',
+	weight: 'variable',
+});
 
 // Add browser extension attributes that we want to ignore
 const BROWSER_EXTENSION_ATTRIBUTES = [

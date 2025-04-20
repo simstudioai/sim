@@ -166,6 +166,18 @@
     display: none;
   }
 
+  .animate-orbit {
+    animation: orbit calc(var(--duration, 2) * 1s) linear infinite;
+  }
+
+  .animate-marquee {
+    animation: marquee var(--duration) infinite linear;
+  }
+
+  .animate-marquee-vertical {
+    animation: marquee-vertical var(--duration) linear infinite;
+  }
+
   /* Code Editor Streaming Effect */
   @keyframes code-shimmer {
     0% {
@@ -175,6 +187,32 @@
       transform: translateX(100%);
     }
   }
+
+  @keyframes orbit {
+    0% {
+      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
+      }
+    100% {
+      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg));
+      }
+    }
+
+    @keyframes marquee {
+      from {
+        transform: translateX(0);
+      }
+      to {
+        transform: translateX(calc(-100% - var(--gap)));
+      }
+    }
+    @keyframes marquee-vertical {
+      from {
+        transform: translateY(0);
+      }
+      to {
+        transform: translateY(calc(-100% - var(--gap)));
+      }
+    }
 
   .streaming-effect {
     @apply relative overflow-hidden;
@@ -244,4 +282,13 @@ input[type='search']::-ms-clear {
 /* Dark mode error badge styling */
 .dark .bg-red-500 {
   @apply bg-red-700;
+}
+
+/* Font Variables */
+.font-geist-sans {
+  font-family: var(--font-geist-sans);
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono);
 }

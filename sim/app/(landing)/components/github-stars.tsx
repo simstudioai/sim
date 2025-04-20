@@ -36,7 +36,6 @@ export default async function GitHubStars() {
       <GithubIcon className="w-[20px] h-[20px]" />
       <div className="flex items-center justify-center gap-1">
         <span className="text-sm font-medium py-[2px]">{stars}</span>
-        <Star className="w-3.5 h-3.5 fill-white/80 stroke-none group-hover:fill-white" />
       </div>
     </a>
   )
