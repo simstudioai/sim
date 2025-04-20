@@ -92,7 +92,7 @@ function Footer() {
                     rel="noopener noreferrer"
                     className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
                   >
-                    Terms and Condition
+                    Terms and Conditions
                   </Link>
                   <Link
                     href={'/privacy'}

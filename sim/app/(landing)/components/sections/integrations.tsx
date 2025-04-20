@@ -14,7 +14,7 @@ function Integrations() {
     <section className="flex flex-col py-12 w-full gap-10 px-8 md:px-16 lg:px-28 xl:px-32">
       <div className="flex flex-col gap-5">
         <motion.p
-          className="text-white font-medium tracking-normal text-5xl"
+          className="text-white font-medium tracking-normal text-[42px] md:text-5xl md:leading-tight leading-none"
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}

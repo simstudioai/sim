@@ -88,7 +88,9 @@ function Testimonials() {
     <section className="relative flex flex-col py-10 sm:py-12 md:py-16 w-full overflow-hidden will-change-[opacity,transform] animation-container">
       <div className="flex flex-col items-center gap-3 sm:gap-5 pb-6 sm:pb-8 md:pb-10 px-4">
         {isMobile ? (
-          <p className="text-white font-medium tracking-normal text-5xl text-center">Loved by</p>
+          <p className="text-white font-medium tracking-normal text-[42px] md:text-5xl text-center">
+            Loved by
+          </p>
         ) : (
           <motion.p
             className="text-white font-medium tracking-normal text-5xl text-center"
@@ -102,7 +104,7 @@ function Testimonials() {
         )}
       </div>
 
-      <div className="flex flex-col space-y-2 sm:space-y-3 md:mt-0 mt-2">
+      <div className="flex flex-col space-y-2 sm:space-y-3 mt-0">
         {/* First Row of X Posts */}
         <div className="w-full flex flex-col text-white animate-fade-up [animation-delay:400ms] opacity-0 will-change-[opacity,transform] animation-container">
           <Marquee className="w-full flex [--duration:40s]" pauseOnHover={true}>
