@@ -3,6 +3,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Marquee } from '@/app/(landing)/components/magicui/marquee'
+import useIsMobile from '../hooks/useIsMobile'
 
 const X_TESTIMONIALS = [
   {
@@ -75,21 +76,33 @@ const firstRowTestimonials = X_TESTIMONIALS.slice(0, Math.ceil(X_TESTIMONIALS.le
 const secondRowTestimonials = X_TESTIMONIALS.slice(Math.ceil(X_TESTIMONIALS.length / 2))
 
 function Testimonials() {
+  const { isMobile, mounted } = useIsMobile()
+
+  if (!mounted) {
+    return (
+      <section className="relative flex flex-col py-10 sm:py-12 md:py-16 w-full overflow-hidden" />
+    )
+  }
+
   return (
     <section className="relative flex flex-col py-10 sm:py-12 md:py-16 w-full overflow-hidden will-change-[opacity,transform] animation-container">
       <div className="flex flex-col items-center gap-3 sm:gap-5 pb-6 sm:pb-8 md:pb-10 px-4">
-        <motion.p
-          className="text-white font-medium tracking-normal text-5xl text-center"
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
-        >
-          Loved by
-        </motion.p>
+        {isMobile ? (
+          <p className="text-white font-medium tracking-normal text-5xl text-center">Loved by</p>
+        ) : (
+          <motion.p
+            className="text-white font-medium tracking-normal text-5xl text-center"
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
+          >
+            Loved by
+          </motion.p>
+        )}
       </div>
 
-      <div className="flex flex-col space-y-2 sm:space-y-3">
+      <div className="flex flex-col space-y-2 sm:space-y-3 md:mt-0 mt-2">
         {/* First Row of X Posts */}
         <div className="w-full flex flex-col text-white animate-fade-up [animation-delay:400ms] opacity-0 will-change-[opacity,transform] animation-container">
           <Marquee className="w-full flex [--duration:40s]" pauseOnHover={true}>

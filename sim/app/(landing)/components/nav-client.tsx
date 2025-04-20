@@ -91,7 +91,7 @@ const NavLinks = ({ mobile }: { mobile?: boolean }) => {
             <Link
               href={link.href}
               className={`text-white/60 hover:text-white/100 text-base ${
-                mobile ? 'p-2.5 text-lg font-medium' : 'p-1.5'
+                mobile ? 'p-2.5 text-lg font-medium text-left' : 'p-1.5'
               } rounded-md transition-colors duration-200 block md:inline-block`}
               {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             >
@@ -213,14 +213,12 @@ export default function NavClient({ children, initialIsMobile }: NavClientProps)
                     >
                       <SheetContent
                         side="right"
-                        className="bg-[#0C0C0C] border-l border-[#181818] text-white w-[280px] sm:w-[320px] pt-12 p-6 flex flex-col h-full shadow-xl [&>button]:hidden"
+                        className="bg-[#0C0C0C] border-l border-[#181818] text-white w-[280px] sm:w-[320px] pt-6 p-6 flex flex-col h-full shadow-xl [&>button]:hidden"
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
                       >
-                        <SheetHeader className="mb-6 text-left flex flex-row items-center justify-between">
-                          <SheetTitle className="text-white text-xl font-semibold m-0 p-0">
-                            Menu
-                          </SheetTitle>
+                        <SheetHeader className="sr-only">
+                          <SheetTitle>Navigation Menu</SheetTitle>
                         </SheetHeader>
                         <motion.div
                           className="flex flex-col gap-5 flex-grow"

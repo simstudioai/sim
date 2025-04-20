@@ -77,7 +77,7 @@ function Hero() {
 
   return (
     <section
-      className="min-h-screen pt-32 sm:pt-32 md:pt-40 text-white relative border-b border-[#181818] overflow-hidden will-change-[opacity,transform] animation-container"
+      className="min-h-screen pt-28 sm:pt-32 md:pt-40 text-white relative border-b border-[#181818] overflow-hidden will-change-[opacity,transform] animation-container"
       aria-label="Main hero section"
     >
       <GridPattern
@@ -91,34 +91,33 @@ function Hero() {
 
       {/* Centered black background behind text and button */}
       <div
-        className="absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 max-w-4xl w-full"
+        className="absolute left-1/2 top-[28%] md:top-[38%] -translate-x-1/2 -translate-y-1/2 w-[95%] md:w-[60%] lg:w-[50%]"
         aria-hidden="true"
       >
         <svg
           width="100%"
           height="100%"
-          viewBox="0 0 800 400"
+          viewBox="0 0 600 480"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           preserveAspectRatio="xMidYMid meet"
           aria-hidden="true"
+          className="h-auto aspect-[5/3] md:aspect-auto"
         >
-          <g filter="url(#filter0_f_0_1)">
-            <ellipse cx="400" cy="190" rx="350" ry="170" fill="#0C0C0C" />
+          <g filter="url(#filter0_b_0_1)">
+            <ellipse cx="300" cy="240" rx="290" ry="220" fill="#0C0C0C" />
           </g>
           <defs>
             <filter
-              id="filter0_f_0_1"
+              id="filter0_b_0_1"
               x="0"
-              y="0"
-              width="800"
-              height="400"
+              y="10"
+              width="600"
+              height="460"
               filterUnits="userSpaceOnUse"
               colorInterpolationFilters="sRGB"
             >
-              <feFlood floodOpacity="0" result="BackgroundImageFix" />
-              <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape" />
-              <feGaussianBlur stdDeviation="25" result="effect1_foregroundBlur_0_1" />
+              <feGaussianBlur stdDeviation="5" />
             </filter>
           </defs>
         </svg>
@@ -132,7 +131,7 @@ function Hero() {
       </div>
 
       <div className="text-center space-y-4 relative z-20 px-4 animation-container">
-        <h1 className="text-5xl md:text-[68px] leading-[1.10] font-semibold animate-fade-up [animation-delay:200ms] opacity-0 will-change-[opacity,transform] animation-container">
+        <h1 className="text-[42px] md:text-[68px] leading-[1.10] font-semibold animate-fade-up [animation-delay:200ms] opacity-0 will-change-[opacity,transform] animation-container">
           Build / Deploy
           <br />
           Agent Workflows
