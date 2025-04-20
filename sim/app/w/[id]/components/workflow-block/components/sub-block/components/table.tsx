@@ -246,7 +246,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 prev ? { ...prev, showTags: false, activeSourceBlockId: null } : null
               )
             }}
-            className="w-[200px] absolute"
+            className="absolute"
           />
         </>
       )}
