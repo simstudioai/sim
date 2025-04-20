@@ -37,6 +37,7 @@ import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 import { ToolConfig } from './types'
+import { s3DownloadObjectTool } from './s3buckets/download'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -113,4 +114,5 @@ export const tools: Record<string, ToolConfig> = {
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
+  s3buckets_download: s3DownloadObjectTool,
 } 
