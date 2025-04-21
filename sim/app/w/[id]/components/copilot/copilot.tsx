@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCopilotStore } from '@/stores/copilot/store'
 
-export function Chat() {
+export function Copilot() {
   const { sendMessage } = useCopilotStore()
   const [isOpen, setIsOpen] = useState(false)
   const [message, setMessage] = useState('')

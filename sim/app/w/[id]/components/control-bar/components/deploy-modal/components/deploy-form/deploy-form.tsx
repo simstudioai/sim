@@ -227,10 +227,6 @@ export function DeployForm({
                   <span className="sr-only">Close</span>
                 </Button>
               </div>
-              <DialogDescription className="pt-2">
-                Name your API key to help you identify it later. This key will have access to your
-                account and workflows.
-              </DialogDescription>
             </DialogHeader>
 
             <div className="pt-4 px-6 pb-6 flex-1">

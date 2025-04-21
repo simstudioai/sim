@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ChatDeploy } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployForm } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
 import { DeploymentInfo } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/deployment-info'
 
@@ -45,6 +46,8 @@ interface DeployFormValues {
   newKeyName?: string
 }
 
+type DeployStep = 'api' | 'chat'
+
 export function DeployModal({
   open,
   onOpenChange,
@@ -65,6 +68,9 @@ export function DeployModal({
   const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [keysLoaded, setKeysLoaded] = useState(false)
   const [viewDeploymentInfo, setViewDeploymentInfo] = useState(false)
+  const [currentStep, setCurrentStep] = useState<DeployStep>('api')
+  const [isChatDeploying, setIsChatDeploying] = useState(false)
+  const [chatSubmitting, setChatSubmitting] = useState(false)
 
   // Generate an example input format for the API request
   const getInputFormatExample = () => {
@@ -134,6 +140,7 @@ export function DeployModal({
   useEffect(() => {
     if (open) {
       fetchApiKeys()
+      setCurrentStep('api')
     }
   }, [open, workflowId])
 
@@ -186,7 +193,9 @@ export function DeployModal({
     }
 
     try {
-      if (!chatDeploy) {
+      if (chatDeploy) {
+        setIsChatDeploying(true)
+      } else {
         setIsSubmitting(true)
       }
 
@@ -219,26 +228,37 @@ export function DeployModal({
       const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
       const inputFormatExample = getInputFormatExample()
 
-      setDeploymentInfo({
+      const newDeploymentInfo = {
         isDeployed: true,
         deployedAt: deployedAt,
         apiKey: data.apiKey,
         endpoint,
         exampleCommand: `curl -X POST -H "X-API-Key: ${data.apiKey}" -H "Content-Type: application/json"${inputFormatExample} ${endpoint}`,
         needsRedeployment: false,
-      })
+      }
 
-      // Show the deployment info view
-      setViewDeploymentInfo(true)
+      setDeploymentInfo(newDeploymentInfo)
+
+      if (chatDeploy) {
+        // Move to chat deployment step
+        setCurrentStep('chat')
+      } else {
+        // Show the deployment info view for regular deploy
+        setViewDeploymentInfo(true)
+      }
 
       // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
       addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
-    } finally {
-      if (!chatDeploy) {
-        setIsSubmitting(false)
+
+      if (chatDeploy) {
+        // If we fail during chat deploy, close the modal
+        onOpenChange(false)
       }
+    } finally {
+      setIsSubmitting(false)
+      setIsChatDeploying(false)
     }
   }
 
@@ -321,19 +341,46 @@ export function DeployModal({
   useEffect(() => {
     if (!open) {
       setViewDeploymentInfo(!!isDeployed)
+      setCurrentStep('api')
     } else if (open && isDeployed) {
       setViewDeploymentInfo(true)
     }
   }, [open, isDeployed])
 
+  // Render title based on current step
+  const renderTitle = () => {
+    if (currentStep === 'chat') {
+      return 'Deploy Workflow as Chat'
+    }
+    return viewDeploymentInfo ? 'API Deployment' : 'Deploy Workflow'
+  }
+
+  // Handle chat deployment submission
+  const handleChatDeploySubmit = async () => {
+    setChatSubmitting(true)
+    // This function will be called from the footer button when in chat deployment step
+    // Implementation will use the form submission in the ChatDeploy component
+    try {
+      // Instead of directly submitting, we'll trigger the form in the component
+      const form = document.querySelector('form') as HTMLFormElement
+      if (form) {
+        form.requestSubmit()
+      }
+    } catch (error) {
+      logger.error('Error submitting chat deployment form:', error)
+    }
+    setTimeout(() => setChatSubmitting(false), 300) // Reset after a short delay
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent
+        className="sm:max-w-[600px] max-h-[78vh] flex flex-col p-0 gap-0 overflow-hidden"
+        hideCloseButton
+      >
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">
-              {viewDeploymentInfo ? 'API Deployment' : 'Deploy Workflow'}
-            </DialogTitle>
+            <DialogTitle className="text-lg font-medium">{renderTitle()}</DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -346,31 +393,43 @@ export function DeployModal({
           </div>
         </DialogHeader>
 
-        <div className="pt-4 px-6 pb-6 flex-1 overflow-y-auto">
-          {viewDeploymentInfo ? (
-            <DeploymentInfo
-              isLoading={isLoading}
-              deploymentInfo={deploymentInfo}
-              onRedeploy={handleRedeploy}
-              onUndeploy={handleUndeploy}
-              isSubmitting={isSubmitting}
-              isUndeploying={isUndeploying}
-            />
-          ) : (
-            <DeployForm
-              apiKeys={apiKeys}
-              keysLoaded={keysLoaded}
-              endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-              workflowId={workflowId || ''}
-              onSubmit={onDeploy}
-              getInputFormatExample={getInputFormatExample}
-              onApiKeyCreated={fetchApiKeys}
-            />
-          )}
+        <div className="flex-1 overflow-y-auto">
+          <div className="pt-4 px-6 pb-6">
+            {currentStep === 'api' &&
+              (viewDeploymentInfo ? (
+                <DeploymentInfo
+                  isLoading={isLoading}
+                  deploymentInfo={deploymentInfo}
+                  onRedeploy={handleRedeploy}
+                  onUndeploy={handleUndeploy}
+                  isSubmitting={isSubmitting}
+                  isUndeploying={isUndeploying}
+                />
+              ) : (
+                <DeployForm
+                  apiKeys={apiKeys}
+                  keysLoaded={keysLoaded}
+                  endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                  workflowId={workflowId || ''}
+                  onSubmit={onDeploy}
+                  getInputFormatExample={getInputFormatExample}
+                  onApiKeyCreated={fetchApiKeys}
+                />
+              ))}
+
+            {currentStep === 'chat' && (
+              <ChatDeploy
+                workflowId={workflowId || ''}
+                onClose={() => onOpenChange(false)}
+                deploymentInfo={deploymentInfo}
+              />
+            )}
+          </div>
         </div>
 
-        {!viewDeploymentInfo && (
-          <div className="border-t px-6 py-4 flex justify-between">
+        {/* Footer buttons - always visible for both steps */}
+        {currentStep === 'api' && !viewDeploymentInfo && (
+          <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
@@ -379,7 +438,7 @@ export function DeployModal({
               <Button
                 type="button"
                 onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' })}
-                disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
+                disabled={isSubmitting || (!keysLoaded && !apiKeys.length) || isChatDeploying}
                 variant="outline"
               >
                 {isSubmitting ? (
@@ -394,8 +453,8 @@ export function DeployModal({
 
               <Button
                 type="button"
-                onClick={() => onDeploy({ apiKey: '' }, true)}
-                disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
+                onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' }, true)}
+                disabled={isSubmitting || (!keysLoaded && !apiKeys.length) || isChatDeploying}
                 className={cn(
                   // Base styles
                   'gap-2 font-medium',
@@ -406,13 +465,68 @@ export function DeployModal({
                   // Text color and transitions
                   'text-white transition-all duration-200',
                   // Running state animation
-                  isSubmitting &&
+                  (isSubmitting || isChatDeploying) &&
                     'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                   // Disabled state
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
                 )}
               >
-                Chat Deploy
+                {isChatDeploying ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    Deploying...
+                  </>
+                ) : (
+                  'Chat Deploy'
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 'chat' && (
+          <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
+            <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
+              Cancel
+            </Button>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep('api')}
+                disabled={chatSubmitting}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                onClick={handleChatDeploySubmit}
+                disabled={chatSubmitting}
+                className={cn(
+                  // Base styles
+                  'gap-2 font-medium',
+                  // Brand color with hover states
+                  'bg-[#802FFF] hover:bg-[#7028E6]',
+                  // Hover effect with brand color
+                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                  // Text color and transitions
+                  'text-white transition-all duration-200',
+                  // Running state animation
+                  chatSubmitting &&
+                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+                  // Disabled state
+                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                )}
+              >
+                {chatSubmitting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    Deploying...
+                  </>
+                ) : (
+                  'Deploy Chat'
+                )}
               </Button>
             </div>
           </div>
