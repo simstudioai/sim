@@ -59,7 +59,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
           },
           projectId: {
             type: 'string',
-            required: true,
+            required: false,
             description: 'Project ID for the issue',
           },
           issueTypeId: {
