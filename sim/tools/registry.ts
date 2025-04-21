@@ -11,9 +11,11 @@ import { functionExecuteTool } from './function'
 import { githubCommentTool, githubLatestCommitTool, githubPrTool, githubRepoInfoTool } from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { guestyGuestTool, guestyReservationTool } from './guesty'
+import { searchTool as googleSearchTool } from './google'
 import { requestTool as httpRequest } from './http/request'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina/reader'
+import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0SearchMemoriesTool, mem0GetMemoriesTool } from './mem0'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
@@ -38,6 +40,8 @@ import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 import { ToolConfig } from './types'
 import { s3GetObjectTool } from './s3buckets/download'
+import { elevenLabsTtsTool } from './elevenlabs'
+
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -51,7 +55,9 @@ export const tools: Record<string, ToolConfig> = {
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
+  google_search: googleSearchTool,
   jina_readurl: readUrlTool,
+  linkup_search: linkupSearchTool,
   slack_message: slackMessageTool,
   github_repoinfo: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
@@ -115,4 +121,5 @@ export const tools: Record<string, ToolConfig> = {
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
   s3_get_object: s3GetObjectTool,
+  elevenlabs_tts: elevenLabsTtsTool,
 } 

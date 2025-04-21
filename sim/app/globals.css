@@ -103,6 +103,12 @@
   body {
     @apply bg-background text-foreground;
     overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+    min-height: 100vh;
+    /* Prevent layout shifts when scrollbar appears/disappears */
+    scrollbar-gutter: stable;
+    /* Improve animation performance */
+    text-rendering: optimizeSpeed;
   }
 
   /* Global Scrollbar Styling */
@@ -134,6 +140,12 @@
 
 /* Custom Animations */
 @layer utilities {
+  /* Animation containment to avoid layout shifts */
+  .animation-container {
+    contain: paint layout style;
+    will-change: opacity, transform;
+  }
+
   @keyframes pulse-ring {
     0% {
       box-shadow: 0 0 0 0 hsl(var(--border));
@@ -166,6 +178,18 @@
     display: none;
   }
 
+  .animate-orbit {
+    animation: orbit calc(var(--duration, 2) * 1s) linear infinite;
+  }
+
+  .animate-marquee {
+    animation: marquee var(--duration) infinite linear;
+  }
+
+  .animate-marquee-vertical {
+    animation: marquee-vertical var(--duration) linear infinite;
+  }
+
   /* Code Editor Streaming Effect */
   @keyframes code-shimmer {
     0% {
@@ -175,6 +199,32 @@
       transform: translateX(100%);
     }
   }
+
+  @keyframes orbit {
+    0% {
+      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
+      }
+    100% {
+      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg));
+      }
+    }
+
+    @keyframes marquee {
+      from {
+        transform: translateX(0);
+      }
+      to {
+        transform: translateX(calc(-100% - var(--gap)));
+      }
+    }
+    @keyframes marquee-vertical {
+      from {
+        transform: translateY(0);
+      }
+      to {
+        transform: translateY(calc(-100% - var(--gap)));
+      }
+    }
 
   .streaming-effect {
     @apply relative overflow-hidden;
@@ -244,4 +294,13 @@ input[type='search']::-ms-clear {
 /* Dark mode error badge styling */
 .dark .bg-red-500 {
   @apply bg-red-700;
+}
+
+/* Font Variables */
+.font-geist-sans {
+  font-family: var(--font-geist-sans);
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono);
 }

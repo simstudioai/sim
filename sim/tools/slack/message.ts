@@ -31,6 +31,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
       type: 'string',
       required: true,
       description: 'Target Slack channel (e.g., #general)',
+      optionalToolInput: true,
     },
     text: {
       type: 'string',

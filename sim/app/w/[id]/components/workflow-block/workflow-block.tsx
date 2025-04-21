@@ -36,6 +36,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     scheduleTiming: string
     nextRunAt: string | null
     lastRanAt: string | null
+    timezone: string
   } | null>(null)
   const [webhookInfo, setWebhookInfo] = useState<{
     webhookPath: string
@@ -94,6 +95,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 scheduleTiming,
                 nextRunAt: data.schedule.nextRunAt,
                 lastRanAt: data.schedule.lastRanAt,
+                timezone: data.schedule.timezone || 'UTC',
               })
             }
           }
@@ -418,12 +420,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
                       {scheduleInfo.nextRunAt && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Next run: {formatDateTime(new Date(scheduleInfo.nextRunAt))}
+                          Next run: {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
                         </p>
                       )}
                       {scheduleInfo.lastRanAt && (
                         <p className="text-xs text-muted-foreground">
-                          Last run: {formatDateTime(new Date(scheduleInfo.lastRanAt))}
+                          Last run: {formatDateTime(new Date(scheduleInfo.lastRanAt), scheduleInfo.timezone)}
                         </p>
                       )}
                     </>

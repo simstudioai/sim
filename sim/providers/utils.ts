@@ -38,7 +38,7 @@ export const providers: Record<
   },
   google: {
     ...googleProvider,
-    models: ['gemini-2.0-flash', 'gemini-2.5-pro-exp-03-25'],
+    models: ['gemini-2.5-pro-exp-03-25','gemini-2.5-flash-preview-04-17'],
     modelPatterns: [/^gemini/],
   },
   deepseek: {

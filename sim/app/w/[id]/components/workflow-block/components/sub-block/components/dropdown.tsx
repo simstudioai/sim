@@ -99,7 +99,7 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
           <SelectItem
             key={getOptionValue(option)}
             value={getOptionValue(option)}
-            className="text-base"
+            className="text-sm"
           >
             {getOptionLabel(option)}
           </SelectItem>

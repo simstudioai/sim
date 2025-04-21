@@ -27,7 +27,7 @@ describe('supportsTemperature', () => {
   it('should return true for models that support temperature', () => {
     const supportedModels = [
       'gpt-4o',
-      'gemini-2.0-flash',
+      'gemini-2.5-flash-preview-04-17',
       'claude-3-5-sonnet-20240620',
       `grok-3-latest`,
       `grok-3-fast-latest`
@@ -49,7 +49,7 @@ describe('supportsTemperature', () => {
 
 describe('getMaxTemperature', () => {
   it('should return 2 for models with temperature range 0-2', () => {
-    const models = ['gpt-4o', 'gemini-2.0-flash', 'deepseek-v3']
+    const models = ['gpt-4o', 'gemini-2.5-flash-preview-04-17', 'deepseek-v3']
 
     for (const model of models) {
       expect(getMaxTemperature(model)).toBe(2)

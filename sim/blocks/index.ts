@@ -8,6 +8,7 @@ import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
 import { GoogleDocsBlock } from './blocks/docs'
 import { GoogleDriveBlock } from './blocks/drive'
+import { ElevenLabsBlock } from './blocks/elevenlabs'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
 import { FileBlock } from './blocks/file'
@@ -15,10 +16,11 @@ import { FirecrawlBlock } from './blocks/firecrawl'
 import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
+import { GoogleSearchBlock } from './blocks/google'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
-
+import { LinkupBlock } from './blocks/linkup'
 import { MistralParseBlock } from './blocks/mistral-parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -53,6 +55,7 @@ export {
   ApiBlock,
   BrowserUseBlock,
   // AutoblocksBlock,
+  ElevenLabsBlock,
   Mem0Block,
   MistralParseBlock,
   FunctionBlock,
@@ -60,7 +63,9 @@ export {
   FirecrawlBlock,
   // GuestyBlock,
   FileBlock,
+  GoogleSearchBlock,
   JinaBlock,
+  LinkupBlock,
   TranslateBlock,
   SlackBlock,
   GitHubBlock,
@@ -103,6 +108,7 @@ const blocks: Record<string, BlockConfig> = {
   // autoblocks: AutoblocksBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
+  elevenlabs: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   firecrawl: FirecrawlBlock,
@@ -112,10 +118,12 @@ const blocks: Record<string, BlockConfig> = {
   gmail: GmailBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
+  google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
+  linkup: LinkupBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
