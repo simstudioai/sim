@@ -27,6 +27,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
   const [lastRanAt, setLastRanAt] = useState<string | null>(null)
   const [cronExpression, setCronExpression] = useState<string | null>(null)
+  const [timezone, setTimezone] = useState<string>('UTC')
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -70,6 +71,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
           setNextRunAt(data.schedule.nextRunAt)
           setLastRanAt(data.schedule.lastRanAt)
           setCronExpression(data.schedule.cronExpression)
+          setTimezone(data.schedule.timezone || 'UTC')
 
           // Set active schedule flag to true since we found an active schedule
           setScheduleStatus(true)
@@ -114,8 +116,8 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       <>
         <div className="font-normal text-sm truncate">{scheduleTiming}</div>
         <div className="text-xs text-muted-foreground">
-          <div>Next run: {formatDateTime(new Date(nextRunAt))}</div>
-          {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt))}</div>}
+          <div>Next run: {formatDateTime(new Date(nextRunAt), timezone)}</div>
+          {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt), timezone)}</div>}
         </div>
       </>
     )

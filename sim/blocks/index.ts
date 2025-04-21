@@ -106,7 +106,7 @@ const blocks: Record<string, BlockConfig> = {
   // autoblocks: AutoblocksBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
-  elevenlabs_tts: ElevenLabsBlock,
+  elevenlabs: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
   firecrawl: FirecrawlBlock,
