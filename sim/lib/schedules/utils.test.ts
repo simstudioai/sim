@@ -10,6 +10,7 @@ import {
   getSubBlockValue,
   parseCronToHumanReadable,
   parseTimeString,
+  createDateWithTimezone,
 } from './utils'
 
 describe('Schedule Utilities', () => {
@@ -83,6 +84,8 @@ describe('Schedule Utilities', () => {
           weeklyDayTime: { value: '12:00' },
           monthlyDay: { value: '15' },
           monthlyTime: { value: '14:30' },
+          scheduleStartAt: { value: '' },
+          timezone: { value: 'UTC' },
         },
       } as BlockState
 
@@ -90,6 +93,8 @@ describe('Schedule Utilities', () => {
 
       expect(result).toEqual({
         scheduleTime: '09:30',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 45,
         dailyTime: [10, 15],
@@ -113,6 +118,8 @@ describe('Schedule Utilities', () => {
 
       expect(result).toEqual({
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15, // Default
         hourlyMinute: 0, // Default
         dailyTime: [9, 0], // Default
@@ -135,6 +142,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [12, 0] as [number, number],
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
+        timezone: 'UTC',
       }
 
       // Minutes (every 15 minutes)
@@ -187,6 +195,7 @@ describe('Schedule Utilities', () => {
         weeklyTime: [10, 0] as [number, number],
         monthlyDay: 15,
         monthlyTime: [14, 30] as [number, number],
+        timezone: 'UTC',
       }
 
       expect(generateCronExpression('minutes', standardScheduleValues)).toBe('*/15 * * * *')
@@ -212,6 +221,8 @@ describe('Schedule Utilities', () => {
     it('should calculate next run for minutes schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 0] as [number, number],
@@ -234,6 +245,8 @@ describe('Schedule Utilities', () => {
     it('should respect scheduleTime for minutes schedule', () => {
       const scheduleValues = {
         scheduleTime: '14:30', // Specific start time
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 0] as [number, number],
@@ -253,6 +266,8 @@ describe('Schedule Utilities', () => {
     it('should calculate next run for hourly schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 30,
         dailyTime: [9, 0] as [number, number],
@@ -273,6 +288,8 @@ describe('Schedule Utilities', () => {
     it('should calculate next run for daily schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 0] as [number, number],
@@ -294,6 +311,8 @@ describe('Schedule Utilities', () => {
     it('should calculate next run for weekly schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 0] as [number, number],
@@ -314,6 +333,8 @@ describe('Schedule Utilities', () => {
     it('should calculate next run for monthly schedule', () => {
       const scheduleValues = {
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 0] as [number, number],
@@ -336,6 +357,8 @@ describe('Schedule Utilities', () => {
     it('should consider lastRanAt for better interval calculation', () => {
       const scheduleValues = {
         scheduleTime: '',
+        scheduleStartAt: '',
+        timezone: 'UTC',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 0] as [number, number],
@@ -356,6 +379,47 @@ describe('Schedule Utilities', () => {
       expectedNextRun.setMinutes(expectedNextRun.getMinutes() + 15)
 
       expect(nextRun.getMinutes()).toBe(expectedNextRun.getMinutes())
+    })
+
+    it('should respect future scheduleStartAt date', () => {
+      const scheduleValues = {
+        scheduleStartAt: '2025-04-22T20:50:00.000Z', // April 22, 2025 at 8:50 PM
+        scheduleTime: '',
+        timezone: 'UTC',
+        minutesInterval: 10,
+        hourlyMinute: 0,
+        dailyTime: [9, 0] as [number, number],
+        weeklyDay: 1,
+        weeklyTime: [9, 0] as [number, number],
+        monthlyDay: 1,
+        monthlyTime: [9, 0] as [number, number],
+      }
+
+      const nextRun = calculateNextRunTime('minutes', scheduleValues)
+
+      // Should be exactly April 22, 2025 at 8:50 PM (the future start date)
+      expect(nextRun.toISOString()).toBe('2025-04-22T20:50:00.000Z')
+    })
+
+    it('should ignore past scheduleStartAt date', () => {
+      const scheduleValues = {
+        scheduleStartAt: '2025-04-10T20:50:00.000Z', // April 10, 2025 at 8:50 PM (in the past)
+        scheduleTime: '',
+        timezone: 'UTC',
+        minutesInterval: 10,
+        hourlyMinute: 0,
+        dailyTime: [9, 0] as [number, number],
+        weeklyDay: 1,
+        weeklyTime: [9, 0] as [number, number],
+        monthlyDay: 1,
+        monthlyTime: [9, 0] as [number, number],
+      }
+
+      const nextRun = calculateNextRunTime('minutes', scheduleValues)
+
+      // Should not use the past date but calculate normally
+      expect(nextRun > new Date()).toBe(true)
+      expect(nextRun.getMinutes() % 10).toBe(0) // Should align with the interval
     })
   })
 
@@ -381,6 +445,117 @@ describe('Schedule Utilities', () => {
       const result = parseCronToHumanReadable('*/10 */6 31 2 *') // Invalid (Feb 31)
       // Just check that we get something back that's not empty
       expect(result.length).toBeGreaterThan(5)
+    })
+  })
+
+  describe('createDateWithTimezone', () => {
+    it('should correctly handle UTC timezone', () => {
+      const date = createDateWithTimezone(
+        '2025-04-21T00:00:00.000Z',
+        '14:00', // 2:00 PM
+        'UTC'
+      )
+      expect(date.toISOString()).toBe('2025-04-21T14:00:00.000Z');
+    })
+
+    it('should correctly handle America/Los_Angeles (UTC-7 during DST)', () => {
+      // April 21, 2025 is during DST for Los Angeles (PDT = UTC-7)
+      const date = createDateWithTimezone(
+        '2025-04-21', // Using date string without time/zone
+        '14:00', // 2:00 PM local time
+        'America/Los_Angeles'
+      )
+      // 2:00 PM PDT should be 21:00 UTC (14 + 7)
+      expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z');
+    })
+
+    it('should correctly handle America/Los_Angeles (UTC-8 outside DST)', () => {
+      // January 10, 2025 is outside DST for Los Angeles (PST = UTC-8)
+      const date = createDateWithTimezone(
+        '2025-01-10',
+        '14:00', // 2:00 PM local time
+        'America/Los_Angeles'
+      )
+      // 2:00 PM PST should be 22:00 UTC (14 + 8)
+      expect(date.toISOString()).toBe('2025-01-10T22:00:00.000Z');
+    })
+
+    it('should correctly handle America/New_York (UTC-4 during DST)', () => {
+      // June 15, 2025 is during DST for New York (EDT = UTC-4)
+      const date = createDateWithTimezone(
+        '2025-06-15',
+        '10:30', // 10:30 AM local time
+        'America/New_York'
+      )
+      // 10:30 AM EDT should be 14:30 UTC (10.5 + 4)
+      expect(date.toISOString()).toBe('2025-06-15T14:30:00.000Z');
+    })
+
+    it('should correctly handle America/New_York (UTC-5 outside DST)', () => {
+      // December 20, 2025 is outside DST for New York (EST = UTC-5)
+      const date = createDateWithTimezone(
+        '2025-12-20',
+        '10:30', // 10:30 AM local time
+        'America/New_York'
+      )
+      // 10:30 AM EST should be 15:30 UTC (10.5 + 5)
+      expect(date.toISOString()).toBe('2025-12-20T15:30:00.000Z');
+    })
+
+    it('should correctly handle Europe/London (UTC+1 during DST)', () => {
+      // August 5, 2025 is during DST for London (BST = UTC+1)
+      const date = createDateWithTimezone(
+        '2025-08-05',
+        '09:15', // 9:15 AM local time
+        'Europe/London'
+      )
+      // 9:15 AM BST should be 08:15 UTC (9.25 - 1)
+      expect(date.toISOString()).toBe('2025-08-05T08:15:00.000Z');
+    })
+
+    it('should correctly handle Europe/London (UTC+0 outside DST)', () => {
+      // February 10, 2025 is outside DST for London (GMT = UTC+0)
+      const date = createDateWithTimezone(
+        '2025-02-10',
+        '09:15', // 9:15 AM local time
+        'Europe/London'
+      )
+      // 9:15 AM GMT should be 09:15 UTC (9.25 - 0)
+      expect(date.toISOString()).toBe('2025-02-10T09:15:00.000Z');
+    })
+
+    it('should correctly handle Asia/Tokyo (UTC+9)', () => {
+      // Tokyo does not observe DST (JST = UTC+9)
+      const date = createDateWithTimezone(
+        '2025-07-01',
+        '17:00', // 5:00 PM local time
+        'Asia/Tokyo'
+      )
+      // 5:00 PM JST should be 08:00 UTC (17 - 9)
+      expect(date.toISOString()).toBe('2025-07-01T08:00:00.000Z');
+    })
+
+    it('should handle date object input', () => {
+      // Using a Date object that represents midnight UTC on the target day
+      const dateInput = new Date(Date.UTC(2025, 3, 21)); // April 21, 2025
+      const date = createDateWithTimezone(
+        dateInput,
+        '14:00',
+        'America/Los_Angeles'
+      )
+      expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z');
+    })
+
+    it('should handle time crossing midnight due to timezone offset', () => {
+      // Test case: 1:00 AM local time in Sydney (UTC+10/11)
+      // This might result in a UTC date that is the *previous* day.
+      const date = createDateWithTimezone(
+        '2025-10-15', // During DST for Sydney (AEDT = UTC+11)
+        '01:00', // 1:00 AM local time
+        'Australia/Sydney'
+      )
+      // 1:00 AM AEDT on Oct 15th should be 14:00 UTC on Oct 14th (1 - 11 = -10 -> previous day 14:00)
+      expect(date.toISOString()).toBe('2025-10-14T14:00:00.000Z');
     })
   })
 })

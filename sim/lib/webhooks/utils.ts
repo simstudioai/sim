@@ -9,10 +9,10 @@ import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
-import { environment, userStats, webhook, workflow } from '@/db/schema'
+import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { getRedisClient, hasProcessedMessage, markMessageAsProcessed, acquireLock } from '@/lib/redis'
+import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 
 const logger = createLogger('WebhookUtils')
 

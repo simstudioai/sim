@@ -116,10 +116,32 @@ export async function POST(req: NextRequest) {
     let nextRunAt: Date | undefined
 
     try {
+      // Get schedule type from starter block
+      const scheduleType = getSubBlockValue(starterBlock, 'scheduleType') || 'daily'
+      
+      // Get schedule values
+      const scheduleValues = getScheduleTimeValues(starterBlock)
+      
+      // Get timezone from the request or fall back to UTC
+      const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
+      
+      // Get the schedule start date
+      const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
+      
+      // Get the schedule time
+      const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
+      
+      logger.debug(`[${requestId}] Schedule configuration:`, {
+        type: scheduleType,
+        timezone,
+        startDate: scheduleStartAt || 'not specified',
+        time: scheduleTime || 'not specified'
+      })
+
       // Get cron expression based on schedule type
       cronExpression = generateCronExpression(scheduleType, scheduleValues)
 
-      // Always calculate next run time when schedule is created or updated
+      // Calculate next run time with timezone awareness
       nextRunAt = calculateNextRunTime(scheduleType, scheduleValues)
 
       logger.debug(
