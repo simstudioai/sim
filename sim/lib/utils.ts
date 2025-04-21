@@ -129,10 +129,8 @@ export function convertScheduleOptionsToCron(
  * @returns A simplified timezone string (e.g., "PST" instead of "America/Los_Angeles")
  */
 export function getTimezoneAbbreviation(timezone: string, date: Date = new Date()): string {
-  if (timezone === 'UTC' || timezone.startsWith('GMT')) {
-    return timezone
-  }
-
+  if (timezone === 'UTC') return 'UTC'
+  
   // Common timezone mappings
   const timezoneMap: Record<string, { standard: string; daylight: string }> = {
     'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
@@ -145,27 +143,47 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     'Australia/Sydney': { standard: 'AEST', daylight: 'AEDT' },
     'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
   }
-
-  // Check if we have a mapping for this timezone
+  
+  // If we have a mapping for this timezone
   if (timezone in timezoneMap) {
-    // Check if the date is in DST for this timezone
-    const formatter = new Intl.DateTimeFormat('en-US', {
+    // January 1 is guaranteed to be standard time in northern hemisphere
+    // July 1 is guaranteed to be daylight time in northern hemisphere (if observed)
+    const januaryDate = new Date(date.getFullYear(), 0, 1)
+    const julyDate = new Date(date.getFullYear(), 6, 1)
+    
+    // Get offset in January (standard time)
+    const januaryFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      timeZoneName: 'short',
+      timeZoneName: 'short'
     })
     
-    // Get the full formatted string with timezone name
-    const formatted = formatter.format(date)
+    // Get offset in July (likely daylight time)
+    const julyFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short'
+    })
     
-    // If the timezone part contains "DT", it's likely in daylight time
-    // (this is a simple heuristic that works for common US timezones)
-    const isDST = formatted.includes('DT')
+    // If offsets are different, timezone observes DST
+    const isDSTObserved = januaryFormatter.format(januaryDate) !== julyFormatter.format(julyDate)
     
-    return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
+    // If DST is observed, check if current date is in DST by comparing its offset
+    // with January's offset (standard time)
+    if (isDSTObserved) {
+      const currentFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        timeZoneName: 'short'
+      })
+      
+      const isDST = currentFormatter.format(date) !== januaryFormatter.format(januaryDate)
+      return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
+    }
+    
+    // If DST is not observed, always use standard
+    return timezoneMap[timezone].standard
   }
-
-  // For unknown timezones, return a user-friendly version of the IANA name
-  return timezone.split('/').pop()?.replace(/_/g, ' ') || timezone
+  
+  // For unknown timezones, use full IANA name
+  return timezone
 }
 
 /**

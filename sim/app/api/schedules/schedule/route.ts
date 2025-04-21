@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
     // Generate cron expression and calculate next run time
     let cronExpression: string | null = null
     let nextRunAt: Date | undefined
+    const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
 
     try {
       // Get schedule type from starter block
@@ -121,9 +122,6 @@ export async function POST(req: NextRequest) {
       
       // Get schedule values
       const scheduleValues = getScheduleTimeValues(starterBlock)
-      
-      // Get timezone from the request or fall back to UTC
-      const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
       
       // Get the schedule start date
       const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
@@ -161,7 +159,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date(),
       updatedAt: new Date(),
       nextRunAt,
-      timezone: getSubBlockValue(starterBlock, 'timezone') || 'UTC',
+      timezone,
     }
 
     // Prepare the set values for update
@@ -169,7 +167,7 @@ export async function POST(req: NextRequest) {
       cronExpression,
       updatedAt: new Date(),
       nextRunAt,
-      timezone: getSubBlockValue(starterBlock, 'timezone') || 'UTC',
+      timezone,
     }
 
     // Upsert the schedule

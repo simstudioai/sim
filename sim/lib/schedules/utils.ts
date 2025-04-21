@@ -210,7 +210,7 @@ export function createDateWithTimezone(
         return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0))
     } catch (fallbackError) {
         logger.error("Error during fallback date creation:", fallbackError)
-        return new Date() // Final fallback
+        throw new Error(`Failed to create date with timezone (${timezone}): ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`)
     }
   }
 }
@@ -299,7 +299,14 @@ export function calculateNextRunTime(
   // If only scheduleStartAt is set (without scheduleTime), parse it directly
   else if (scheduleValues.scheduleStartAt) {
     try {
-      const startDate = new Date(scheduleValues.scheduleStartAt)
+      // Use timezone-aware parsing instead of direct Date constructor
+      // Create a date with 00:00 time in the specified timezone
+      const startDate = createDateWithTimezone(
+        scheduleValues.scheduleStartAt,
+        "00:00", // Use midnight in the specified timezone
+        timezone
+      )
+      
       if (startDate > baseDate) {
         return startDate
       }
