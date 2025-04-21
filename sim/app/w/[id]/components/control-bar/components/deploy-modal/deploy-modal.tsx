@@ -357,6 +357,8 @@ export function DeployModal({
 
   // Handle chat deployment submission
   const handleChatDeploySubmit = async () => {
+    if (chatSubmitting) return; // Prevent multiple submissions
+    
     setChatSubmitting(true)
     try {
       // Find the ChatDeploy component and extract the form data
@@ -365,16 +367,17 @@ export function DeployModal({
       if (chatDeployForm) {
         // Prevent default form submission handling and manually trigger submission
         const submitEvent = new CustomEvent('manual-submit', { bubbles: true })
+        logger.info('Triggering chat deployment form submission')
         chatDeployForm.dispatchEvent(submitEvent)
       } else {
         logger.error('Chat deploy form not found in the DOM')
+        setChatSubmitting(false)
       }
     } catch (error) {
       logger.error('Error handling chat deployment submission:', error)
-    } finally {
-      // Reset submission state after a delay
-      setTimeout(() => setChatSubmitting(false), 500)
+      setChatSubmitting(false) // Reset state if there's an error
     }
+    // Don't reset the submission state here - let the form handle it
   }
 
   return (

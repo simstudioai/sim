@@ -123,6 +123,19 @@ export async function POST(request: NextRequest) {
       
       // Create the chat deployment
       const id = uuidv4()
+      
+      // Log the values we're inserting
+      logger.info('Creating chat deployment with values:', {
+        workflowId,
+        subdomain,
+        title,
+        authType,
+        hasPassword: !!encryptedPassword,
+        emailCount: allowedEmails?.length || 0,
+        outputBlockId,
+        outputPath
+      })
+      
       await db.insert(chatDeployment).values({
         id,
         workflowId,

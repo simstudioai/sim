@@ -149,11 +149,22 @@ export async function PATCH(
         }
       }
       
-      // Encrypt password if provided and changing auth type
+      // Handle password update
       let encryptedPassword = undefined
-      if (authType === 'password' && password) {
+      
+      // Only encrypt and update password if one is provided
+      if (password) {
         const { encrypted } = await encryptSecret(password)
         encryptedPassword = encrypted
+        logger.info('Password provided, will be updated')
+      } else if (authType === 'password' && !password) {
+        // If switching to password auth but no password provided,
+        // check if there's an existing password
+        if (existingChat[0].authType !== 'password' || !existingChat[0].password) {
+          // If there's no existing password to reuse, return an error
+          return createErrorResponse('Password is required when using password protection', 400)
+        }
+        logger.info('Keeping existing password')
       }
       
       // Prepare update data
@@ -167,11 +178,48 @@ export async function PATCH(
       if (title) updateData.title = title
       if (description !== undefined) updateData.description = description
       if (customizations) updateData.customizations = customizations
-      if (authType) updateData.authType = authType
-      if (encryptedPassword) updateData.password = encryptedPassword
-      if (allowedEmails) updateData.allowedEmails = allowedEmails
+      
+      // Handle auth type update
+      if (authType) {
+        updateData.authType = authType
+        
+        // Reset auth-specific fields when changing auth types
+        if (authType === 'public') {
+          updateData.password = null
+          updateData.allowedEmails = []
+        }
+        else if (authType === 'password') {
+          updateData.allowedEmails = []
+          // Password handled separately
+        }
+        else if (authType === 'email') {
+          updateData.password = null
+          // Emails handled separately 
+        }
+      }
+      
+      // Always update password if provided (not just when changing auth type)
+      if (encryptedPassword) {
+        updateData.password = encryptedPassword
+      }
+      
+      // Always update allowed emails if provided
+      if (allowedEmails) {
+        updateData.allowedEmails = allowedEmails
+      }
+      
+      // Handle output fields
       if (outputBlockId !== undefined) updateData.outputBlockId = outputBlockId
       if (outputPath !== undefined) updateData.outputPath = outputPath
+      
+      logger.info('Updating chat deployment with values:', {
+        chatId,
+        authType: updateData.authType,
+        hasPassword: updateData.password !== undefined,
+        emailCount: updateData.allowedEmails?.length,
+        outputBlockId: updateData.outputBlockId,
+        outputPath: updateData.outputPath
+      })
       
       // Update the chat deployment
       await db

@@ -116,6 +116,9 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   // Inside the component - add state for output block selection
   const [selectedOutputBlock, setSelectedOutputBlock] = useState<string | null>(null)
 
+  // Track manual submission state
+  const [chatSubmitting, setChatSubmitting] = useState(false)
+
   // Fetch existing chat data when component mounts
   useEffect(() => {
     if (workflowId) {
@@ -159,27 +162,32 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   // Set up event listener for manual form submission
   useEffect(() => {
     const handleManualSubmit = () => {
-      // Log current state
-      logger.info('Manual submit triggered with output selection:', {
-        selectedOutputBlock,
-        hasSelection: !!selectedOutputBlock
-      })
-      
-      // Delay to ensure all state updates are processed
-      setTimeout(() => {
-        // Pass the current state values directly to handleSubmit
-        handleSubmit()
-      }, 100)
+      // Only handle manual submit if we're not already submitting
+      if (!chatSubmitting) {
+        logger.info('Handling manual submit event')
+        // Delay to ensure all state updates are processed
+        setTimeout(() => {
+          handleSubmit()
+        }, 100)
+      }
     }
 
-    // Add event listener to document for manual-submit
     document.addEventListener('manual-submit', handleManualSubmit)
 
-    // Clean up the event listener when component unmounts
     return () => {
       document.removeEventListener('manual-submit', handleManualSubmit)
     }
-  }, [selectedOutputBlock]) // Add selectedOutputBlock to dependencies
+  }, [
+    // Add all relevant form state dependencies to ensure the event handler has current values
+    selectedOutputBlock, 
+    chatSubmitting, 
+    subdomain, 
+    title, 
+    description, 
+    authType, 
+    password, 
+    emails
+  ])
 
   // Fetch existing chat data for this workflow
   const fetchExistingChat = async () => {
@@ -325,24 +333,25 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   // Deploy or update chat
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault()
+    
+    // If already submitting, don't process again
+    if (chatSubmitting) return
+    
+    setChatSubmitting(true)
 
-    // Log all relevant values to debug
+    // Log form state to help debug
     logger.info('Form submission triggered with values:', { 
       subdomain,
       title,
       authType,
-      hasOutputBlockSelection: !!selectedOutputBlock,
-      selectedOutputBlock,
-      hasSelectedOutput: selectedOutputBlock !== null && selectedOutputBlock !== undefined && selectedOutputBlock.length > 0,
-      outputBlockDetails: selectedOutputBlock ? {
-        firstUnderscoreIndex: selectedOutputBlock.indexOf('_'),
-        blockId: selectedOutputBlock.includes('_') ? selectedOutputBlock.split('_')[0] : null,
-        path: selectedOutputBlock.includes('_') ? selectedOutputBlock.split('_')[1] : null
-      } : null
+      hasOutputBlockSelection: !!selectedOutputBlock
     })
 
+    // Basic validation
     if (!workflowId || !subdomain.trim() || !title.trim()) {
       logger.error('Missing required fields', { workflowId, subdomain, title })
+      setChatSubmitting(false)
+      setErrorMessage('Please fill out all required fields')
       return
     }
 
@@ -352,22 +361,26 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
       if (firstUnderscoreIndex === -1) {
         logger.error('Invalid output block format', { selectedOutputBlock })
         setErrorMessage('Invalid output block format. Please select a valid output.')
+        setChatSubmitting(false)
         return
       }
     }
 
     if (subdomainError) {
+      setChatSubmitting(false)
       return
     }
 
     // Validate authentication options
     if (authType === 'password' && !password.trim() && !existingChat) {
       setErrorMessage('Password is required when using password protection')
+      setChatSubmitting(false)
       return
     }
 
     if (authType === 'email' && emails.length === 0) {
       setErrorMessage('At least one email or domain is required when using email access control')
+      setChatSubmitting(false)
       return
     }
 
@@ -381,6 +394,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
       if (majorChanges) {
         setShowEditConfirmation(true)
+        setChatSubmitting(false)
         return
       }
     }
@@ -406,16 +420,34 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
           primaryColor: '#802FFF',
           welcomeMessage: 'Hi there! How can I help you today?',
         },
-        authType,
+        authType: authType,
       }
 
-      // Add authentication options based on type
-      if (authType === 'password' && password) {
-        payload.password = password
-      }
-
-      if (authType === 'email') {
+      // Always include auth specific fields regardless of authType
+      // This ensures they're always properly handled
+      if (authType === 'password') {
+        // For password auth, only send the password if:
+        // 1. It's a new chat, or
+        // 2. Creating a new password for an existing chat, or
+        // 3. Changing from another auth type to password
+        if (password) {
+          payload.password = password
+        } else if (existingChat && existingChat.authType !== 'password') {
+          // If changing to password auth but no password provided for an existing chat,
+          // this is an error - server will reject it
+          setErrorMessage('Password is required when using password protection')
+          setIsDeploying(false)
+          return; // Stop the submission
+        }
+        
+        payload.allowedEmails = [] // Clear emails when using password auth
+      } 
+      else if (authType === 'email') {
         payload.allowedEmails = emails
+      }
+      else if (authType === 'public') {
+        // Explicitly set empty values for public access
+        payload.allowedEmails = []
       }
 
       // Add output block configuration if selected
@@ -425,41 +457,35 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
           const blockId = selectedOutputBlock.substring(0, firstUnderscoreIndex)
           const path = selectedOutputBlock.substring(firstUnderscoreIndex + 1)
           
-          // Make sure to set these as explicit strings, not undefined
-          payload.outputBlockId = blockId || ""
-          payload.outputPath = path || ""
+          payload.outputBlockId = blockId
+          payload.outputPath = path
           
-          // Debug log to verify output configuration
           logger.info('Added output configuration to payload:', { 
-            selectedOutput: selectedOutputBlock,
             outputBlockId: blockId, 
-            outputPath: path,
-            payloadBlockId: payload.outputBlockId,
-            payloadPath: payload.outputPath
+            outputPath: path
           })
-        } else {
-          logger.warn('Selected output block has invalid format:', selectedOutputBlock)
-          // Even with invalid format, ensure fields are set
-          payload.outputBlockId = ""
-          payload.outputPath = ""
         }
-      } else if (existingChat && existingChat.outputBlockId && existingChat.outputPath) {
-        // If editing and there was previously an output block but it's now unselected,
-        // explicitly set to null (not undefined) to clear the values
-        payload.outputBlockId = null
-        payload.outputPath = null
-        logger.info('Clearing existing output configuration')
       } else {
-        // No output block selected and none existed before
+        // No output block selected - explicitly set to null
         payload.outputBlockId = null
         payload.outputPath = null
-        logger.info('No output block selected')
       }
 
       // Pass the API key from workflow deployment
       if (deploymentInfo?.apiKey) {
         payload.apiKey = deploymentInfo.apiKey
       }
+      
+      // Log the final payload (minus sensitive data) for debugging
+      logger.info('Submitting chat deployment with values:', {
+        workflowId: payload.workflowId,
+        subdomain: payload.subdomain,
+        title: payload.title,
+        authType: payload.authType,
+        hasPassword: !!payload.password,
+        emailCount: payload.allowedEmails?.length || 0,
+        hasOutputConfig: !!payload.outputBlockId
+      })
 
       // Make API request - different endpoints for create vs update
       let endpoint = '/api/chat'
@@ -478,6 +504,8 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
         if (validationError instanceof z.ZodError) {
           const errorMessage = validationError.errors[0]?.message || 'Invalid form data'
           setErrorMessage(errorMessage)
+          setChatSubmitting(false)
+          setIsDeploying(false)
           return
         }
       }
@@ -510,6 +538,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
       addNotification('error', `Failed to deploy chat: ${error.message}`, workflowId)
     } finally {
       setIsDeploying(false)
+      setChatSubmitting(false)
       setShowEditConfirmation(false)
     }
   }
@@ -585,7 +614,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
     <>
       <form onSubmit={(e) => {
         e.preventDefault() // Prevent default form submission
-        handleSubmit(e)
+        // Don't call handleSubmit here - let the Deploy Chat button control submission
       }} className="space-y-4 chat-deploy-form">
         <div className="grid gap-4">
           {errorMessage && (
@@ -668,18 +697,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                       workflowId={workflowId}
                       selectedOutput={selectedOutputBlock}
                       onOutputSelect={(value) => {
-                        // Just update the state, don't trigger form submission
                         logger.info(`Output block selection changed to: ${value}`)
-                        
-                        if (value) {
-                          const firstUnderscoreIndex = value.indexOf('_')
-                          if (firstUnderscoreIndex !== -1) {
-                            const blockId = value.substring(0, firstUnderscoreIndex)
-                            const path = value.substring(firstUnderscoreIndex + 1)
-                            logger.info(`Parsed output selection - blockId: ${blockId}, path: ${path}`)
-                          }
-                        }
-                        
                         setSelectedOutputBlock(value)
                         
                         // Mark as changed to enable update button

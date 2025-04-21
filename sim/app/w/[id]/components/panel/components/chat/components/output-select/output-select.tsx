@@ -201,6 +201,7 @@ export function OutputSelect({
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => setIsOutputDropdownOpen(!isOutputDropdownOpen)}
         className={`flex w-full items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
           isOutputDropdownOpen
@@ -247,6 +248,7 @@ export function OutputSelect({
                 <div>
                   {outputs.map((output) => (
                     <button
+                      type="button"
                       key={output.id}
                       onClick={() => handleOutputSelection(output.id)}
                       className={cn(
