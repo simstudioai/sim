@@ -86,7 +86,16 @@ function extractIcons(): Record<string, string> {
       const svgMatch = match[0].match(/<svg[\s\S]*?<\/svg>/);
       
       if (iconName && svgMatch) {
-        icons[iconName] = svgMatch[0];
+        // Clean the SVG to remove {...props} and standardize size
+        let svgContent = svgMatch[0];
+        svgContent = svgContent.replace(/{\.\.\.props}/g, '');
+        svgContent = svgContent.replace(/{\.\.\.(props|rest)}/g, '');
+        // Remove any existing width/height attributes to let CSS handle sizing
+        svgContent = svgContent.replace(/width=["'][^"']*["']/g, '');
+        svgContent = svgContent.replace(/height=["'][^"']*["']/g, '');
+        // Add className for styling
+        svgContent = svgContent.replace(/<svg/, '<svg className="block-icon"');
+        icons[iconName] = svgContent;
       }
     }
     
@@ -98,7 +107,16 @@ function extractIcons(): Record<string, string> {
       const svgMatch = svgContent.match(/<svg[\s\S]*?<\/svg>/);
       
       if (iconName && svgMatch) {
-        icons[iconName] = svgMatch[0];
+        // Clean the SVG to remove {...props} and standardize size
+        let cleanedSvg = svgMatch[0];
+        cleanedSvg = cleanedSvg.replace(/{\.\.\.props}/g, '');
+        cleanedSvg = cleanedSvg.replace(/{\.\.\.(props|rest)}/g, '');
+        // Remove any existing width/height attributes to let CSS handle sizing
+        cleanedSvg = cleanedSvg.replace(/width=["'][^"']*["']/g, '');
+        cleanedSvg = cleanedSvg.replace(/height=["'][^"']*["']/g, '');
+        // Add className for styling
+        cleanedSvg = cleanedSvg.replace(/<svg/, '<svg className="block-icon"');
+        icons[iconName] = cleanedSvg;
       }
     }
     
@@ -463,13 +481,13 @@ function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string
     subBlocks = [],
     inputs = {},
     outputs = {},
-    tools = { access: [] }
+    tools = { access: [], config: {} }
   } = blockConfig;
 
   // Get SVG icon if available
   const iconSvg = iconName && icons[iconName] ? icons[iconName] : null;
 
-  // Create inputs table content
+  // Create inputs table content with better descriptions
   let inputsTable = '';
   
   if (Object.keys(inputs).length > 0) {
@@ -478,14 +496,34 @@ function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string
       const subBlock = subBlocks.find(sb => sb.id === key);
       
       let description = subBlock?.title || '';
+      if (subBlock?.placeholder) {
+        description += description ? ` - ${subBlock.placeholder}` : subBlock.placeholder;
+      }
+      
       if (subBlock?.options) {
-        const optionsList = subBlock.options.map((opt: any) => `\`${opt.id}\` (${opt.label})`).join(', ');
+        let optionsList = '';
+        if (Array.isArray(subBlock.options) && subBlock.options.length > 0) {
+          if (typeof subBlock.options[0] === 'string') {
+            // String array options
+            optionsList = subBlock.options
+              .filter(opt => typeof opt === 'string')
+              .map(opt => `\`${opt}\``)
+              .join(', ');
+          } else {
+            // Object array options with id/label
+            optionsList = subBlock.options
+              .filter(opt => typeof opt === 'object' && opt !== null && 'id' in opt)
+              .map(opt => {
+                const option = opt as any;
+                return `\`${option.id}\` (${option.label || option.id})`;
+              })
+              .join(', ');
+          }
+        }
         description += optionsList ? `: ${optionsList}` : '';
       }
       
-      return `| \`${key}\` | ${inputConfig.type || 'string'} | ${inputConfig.required ? 'Yes' : 'No'} | ${description} | ${
-        subBlock?.placeholder || ''
-      } |`;
+      return `| \`${key}\` | ${inputConfig.type || 'string'} | ${inputConfig.required ? 'Yes' : 'No'} | ${description} |`;
     }).join('\n');
   } else if (subBlocks.length > 0) {
     // If we have subBlocks but no inputs mapping, try to create the table from subBlocks
@@ -494,16 +532,77 @@ function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string
       const title = subBlock.title || '';
       const type = subBlock.type || 'string';
       const required = !!subBlock.condition ? 'No' : 'Yes';
-      const placeholder = subBlock.placeholder || '';
       
       let description = title;
+      if (subBlock.placeholder) {
+        description += title ? ` - ${subBlock.placeholder}` : subBlock.placeholder;
+      }
+      
       if (subBlock.options) {
-        const optionsList = subBlock.options.map((opt: any) => `\`${opt.id}\` (${opt.label})`).join(', ');
+        let optionsList = '';
+        if (Array.isArray(subBlock.options) && subBlock.options.length > 0) {
+          if (typeof subBlock.options[0] === 'string') {
+            // String array options
+            optionsList = subBlock.options
+              .filter(opt => typeof opt === 'string')
+              .map(opt => `\`${opt}\``)
+              .join(', ');
+          } else {
+            // Object array options with id/label
+            optionsList = subBlock.options
+              .filter(opt => typeof opt === 'object' && opt !== null && 'id' in opt)
+              .map(opt => {
+                const option = opt as any;
+                return `\`${option.id}\` (${option.label || option.id})`;
+              })
+              .join(', ');
+          }
+        }
         description += optionsList ? `: ${optionsList}` : '';
       }
       
-      return `| \`${id}\` | ${type} | ${required} | ${description} | ${placeholder} |`;
+      return `| \`${id}\` | ${type} | ${required} | ${description} |`;
     }).join('\n');
+  }
+
+  // Create detailed options section for dropdowns
+  const dropdownBlocks = subBlocks.filter(sb => 
+    (sb.type === 'dropdown' || sb.options) && 
+    Array.isArray(sb.options) && 
+    sb.options.length > 0
+  );
+  
+  let optionsSection = '';
+  if (dropdownBlocks.length > 0) {
+    optionsSection = `## Available Options\n\n`;
+    
+    dropdownBlocks.forEach(sb => {
+      optionsSection += `### ${sb.title || sb.id} (${sb.id ? `\`${sb.id}\`` : ''})\n\n`;
+      
+      if (Array.isArray(sb.options)) {
+        // Check the first item to determine the array type
+        if (sb.options.length > 0) {
+          if (typeof sb.options[0] === 'string') {
+            // Handle string array
+            sb.options.forEach((opt) => {
+              if (typeof opt === 'string') {
+                optionsSection += `- \`${opt}\`\n`;
+              }
+            });
+          } else {
+            // Handle object array with id/label properties
+            sb.options.forEach((opt) => {
+              if (typeof opt === 'object' && opt !== null && 'id' in opt) {
+                const option = opt as any;
+                optionsSection += `- \`${option.id}\`: ${option.label || option.id}\n`;
+              }
+            });
+          }
+        }
+      }
+      
+      optionsSection += '\n';
+    });
   }
 
   // Create outputs section with better handling of complex types
@@ -540,20 +639,21 @@ function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string
     outputsSection = 'This block does not produce any outputs.';
   }
 
-  // Create tools section
-  const toolsSection = tools.access?.length 
-    ? `## Tools Used\n\n${tools.access.map(tool => `- \`${tool}\``).join('\n')}`
-    : '';
+  // Create tools section with more details
+  let toolsSection = '';
+  if (tools.access?.length) {
+    toolsSection = `## Tools Used\n\n`;
+    tools.access.forEach(tool => {
+      toolsSection += `### \`${tool}\`\n\n`;
+      
+      // Try to find more information about the tool from the config
+      if (tools.config && typeof tools.config.tool === 'function') {
+        toolsSection += `This block uses the \`${tool}\` tool to process text and generate speech.\n\n`;
+      }
+    });
+  }
 
-  // Create options section if any subBlocks have options
-  const optionsBlocks = subBlocks.filter(sb => sb.options && sb.options.length > 0);
-  const optionsSection = optionsBlocks.length > 0 
-    ? `## Available Options\n\n${optionsBlocks.map(sb => {
-        return `### ${sb.title || sb.id} (${sb.id ? `\`${sb.id}\`` : ''})\n\n${(sb.options || []).map((opt: any) => `- \`${opt.id}\`: ${opt.label}`).join('\n')}`;
-      }).join('\n\n')}`
-    : '';
-
-  // Generate example code
+  // Generate more comprehensive example code
   let exampleCode = `// Example of using the ${name} block\n{\n  type: "${type}"`;
   
   if (Object.keys(inputs).length > 0) {
@@ -583,12 +683,13 @@ function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string
         }
       });
     } else {
-      // Just add the first few fields as an example
-      const relevantBlocks = subBlocks.slice(0, Math.min(3, subBlocks.length));
-      relevantBlocks.forEach(block => {
-        const exampleValue = getExampleValueForSubBlock(block);
-        if (exampleValue) {
-          exampleCode += `,\n  ${block.id}: ${exampleValue}`;
+      // Add all fields as an example
+      subBlocks.forEach(block => {
+        if (block.id) {
+          const exampleValue = getExampleValueForSubBlock(block);
+          if (exampleValue) {
+            exampleCode += `,\n  ${block.id}: ${exampleValue}`;
+          }
         }
       });
     }
@@ -596,36 +697,50 @@ function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string
   
   exampleCode += '\n}';
 
+  // Add usage instructions if available in block config
+  let usageInstructions = '';
+  if (longDescription) {
+    usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`;
+    
+    // Add any additional information about tools or setup
+    if (tools.access?.length) {
+      if (type === 'elevenlabs') {
+        usageInstructions += `This block requires an API key to use the ElevenLabs service. Make sure to provide a valid API key in the configuration.\n\n`;
+      } else {
+        usageInstructions += `This block uses external API services and may require authentication credentials in the configuration.\n\n`;
+      }
+    }
+  }
+
   // Generate the markdown content
   return `---
 title: ${name}
 description: ${description}
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# ${name}
+import { BlockInfoCard } from "@/components/ui/block-info-card";
 
 <BlockInfoCard 
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
-  category="${category}"
+  icon={${iconSvg ? 'true' : 'false'}}
+  iconSvg={\`${iconSvg || ''}\`}
 />
 
-${iconSvg ? `<div className="not-prose my-6 flex justify-center">${iconSvg}</div>` : ''}
-
 ${longDescription || description}
+
+${usageInstructions}
 
 ${toolsSection}
 
 ## Configuration
 
 ${subBlocks.length > 0 ? '### Input Parameters\n\n' + 
-'| Parameter | Type | Required | Description | Default/Placeholder |\n' +
-'| --------- | ---- | -------- | ----------- | ------------------ |\n' +
+'| Parameter | Type | Required | Description | \n' +
+'| --------- | ---- | -------- | ----------- | \n' +
 inputsTable : 'No configuration parameters required.'}
 
-${optionsSection ? optionsSection : ''}
+${optionsSection}
 
 ## Outputs
 
@@ -641,6 +756,7 @@ ${exampleCode}
 
 - Category: \`${category}\`
 - Type: \`${type}\`
+${tools.access?.length ? `- Required Tools: ${tools.access.map(t => '`' + t + '`').join(', ')}` : ''}
 `;
 }
 
