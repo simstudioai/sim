@@ -8,6 +8,8 @@ import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/
 import { z } from 'zod'
 import { encryptSecret } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('ChatDetailAPI')
 
 // Schema for updating an existing chat
@@ -210,9 +212,10 @@ export async function PATCH(
  */
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const chatId = params.id
+  const { id } = await params
+  const chatId = id
   
   try {
     const session = await getSession()
