@@ -299,16 +299,48 @@ export function calculateNextRunTime(
   // If only scheduleStartAt is set (without scheduleTime), parse it directly
   else if (scheduleValues.scheduleStartAt) {
     try {
-      // Use timezone-aware parsing instead of direct Date constructor
-      // Create a date with 00:00 time in the specified timezone
-      const startDate = createDateWithTimezone(
-        scheduleValues.scheduleStartAt,
-        "00:00", // Use midnight in the specified timezone
-        timezone
-      )
+      // Check if the date string already includes time information
+      const startAtStr = scheduleValues.scheduleStartAt
+      const hasTimeComponent = startAtStr.includes('T') && 
+                               (startAtStr.includes(':') || startAtStr.includes('.'))
       
-      if (startDate > baseDate) {
-        return startDate
+      if (hasTimeComponent) {
+        // If the string already has time info, parse it directly but with timezone awareness
+        const startDate = new Date(startAtStr)
+        
+        // If it's a UTC ISO string (ends with Z), use it directly
+        if (startAtStr.endsWith('Z') && timezone === 'UTC') {
+          if (startDate > baseDate) {
+            return startDate
+          }
+        } else {
+          // For non-UTC dates or when timezone isn't UTC, we need to interpret it in the specified timezone
+          // Extract time from the date string (crude but effective for ISO format)
+          const timeMatch = startAtStr.match(/T(\d{2}:\d{2})/)
+          const timeStr = timeMatch ? timeMatch[1] : "00:00"
+          
+          // Use our timezone-aware function with the extracted time
+          const tzAwareDate = createDateWithTimezone(
+            startAtStr.split('T')[0], // Just the date part
+            timeStr,                  // Time extracted from string
+            timezone
+          )
+          
+          if (tzAwareDate > baseDate) {
+            return tzAwareDate
+          }
+        }
+      } else {
+        // If no time component in the string, use midnight in the specified timezone
+        const startDate = createDateWithTimezone(
+          scheduleValues.scheduleStartAt,
+          "00:00", // Use midnight in the specified timezone
+          timezone
+        )
+        
+        if (startDate > baseDate) {
+          return startDate
+        }
       }
     } catch (e) {
       logger.error("Error parsing scheduleStartAt:", e)
