@@ -1,35 +1,30 @@
 import { S3Icon } from '@/components/icons'
-import { BlockConfig } from '../types'
 import { S3Response } from '@/tools/s3buckets/types'
+import { BlockConfig } from '../types'
 
-export const S3Block: BlockConfig<S3Response> = {
-  type: 's3buckets',
-  name: 'S3',
-  description: 'Amazon S3 bucket operations',
+export const S3FileViewerBlock: BlockConfig<S3Response> = {
+  type: 's3_file_viewer',
+  name: 'S3 File Viewer',
+  description: 'View S3 files',
   longDescription:
-    'Retrieve objects from Amazon S3 buckets. Connect to your S3 storage for file operations without requiring AWS SDK installation.',
-  bgColor: '#232F3E', // AWS brand color
-  icon: S3Icon,
+    'Retrieve and view files from Amazon S3 buckets. Support for various file types including images, text, JSON, and binary formats.',
   category: 'tools',
+  bgColor: '#FF9900', // AWS Orange
+  icon: S3Icon,
   subBlocks: [
-    {
-      id: 'operation',
-      title: 'Operation',
-      type: 'dropdown',
-      options: [
-        { label: 'Get Object', id: 'get' },
-      ],
-    },
     {
       id: 'accessKeyId',
       title: 'Access Key ID',
       type: 'short-input',
+      layout: 'full',
       placeholder: 'Enter your AWS Access Key ID',
+      password: true,
     },
     {
       id: 'secretAccessKey',
       title: 'Secret Access Key',
       type: 'short-input',
+      layout: 'full',
       placeholder: 'Enter your AWS Secret Access Key',
       password: true,
     },
@@ -37,99 +32,68 @@ export const S3Block: BlockConfig<S3Response> = {
       id: 'region',
       title: 'Region',
       type: 'short-input',
-      placeholder: 'e.g. us-east-1',
+      layout: 'half',
+      placeholder: 'e.g., us-east-1',
+      value: () => 'us-east-1',
     },
     {
       id: 'bucketName',
       title: 'Bucket Name',
       type: 'short-input',
-      placeholder: 'Enter your S3 bucket name',
+      layout: 'half',
+      placeholder: 'Enter S3 bucket name',
     },
     {
-      id: 'key',
+      id: 'objectKey',
       title: 'Object Key',
       type: 'short-input',
-      placeholder: 'Path to the file in the bucket (e.g., folder/filename.txt)',
-      condition: {
-        field: 'operation',
-        value: ['get']
-      },
+      layout: 'full',
+      placeholder: 'Path to the file in S3 (e.g., folder/file.txt)',
     },
   ],
   tools: {
-    access: [
-      's3buckets_download',
-    ],
+    access: ['s3_get_object'],
     config: {
-      tool: (params: Record<string, any>) => {
-        const operation = params.operation || 'get'
-        switch (operation) {
-          case 'get':
-            return 's3buckets_download'
-          default:
-            return 's3buckets_download'
-        }
-      },
-      params: async (params: Record<string, any>) => {
-        // Create detailed error information for any missing required fields
-        const errors: string[] = []
-        
-        // Validate required fields for all operations
+      tool: () => 's3_get_object',
+      params: (params) => {
+        // Validate required fields
         if (!params.accessKeyId) {
-          errors.push("Access Key ID is required")
+          throw new Error('Access Key ID is required')
         }
-        
         if (!params.secretAccessKey) {
-          errors.push("Secret Access Key is required")
+          throw new Error('Secret Access Key is required')
         }
-        
         if (!params.bucketName) {
-          errors.push("Bucket Name is required")
+          throw new Error('Bucket Name is required')
         }
-        
-        if (!params.region) {
-          errors.push("Region is required")
+        if (!params.objectKey) {
+          throw new Error('Object Key is required')
         }
-        
-        if (!params.key) {
-          errors.push("Object Key is required")
-        }
-        
-        // Throw error if any required fields are missing
-        if (errors.length > 0) {
-          throw new Error(`S3 Block Error: ${errors.join(', ')}`)
-        }
-        
-        // Prepare the result object with common parameters
-        const result: Record<string, any> = {
+
+        return {
           accessKeyId: params.accessKeyId,
           secretAccessKey: params.secretAccessKey,
-          region: params.region,
+          region: params.region || 'us-east-1',
           bucketName: params.bucketName,
-          key: params.key
+          objectKey: params.objectKey,
         }
-        
-        return result
       },
     },
   },
   inputs: {
-    operation: { type: 'string', required: true },
     accessKeyId: { type: 'string', required: true },
     secretAccessKey: { type: 'string', required: true },
     region: { type: 'string', required: true },
     bucketName: { type: 'string', required: true },
-    key: { type: 'string', required: true },
+    objectKey: { type: 'string', required: true },
   },
   outputs: {
     response: {
       type: {
-        etag: 'any',
-        location: 'any',
-        content: 'any',
-        contentType: 'any',
-        error: 'any'
-      }
-    }
+        content: 'string', // Text content for text files, URL for binary files
+        data: 'string',    // Base64-encoded file data
+        metadata: 'json',  // File metadata (name, type, size, etc.)
+      },
+    },
   },
 }
