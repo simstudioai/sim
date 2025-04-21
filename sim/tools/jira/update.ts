@@ -31,6 +31,11 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
           requiredForToolCall: true,
           description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
         },
+        projectId: {
+          type: 'string',
+          required: false,
+          description: 'Jira project ID to update issues in. If not provided, all issues will be retrieved.',
+        },
         issueKey: {
           type: 'string',
           required: true,
@@ -60,11 +65,19 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
           type: 'string',
           required: false,
           description: 'New assignee for the issue',
-        }
+        },
+        cloudId: {
+          type: 'string',
+          required: false,
+          description: 'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+        },
     },
     
       request: {
         url: (params: JiraUpdateParams) => {
+          if (params.cloudId) {
+            return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/${params.issueKey}?expand=renderedFields,names,schema,transitions,operations,editmeta,changelog`;
+          }
           return `https://${params.domain}/rest/api/3/issue/${params.issueKey}`
         },
         method: 'PUT',

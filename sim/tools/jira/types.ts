@@ -22,6 +22,7 @@ export interface JiraUpdateParams {
   accessToken: string
   domain: string
   issueKey: string
+  cloudId: string
   summary?: string
   description?: string
   status?: string
@@ -43,6 +44,7 @@ export interface JiraWriteParams {
   domain: string
   projectId: string
   summary: string
+  cloudId: string
   description?: string
   issueTypeId: string
   priority?: string
@@ -66,6 +68,13 @@ export interface JiraIssue {
   priority?: string
   assignee?: string
   updated: string
+}
+
+export interface JiraProject {
+  id: string
+  key: string
+  name: string
+  url: string
 }
 
 export interface JiraCloudResource {

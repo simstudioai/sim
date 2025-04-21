@@ -21,22 +21,23 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
-import { JiraCloudResource } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
 
-export interface JiraIssueInfo {
+export interface JiraProjectInfo {
   id: string
+  key: string
   name: string
-  mimeType: string
-  webViewLink?: string
-  modifiedTime?: string
-  spaceId?: string
   url?: string
+  avatarUrl?: string
+  description?: string
+  projectTypeKey?: string
+  simplified?: boolean
+  style?: string
+  isPrivate?: boolean
 }
 
-interface JiraIssueSelectorProps {
+interface JiraProjectSelectorProps {
   value: string
-  onChange: (value: string, issueInfo?: JiraIssueInfo) => void
+  onChange: (value: string, projectInfo?: JiraProjectInfo) => void
   provider: OAuthProvider
   requiredScopes?: string[]
   label?: string
@@ -44,29 +45,27 @@ interface JiraIssueSelectorProps {
   serviceId?: string
   domain: string
   showPreview?: boolean
-  onIssueInfoChange?: (issueInfo: JiraIssueInfo | null) => void
-  projectId?: string
+  onProjectInfoChange?: (projectInfo: JiraProjectInfo | null) => void
 }
 
-export function JiraIssueSelector({
+export function JiraProjectSelector({
   value,
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select Jira issue',
+  label = 'Select Jira project',
   disabled = false,
   serviceId,
   domain,
   showPreview = true,
-  onIssueInfoChange,
-  projectId,
-}: JiraIssueSelectorProps) {
+  onProjectInfoChange,
+}: JiraProjectSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
-  const [issues, setIssues] = useState<JiraIssueInfo[]>([])
+  const [projects, setProjects] = useState<JiraProjectInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
-  const [selectedIssueId, setSelectedIssueId] = useState(value)
-  const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState(value)
+  const [selectedProject, setSelectedProject] = useState<JiraProjectInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
@@ -84,10 +83,10 @@ export function JiraIssueSelector({
 
     // Set a new timeout
     searchTimeoutRef.current = setTimeout(() => {
-      if (value.length >= 1) {  // Changed from > 2 to >= 1 to be more responsive
-        fetchIssues(value)   
+      if (value.length >= 1) {
+        fetchProjects(value)
       } else {
-        setIssues([])  // Clear issues if search is empty
+        fetchProjects() // Fetch all projects if no search term
       }
     }, 500) // 500ms debounce
   }
@@ -150,26 +149,10 @@ export function JiraIssueSelector({
     }
   }, [provider, getProviderId, selectedCredentialId])
 
-  // Fetch issue info when we have a selected issue ID
-  const fetchIssueInfo = useCallback(
-    async (issueId: string) => {
-      if (!issueId || !issueId.trim() || !selectedCredentialId || !domain) {
-        console.log('Skipping issue info fetch due to missing required data:', {
-          hasIssueId: !!issueId,
-          hasCredential: !!selectedCredentialId,
-          hasDomain: !!domain
-        })
-        return
-      }
-
-      // Validate domain format
-      const trimmedDomain = domain.trim().toLowerCase()
-      if (!trimmedDomain.includes('.')) {
-        setError(
-          'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
-        )
-        return
-      }
+  // Fetch detailed project information
+  const fetchProjectInfo = useCallback(
+    async (projectId: string) => {
+      if (!selectedCredentialId || !domain || !projectId) return
 
       setIsLoading(true)
       setError(null)
@@ -188,58 +171,56 @@ export function JiraIssueSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          throw new Error(errorData.error || 'Failed to get access token')
+          console.error('Access token error:', errorData)
+          setError('Authentication failed. Please reconnect your Jira account.')
+          return
         }
 
         const tokenData = await tokenResponse.json()
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          throw new Error('No access token received')
+          console.error('No access token returned')
+          setError('Authentication failed. Please reconnect your Jira account.')
+          return
         }
 
-        // Use the access token to fetch the issue info
-        const response = await fetch('/api/auth/oauth/jira/issue', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            domain,
-            accessToken,
-            issueId,
-            cloudId
-          }),
+        // Build query parameters for the project endpoint
+        const queryParams = new URLSearchParams({
+          domain,
+          accessToken,
+          projectId,
+          ...(cloudId && { cloudId })
         })
+
+        const response = await fetch(`/api/auth/oauth/jira/project?${queryParams.toString()}`)
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to fetch issue info')
+          console.error('Jira API error:', errorData)
+          throw new Error(errorData.error || 'Failed to fetch project details')
         }
 
-        const data = await response.json()
-        if (data.cloudId) {
-          setCloudId(data.cloudId)
+        const projectInfo = await response.json()
+        
+        if (projectInfo.cloudId) {
+          setCloudId(projectInfo.cloudId)
         }
-        if (data.issue) {
-          setSelectedIssue(data.issue)
-          onIssueInfoChange?.(data.issue)
-        }
+
+        setSelectedProject(projectInfo)
+        onProjectInfoChange?.(projectInfo)
       } catch (error) {
-        console.error('Error fetching issue info:', error)
+        console.error('Error fetching project details:', error)
         setError((error as Error).message)
-        // Clear selection on error to prevent infinite retry loops
-        setSelectedIssue(null)
-        onIssueInfoChange?.(null)
       } finally {
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, onIssueInfoChange, cloudId]
+    [selectedCredentialId, domain, onProjectInfoChange, cloudId]
   )
 
-  // Fetch issues from Jira
-  const fetchIssues = useCallback(   
+  // Fetch projects from Jira
+  const fetchProjects = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
 
@@ -249,7 +230,7 @@ export function JiraIssueSelector({
         setError(
           'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
         )
-        setIssues([])
+        setProjects([])
         setIsLoading(false)
         return
       }
@@ -272,8 +253,6 @@ export function JiraIssueSelector({
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
           console.error('Access token error:', errorData)
-
-          // If there's a token error, we might need to reconnect the account
           setError('Authentication failed. Please reconnect your Jira account.')
           setIsLoading(false)
           return
@@ -289,26 +268,21 @@ export function JiraIssueSelector({
           return
         }
 
-        // Build query parameters for the issues endpoint
+        // Build query parameters for the projects endpoint
         const queryParams = new URLSearchParams({
           domain,
           accessToken,
-          ...(projectId && { projectId }),
           ...(searchQuery && { query: searchQuery }),
-          ...(cloudId && { cloudId }),
+          ...(cloudId && { cloudId })
         })
-        
-        const response = await fetch(`/api/auth/oauth/jira/issues?${queryParams.toString()}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
+
+        // Use the GET endpoint for project search
+        const response = await fetch(`/api/auth/oauth/jira/projects?${queryParams.toString()}`)
 
         if (!response.ok) {
           const errorData = await response.json()
           console.error('Jira API error:', errorData)
-          throw new Error(errorData.error || 'Failed to fetch issues')
+          throw new Error(errorData.error || 'Failed to fetch projects')
         }
 
         const data = await response.json()
@@ -316,50 +290,34 @@ export function JiraIssueSelector({
         if (data.cloudId) {
           setCloudId(data.cloudId)
         }
-        
-        // Process the issue picker results
-        let foundIssues: JiraIssueInfo[] = []
-        
-        // Handle the sections returned by the issue picker API
-        if (data.sections) {
-          // Combine issues from all sections
-          data.sections.forEach((section: any) => {
-            if (section.issues && section.issues.length > 0) {
-              const sectionIssues = section.issues.map((issue: any) => ({
-                id: issue.key,
-                name: issue.summary || issue.summaryText || issue.key,
-                mimeType: 'jira/issue',
-                url: `https://${domain}/browse/${issue.key}`,
-                webViewLink: `https://${domain}/browse/${issue.key}`,
-              }))
-              foundIssues = [...foundIssues, ...sectionIssues]
-            }
-          })
-        }
-        
-        console.log(`Received ${foundIssues.length} issues from API`)
-        setIssues(foundIssues)
 
-        // If we have a selected issue ID, find the issue info
-        if (selectedIssueId) { 
-          const issueInfo = foundIssues.find((issue: JiraIssueInfo) => issue.id === selectedIssueId)
-          if (issueInfo) {
-            setSelectedIssue(issueInfo)
-            onIssueInfoChange?.(issueInfo)
-          } else if (!searchQuery && selectedIssueId) {
-            // If we can't find the issue in the list, try to fetch it directly
-            fetchIssueInfo(selectedIssueId)
+        // Process the projects results
+        const foundProjects = data.projects || []
+        console.log(`Received ${foundProjects.length} projects from API`)
+        setProjects(foundProjects)
+
+        // If we have a selected project ID, find the project info
+        if (selectedProjectId) {
+          const projectInfo = foundProjects.find(
+            (project: JiraProjectInfo) => project.id === selectedProjectId
+          )
+          if (projectInfo) {
+            setSelectedProject(projectInfo)
+            onProjectInfoChange?.(projectInfo)
+          } else if (!searchQuery && selectedProjectId) {
+            // If we can't find the project in the list, try to fetch it directly
+            fetchProjectInfo(selectedProjectId)
           }
         }
       } catch (error) {
-        console.error('Error fetching issues:', error)
+        console.error('Error fetching projects:', error)
         setError((error as Error).message)
-        setIssues([])
+        setProjects([])
       } finally {
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, selectedIssueId, onIssueInfoChange, fetchIssueInfo, cloudId, projectId]
+    [selectedCredentialId, domain, selectedProjectId, onProjectInfoChange, fetchProjectInfo, cloudId]
   )
 
   // Fetch credentials on initial mount
@@ -370,46 +328,44 @@ export function JiraIssueSelector({
     }
   }, [fetchCredentials])
 
-  // Handle open change
-  const handleOpenChange = (isOpen: boolean) => {
-    setOpen(isOpen)
-
-    // Only fetch recent/default issues when opening the dropdown
-    if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchIssues('') // Pass empty string to get recent or default issues
-    }
-  }
-
-  // Update selected issue when value changes externally 
+  // Update selected project when value changes externally 
   useEffect(() => {
-    if (value !== selectedIssueId) {
-      setSelectedIssueId(value)
+    if (value !== selectedProjectId) {
+      setSelectedProjectId(value)
 
-      // Only fetch issue info if we have a valid value
+      // Only fetch project info if we have a valid value
       if (value && value.trim() !== '') {
-        // Find issue info if we have issues loaded
-        if (issues.length > 0) {
-          const issueInfo = issues.find((issue) => issue.id === value) || null
-          setSelectedIssue(issueInfo)
-          onIssueInfoChange?.(issueInfo)
-        } else if (!selectedIssue && selectedCredentialId && domain && domain.includes('.')) {
-          // If we don't have issues loaded yet but have a value, try to fetch the issue info
-          fetchIssueInfo(value)
+        // Find project info if we have projects loaded
+        if (projects.length > 0) {
+          const projectInfo = projects.find((project) => project.id === value) || null
+          setSelectedProject(projectInfo)
+          onProjectInfoChange?.(projectInfo)
+        } else if (!selectedProject && selectedCredentialId && domain && domain.includes('.')) {
+          // If we don't have projects loaded yet but have a value, try to fetch the project info
+          fetchProjectInfo(value)
         }
       } else {
         // If value is empty or undefined, clear the selection without triggering API calls
-        setSelectedIssue(null)
-        onIssueInfoChange?.(null)
+        setSelectedProject(null)
+        onProjectInfoChange?.(null)
       }
     }
-  }, [value, issues, selectedIssue, selectedCredentialId, domain, onIssueInfoChange, fetchIssueInfo])
+  }, [value, projects, selectedProject, selectedCredentialId, domain, onProjectInfoChange, fetchProjectInfo])
 
-  // Handle issue selection
-  const handleSelectIssue = (issue: JiraIssueInfo) => {
-    setSelectedIssueId(issue.id)
-    setSelectedIssue(issue)
-    onChange(issue.id, issue)
-    onIssueInfoChange?.(issue)
+  // Handle open change
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
+      fetchProjects('') // Pass empty string to get all projects
+    }
+  }
+
+  // Handle project selection
+  const handleSelectProject = (project: JiraProjectInfo) => {
+    setSelectedProjectId(project.id)
+    setSelectedProject(project)
+    onChange(project.id, project)
+    onProjectInfoChange?.(project)
     setOpen(false)
   }
 
@@ -431,11 +387,11 @@ export function JiraIssueSelector({
 
   // Clear selection
   const handleClearSelection = () => {
-    setSelectedIssueId('')
-    setSelectedIssue(null)
-    setError(null) // Clear any existing errors
+    setSelectedProjectId('')
+    setSelectedProject(null)
+    setError(null)
     onChange('', undefined)
-    onIssueInfoChange?.(null)
+    onProjectInfoChange?.(null)
   }
 
   return (
@@ -450,12 +406,12 @@ export function JiraIssueSelector({
               className="w-full justify-between"
               disabled={disabled || !domain}
             >
-              {selectedIssue ? (
+              {selectedProject ? (
                 <div className="flex items-center gap-2 overflow-hidden">
                   <JiraIcon className="h-4 w-4" />
-                  <span className="font-normal truncate">{selectedIssue.name}</span>
+                  <span className="font-normal truncate">{selectedProject.name}</span>
                 </div>
-              ) : ( 
+              ) : (
                 <div className="flex items-center gap-2">
                   <JiraIcon className="h-4 w-4" />
                   <span className="text-muted-foreground">{label}</span>
@@ -489,13 +445,16 @@ export function JiraIssueSelector({
             )}
 
             <Command>
-              <CommandInput placeholder="Search issues..." onValueChange={handleSearch} />
+              <CommandInput 
+                placeholder="Search projects..." 
+                onValueChange={handleSearch} 
+              />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
                     <div className="flex items-center justify-center p-4">
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="ml-2">Loading issues...</span>
+                      <span className="ml-2">Loading projects...</span>
                     </div>
                   ) : error ? (
                     <div className="p-4 text-center">
@@ -510,7 +469,7 @@ export function JiraIssueSelector({
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No issues found.</p>
+                      <p className="text-sm font-medium">No projects found.</p>
                       <p className="text-xs text-muted-foreground">
                         Try a different search or account.
                       </p>
@@ -540,23 +499,31 @@ export function JiraIssueSelector({
                   </CommandGroup>
                 )}
 
-                {/* Issues list */}
-                {issues.length > 0 && (
+                {/* Projects list */}
+                {projects.length > 0 && (
                   <CommandGroup>
                     <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                      Issues
+                      Projects
                     </div>
-                    {issues.map((issue) => (
+                    {projects.map((project) => (
                       <CommandItem
-                        key={issue.id}
-                        value={`issue-${issue.id}-${issue.name}`}
-                        onSelect={() => handleSelectIssue(issue)}
+                        key={project.id}
+                        value={`project-${project.id}-${project.name}`}
+                        onSelect={() => handleSelectProject(project)}
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
-                          <JiraIcon className="h-4 w-4" />
-                          <span className="font-normal truncate">{issue.name}</span>
+                          {project.avatarUrl ? (
+                            <img
+                              src={project.avatarUrl}
+                              alt={project.name}
+                              className="h-4 w-4 rounded"
+                            />
+                          ) : (
+                            <JiraIcon className="h-4 w-4" />
+                          )}
+                          <span className="font-normal truncate">{project.name}</span>
                         </div>
-                        {issue.id === selectedIssueId && <Check className="ml-auto h-4 w-4" />}
+                        {project.id === selectedProjectId && <Check className="ml-auto h-4 w-4" />}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -578,8 +545,8 @@ export function JiraIssueSelector({
           </PopoverContent>
         </Popover>
 
-        {/* Issue preview */}
-        {showPreview && selectedIssue && (
+        {/* Project preview */}
+        {showPreview && selectedProject && (
           <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
             <div className="absolute top-2 right-2">
               <Button
@@ -593,20 +560,26 @@ export function JiraIssueSelector({
             </div>
             <div className="flex items-center gap-3 pr-4">
               <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
-                <JiraIcon className="h-4 w-4" />
+                {selectedProject.avatarUrl ? (
+                  <img
+                    src={selectedProject.avatarUrl}
+                    alt={selectedProject.name}
+                    className="h-4 w-4 rounded"
+                  />
+                ) : (
+                  <JiraIcon className="h-4 w-4" />
+                )}
               </div>
               <div className="overflow-hidden flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedIssue.name}</h4>
-                  {selectedIssue.modifiedTime && (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(selectedIssue.modifiedTime).toLocaleDateString()}
-                    </span>
-                  )}
+                  <h4 className="text-xs font-medium truncate">{selectedProject.name}</h4>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {selectedProject.key}
+                  </span>
                 </div>
-                {selectedIssue.webViewLink ? (  
+                {selectedProject.url && (
                   <a
-                    href={selectedIssue.webViewLink}
+                    href={selectedProject.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-primary hover:underline flex items-center gap-1"
@@ -615,8 +588,6 @@ export function JiraIssueSelector({
                     <span>Open in Jira</span>
                     <ExternalLink className="h-3 w-3" />
                   </a>
-                ) : (
-                  <></>
                 )}
               </div>
             </div>

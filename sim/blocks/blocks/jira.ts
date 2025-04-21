@@ -52,6 +52,16 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     // Use file-selector component for issue selection
     {
+      id: 'projectId',
+      title: 'Select Project',
+      type: 'project-selector',
+      layout: 'full',
+      provider: 'jira',
+      serviceId: 'jira',
+      placeholder: 'Select Jira project',
+      condition: { field: 'operation', value: ['read', 'update', 'write'] },
+    },
+    {
       id: 'issueKey',
       title: 'Select Issue',
       type: 'file-selector',
@@ -75,18 +85,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       title: 'New Content',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter new content for the issue',
+      placeholder: 'Enter new summary for the issue',
       condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'issueTypeId',
-      title: 'Select Issue',
-      type: 'file-selector',
-      layout: 'full',
-      provider: 'jira',
-      serviceId: 'jira',
-      placeholder: 'Select Jira issue',
-      condition: { field: 'operation', value: 'write' },
     },
     {
       id: 'content',
@@ -135,7 +135,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     domain: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     issueKey: { type: 'string', required: true },
-    projectId: { type: 'string', required: true },
+    projectId: { type: 'string', required: false },
     issueTypeId: { type: 'string', required: true },
     // Update operation inputs
     title: { type: 'string', required: false },

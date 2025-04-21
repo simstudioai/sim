@@ -1,7 +1,6 @@
 import { ToolConfig } from '../types'
 import { JiraRetrieveResponse } from './types'
 import { JiraRetrieveParams } from './types'
-import { getJiraCloudId } from './utils'
 
 export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveResponse> = {
     id: 'jira_retrieve',
@@ -30,6 +29,11 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
             required: true,
             requiredForToolCall: true,
             description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
+        },
+        projectId: {
+            type: 'string',
+            required: false,
+            description: 'Jira project ID to retrieve issues from. If not provided, all issues will be retrieved.',
         },
         issueKey: {
             type: 'string',
