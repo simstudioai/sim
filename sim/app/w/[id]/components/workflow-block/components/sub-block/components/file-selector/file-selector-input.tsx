@@ -45,16 +45,16 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   }
 
   // Handle issue selection
-  const handleIssueChange = (issueId: string, info?: any) => {
-    setSelectedIssueId(issueId)
+  const handleIssueChange = (issueKey: string, info?: JiraIssueInfo) => {
+    setSelectedIssueId(issueKey)
     setIssueInfo(info || null)
-    setValue(blockId, subBlock.id, issueId)
+    setValue(blockId, subBlock.id, issueKey)
     
-    // Clear the title and content fields when a new issue is selected
-    // if (isJira) {
-    //   setValue(blockId, 'title', '')
-    //   setValue(blockId, 'content', '')
-    // }
+    // Clear the fields when a new issue is selected
+    if (provider === 'jira') {
+      setValue(blockId, 'summary', '')
+      setValue(blockId, 'description', '')
+    }
   }
 
   // For Google Drive
