@@ -490,6 +490,7 @@ export const auth = betterAuth({
             'read:jira-user',
             'read:jira-work',
             'write:jira-work',
+            'write:issue:jira',
             'read:project:jira',
             'read:issue-type:jira',
             'read:me',
