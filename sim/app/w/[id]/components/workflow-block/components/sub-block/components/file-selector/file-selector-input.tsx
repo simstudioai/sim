@@ -49,6 +49,12 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
     setSelectedIssueId(issueId)
     setIssueInfo(info || null)
     setValue(blockId, subBlock.id, issueId)
+    
+    // Clear the title and content fields when a new issue is selected
+    // if (isJira) {
+    //   setValue(blockId, 'title', '')
+    //   setValue(blockId, 'content', '')
+    // }
   }
 
   // For Google Drive

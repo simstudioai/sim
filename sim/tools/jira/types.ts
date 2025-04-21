@@ -21,13 +21,15 @@ export interface JiraRetrieveResponse extends ToolResponse {
 export interface JiraUpdateParams {
   accessToken: string
   domain: string
+  projectId?: string
   issueKey: string
-  cloudId: string
   summary?: string
+  title?: string
   description?: string
   status?: string
   priority?: string
   assignee?: string
+  cloudId?: string
 }
 
 export interface JiraUpdateResponse extends ToolResponse {
@@ -46,7 +48,6 @@ export interface JiraWriteParams {
   summary: string
   cloudId: string
   description?: string
-  issueTypeId: string
   priority?: string
   assignee?: string
 }

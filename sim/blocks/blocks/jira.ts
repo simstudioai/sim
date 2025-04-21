@@ -73,7 +73,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     // Update issue fields
     {
-      id: 'title',
+      id: 'summary',
       title: 'New Summary',
       type: 'short-input',
       layout: 'full',
@@ -81,7 +81,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: 'update' },
     },
     {
-      id: 'content',
+      id: 'description',
       title: 'New Description',
       type: 'long-input',
       layout: 'full',
@@ -89,7 +89,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: 'update' },
     },
     {
-      id: 'content',
+      id: 'writeTitle',
       title: 'Issue Summary',
       type: 'short-input',
       layout: 'full',
@@ -97,7 +97,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: 'write' },
     },
     {
-      id: 'content',
+      id: 'writeDescription',
       title: 'Issue Description',
       type: 'long-input',
       layout: 'full',
@@ -121,12 +121,20 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
-        const { credential, ...rest } = params
-
-        return {
-          accessToken: credential,
-          ...rest,
+        console.log('Raw params received in Jira block:', params)
+        
+        
+        // Explicitly construct the params object with only the fields we want
+        const finalParams = {
+          accessToken: params.credential,
+          domain: params.domain,
+          issueKey: params.issueKey,
+          projectId: params.projectId,
         }
+        
+        console.log('Final params being sent to tool:', finalParams)
+        
+        return finalParams
       },
     },
   },
@@ -136,10 +144,12 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     credential: { type: 'string', required: true },
     issueKey: { type: 'string', required: true },
     projectId: { type: 'string', required: false },
-    issueTypeId: { type: 'string', required: true },
     // Update operation inputs
-    title: { type: 'string', required: false },
-    content: { type: 'string', required: false },
+    summary: { type: 'string', required: false },
+    description: { type: 'string', required: false },
+    // Write operation inputs
+    writeTitle: { type: 'string', required: false },
+    writeDescription: { type: 'string', required: false },
   },
   outputs: {
     response: {

@@ -14,7 +14,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         additionalScopes: [
             'read:jira-user',
             'write:jira-work',
-            'write:issue:jira'
+            'write:issue:jira',
+            'read:jira-work',
         ],
     },
 
@@ -74,27 +75,31 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         },
     },
     
-    request: {
-        url: (params) => {
+    directExecution: async (params) => {
+        // Pre-fetch the cloudId if not provided
+        if (!params.cloudId) {
             try {
-                const { domain, issueKey } = params
-                if (!domain || !issueKey) {
-                    throw new Error('Domain and issueKey are required')
-                }
-                
-                const cloudId = params.cloudId || getJiraCloudId(domain, params.accessToken)
-                if (!cloudId) {
-                    throw new Error('Failed to get Jira Cloud ID')
-                }
-                
-                console.log('Using cloudId:', cloudId)
-                const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
-                console.log('Generated URL:', url)
-                return url
+                params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
+                console.log('Pre-fetched cloudId:', params.cloudId)
             } catch (error) {
-                console.error('Error generating URL:', error)
+                console.error('Error pre-fetching cloudId:', error)
                 throw error
             }
+        }
+        return undefined // Let the regular request handling take over
+    },
+    
+    request: {
+        url: (params) => {
+            const { domain, issueKey, cloudId } = params
+            if (!domain || !issueKey || !cloudId) {
+                throw new Error('Domain, issueKey, and cloudId are required')
+            }
+            
+            console.log('Using cloudId:', cloudId)
+            const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
+            console.log('Generated URL:', url)
+            return url
         },
         method: 'PUT',
         headers: (params) => ({
@@ -103,13 +108,31 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
             'Content-Type': 'application/json'
         }),
         body: (params) => {
+            console.log('Full params object received in update tool:', params)
+            
+            // Map the summary from either summary or title field
+            const summaryValue = params.summary || params.title
+            const descriptionValue = params.description
+            
+            console.log('Update params received:', {
+                summary: summaryValue,
+                description: descriptionValue,
+                status: params.status,
+                priority: params.priority,
+                assignee: params.assignee
+            })
+            
             const fields: Record<string, any> = {}
             
-            if (params.summary) {
-                fields.summary = params.summary
+            if (summaryValue) {
+                console.log('Setting summary:', summaryValue)
+                fields.summary = summaryValue
+            } else {
+                console.log('Summary is undefined or empty')
             }
 
-            if (params.description) {
+            if (descriptionValue) {
+                console.log('Setting description:', descriptionValue)
                 fields.description = {
                     type: 'doc',
                     version: 1,
@@ -119,69 +142,111 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
                             content: [
                                 {
                                     type: 'text',
-                                    text: params.description
+                                    text: descriptionValue
                                 }
                             ]
                         }
                     ]
                 }
+            } else {
+                console.log('Description is undefined or empty')
             }
 
             if (params.status) {
+                console.log('Setting status:', params.status)
                 fields.status = {
                     name: params.status
                 }
             }
 
             if (params.priority) {
+                console.log('Setting priority:', params.priority)
                 fields.priority = {
                     name: params.priority
                 }
             }
 
             if (params.assignee) {
+                console.log('Setting assignee:', params.assignee)
                 fields.assignee = {
                     id: params.assignee
                 }
             }
 
-            console.log('Request body:', { fields })
+            console.log('Final request body:', { fields })
             return { fields }
         }
     },
     
-    transformResponse: async (response: Response) => {
-        if (!response.ok) {
-            const responseText = await response.text()
-            console.log('Error response from Jira:', {
-                status: response.status,
-                statusText: response.statusText,
-                responseText,
-                headers: Object.fromEntries(response.headers.entries())
-            })
+    transformResponse: async (response: Response, params?: JiraUpdateParams) => {
+        // Log the response details for debugging
+        const responseText = await response.text()
+        console.log('Raw response:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            body: responseText
+        })
 
+        if (!response.ok) {
             try {
-                const data = JSON.parse(responseText)
-                throw new Error(
-                    data.errorMessages?.[0] || 
-                    data.errors?.[Object.keys(data.errors)[0]] || 
-                    data.message || 
-                    'Failed to update Jira issue'
-                )
+                if (responseText) {
+                    const data = JSON.parse(responseText)
+                    throw new Error(
+                        data.errorMessages?.[0] || 
+                        data.errors?.[Object.keys(data.errors)[0]] || 
+                        data.message || 
+                        'Failed to update Jira issue'
+                    )
+                } else {
+                    throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
+                }
             } catch (e) {
-                throw new Error(`Jira API error: ${responseText}`)
+                if (e instanceof SyntaxError) {
+                    // If we can't parse the response as JSON, return the raw text
+                    throw new Error(`Jira API error (${response.status}): ${responseText}`)
+                }
+                throw e
             }
         }
 
-        const data = await response.json()
-        return {
-            success: true,
-            output: {
-                ts: new Date().toISOString(),
-                issueKey: data.key || '',
-                summary: data.fields?.summary || 'Issue updated',
-                success: true
-            },
+        // For successful responses
+        try {
+            if (!responseText) {
+                // Some successful PUT requests might return no content
+                return {
+                    success: true,
+                    output: {
+                        ts: new Date().toISOString(),
+                        issueKey: params?.issueKey || 'unknown',
+                        summary: 'Issue updated successfully',
+                        success: true
+                    },
+                }
+            }
+
+            const data = JSON.parse(responseText)
+            return {
+                success: true,
+                output: {
+                    ts: new Date().toISOString(),
+                    issueKey: data.key || params?.issueKey || 'unknown',
+                    summary: data.fields?.summary || 'Issue updated',
+                    success: true
+                },
+            }
+        } catch (e) {
+            console.error('Error parsing successful response:', e)
+            // If we can't parse the response but it was successful, still return success
+            return {
+                success: true,
+                output: {
+                    ts: new Date().toISOString(),
+                    issueKey: params?.issueKey || 'unknown',
+                    summary: 'Issue updated (response parsing failed)',
+                    success: true
+                },
+            }
         }
     },
     
