@@ -46,10 +46,12 @@ export interface JiraWriteParams {
   domain: string
   projectId: string
   summary: string
-  cloudId: string
   description?: string
   priority?: string
   assignee?: string
+  cloudId?: string
+  issueType: string
+  parent?: { key: string }
 }
 
 export interface JiraWriteResponse extends ToolResponse {

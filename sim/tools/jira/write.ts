@@ -1,6 +1,6 @@
 import { ToolConfig } from '../types'
-import { JiraWriteResponse } from './types'
-import { JiraWriteParams } from './types'
+import { JiraWriteResponse, JiraWriteParams } from './types'
+import { getJiraCloudId } from './utils'
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     id: 'jira_write',
@@ -15,7 +15,12 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             'read:jira-user',
             'write:jira-work',
             'read:project:jira',
-            'read:issue-type:jira',
+            'read:issue:jira',
+            'write:issue:jira',
+            'write:comment:jira',
+            'write:comment.property:jira',
+            'write:attachment:jira',
+            'read:attachment:jira',
         ],
     },
 
@@ -24,69 +29,116 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             type: 'string',
             required: true,
             description: 'OAuth access token for Jira',
-          },
-          domain: {
+        },
+        domain: {
             type: 'string',
             required: true,
             requiredForToolCall: true,
             description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
-          },
-          summary: {
+        },
+        projectId: {
             type: 'string',
-            required: false,
+            required: true,
+            description: 'Project ID for the issue',
+        },
+        summary: {
+            type: 'string',
+            required: true,
             description: 'Summary for the issue',
-          },
-
-          description: {
+        },
+        description: {
             type: 'string',
             required: false,
             description: 'Description for the issue',
-          },
-          status: {
-            type: 'string',
-            required: false,
-            description: 'Status for the issue',
-          },
-          priority: {
+        },
+        priority: {
             type: 'string',
             required: false,
             description: 'Priority for the issue',
-          },
-          assignee: {
+        },
+        assignee: {
             type: 'string',
             required: false,
             description: 'Assignee for the issue',
-          },
-          projectId: {
+        },
+        cloudId: {
             type: 'string',
             required: false,
-            description: 'Project ID for the issue',
-          },
+            description: 'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+        },
+        parent: {
+            type: 'object',
+            required: false,
+            description: 'Parent issue key for creating subtasks. Format: { key: "ISSUE-123" }',
+        },
+        issueType: {
+            type: 'string',
+            required: true,
+            description: 'Type of issue to create (e.g., Task, Story, Bug, Sub-task)',
+        },
+    },
+
+    directExecution: async (params) => {
+        // Pre-fetch the cloudId if not provided
+        if (!params.cloudId) {
+            try {
+                params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
+                console.log('Pre-fetched cloudId:', params.cloudId)
+            } catch (error) {
+                console.error('Error pre-fetching cloudId:', error)
+                throw error
+            }
+        }
+        return undefined // Let the regular request handling take over
     },
 
     request: {
-        url: (params: JiraWriteParams) => {
-          return `https://${params.domain}/rest/api/3/issue`
+        url: (params) => {
+            const { domain, cloudId } = params
+            if (!domain || !cloudId) {
+                throw new Error('Domain and cloudId are required')
+            }
+            
+            console.log('Using cloudId:', cloudId)
+            const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue`
+            console.log('Generated URL:', url)
+            return url
         },
         method: 'POST',
-        headers: (params: JiraWriteParams) => {
-          return {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${params.accessToken}`,
-          }
-        },
-        body: (params: JiraWriteParams) => {
-            const body: Record<string, any> = {
-                fields: {
-                    project: {
-                        id: params.projectId
-                    },
-                    summary: params.summary
-                }
+        headers: (params) => ({
+            'Authorization': `Bearer ${params.accessToken}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }),
+        body: (params) => {
+            console.log('Full params object received in write tool:', params)
+            
+            // Validate required fields
+            if (!params.projectId) {
+                throw new Error('Project ID is required')
             }
-
+            if (!params.summary) {
+                throw new Error('Summary is required')
+            }
+            if (!params.issueType) {
+                throw new Error('Issue type is required')
+            }
+            
+            // Construct fields object with only the necessary fields
+            const fields: Record<string, any> = {
+                project: {
+                    id: params.projectId
+                },
+                issuetype: {
+                    name: params.issueType
+                },
+                summary: params.summary // Use the summary field directly
+            }
+            
+            // Only add description if it exists
             if (params.description) {
-                body.fields.description = {
+                console.log('Setting description:', params.description)
+                fields.description = {
                     type: 'doc',
                     version: 1,
                     content: [
@@ -103,42 +155,93 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
                 }
             }
 
-            if (params.assignee) {
-                body.fields.assignee = {
-                    id: params.assignee
-                }
+            // Only add parent if it exists
+            if (params.parent) {
+                console.log('Setting parent:', params.parent)
+                fields.parent = params.parent
             }
 
-            if (params.priority) {
-                body.fields.priority = {
-                    name: params.priority
-                }
-            }
-
+            const body = { fields }
+            console.log('Final request body:', body)
             return body
-        },
+        }
     },
 
-    transformResponse: async (response: Response) => {
-        const data = await response.json()
+    transformResponse: async (response: Response, params?: JiraWriteParams) => {
+        // Log the response details for debugging
+        const responseText = await response.text()
+        console.log('Raw response:', {
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            body: responseText
+        })
+
         if (!response.ok) {
-            throw new Error(data.message || 'Failed to create Jira issue')
+            try {
+                if (responseText) {
+                    const data = JSON.parse(responseText)
+                    throw new Error(
+                        data.errorMessages?.[0] || 
+                        data.errors?.[Object.keys(data.errors)[0]] || 
+                        data.message || 
+                        'Failed to create Jira issue'
+                    )
+                } else {
+                    throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
+                }
+            } catch (e) {
+                if (e instanceof SyntaxError) {
+                    // If we can't parse the response as JSON, return the raw text
+                    throw new Error(`Jira API error (${response.status}): ${responseText}`)
+                }
+                throw e
+            }
         }
 
-        return {
-            success: true,
-            output: {
-                ts: new Date().toISOString(),
-                issueKey: data.key,
-                summary: data.fields?.summary || '',
+        // For successful responses
+        try {
+            if (!responseText) {
+                return {
+                    success: true,
+                    output: {
+                        ts: new Date().toISOString(),
+                        issueKey: 'unknown',
+                        summary: 'Issue created successfully',
+                        success: true,
+                        url: ''
+                    },
+                }
+            }
+
+            const data = JSON.parse(responseText)
+            return {
                 success: true,
-                url: `https://${data.domain}/browse/${data.issueKey}` //TODO: review this
-            },
+                output: {
+                    ts: new Date().toISOString(),
+                    issueKey: data.key || 'unknown',
+                    summary: data.fields?.summary || 'Issue created',
+                    success: true,
+                    url: `https://${params?.domain}/browse/${data.key}`
+                },
+            }
+        } catch (e) {
+            console.error('Error parsing successful response:', e)
+            return {
+                success: true,
+                output: {
+                    ts: new Date().toISOString(),
+                    issueKey: 'unknown',
+                    summary: 'Issue created (response parsing failed)',
+                    success: true,
+                    url: ''
+                },
+            }
         }
     },
 
     transformError: (error: any) => {
-        const message = error.message || 'Failed to create Jira issue'
-        return message
-    },
+        console.error('Jira write error:', error)
+        return error.message || 'Failed to create Jira issue'
+    }
 }

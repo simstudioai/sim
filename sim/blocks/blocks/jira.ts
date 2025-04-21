@@ -45,6 +45,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         'read:jira-user',
         'write:jira-work',
         'read:issue-event:jira',
+        'write:issue:jira',
         'read:me',
         'offline_access',
       ],
@@ -73,12 +74,30 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
     // Update issue fields
     {
+      id: 'issueType',
+      title: 'Issue Type',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter issue type (e.g., Task, Story, Bug)',
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
+      id: 'parentIssue',
+      title: 'Parent Issue',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'jira',
+      serviceId: 'jira',
+      placeholder: 'Select parent issue (for subtasks)',
+      condition: { field: 'operation', value: 'write' },
+    },
+    {
       id: 'summary',
       title: 'New Summary',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter new summary for the issue',
-      condition: { field: 'operation', value: 'update' },
+      condition: { field: 'operation', value: ['update', 'write'] },
     },
     {
       id: 'description',
@@ -86,23 +105,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter new description for the issue',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'writeTitle',
-      title: 'Issue Summary',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter summary for the new issue',
-      condition: { field: 'operation', value: 'write' },
-    },
-    {
-      id: 'writeDescription',
-      title: 'Issue Description',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter description for the new issue',
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['update', 'write'] },
     },
   ],
   tools: {
@@ -121,20 +124,56 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
-        console.log('Raw params received in Jira block:', params)
+        console.log('Raw params before filtering:', params)
         
-        
-        // Explicitly construct the params object with only the fields we want
-        const finalParams = {
+        // Base params that are always needed
+        const baseParams = {
           accessToken: params.credential,
           domain: params.domain,
-          issueKey: params.issueKey,
-          projectId: params.projectId,
         }
         
-        console.log('Final params being sent to tool:', finalParams)
-        
-        return finalParams
+        // Define allowed parameters for each operation
+        switch (params.operation) {
+          case 'write': {
+            // For write operations, only include write-specific fields
+            const writeParams = {
+              projectId: params.projectId,
+              summary: params.summary || '', 
+              description: params.description || '',
+              issueType: params.issueType || 'Task',
+              parent: params.parentIssue ? { key: params.parentIssue } : undefined,
+            }
+            
+            console.log('Filtered write params:', { ...baseParams, ...writeParams })
+            return {
+              ...baseParams,
+              ...writeParams,
+            }
+          }
+          case 'update': {
+            // For update operations, only include update-specific fields
+            const updateParams = {
+              projectId: params.projectId,
+              issueKey: params.issueKey,
+              summary: params.summary || '',
+              description: params.description || '',
+            }
+            
+            return {
+              ...baseParams,
+              ...updateParams,
+            }
+          }
+          case 'read': {
+            // For read operations, only include read-specific fields
+            return {
+              ...baseParams,
+              issueKey: params.issueKey,
+            }
+          }
+          default:
+            return baseParams
+        }
       },
     },
   },
@@ -148,8 +187,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     summary: { type: 'string', required: false },
     description: { type: 'string', required: false },
     // Write operation inputs
-    writeTitle: { type: 'string', required: false },
-    writeDescription: { type: 'string', required: false },
+    issueType: { type: 'string', required: false },
+    parentIssue: { type: 'string', required: false },
   },
   outputs: {
     response: {
