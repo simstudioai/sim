@@ -358,18 +358,23 @@ export function DeployModal({
   // Handle chat deployment submission
   const handleChatDeploySubmit = async () => {
     setChatSubmitting(true)
-    // This function will be called from the footer button when in chat deployment step
-    // Implementation will use the form submission in the ChatDeploy component
     try {
-      // Instead of directly submitting, we'll trigger the form in the component
-      const form = document.querySelector('form') as HTMLFormElement
-      if (form) {
-        form.requestSubmit()
+      // Find the ChatDeploy component and extract the form data
+      const chatDeployForm = document.querySelector('.chat-deploy-form') as HTMLFormElement
+      
+      if (chatDeployForm) {
+        // Prevent default form submission handling and manually trigger submission
+        const submitEvent = new CustomEvent('manual-submit', { bubbles: true })
+        chatDeployForm.dispatchEvent(submitEvent)
+      } else {
+        logger.error('Chat deploy form not found in the DOM')
       }
     } catch (error) {
-      logger.error('Error submitting chat deployment form:', error)
+      logger.error('Error handling chat deployment submission:', error)
+    } finally {
+      // Reset submission state after a delay
+      setTimeout(() => setChatSubmitting(false), 500)
     }
-    setTimeout(() => setChatSubmitting(false), 300) // Reset after a short delay
   }
 
   return (

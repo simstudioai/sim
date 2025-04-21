@@ -5,12 +5,13 @@ import { db } from '@/db'
 import { chatDeployment, workflow, apiKey as apiKeyTable } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { addCorsHeaders, validateChatAuth, setChatAuthCookie, validateAuthToken } from '../utils'
+import { executeWorkflowForChat } from '../helpers/executeWorkflow'
 
 const logger = createLogger('ChatSubdomainAPI')
 
 // This endpoint handles chat interactions via the subdomain
-export async function POST(request: NextRequest, { params }: { params: { subdomain: string } }) {
-  const { subdomain } = params
+export async function POST(request: NextRequest, { params }: { params: Promise<{ subdomain: string }> }) {
+  const { subdomain } = await params
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
@@ -34,6 +35,8 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
         authType: chatDeployment.authType,
         password: chatDeployment.password,
         allowedEmails: chatDeployment.allowedEmails,
+        outputBlockId: chatDeployment.outputBlockId,
+        outputPath: chatDeployment.outputPath,
       })
       .from(chatDeployment)
       .where(eq(chatDeployment.subdomain, subdomain))
@@ -91,43 +94,53 @@ export async function POST(request: NextRequest, { params }: { params: { subdoma
       return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
     }
     
-    // Get the API key for the user
-    const apiKeyResult = await db
-      .select({
-        key: apiKeyTable.key,
+    try {
+      // Execute the workflow using our helper function
+      const result = await executeWorkflowForChat(deployment.id, message)
+      
+      // Format the result for the client
+      // If result.content is an object, preserve it for structured handling
+      // If it's text or another primitive, make sure it's accessible
+      let formattedResult: any = { output: null }
+      
+      if (result && result.content) {
+        if (typeof result.content === 'object') {
+          // For objects like { text: "some content" }
+          if (result.content.text) {
+            formattedResult.output = result.content.text
+          } else {
+            // Keep the original structure but also add an output field
+            formattedResult = {
+              ...result,
+              output: JSON.stringify(result.content)
+            }
+          }
+        } else {
+          // For direct string content
+          formattedResult = {
+            ...result,
+            output: result.content
+          }
+        }
+      } else {
+        // Fallback if no content
+        formattedResult = {
+          ...result,
+          output: "No output returned from workflow"
+        }
+      }
+      
+      logger.info(`[${requestId}] Returning formatted chat response:`, { 
+        hasOutput: !!formattedResult.output,
+        outputType: typeof formattedResult.output
       })
-      .from(apiKeyTable)
-      .where(eq(apiKeyTable.userId, deployment.userId))
-      .limit(1)
-    
-    if (apiKeyResult.length === 0) {
-      logger.warn(`[${requestId}] No API key found for user: ${deployment.userId}`)
-      return addCorsHeaders(createErrorResponse('Unable to process request', 500), request)
+      
+      // Add CORS headers before returning the response
+      return addCorsHeaders(createSuccessResponse(formattedResult), request)
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error processing chat request:`, error)
+      return addCorsHeaders(createErrorResponse(error.message || 'Failed to process request', 500), request)
     }
-    
-    const apiKey = apiKeyResult[0].key
-    
-    // Forward the message to the workflow execution endpoint
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${deployment.workflowId}/execute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': apiKey,
-      },
-      body: JSON.stringify({ input: message }),
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      logger.error(`[${requestId}] Workflow execution failed:`, errorData)
-      return addCorsHeaders(createErrorResponse('Failed to process message', response.status), request)
-    }
-    
-    // Get the response from the workflow
-    const result = await response.json()
-    
-    // Add CORS headers before returning the response
-    return addCorsHeaders(createSuccessResponse(result), request)
   } catch (error: any) {
     logger.error(`[${requestId}] Error processing chat request:`, error)
     return addCorsHeaders(createErrorResponse(error.message || 'Failed to process request', 500), request)

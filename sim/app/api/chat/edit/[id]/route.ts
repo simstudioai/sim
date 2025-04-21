@@ -25,6 +25,8 @@ const chatUpdateSchema = z.object({
   authType: z.enum(["public", "password", "email"]).optional(),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
+  outputBlockId: z.string().optional(),
+  outputPath: z.string().optional(),
 })
 
 /**
@@ -127,7 +129,9 @@ export async function PATCH(
         customizations,
         authType,
         password,
-        allowedEmails
+        allowedEmails,
+        outputBlockId,
+        outputPath
       } = validatedData
       
       // Check if subdomain is changing and if it's available
@@ -164,6 +168,8 @@ export async function PATCH(
       if (authType) updateData.authType = authType
       if (encryptedPassword) updateData.password = encryptedPassword
       if (allowedEmails) updateData.allowedEmails = allowedEmails
+      if (outputBlockId !== undefined) updateData.outputBlockId = outputBlockId
+      if (outputPath !== undefined) updateData.outputPath = outputPath
       
       // Update the chat deployment
       await db

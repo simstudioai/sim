@@ -204,9 +204,33 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       const responseData = await response.json()
       console.log('Message response:', responseData)
 
+      // Extract content from the response - could be in content or output
+      let messageContent = responseData.output
+      
+      // Handle different response formats from API
+      if (!messageContent && responseData.content) {
+        // Content could be an object or a string
+        if (typeof responseData.content === 'object') {
+          // If it's an object with a text property, use that
+          if (responseData.content.text) {
+            messageContent = responseData.content.text
+          } else {
+            // Try to convert to string for display
+            try {
+              messageContent = JSON.stringify(responseData.content)
+            } catch (e) {
+              messageContent = "Received structured data response"
+            }
+          }
+        } else {
+          // Direct string content
+          messageContent = responseData.content
+        }
+      }
+      
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        content: responseData.output || "Sorry, I couldn't process your request.",
+        content: messageContent || "Sorry, I couldn't process your request.",
         type: 'assistant',
         timestamp: new Date(),
       }

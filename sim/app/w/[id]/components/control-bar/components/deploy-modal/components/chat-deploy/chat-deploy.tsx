@@ -33,6 +33,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
 
 const logger = createLogger('ChatDeploy')
 
@@ -64,6 +65,8 @@ const chatSchema = z.object({
   authType: z.enum(['public', 'password', 'email']),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
+  outputBlockId: z.string().nullish(),
+  outputPath: z.string().nullish(),
 })
 
 export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployProps) {
@@ -100,6 +103,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
     description: string
     authType: AuthType
     emails: string[]
+    outputBlockId: string | null
   } | null>(null)
 
   // State to track if any changes have been made
@@ -108,6 +112,9 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   // Confirmation dialogs
   const [showEditConfirmation, setShowEditConfirmation] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+
+  // Inside the component - add state for output block selection
+  const [selectedOutputBlock, setSelectedOutputBlock] = useState<string | null>(null)
 
   // Fetch existing chat data when component mounts
   useEffect(() => {
@@ -125,6 +132,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
       const subdomainChanged = subdomain !== originalValues.subdomain
       const titleChanged = title !== originalValues.title
       const descriptionChanged = description !== originalValues.description
+      const outputBlockChanged = selectedOutputBlock !== originalValues.outputBlockId
 
       // Check if emails have changed
       const emailsChanged =
@@ -141,11 +149,37 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
         descriptionChanged ||
         currentAuthTypeChanged ||
         emailsChanged ||
-        passwordChanged
+        passwordChanged ||
+        outputBlockChanged
 
       setHasChanges(changed)
     }
-  }, [subdomain, title, description, authType, emails, password, originalValues])
+  }, [subdomain, title, description, authType, emails, password, selectedOutputBlock, originalValues])
+
+  // Set up event listener for manual form submission
+  useEffect(() => {
+    const handleManualSubmit = () => {
+      // Log current state
+      logger.info('Manual submit triggered with output selection:', {
+        selectedOutputBlock,
+        hasSelection: !!selectedOutputBlock
+      })
+      
+      // Delay to ensure all state updates are processed
+      setTimeout(() => {
+        // Pass the current state values directly to handleSubmit
+        handleSubmit()
+      }, 100)
+    }
+
+    // Add event listener to document for manual-submit
+    document.addEventListener('manual-submit', handleManualSubmit)
+
+    // Clean up the event listener when component unmounts
+    return () => {
+      document.removeEventListener('manual-submit', handleManualSubmit)
+    }
+  }, [selectedOutputBlock]) // Add selectedOutputBlock to dependencies
 
   // Fetch existing chat data for this workflow
   const fetchExistingChat = async () => {
@@ -176,6 +210,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
               description: chatDetail.description || '',
               authType: chatDetail.authType || 'public',
               emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
+              outputBlockId: chatDetail.outputBlockId || null
             })
 
             // Set emails if using email auth
@@ -184,6 +219,12 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             }
 
             // For security, we don't populate password - user will need to enter a new one if changing it
+
+            // Inside the fetchExistingChat function - after loading other form values
+            if (chatDetail.outputBlockId && chatDetail.outputPath) {
+              const combinedOutputId = `${chatDetail.outputBlockId}_${chatDetail.outputPath}`
+              setSelectedOutputBlock(combinedOutputId)
+            }
           } else {
             logger.error('Failed to fetch chat details')
           }
@@ -285,8 +326,34 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault()
 
+    // Log all relevant values to debug
+    logger.info('Form submission triggered with values:', { 
+      subdomain,
+      title,
+      authType,
+      hasOutputBlockSelection: !!selectedOutputBlock,
+      selectedOutputBlock,
+      hasSelectedOutput: selectedOutputBlock !== null && selectedOutputBlock !== undefined && selectedOutputBlock.length > 0,
+      outputBlockDetails: selectedOutputBlock ? {
+        firstUnderscoreIndex: selectedOutputBlock.indexOf('_'),
+        blockId: selectedOutputBlock.includes('_') ? selectedOutputBlock.split('_')[0] : null,
+        path: selectedOutputBlock.includes('_') ? selectedOutputBlock.split('_')[1] : null
+      } : null
+    })
+
     if (!workflowId || !subdomain.trim() || !title.trim()) {
+      logger.error('Missing required fields', { workflowId, subdomain, title })
       return
+    }
+
+    // Verify output selection if it's set
+    if (selectedOutputBlock) {
+      const firstUnderscoreIndex = selectedOutputBlock.indexOf('_')
+      if (firstUnderscoreIndex === -1) {
+        logger.error('Invalid output block format', { selectedOutputBlock })
+        setErrorMessage('Invalid output block format. Please select a valid output.')
+        return
+      }
     }
 
     if (subdomainError) {
@@ -349,6 +416,44 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
       if (authType === 'email') {
         payload.allowedEmails = emails
+      }
+
+      // Add output block configuration if selected
+      if (selectedOutputBlock) {
+        const firstUnderscoreIndex = selectedOutputBlock.indexOf('_')
+        if (firstUnderscoreIndex !== -1) {
+          const blockId = selectedOutputBlock.substring(0, firstUnderscoreIndex)
+          const path = selectedOutputBlock.substring(firstUnderscoreIndex + 1)
+          
+          // Make sure to set these as explicit strings, not undefined
+          payload.outputBlockId = blockId || ""
+          payload.outputPath = path || ""
+          
+          // Debug log to verify output configuration
+          logger.info('Added output configuration to payload:', { 
+            selectedOutput: selectedOutputBlock,
+            outputBlockId: blockId, 
+            outputPath: path,
+            payloadBlockId: payload.outputBlockId,
+            payloadPath: payload.outputPath
+          })
+        } else {
+          logger.warn('Selected output block has invalid format:', selectedOutputBlock)
+          // Even with invalid format, ensure fields are set
+          payload.outputBlockId = ""
+          payload.outputPath = ""
+        }
+      } else if (existingChat && existingChat.outputBlockId && existingChat.outputPath) {
+        // If editing and there was previously an output block but it's now unselected,
+        // explicitly set to null (not undefined) to clear the values
+        payload.outputBlockId = null
+        payload.outputPath = null
+        logger.info('Clearing existing output configuration')
+      } else {
+        // No output block selected and none existed before
+        payload.outputBlockId = null
+        payload.outputPath = null
+        logger.info('No output block selected')
       }
 
       // Pass the API key from workflow deployment
@@ -478,7 +583,10 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   // Form view
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={(e) => {
+        e.preventDefault() // Prevent default form submission
+        handleSubmit(e)
+      }} className="space-y-4 chat-deploy-form">
         <div className="grid gap-4">
           {errorMessage && (
             <Alert variant="destructive">
@@ -542,6 +650,52 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             </div>
           </div>
 
+          {/* Output Configuration - moved above Access Control */}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm font-medium">Output Configuration</Label>
+            </div>
+            
+            <Card className="border-border/40">
+              <CardContent className="p-4 space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Output Block</h3>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select which block's output to return to the user in the chat interface.
+                  </p>
+                  <div className="block w-full">
+                    <OutputSelect
+                      workflowId={workflowId}
+                      selectedOutput={selectedOutputBlock}
+                      onOutputSelect={(value) => {
+                        // Just update the state, don't trigger form submission
+                        logger.info(`Output block selection changed to: ${value}`)
+                        
+                        if (value) {
+                          const firstUnderscoreIndex = value.indexOf('_')
+                          if (firstUnderscoreIndex !== -1) {
+                            const blockId = value.substring(0, firstUnderscoreIndex)
+                            const path = value.substring(firstUnderscoreIndex + 1)
+                            logger.info(`Parsed output selection - blockId: ${blockId}, path: ${path}`)
+                          }
+                        }
+                        
+                        setSelectedOutputBlock(value)
+                        
+                        // Mark as changed to enable update button
+                        if (existingChat) {
+                          setHasChanges(true)
+                        }
+                      }}
+                      placeholder="Select which block output to use"
+                      disabled={isDeploying}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Authentication Options */}
           <div className="space-y-3">
             <div>
@@ -554,17 +708,22 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                   'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
                   authType === 'public' ? 'border-primary bg-primary/5' : 'border-border'
                 )}
-                onClick={() => !isDeploying && setAuthType('public')}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
-                  <div className="h-5 w-5 flex items-center justify-center mb-1">
+                <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
+                  <button 
+                    type="button" 
+                    className="w-full h-full absolute inset-0 cursor-pointer z-10" 
+                    onClick={() => !isDeploying && setAuthType('public')}
+                    aria-label="Select public access"
+                  />
+                  <div className="h-5 w-5 flex items-center justify-center mb-1 relative z-0">
                     {authType === 'public' ? (
                       <Check className="h-4 w-4 text-primary" />
                     ) : (
                       <Circle className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  <div>
+                  <div className="relative z-0">
                     <h3 className="font-medium text-sm">Public Access</h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       Anyone can access your chat
@@ -578,17 +737,22 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                   'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
                   authType === 'password' ? 'border-primary bg-primary/5' : 'border-border'
                 )}
-                onClick={() => !isDeploying && setAuthType('password')}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
-                  <div className="h-5 w-5 flex items-center justify-center mb-1">
+                <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
+                  <button 
+                    type="button" 
+                    className="w-full h-full absolute inset-0 cursor-pointer z-10" 
+                    onClick={() => !isDeploying && setAuthType('password')}
+                    aria-label="Select password protected access"
+                  />
+                  <div className="h-5 w-5 flex items-center justify-center mb-1 relative z-0">
                     {authType === 'password' ? (
                       <Check className="h-4 w-4 text-primary" />
                     ) : (
                       <Circle className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  <div>
+                  <div className="relative z-0">
                     <h3 className="font-medium text-sm">Password Protected</h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       Secure with a single password
@@ -602,17 +766,22 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                   'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
                   authType === 'email' ? 'border-primary bg-primary/5' : 'border-border'
                 )}
-                onClick={() => !isDeploying && setAuthType('email')}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center space-y-2">
-                  <div className="h-5 w-5 flex items-center justify-center mb-1">
+                <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
+                  <button 
+                    type="button" 
+                    className="w-full h-full absolute inset-0 cursor-pointer z-10" 
+                    onClick={() => !isDeploying && setAuthType('email')}
+                    aria-label="Select email access"
+                  />
+                  <div className="h-5 w-5 flex items-center justify-center mb-1 relative z-0">
                     {authType === 'email' ? (
                       <Check className="h-4 w-4 text-primary" />
                     ) : (
                       <Circle className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
-                  <div>
+                  <div className="relative z-0">
                     <h3 className="font-medium text-sm">Email Access</h3>
                     <p className="text-xs text-muted-foreground mt-1">
                       Restrict to specific emails

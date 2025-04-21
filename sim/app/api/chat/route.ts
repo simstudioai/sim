@@ -25,6 +25,8 @@ const chatDeploymentSchema = z.object({
   authType: z.enum(["public", "password", "email"]).default("public"),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
+  outputBlockId: z.string().optional(),
+  outputPath: z.string().optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -71,7 +73,9 @@ export async function POST(request: NextRequest) {
         customizations,
         authType = 'public',
         password,
-        allowedEmails = []
+        allowedEmails = [],
+        outputBlockId,
+        outputPath
       } = validatedData
       
       // Perform additional validation specific to auth types
@@ -131,6 +135,8 @@ export async function POST(request: NextRequest) {
         authType,
         password: encryptedPassword,
         allowedEmails: authType === 'email' ? allowedEmails : [],
+        outputBlockId: outputBlockId || null,  
+        outputPath: outputPath || null,        
         createdAt: new Date(),
         updatedAt: new Date(),
       })
