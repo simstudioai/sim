@@ -62,11 +62,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             required: false,
             description: 'Project ID for the issue',
           },
-          issueTypeId: {
-            type: 'string',
-            required: true,
-            description: 'Issue Type ID for the issue',
-          },
     },
 
     request: {
@@ -85,9 +80,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
                 fields: {
                     project: {
                         id: params.projectId
-                    },
-                    issuetype: {
-                        id: params.issueTypeId
                     },
                     summary: params.summary
                 }

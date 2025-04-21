@@ -42,6 +42,14 @@ export function ProjectSelectorInput({
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
     setValue(blockId, subBlock.id, projectId)
+    
+    // Clear the issue-related fields when a new project is selected
+    // if (provider === 'jira') {
+    //   setValue(blockId, 'title', '')
+    //   setValue(blockId, 'content', '')
+    //   setValue(blockId, 'issueKey', '')
+    // }
+    
     onProjectSelect?.(projectId)
   }
 
