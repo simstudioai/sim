@@ -161,6 +161,7 @@ export async function POST(req: NextRequest) {
       createdAt: new Date(),
       updatedAt: new Date(),
       nextRunAt,
+      timezone: getSubBlockValue(starterBlock, 'timezone') || 'UTC',
     }
 
     // Prepare the set values for update
@@ -168,6 +169,7 @@ export async function POST(req: NextRequest) {
       cronExpression,
       updatedAt: new Date(),
       nextRunAt,
+      timezone: getSubBlockValue(starterBlock, 'timezone') || 'UTC',
     }
 
     // Upsert the schedule

@@ -1,4 +1,7 @@
 import { formatDateTime } from '@/lib/utils'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('ScheduleUtils')
 
 export interface SubBlockValue {
   value: string
@@ -196,7 +199,7 @@ export function createDateWithTimezone(
     return finalDate
 
   } catch (e) {
-    console.error("Error creating date with timezone:", e, { dateInput, timeStr, timezone })
+    logger.error("Error creating date with timezone:", e, { dateInput, timeStr, timezone })
     // Fallback to a simple UTC interpretation on error
     try {
         const baseDate = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput)
@@ -206,7 +209,7 @@ export function createDateWithTimezone(
         const day = baseDate.getUTCDate()
         return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0))
     } catch (fallbackError) {
-        console.error("Error during fallback date creation:", fallbackError)
+        logger.error("Error during fallback date creation:", fallbackError)
         return new Date() // Final fallback
     }
   }
@@ -275,7 +278,7 @@ export function calculateNextRunTime(
   // If we have both a start date and time, use them together with timezone awareness
   if (scheduleValues.scheduleStartAt && scheduleValues.scheduleTime) {
     try {
-      console.log(`Creating date with: startAt=${scheduleValues.scheduleStartAt}, time=${scheduleValues.scheduleTime}, timezone=${timezone}`)
+      logger.info(`Creating date with: startAt=${scheduleValues.scheduleStartAt}, time=${scheduleValues.scheduleTime}, timezone=${timezone}`)
       
       const combinedDate = createDateWithTimezone(
         scheduleValues.scheduleStartAt,
@@ -283,14 +286,14 @@ export function calculateNextRunTime(
         timezone
       )
       
-      console.log(`Combined date result: ${combinedDate.toISOString()}`)
+      logger.info(`Combined date result: ${combinedDate.toISOString()}`)
       
       // If the combined date is in the future, use it as our next run time
       if (combinedDate > baseDate) {
         return combinedDate
       }
     } catch (e) {
-      console.error("Error combining scheduled date and time:", e)
+      logger.error("Error combining scheduled date and time:", e)
     }
   }
   // If only scheduleStartAt is set (without scheduleTime), parse it directly
@@ -301,7 +304,7 @@ export function calculateNextRunTime(
         return startDate
       }
     } catch (e) {
-      console.error("Error parsing scheduleStartAt:", e)
+      logger.error("Error parsing scheduleStartAt:", e)
     }
   }
   

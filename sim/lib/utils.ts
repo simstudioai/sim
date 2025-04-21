@@ -123,19 +123,75 @@ export function convertScheduleOptionsToCron(
 }
 
 /**
+ * Get a user-friendly timezone abbreviation
+ * @param timezone - IANA timezone string
+ * @param date - Date to check for DST
+ * @returns A simplified timezone string (e.g., "PST" instead of "America/Los_Angeles")
+ */
+export function getTimezoneAbbreviation(timezone: string, date: Date = new Date()): string {
+  if (timezone === 'UTC' || timezone.startsWith('GMT')) {
+    return timezone
+  }
+
+  // Common timezone mappings
+  const timezoneMap: Record<string, { standard: string; daylight: string }> = {
+    'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
+    'America/Denver': { standard: 'MST', daylight: 'MDT' },
+    'America/Chicago': { standard: 'CST', daylight: 'CDT' },
+    'America/New_York': { standard: 'EST', daylight: 'EDT' },
+    'Europe/London': { standard: 'GMT', daylight: 'BST' },
+    'Europe/Paris': { standard: 'CET', daylight: 'CEST' },
+    'Asia/Tokyo': { standard: 'JST', daylight: 'JST' }, // Japan doesn't use DST
+    'Australia/Sydney': { standard: 'AEST', daylight: 'AEDT' },
+    'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
+  }
+
+  // Check if we have a mapping for this timezone
+  if (timezone in timezoneMap) {
+    // Check if the date is in DST for this timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'short',
+    })
+    
+    // Get the full formatted string with timezone name
+    const formatted = formatter.format(date)
+    
+    // If the timezone part contains "DT", it's likely in daylight time
+    // (this is a simple heuristic that works for common US timezones)
+    const isDST = formatted.includes('DT')
+    
+    return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
+  }
+
+  // For unknown timezones, return a user-friendly version of the IANA name
+  return timezone.split('/').pop()?.replace(/_/g, ' ') || timezone
+}
+
+/**
  * Format a date into a human-readable format
  * @param date - The date to format
+ * @param timezone - Optional IANA timezone string (e.g., 'America/Los_Angeles', 'UTC')
  * @returns A formatted date string in the format "MMM D, YYYY h:mm A"
  */
-export function formatDateTime(date: Date): string {
-  return date.toLocaleString('en-US', {
+export function formatDateTime(date: Date, timezone?: string): string {
+  const formattedDate = date.toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: timezone || undefined,
   })
+  
+  // If timezone is provided, add a friendly timezone abbreviation
+  if (timezone) {
+    const tzAbbr = getTimezoneAbbreviation(timezone, date)
+    return `${formattedDate} ${tzAbbr}`
+  }
+  
+  return formattedDate
 }
 
 /**
