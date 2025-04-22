@@ -1,23 +1,6 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { GuestyGuestParams, GuestyGuestResponse } from './types'
 
-export interface GuestyGuestParams {
-  apiKey: string
-  phoneNumber: string
-}
-
-export interface GuestyGuestResponse extends ToolResponse {
-  output: {
-    guests: Array<{
-      id: string
-      fullName: string
-      email: string
-      phone: string
-      address: string
-      city: string
-      country: string
-    }>
-  }
-}
 
 export const guestyGuestTool: ToolConfig<GuestyGuestParams, GuestyGuestResponse> = {
   id: 'guesty_guest',

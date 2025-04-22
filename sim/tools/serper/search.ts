@@ -1,31 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-interface SearchParams {
-  query: string
-  apiKey: string
-  num?: number
-  gl?: string // country code
-  hl?: string // language code
-  type?: 'search' | 'news' | 'places' | 'images'
-}
-
-export interface SearchResult {
-  title: string
-  link: string
-  snippet: string
-  position: number
-  imageUrl?: string
-  date?: string
-  rating?: string
-  reviews?: string
-  address?: string
-}
-
-export interface SearchResponse extends ToolResponse {
-  output: {
-    searchResults: SearchResult[]
-  }
-}
+import { ToolConfig } from '../types'
+import { SearchParams, SearchResponse, SearchResult } from './types'
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   id: 'serper_search',

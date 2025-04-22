@@ -1,35 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-export interface ScrapeParams {
-  apiKey: string
-  url: string
-  scrapeOptions?: {
-    onlyMainContent?: boolean
-    formats?: string[]
-  }
-}
-
-export interface ScrapeResponse extends ToolResponse {
-  output: {
-    markdown: string
-    html?: string
-    metadata: {
-      title: string
-      description: string
-      language: string
-      keywords: string
-      robots: string
-      ogTitle: string
-      ogDescription: string
-      ogUrl: string
-      ogImage: string
-      ogLocaleAlternate: string[]
-      ogSiteName: string
-      sourceURL: string
-      statusCode: number
-    }
-  }
-}
+import { ToolConfig } from '../types'
+import { ScrapeParams, ScrapeResponse } from './types'
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',

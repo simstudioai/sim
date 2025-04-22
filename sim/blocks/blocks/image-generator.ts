@@ -1,5 +1,5 @@
-import { AirplaneIcon, ImageIcon } from '@/components/icons'
-import { DalleResponse } from '@/tools/openai/dalle'
+import { ImageIcon } from '@/components/icons'
+import { DalleResponse } from '@/tools/openai/types'
 import { BlockConfig } from '../types'
 
 export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {

@@ -1,12 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-interface OpenAIEmbeddingsParams {
-  apiKey: string
-  input: string | string[]
-  model?: string
-  encoding_format?: 'float' | 'base64'
-  user?: string
-}
+import { ToolConfig } from '../types'
+import { OpenAIEmbeddingsParams } from './types'
 
 export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
   id: 'openai_embeddings',

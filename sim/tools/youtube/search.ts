@@ -1,24 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-export interface YouTubeSearchParams {
-  apiKey: string
-  query: string
-  maxResults?: number
-  pageToken?: string
-}
-
-export interface YouTubeSearchResponse extends ToolResponse {
-  output: {
-    items: Array<{
-      videoId: string
-      title: string
-      description: string
-      thumbnail: string
-    }>
-    totalResults: number
-    nextPageToken?: string
-  }
-}
+import { ToolConfig } from '../types'
+import { YouTubeSearchParams, YouTubeSearchResponse } from './types'
 
 export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchResponse> = {
   id: 'youtube_search',
