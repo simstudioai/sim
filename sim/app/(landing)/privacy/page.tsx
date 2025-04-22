@@ -243,7 +243,19 @@ export default function PrivacyPolicy() {
 
               <section>
                 <h2 className="text-2xl font-semibold mb-4 text-white">
-                  8. Links To Other Sites
+                  8. Google Workspace APIs
+                </h2>
+                <p className="mb-4">
+                  We want to explicitly affirm that any user data obtained through Google Workspace APIs is <span className="text-[#B5A1D4]">not</span> used to develop, improve, or train generalized AI and/or machine learning models. We use data obtained through Google Workspace APIs solely for the purpose of providing and improving the specific functionality of our Service for which the API access was granted.
+                </p>
+                <p>
+                  Any data collected through Google Workspace APIs is handled in accordance with Google API Services User Data Policy, including the Limited Use requirements.
+                </p>
+              </section>
+
+              <section>
+                <h2 className="text-2xl font-semibold mb-4 text-white">
+                  9. Links To Other Sites
                 </h2>
                 <p className="mb-4">
                   Our Service may contain links to other sites that are not operated by us. If you
@@ -258,7 +270,7 @@ export default function PrivacyPolicy() {
 
               <section>
                 <h2 className="text-2xl font-semibold mb-4 text-white">
-                  9. Children's Privacy
+                  10. Children's Privacy
                 </h2>
                 <p className="mb-4">
                   Our Service does not address anyone under the age of 18 (<span className="text-[#B5A1D4]">"Children"</span>).
@@ -274,7 +286,7 @@ export default function PrivacyPolicy() {
 
               <section>
                 <h2 className="text-2xl font-semibold mb-4 text-white">
-                  10. Changes To This Privacy Policy
+                  11. Changes To This Privacy Policy
                 </h2>
                 <p className="mb-4">
                   We may update our Privacy Policy from time to time. We will notify you of any changes
@@ -293,7 +305,7 @@ export default function PrivacyPolicy() {
 
               <section>
                 <h2 className="text-2xl font-semibold mb-4 text-white">
-                  11. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
+                  12. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
                 </h2>
                 <p className="mb-4">
                   If you are a resident of the European Economic Area (EEA), you have certain data
@@ -347,7 +359,7 @@ export default function PrivacyPolicy() {
 
               <section>
                 <h2 className="text-2xl font-semibold mb-4 text-white">
-                  12. California Privacy Rights
+                  13. California Privacy Rights
                 </h2>
                 <p className="mb-4">
                   California Civil Code Section 1798.83, also known as the <span className="text-[#B5A1D4]">"Shine The Light"</span> law,
@@ -364,7 +376,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">13. Contact Us</h2>
+                <h2 className="text-2xl font-semibold mb-4 text-white">14. Contact Us</h2>
                 <p>
                   If you have any questions about this Privacy Policy, please contact us at:{' '}
                   <Link href="mailto:privacy@simstudio.ai" className="text-[#B5A1D4] hover:text-[#701ffc]">
