@@ -5,10 +5,10 @@ import JSZip from 'jszip'
 
 // Configure size limits (in bytes)
 const PREVIEW_LIMITS = {
-  TEXT: 10 * 1024 * 1024,      // 5MB for text files
-  OFFICE: 10 * 1024 * 1024,   // 10MB for Office documents
-  IMAGE: 10 * 1024 * 1024,     // 2MB for images
-  DEFAULT: 10 * 1024 * 1024    // 1MB for other files
+  TEXT: 100 * 1024 * 1024,      // 5MB for text files
+  OFFICE: 100 * 1024 * 1024,   // 10MB for Office documents
+  IMAGE: 100 * 1024 * 1024,     // 2MB for images
+  DEFAULT: 100 * 1024 * 1024    // 1MB for other files
 };
 
 // Function to encode S3 path components
@@ -156,11 +156,12 @@ async function getFullContent(buffer: Buffer, contentType: string, fileName: str
     }
   }
   
-  // For binary files, return placeholder
+  // For binary files, return appropriate message
   if (contentType.includes('pdf') || extension === '.pdf') {
     return `[Binary content: PDF document ${fileName}]`;
   } else if (contentType.includes('image/')) {
-    return `[Binary content: Image file ${fileName}]`;
+    // For images, return base64 data URL
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
   } else if (['.doc', '.xls', '.ppt'].includes(extension)) {
     return `[Binary content: Legacy Office document ${fileName}]`;
   }
@@ -277,60 +278,32 @@ export const s3GetObjectTool: ToolConfig = {
       const fileName = params.objectKey.split('/').pop() || params.objectKey;
       const extension = path.extname(fileName).toLowerCase();
 
-      // Read file content
+      // Generate pre-signed URL for download
+      const downloadUrl = generatePresignedUrl(params, 3600);
+
+      // Read full file content
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
+      
+      // Get file content
+      const content = await getFullContent(buffer, contentType, fileName);
 
-      // Determine file type
-      let fileType = 'binary';
-      if (contentType.includes('pdf') || extension === '.pdf') {
-        fileType = 'pdf';
-      } else if (contentType.includes('document') || extension === '.docx') {
-        fileType = 'document';
-      } else if (contentType.includes('spreadsheet') || ['.xlsx', '.xls'].includes(extension)) {
-        fileType = 'spreadsheet';
-      } else if (contentType.includes('presentation') || ['.ppt', '.pptx'].includes(extension)) {
-        fileType = 'presentation';
-      } else if (contentType.includes('csv') || extension === '.csv') {
-        fileType = 'text';
-      } else if (contentType.includes('text/') || extension === '.txt') {
-        fileType = 'text';
-      } else if (contentType.includes('image/')) {
-        fileType = 'image';
-      }
-
-      // Generate content based on file type
-      let content = '';
-      if (fileType === 'image') {
-        // For images, return base64 encoded data
-        content = `data:${contentType};base64,${buffer.toString('base64')}`;
-      } else if (fileType === 'text' || fileType === 'csv') {
-        // For text files, return the actual content
-        content = buffer.toString('utf8');
-      } else if (['.docx', '.xlsx', '.pptx'].includes(extension)) {
-        // For Office documents, extract text content
-        const extractedText = await extractOfficeXMLText(buffer);
-        content = extractedText || `[Office document content not extractable: ${fileName}]`;
-      } else {
-        // For other file types, generate a presigned URL
-        const downloadUrl = generatePresignedUrl(params, 3600);
-        content = `[Binary content: ${fileName}]\nDownload URL: ${downloadUrl}`;
-      }
-
-      // Return simplified response structure
-      return {
+      // Create response structure
+      const responseData = {
         success: true,
         output: {
-          content,
+          content: content,
           metadata: {
-            fileType,
+            fileType: contentType,
             size: contentLength,
             name: fileName,
-            contentType,
-            lastModified
+            lastModified: lastModified,
+            downloadUrl: downloadUrl
           }
         }
       };
+
+      return responseData;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
