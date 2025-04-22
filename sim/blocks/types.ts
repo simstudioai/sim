@@ -99,6 +99,11 @@ export interface SubBlockConfig {
   hidden?: boolean
   description?: string
   value?: (params: Record<string, any>) => string
+  buttons?: {
+    id: string
+    label: string
+    onClick: (params: Record<string, any>) => Promise<string>
+  }[]
   condition?: {
     field: string
     value: string | number | boolean | Array<string | number | boolean>
@@ -110,8 +115,8 @@ export interface SubBlockConfig {
     }
   }
   // Props specific to 'code' sub-block type
-  language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema'
+  language?: 'javascript' | 'json' | 'sql'
+  generationType?: 'javascript-function-body' | 'json-schema' | 'sql-query'
   // OAuth specific properties
   provider?: string
   serviceId?: string
