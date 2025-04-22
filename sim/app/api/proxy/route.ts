@@ -67,13 +67,28 @@ export async function GET(request: Request) {
     return createErrorResponse("Missing 'url' parameter", 400)
   }
   
+  // Extract custom headers from the request
+  const customHeaders: Record<string, string> = {};
+  
+  // Process all header.* parameters in the URL
+  for (const [key, value] of url.searchParams.entries()) {
+    if (key.startsWith('header.')) {
+      const headerName = key.substring(7); // Remove 'header.' prefix
+      customHeaders[headerName] = value;
+    }
+  }
+  
   logger.info(`[${requestId}] Proxying GET request to: ${targetUrl}`);
+  logger.debug(`[${requestId}] Custom headers:`, customHeaders);
   
   try {
-    // Forward the request to the target URL
+    // Forward the request to the target URL with all specified headers
     const response = await fetch(targetUrl, {
       method: 'GET',
-      headers: getProxyHeaders(),
+      headers: {
+        ...getProxyHeaders(),
+        ...customHeaders
+      },
     });
     
     // Get response data
