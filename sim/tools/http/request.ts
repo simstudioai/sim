@@ -78,13 +78,21 @@ const processUrl = (url: string, pathParams?: Record<string, string>, queryParam
   // Handle query parameters
   if (queryParams) {
     const queryParamsObj = transformTable(queryParams)
-    const queryString = Object.entries(queryParamsObj)
-      .filter(([_, value]) => value !== undefined && value !== null)
-      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-      .join('&')
-
-    if (queryString) {
-      url += (url.includes('?') ? '&' : '?') + queryString
+    
+    // Verify if URL already has query params to use proper separator
+    const separator = url.includes('?') ? '&' : '?'
+    
+    // Build query string manually to avoid double-encoding issues
+    const queryParts: string[] = []
+    
+    for (const [key, value] of Object.entries(queryParamsObj)) {
+      if (value !== undefined && value !== null) {
+        queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+      }
+    }
+    
+    if (queryParts.length > 0) {
+      url += separator + queryParts.join('&')
     }
   }
 
@@ -217,7 +225,17 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       // Determine if we should use the proxy
       if (shouldUseProxy(url)) {
         // Route request through our proxy
-        const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`
+        let proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`
+        
+        // Forward all headers as URL parameters
+        const userHeaders = transformTable(params.headers || null)
+        
+        // Add all custom headers as query parameters
+        for (const [key, value] of Object.entries(userHeaders)) {
+          if (value !== undefined && value !== null) {
+            proxyUrl += `&header.${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+          }
+        }
         
         const response = await fetch(proxyUrl, {
           method: 'GET',
@@ -359,7 +377,17 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       
       // For external URLs that need proxying
       if (shouldUseProxy(processedUrl)) {
-        return `/api/proxy?url=${encodeURIComponent(processedUrl)}`
+        let proxyUrl = `/api/proxy?url=${encodeURIComponent(processedUrl)}`
+        
+        // Forward all headers as URL parameters
+        const userHeaders = transformTable(params.headers || null)
+        for (const [key, value] of Object.entries(userHeaders)) {
+          if (value !== undefined && value !== null) {
+            proxyUrl += `&header.${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`
+          }
+        }
+        
+        return proxyUrl
       }
 
       return processedUrl
