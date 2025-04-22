@@ -1,19 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-export interface VisionParams {
-  apiKey: string
-  imageUrl: string
-  model?: string
-  prompt?: string
-}
-
-export interface VisionResponse extends ToolResponse {
-  output: {
-    content: string
-    model?: string
-    tokens?: number
-  }
-}
+import { ToolConfig } from '../types'
+import { VisionParams, VisionResponse } from './types'
 
 export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
   id: 'vision_tool',

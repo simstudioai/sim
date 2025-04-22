@@ -1,31 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-export interface GuestyReservationParams {
-  apiKey: string
-  reservationId: string
-}
-
-export interface GuestyReservationResponse extends ToolResponse {
-  output: {
-    id: string
-    guest: {
-      fullName: string
-      email: string
-      phone: string
-    }
-    checkIn: string
-    checkOut: string
-    status: string
-    listing: {
-      id: string
-      title: string
-    }
-    money: {
-      totalPaid: number
-      currency: string
-    }
-  }
-}
+import { ToolConfig } from '../types'
+import { GuestyReservationParams, GuestyReservationResponse } from './types'
 
 export const guestyReservationTool: ToolConfig<GuestyReservationParams, GuestyReservationResponse> =
   {

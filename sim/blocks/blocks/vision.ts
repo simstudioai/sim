@@ -1,5 +1,5 @@
 import { EyeIcon } from '@/components/icons'
-import { VisionResponse } from '@/tools/vision/vision'
+import { VisionResponse } from '@/tools/vision/types'
 import { BlockConfig } from '../types'
 
 export const VisionBlock: BlockConfig<VisionResponse> = {

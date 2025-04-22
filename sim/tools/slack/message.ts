@@ -1,17 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-export interface SlackMessageParams {
-  apiKey: string
-  channel: string
-  text: string
-}
-
-export interface SlackMessageResponse extends ToolResponse {
-  output: {
-    ts: string
-    channel: string
-  }
-}
+import { ToolConfig } from '../types'
+import { SlackMessageParams, SlackMessageResponse } from './types'
 
 export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageResponse> = {
   id: 'slack_message',

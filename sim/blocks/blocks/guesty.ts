@@ -1,6 +1,5 @@
 import { GuestyIcon } from '@/components/icons'
-import { GuestyGuestResponse } from '@/tools/guesty/guest'
-import { GuestyReservationResponse } from '@/tools/guesty/reservation'
+import { GuestyGuestResponse, GuestyReservationResponse } from '@/tools/guesty/types'
 import { BlockConfig } from '../types'
 
 export const GuestyBlock: BlockConfig<GuestyReservationResponse | GuestyGuestResponse> = {

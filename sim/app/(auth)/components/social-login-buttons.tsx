@@ -34,6 +34,7 @@ export function SocialLoginButtons({
       // Mark that the user has previously logged in
       if (typeof window !== 'undefined') {
         localStorage.setItem('has_logged_in_before', 'true')
+        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
       }
     } catch (err: any) {
       let errorMessage = 'Failed to sign in with GitHub'
@@ -64,6 +65,8 @@ export function SocialLoginButtons({
       // Mark that the user has previously logged in
       if (typeof window !== 'undefined') {
         localStorage.setItem('has_logged_in_before', 'true')
+        // Also set a cookie to enable middleware to check login status
+        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
       }
     } catch (err: any) {
       let errorMessage = 'Failed to sign in with Google'

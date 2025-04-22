@@ -1,5 +1,6 @@
-import { HttpMethod, TableRow, ToolConfig, ToolResponse } from '../types'
+import { HttpMethod, TableRow, ToolConfig } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
+import { RequestParams, RequestResponse } from './types'
 
 const logger = createLogger('HTTP Request Tool')
 
@@ -153,26 +154,6 @@ const transformTable = (table: TableRow[] | null): Record<string, any> => {
     },
     {} as Record<string, any>
   )
-}
-
-export interface RequestParams {
-  url: string
-  method?: HttpMethod
-  headers?: TableRow[]
-  body?: any
-  params?: TableRow[]
-  pathParams?: Record<string, string>
-  formData?: Record<string, string | Blob>
-  timeout?: number
-  validateStatus?: (status: number) => boolean
-}
-
-export interface RequestResponse extends ToolResponse {
-  output: {
-    data: any
-    status: number
-    headers: Record<string, string>
-  }
 }
 
 export const requestTool: ToolConfig<RequestParams, RequestResponse> = {

@@ -6,6 +6,13 @@ import { verifyToken } from './lib/waitlist/token'
 const isDevelopment = process.env.NODE_ENV === 'development'
 
 export async function middleware(request: NextRequest) {
+  // Check for active session
+  const sessionCookie = getSessionCookie(request)
+  const hasActiveSession = !!sessionCookie
+
+  // Check if user has previously logged in by checking localStorage value in cookies
+  const hasPreviouslyLoggedIn = request.cookies.get('has_logged_in_before')?.value === 'true'
+
   // Check if the path is exactly /w
   if (request.nextUrl.pathname === '/w') {
     return NextResponse.redirect(new URL('/w/1', request.url))
@@ -13,14 +20,9 @@ export async function middleware(request: NextRequest) {
 
   // Handle protected routes that require authentication
   if (request.nextUrl.pathname.startsWith('/w/') || request.nextUrl.pathname === '/w') {
-    const sessionCookie = getSessionCookie(request)
-    if (!sessionCookie) {
+    if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
-
-    // Add session expiration validation if better-auth provides this functionality
-    // This would depend on the implementation of better-auth
-
     return NextResponse.next()
   }
 
@@ -29,11 +31,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // If user has an active session, allow them to access any route
+  if (hasActiveSession) {
+    return NextResponse.next()
+  }
+
   // Handle waitlist protection for login and signup in production
   if (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/signup') {
+    // If this is the login page and user has logged in before, allow access
+    if (hasPreviouslyLoggedIn && request.nextUrl.pathname === '/login') {
+      return NextResponse.next()
+    }
+
     // Check for a waitlist token in the URL
     const waitlistToken = request.nextUrl.searchParams.get('token')
-
+    
     // Validate the token if present
     if (waitlistToken) {
       try {

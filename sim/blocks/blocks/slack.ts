@@ -1,5 +1,5 @@
 import { SlackIcon } from '@/components/icons'
-import { SlackMessageResponse } from '@/tools/slack/message'
+import { SlackMessageResponse } from '@/tools/slack/types'
 import { BlockConfig } from '../types'
 
 export const SlackBlock: BlockConfig<SlackMessageResponse> = {

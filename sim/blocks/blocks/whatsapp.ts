@@ -1,6 +1,6 @@
 import { WhatsAppIcon } from '@/components/icons'
 import { ToolResponse } from '@/tools/types'
-import { BlockCategory, BlockConfig, BlockIcon } from '../types'
+import { BlockConfig } from '../types'
 
 interface WhatsAppBlockOutput extends ToolResponse {
   output: {
