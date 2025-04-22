@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getJiraCloudId } from '@/tools/jira/utils'
+import { Logger } from '@/lib/logs/console-logger'
+
+const logger = new Logger('jira_issues')
 
 export async function POST(request: Request) {
   try {
@@ -14,27 +17,16 @@ export async function POST(request: Request) {
     }
 
     if (issueKeys.length === 0) {
-      console.log('No issue keys provided, returning empty result')
+      logger.info('No issue keys provided, returning empty result')
       return NextResponse.json({ issues: [] })
     }
 
-    // Log request details for debugging
-    console.log('Request details:', {
-      domain,
-      tokenLength: accessToken ? accessToken.length : 0,
-      issueKeysCount: issueKeys.length,
-      hasCloudId: !!providedCloudId
-    })
-
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
-    console.log('Using cloud ID:', cloudId)
 
     // Build the URL using cloudId for Jira API
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
     
-    console.log(`Fetching Jira issues from: ${url}`)
-
     // Prepare the request body for bulk fetch
     const requestBody = {
       expand: ["names"],
@@ -43,11 +35,6 @@ export async function POST(request: Request) {
       issueIdsOrKeys: issueKeys,
       properties: []
     }
-
-    console.log("Request body:", {
-      ...requestBody,
-      issueIdsOrKeys: requestBody.issueIdsOrKeys.slice(0, 5) // Only log a few issue keys
-    })
 
     // Make the request to Jira API with OAuth Bearer token
     const requestConfig = {
@@ -62,22 +49,19 @@ export async function POST(request: Request) {
 
     const response = await fetch(url, requestConfig)
 
-    console.log('Response status:', response.status, response.statusText)
-
     if (!response.ok) {
-      console.error(`Jira API error: ${response.status} ${response.statusText}`)
+      logger.error(`Jira API error: ${response.status} ${response.statusText}`)
       let errorMessage
 
       try {
         const errorData = await response.json()
-        console.error('Error details:', JSON.stringify(errorData, null, 2))
+        logger.error('Error details:', JSON.stringify(errorData, null, 2))
         errorMessage = errorData.message || `Failed to fetch Jira issues (${response.status})`
       } catch (e) {
-        console.error('Could not parse error response as JSON:', e)
+        logger.error('Could not parse error response as JSON:', e)
 
         try {
           const text = await response.text()
-          console.error('Response text:', text)
           errorMessage = `Failed to fetch Jira issues: ${response.status} ${response.statusText}`
         } catch (textError) {
           errorMessage = `Failed to fetch Jira issues: ${response.status} ${response.statusText}`
@@ -88,13 +72,11 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    console.log('Jira API response:', JSON.stringify(data, null, 2).substring(0, 300) + '...')
-    console.log(`Found ${data.issues?.length || 0} issues`)
+ 
 
     if (data.issues && data.issues.length > 0) {
-      console.log('First few issues:')
       data.issues.slice(0, 3).forEach((issue: any) => {
-        console.log(`- ${issue.key}: ${issue.fields.summary}`)
+        logger.info(`- ${issue.key}: ${issue.fields.summary}`)
       })
     }
 
@@ -110,7 +92,7 @@ export async function POST(request: Request) {
       cloudId // Return the cloudId so it can be cached
     })
   } catch (error) {
-    console.error('Error fetching Jira issues:', error)
+    logger.error('Error fetching Jira issues:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
@@ -136,7 +118,7 @@ export async function GET(request: Request) {
 
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
-    console.log('Using cloud ID:', cloudId)
+    logger.info('Using cloud ID:', cloudId)
 
     // Build query parameters
     const params = new URLSearchParams()
@@ -149,7 +131,7 @@ export async function GET(request: Request) {
     // Use the correct Jira Cloud OAuth endpoint structure
     const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/picker?${params.toString()}`
 
-    console.log(`Fetching Jira issue suggestions from: ${apiUrl}`)
+    logger.info(`Fetching Jira issue suggestions from: ${apiUrl}`)
 
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -159,14 +141,14 @@ export async function GET(request: Request) {
       }
     })
 
-    console.log('Response status:', response.status, response.statusText)
+    logger.info('Response status:', response.status, response.statusText)
 
     if (!response.ok) {
-      console.error(`Jira API error: ${response.status} ${response.statusText}`)
+      logger.error(`Jira API error: ${response.status} ${response.statusText}`)
       let errorMessage
       try {
         const errorData = await response.json()
-        console.error('Error details:', errorData)
+        logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch issue suggestions (${response.status})`
       } catch (e) {
         errorMessage = `Failed to fetch issue suggestions: ${response.status} ${response.statusText}`
@@ -176,30 +158,13 @@ export async function GET(request: Request) {
 
     const data = await response.json()
     
-    // Add detailed logging
-    console.log('Jira API Response Status:', response.status)
-    console.log('Response Data:', JSON.stringify(data, null, 2))
-    
-    // Log sections and issues if they exist
-    if (data.sections) {
-      console.log('Number of sections:', data.sections.length)
-      data.sections.forEach((section: any, index: number) => {
-        console.log(`Section ${index + 1}:`, {
-          label: section.label,
-          issueCount: section.issues?.length || 0
-        })
-        if (section.issues?.length > 0) {
-          console.log('First issue in section:', section.issues[0])
-        }
-      })
-    }
 
     return NextResponse.json({
       ...data,
       cloudId // Return the cloudId so it can be cached
     })
   } catch (error) {
-    console.error('Error fetching Jira issue suggestions:', error)
+    logger.error('Error fetching Jira issue suggestions:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }

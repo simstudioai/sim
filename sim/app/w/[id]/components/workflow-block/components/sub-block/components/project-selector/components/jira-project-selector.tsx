@@ -21,6 +21,9 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+import { Logger } from '@/lib/logs/console-logger'
+
+const logger = new Logger('jira_project_selector')
 
 export interface JiraProjectInfo {
   id: string
@@ -143,7 +146,7 @@ export function JiraProjectSelector({
         }
       }
     } catch (error) {
-      console.error('Error fetching credentials:', error)
+      logger.error('Error fetching credentials:', error)
     } finally {
       setIsLoading(false)
     }
@@ -171,7 +174,7 @@ export function JiraProjectSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          console.error('Access token error:', errorData)
+          logger.error('Access token error:', errorData)
           setError('Authentication failed. Please reconnect your Jira account.')
           return
         }
@@ -180,7 +183,7 @@ export function JiraProjectSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          console.error('No access token returned')
+          logger.error('No access token returned')
           setError('Authentication failed. Please reconnect your Jira account.')
           return
         }
@@ -197,7 +200,7 @@ export function JiraProjectSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Jira API error:', errorData)
+          logger.error('Jira API error:', errorData)
           throw new Error(errorData.error || 'Failed to fetch project details')
         }
 
@@ -210,7 +213,7 @@ export function JiraProjectSelector({
         setSelectedProject(projectInfo)
         onProjectInfoChange?.(projectInfo)
       } catch (error) {
-        console.error('Error fetching project details:', error)
+        logger.error('Error fetching project details:', error)
         setError((error as Error).message)
       } finally {
         setIsLoading(false)
@@ -252,7 +255,7 @@ export function JiraProjectSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          console.error('Access token error:', errorData)
+          logger.error('Access token error:', errorData)
           setError('Authentication failed. Please reconnect your Jira account.')
           setIsLoading(false)
           return
@@ -262,7 +265,7 @@ export function JiraProjectSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          console.error('No access token returned')
+          logger.error('No access token returned')
           setError('Authentication failed. Please reconnect your Jira account.')
           setIsLoading(false)
           return
@@ -281,7 +284,7 @@ export function JiraProjectSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Jira API error:', errorData)
+          logger.error('Jira API error:', errorData)
           throw new Error(errorData.error || 'Failed to fetch projects')
         }
 
@@ -293,7 +296,7 @@ export function JiraProjectSelector({
 
         // Process the projects results
         const foundProjects = data.projects || []
-        console.log(`Received ${foundProjects.length} projects from API`)
+        logger.info(`Received ${foundProjects.length} projects from API`)
         setProjects(foundProjects)
 
         // If we have a selected project ID, find the project info
@@ -310,7 +313,7 @@ export function JiraProjectSelector({
           }
         }
       } catch (error) {
-        console.error('Error fetching projects:', error)
+        logger.error('Error fetching projects:', error)
         setError((error as Error).message)
         setProjects([])
       } finally {

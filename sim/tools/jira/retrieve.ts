@@ -1,6 +1,9 @@
 import { ToolConfig } from '../types'
 import { JiraRetrieveResponse } from './types'
 import { JiraRetrieveParams } from './types'
+import { Logger } from '../../lib/logs/console-logger'
+
+const logger = new Logger('jira_retrieve')
 
 export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveResponse> = {
     id: 'jira_retrieve',
@@ -86,7 +89,7 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
                 const matchedResource = accessibleResources.find(r => r.url.toLowerCase() === normalizedInput);
 
                 if (!matchedResource) {
-                    console.error('Available resources:', accessibleResources.map(r => r.url));
+                    logger.error('Available resources:', accessibleResources.map(r => r.url));
                     throw new Error(`Could not find matching Jira site for domain: ${params.domain}`);
                 }
 
@@ -146,13 +149,13 @@ export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveRespon
                 },
             };
         } catch (error) {
-            console.error('Error in Jira retrieve:', error);
+            logger.error('Error in Jira retrieve:', error);
             throw error instanceof Error ? error : new Error(String(error));
         }
     },
     
     transformError: (error: any) => {
-        console.error('Tool error:', error);
+        logger.error('Tool error:', error);
         return error.message || 'Failed to retrieve Jira issue';
     },
 }

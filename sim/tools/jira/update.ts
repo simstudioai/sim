@@ -1,6 +1,9 @@
 import { ToolConfig } from '../types'
 import { JiraUpdateResponse, JiraUpdateParams } from './types'
 import { getJiraCloudId } from './utils'
+import { Logger } from '../../lib/logs/console-logger'
+
+const logger = new Logger('jira_update')
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
     id: 'jira_update',
@@ -78,9 +81,9 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         if (!params.cloudId) {
             try {
                 params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
-                console.log('Pre-fetched cloudId:', params.cloudId)
+                logger.info('Pre-fetched cloudId:', params.cloudId)
             } catch (error) {
-                console.error('Error pre-fetching cloudId:', error)
+                logger.error('Error pre-fetching cloudId:', error)
                 throw error
             }
         }
@@ -94,9 +97,9 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
                 throw new Error('Domain, issueKey, and cloudId are required')
             }
             
-            console.log('Using cloudId:', cloudId)
+            logger.info('Using cloudId:', cloudId)
             const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
-            console.log('Generated URL:', url)
+            logger.info('Generated URL:', url)
             return url
         },
         method: 'PUT',
@@ -106,13 +109,13 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
             'Content-Type': 'application/json'
         }),
         body: (params) => {
-            console.log('Full params object received in update tool:', params)
+            logger.info('Full params object received in update tool:', params)
             
             // Map the summary from either summary or title field
             const summaryValue = params.summary || params.title
             const descriptionValue = params.description
             
-            console.log('Update params received:', {
+            logger.info('Update params received:', {
                 summary: summaryValue,
                 description: descriptionValue,
                 status: params.status,
@@ -123,14 +126,14 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
             const fields: Record<string, any> = {}
             
             if (summaryValue) {
-                console.log('Setting summary:', summaryValue)
+                logger.info('Setting summary:', summaryValue)
                 fields.summary = summaryValue
             } else {
-                console.log('Summary is undefined or empty')
+                logger.info('Summary is undefined or empty')
             }
 
             if (descriptionValue) {
-                console.log('Setting description:', descriptionValue)
+                logger.info('Setting description:', descriptionValue)
                 fields.description = {
                     type: 'doc',
                     version: 1,
@@ -147,31 +150,31 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
                     ]
                 }
             } else {
-                console.log('Description is undefined or empty')
+                logger.info('Description is undefined or empty')
             }
 
             if (params.status) {
-                console.log('Setting status:', params.status)
+                logger.info('Setting status:', params.status)
                 fields.status = {
                     name: params.status
                 }
             }
 
             if (params.priority) {
-                console.log('Setting priority:', params.priority)
+                logger.info('Setting priority:', params.priority)
                 fields.priority = {
                     name: params.priority
                 }
             }
 
             if (params.assignee) {
-                console.log('Setting assignee:', params.assignee)
+                logger.info('Setting assignee:', params.assignee)
                 fields.assignee = {
                     id: params.assignee
                 }
             }
 
-            console.log('Final request body:', { fields })
+            logger.info('Final request body:', { fields })
             return { fields }
         }
     },
@@ -179,7 +182,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     transformResponse: async (response: Response, params?: JiraUpdateParams) => {
         // Log the response details for debugging
         const responseText = await response.text()
-        console.log('Raw response:', {
+        logger.info('Raw response:', {
             status: response.status,
             statusText: response.statusText,
             headers: Object.fromEntries(response.headers.entries()),
@@ -234,7 +237,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
                 },
             }
         } catch (e) {
-            console.error('Error parsing successful response:', e)
+            logger.error('Error parsing successful response:', e)
             // If we can't parse the response but it was successful, still return success
             return {
                 success: true,
@@ -249,7 +252,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     },
     
     transformError: (error: any) => {
-        console.error('Jira update error:', error)
+        logger.error('Jira update error:', error)
         return error.message || 'Failed to update Jira issue'
     }
 }
