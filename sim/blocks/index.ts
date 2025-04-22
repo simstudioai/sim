@@ -18,6 +18,7 @@ import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
 import { GoogleSearchBlock } from './blocks/google'
 // import { GuestyBlock } from './blocks/guesty'
+import { HubspotBlock } from './blocks/hubspot'
 import { ImageGeneratorBlock } from './blocks/image-generator'
 import { JinaBlock } from './blocks/jina'
 import { LinkupBlock } from './blocks/linkup'
@@ -95,6 +96,7 @@ export {
   ThinkingBlock,
   StagehandBlock,
   StagehandAgentBlock,
+  HubspotBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -119,6 +121,7 @@ const blocks: Record<string, BlockConfig> = {
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
   // guesty: GuestyBlock,
+  hubspot: HubspotBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   linkup: LinkupBlock,

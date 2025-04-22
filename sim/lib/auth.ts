@@ -60,6 +60,7 @@ export const auth = betterAuth({
         'supabase',
         'x',
         'notion',
+        'hubspot'
       ],
     },
   },
@@ -542,6 +543,44 @@ export const auth = betterAuth({
               logger.error('Error in Notion getUserInfo:', { error })
               return null
             }
+          },
+        },
+        {
+          providerId: 'hubspot',
+          clientId: process.env.HUBSPOT_CLIENT_ID as string,
+          clientSecret: process.env.HUBSPOT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.hubspot.com/oauth/authorize',
+          tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
+          userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/hubspot`,
+          scopes: [
+            'crm.objects.contacts.read',
+            'crm.objects.contacts.write',
+            'crm.objects.deals.read',
+            'crm.objects.deals.write',
+            'marketing.campaigns.read',
+            'marketing.forms.read',
+            'marketing-emails.read'
+          ],
+          pkce: true,
+          getUserInfo: async (tokens) => {
+            const res = await fetch(
+              `https://api.hubapi.com/oauth/v1/access-tokens/${tokens.accessToken}`
+            );
+            if (!res.ok) {
+              throw new Error(`HubSpot userinfo failed: ${res.statusText}`);
+            }
+            const info = await res.json();
+            const now = new Date();
+            return {
+              id: info.user.userId.toString(),
+              name: info.user.email,
+              email: info.user.email,
+              image: null,
+              emailVerified: true,
+              createdAt: now,
+              updatedAt: now,
+            };
           },
         },
       ],

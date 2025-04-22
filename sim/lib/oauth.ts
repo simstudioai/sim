@@ -12,6 +12,7 @@ import {
   NotionIcon,
   SupabaseIcon,
   xIcon,
+  HubspotIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -26,6 +27,7 @@ export type OAuthProvider =
   | 'confluence'
   | 'airtable'
   | 'notion'
+  | 'hubspot'
   | string
 export type OAuthService =
   | 'google'
@@ -39,6 +41,7 @@ export type OAuthService =
   | 'confluence'
   | 'airtable'
   | 'notion'
+  | 'hubspot'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -230,6 +233,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'notion',
   },
+  hubspot: {
+    id: 'hubspot',
+    name:'HubSpot',
+    icon: (props) => HubspotIcon(props),
+    services: {
+      notion: {
+        id: 'hubspot',
+        name: 'HubSpot',
+        description: 'Connect to your HubSpot Account to manage CRM.',
+        providerId: 'hubspot',
+        icon: (props) => HubspotIcon(props),
+        baseProviderIcon: (props) => HubspotIcon(props),
+        scopes: [ 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'marketing.forms.read', 'marketing-emails.read'],
+      },
+    },
+    defaultService: 'hubspot',
+  }
 }
 
 // Helper function to get a service by provider and service ID
@@ -282,6 +302,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'airtable'
   } else if (provider === 'notion') {
     return 'notion'
+  } else if (provider === 'hubspot') {
+    return 'hubspot'
   }
 
   return providerConfig.defaultService
@@ -397,6 +419,11 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
         clientId = process.env.NOTION_CLIENT_ID
         clientSecret = process.env.NOTION_CLIENT_SECRET
+        break
+      case 'hubspot':
+        tokenEndpoint = "https://api.hubapi.com/oauth/v1/token"
+        clientId = process.env.HUBSPOT_CLIENT_ID
+        clientSecret = process.env.HUBSPOT_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
