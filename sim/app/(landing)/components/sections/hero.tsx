@@ -1,29 +1,67 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Command, CornerDownLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { GridPattern } from '../grid-pattern'
 import HeroWorkflowProvider from '../hero-workflow'
+import { useSession } from '@/lib/auth-client'
 
 function Hero() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [hasLoggedInBefore, setHasLoggedInBefore] = useState(false)
+  const { data: session, isPending } = useSession()
+  const isAuthenticated = !isPending && !!session?.user
+  const [isTransitioning, setIsTransitioning] = useState(true)
+
+  const handleStartNowClick = () => {
+    // Ensure the cookie is set for middleware
+    if (typeof window !== 'undefined') {
+      document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
+    }
+    
+    // If user has an active session, go directly to workflows
+    if (isAuthenticated) {
+      router.push('/w')
+    } else {
+      // User has logged in before but doesn't have an active session
+      router.push('/login')
+    }
+  }
 
   useEffect(() => {
+    // Check if user has previously logged in
+    if (typeof window !== 'undefined') {
+      const loggedInBefore = localStorage.getItem('has_logged_in_before') === 'true'
+      setHasLoggedInBefore(loggedInBefore)
+    }
+
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        router.push('/login')
+        if (isAuthenticated) {
+          router.push('/w')
+        } else {
+          router.push('/login')
+        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [router])
+  }, [router, isAuthenticated])
+
+  // Handle transition state
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsTransitioning(false)
+    }, 800) // Slightly longer than animation-delay to ensure smooth appearance
+    
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,6 +111,58 @@ function Hero() {
       default:
         return 'bg-[#701ffc] hover:bg-[#802FFF] text-white'
     }
+  }
+
+  // Render the appropriate action UI based on auth status
+  const renderActionUI = () => {
+    // If we're still in the initial animation phase or auth is pending,
+    // return an empty div with height to maintain layout consistency
+    if (isTransitioning || isPending) {
+      return <div className="h-[56px] md:h-[64px]" />
+    }
+
+    if (isAuthenticated || hasLoggedInBefore) {
+      return (
+        <Button
+          variant={'secondary'}
+          onClick={handleStartNowClick}
+          className="bg-[#701ffc] font-geist-sans items-center px-7 py-6 text-lg text-neutral-100 font-[420] tracking-normal shadow-lg shadow-[#701ffc]/30 hover:bg-[#802FFF] animate-fade-in"
+          aria-label="Start using the platform"
+        >
+          <div className="text-[1.15rem]">Start now</div>
+
+          <div className="flex items-center gap-1 pl-2 opacity-80" aria-hidden="true">
+            <Command size={24} />
+            <CornerDownLeft />
+          </div>
+        </Button>
+      )
+    }
+
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-3 items-center w-full mx-auto mt-1 md:mt-2 px-4 sm:px-0 animate-fade-in"
+      >
+        <div className="flex w-full max-w-xs sm:max-w-sm md:max-w-md gap-2 sm:gap-3">
+          <Input
+            type="email"
+            placeholder="you@example.com"
+            className="flex-1 min-w-0 h-[48px] bg-[#121212]/60 border-[rgba(255,255,255,0.08)] focus:border-[rgba(255,255,255,0.15)] text-white placeholder:text-neutral-500 text-sm sm:text-base font-medium rounded-md shadow-inner"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={isSubmitting}
+          />
+          <Button
+            type="submit"
+            className={`h-[47px] font-medium px-6 rounded-md shadow-lg ${getButtonStyle()} shadow-[#701ffc]/20`}
+            disabled={isSubmitting}
+          >
+            {getButtonText()}
+          </Button>
+        </div>
+      </form>
+    )
   }
 
   return (
@@ -142,45 +232,8 @@ function Hero() {
           user-friendly environment for devs and agents
         </p>
 
-        {/* <div className="animate-fade-up pt-4 pb-10 [animation-delay:600ms] opacity-0 translate-y-[-10px] will-change-[opacity,transform] animation-container">
-          <Button
-            variant={'secondary'}
-            onClick={() => router.push('/login')}
-            className="bg-[#701ffc] font-geist-sans items-center px-7 py-6 text-lg text-neutral-100 font-[420] tracking-normal shadow-lg shadow-[#701ffc]/30 hover:bg-[#802FFF]"
-            aria-label="Start using the platform"
-          >
-            <div className="text-[1.15rem]">Start now</div>
-
-            <div className="flex items-center gap-1 pl-2 opacity-80" aria-hidden="true">
-              <Command size={24} />
-              <CornerDownLeft />
-            </div>
-          </Button>
-        </div> */}
-
-        <div className="animate-fade-up pb-10 [animation-delay:600ms] opacity-0 translate-y-[-10px] will-change-[opacity,transform] animation-container">
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-3 items-center w-full mx-auto mt-1 md:mt-2 px-4 sm:px-0"
-          >
-            <div className="flex w-full max-w-xs sm:max-w-sm md:max-w-md gap-2 sm:gap-3">
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                className="flex-1 min-w-0 h-[48px] bg-[#121212]/60 border-[rgba(255,255,255,0.08)] focus:border-[rgba(255,255,255,0.15)] text-white placeholder:text-neutral-500 text-sm sm:text-base font-medium rounded-md shadow-inner"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-              />
-              <Button
-                type="submit"
-                className={`h-[47px] font-medium px-6 rounded-md shadow-lg ${getButtonStyle()} shadow-[#701ffc]/20`}
-                disabled={isSubmitting}
-              >
-                {getButtonText()}
-              </Button>
-            </div>
-          </form>
+        <div className="animate-fade-up pt-4 pb-10 [animation-delay:600ms] opacity-0 translate-y-[-10px] will-change-[opacity,transform] animation-container">
+          {renderActionUI()}
         </div>
       </div>
     </section>

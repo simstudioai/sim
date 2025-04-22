@@ -251,6 +251,15 @@
       rgba(180, 180, 180, 0) 100%
     );
   }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out forwards;
+  }
 }
 
 /* Dark mode error badge styling */
