@@ -1,6 +1,9 @@
 import { ToolConfig } from '../types'
 import { JiraWriteResponse, JiraWriteParams } from './types'
 import { getJiraCloudId } from './utils'
+import { Logger } from '../../lib/logs/console-logger'
+
+const logger = new Logger('jira_write')
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     id: 'jira_write',
@@ -78,9 +81,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         if (!params.cloudId) {
             try {
                 params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
-                console.log('Pre-fetched cloudId:', params.cloudId)
             } catch (error) {
-                console.error('Error pre-fetching cloudId:', error)
+                logger.error('Error pre-fetching cloudId:', error)
                 throw error
             }
         }
@@ -94,9 +96,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
                 throw new Error('Domain and cloudId are required')
             }
             
-            console.log('Using cloudId:', cloudId)
             const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue`
-            console.log('Generated URL:', url)
+            
             return url
         },
         method: 'POST',
@@ -106,7 +107,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             'Content-Type': 'application/json'
         }),
         body: (params) => {
-            console.log('Full params object received in write tool:', params)
             
             // Validate required fields
             if (!params.projectId) {
@@ -132,7 +132,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             
             // Only add description if it exists
             if (params.description) {
-                console.log('Setting description:', params.description)
                 fields.description = {
                     type: 'doc',
                     version: 1,
@@ -152,12 +151,10 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
 
             // Only add parent if it exists
             if (params.parent) {
-                console.log('Setting parent:', params.parent)
                 fields.parent = params.parent
             }
 
             const body = { fields }
-            console.log('Final request body:', body)
             return body
         }
     },
@@ -165,12 +162,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     transformResponse: async (response: Response, params?: JiraWriteParams) => {
         // Log the response details for debugging
         const responseText = await response.text()
-        console.log('Raw response:', {
-            status: response.status,
-            statusText: response.statusText,
-            headers: Object.fromEntries(response.headers.entries()),
-            body: responseText
-        })
 
         if (!response.ok) {
             try {
@@ -221,7 +212,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
                 },
             }
         } catch (e) {
-            console.error('Error parsing successful response:', e)
+            logger.error('Error parsing successful response:', e)
             return {
                 success: true,
                 output: {
@@ -236,7 +227,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     },
 
     transformError: (error: any) => {
-        console.error('Jira write error:', error)
+        logger.error('Jira write error:', error)
         return error.message || 'Failed to create Jira issue'
     }
 }

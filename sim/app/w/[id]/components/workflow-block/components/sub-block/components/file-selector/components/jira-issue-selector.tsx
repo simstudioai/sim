@@ -21,8 +21,9 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
-import { JiraCloudResource } from '@/tools/jira/types'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { Logger } from '@/lib/logs/console-logger'
+
+const logger = new Logger('jira_issue_selector')
 
 export interface JiraIssueInfo {
   id: string
@@ -144,7 +145,7 @@ export function JiraIssueSelector({
         }
       }
     } catch (error) {
-      console.error('Error fetching credentials:', error)
+      logger.error('Error fetching credentials:', error)
     } finally {
       setIsLoading(false)
     }
@@ -153,14 +154,6 @@ export function JiraIssueSelector({
   // Fetch issue info when we have a selected issue ID
   const fetchIssueInfo = useCallback(
     async (issueId: string) => {
-      if (!issueId || !issueId.trim() || !selectedCredentialId || !domain) {
-        console.log('Skipping issue info fetch due to missing required data:', {
-          hasIssueId: !!issueId,
-          hasCredential: !!selectedCredentialId,
-          hasDomain: !!domain
-        })
-        return
-      }
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
@@ -226,7 +219,7 @@ export function JiraIssueSelector({
           onIssueInfoChange?.(data.issue)
         }
       } catch (error) {
-        console.error('Error fetching issue info:', error)
+        logger.error('Error fetching issue info:', error)
         setError((error as Error).message)
         // Clear selection on error to prevent infinite retry loops
         setSelectedIssue(null)
@@ -271,7 +264,7 @@ export function JiraIssueSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          console.error('Access token error:', errorData)
+          logger.error('Access token error:', errorData)
 
           // If there's a token error, we might need to reconnect the account
           setError('Authentication failed. Please reconnect your Jira account.')
@@ -283,7 +276,7 @@ export function JiraIssueSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          console.error('No access token returned')
+          logger.error('No access token returned')
           setError('Authentication failed. Please reconnect your Jira account.')
           setIsLoading(false)
           return
@@ -307,7 +300,7 @@ export function JiraIssueSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Jira API error:', errorData)
+          logger.error('Jira API error:', errorData)
           throw new Error(errorData.error || 'Failed to fetch issues')
         }
 
@@ -337,7 +330,7 @@ export function JiraIssueSelector({
           })
         }
         
-        console.log(`Received ${foundIssues.length} issues from API`)
+        logger.info(`Received ${foundIssues.length} issues from API`)
         setIssues(foundIssues)
 
         // If we have a selected issue ID, find the issue info
@@ -352,7 +345,7 @@ export function JiraIssueSelector({
           }
         }
       } catch (error) {
-        console.error('Error fetching issues:', error)
+        logger.error('Error fetching issues:', error)
         setError((error as Error).message)
         setIssues([])
       } finally {
