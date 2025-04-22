@@ -5,10 +5,10 @@ import JSZip from 'jszip'
 
 // Configure size limits (in bytes)
 const PREVIEW_LIMITS = {
-  TEXT: 5 * 1024 * 1024,      // 5MB for text files
+  TEXT: 10 * 1024 * 1024,      // 5MB for text files
   OFFICE: 10 * 1024 * 1024,   // 10MB for Office documents
-  IMAGE: 2 * 1024 * 1024,     // 2MB for images
-  DEFAULT: 1 * 1024 * 1024    // 1MB for other files
+  IMAGE: 10 * 1024 * 1024,     // 2MB for images
+  DEFAULT: 10 * 1024 * 1024    // 1MB for other files
 };
 
 // Function to encode S3 path components
@@ -66,12 +66,114 @@ function generatePresignedUrl(params: any, expiresIn: number = 3600): string {
   return `https://${params.bucketName}.s3.${params.region}.amazonaws.com/${encodedPath}?${canonicalQueryString}&X-Amz-Signature=${signature}`;
 }
 
+// Extract content from Office XML documents
+async function extractOfficeXMLText(buf: Buffer): Promise<string> {
+  try {
+    // Load the file as a ZIP archive
+    const zip = new JSZip();
+    const zipContents = await zip.loadAsync(buf);
+    
+    // Array to store all text content
+    const textContents: string[] = [];
+    
+    // Look for main content files based on Office format
+    const contentFiles = [
+      'word/document.xml',    // Word
+      'xl/sharedStrings.xml', // Excel
+      'ppt/slides/*.xml'      // PowerPoint
+    ];
+    
+    // Extract text from each relevant file
+    for (const fileName of Object.keys(zipContents.files)) {
+      if (contentFiles.some(pattern => {
+        if (pattern.includes('*')) {
+          const regex = new RegExp(pattern.replace('*', '.*'));
+          return regex.test(fileName);
+        }
+        return fileName === pattern;
+      })) {
+        const content = await zipContents.files[fileName].async('text');
+        // Extract text between XML tags
+        const textMatches = content.match(/>([^<]+)</g) || [];
+        const extractedText = textMatches
+          .map(match => match.slice(1, -1)) // Remove > and <
+          .filter(text => text.trim().length > 0) // Remove empty strings
+          .join(' ');
+        textContents.push(extractedText);
+      }
+    }
+    
+    // Combine all extracted text
+    return textContents
+      .join(' ')
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  } catch (e) {
+    console.error('Error extracting Office document text:', e);
+    return '';
+  }
+}
+
+// Function to check if content is likely binary
+function isBinaryContent(buf: Buffer): boolean {
+  // Check the first chunk of bytes for binary content
+  const sampleSize = Math.min(100, buf.length);
+  for (let i = 0; i < sampleSize; i++) {
+    const byte = buf[i];
+    // Consider it binary if we find null bytes or too many non-printable characters
+    if (byte === 0 || (byte < 32 && ![9, 10, 13].includes(byte))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Get full content based on file type
+async function getFullContent(buffer: Buffer, contentType: string, fileName: string): Promise<string> {
+  const extension = path.extname(fileName).toLowerCase();
+  
+  // Handle Office documents
+  if (['.docx', '.xlsx', '.pptx'].includes(extension)) {
+    const extractedText = await extractOfficeXMLText(buffer);
+    if (extractedText) {
+      return extractedText;
+    }
+    return `[Binary content: Office document ${fileName}]`;
+  }
+  
+  // Handle text files
+  if (!isBinaryContent(buffer) || 
+      contentType.includes('text/') || 
+      contentType.includes('application/json') ||
+      contentType.includes('application/xml') ||
+      contentType.includes('application/javascript') ||
+      contentType.includes('csv') ||
+      extension === '.csv') {
+    try {
+      return buffer.toString('utf8').replace(/[^\x20-\x7E\n\r\t]/g, '');
+    } catch (e) {
+      return buffer.toString('ascii').replace(/[^\x20-\x7E\n\r\t]/g, '');
+    }
+  }
+  
+  // For binary files, return placeholder
+  if (contentType.includes('pdf') || extension === '.pdf') {
+    return `[Binary content: PDF document ${fileName}]`;
+  } else if (contentType.includes('image/')) {
+    return `[Binary content: Image file ${fileName}]`;
+  } else if (['.doc', '.xls', '.ppt'].includes(extension)) {
+    return `[Binary content: Legacy Office document ${fileName}]`;
+  }
+  
+  return `[Binary content: File ${fileName}]`;
+}
+
 // Get Object Tool
 export const s3GetObjectTool: ToolConfig = {
   id: 's3_get_object',
   name: 'S3 Get Object',
-  description: 'Retrieve an object from an AWS S3 bucket',
-  version: '1.0.0',
+  description: 'Retrieve an object from an AWS S3 bucket with full content access',
+  version: '2.0.0',
   params: {
     accessKeyId: {
       type: 'string',
@@ -98,11 +200,11 @@ export const s3GetObjectTool: ToolConfig = {
       required: true,
       description: 'Key (path) of the object to retrieve',
     },
-    parseContent: {
+    includeFullContent: {
       type: 'boolean',
       required: false,
       default: true,
-      description: 'Whether to parse the file content based on file type',
+      description: 'Whether to include full file content in response'
     }
   },
   request: {
@@ -175,260 +277,71 @@ export const s3GetObjectTool: ToolConfig = {
       const fileName = params.objectKey.split('/').pop() || params.objectKey;
       const extension = path.extname(fileName).toLowerCase();
 
-      // Generate pre-signed URL first, before handling any file data
-      const downloadUrl = generatePresignedUrl(params, 3600);
+      // Read file content
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
 
-      // Initialize response structure
-      const responseData = {
+      // Determine file type
+      let fileType = 'binary';
+      if (contentType.includes('pdf') || extension === '.pdf') {
+        fileType = 'pdf';
+      } else if (contentType.includes('document') || extension === '.docx') {
+        fileType = 'document';
+      } else if (contentType.includes('spreadsheet') || ['.xlsx', '.xls'].includes(extension)) {
+        fileType = 'spreadsheet';
+      } else if (contentType.includes('presentation') || ['.ppt', '.pptx'].includes(extension)) {
+        fileType = 'presentation';
+      } else if (contentType.includes('csv') || extension === '.csv') {
+        fileType = 'text';
+      } else if (contentType.includes('text/') || extension === '.txt') {
+        fileType = 'text';
+      } else if (contentType.includes('image/')) {
+        fileType = 'image';
+      }
+
+      // Generate content based on file type
+      let content = '';
+      if (fileType === 'image') {
+        // For images, return base64 encoded data
+        content = `data:${contentType};base64,${buffer.toString('base64')}`;
+      } else if (fileType === 'text' || fileType === 'csv') {
+        // For text files, return the actual content
+        content = buffer.toString('utf8');
+      } else if (['.docx', '.xlsx', '.pptx'].includes(extension)) {
+        // For Office documents, extract text content
+        const extractedText = await extractOfficeXMLText(buffer);
+        content = extractedText || `[Office document content not extractable: ${fileName}]`;
+      } else {
+        // For other file types, generate a presigned URL
+        const downloadUrl = generatePresignedUrl(params, 3600);
+        content = `[Binary content: ${fileName}]\nDownload URL: ${downloadUrl}`;
+      }
+
+      // Return simplified response structure
+      return {
         success: true,
         output: {
-          content: downloadUrl,
-          preview: '',
-          filePreview: '',  // New field for text preview
-          fileType: '',
+          content,
           metadata: {
-            fileName,
+            fileType,
+            size: contentLength,
+            name: fileName,
             contentType,
-            fileSize: contentLength,
-            lastModified,
-            extension,
-            sizeExceedsLimit: contentLength >= 1024 * 1024
+            lastModified
           }
         }
       };
-
-      // Format file size for display
-      const fileSizeStr = contentLength > 1024 * 1024 
-        ? `${(contentLength / 1024 / 1024).toFixed(2)} MB`
-        : `${(contentLength / 1024).toFixed(2)} KB`;
-
-      // Always try to get a preview of the content
-      try {
-        // Read appropriate chunk of the file based on type
-        let previewSizeLimit = PREVIEW_LIMITS.DEFAULT;
-
-        // Determine appropriate size limit based on file type
-        if (['.docx', '.xlsx', '.pptx'].includes(extension)) {
-          previewSizeLimit = PREVIEW_LIMITS.OFFICE;
-        } else if (contentType.includes('text/') || 
-                  contentType.includes('application/json') ||
-                  contentType.includes('application/xml') ||
-                  contentType.includes('application/javascript') ||
-                  contentType.includes('csv') ||
-                  extension === '.csv') {
-          previewSizeLimit = PREVIEW_LIMITS.TEXT;
-        } else if (contentType.includes('image/')) {
-          previewSizeLimit = PREVIEW_LIMITS.IMAGE;
-        }
-
-        // Read first chunk of the file
-        const previewChunkSize = Math.min(previewSizeLimit, contentLength);
-        const arrayBuffer = await response.clone().arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer.slice(0, previewChunkSize));
-        
-        // Function to check if content is likely binary
-        const isBinaryContent = (buf: Buffer): boolean => {
-          // Check the first chunk of bytes for binary content
-          const sampleSize = Math.min(100, buf.length);
-          for (let i = 0; i < sampleSize; i++) {
-            const byte = buf[i];
-            // Consider it binary if we find null bytes or too many non-printable characters
-            if (byte === 0 || (byte < 32 && ![9, 10, 13].includes(byte))) {
-              return true;
-            }
-          }
-          return false;
-        };
-
-        // Function to extract text from Office XML documents
-        const extractOfficeXMLText = async (buf: Buffer): Promise<string> => {
-          try {
-            // Load the file as a ZIP archive
-            const zip = new JSZip();
-            const zipContents = await zip.loadAsync(buf);
-            
-            // Array to store all text content
-            const textContents: string[] = [];
-            
-            // Look for main content files based on Office format
-            const contentFiles = [
-              'word/document.xml',    // Word
-              'xl/sharedStrings.xml', // Excel
-              'ppt/slides/*.xml'      // PowerPoint
-            ];
-            
-            // Extract text from each relevant file
-            for (const fileName of Object.keys(zipContents.files)) {
-              if (contentFiles.some(pattern => {
-                if (pattern.includes('*')) {
-                  const regex = new RegExp(pattern.replace('*', '.*'));
-                  return regex.test(fileName);
-                }
-                return fileName === pattern;
-              })) {
-                const content = await zipContents.files[fileName].async('text');
-                // Extract text between XML tags
-                const textMatches = content.match(/>([^<]+)</g) || [];
-                const extractedText = textMatches
-                  .map(match => match.slice(1, -1)) // Remove > and <
-                  .filter(text => text.trim().length > 0) // Remove empty strings
-                  .join(' ');
-                textContents.push(extractedText);
-              }
-            }
-            
-            // Combine all extracted text
-            return textContents
-              .join(' ')
-              .replace(/\s+/g, ' ') // Normalize whitespace
-              .trim()
-              .substring(0, 1000);
-          } catch (e) {
-            console.error('Error extracting Office document text:', e);
-            return '';
-          }
-        };
-
-        let filePreview = '';
-        
-        // Handle different file types
-        if (['.docx', '.xlsx', '.pptx'].includes(extension)) {
-          if (contentLength > PREVIEW_LIMITS.OFFICE) {
-            responseData.output.filePreview = `Office document too large to preview (${(contentLength / (1024 * 1024)).toFixed(2)}MB). Size limit is ${PREVIEW_LIMITS.OFFICE / (1024 * 1024)}MB. Use the download link to view the file.`;
-          } else {
-            filePreview = await extractOfficeXMLText(buffer);
-            if (!filePreview) {
-              responseData.output.filePreview = 'Could not extract text from this Office document. Use the download link to view the file.';
-            } else {
-              responseData.output.filePreview = filePreview + (filePreview.length >= 1000 ? '...' : '');
-            }
-          }
-        } else if (!isBinaryContent(buffer)) {
-          if (contentLength > previewSizeLimit) {
-            responseData.output.filePreview = `File too large to preview (${(contentLength / (1024 * 1024)).toFixed(2)}MB). Size limit is ${previewSizeLimit / (1024 * 1024)}MB. Use the download link to view the file.`;
-          } else {
-            try {
-              filePreview = buffer.toString('utf8')
-                .replace(/[^\x20-\x7E\n\r\t]/g, '')
-                .trim()
-                .substring(0, 1000);
-            } catch (e) {
-              filePreview = buffer.toString('ascii')
-                .replace(/[^\x20-\x7E\n\r\t]/g, '')
-                .trim()
-                .substring(0, 1000);
-            }
-            
-            if (filePreview.length > 0) {
-              responseData.output.filePreview = filePreview + (contentLength > previewChunkSize ? '...' : '');
-            }
-          }
-        }
-
-        // If no preview could be generated, provide appropriate message
-        if (!responseData.output.filePreview) {
-          const fileSizeStr = (contentLength / (1024 * 1024)).toFixed(2);
-          if (contentType.includes('pdf') || extension === '.pdf') {
-            responseData.output.filePreview = `PDF document (${fileSizeStr}MB) - binary content cannot be previewed. Use the download link to view the full file.`;
-          } else if (contentType.includes('image/')) {
-            responseData.output.filePreview = `Image file (${fileSizeStr}MB) - binary content cannot be previewed. Use the download link to view the image.`;
-          } else if (['.doc', '.xls', '.ppt'].includes(extension)) {
-            responseData.output.filePreview = `Legacy Office document (${fileSizeStr}MB) - binary content cannot be previewed. Use the download link to view the file.`;
-          } else {
-            responseData.output.filePreview = `Binary file (${fileSizeStr}MB) - content cannot be previewed. Use the download link to access the file.`;
-          }
-        }
-      } catch (e) {
-        responseData.output.filePreview = 'Preview not available - error reading file content.';
-      }
-
-      // Handle file based on type
-      if (contentType.includes('image/') && contentLength < 1024 * 1024) {
-        // Only load image data if it's small enough
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        responseData.output.fileType = 'image';
-        responseData.output.preview = `[Image: ${fileName}] (${fileSizeStr})`;
-      } else {
-        // For non-images or large images
-        responseData.output.fileType = contentType.includes('image/') ? 'image' : (contentType.split('/')[0] || 'binary');
-        
-        // For text-based files that are small enough
-        if (contentLength < 1024 * 1024 && (
-            contentType.includes('text/') || 
-            contentType.includes('application/json') ||
-            contentType.includes('application/xml') ||
-            contentType.includes('application/javascript') ||
-            contentType.includes('csv') ||
-            extension === '.csv')) {
-          
-          // Parse JSON if applicable and file is not too large
-          if ((contentType.includes('application/json') || fileName.endsWith('.json'))) {
-            try {
-              JSON.parse(responseData.output.filePreview);
-            } catch (e) {
-              // Silently fail JSON parsing
-              responseData.output.preview = `JSON File: ${fileName} (${fileSizeStr})`;
-            }
-          }
-        }
-
-        // For large files or non-text files
-        let fileType = 'binary';
-        let typeLabel = 'File';
-        
-        switch(true) {
-          case contentType.includes('pdf') || extension === '.pdf':
-            fileType = 'pdf';
-            typeLabel = 'PDF Document';
-            break;
-          case contentType.includes('document') || extension === '.docx':
-            fileType = 'document';
-            typeLabel = 'Word Document';
-            break;
-          case contentType.includes('spreadsheet') || ['.xlsx', '.xls'].includes(extension):
-            fileType = 'spreadsheet';
-            typeLabel = 'Spreadsheet';
-            break;
-          case contentType.includes('presentation') || ['.ppt', '.pptx'].includes(extension):
-            fileType = 'presentation';
-            typeLabel = 'Presentation';
-            break;
-          case contentType.includes('csv') || extension === '.csv':
-            fileType = 'text';
-            typeLabel = 'CSV File';
-            break;
-          case contentType.includes('text/') || extension === '.txt':
-            fileType = 'text';
-            typeLabel = 'Text File';
-            break;
-          default:
-            fileType = 'binary';
-            typeLabel = 'Binary File';
-        }
-        
-        responseData.output.fileType = fileType;
-        responseData.output.preview = `${typeLabel}: ${fileName} (${fileSizeStr})`;
-      }
-
-      return responseData;
     } catch (error: unknown) {
-      // Simplified error response
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         success: false,
         output: {
-          content: '',
-          preview: `Error: ${errorMessage}`,
-          filePreview: '',
-          fileType: '',
+          content: `Error: ${errorMessage}`,
           metadata: {
-            fileName: params.objectKey.split('/').pop() || params.objectKey,
-            contentType: '',
-            fileSize: 0,
-            lastModified: '',
-            extension: '',
-            sizeExceedsLimit: false
+            fileType: 'error',
+            size: 0,
+            name: params.objectKey.split('/').pop() || params.objectKey,
+            error: errorMessage
           }
         }
       };
