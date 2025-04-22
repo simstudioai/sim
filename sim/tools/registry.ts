@@ -39,7 +39,7 @@ import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube/search'
 import { ToolConfig } from './types'
-import { s3GetObjectTool } from './s3buckets/download'
+import { s3GetObjectTool } from './s3bucket/getObject'
 import { elevenLabsTtsTool } from './elevenlabs'
 
 

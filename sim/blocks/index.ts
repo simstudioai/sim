@@ -46,7 +46,7 @@ import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
 import { Mem0Block } from './blocks/mem0'
-import { S3FileViewerBlock } from './blocks/s3buckets'
+import { S3FileViewerBlock } from './blocks/s3bucket'
 
 // Export blocks for ease of use
 export {
@@ -132,7 +132,7 @@ const blocks: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   reddit: RedditBlock,
   router: RouterBlock,
-  s3buckets: S3FileViewerBlock,
+  s3_file_viewer: S3FileViewerBlock,
   serper: SerperBlock,
   stagehand: StagehandBlock,
   stagehand_agent: StagehandAgentBlock,
