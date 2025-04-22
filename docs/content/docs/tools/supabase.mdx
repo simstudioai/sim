@@ -3,17 +3,13 @@ title: Supabase
 description: Use Supabase database
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Supabase
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="supabase"
   color="#1C1C1C"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg {...props} width="24" height="24" viewBox="0 0 27 27" xmlns="http://www.w3.org/2000/svg">
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox="0 0 27 27" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z"
         fill="url(#paint0_linear)"
@@ -51,38 +47,74 @@ import { BlockInfoCard } from "@/components/block-info-card";
           <stop offset="1" stopOpacity="0" />
         </linearGradient>
       </defs>
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.
 
-## Tools Used
 
-- `supabase_query`
-- `supabase_insert`
+
+## Tools
+
+### `supabase_query`
+
+Query data from a Supabase table
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Supabase client anon key |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `message` | string |
+| `results` | string |
+
+### `supabase_insert`
+
+Insert data into a Supabase table
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Supabase client anon key |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `message` | string |
+| `results` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `operation` | string | Yes | Operation |  |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `message` | `string` |
+| `results` | `json` |
 
-```typescript
-// Example of using the Supabase block
-{
-  type: "supabase",
-  operation: "example"
-}
-```
+**Note:** The actual fields returned will depend on the selected operation.
+
 
 ## Notes
 

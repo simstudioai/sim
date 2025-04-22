@@ -3,50 +3,131 @@ title: X
 description: Interact with X
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# X
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="x"
   color="#000000"
-  category="tools"
+  icon={true}
+  iconSvg={`<svg className="block-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"   >
+      <path
+        d="M 5.9199219 6 L 20.582031 27.375 L 6.2304688 44 L 9.4101562 44 L 21.986328 29.421875 L 31.986328 44 L 44 44 L 28.681641 21.669922 L 42.199219 6 L 39.029297 6 L 27.275391 19.617188 L 17.933594 6 L 5.9199219 6 z M 9.7167969 8 L 16.880859 8 L 40.203125 42 L 33.039062 42 L 9.7167969 8 z"
+        fill="currentColor"
+      />
+    </svg>`}
 />
 
-
+## Usage Instructions
 
 Connect with X to post tweets, read content, search for information, and access user profiles. Integrate social media capabilities into your workflow with comprehensive X platform access.
 
-## Tools Used
 
-- `x_write`
-- `x_read`
-- `x_search`
-- `x_user`
+
+## Tools
+
+### `x_write`
+
+Post new tweets, reply to tweets, or create polls on X (Twitter)
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `tweet` | string |
+| `text` | string |
+| `createdAt` | string |
+| `authorId` | string |
+| `conversationId` | string |
+| `inReplyToUserId` | string |
+| `attachments` | string |
+| `pollId` | string |
+
+### `x_read`
+
+Read tweet details, including replies and conversation context
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `tweet` | string |
+
+### `x_search`
+
+Search for tweets using keywords, hashtags, or advanced queries
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `tweets` | string |
+| `includes` | string |
+| `media` | string |
+| `polls` | string |
+
+### `x_user`
+
+Get user profile information
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `user` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `operation` | string | Yes | Operation |  |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `tweet` | `json` |
+| `replies` | `any` |
+| `context` | `any` |
+| `tweets` | `json` |
+| `includes` | `any` |
+| `meta` | `json` |
+| `user` | `json` |
+| `recentTweets` | `any` |
 
-```typescript
-// Example of using the X block
-{
-  type: "x",
-  operation: "example"
-}
-```
+**Note:** The actual fields returned will depend on the selected operation.
+
 
 ## Notes
 

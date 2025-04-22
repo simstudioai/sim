@@ -3,47 +3,71 @@ title: Perplexity
 description: Use Perplexity AI chat models
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Perplexity
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="perplexity"
   color="#20808D"
-  category="tools"
+  icon={true}
+  iconSvg={`<svg className="block-icon"   viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" >
+      <path
+        d="M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z"
+        fill="currentColor"
+        fillRule="nonzero"
+      />
+    </svg>`}
 />
 
-
+## Usage Instructions
 
 Generate completions using Perplexity AI models with real-time knowledge and search capabilities. Create responses, answer questions, and generate content with customizable parameters.
 
-## Tools Used
 
-- `perplexity_chat`
+
+## Tools
+
+### `perplexity_chat`
+
+Generate completions using Perplexity AI chat models
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Perplexity API key |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+| `model` | string |
+| `usage` | string |
+| `completion_tokens` | string |
+| `total_tokens` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `prompt` | string | Yes | User Prompt | Enter your prompt here... |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `prompt` | string | Yes | User Prompt - Enter your prompt here... |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `content` | `string` |
+| `model` | `string` |
+| `usage` | `json` |
 
-```typescript
-// Example of using the Perplexity block
-{
-  type: "perplexity",
-  prompt: "example"
-}
-```
 
 ## Notes
 

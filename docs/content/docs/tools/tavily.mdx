@@ -3,17 +3,13 @@ title: Tavily
 description: Search and extract information
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Tavily
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="tavily"
   color="#0066FF"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" {...props}>
+  icon={true}
+  iconSvg={`<svg className="block-icon" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" >
     <path
       d="M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290"
       fill="rgb(248,202,81)"
@@ -42,38 +38,81 @@ import { BlockInfoCard } from "@/components/block-info-card";
       d="M258 326C235 341 218 365 198 382C186 376 176 360 161 368L160 369L157 369C149 378 150 391 146 401C150 391 149 379 157 370C174 359 185 376 195 385C219 365 238 337 262 325"
       fill="rgb(242,165,165)"
     />
-  </svg></div>
+  </svg>`}
+/>
+
+## Usage Instructions
 
 Access Tavily
 
-## Tools Used
 
-- `tavily_search`
-- `tavily_extract`
+
+## Tools
+
+### `tavily_search`
+
+Perform AI-powered web searches using Tavily
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query to execute |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `query` | string |
+| `results` | string |
+| `url` | string |
+| `snippet` | string |
+| `raw_content` | string |
+
+### `tavily_extract`
+
+Extract raw content from multiple web pages simultaneously using Tavily
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `urls` | string | Yes | URL or array of URLs to extract content from |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `results` | string |
+| `failed_results` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `operation` | string | Yes | Operation |  |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `results` | `json` |
+| `answer` | `any` |
+| `query` | `string` |
+| `content` | `string` |
+| `title` | `string` |
+| `url` | `string` |
 
-```typescript
-// Example of using the Tavily block
-{
-  type: "tavily",
-  operation: "example"
-}
-```
+**Note:** The actual fields returned will depend on the selected operation.
+
 
 ## Notes
 

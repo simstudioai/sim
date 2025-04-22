@@ -3,52 +3,61 @@ title: Twilio SMS
 description: Send SMS messages
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Twilio SMS
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="twilio_sms"
   color="#F22F46"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  icon={true}
+  iconSvg={`<svg className="block-icon"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
       <path
         fill="currentColor"
         d="M128 0c70.656 0 128 57.344 128 128s-57.344 128-128 128S0 198.656 0 128 57.344 0 128 0zm0 33.792c-52.224 0-94.208 41.984-94.208 94.208S75.776 222.208 128 222.208s94.208-41.984 94.208-94.208S180.224 33.792 128 33.792zm31.744 99.328c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm63.488-63.488c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624z"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Send text messages to single or multiple recipients using the Twilio API.
 
-## Tools Used
 
-- `twilio_send_sms`
+
+## Tools
+
+### `twilio_send_sms`
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `phoneNumbers` | string | Yes | Recipient Phone Numbers | Enter phone numbers with country code (one per line, e.g., +1234567890) |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `phoneNumbers` | string | Yes | Recipient Phone Numbers - Enter phone numbers with country code (one per line, e.g., +1234567890) |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `success` | `boolean` |
+| `messageId` | `any` |
+| `status` | `any` |
+| `error` | `any` |
 
-```typescript
-// Example of using the Twilio SMS block
-{
-  type: "twilio_sms",
-  phoneNumbers: "example"
-}
-```
 
 ## Notes
 

@@ -3,49 +3,127 @@ title: Google Sheets
 description: Read, write, and update data
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Google Sheets
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="google_sheets"
   color="#E0E0E0"
-  category="tools"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 48 48"
+      
+      
+    >
+      <path
+        fill="#43a047"
+        d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"
+      />
+      <path fill="#c8e6c9" d="M40 13L30 13 30 3z" />
+      <path fill="#2e7d32" d="M30 13L40 23 40 13z" />
+      <path
+        fill="#e8f5e9"
+        d="M31,23H17h-2v2v2v2v2v2v2v2h18v-2v-2v-2v-2v-2v-2v-2H31z M17,25h4v2h-4V25z M17,29h4v2h-4V29z M17,33h4v2h-4V33z M31,35h-8v-2h8V35z M31,31h-8v-2h8V31z M31,27h-8v-2h8V27z"
+      />
+    </svg>`}
 />
 
-
+## Usage Instructions
 
 Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, and update existing cells using OAuth authentication. Supports various input and output formats for flexible data handling.
 
-## Tools Used
 
-- `google_sheets_read`
-- `google_sheets_write`
-- `google_sheets_update`
+
+## Tools
+
+### `google_sheets_read`
+
+Read data from a Google Sheets spreadsheet
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | No description |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | json |
+
+### `google_sheets_write`
+
+Write data to a Google Sheets spreadsheet
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | No description |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `updatedRange` | string |
+| `updatedRows` | string |
+| `updatedColumns` | string |
+| `updatedCells` | string |
+| `metadata` | string |
+| `spreadsheetId` | string |
+| `spreadsheetUrl` | string |
+
+### `google_sheets_update`
+
+Update data in a Google Sheets spreadsheet
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | No description |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `updatedRange` | string |
+| `updatedRows` | string |
+| `updatedColumns` | string |
+| `updatedCells` | string |
+| `metadata` | string |
+| `spreadsheetId` | string |
+| `spreadsheetUrl` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `operation` | string | Yes | Operation |  |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `data` | `json` |
+| `metadata` | `json` |
+| `updatedRange` | `string` |
+| `updatedRows` | `number` |
+| `updatedColumns` | `number` |
+| `updatedCells` | `number` |
 
-```typescript
-// Example of using the Google Sheets block
-{
-  type: "google_sheets",
-  operation: "example"
-}
-```
+**Note:** The actual fields returned will depend on the selected operation.
+
 
 ## Notes
 

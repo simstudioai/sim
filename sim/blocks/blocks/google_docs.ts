@@ -3,7 +3,7 @@ import {
   GoogleDocsCreateResponse,
   GoogleDocsReadResponse,
   GoogleDocsWriteResponse,
-} from '@/tools/docs/types'
+} from '@/tools/google_docs/types'
 import { BlockConfig } from '../types'
 
 type GoogleDocsResponse =
@@ -174,10 +174,8 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
     credential: { type: 'string', required: true },
     documentId: { type: 'string', required: false },
     manualDocumentId: { type: 'string', required: false },
-    // Create operation inputs
     title: { type: 'string', required: false },
     folderId: { type: 'string', required: false },
-    // Write/Create operation inputs
     content: { type: 'string', required: false },
   },
   outputs: {

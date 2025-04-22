@@ -3,20 +3,16 @@ title: Airtable
 description: Read, create, and update Airtable
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Airtable
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="airtable"
   color="#E0E0E0"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg
-      {...props}
-      width="800px"
-      height="800px"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
       viewBox="0 -20.5 256 256"
       version="1.1"
       xmlns="http://www.w3.org/2000/svg"
@@ -42,41 +38,120 @@ import { BlockInfoCard } from "@/components/block-info-card";
           fill="#000000"
         ></path>
       </g>
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Integrate Airtable functionality to manage table records. List, get, create, 
 
-## Tools Used
 
-- `airtable_list_records`
-- `airtable_get_record`
-- `airtable_create_records`
-- `airtable_update_record`
-- `airtable_update_multiple_records`
+
+## Tools
+
+### `airtable_list_records`
+
+Read records from an Airtable table
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `records` | string |
+| `metadata` | string |
+| `totalRecords` | string |
+
+### `airtable_get_record`
+
+Retrieve a single record from an Airtable table by its ID
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `record` | string |
+| `metadata` | string |
+
+### `airtable_create_records`
+
+Write new records to an Airtable table
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `records` | string |
+| `metadata` | string |
+
+### `airtable_update_record`
+
+Update an existing record in an Airtable table by ID
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `record` | string |
+| `metadata` | string |
+| `updatedFields` | string |
+
+### `airtable_update_multiple_records`
+
+Update multiple existing records in an Airtable table
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | OAuth access token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `records` | string |
+| `metadata` | string |
+| `updatedRecordIds` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `operation` | string | Yes | Operation |  |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
 
 
 
 ## Outputs
 
 This block does not produce any outputs.
-
-## Example Usage
-
-```typescript
-// Example of using the Airtable block
-{
-  type: "airtable",
-  operation: "example"
-}
-```
 
 ## Notes
 

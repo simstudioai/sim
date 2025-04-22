@@ -3,21 +3,17 @@ title: Vision
 description: Analyze images with vision models
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Vision
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="vision"
   color="#4D5FFF"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg
-      {...props}
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
       fill="currentColor"
-      width="24"
-      height="24"
+      
+      
       viewBox="0 0 28 23"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -31,37 +27,49 @@ import { BlockInfoCard } from "@/components/block-info-card";
         clipRule="evenodd"
         d="M14 0C8.1213 0 4.16093 3.52149 1.86233 6.50772L1.82195 6.56112C1.30102 7.23702 0.82307 7.85823 0.498791 8.59274C0.15107 9.38065 0 10.2389 0 11.3953C0 12.5518 0.15107 13.41 0.498791 14.198C0.824372 14.9325 1.30233 15.555 1.82195 16.2296L1.86363 16.283C4.16093 19.2692 8.1213 22.7907 14 22.7907C19.8787 22.7907 23.8391 19.2692 26.1377 16.283L26.178 16.2296C26.699 15.555 27.1769 14.9325 27.5012 14.198C27.8489 13.41 28 12.5518 28 11.3953C28 10.2389 27.8489 9.38065 27.5012 8.59274C27.1756 7.85823 26.6977 7.23702 26.178 6.56112L26.1364 6.50772C23.8391 3.52149 19.8787 0 14 0ZM3.41209 7.69935C5.53228 4.94233 8.98605 1.95349 14 1.95349C19.014 1.95349 22.4664 4.94233 24.5879 7.69935C25.1609 8.44167 25.4943 8.88447 25.7144 9.38195C25.9202 9.84819 26.0465 10.4173 26.0465 11.3953C26.0465 12.3734 25.9202 12.9425 25.7144 13.4087C25.4943 13.9062 25.1596 14.349 24.5892 15.0913C22.4651 17.8484 19.014 20.8372 14 20.8372C8.98605 20.8372 5.53358 17.8484 3.41209 15.0913C2.83907 14.349 2.50567 13.9062 2.28558 13.4087C2.07981 12.9425 1.95349 12.3734 1.95349 11.3953C1.95349 10.4173 2.07981 9.84819 2.28558 9.38195C2.50567 8.88447 2.84167 8.44167 3.41209 7.69935Z"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Process visual content with customizable prompts to extract insights and information from images.
 
-## Tools Used
 
-- `vision_tool`
+
+## Tools
+
+### `vision_tool`
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `apiKey` | string | Yes |  |  |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `apiKey` | string | Yes |  |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `content` | `string` |
+| `model` | `any` |
+| `tokens` | `any` |
 
-```typescript
-// Example of using the Vision block
-{
-  type: "vision",
-  apiKey: "example"
-}
-```
 
 ## Notes
 

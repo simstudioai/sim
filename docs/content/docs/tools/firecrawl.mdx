@@ -3,17 +3,13 @@ title: Firecrawl
 description: Scrape website content
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Firecrawl
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="firecrawl"
   color="#181C1E"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg viewBox="0 0 642 600" xmlns="http://www.w3.org/2000/svg" {...props}>
+  icon={true}
+  iconSvg={`<svg className="block-icon" viewBox="0 0 642 600" xmlns="http://www.w3.org/2000/svg" >
       <path
         d="M301 63C299 91 303 122 298 149C295 158 289 165 283 169C274 172 266 170 261 167C253 176 248 183 244 191C230 226 226 263 226 301C216 310 203 317 192 310C179 295 175 277 174 259C161 273 153 288 146 304C141 321 138 336 137 352C140 372 145 388 152 402C161 421 174 435 187 449C181 462 165 453 157 450C158 454 161 458 165 461C195 490 231 500 268 509C240 494 211 471 195 442C179 413 172 378 180 344C191 353 200 362 211 364C223 365 232 361 236 353C247 274 299 214 323 143C322 136 327 140 329 142C354 165 367 191 375 218C387 254 381 294 379 329C393 345 413 334 424 329C429 342 432 352 429 362C427 378 417 388 413 400C422 407 433 403 440 400C432 423 419 442 404 460C383 483 358 501 335 512C379 502 420 491 449 459C443 458 427 464 428 452C443 437 464 423 472 403C482 383 485 362 484 339C482 307 472 280 458 254C459 267 452 276 445 284C434 289 426 279 424 272C415 247 424 220 418 198C415 179 405 165 397 150C370 114 336 86 303 64"
         fill="rgb(253,76,31)"
@@ -34,37 +30,57 @@ import { BlockInfoCard } from "@/components/block-info-card";
         d="M187 163C188 181 167 187 164 203C158 215 158 228 159 241C172 233 183 221 188 209C193 194 192 178 188 166"
         fill="rgb(253,76,31)"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Extract content from any website with advanced web scraping capabilities and content filtering. Retrieve clean, structured data from web pages with options to focus on main content.
 
-## Tools Used
 
-- `firecrawl_scrape`
+
+## Tools
+
+### `firecrawl_scrape`
+
+Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information.
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Firecrawl API key |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `markdown` | string |
+| `html` | string |
+| `metadata` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `apiKey` | string | Yes | API Key | Enter your Firecrawl API key |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `apiKey` | string | Yes | API Key - Enter your Firecrawl API key |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `markdown` | `string` |
+| `html` | `any` |
+| `metadata` | `json` |
 
-```typescript
-// Example of using the Firecrawl block
-{
-  type: "firecrawl",
-  apiKey: "example"
-}
-```
 
 ## Notes
 

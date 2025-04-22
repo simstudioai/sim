@@ -1,27 +1,23 @@
 ---
-title: Autoblocks Prompts
+title: Autoblocks
 description: Manage and use versioned prompts with Autoblocks
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Autoblocks Prompts
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="autoblocks"
   color="#0D2929"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg
-      {...props}
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
       version="1.1"
       id="Layer_1"
       xmlns="http://www.w3.org/2000/svg"
       xmlnsXlink="http://www.w3.org/1999/xlink"
       x="0px"
       y="0px"
-      width="100%"
+      
       viewBox="0 0 1250 1250"
       enableBackground="new 0 0 1250 1250"
       xmlSpace="preserve"
@@ -110,37 +106,59 @@ M398.927063,451.754761
 	C302.775909,507.271362 350.680695,479.602600 398.927063,451.754761 
 z"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Collaborate on prompts with type safety, autocomplete, and backwards-incompatibility protection. Autoblocks prompt management allows product teams to collaborate while maintaining excellent developer experience.
 
-## Tools Used
 
-- `autoblocks_prompt_manager`
+
+## Tools
+
+### `autoblocks_prompt_manager`
+
+Manage and render prompts using Autoblocks prompt management system
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `promptId` | string | Yes | The ID of the prompt to retrieve |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `promptId` | string |
+| `version` | string |
+| `renderedPrompt` | string |
+| `templates` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `promptId` | string | Yes | Prompt ID | Enter the Autoblocks prompt ID |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `promptId` | string | Yes | Prompt ID - Enter the Autoblocks prompt ID |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `promptId` | `string` |
+| `version` | `string` |
+| `renderedPrompt` | `string` |
+| `templates` | `json` |
 
-```typescript
-// Example of using the Autoblocks Prompts block
-{
-  type: "autoblocks",
-  promptId: "example"
-}
-```
 
 ## Notes
 

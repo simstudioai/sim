@@ -3,7 +3,7 @@ import {
   GoogleSheetsReadResponse,
   GoogleSheetsUpdateResponse,
   GoogleSheetsWriteResponse,
-} from '@/tools/sheets/types'
+} from '@/tools/google_sheets/types'
 import { BlockConfig } from '../types'
 
 type GoogleSheetsResponse =
@@ -161,7 +161,6 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
     spreadsheetId: { type: 'string', required: false },
     manualSpreadsheetId: { type: 'string', required: false },
     range: { type: 'string', required: false },
-    // Write/Update operation inputs
     values: { type: 'string', required: false },
     valueInputOption: { type: 'string', required: false },
   },

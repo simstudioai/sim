@@ -3,20 +3,16 @@ title: Jina
 description: Convert website content into text
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Jina
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="jina"
   color="#333333"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg
-      {...props}
-      width="30"
-      height="14"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
       viewBox="0 0 30 14"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -45,37 +41,47 @@ import { BlockInfoCard } from "@/components/block-info-card";
         d="M12.6714 0.74873C12.6995 0.748437 12.7273 0.748145 12.756 0.747559C13.2318 0.749609 13.693 0.952637 14.0349 1.28105C14.3838 1.6335 14.5947 2.0791 14.6 2.57627C14.5965 3.14111 14.4632 3.62246 14.063 4.04111C13.6912 4.40293 13.2008 4.59365 12.686 4.60859C12.1434 4.59453 11.6864 4.40234 11.2941 4.02969C10.9086 3.62305 10.7357 3.13232 10.7466 2.57598C10.7659 2.08145 10.9883 1.60625 11.3384 1.25791C11.7245 0.919824 12.1578 0.742578 12.6714 0.74873Z"
         fill="currentColor"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Transform web content into clean, readable text using Jina AI
 
-## Tools Used
 
-- `jina_readurl`
+
+## Tools
+
+### `jina_readurl`
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `url` | string | Yes | URL | Enter URL to extract content from |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `url` | string | Yes | URL - Enter URL to extract content from |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `content` | `string` |
 
-```typescript
-// Example of using the Jina block
-{
-  type: "jina",
-  url: "https://example.com"
-}
-```
 
 ## Notes
 

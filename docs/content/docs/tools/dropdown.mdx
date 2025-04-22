@@ -3,20 +3,16 @@ title: File
 description: Read and parse multiple files
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# File
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="dropdown"
   color="#40916C"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg
-      {...props}
-      width="23"
-      height="28"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
       viewBox="0 0 23 28"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -34,13 +30,31 @@ import { BlockInfoCard } from "@/components/block-info-card";
         strokeWidth="2.25"
         strokeLinejoin="round"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). 
 
-## Tools Used
 
-- `file_parser`
+
+## Tools
+
+### `file_parser`
+
+Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc.)
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `filePath` | string | Yes | Path to the file(s). Can be a single path, URL, or an array of paths. |
+
+#### Output
+
+
+
 
 ## Configuration
 
@@ -50,17 +64,13 @@ No configuration parameters required.
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `files` | `json` |
+| `combinedContent` | `string` |
 
-```typescript
-// Example of using the File block
-{
-  type: "dropdown",
-  inputMethod: "example"
-}
-```
 
 ## Notes
 

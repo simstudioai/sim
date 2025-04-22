@@ -3,17 +3,13 @@ title: Serper
 description: Search the web using Serper
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Serper
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="serper"
   color="#2B3543"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg viewBox="0 0 654 600" xmlns="http://www.w3.org/2000/svg" {...props}>
+  icon={true}
+  iconSvg={`<svg className="block-icon" viewBox="0 0 654 600" xmlns="http://www.w3.org/2000/svg" >
     <path
       d="M324 38C356 37 389 36 417 47C452 56 484 72 509 94C539 118 561 145 577 176C593 205 601 238 606 271C610 343 590 403 552 452C528 482 499 507 467 523C438 539 404 547 372 552C297 556 235 534 184 492C133 449 103 392 93 330C93 292 89 255 102 224C112 189 128 158 149 132C194 78 255 46 322 38"
       fill="rgb(71,97,118)"
@@ -62,37 +58,53 @@ import { BlockInfoCard } from "@/components/block-info-card";
       d="M349 171C316 173 281 187 263 214C256 235 254 254 266 273C300 316 359 304 401 325C413 333 426 342 422 358C412 382 388 396 363 395C326 399 290 382 278 348C262 345 254 353 253 365C261 384 277 401 292 411C316 421 338 429 365 426C390 420 415 414 432 398C451 383 454 360 453 338C445 317 430 305 413 296C375 282 332 284 299 264C285 257 288 239 291 228C304 212 319 205 336 202C378 193 403 213 423 244C438 244 443 232 441 222C425 186 388 171 352 170"
       fill="rgb(139,198,236)"
     />
-  </svg></div>
+  </svg>`}
+/>
+
+## Usage Instructions
 
 Access real-time web search results with Serper
 
-## Tools Used
 
-- `serper_search`
+
+## Tools
+
+### `serper_search`
+
+A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, and images, with each result containing relevant metadata like titles, URLs, snippets, and type-specific information.
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `query` | string | Yes | The search query |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `results` | array |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `query` | string | Yes | Search Query | Enter your search query... |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `query` | string | Yes | Search Query - Enter your search query... |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `searchResults` | `json` |
 
-```typescript
-// Example of using the Serper block
-{
-  type: "serper",
-  query: "example search query"
-}
-```
 
 ## Notes
 

@@ -3,20 +3,16 @@ title: Stagehand Agent
 description: Autonomous web browsing agent
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Stagehand Agent
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="stagehand_agent"
   color="#FFC83C"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg
-      {...props}
-      width="108"
-      height="159"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
       viewBox="0 0 108 159"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
@@ -177,37 +173,57 @@ import { BlockInfoCard } from "@/components/block-info-card";
         d="M34 55C34.66 55.33 35.32 55.66 36 56C35.5256 56.7838 35.0512 57.5675 34.5625 58.375C33.661 59.8895 32.7882 61.4236 32 63C31.34 63 30.68 63 30 63C30.4983 59.3125 31.1007 57.3951 34 55Z"
         fill="#110F0A"
       />
-    </svg></div>
+    </svg>`}
+/>
+
+## Usage Instructions
 
 Use Stagehand to create an autonomous web browsing agent that can navigate across websites, perform tasks, and return structured data.
 
-## Tools Used
 
-- `stagehand_agent`
+
+## Tools
+
+### `stagehand_agent`
+
+Run an autonomous web agent to complete tasks and extract structured data
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `task` | string | Yes | The task to complete or goal to achieve on the website |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `agentResult` | string |
+| `completed` | string |
+| `message` | string |
+| `actions` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `startUrl` | string | Yes | Starting URL | Enter the starting URL for the agent |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `startUrl` | string | Yes | Starting URL - Enter the starting URL for the agent |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `agentResult` | `json` |
+| `structuredOutput` | `any` |
 
-```typescript
-// Example of using the Stagehand Agent block
-{
-  type: "stagehand_agent",
-  startUrl: "example"
-}
-```
 
 ## Notes
 

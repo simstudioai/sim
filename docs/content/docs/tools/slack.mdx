@@ -3,17 +3,13 @@ title: Slack
 description: Send a message to Slack
 ---
 
-import { BlockInfoCard } from "@/components/block-info-card";
-
-# Slack
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
   type="slack"
   color="#611f69"
-  category="tools"
-/>
-
-<div className="not-prose my-6 flex justify-center"><svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" {...props}>
+  icon={true}
+  iconSvg={`<svg className="block-icon" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" >
     <g>
       <path
         d="M53.8412698,161.320635 C53.8412698,176.152381 41.8539683,188.139683 27.0222222,188.139683 C12.1904762,188.139683 0.203174603,176.152381 0.203174603,161.320635 C0.203174603,146.488889 12.1904762,134.501587 27.0222222,134.501587 L53.8412698,134.501587 L53.8412698,161.320635 Z M67.2507937,161.320635 C67.2507937,146.488889 79.2380952,134.501587 94.0698413,134.501587 C108.901587,134.501587 120.888889,146.488889 120.888889,161.320635 L120.888889,228.368254 C120.888889,243.2 108.901587,255.187302 94.0698413,255.187302 C79.2380952,255.187302 67.2507937,243.2 67.2507937,228.368254 L67.2507937,161.320635 Z"
@@ -32,37 +28,55 @@ import { BlockInfoCard } from "@/components/block-info-card";
         fill="#ECB22E"
       />
     </g>
-  </svg></div>
+  </svg>`}
+/>
+
+## Usage Instructions
 
 Send messages to any Slack channel using OAuth authentication. Integrate automated notifications and alerts into your workflow to keep your team informed.
 
-## Tools Used
 
-- `slack_message`
+
+## Tools
+
+### `slack_message`
+
+Send messages to Slack channels or users through the Slack API. Enables direct communication and notifications with timestamp tracking and channel confirmation.
+
+#### Input Parameters
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Slack API token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `ts` | string |
+| `channel` | string |
+
+
 
 ## Configuration
 
 ### Input Parameters
 
-| Parameter | Type | Required | Description | Default/Placeholder |
-| --------- | ---- | -------- | ----------- | ------------------ |
-| `apiKey` | string | Yes | OAuth Token | Enter your Slack OAuth token |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `apiKey` | string | Yes | OAuth Token - Enter your Slack OAuth token |
 
 
 
 ## Outputs
 
-This block does not produce any outputs.
+The `response` output contains the following fields:
 
-## Example Usage
+| Field | Type |
+| ----- | ---- |
+| `ts` | `string` |
+| `channel` | `string` |
 
-```typescript
-// Example of using the Slack block
-{
-  type: "slack",
-  apiKey: "example"
-}
-```
 
 ## Notes
 
