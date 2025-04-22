@@ -25,7 +25,10 @@ export const listFormsTool: ToolConfig<ListFormsParams, ListFormsResponse> = {
       return `https://api.hubapi.com/marketing/v3/forms?limit=${lim}`
     },
     method: 'GET',
-    headers: () => ({})
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async response => {

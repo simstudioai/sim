@@ -24,11 +24,14 @@ export const searchDealsTool: ToolConfig<SearchDealsParams, SearchDealsResponse>
   request: {
     url: () => `https://api.hubapi.com/crm/v3/objects/deals/search`,
     method: 'POST',
-    headers: () => ({}),
+    headers: params => ({
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+       }),
     body: params => ({
       filterGroups: params.filterGroups,
-      sorts:        params.sorts,
-      limit:        params.limit
+      sorts: params.sorts,
+      limit: params.limit
     })
   },
 
@@ -37,7 +40,12 @@ export const searchDealsTool: ToolConfig<SearchDealsParams, SearchDealsResponse>
       const err = await response.text()
       throw new Error(`HTTP ${response.status}: ${err}`)
     }
-    const data = await response.json()
+    let data: any
+    try {
+        data = await response.json()
+    } catch (parseError: any) {
+        throw new Error(`Invalid JSON response from HubSpot: ${parseError.message}`)
+    }    
     return { success: true, output: data }
   },
 

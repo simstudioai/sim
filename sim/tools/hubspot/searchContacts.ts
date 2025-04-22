@@ -27,8 +27,8 @@ export const searchContactsTool: ToolConfig<SearchContactsParams, SearchContacts
     headers: () => ({}),
     body: params => ({
       filterGroups: params.filterGroups,
-      sorts:        params.sorts,
-      limit:        params.limit
+      sorts: params.sorts,
+      limit: params.limit
     })
   },
 

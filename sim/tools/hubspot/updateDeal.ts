@@ -21,10 +21,14 @@ export const updateDealTool: ToolConfig<UpdateDealParams, UpdateDealResponse> = 
   },
 
   request: {
-    url: params => `https://api.hubapi.com/crm/v3/objects/deals/${params.dealId}`,
+    url: params => 
+      `https://api.hubapi.com/crm/v3/objects/deals/${encodeURIComponent(params.dealId)}`,
     method: 'PATCH',
-    headers: () => ({}),
-    body: params => ({ properties: params.properties })
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: params => ({ properties: params.properties }),
   },
 
   transformResponse: async response => {

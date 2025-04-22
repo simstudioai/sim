@@ -21,10 +21,13 @@ export const updateContactTool: ToolConfig<UpdateContactParams, UpdateContactRes
   },
 
   request: {
-    url: params => `https://api.hubapi.com/crm/v3/objects/contacts/${params.contactId}`,
+    url: params => `https://api.hubapi.com/crm/v3/objects/contacts/${encodeURIComponent(params.contactId)}`,
     method: 'PATCH',
-    headers: () => ({}),
-    body: params => ({ properties: params.properties })
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
+    body: params => ({ properties: params.properties }),
   },
 
   transformResponse: async response => {

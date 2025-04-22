@@ -25,7 +25,10 @@ export const listDealsTool: ToolConfig<ListDealsParams, ListDealsResponse> = {
       return `https://api.hubapi.com/crm/v3/objects/deals?limit=${lim}`
     },
     method: 'GET',
-    headers: () => ({})
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json',
+    }),
   },
 
   transformResponse: async response => {

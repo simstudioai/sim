@@ -20,12 +20,12 @@ export const listContactsTool: ToolConfig<ListContactsParams, ListContactsRespon
   },
 
   request: {
-    url: params => {
-      const lim = params.limit ?? 100
-      return `https://api.hubapi.com/crm/v3/objects/contacts?limit=${lim}`
-    },
+    url: params => `https://api.hubapi.com/crm/v3/objects/contacts?limit=${params.limit ?? 100}`,
     method: 'GET',
-    headers: () => ({})
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json'
+    })
   },
 
   transformResponse: async response => {

@@ -22,7 +22,10 @@ export const createDealTool: ToolConfig<CreateDealParams, CreateDealResponse> = 
   request: {
     url: () => `https://api.hubapi.com/crm/v3/objects/deals`,
     method: 'POST',
-    headers: () => ({}),
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json'
+    }),
     body: params => ({ properties: params.properties })
   },
 

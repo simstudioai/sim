@@ -22,7 +22,10 @@ export const createContactTool: ToolConfig<CreateContactParams, CreateContactRes
   request: {
     url: () => `https://api.hubapi.com/crm/v3/objects/contacts`,
     method: 'POST',
-    headers: () => ({}),
+    headers: params => ({
+      Authorization: `Bearer ${params.accessToken}`,
+      'Content-Type': 'application/json'
+    }),
     body: params => ({ properties: params.properties })
   },
 
