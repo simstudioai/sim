@@ -175,13 +175,16 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
         
         // Check exact email matches
         if (allowedEmails.includes(email)) {
-          return { authorized: true }
+          // Email is allowed but still needs OTP verification
+          // Return a special error code that the client will recognize
+          return { authorized: false, error: 'otp_required' }
         }
         
         // Check domain matches (prefixed with @)
         const domain = email.split('@')[1]
         if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
-          return { authorized: true }
+          // Domain is allowed but still needs OTP verification
+          return { authorized: false, error: 'otp_required' }
         }
         
         return { authorized: false, error: 'Email not authorized' }

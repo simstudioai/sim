@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { OTPInputForm } from '@/components/ui/input-otp-form'
 
 // Define message type
 interface ChatMessage {
@@ -44,99 +45,43 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [authError, setAuthError] = useState<string | null>(null)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
 
-  // Fetch chat config on mount
-  useEffect(() => {
-    async function fetchChatConfig() {
-      try {
-        // Use relative URL instead of absolute URL with process.env.NEXT_PUBLIC_APP_URL
-        const response = await fetch(`/api/chat/${subdomain}`, {
-          credentials: 'same-origin',
-          headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-        })
+  // OTP verification state
+  const [showOtpVerification, setShowOtpVerification] = useState(false)
+  const [otpValue, setOtpValue] = useState('')
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
 
-        if (!response.ok) {
-          // Check if auth is required
-          if (response.status === 401) {
-            const errorData = await response.json()
-
-            if (errorData.error === 'auth_required_password') {
-              setAuthRequired('password')
-              return
-            } else if (errorData.error === 'auth_required_email') {
-              setAuthRequired('email')
-              return
-            }
-          }
-
-          throw new Error(`Failed to load chat configuration: ${response.status}`)
-        }
-
-        const data = await response.json()
-
-        // The API returns the data directly without a wrapper
-        setChatConfig(data)
-
-        // Add welcome message if configured
-        if (data?.customizations?.welcomeMessage) {
-          setMessages([
-            {
-              id: 'welcome',
-              content: data.customizations.welcomeMessage,
-              type: 'assistant',
-              timestamp: new Date(),
-            },
-          ])
-        }
-      } catch (error) {
-        console.error('Error fetching chat config:', error)
-        setError('This chat is currently unavailable. Please try again later.')
-      }
-    }
-
-    fetchChatConfig()
-  }, [subdomain])
-
-  // Handle authentication
-  const handleAuthenticate = async () => {
-    setAuthError(null)
-    setIsAuthenticating(true)
-
+  // Fetch chat config function
+  const fetchChatConfig = async () => {
     try {
-      const payload = authRequired === 'password' ? { password } : { email }
-
+      // Use relative URL instead of absolute URL with process.env.NEXT_PUBLIC_APP_URL
       const response = await fetch(`/api/chat/${subdomain}`, {
-        method: 'POST',
         credentials: 'same-origin',
         headers: {
-          'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
         },
-        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        setAuthError(errorData.error || 'Authentication failed')
-        return
+        // Check if auth is required
+        if (response.status === 401) {
+          const errorData = await response.json()
+
+          if (errorData.error === 'auth_required_password') {
+            setAuthRequired('password')
+            return
+          } else if (errorData.error === 'auth_required_email') {
+            setAuthRequired('email')
+            return
+          }
+        }
+
+        throw new Error(`Failed to load chat configuration: ${response.status}`)
       }
 
-      await response.json()
+      const data = await response.json()
 
-      // Authentication successful, fetch config again
-      const configResponse = await fetch(`/api/chat/${subdomain}`, {
-        credentials: 'same-origin',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-        },
-      })
-
-      if (!configResponse.ok) {
-        throw new Error('Failed to load chat configuration after authentication')
-      }
-
-      const data = await configResponse.json()
+      // The API returns the data directly without a wrapper
       setChatConfig(data)
 
       // Add welcome message if configured
@@ -150,16 +95,189 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           },
         ])
       }
-
-      // Reset auth state
-      setAuthRequired(null)
-      setPassword('')
-      setEmail('')
     } catch (error) {
-      console.error('Authentication error:', error)
-      setAuthError('An error occurred during authentication')
+      console.error('Error fetching chat config:', error)
+      setError('This chat is currently unavailable. Please try again later.')
+    }
+  }
+
+  // Fetch chat config on mount
+  useEffect(() => {
+    fetchChatConfig()
+  }, [subdomain])
+
+  // Handle keyboard input for message sending
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  // Handle keyboard input for auth forms
+  const handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAuthenticate()
+    }
+  }
+
+  // Handle authentication
+  const handleAuthenticate = async () => {
+    if (authRequired === 'password') {
+      // Password auth remains the same
+      setAuthError(null)
+      setIsAuthenticating(true)
+
+      try {
+        const payload = { password }
+
+        const response = await fetch(`/api/chat/${subdomain}`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          setAuthError(errorData.error || 'Authentication failed')
+          return
+        }
+
+        await response.json()
+
+        // Authentication successful, fetch config again
+        await fetchChatConfig()
+
+        // Reset auth state
+        setAuthRequired(null)
+        setPassword('')
+      } catch (error) {
+        console.error('Authentication error:', error)
+        setAuthError('An error occurred during authentication')
+      } finally {
+        setIsAuthenticating(false)
+      }
+    } else if (authRequired === 'email') {
+      // For email auth, we now send an OTP first
+      if (!showOtpVerification) {
+        // Step 1: User has entered email, send OTP
+        setAuthError(null)
+        setIsSendingOtp(true)
+
+        try {
+          const response = await fetch(`/api/chat/${subdomain}/otp`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ email }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            setAuthError(errorData.error || 'Failed to send verification code')
+            return
+          }
+
+          // OTP sent successfully, show OTP input
+          setShowOtpVerification(true)
+        } catch (error) {
+          console.error('Error sending OTP:', error)
+          setAuthError('An error occurred while sending the verification code')
+        } finally {
+          setIsSendingOtp(false)
+        }
+      } else {
+        // Step 2: User has entered OTP, verify it
+        setAuthError(null)
+        setIsVerifyingOtp(true)
+
+        try {
+          const response = await fetch(`/api/chat/${subdomain}/otp`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ email, otp: otpValue }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            setAuthError(errorData.error || 'Invalid verification code')
+            return
+          }
+
+          await response.json()
+
+          // OTP verified successfully, fetch config again
+          await fetchChatConfig()
+
+          // Reset auth state
+          setAuthRequired(null)
+          setEmail('')
+          setOtpValue('')
+          setShowOtpVerification(false)
+        } catch (error) {
+          console.error('Error verifying OTP:', error)
+          setAuthError('An error occurred during verification')
+        } finally {
+          setIsVerifyingOtp(false)
+        }
+      }
+    }
+  }
+
+  // Add this function to handle resending OTP
+  const handleResendOtp = async () => {
+    setAuthError(null)
+    setIsSendingOtp(true)
+
+    try {
+      const response = await fetch(`/api/chat/${subdomain}/otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ email }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        setAuthError(errorData.error || 'Failed to resend verification code')
+        return
+      }
+
+      // Show a message that OTP was sent
+      setAuthError('Verification code sent. Please check your email.')
+    } catch (error) {
+      console.error('Error resending OTP:', error)
+      setAuthError('An error occurred while resending the verification code')
     } finally {
-      setIsAuthenticating(false)
+      setIsSendingOtp(false)
+    }
+  }
+
+  // Add a function to handle email input key down
+  const handleEmailKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAuthenticate()
+    }
+  }
+
+  // Add a function to handle OTP input key down
+  const handleOtpKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleAuthenticate()
     }
   }
 
@@ -252,22 +370,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     }
   }
 
-  // Handle keyboard input
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
-  }
-
-  // Handle auth form keyboard input
-  const handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleAuthenticate()
-    }
-  }
-
   // If error, show error message
   if (error) {
     return (
@@ -319,35 +421,107 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                 />
               </div>
             ) : (
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={handleAuthKeyDown}
-                  placeholder="Enter your email"
-                  className="pl-10"
-                  disabled={isAuthenticating}
-                />
+              <div className="w-full max-w-sm mx-auto">
+                <div className="bg-white dark:bg-black/10 rounded-lg shadow-md p-6 space-y-4 border border-neutral-200 dark:border-neutral-800">
+                  <div className="flex items-center justify-center">
+                    <div className="p-2 rounded-full bg-primary/10 text-primary">
+                      <Mail className="h-5 w-5" />
+                    </div>
+                  </div>
+
+                  <h2 className="text-lg font-medium text-center">Email Verification</h2>
+                  
+                  {!showOtpVerification ? (
+                    // Step 1: Email Input
+                    <>
+                      <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
+                        Enter your email address to access this chat
+                      </p>
+                      
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label htmlFor="email" className="text-sm font-medium sr-only">
+                            Email
+                          </label>
+                          <Input
+                            id="email"
+                            type="email"
+                            placeholder="Email address"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            onKeyDown={handleEmailKeyDown}
+                            disabled={isSendingOtp || isAuthenticating}
+                            className="w-full"
+                          />
+                        </div>
+                        
+                        {authError && (
+                          <div className="text-sm text-red-600 dark:text-red-500">{authError}</div>
+                        )}
+                        
+                        <Button
+                          onClick={handleAuthenticate}
+                          disabled={!email || isSendingOtp || isAuthenticating}
+                          className="w-full"
+                          style={{
+                            backgroundColor: chatConfig?.customizations?.primaryColor || '#802FFF',
+                          }}
+                        >
+                          {isSendingOtp ? (
+                            <div className="flex items-center justify-center">
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Sending Code...
+                            </div>
+                          ) : (
+                            'Continue'
+                          )}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    // Step 2: OTP Verification with OTPInputForm
+                    <>
+                      <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
+                        Enter the verification code sent to
+                      </p>
+                      <p className="text-center font-medium text-sm break-all mb-3">{email}</p>
+                      
+                      <OTPInputForm
+                        onSubmit={(value) => {
+                          setOtpValue(value)
+                          handleAuthenticate()
+                        }}
+                        isLoading={isVerifyingOtp}
+                        error={authError}
+                      />
+                      
+                      <div className="flex items-center justify-center pt-3">
+                        <button
+                          type="button"
+                          onClick={() => handleResendOtp()}
+                          disabled={isSendingOtp}
+                          className="text-sm text-primary hover:underline disabled:opacity-50"
+                        >
+                          {isSendingOtp ? 'Sending...' : 'Resend code'}
+                        </button>
+                        <span className="mx-2 text-neutral-300 dark:text-neutral-600">•</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowOtpVerification(false)
+                            setOtpValue('')
+                            setAuthError(null)
+                          }}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          Change email
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
-
-            <Button
-              onClick={handleAuthenticate}
-              className="w-full"
-              style={{ backgroundColor: primaryColor }}
-              disabled={isAuthenticating || (authRequired === 'password' ? !password : !email)}
-            >
-              {isAuthenticating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Authenticating...
-                </>
-              ) : (
-                'Continue'
-              )}
-            </Button>
           </div>
         </div>
       </div>
