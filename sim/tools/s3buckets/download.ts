@@ -5,10 +5,11 @@ import JSZip from 'jszip'
 
 // Configure size limits (in bytes)
 const PREVIEW_LIMITS = {
-  TEXT: 100 * 1024 * 1024,      // 5MB for text files
-  OFFICE: 100 * 1024 * 1024,   // 10MB for Office documents
-  IMAGE: 100 * 1024 * 1024,     // 2MB for images
-  DEFAULT: 100 * 1024 * 1024    // 1MB for other files
+  TEXT: 100 * 1024 * 1024,      // 100MB for text files
+  OFFICE: 100 * 1024 * 1024,   // 100MB for Office documents
+  PDF: 100 * 1024 * 1024,      // 100MB for PDF files
+  IMAGE: 100 * 1024 * 1024,     // 100MB for images
+  DEFAULT: 100 * 1024 * 1024    // 100MB for other files
 };
 
 // Function to encode S3 path components
@@ -279,26 +280,31 @@ export const s3GetObjectTool: ToolConfig = {
       const extension = path.extname(fileName).toLowerCase();
 
       // Generate pre-signed URL for download
-      const downloadUrl = generatePresignedUrl(params, 3600);
+      const url = generatePresignedUrl(params, 3600);
 
       // Read full file content
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       
-      // Get file content
-      const content = await getFullContent(buffer, contentType, fileName);
+      // Get file content based on file type
+      let content = '';
+      if (contentType.includes('image/')) {
+        content = buffer.toString('base64');
+      } else {
+        content = await getFullContent(buffer, contentType, fileName);
+      }
 
       // Create response structure
       const responseData = {
         success: true,
         output: {
           content: content,
+          url: url,
           metadata: {
             fileType: contentType,
             size: contentLength,
             name: fileName,
-            lastModified: lastModified,
-            downloadUrl: downloadUrl
+            lastModified: lastModified
           }
         }
       };
@@ -310,6 +316,7 @@ export const s3GetObjectTool: ToolConfig = {
         success: false,
         output: {
           content: `Error: ${errorMessage}`,
+          url: '',
           metadata: {
             fileType: 'error',
             size: 0,
