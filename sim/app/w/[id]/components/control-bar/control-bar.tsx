@@ -7,6 +7,7 @@ import {
   Bell,
   Bug,
   ChevronDown,
+  Copy,
   History,
   Loader2,
   Play,
@@ -73,7 +74,8 @@ export function ControlBar() {
   } = useNotificationStore()
   const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
     useWorkflowStore()
-  const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow } = useWorkflowRegistry()
+  const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow, duplicateWorkflow } =
+    useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
 
   // Debug mode state
@@ -478,6 +480,21 @@ export function ControlBar() {
   }
 
   /**
+   * Handle duplicating the current workflow
+   */
+  const handleDuplicateWorkflow = () => {
+    if (!activeWorkflowId) return
+
+    // Duplicate the workflow and get the new ID
+    const newWorkflowId = duplicateWorkflow(activeWorkflowId)
+
+    if (newWorkflowId) {
+      // Navigate to the new workflow
+      router.push(`/w/${newWorkflowId}`)
+    }
+  }
+
+  /**
    * Render workflow name section (editable/non-editable)
    */
   const renderWorkflowName = () => (
@@ -708,6 +725,26 @@ export function ControlBar() {
       </Tooltip>
     )
   }
+
+  /**
+   * Render workflow duplicate button
+   */
+  const renderDuplicateButton = () => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleDuplicateWorkflow}
+          className="hover:text-primary"
+        >
+          <Copy className="h-5 w-5" />
+          <span className="sr-only">Duplicate Workflow</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Duplicate Workflow</TooltipContent>
+    </Tooltip>
+  )
 
   /**
    * Render debug mode controls
@@ -962,6 +999,7 @@ export function ControlBar() {
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
+        {renderDuplicateButton()}
         {renderDebugModeToggle()}
         {/* {renderPublishButton()} */}
         {renderDeployButton()}

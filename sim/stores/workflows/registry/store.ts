@@ -415,6 +415,103 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         return id
       },
 
+      /**
+       * Duplicates an existing workflow
+       * @param sourceId - The ID of the workflow to duplicate
+       * @returns The ID of the newly created workflow
+       */
+      duplicateWorkflow: (sourceId: string) => {
+        const { workflows } = get()
+        const sourceWorkflow = workflows[sourceId]
+        
+        if (!sourceWorkflow) {
+          set({ error: `Workflow ${sourceId} not found` })
+          return null
+        }
+        
+        const id = crypto.randomUUID()
+        
+        // Load the source workflow state
+        const sourceState = loadWorkflowState(sourceId)
+        if (!sourceState) {
+          set({ error: `No state found for workflow ${sourceId}` })
+          return null
+        }
+        
+        // Generate new workflow metadata
+        const newWorkflow: WorkflowMetadata = {
+          id,
+          name: `${sourceWorkflow.name} (Copy)`,
+          lastModified: new Date(),
+          description: sourceWorkflow.description,
+          color: getNextWorkflowColor(workflows),
+          // Do not copy marketplace data
+        }
+        
+        // Create new workflow state without deployment data
+        const newState = {
+          blocks: sourceState.blocks || {},
+          edges: sourceState.edges || [],
+          loops: sourceState.loops || {},
+          isDeployed: false, // Reset deployment status
+          deployedAt: undefined, // Reset deployment timestamp
+          history: {
+            past: [],
+            present: {
+              state: {
+                blocks: sourceState.blocks || {},
+                edges: sourceState.edges || [],
+                loops: sourceState.loops || {},
+                isDeployed: false,
+                deployedAt: undefined,
+              },
+              timestamp: Date.now(),
+              action: 'Duplicated workflow',
+              subblockValues: {},
+            },
+            future: [],
+          },
+          lastSaved: Date.now(),
+        }
+        
+        // Add workflow to registry
+        set((state) => ({
+          workflows: {
+            ...state.workflows,
+            [id]: newWorkflow,
+          },
+          error: null,
+        }))
+        
+        // Save workflow list to localStorage
+        const updatedWorkflows = get().workflows
+        saveRegistry(updatedWorkflows)
+        
+        // Save workflow state to localStorage
+        saveWorkflowState(id, newState)
+        
+        // Copy subblock values from the source workflow
+        const sourceSubblockValues = useSubBlockStore.getState().workflowValues[sourceId]
+        if (sourceSubblockValues) {
+          useSubBlockStore.setState((state) => ({
+            workflowValues: {
+              ...state.workflowValues,
+              [id]: JSON.parse(JSON.stringify(sourceSubblockValues)), // Deep copy
+            },
+          }))
+          
+          // Save the copied subblock values
+          saveSubblockValues(id, JSON.parse(JSON.stringify(sourceSubblockValues)))
+        }
+        
+        // Trigger sync
+        workflowSync.sync()
+        
+        logger.info(`Duplicated workflow ${sourceId} to ${id}`)
+        
+        return id
+      },
+
       // Delete workflow and clean up associated storage
       removeWorkflow: (id: string) => {
         set((state) => {

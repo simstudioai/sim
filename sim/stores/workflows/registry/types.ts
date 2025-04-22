@@ -30,6 +30,7 @@ export interface WorkflowRegistryActions {
     name?: string
     description?: string
   }) => string
+  duplicateWorkflow: (sourceId: string) => string | null
 }
 
 export type WorkflowRegistry = WorkflowRegistryState & WorkflowRegistryActions
