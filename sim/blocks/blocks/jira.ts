@@ -73,24 +73,14 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       condition: { field: 'operation', value: ['read', 'update'] },
     },
     // Update issue fields
-    {
-      id: 'issueType',
-      title: 'Issue Type',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter issue type (e.g., Task, Story, Bug)',
-      condition: { field: 'operation', value: 'write' },
-    },
-    {
-      id: 'parentIssue',
-      title: 'Parent Issue',
-      type: 'file-selector',
-      layout: 'full',
-      provider: 'jira',
-      serviceId: 'jira',
-      placeholder: 'Select parent issue (for subtasks)',
-      condition: { field: 'operation', value: 'write' },
-    },
+    // {
+    //   id: 'issueType',
+    //   title: 'Issue Type',
+    //   type: 'short-input',
+    //   layout: 'full',
+    //   placeholder: 'Enter issue type (e.g., Task, Story, Bug)',
+    //   condition: { field: 'operation', value: 'write' },
+    // },
     {
       id: 'summary',
       title: 'New Summary',
@@ -184,11 +174,10 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     issueKey: { type: 'string', required: true },
     projectId: { type: 'string', required: false },
     // Update operation inputs
-    summary: { type: 'string', required: false },
+    summary: { type: 'string', required: true },
     description: { type: 'string', required: false },
     // Write operation inputs
     issueType: { type: 'string', required: false },
-    parentIssue: { type: 'string', required: false },
   },
   outputs: {
     response: {

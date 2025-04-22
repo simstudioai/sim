@@ -51,7 +51,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
     setValue(blockId, subBlock.id, issueKey)
     
     // Clear the fields when a new issue is selected
-    if (provider === 'jira') {
+    if (isJira) {
       setValue(blockId, 'summary', '')
       setValue(blockId, 'description', '')
     }

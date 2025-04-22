@@ -19,8 +19,6 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         ],
     },
 
-    //TODO: modify params to match the Jira API
-
     params: {
         accessToken: {
           type: 'string',
