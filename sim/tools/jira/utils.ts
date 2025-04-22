@@ -11,14 +11,17 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
         });
 
         if (!accessibleResourcesRes.ok) {
-            const errorData = await accessibleResourcesRes.json().catch(() => null);
-            const errorMessage = errorData?.message || `Failed to fetch accessible resources: ${accessibleResourcesRes.status} ${accessibleResourcesRes.statusText}`;
-            console.error('Accessible resources error:', {
-                status: accessibleResourcesRes.status,
-                statusText: accessibleResourcesRes.statusText,
-                errorData
-            });
-            throw new Error(errorMessage);
+            // Only throw error if status indicates a real failure (not 2xx or 3xx)
+            if (accessibleResourcesRes.status >= 400) {
+                const errorData = await accessibleResourcesRes.json().catch(() => null);
+                const errorMessage = errorData?.message || `Failed to fetch accessible resources: ${accessibleResourcesRes.status} ${accessibleResourcesRes.statusText}`;
+                console.error('Accessible resources error:', {
+                    status: accessibleResourcesRes.status,
+                    statusText: accessibleResourcesRes.statusText,
+                    errorData
+                });
+                throw new Error(errorMessage);
+            }
         }
 
         const accessibleResources: JiraCloudResource[] = await accessibleResourcesRes.json();

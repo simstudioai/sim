@@ -66,11 +66,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             required: false,
             description: 'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
         },
-        parent: {
-            type: 'object',
-            required: false,
-            description: 'Parent issue key for creating subtasks. Format: { key: "ISSUE-123" }',
-        },
         issueType: {
             type: 'string',
             required: true,
