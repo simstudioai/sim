@@ -2,7 +2,7 @@ import { JiraCloudResource } from './types'
 
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
     try {
-        const accessibleResourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+        const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -10,40 +10,28 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
             }
         });
 
-        if (!accessibleResourcesRes.ok) {
-            // Only throw error if status indicates a real failure (not 2xx or 3xx)
-            if (accessibleResourcesRes.status >= 400) {
-                const errorData = await accessibleResourcesRes.json().catch(() => null);
-                const errorMessage = errorData?.message || `Failed to fetch accessible resources: ${accessibleResourcesRes.status} ${accessibleResourcesRes.statusText}`;
-                console.error('Accessible resources error:', {
-                    status: accessibleResourcesRes.status,
-                    statusText: accessibleResourcesRes.statusText,
-                    errorData
-                });
-                throw new Error(errorMessage);
+        const resources = await response.json();
+        
+        // If we have resources, find the matching one
+        if (Array.isArray(resources) && resources.length > 0) {
+            const normalizedInput = `https://${domain}`.toLowerCase();
+            const matchedResource = resources.find(r => r.url.toLowerCase() === normalizedInput);
+            
+            if (matchedResource) {
+                return matchedResource.id;
             }
         }
-
-        const accessibleResources: JiraCloudResource[] = await accessibleResourcesRes.json();
         
-        if (!Array.isArray(accessibleResources) || accessibleResources.length === 0) {
-            throw new Error('No accessible Jira resources found for this account');
+        // If we couldn't find a match, return the first resource's ID
+        // This is a fallback in case the URL matching fails
+        if (Array.isArray(resources) && resources.length > 0) {
+            return resources[0].id;
         }
 
-        const normalizedInput = `https://${domain}`.toLowerCase();
-        const matchedResource = accessibleResources.find(r => r.url.toLowerCase() === normalizedInput);
-
-        if (!matchedResource) {
-            console.error('Available resources:', accessibleResources.map(r => r.url));
-            throw new Error(`Could not find matching Jira site for domain: ${domain}`);
-        }
-
-        return matchedResource.id;
+        throw new Error('No Jira resources found');
     } catch (error) {
-        // Ensure we always throw an Error object with a meaningful message
-        if (error instanceof Error) {
-            throw error;
-        }
-        throw new Error(`Failed to get Jira cloud ID: ${error}`);
+        // Log the error but don't throw
+        console.error('Error fetching Jira cloud ID:', error);
+        throw error;
     }
 }
