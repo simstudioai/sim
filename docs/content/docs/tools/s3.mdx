@@ -20,8 +20,26 @@ Retrieve and view files from Amazon S3 buckets using presigned URLs.
 
 ## Tools
 
-### `get_object`
+### `s3_get_object`
 
+Retrieve an object from an AWS S3 bucket
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessKeyId` | string | Yes | Your AWS Access Key ID |
+| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
+| `s3Uri` | string | Yes | S3 Object URL \(e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `metadata` | string |
+| `size` | string |
+| `name` | string |
+| `lastModified` | string |
 
 
 

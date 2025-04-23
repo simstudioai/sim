@@ -476,12 +476,27 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }
 
   const handleOperationChange = (toolIndex: number, operation: string) => {
+    const tool = selectedTools[toolIndex]
+    const subBlockStore = useSubBlockStore.getState()
+    
+    // Clear fields when operation changes for Jira
+    if (tool.type === 'jira') {
+      // Clear all fields that might be shared between operations
+      subBlockStore.setValue(blockId, 'summary', '')
+      subBlockStore.setValue(blockId, 'description', '')
+      subBlockStore.setValue(blockId, 'issueKey', '')
+      subBlockStore.setValue(blockId, 'projectId', '')
+      subBlockStore.setValue(blockId, 'parentIssue', '')
+    }
+    
     setValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
               ...tool,
               operation,
+              // Reset params when operation changes
+              params: {},
             }
           : tool
       )
