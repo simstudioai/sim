@@ -36,11 +36,10 @@ import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from '
 import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
-import { ToolConfig } from './types'
-import { s3GetObjectTool } from './s3/get_object'
 import { youtubeSearchTool } from './youtube'
 import { elevenLabsTtsTool } from './elevenlabs'
-
+import { ToolConfig } from './types'
+import { s3GetObjectTool } from './s3'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -119,6 +118,6 @@ export const tools: Record<string, ToolConfig> = {
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
-  s3_get_object: s3GetObjectTool,
   elevenlabs_tts: elevenLabsTtsTool,
+  get_object: s3GetObjectTool,
 } 

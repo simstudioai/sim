@@ -2,13 +2,13 @@ import { ToolResponse } from '../types'
 
 export interface S3Response extends ToolResponse {
   output: {
-    url: string         // Presigned URL for direct access
+    url: string
     metadata: {
-      fileName: string
-      contentType: string
-      fileSize: number
+      fileType: string
+      size: number
+      name: string
       lastModified: string
-      error?: string    // Optional error message
+      error?: string
     }
   }
 }
