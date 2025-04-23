@@ -37,9 +37,9 @@ export const S3Block: BlockConfig<S3Response> = {
     },
   ],
   tools: {
-    access: ['get_object'],
+    access: ['s3_get_object'],
     config: {
-      tool: () => 'get_object',
+      tool: () => 's3_get_object',
       params: (params) => {
         // Validate required fields
         if (!params.accessKeyId) {

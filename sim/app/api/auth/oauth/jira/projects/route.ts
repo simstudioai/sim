@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { getJiraCloudId } from '@/tools/jira/utils'
+import { Logger } from '@/lib/logs/console-logger'
+
+const logger = new Logger('jira_projects')
 
 export async function GET(request: Request) {
   try {
@@ -19,7 +22,7 @@ export async function GET(request: Request) {
 
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
-    console.log('Using cloud ID:', cloudId)
+    logger.info(`Using cloud ID: ${cloudId}`)
 
     // Build the URL for the Jira API projects endpoint
     const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/search`
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
     queryParams.append('expand', 'description,lead,url,projectKeys')
     
     const finalUrl = `${apiUrl}?${queryParams.toString()}`
-    console.log(`Fetching Jira projects from: ${finalUrl}`)
+    logger.info(`Fetching Jira projects from: ${finalUrl}`)
 
     const response = await fetch(finalUrl, {
       method: 'GET',
@@ -44,14 +47,14 @@ export async function GET(request: Request) {
       }
     })
 
-    console.log('Response status:', response.status, response.statusText)
+    logger.info(`Response status: ${response.status} ${response.statusText}`)
 
     if (!response.ok) {
-      console.error(`Jira API error: ${response.status} ${response.statusText}`)
+      logger.error(`Jira API error: ${response.status} ${response.statusText}`)
       let errorMessage
       try {
         const errorData = await response.json()
-        console.error('Error details:', errorData)
+        logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch projects (${response.status})`
       } catch (e) {
         errorMessage = `Failed to fetch projects: ${response.status} ${response.statusText}`
@@ -62,8 +65,8 @@ export async function GET(request: Request) {
     const data = await response.json()
     
     // Add detailed logging
-    console.log('Jira API Response Status:', response.status)
-    console.log('Found projects:', data.values?.length || 0)
+    logger.info(`Jira API Response Status: ${response.status}`)
+    logger.info(`Found projects: ${data.values?.length || 0}`)
 
     // Transform the response to match our expected format
     const projects = data.values?.map((project: any) => ({
@@ -84,7 +87,7 @@ export async function GET(request: Request) {
       cloudId // Return the cloudId so it can be cached
     })
   } catch (error) {
-    console.error('Error fetching Jira projects:', error)
+    logger.error('Error fetching Jira projects:', error)
     return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
@@ -111,10 +114,8 @@ export async function POST(request: Request) {
 
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
-    console.log('Using cloud ID:', cloudId)
 
     const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${projectId}`
-    console.log(`Fetching Jira project from: ${apiUrl}`)
 
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -126,7 +127,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error('Error details:', errorData)
+      logger.error('Error details:', errorData)
       return NextResponse.json(
         { error: errorData.message || `Failed to fetch project (${response.status})` },
         { status: response.status }
@@ -151,8 +152,8 @@ export async function POST(request: Request) {
       cloudId
     })
   } catch (error) {
-    console.error('Error fetching Jira project:', error)
-    return NextResponse.json(
+    logger.error('Error fetching Jira project:', error)
+  return NextResponse.json(
       { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
     )

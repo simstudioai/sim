@@ -105,8 +105,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         }
       },
       params: (params) => {
-        console.log('Raw params before filtering:', params)
-        
         // Base params that are always needed
         const baseParams = {
           accessToken: params.credential,
@@ -125,7 +123,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
               parent: params.parentIssue ? { key: params.parentIssue } : undefined,
             }
             
-            console.log('Filtered write params:', { ...baseParams, ...writeParams })
             return {
               ...baseParams,
               ...writeParams,

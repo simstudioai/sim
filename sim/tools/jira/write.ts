@@ -1,9 +1,6 @@
 import { ToolConfig } from '../types'
 import { JiraWriteResponse, JiraWriteParams } from './types'
 import { getJiraCloudId } from './utils'
-import { Logger } from '../../lib/logs/console-logger'
-
-const logger = new Logger('jira_write')
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     id: 'jira_write',
@@ -82,7 +79,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             try {
                 params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
             } catch (error) {
-                logger.error('Error pre-fetching cloudId:', error)
                 throw error
             }
         }
@@ -212,7 +208,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
                 },
             }
         } catch (e) {
-            logger.error('Error parsing successful response:', e)
             return {
                 success: true,
                 output: {
@@ -227,7 +222,6 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     },
 
     transformError: (error: any) => {
-        logger.error('Jira write error:', error)
         return error.message || 'Failed to create Jira issue'
     }
 }
