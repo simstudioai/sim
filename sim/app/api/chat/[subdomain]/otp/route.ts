@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { chatDeployment } from '@/db/schema'
+import { chat } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { addCorsHeaders, setChatAuthCookie } from '../../utils'
 import { sendEmail } from '@/lib/mailer'
@@ -131,13 +131,13 @@ export async function POST(
       // Find the chat deployment
       const deploymentResult = await db
         .select({
-          id: chatDeployment.id,
-          authType: chatDeployment.authType,
-          allowedEmails: chatDeployment.allowedEmails,
-          title: chatDeployment.title,
+          id: chat.id,
+          authType: chat.authType,
+          allowedEmails: chat.allowedEmails,
+          title: chat.title,
         })
-        .from(chatDeployment)
-        .where(eq(chatDeployment.subdomain, subdomain))
+        .from(chat)
+        .where(eq(chat.subdomain, subdomain))
         .limit(1)
 
       if (deploymentResult.length === 0) {
@@ -256,11 +256,11 @@ export async function PUT(
       // Find the chat deployment
       const deploymentResult = await db
         .select({
-          id: chatDeployment.id,
-          authType: chatDeployment.authType,
+          id: chat.id,
+          authType: chat.authType,
         })
-        .from(chatDeployment)
-        .where(eq(chatDeployment.subdomain, subdomain))
+        .from(chat)
+        .where(eq(chat.subdomain, subdomain))
         .limit(1)
 
       if (deploymentResult.length === 0) {

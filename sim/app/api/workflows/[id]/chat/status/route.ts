@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { chatDeployment } from '@/db/schema'
+import { chat } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('ChatStatusAPI')
@@ -22,12 +22,12 @@ export async function GET(
     // Find any active chat deployments for this workflow
     const deploymentResults = await db
       .select({
-        id: chatDeployment.id,
-        subdomain: chatDeployment.subdomain,
-        isActive: chatDeployment.isActive,
+        id: chat.id,
+        subdomain: chat.subdomain,
+        isActive: chat.isActive,
       })
-      .from(chatDeployment)
-      .where(eq(chatDeployment.workflowId, id))
+      .from(chat)
+      .where(eq(chat.workflowId, id))
       .limit(1)
 
     const isDeployed = deploymentResults.length > 0 && deploymentResults[0].isActive

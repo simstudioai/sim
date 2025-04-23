@@ -5,14 +5,14 @@ import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { chatDeployment, workflow } from '@/db/schema'
+import { chat, workflow } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { encryptSecret } from '@/lib/utils'
 
 const logger = createLogger('ChatAPI')
 
 // Define Zod schema for API request validation
-const chatDeploymentSchema = z.object({
+const chatSchema = z.object({
   workflowId: z.string().min(1, "Workflow ID is required"),
   subdomain: z.string().min(1, "Subdomain is required")
     .regex(/^[a-z0-9-]+$/, "Subdomain can only contain lowercase letters, numbers, and hyphens"),
@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
     // Get the user's chat deployments
     const deployments = await db
       .select()
-      .from(chatDeployment)
-      .where(eq(chatDeployment.userId, session.user.id))
+      .from(chat)
+      .where(eq(chat.userId, session.user.id))
     
     return createSuccessResponse({ deployments })
   } catch (error: any) {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     
     try {
-      const validatedData = chatDeploymentSchema.parse(body)
+      const validatedData = chatSchema.parse(body)
       
       // Extract validated data
       const { 
@@ -90,8 +90,8 @@ export async function POST(request: NextRequest) {
       // Check if subdomain is available
       const existingSubdomain = await db
         .select()
-        .from(chatDeployment)
-        .where(eq(chatDeployment.subdomain, subdomain))
+        .from(chat)
+        .where(eq(chat.subdomain, subdomain))
         .limit(1)
       
       if (existingSubdomain.length > 0) {
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         outputPath
       })
       
-      await db.insert(chatDeployment).values({
+      await db.insert(chat).values({
         id,
         workflowId,
         userId: session.user.id,

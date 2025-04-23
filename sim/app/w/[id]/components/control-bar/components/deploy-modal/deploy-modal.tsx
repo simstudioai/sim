@@ -71,6 +71,7 @@ export function DeployModal({
   const [currentStep, setCurrentStep] = useState<DeployStep>('api')
   const [isChatDeploying, setIsChatDeploying] = useState(false)
   const [chatSubmitting, setChatSubmitting] = useState(false)
+  const [apiDeployError, setApiDeployError] = useState<string | null>(null)
 
   // Generate an example input format for the API request
   const getInputFormatExample = () => {
@@ -192,10 +193,11 @@ export function DeployModal({
       return
     }
 
+    // Reset any previous errors
+    setApiDeployError(null)
+
     try {
-      if (chatDeploy) {
-        setIsChatDeploying(true)
-      } else {
+      if (!chatDeploy) {
         setIsSubmitting(true)
       }
 
@@ -207,7 +209,6 @@ export function DeployModal({
         },
         body: JSON.stringify({
           apiKey: data.apiKey,
-          // Add chatDeploy flag if we implement it later
         }),
       })
 
@@ -250,15 +251,16 @@ export function DeployModal({
       // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
-      addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
 
       if (chatDeploy) {
-        // If we fail during chat deploy, close the modal
-        onOpenChange(false)
+        // If we fail during chat deploy, return to API step and show error
+        setCurrentStep('api')
+        setApiDeployError(error.message || 'Failed to deploy workflow for chat')
+      } else {
+        addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
       }
     } finally {
       setIsSubmitting(false)
-      setIsChatDeploying(false)
     }
   }
 
@@ -342,8 +344,16 @@ export function DeployModal({
     if (!open) {
       setViewDeploymentInfo(!!isDeployed)
       setCurrentStep('api')
+      // Reset loading states when modal is closed
+      setIsSubmitting(false)
+      setIsChatDeploying(false)
+      setChatSubmitting(false)
     } else if (open && isDeployed) {
       setViewDeploymentInfo(true)
+      // Also reset when reopening
+      setIsSubmitting(false)
+      setIsChatDeploying(false)
+      setChatSubmitting(false)
     }
   }, [open, isDeployed])
 
@@ -357,18 +367,16 @@ export function DeployModal({
 
   // Handle chat deployment submission
   const handleChatDeploySubmit = async () => {
-    if (chatSubmitting) return; // Prevent multiple submissions
-    
+    if (chatSubmitting) return // Prevent multiple submissions
+
     setChatSubmitting(true)
     try {
       // Find the ChatDeploy component and extract the form data
       const chatDeployForm = document.querySelector('.chat-deploy-form') as HTMLFormElement
-      
+
       if (chatDeployForm) {
-        // Prevent default form submission handling and manually trigger submission
-        const submitEvent = new CustomEvent('manual-submit', { bubbles: true })
-        logger.info('Triggering chat deployment form submission')
-        chatDeployForm.dispatchEvent(submitEvent)
+        // Submit the form directly
+        chatDeployForm.requestSubmit()
       } else {
         logger.error('Chat deploy form not found in the DOM')
         setChatSubmitting(false)
@@ -377,11 +385,19 @@ export function DeployModal({
       logger.error('Error handling chat deployment submission:', error)
       setChatSubmitting(false) // Reset state if there's an error
     }
-    // Don't reset the submission state here - let the form handle it
+  }
+
+  // Custom close handler to ensure we clean up loading states
+  const handleCloseModal = () => {
+    // Reset all loading states
+    setIsSubmitting(false)
+    setIsChatDeploying(false)
+    setChatSubmitting(false)
+    onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleCloseModal}>
       <DialogContent
         className="sm:max-w-[600px] max-h-[78vh] flex flex-col p-0 gap-0 overflow-hidden"
         hideCloseButton
@@ -389,12 +405,7 @@ export function DeployModal({
         <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-medium">{renderTitle()}</DialogTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleCloseModal}>
               <X className="h-4 w-4" />
               <span className="sr-only">Close</span>
             </Button>
@@ -414,15 +425,23 @@ export function DeployModal({
                   isUndeploying={isUndeploying}
                 />
               ) : (
-                <DeployForm
-                  apiKeys={apiKeys}
-                  keysLoaded={keysLoaded}
-                  endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-                  workflowId={workflowId || ''}
-                  onSubmit={onDeploy}
-                  getInputFormatExample={getInputFormatExample}
-                  onApiKeyCreated={fetchApiKeys}
-                />
+                <>
+                  {apiDeployError && (
+                    <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+                      <div className="font-semibold">API Deployment Error</div>
+                      <div>{apiDeployError}</div>
+                    </div>
+                  )}
+                  <DeployForm
+                    apiKeys={apiKeys}
+                    keysLoaded={keysLoaded}
+                    endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                    workflowId={workflowId || ''}
+                    onSubmit={onDeploy}
+                    getInputFormatExample={getInputFormatExample}
+                    onApiKeyCreated={fetchApiKeys}
+                  />
+                </>
               ))}
 
             {currentStep === 'chat' && (
@@ -438,7 +457,7 @@ export function DeployModal({
         {/* Footer buttons - always visible for both steps */}
         {currentStep === 'api' && !viewDeploymentInfo && (
           <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={handleCloseModal}>
               Cancel
             </Button>
 
@@ -462,7 +481,7 @@ export function DeployModal({
               <Button
                 type="button"
                 onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' }, true)}
-                disabled={isSubmitting || (!keysLoaded && !apiKeys.length) || isChatDeploying}
+                disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
                 className={cn(
                   // Base styles
                   'gap-2 font-medium',
@@ -472,21 +491,11 @@ export function DeployModal({
                   'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                   // Text color and transitions
                   'text-white transition-all duration-200',
-                  // Running state animation
-                  (isSubmitting || isChatDeploying) &&
-                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                   // Disabled state
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
                 )}
               >
-                {isChatDeploying ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    Deploying...
-                  </>
-                ) : (
-                  'Chat Deploy'
-                )}
+                Chat Deploy
               </Button>
             </div>
           </div>
@@ -494,7 +503,7 @@ export function DeployModal({
 
         {currentStep === 'chat' && (
           <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
-            <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
+            <Button variant="outline" onClick={handleCloseModal} type="button">
               Cancel
             </Button>
 
@@ -502,7 +511,10 @@ export function DeployModal({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setCurrentStep('api')}
+                onClick={() => {
+                  setChatSubmitting(false) // Reset state when going back
+                  setCurrentStep('api')
+                }}
                 disabled={chatSubmitting}
               >
                 Back
@@ -520,21 +532,11 @@ export function DeployModal({
                   'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                   // Text color and transitions
                   'text-white transition-all duration-200',
-                  // Running state animation
-                  chatSubmitting &&
-                    'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                   // Disabled state
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
                 )}
               >
-                {chatSubmitting ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    Deploying...
-                  </>
-                ) : (
-                  'Deploy Chat'
-                )}
+                Deploy Chat
               </Button>
             </div>
           </div>

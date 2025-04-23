@@ -4,7 +4,7 @@ import { decryptSecret } from '@/lib/utils'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '@/db'
-import { chatDeployment, workflow, environment as envTable } from '@/db/schema'
+import { chat, workflow, environment as envTable } from '@/db/schema'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
@@ -236,14 +236,14 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   // Find the chat deployment
   const deploymentResult = await db
     .select({
-      id: chatDeployment.id,
-      workflowId: chatDeployment.workflowId,
-      userId: chatDeployment.userId,
-      outputBlockId: chatDeployment.outputBlockId,
-      outputPath: chatDeployment.outputPath,
+      id: chat.id,
+      workflowId: chat.workflowId,
+      userId: chat.userId,
+      outputBlockId: chat.outputBlockId,
+      outputPath: chat.outputPath,
     })
-    .from(chatDeployment)
-    .where(eq(chatDeployment.id, chatId))
+    .from(chat)
+    .where(eq(chat.id, chatId))
     .limit(1)
   
   if (deploymentResult.length === 0) {

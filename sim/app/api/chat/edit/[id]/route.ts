@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { chatDeployment } from '@/db/schema'
+import { chat } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { z } from 'zod'
 import { encryptSecret } from '@/lib/utils'
@@ -49,27 +49,27 @@ export async function GET(
     }
     
     // Get the specific chat deployment
-    const chat = await db
+    const chatInstance = await db
       .select()
-      .from(chatDeployment)
+      .from(chat)
       .where(and(
-        eq(chatDeployment.id, chatId),
-        eq(chatDeployment.userId, session.user.id)
+        eq(chat.id, chatId),
+        eq(chat.userId, session.user.id)
       ))
       .limit(1)
     
-    if (chat.length === 0) {
+    if (chatInstance.length === 0) {
       return createErrorResponse('Chat not found or access denied', 404)
     }
     
     // Create a new result object without the password
-    const { password, ...safeData } = chat[0]
+    const { password, ...safeData } = chatInstance[0]
     
     // Check if we're in development or production
     const isDevelopment = process.env.NODE_ENV === 'development'
     const chatUrl = isDevelopment
-      ? `http://${chat[0].subdomain}.localhost:3000`
-      : `https://${chat[0].subdomain}.simstudio.ai`
+      ? `http://${chatInstance[0].subdomain}.localhost:3000`
+      : `https://${chatInstance[0].subdomain}.simstudio.ai`
     
     // For security, don't return the actual password value
     const result = {
@@ -111,10 +111,10 @@ export async function PATCH(
       // Verify the chat exists and belongs to the user
       const existingChat = await db
         .select()
-        .from(chatDeployment)
+        .from(chat)
         .where(and(
-          eq(chatDeployment.id, chatId),
-          eq(chatDeployment.userId, session.user.id)
+          eq(chat.id, chatId),
+          eq(chat.userId, session.user.id)
         ))
         .limit(1)
       
@@ -140,8 +140,8 @@ export async function PATCH(
       if (subdomain && subdomain !== existingChat[0].subdomain) {
         const existingSubdomain = await db
           .select()
-          .from(chatDeployment)
-          .where(eq(chatDeployment.subdomain, subdomain))
+          .from(chat)
+          .where(eq(chat.subdomain, subdomain))
           .limit(1)
         
         if (existingSubdomain.length > 0 && existingSubdomain[0].id !== chatId) {
@@ -223,9 +223,9 @@ export async function PATCH(
       
       // Update the chat deployment
       await db
-        .update(chatDeployment)
+        .update(chat)
         .set(updateData)
-        .where(eq(chatDeployment.id, chatId))
+        .where(eq(chat.id, chatId))
       
       // Return success response
       const updatedSubdomain = subdomain || existingChat[0].subdomain
@@ -275,10 +275,10 @@ export async function DELETE(
     // Verify the chat exists and belongs to the user
     const existingChat = await db
       .select()
-      .from(chatDeployment)
+      .from(chat)
       .where(and(
-        eq(chatDeployment.id, chatId),
-        eq(chatDeployment.userId, session.user.id)
+        eq(chat.id, chatId),
+        eq(chat.userId, session.user.id)
       ))
       .limit(1)
     
@@ -288,8 +288,8 @@ export async function DELETE(
     
     // Delete the chat deployment
     await db
-      .delete(chatDeployment)
-      .where(eq(chatDeployment.id, chatId))
+      .delete(chat)
+      .where(eq(chat.id, chatId))
     
     logger.info(`Chat "${chatId}" deleted successfully`)
     

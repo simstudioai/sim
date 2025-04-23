@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { chatDeployment, workflow } from '@/db/schema'
+import { chat, workflow } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { addCorsHeaders, validateChatAuth, setChatAuthCookie, validateAuthToken, executeWorkflowForChat } from '../utils'
 
@@ -27,18 +27,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Find the chat deployment for this subdomain
     const deploymentResult = await db
       .select({
-        id: chatDeployment.id,
-        workflowId: chatDeployment.workflowId,
-        userId: chatDeployment.userId,
-        isActive: chatDeployment.isActive,
-        authType: chatDeployment.authType,
-        password: chatDeployment.password,
-        allowedEmails: chatDeployment.allowedEmails,
-        outputBlockId: chatDeployment.outputBlockId,
-        outputPath: chatDeployment.outputPath,
+        id: chat.id,
+        workflowId: chat.workflowId,
+        userId: chat.userId,
+        isActive: chat.isActive,
+        authType: chat.authType,
+        password: chat.password,
+        allowedEmails: chat.allowedEmails,
+        outputBlockId: chat.outputBlockId,
+        outputPath: chat.outputPath,
       })
-      .from(chatDeployment)
-      .where(eq(chatDeployment.subdomain, subdomain))
+      .from(chat)
+      .where(eq(chat.subdomain, subdomain))
       .limit(1)
     
     if (deploymentResult.length === 0) {
@@ -157,18 +157,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Find the chat deployment for this subdomain
     const deploymentResult = await db
       .select({
-        id: chatDeployment.id,
-        title: chatDeployment.title,
-        description: chatDeployment.description,
-        customizations: chatDeployment.customizations,
-        isActive: chatDeployment.isActive,
-        workflowId: chatDeployment.workflowId,
-        authType: chatDeployment.authType,
-        password: chatDeployment.password,
-        allowedEmails: chatDeployment.allowedEmails,
+        id: chat.id,
+        title: chat.title,
+        description: chat.description,
+        customizations: chat.customizations,
+        isActive: chat.isActive,
+        workflowId: chat.workflowId,
+        authType: chat.authType,
+        password: chat.password,
+        allowedEmails: chat.allowedEmails,
       })
-      .from(chatDeployment)
-      .where(eq(chatDeployment.subdomain, subdomain))
+      .from(chat)
+      .where(eq(chat.subdomain, subdomain))
       .limit(1)
     
     if (deploymentResult.length === 0) {

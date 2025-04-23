@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -81,6 +81,9 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   const [subdomainError, setSubdomainError] = useState('')
   const [deployedChatUrl, setDeployedChatUrl] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isCheckingSubdomain, setIsCheckingSubdomain] = useState(false)
+  const [subdomainAvailable, setSubdomainAvailable] = useState<boolean | null>(null)
+  const subdomainCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Authentication options
   const [authType, setAuthType] = useState<AuthType>('public')
@@ -118,6 +121,21 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
   // Track manual submission state
   const [chatSubmitting, setChatSubmitting] = useState(false)
+
+  // Set up a ref for the form element
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Expose a method to handle external submission requests
+  useEffect(() => {
+    // This will run when the component mounts
+    // The parent can now directly call formRef.current.requestSubmit() to submit the form
+
+    // Clean up any loading states
+    return () => {
+      setIsDeploying(false)
+      setChatSubmitting(false)
+    }
+  }, [])
 
   // Fetch existing chat data when component mounts
   useEffect(() => {
@@ -157,36 +175,15 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
       setHasChanges(changed)
     }
-  }, [subdomain, title, description, authType, emails, password, selectedOutputBlock, originalValues])
-
-  // Set up event listener for manual form submission
-  useEffect(() => {
-    const handleManualSubmit = () => {
-      // Only handle manual submit if we're not already submitting
-      if (!chatSubmitting) {
-        logger.info('Handling manual submit event')
-        // Delay to ensure all state updates are processed
-        setTimeout(() => {
-          handleSubmit()
-        }, 100)
-      }
-    }
-
-    document.addEventListener('manual-submit', handleManualSubmit)
-
-    return () => {
-      document.removeEventListener('manual-submit', handleManualSubmit)
-    }
   }, [
-    // Add all relevant form state dependencies to ensure the event handler has current values
-    selectedOutputBlock, 
-    chatSubmitting, 
-    subdomain, 
-    title, 
-    description, 
-    authType, 
-    password, 
-    emails
+    subdomain,
+    title,
+    description,
+    authType,
+    emails,
+    password,
+    selectedOutputBlock,
+    originalValues,
   ])
 
   // Fetch existing chat data for this workflow
@@ -218,7 +215,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
               description: chatDetail.description || '',
               authType: chatDetail.authType || 'public',
               emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
-              outputBlockId: chatDetail.outputBlockId || null
+              outputBlockId: chatDetail.outputBlockId || null,
             })
 
             // Set emails if using email auth
@@ -250,16 +247,78 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
     }
   }
 
-  // Validate subdomain format on input change
+  // Validate subdomain format on input change and check availability
   const handleSubdomainChange = (value: string) => {
     const lowercaseValue = value.toLowerCase()
     setSubdomain(lowercaseValue)
+    setSubdomainAvailable(null)
+
+    // Clear any existing timeout
+    if (subdomainCheckTimeoutRef.current) {
+      clearTimeout(subdomainCheckTimeoutRef.current)
+    }
 
     // Validate subdomain format
     if (lowercaseValue && !/^[a-z0-9-]+$/.test(lowercaseValue)) {
       setSubdomainError('Subdomain can only contain lowercase letters, numbers, and hyphens')
+      // Reset deploying states when validation errors occur
+      setIsDeploying(false)
+      setChatSubmitting(false)
+      return
     } else {
       setSubdomainError('')
+    }
+
+    // Skip check if empty or same as original (for updates)
+    if (!lowercaseValue || (originalValues && lowercaseValue === originalValues.subdomain)) {
+      return
+    }
+
+    // Debounce check to avoid unnecessary API calls
+    subdomainCheckTimeoutRef.current = setTimeout(() => {
+      checkSubdomainAvailability(lowercaseValue)
+    }, 500)
+  }
+
+  // Check if subdomain is available
+  const checkSubdomainAvailability = async (domain: string) => {
+    if (!domain) return
+
+    setIsCheckingSubdomain(true)
+
+    try {
+      const response = await fetch(
+        `/api/chat/subdomain-check?subdomain=${encodeURIComponent(domain)}`
+      )
+      const data = await response.json()
+
+      // Only update if this is still the current subdomain
+      if (domain === subdomain) {
+        if (response.ok) {
+          setSubdomainAvailable(data.available)
+          if (!data.available) {
+            setSubdomainError('This subdomain is already in use')
+            // Reset deploying states when subdomain is unavailable
+            setIsDeploying(false)
+            setChatSubmitting(false)
+          } else {
+            setSubdomainError('')
+          }
+        } else {
+          setSubdomainError('Error checking subdomain availability')
+          // Reset deploying states on API error
+          setIsDeploying(false)
+          setChatSubmitting(false)
+        }
+      }
+    } catch (error) {
+      logger.error('Error checking subdomain availability:', error)
+      setSubdomainError('Error checking subdomain availability')
+      // Reset deploying states on error
+      setIsDeploying(false)
+      setChatSubmitting(false)
+    } finally {
+      setIsCheckingSubdomain(false)
     }
   }
 
@@ -333,18 +392,19 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
   // Deploy or update chat
   const handleSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault()
-    
+
     // If already submitting, don't process again
     if (chatSubmitting) return
-    
+
     setChatSubmitting(true)
+    setErrorMessage(null)
 
     // Log form state to help debug
-    logger.info('Form submission triggered with values:', { 
+    logger.info('Form submission triggered with values:', {
       subdomain,
       title,
       authType,
-      hasOutputBlockSelection: !!selectedOutputBlock
+      hasOutputBlockSelection: !!selectedOutputBlock,
     })
 
     // Basic validation
@@ -353,6 +413,34 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
       setChatSubmitting(false)
       setErrorMessage('Please fill out all required fields')
       return
+    }
+
+    // Check subdomain availability before submission if it's different from original
+    if (
+      (!existingChat || subdomain !== existingChat.subdomain) &&
+      (!originalValues || subdomain !== originalValues.subdomain)
+    ) {
+      setIsCheckingSubdomain(true)
+      try {
+        const response = await fetch(
+          `/api/chat/subdomain-check?subdomain=${encodeURIComponent(subdomain)}`
+        )
+        const data = await response.json()
+
+        if (!response.ok || !data.available) {
+          setSubdomainError('This subdomain is already in use')
+          setChatSubmitting(false)
+          setIsCheckingSubdomain(false)
+          return
+        }
+      } catch (error) {
+        logger.error('Error checking subdomain availability:', error)
+        setSubdomainError('Error checking subdomain availability')
+        setChatSubmitting(false)
+        setIsCheckingSubdomain(false)
+        return
+      }
+      setIsCheckingSubdomain(false)
     }
 
     // Verify output selection if it's set
@@ -408,8 +496,6 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
     setErrorMessage(null)
 
     try {
-      setIsDeploying(true)
-
       // Create request payload
       const payload: any = {
         workflowId,
@@ -436,16 +522,14 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
           // If changing to password auth but no password provided for an existing chat,
           // this is an error - server will reject it
           setErrorMessage('Password is required when using password protection')
-          setIsDeploying(false)
-          return; // Stop the submission
+          setChatSubmitting(false)
+          return // Stop the submission
         }
-        
+
         payload.allowedEmails = [] // Clear emails when using password auth
-      } 
-      else if (authType === 'email') {
+      } else if (authType === 'email') {
         payload.allowedEmails = emails
-      }
-      else if (authType === 'public') {
+      } else if (authType === 'public') {
         // Explicitly set empty values for public access
         payload.allowedEmails = []
       }
@@ -456,13 +540,13 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
         if (firstUnderscoreIndex !== -1) {
           const blockId = selectedOutputBlock.substring(0, firstUnderscoreIndex)
           const path = selectedOutputBlock.substring(firstUnderscoreIndex + 1)
-          
+
           payload.outputBlockId = blockId
           payload.outputPath = path
-          
-          logger.info('Added output configuration to payload:', { 
-            outputBlockId: blockId, 
-            outputPath: path
+
+          logger.info('Added output configuration to payload:', {
+            outputBlockId: blockId,
+            outputPath: path,
           })
         }
       } else {
@@ -475,7 +559,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
       if (deploymentInfo?.apiKey) {
         payload.apiKey = deploymentInfo.apiKey
       }
-      
+
       // Log the final payload (minus sensitive data) for debugging
       logger.info('Submitting chat deployment with values:', {
         workflowId: payload.workflowId,
@@ -484,7 +568,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
         authType: payload.authType,
         hasPassword: !!payload.password,
         emailCount: payload.allowedEmails?.length || 0,
-        hasOutputConfig: !!payload.outputBlockId
+        hasOutputConfig: !!payload.outputBlockId,
       })
 
       // Make API request - different endpoints for create vs update
@@ -505,7 +589,6 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
           const errorMessage = validationError.errors[0]?.message || 'Invalid form data'
           setErrorMessage(errorMessage)
           setChatSubmitting(false)
-          setIsDeploying(false)
           return
         }
       }
@@ -537,7 +620,6 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
       setErrorMessage(error.message || 'An unexpected error occurred')
       addNotification('error', `Failed to deploy chat: ${error.message}`, workflowId)
     } finally {
-      setIsDeploying(false)
       setChatSubmitting(false)
       setShowEditConfirmation(false)
     }
@@ -545,20 +627,18 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
   // Determine button label based on state
   const getSubmitButtonLabel = () => {
-    if (isDeploying) {
-      return existingChat ? 'Updating...' : 'Deploying...'
-    }
     return existingChat ? 'Update Chat' : 'Deploy Chat'
   }
 
   // Check if form submission is possible
   const isFormSubmitDisabled = () => {
     return (
-      isDeploying ||
+      chatSubmitting ||
       isDeleting ||
       !subdomain ||
       !title ||
       !!subdomainError ||
+      isCheckingSubdomain ||
       (authType === 'password' && !password && !existingChat) ||
       (authType === 'email' && emails.length === 0) ||
       (existingChat && !hasChanges)
@@ -609,13 +689,41 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
     )
   }
 
+  if (errorMessage) {
+    return (
+      <div className="space-y-4">
+        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+          <div className="font-semibold">Chat Deployment Error</div>
+          <div>{errorMessage}</div>
+        </div>
+
+        {/* Add button to try again */}
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setErrorMessage(null)
+              setChatSubmitting(false)
+            }}
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   // Form view
   return (
     <>
-      <form onSubmit={(e) => {
-        e.preventDefault() // Prevent default form submission
-        // Don't call handleSubmit here - let the Deploy Chat button control submission
-      }} className="space-y-4 chat-deploy-form">
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault() // Prevent default form submission
+          handleSubmit(e) // Call our submit handler directly
+        }}
+        className="space-y-4 chat-deploy-form"
+      >
         <div className="grid gap-4">
           {errorMessage && (
             <Alert variant="destructive">
@@ -630,22 +738,41 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                 <Label htmlFor="subdomain" className="text-sm font-medium">
                   Subdomain
                 </Label>
-                <div className="flex items-center">
+                <div className="flex items-center relative ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 rounded-md">
                   <Input
                     id="subdomain"
                     placeholder="company-name"
                     value={subdomain}
                     onChange={(e) => handleSubdomainChange(e.target.value)}
                     required
-                    className="rounded-r-none border-r-0"
+                    className={cn(
+                      'rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+                      subdomainAvailable === true &&
+                        'border-green-500 focus-visible:border-green-500',
+                      subdomainAvailable === false &&
+                        'border-destructive focus-visible:border-destructive'
+                    )}
                     disabled={isDeploying}
                   />
-                  <div className="h-10 px-3 flex items-center border rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
+                  <div className="h-10 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
                     {isDevelopment ? '.localhost:3000' : '.simstudio.ai'}
                   </div>
+                  {isCheckingSubdomain && (
+                    <div className="absolute right-14 flex items-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    </div>
+                  )}
+                  {!isCheckingSubdomain && subdomainAvailable === true && subdomain && (
+                    <div className="absolute right-14 flex items-center">
+                      <Check className="h-4 w-4 text-green-500" />
+                    </div>
+                  )}
                 </div>
                 {subdomainError && (
                   <p className="text-sm text-destructive mt-1">{subdomainError}</p>
+                )}
+                {!subdomainError && subdomainAvailable === true && subdomain && (
+                  <p className="text-sm text-green-500 mt-1">Subdomain is available</p>
                 )}
               </div>
 
@@ -684,7 +811,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             <div>
               <Label className="text-sm font-medium">Output Configuration</Label>
             </div>
-            
+
             <Card className="border-border/40">
               <CardContent className="p-4 space-y-4">
                 <div>
@@ -699,7 +826,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                       onOutputSelect={(value) => {
                         logger.info(`Output block selection changed to: ${value}`)
                         setSelectedOutputBlock(value)
-                        
+
                         // Mark as changed to enable update button
                         if (existingChat) {
                           setHasChanges(true)
@@ -728,9 +855,9 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                 )}
               >
                 <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
-                  <button 
-                    type="button" 
-                    className="w-full h-full absolute inset-0 cursor-pointer z-10" 
+                  <button
+                    type="button"
+                    className="w-full h-full absolute inset-0 cursor-pointer z-10"
                     onClick={() => !isDeploying && setAuthType('public')}
                     aria-label="Select public access"
                   />
@@ -757,9 +884,9 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                 )}
               >
                 <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
-                  <button 
-                    type="button" 
-                    className="w-full h-full absolute inset-0 cursor-pointer z-10" 
+                  <button
+                    type="button"
+                    className="w-full h-full absolute inset-0 cursor-pointer z-10"
                     onClick={() => !isDeploying && setAuthType('password')}
                     aria-label="Select password protected access"
                   />
@@ -786,9 +913,9 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
                 )}
               >
                 <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
-                  <button 
-                    type="button" 
-                    className="w-full h-full absolute inset-0 cursor-pointer z-10" 
+                  <button
+                    type="button"
+                    className="w-full h-full absolute inset-0 cursor-pointer z-10"
                     onClick={() => !isDeploying && setAuthType('email')}
                     aria-label="Select email access"
                   />
@@ -969,6 +1096,25 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             </div>
           </div>
         </div>
+
+        <Button
+          type="submit"
+          disabled={isFormSubmitDisabled()}
+          className={cn(
+            // Base styles
+            'gap-2 font-medium',
+            // Brand color with hover states
+            'bg-[#802FFF] hover:bg-[#7028E6]',
+            // Hover effect with brand color
+            'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+            // Text color and transitions
+            'text-white transition-all duration-200',
+            // Disabled state
+            'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+          )}
+        >
+          {getSubmitButtonLabel()}
+        </Button>
       </form>
 
       {/* Delete Confirmation Dialog */}
