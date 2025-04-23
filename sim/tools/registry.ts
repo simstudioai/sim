@@ -37,7 +37,7 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { ToolConfig } from './types'
-import { s3GetObjectTool } from './s3bucket/getObject'
+import { s3GetObjectTool } from './s3/get_object'
 import { youtubeSearchTool } from './youtube'
 import { elevenLabsTtsTool } from './elevenlabs'
 

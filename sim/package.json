@@ -69,7 +69,6 @@
     "groq-sdk": "^0.15.0",
     "input-otp": "^1.4.2",
     "ioredis": "^5.6.0",
-    "jszip": "^3.10.1",
     "jwt-decode": "^4.0.0",
     "lenis": "^1.2.3",
     "lucide-react": "^0.469.0",

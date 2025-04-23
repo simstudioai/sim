@@ -19,7 +19,7 @@ export interface OAuthConfig {
   additionalScopes?: string[] // Additional scopes required for the tool
 }
 
-export interface ToolConfig<P = any, R = any> {
+export interface ToolConfig<TParams = any, TResponse = any> {
   // Basic tool identification
   id: string
   name: string
@@ -44,26 +44,29 @@ export interface ToolConfig<P = any, R = any> {
 
   // Request configuration
   request: {
-    url: string | ((params: P) => string)
-    method: string
-    headers: (params: P) => Record<string, string>
-    body?: (params: P) => Record<string, any>
+    url: string | ((params: TParams) => string)
+    method?: string
+    headers?: (params: TParams) => Record<string, string>
+    body?: (params: TParams) => any
     isInternalRoute?: boolean // Whether this is an internal API route
   }
 
   // Direct execution in browser (optional) - bypasses HTTP request
-  directExecution?: (params: P) => Promise<R | undefined>
+  directExecution?: (params: TParams) => Promise<TResponse | undefined>
 
   // Post-processing (optional) - allows additional processing after the initial request
   postProcess?: (
-    result: R extends ToolResponse ? R : ToolResponse,
-    params: P,
+    result: TResponse extends ToolResponse ? TResponse : ToolResponse,
+    params: TParams,
     executeTool: (toolId: string, params: Record<string, any>) => Promise<ToolResponse>
-  ) => Promise<R extends ToolResponse ? R : ToolResponse>
+  ) => Promise<TResponse extends ToolResponse ? TResponse : ToolResponse>
 
   // Response handling
-  transformResponse?: (response: Response, params?: P) => Promise<R>
-  transformError?: (error: any) => string | Promise<R>
+  transformResponse?: (response: Response, params: TParams) => Promise<TResponse>
+  transformError?: (error: any) => string | Promise<TResponse>
+
+  // Test function
+  test?: (params: TParams) => Promise<{ success: boolean; error?: string }>
 }
 
 export interface TableRow {

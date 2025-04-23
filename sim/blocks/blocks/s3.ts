@@ -1,15 +1,15 @@
 import { S3Icon } from '@/components/icons'
-import { S3Response } from '@/tools/s3bucket/types'
+import { S3Response } from '@/tools/s3/types'
 import { BlockConfig } from '../types'
 
-export const S3FileViewerBlock: BlockConfig<S3Response> = {
-  type: 's3_file_viewer',
+export const S3Block: BlockConfig<S3Response> = {
+  type: 's3',
   name: 'S3 File Viewer',
   description: 'View S3 files',
   longDescription:
-    'Retrieve and view files from Amazon S3 buckets using presigned URLs.',
+    'Retrieve and view files from Amazon S3 buckets using presigned URLs. Access files securely without downloading them.',
   category: 'tools',
-  bgColor: '#FF9900', // AWS Orange
+  bgColor: '#1B660F', // AWS Orange
   icon: S3Icon,
   subBlocks: [
     {
@@ -54,6 +54,7 @@ export const S3FileViewerBlock: BlockConfig<S3Response> = {
 
         // Parse S3 URI
         try {
+          console.log('Parsing S3 URI:', params.s3Uri);
           const url = new URL(params.s3Uri);
           const hostname = url.hostname;
           
@@ -66,6 +67,12 @@ export const S3FileViewerBlock: BlockConfig<S3Response> = {
           
           // Extract object key from pathname (remove leading slash)
           const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
+          
+          console.log('Parsed S3 URL:', {
+            bucketName,
+            region,
+            objectKey
+          });
           
           if (!bucketName) {
             throw new Error('Could not extract bucket name from URL');
@@ -83,6 +90,7 @@ export const S3FileViewerBlock: BlockConfig<S3Response> = {
             objectKey,
           }
         } catch (error) {
+          console.error('Error parsing S3 URI:', error);
           throw new Error('Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file')
         }
       },
@@ -98,7 +106,7 @@ export const S3FileViewerBlock: BlockConfig<S3Response> = {
       type: {
         url: 'string',
         metadata: 'json'
-      }
-    }
-  },
+      },
+    },
+  }
 }
