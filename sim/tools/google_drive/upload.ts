@@ -12,11 +12,11 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    fileName: { type: 'string', required: true },
-    content: { type: 'string', required: true },
-    mimeType: { type: 'string', required: false },
-    folderId: { type: 'string', required: false },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Drive API' },
+    fileName: { type: 'string', required: true, description: 'The name of the file to upload' },
+    content: { type: 'string', required: true, description: 'The content of the file to upload' },
+    mimeType: { type: 'string', required: false, description: 'The MIME type of the file to upload' },
+    folderId: { type: 'string', required: false, description: 'The ID of the folder to upload the file to' },
   },
   request: {
     url: 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',

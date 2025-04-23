@@ -12,12 +12,12 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    spreadsheetId: { type: 'string', required: true },
-    range: { type: 'string', required: false },
-    values: { type: 'array', required: true },
-    valueInputOption: { type: 'string', required: false },
-    includeValuesInResponse: { type: 'boolean', required: false },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Sheets API' },
+    spreadsheetId: { type: 'string', required: true, description: 'The ID of the spreadsheet to update' },
+    range: { type: 'string', required: false, description: 'The range of cells to update' },
+    values: { type: 'array', required: true, description: 'The data to update in the spreadsheet' },
+    valueInputOption: { type: 'string', required: false, description: 'The format of the data to update' },
+    includeValuesInResponse: { type: 'boolean', required: false, description: 'Whether to include the updated values in the response' },
   },
   request: {
     url: (params) => {

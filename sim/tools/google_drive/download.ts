@@ -12,8 +12,8 @@ export const downloadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveDownload
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    fileId: { type: 'string', required: true },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Drive API' },
+    fileId: { type: 'string', required: true, description: 'The ID of the file to download' },
   },
   request: {
     url: (params) => `https://www.googleapis.com/drive/v3/files/${params.fileId}?alt=media`,

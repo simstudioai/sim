@@ -12,11 +12,11 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    folderId: { type: 'string', required: false },
-    query: { type: 'string', required: false },
-    pageSize: { type: 'number', required: false },
-    pageToken: { type: 'string', required: false },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Drive API' },
+    folderId: { type: 'string', required: false, description: 'The ID of the folder to list files from' },
+    query: { type: 'string', required: false, description: 'A query to filter the files' },
+    pageSize: { type: 'number', required: false, description: 'The number of files to return' },
+    pageToken: { type: 'string', required: false, description: 'The page token to use for pagination' },
   },
   request: {
     url: (params) => {

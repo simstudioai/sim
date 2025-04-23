@@ -59,6 +59,8 @@ Read content from a Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Docs API |
+| `documentId` | string | Yes | The ID of the document to read |
 
 #### Output
 
@@ -74,6 +76,9 @@ Write or update content in a Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Docs API |
+| `documentId` | string | Yes | The ID of the document to write to |
+| `content` | string | Yes | The content to write to the document |
 
 #### Output
 
@@ -89,6 +94,10 @@ Create a new Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Docs API |
+| `title` | string | Yes | The title of the document to create |
+| `content` | string | No | The content of the document to create |
+| `folderId` | string | No | The ID of the folder to create the document in |
 
 #### Output
 

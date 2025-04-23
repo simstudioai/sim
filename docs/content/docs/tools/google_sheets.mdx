@@ -62,6 +62,9 @@ Read data from a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Sheets API |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet to read from |
+| `range` | string | No | The range of cells to read from |
 
 #### Output
 
@@ -77,6 +80,12 @@ Write data to a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Sheets API |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet to write to |
+| `range` | string | No | The range of cells to write to |
+| `values` | array | Yes | The data to write to the spreadsheet |
+| `valueInputOption` | string | No | The format of the data to write |
+| `includeValuesInResponse` | boolean | No | Whether to include the written values in the response |
 
 #### Output
 
@@ -98,6 +107,12 @@ Update data in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Sheets API |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet to update |
+| `range` | string | No | The range of cells to update |
+| `values` | array | Yes | The data to update in the spreadsheet |
+| `valueInputOption` | string | No | The format of the data to update |
+| `includeValuesInResponse` | boolean | No | Whether to include the updated values in the response |
 
 #### Output
 
