@@ -1,5 +1,5 @@
 import { fetchTool } from './fetch'
-import { generateEmbeddingsTool } from './generate'
+import { generateEmbeddingsTool } from './generate_embeddings'
 import { searchTextTool } from './search_text'
 import { searchVectorTool } from './search_vector'
 import { upsertTextTool } from './upsert_text'

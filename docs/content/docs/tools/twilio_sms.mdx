@@ -27,13 +27,21 @@ Send text messages to single or multiple recipients using the Twilio API.
 
 ### `twilio_send_sms`
 
+Send text messages to single or multiple recipients using the Twilio API.
+
 #### Input Parameters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `phoneNumbers` | string | Yes | Phone numbers to send the message to, separated by newlines |
 
 #### Output
 
+| Parameter | Type |
+| --------- | ---- |
+| `success` | string |
+| `messageId` | string |
+| `status` | string |
 
 
 

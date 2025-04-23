@@ -31,7 +31,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
       options: [
         { label: 'Get PR details', id: 'github_pr' },
         { label: 'Create PR comment', id: 'github_comment' },
-        { label: 'Get repository info', id: 'github_repoinfo' },
+        { label: 'Get repository info', id: 'github_repo_info' },
         { label: 'Get latest commit', id: 'github_latest_commit' },
       ],
       value: () => 'github_pr',
@@ -133,7 +133,7 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
     },
   ],
   tools: {
-    access: ['github_pr', 'github_comment', 'github_repoinfo', 'github_latest_commit'],
+    access: ['github_pr', 'github_comment', 'github_repo_info', 'github_latest_commit'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -141,12 +141,12 @@ export const GitHubBlock: BlockConfig<GitHubResponse> = {
             return 'github_pr'
           case 'github_comment':
             return 'github_comment'
-          case 'github_repoinfo':
-            return 'github_repoinfo'
+          case 'github_repo_info':
+            return 'github_repo_info'
           case 'github_latest_commit':
             return 'github_latest_commit'
           default:
-            return 'github_repoinfo'
+            return 'github_repo_info'
         }
       },
     },

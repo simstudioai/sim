@@ -36,13 +36,22 @@ Store, search, and retrieve vector embeddings using Pinecone
 
 ### `pinecone_generate_embeddings`
 
+Generate embeddings from text using Pinecone
+
 #### Input Parameters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Pinecone API key |
 
 #### Output
 
+| Parameter | Type |
+| --------- | ---- |
+| `data` | string |
+| `model` | string |
+| `vector_type` | string |
+| `usage` | string |
 
 ### `pinecone_upsert_text`
 

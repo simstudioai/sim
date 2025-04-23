@@ -1,3 +1,3 @@
-import { sendSMSTool } from './send'
+import { sendSMSTool } from './send_sms'
 
 export { sendSMSTool }

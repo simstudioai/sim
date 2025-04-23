@@ -84,25 +84,47 @@ Create comments on GitHub PRs
 | `side` | string |
 | `commit_id` | string |
 
-### `github_repoinfo`
+### `github_repo_info`
+
+Retrieve comprehensive GitHub repository metadata including stars, forks, issues, and primary language. Supports both public and private repositories with optional authentication.
 
 #### Input Parameters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner (user or organization) |
 
 #### Output
 
+| Parameter | Type |
+| --------- | ---- |
+| `metadata` | string |
+| `description` | string |
+| `stars` | string |
+| `forks` | string |
+| `openIssues` | string |
+| `language` | string |
 
 ### `github_latest_commit`
 
+Retrieve the latest commit from a GitHub repository
+
 #### Input Parameters
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner (user or organization) |
 
 #### Output
 
+| Parameter | Type |
+| --------- | ---- |
+| `metadata` | string |
+| `html_url` | string |
+| `commit_message` | string |
+| `author` | string |
+| `login` | string |
+| `avatar_url` | string |
 
 
 
