@@ -1,5 +1,4 @@
-#!/usr/bin/env node
-// @ts-check
+#!/usr/bin/env ts-node
 
 import fs from 'node:fs'
 import path from 'node:path'
