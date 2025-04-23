@@ -126,6 +126,7 @@ export const s3GetObjectTool: ToolConfig = {
           params.objectKey = objectKey
         }
 
+        // Use UTC time explicitly
         const date = new Date()
         const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '')
         const dateStamp = amzDate.slice(0, 8)
@@ -135,17 +136,24 @@ export const s3GetObjectTool: ToolConfig = {
         const canonicalUri = `/${encodedPath}`
         const canonicalQueryString = ''
         const payloadHash = crypto.createHash('sha256').update('').digest('hex')
+        const host = `${params.bucketName}.s3.${params.region}.amazonaws.com`
         const canonicalHeaders = 
-          'host:' + params.bucketName + '.s3.' + params.region + '.amazonaws.com' + '\n' +
-          'x-amz-content-sha256:' + payloadHash + '\n' +
-          'x-amz-date:' + amzDate + '\n'
-        const signedHeaders = 'hostx-amz-content-sha256x-amz-date'
-        const canonicalRequest = method + '\n' + canonicalUri + '\n' + canonicalQueryString + '\n' + 
-                                canonicalHeaders + '\n' + signedHeaders + '\n' + payloadHash
+          `host:${host}\n` +
+          `x-amz-content-sha256:${payloadHash}\n` +
+          `x-amz-date:${amzDate}\n`
+        const signedHeaders = 'host;x-amz-content-sha256;x-amz-date'
+        const canonicalRequest = method + '\n' + 
+                               canonicalUri + '\n' + 
+                               canonicalQueryString + '\n' + 
+                               canonicalHeaders + '\n' + 
+                               signedHeaders + '\n' + 
+                               payloadHash
         
         const algorithm = 'AWS4-HMAC-SHA256'
         const credentialScope = dateStamp + '/' + params.region + '/s3/aws4_request'
-        const stringToSign = algorithm + '\n' + amzDate + '\n' + credentialScope + '\n' + 
+        const stringToSign = algorithm + '\n' + 
+                            amzDate + '\n' + 
+                            credentialScope + '\n' + 
                             crypto.createHash('sha256').update(canonicalRequest).digest('hex')
         
         const signingKey = getSignatureKey(params.secretAccessKey, dateStamp, params.region, 's3')
@@ -157,6 +165,7 @@ export const s3GetObjectTool: ToolConfig = {
           'Signature=' + signature
         
         return {
+          'Host': host,
           'X-Amz-Content-Sha256': payloadHash,
           'X-Amz-Date': amzDate,
           'Authorization': authorizationHeader
