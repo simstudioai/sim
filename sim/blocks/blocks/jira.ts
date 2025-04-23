@@ -72,15 +72,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       placeholder: 'Select Jira issue',
       condition: { field: 'operation', value: ['read', 'update'] },
     },
-    // Update issue fields
-    // {
-    //   id: 'issueType',
-    //   title: 'Issue Type',
-    //   type: 'short-input',
-    //   layout: 'full',
-    //   placeholder: 'Enter issue type (e.g., Task, Story, Bug)',
-    //   condition: { field: 'operation', value: 'write' },
-    // },
     {
       id: 'summary',
       title: 'New Summary',
