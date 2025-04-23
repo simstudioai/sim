@@ -10,6 +10,7 @@ import { ApiKeys } from './components/api-keys/api-keys'
 import { Credentials } from './components/credentials/credentials'
 import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
+import { Subscription } from './components/subscription/subscription'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
 
 interface SettingsModalProps {
@@ -17,7 +18,7 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys'
+type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -78,6 +79,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </div>
             <div className={cn('h-full', activeSection === 'apikeys' ? 'block' : 'hidden')}>
               <ApiKeys onOpenChange={onOpenChange} />
+            </div>
+            <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
+              <Subscription onOpenChange={onOpenChange} />
             </div>
           </div>
         </div>

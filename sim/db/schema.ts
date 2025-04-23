@@ -17,6 +17,7 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
+  stripeCustomerId: text('stripe_customer_id'),
 })
 
 export const session = pgTable('session', {
@@ -218,6 +219,21 @@ export const customTools = pgTable('custom_tools', {
   title: text('title').notNull(),
   schema: json('schema').notNull(),
   code: text('code').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const subscription = pgTable('subscription', {
+  id: text('id').primaryKey(),
+  plan: text('plan').notNull(),
+  referenceId: text('reference_id').notNull(), // userId by default
+  stripeCustomerId: text('stripe_customer_id'),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  status: text('status').notNull(), // active, canceled, etc.
+  periodStart: timestamp('period_start'),
+  periodEnd: timestamp('period_end'),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+  seats: integer('seats'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
