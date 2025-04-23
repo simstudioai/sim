@@ -9,7 +9,7 @@ export const S3Block: BlockConfig<S3Response> = {
   longDescription:
     'Retrieve and view files from Amazon S3 buckets using presigned URLs.',
   category: 'tools',
-  bgColor: '#1B660F', // AWS Green
+  bgColor: '#E0E0E0',
   icon: S3Icon,
   subBlocks: [
     {
@@ -54,25 +54,25 @@ export const S3Block: BlockConfig<S3Response> = {
 
         // Parse S3 URI
         try {
-          const url = new URL(params.s3Uri);
-          const hostname = url.hostname;
+          const url = new URL(params.s3Uri)
+          const hostname = url.hostname
           
           // Extract bucket name from hostname
-          const bucketName = hostname.split('.')[0];
+          const bucketName = hostname.split('.')[0]
           
           // Extract region from hostname
-          const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/);
-          const region = regionMatch ? regionMatch[1] : 'us-east-1';
+          const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
+          const region = regionMatch ? regionMatch[1] : 'us-east-1'
           
           // Extract object key from pathname (remove leading slash)
-          const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
+          const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
           
           if (!bucketName) {
-            throw new Error('Could not extract bucket name from URL');
+            throw new Error('Could not extract bucket name from URL')
           }
           
           if (!objectKey) {
-            throw new Error('No object key found in URL');
+            throw new Error('No object key found in URL')
           }
           
           return {
