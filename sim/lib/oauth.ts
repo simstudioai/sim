@@ -28,9 +28,9 @@ export type OAuthProvider =
   | 'confluence'
   | 'airtable'
   | 'notion'
-  | 'salesforce'
   | 'jira'
-
+  | 'salesforce'
+  
   | string
 export type OAuthService =
   | 'google'
@@ -44,9 +44,8 @@ export type OAuthService =
   | 'confluence'
   | 'airtable'
   | 'notion'
-  | 'salesforce'
   | 'jira'
-  
+  | 'salesforce'
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
