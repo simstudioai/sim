@@ -105,7 +105,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
-  dalle_generate: dalleTool,
+  openai_dalle: dalleTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,

@@ -457,27 +457,27 @@ function extractToolInfo(toolName: string, fileContent: string, filePath: string
       const successOutputMatch = fileContent.match(successOutputRegex)
       
       if (successOutputMatch) {
-        const outputExpression = successOutputMatch[1].trim();
+        const outputExpression = successOutputMatch[1].trim()
         
         // Handle case where output is something like "data.data || {}"
         if (outputExpression.includes('||')) {
-          outputs.data = 'json';
+          outputs.data = 'json'
         }
         // Handle direct object assignment like "output: { field1, field2 }"
         else if (outputExpression.startsWith('{')) {
-          const fieldMatches = outputExpression.match(/(\w+)\s*:/g);
+          const fieldMatches = outputExpression.match(/(\w+)\s*:/g)
           if (fieldMatches) {
             fieldMatches.forEach(match => {
-              const fieldName = match.trim().replace(':', '');
-              outputs[fieldName] = 'Dynamic output field';
-            });
+              const fieldName = match.trim().replace(':', '')
+              outputs[fieldName] = 'Dynamic output field'
+            })
           }
         }
         // Check for data.X patterns like "data.data"
         else if (outputExpression.includes('.')) {
-          const fieldName = outputExpression.split('.').pop();
+          const fieldName = outputExpression.split('.').pop()
           if (fieldName) {
-            outputs[fieldName] = 'json';
+            outputs[fieldName] = 'json'
           }
         }
       }
@@ -811,6 +811,86 @@ function extractMem0ToolInfo(toolName: string, fileContent: string, filePath: st
   }
 }
 
+// Function to extract content between manual content markers
+function extractManualContent(existingContent: string): Record<string, string> {
+  const manualSections: Record<string, string> = {}
+  // Improved regex to better handle MDX comments
+  const manualContentRegex = /\{\/\*\s*MANUAL-CONTENT-START:(\w+)\s*\*\/\}([\s\S]*?)\{\/\*\s*MANUAL-CONTENT-END\s*\*\/\}/g
+  
+  let match
+  while ((match = manualContentRegex.exec(existingContent)) !== null) {
+    const sectionName = match[1]
+    const content = match[2].trim()
+    manualSections[sectionName] = content
+    console.log(`Found manual content for section: ${sectionName}`)
+  }
+  
+  return manualSections
+}
+
+// Function to merge generated markdown with manual content
+function mergeWithManualContent(generatedMarkdown: string, existingContent: string | null, manualSections: Record<string, string>): string {
+  if (!existingContent || Object.keys(manualSections).length === 0) {
+    return generatedMarkdown
+  }
+  
+  console.log("Merging manual content with generated markdown")
+  
+  // Log what we found for debugging
+  console.log(`Found ${Object.keys(manualSections).length} manual sections`)
+  Object.keys(manualSections).forEach(section => {
+    console.log(`  - ${section}: ${manualSections[section].substring(0, 20)}...`)
+  })
+  
+  // Replace placeholders in generated markdown with manual content
+  let mergedContent = generatedMarkdown
+  
+  // Add manual content for each section we found
+  Object.entries(manualSections).forEach(([sectionName, content]) => {
+    // Define insertion points for different section types with improved patterns
+    const insertionPoints: Record<string, { regex: RegExp }> = {
+      'intro': { 
+        regex: /<BlockInfoCard[\s\S]*?<\/svg>`}\s*\/>/
+      },
+      'usage': { 
+        regex: /## Usage Instructions/
+      },
+      'configuration': { 
+        regex: /## Configuration/
+      },
+      'outputs': { 
+        regex: /## Outputs/
+      },
+      'notes': { 
+        regex: /## Notes/
+      }
+    }
+
+    // Find the appropriate insertion point
+    const insertionPoint = insertionPoints[sectionName]
+    
+    if (insertionPoint) {
+      // Use regex to find the insertion point
+      const match = mergedContent.match(insertionPoint.regex)
+      
+      if (match && match.index !== undefined) {
+        // Insert after the matched content
+        const insertPosition = match.index + match[0].length
+        console.log(`Inserting ${sectionName} content after position ${insertPosition}`)
+        mergedContent = mergedContent.slice(0, insertPosition) + 
+          `\n\n{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}\n` +
+          mergedContent.slice(insertPosition)
+      } else {
+        console.log(`Could not find insertion point for ${sectionName}, regex pattern: ${insertionPoint.regex}`)
+      }
+    } else {
+      console.log(`No insertion point defined for section ${sectionName}`)
+    }
+  })
+  
+  return mergedContent
+}
+
 // Function to generate documentation for a block
 async function generateBlockDoc(blockPath: string, icons: Record<string, string>) {
   try {
@@ -836,19 +916,41 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
       return
     }
     
+    // Output file path
+    const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
+    
+    // IMPORTANT: Check if file already exists and read its content FIRST
+    let existingContent: string | null = null
+    if (fs.existsSync(outputFilePath)) {
+      existingContent = fs.readFileSync(outputFilePath, 'utf-8')
+      console.log(`Existing file found for ${blockConfig.type}.mdx, checking for manual content...`)
+    }
+    
+    // Extract manual content from existing file before generating new content
+    const manualSections = existingContent ? extractManualContent(existingContent) : {}
+    
     // Create the markdown content - now async
     const markdown = await generateMarkdownForBlock(blockConfig, icons)
     
+    // Merge with manual content if we found any
+    let finalContent = markdown
+    if (Object.keys(manualSections).length > 0) {
+      console.log(`Found manual content in ${blockConfig.type}.mdx, merging...`)
+      finalContent = mergeWithManualContent(markdown, existingContent, manualSections)
+    } else {
+      console.log(`No manual content found in ${blockConfig.type}.mdx`)
+    }
+    
     // Write the markdown file
-    const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
-    fs.writeFileSync(outputFilePath, markdown)
+    fs.writeFileSync(outputFilePath, finalContent)
+    console.log(`Generated documentation for ${blockConfig.type}`)
 
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
   }
 }
 
-// Make generateMarkdownForBlock async
+// Update generateMarkdownForBlock to remove placeholders
 async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string, string>): Promise<string> {
   const {
     type,
@@ -1060,7 +1162,7 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<
         }
         
         // Add Input Parameters section for the tool
-        toolsSection += `#### Input Parameters\n\n`
+        toolsSection += `#### Input\n\n`
         toolsSection += `| Parameter | Type | Required | Description |\n`
         toolsSection += `| --------- | ---- | -------- | ----------- |\n`
         
@@ -1101,7 +1203,7 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<
     usageInstructions = `## Usage Instructions\n\n${longDescription}\n\n`
   }
 
-  // Generate the markdown content with fixed logic
+  // Generate the markdown content without any placeholders
   return `---
 title: ${name}
 description: ${description}
@@ -1136,7 +1238,8 @@ ${outputs && Object.keys(outputs).length > 0 ? outputsSection.replace('## Output
 ## Notes
 
 - Category: \`${category}\`
-- Type: \`${type}\``
+- Type: \`${type}\`
+`
 }
 
 // Main function to generate all block docs

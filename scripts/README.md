@@ -54,3 +54,56 @@ The documentation generator runs automatically as part of the CI/CD pipeline whe
 ## Adding Support for New Block Properties
 
 If you add new properties to block definitions that should be included in the documentation, update the `generateMarkdownForBlock` function in `scripts/generate-block-docs.ts`. 
+
+## Preserving Manual Content
+
+The documentation generator now supports preserving manually added content when regenerating docs. This allows you to enhance the auto-generated documentation with custom examples, additional context, or any other content without losing your changes when the docs are regenerated.
+
+### How It Works
+
+1. The generator creates clean documentation without any placeholders or markers
+2. If you add manual content to a file using special comment markers, that content will be preserved during regeneration
+3. The manual content is intelligently inserted at the appropriate section when docs are regenerated
+
+### Using Manual Content Markers
+
+To add custom content to any tool's documentation, insert MDX comment blocks with section markers:
+
+```markdown
+{/* MANUAL-CONTENT-START:sectionName */}
+Your custom content here (Markdown formatting supported)
+{/* MANUAL-CONTENT-END */}
+```
+
+Replace `sectionName` with one of the supported section names:
+
+- `intro` - Content at the top of the document after the BlockInfoCard
+- `usage` - Additional usage instructions and examples
+- `configuration` - Custom configuration details
+- `outputs` - Additional output information or examples
+- `notes` - Extra notes at the end of the document
+
+### Example
+
+To add custom examples to a tool doc:
+
+```markdown
+{/* MANUAL-CONTENT-START:usage */}
+## Examples
+
+### Basic Usage
+
+```json
+{
+  "parameter": "value",
+  "anotherParameter": "anotherValue"
+}
+```
+
+### Advanced Configuration
+
+Here's how to use this tool for a specific use case...
+{/* MANUAL-CONTENT-END */}
+```
+
+When the documentation is regenerated, your manual content will be preserved in the appropriate section automatically. The script will not add any placeholders or markers to files by default. 

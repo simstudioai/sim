@@ -83,9 +83,9 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
     },
   ],
   tools: {
-    access: ['dalle_generate'],
+    access: ['openai_dalle'],
     config: {
-      tool: () => 'dalle_generate',
+      tool: () => 'openai_dalle',
       params: (params) => {
         if (!params.apiKey) {
           throw new Error('API key is required')
