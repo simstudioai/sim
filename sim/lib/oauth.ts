@@ -10,6 +10,7 @@ import {
   GoogleIcon,
   GoogleSheetsIcon,
   NotionIcon,
+  SalesforceIcon,
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'
@@ -26,6 +27,7 @@ export type OAuthProvider =
   | 'confluence'
   | 'airtable'
   | 'notion'
+  | 'salesforce'
   | string
 export type OAuthService =
   | 'google'
@@ -39,7 +41,7 @@ export type OAuthService =
   | 'confluence'
   | 'airtable'
   | 'notion'
-
+  | 'salesforce'
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -230,6 +232,31 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'notion',
   },
+  salesforce: {
+    id: 'salesforce',
+    name: 'Salesforce',
+    icon: (props) => SalesforceIcon(props),
+    services: {
+      salesforce: {
+        id: 'salesforce',
+        name: 'Salesforce',
+        description: 'Connect to Salesforce CRM to manage records and run queries and bulk api',
+        providerId: 'salesforce',
+        icon: (props) => SalesforceIcon(props),
+        baseProviderIcon: (props) => SalesforceIcon(props),
+        scopes: [
+          'api',
+          'refresh_token',
+          'offline_access',
+          'web',
+          'full',
+          'custom_permissions',
+          'wave_api'
+        ],
+      },
+    },
+    defaultService: 'salesforce',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -282,7 +309,9 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'airtable'
   } else if (provider === 'notion') {
     return 'notion'
-  }
+  } else if (provider === 'salesforce') {
+    return 'salesforce'
+  } 
 
   return providerConfig.defaultService
 }
@@ -397,6 +426,11 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
         clientId = process.env.NOTION_CLIENT_ID
         clientSecret = process.env.NOTION_CLIENT_SECRET
+        break
+      case 'salesforce':
+        tokenEndpoint = 'https://login.salesforce.com/services/oauth2/token'
+        clientId = process.env.SALESFORCE_CLIENT_ID
+        clientSecret = process.env.SALESFORCE_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)

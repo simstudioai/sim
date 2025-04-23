@@ -13,6 +13,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
+
 const logger = createLogger('Auth')
 
 // If there is no resend key, it might be a local dev environment
@@ -60,6 +61,7 @@ export const auth = betterAuth({
         'supabase',
         'x',
         'notion',
+        'salesforce',
       ],
     },
   },
@@ -544,6 +546,74 @@ export const auth = betterAuth({
             }
           },
         },
+
+        // Salesforce provider
+        {
+          providerId: 'salesforce',
+          clientId: process.env.SALESFORCE_CLIENT_ID as string,
+          clientSecret: process.env.SALESFORCE_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.salesforce.com/services/oauth2/authorize',
+          tokenUrl: 'https://login.salesforce.com/services/oauth2/token',
+          userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
+          scopes: [
+            'api',
+            'web',
+            'full',
+            'chatter_api',
+            'refresh_token',
+            'offline_access',
+            'wave_api'
+          ],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/salesforce`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://login.salesforce.com/services/oauth2/userinfo', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+        
+              if (!response.ok) {
+                logger.error('Error fetching Salesforce user info:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                })
+                return null
+              }
+        
+              const profile = await response.json()
+              
+              // Create timestamps
+              const now = new Date()
+              
+              // Extract instance_url from the raw token response if available
+              const instanceUrl = (tokens as any).raw?.instance_url || null
+        
+              return {
+                id: profile.user_id,
+                email: profile.email,
+                name: profile.name || 'Salesforce User',
+                image: profile.picture,
+                emailVerified: true, // Salesforce requires verified emails
+                createdAt: now,
+                updatedAt: now,
+                // Store the instance URL and organization ID as custom claims
+                // These will be available in the JWT token
+                customClaims: {
+                  salesforce_instance_url: instanceUrl,
+                  salesforce_organization_id: profile.organization_id
+                }
+              }
+            } catch (error) {
+              logger.error('Error in Salesforce getUserInfo:', { error })
+              return null
+            }
+          },
+        }
       ],
     }),
   ],
