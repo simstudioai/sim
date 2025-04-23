@@ -18,6 +18,25 @@ function getSignatureKey(key: string, dateStamp: string, regionName: string, ser
   return kSigning
 }
 
+function parseS3Uri(s3Uri: string): { bucketName: string; region: string; objectKey: string } {
+  try {
+    const url = new URL(s3Uri)
+    const hostname = url.hostname
+    const bucketName = hostname.split('.')[0]
+    const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
+    const region = regionMatch ? regionMatch[1] : 'us-east-1'
+    const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+
+    if (!bucketName || !objectKey) {
+      throw new Error('Invalid S3 URI format')
+    }
+
+    return { bucketName, region, objectKey }
+  } catch (error) {
+    throw new Error('Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file')
+  }
+}
+
 // Function to generate a pre-signed URL
 function generatePresignedUrl(params: any, expiresIn: number = 3600): string {
   const date = new Date()
@@ -85,17 +104,8 @@ export const s3GetObjectTool: ToolConfig = {
   request: {
     url: (params) => {
       try {
-        const url = new URL(params.s3Uri)
-        const hostname = url.hostname
-        const bucketName = hostname.split('.')[0]
-        const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
-        const region = regionMatch ? regionMatch[1] : 'us-east-1'
-        const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
-
-        if (!bucketName || !objectKey) {
-          throw new Error('Invalid S3 URI format')
-        }
-
+        const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+        
         params.bucketName = bucketName
         params.region = region
         params.objectKey = objectKey
@@ -110,12 +120,10 @@ export const s3GetObjectTool: ToolConfig = {
       try {
         // Parse S3 URI if not already parsed
         if (!params.bucketName || !params.region || !params.objectKey) {
-          const url = new URL(params.s3Uri)
-          const hostname = url.hostname
-          params.bucketName = hostname.split('.')[0]
-          const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
-          params.region = regionMatch ? regionMatch[1] : 'us-east-1'
-          params.objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+          const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+          params.bucketName = bucketName
+          params.region = region
+          params.objectKey = objectKey
         }
 
         const date = new Date()
@@ -167,12 +175,10 @@ export const s3GetObjectTool: ToolConfig = {
 
       // Parse S3 URI if not already parsed
       if (!params.bucketName || !params.region || !params.objectKey) {
-        const url = new URL(params.s3Uri)
-        const hostname = url.hostname
-        params.bucketName = hostname.split('.')[0]
-        const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
-        params.region = regionMatch ? regionMatch[1] : 'us-east-1'
-        params.objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
+        const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
+        params.bucketName = bucketName
+        params.region = region
+        params.objectKey = objectKey
       }
 
       // Get file metadata
