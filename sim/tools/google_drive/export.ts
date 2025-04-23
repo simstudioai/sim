@@ -19,9 +19,9 @@ export const exportTool: ToolConfig<
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    fileId: { type: 'string', required: true },
-    mimeType: { type: 'string', required: false },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Drive API' },
+    fileId: { type: 'string', required: true, description: 'The ID of the file to export' },
+    mimeType: { type: 'string', required: false, description: 'The MIME type to export the file as' },
   },
   request: {
     url: (params) => {

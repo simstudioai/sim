@@ -12,12 +12,12 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    spreadsheetId: { type: 'string', required: true },
-    range: { type: 'string', required: false },
-    values: { type: 'array', required: true },
-    valueInputOption: { type: 'string', required: false },
-    includeValuesInResponse: { type: 'boolean', required: false },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Sheets API' },
+    spreadsheetId: { type: 'string', required: true, description: 'The ID of the spreadsheet to write to' },
+    range: { type: 'string', required: false, description: 'The range of cells to write to' },
+    values: { type: 'array', required: true, description: 'The data to write to the spreadsheet' },
+    valueInputOption: { type: 'string', required: false, description: 'The format of the data to write' },
+    includeValuesInResponse: { type: 'boolean', required: false, description: 'Whether to include the written values in the response' },
   },
   request: {
     url: (params) => {

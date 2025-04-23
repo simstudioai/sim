@@ -15,10 +15,10 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true },
-    title: { type: 'string', required: true },
-    content: { type: 'string', required: false },
-    folderId: { type: 'string', required: false },
+    accessToken: { type: 'string', required: true, description: 'The access token for the Google Docs API' },
+    title: { type: 'string', required: true, description: 'The title of the document to create' },
+    content: { type: 'string', required: false, description: 'The content of the document to create' },
+    folderId: { type: 'string', required: false, description: 'The ID of the folder to create the document in' },
   },
   request: {
     url: () => {
