@@ -1,6 +1,6 @@
 import { answerTool } from './answer'
-import { findSimilarLinksTool } from './findSimilarLinks'
-import { getContentsTool } from './getContents'
+import { findSimilarLinksTool } from './find_similar_links'
+import { getContentsTool } from './get_contents'
 import { searchTool } from './search'
 
 export const exaAnswerTool = answerTool

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
-import { GithubIcon } from 'lucide-react'
+import { GithubIcon, ExternalLink } from 'lucide-react'
 import { source } from '@/lib/source'
 import { AgentIcon } from '@/components/icons'
 
@@ -31,6 +31,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             </div>
           ),
         }}
+        links={[
+          {
+            text: 'Visit Sim Studio',
+            url: 'https://simstudio.ai',
+            icon: <ExternalLink className="h-4 w-4" />,
+          }
+        ]}
       >
         {children}
       </DocsLayout>

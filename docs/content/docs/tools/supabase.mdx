@@ -1,0 +1,138 @@
+---
+title: Supabase
+description: Use Supabase database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="supabase"
+  color="#1C1C1C"
+  icon={true}
+  iconSvg={`<svg className="block-icon"    viewBox="0 0 27 27" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z"
+        fill="url(#paint0_linear)"
+      />
+      <path
+        d="M15.4057 26.2606C14.7241 27.1195 13.3394 26.649 13.3242 25.5519L13.083 9.50684H23.8724C25.8262 9.50684 26.9157 11.7636 25.7006 13.2933L15.4057 26.2606Z"
+        fill="url(#paint1_linear)"
+        fillOpacity="0.2"
+      />
+      <path
+        d="M11.0167 0.443853C11.6983 -0.415083 13.0832 0.0553814 13.0982 1.15237L13.2042 17.1976H2.55005C0.596215 17.1976 -0.493259 14.9408 0.721603 13.4111L11.0167 0.443853Z"
+        fill="#3ECF8E"
+      />
+      <defs>
+        <linearGradient
+          id="paint0_linear"
+          x1="13.084"
+          y1="13.0655"
+          x2="22.6727"
+          y2="17.087"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#249361" />
+          <stop offset="1" stopColor="#3ECF8E" />
+        </linearGradient>
+        <linearGradient
+          id="paint1_linear"
+          x1="8.83277"
+          y1="7.24485"
+          x2="13.2057"
+          y2="15.477"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop />
+          <stop offset="1" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Supabase](https://www.supabase.com/) is an open-source Firebase alternative that provides a suite of tools for building modern applications. It offers a PostgreSQL database, authentication, instant APIs, real-time subscriptions, storage, and edge functions, all within a unified platform.
+
+With Supabase, you can:
+
+- **Manage relational data**: Work with a powerful PostgreSQL database with full SQL capabilities
+- **Implement authentication**: Add secure user authentication with multiple providers
+- **Create instant APIs**: Generate RESTful APIs automatically based on your database schema
+- **Enable real-time updates**: Subscribe to database changes and build reactive applications
+- **Store files**: Upload, transform, and serve files with storage buckets
+- **Deploy serverless functions**: Run code in response to database changes or HTTP requests
+- **Secure your application**: Implement row-level security and manage permissions
+
+In Sim Studio, the Supabase integration enables your agents to interact with your Supabase projects programmatically. This allows for powerful automation scenarios such as data querying, record creation, user management, and file operations. Your agents can retrieve information from your database, insert new records, update existing data, and leverage Supabase's authentication and storage capabilities as part of their workflows. This integration bridges the gap between your AI workflows and your application's data layer, enabling more sophisticated and data-driven automations. By connecting Sim Studio with Supabase, you can create agents that maintain data consistency across systems, trigger actions based on database changes, perform complex data operations, and build workflows that leverage your application's existing data infrastructure - all without requiring manual intervention or custom code.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.
+
+
+
+## Tools
+
+### `supabase_query`
+
+Query data from a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Supabase client anon key |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `message` | string |
+| `results` | string |
+
+### `supabase_insert`
+
+Insert data into a Supabase table
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Supabase client anon key |
+| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `message` | string |
+| `results` | string |
+
+
+
+## Block Configuration
+
+### Input
+
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
+
+
+
+### Outputs
+
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `message` | string | message of the response |
+| ↳ `results` | json | results of the response |
+
+
+## Notes
+
+- Category: `tools`
+- Type: `supabase`

@@ -1,8 +1,8 @@
 import { fetchTool } from './fetch'
-import { generateEmbeddingsTool } from './generate'
-import { searchTextTool } from './searchText'
-import { searchVectorTool } from './searchVector'
-import { upsertTextTool } from './upsertText'
+import { generateEmbeddingsTool } from './generate_embeddings'
+import { searchTextTool } from './search_text'
+import { searchVectorTool } from './search_vector'
+import { upsertTextTool } from './upsert_text'
 
 export const pineconeFetchTool = fetchTool
 export const pineconeGenerateEmbeddingsTool = generateEmbeddingsTool

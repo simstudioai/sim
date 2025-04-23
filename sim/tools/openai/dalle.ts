@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 const logger = createLogger('DalleTool')
 
 export const dalleTool: ToolConfig = {
-  id: 'dalle_generate',
+  id: 'openai_dalle',
   name: 'DALL-E Generate',
   description: "Generate images using OpenAI's DALL-E model",
   version: '1.0.0',

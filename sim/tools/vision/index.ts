@@ -1,3 +1,3 @@
-import { visionTool } from './vision'
+import { visionTool } from './tool'
 
 export { visionTool }

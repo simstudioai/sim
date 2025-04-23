@@ -1,28 +1,7 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { TavilyExtractParams, TavilyExtractResponse } from './types'
 
-interface ExtractParams {
-  urls: string | string[]
-  apiKey: string
-  extract_depth?: 'basic' | 'advanced'
-}
-
-interface ExtractResult {
-  url: string
-  raw_content: string
-}
-
-export interface ExtractResponse extends ToolResponse {
-  output: {
-    results: ExtractResult[]
-    failed_results?: Array<{
-      url: string
-      error: string
-    }>
-    response_time: number
-  }
-}
-
-export const extractTool: ToolConfig<ExtractParams, ExtractResponse> = {
+export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse> = {
   id: 'tavily_extract',
   name: 'Tavily Extract',
   description:
