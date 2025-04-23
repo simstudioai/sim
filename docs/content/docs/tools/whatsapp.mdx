@@ -52,6 +52,9 @@ Send WhatsApp messages
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `phoneNumber` | string | Yes | Recipient phone number with country code |
+| `message` | string | Yes | Message content to send |
+| `phoneNumberId` | string | Yes | WhatsApp Business Phone Number ID |
+| `accessToken` | string | Yes | WhatsApp Business API Access Token |
 
 #### Output
 
@@ -62,25 +65,24 @@ Send WhatsApp messages
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `phoneNumber` | string | Yes | Recipient Phone Number - Enter phone number with country code (e.g., +1234567890) |
+| `phoneNumber` | string | Yes | Recipient Phone Number - Enter phone number with country code \(e.g., +1234567890\) |
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `success` | `boolean` |
-| `messageId` | `any` |
-| `error` | `any` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `success` | boolean | success of the response |
+| ↳ `messageId` | any | messageId of the response |
+| ↳ `error` | any | error of the response |
 
 
 ## Notes

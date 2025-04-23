@@ -55,6 +55,11 @@ Retrieve form responses from Typeform
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `formId` | string | Yes | Typeform form ID |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `pageSize` | number | No | Number of responses to retrieve \(default: 25\) |
+| `since` | string | No | Retrieve responses submitted after this date \(ISO 8601 format\) |
+| `until` | string | No | Retrieve responses submitted before this date \(ISO 8601 format\) |
+| `completed` | string | No | Filter by completion status \(true/false\) |
 
 #### Output
 
@@ -76,6 +81,11 @@ Download files uploaded in Typeform responses
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `formId` | string | Yes | Typeform form ID |
+| `responseId` | string | Yes | Response ID containing the files |
+| `fieldId` | string | Yes | Unique ID of the file upload field |
+| `filename` | string | Yes | Filename of the uploaded file |
+| `inline` | boolean | No | Whether to request the file with inline Content-Disposition |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
 
 #### Output
 
@@ -92,15 +102,17 @@ Retrieve insights and analytics for Typeform forms
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `formId` | string | Yes | Typeform form ID |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
 
 #### Output
 
+This tool does not produce any outputs.
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -108,17 +120,14 @@ Retrieve insights and analytics for Typeform forms
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `total_items` | `number` |
-| `page_count` | `number` |
-| `items` | `json` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `total_items` | number | total_items of the response |
+| ↳ `page_count` | number | page_count of the response |
+| ↳ `items` | json | items of the response |
 
 
 ## Notes

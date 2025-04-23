@@ -1,7 +1,7 @@
 import { ToolConfig } from '../types'
 import { XWriteParams, XWriteResponse } from './types'
 
-export const writeTool: ToolConfig<XWriteParams, XWriteResponse> = {
+export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
   id: 'x_write',
   name: 'X Write',
   description: 'Post new tweets, reply to tweets, or create polls on X (Twitter)',

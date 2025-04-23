@@ -75,7 +75,6 @@ Upload a file to Google Drive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -99,7 +98,6 @@ Download a file from Google Drive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -123,7 +121,6 @@ List files and folders in Google Drive
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -141,20 +138,19 @@ List files and folders in Google Drive
 
 
 
-## Configuration
+## Block Configuration
 
 No configuration parameters required.
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `metadata` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `metadata` | json | metadata of the response |
 
 
 ## Notes

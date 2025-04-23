@@ -60,6 +60,8 @@ Generate embeddings from text using Pinecone
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Pinecone API key |
+| `model` | string | Yes | Model to use for generating embeddings |
+| `inputs` | array | Yes | Array of text inputs to generate embeddings for |
 
 #### Output
 
@@ -79,6 +81,9 @@ Insert or update text records in a Pinecone index
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Pinecone API key |
+| `indexHost` | string | Yes | Full Pinecone index host URL |
+| `namespace` | string | Yes | Namespace to upsert records into |
+| `records` | array | Yes | Record or array of records to upsert, each containing _id, text, and optional metadata |
 
 #### Output
 
@@ -95,6 +100,13 @@ Search for similar text in a Pinecone index
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Pinecone API key |
+| `indexHost` | string | Yes | Full Pinecone index host URL |
+| `namespace` | string | No | Namespace to search in |
+| `searchQuery` | string | Yes | Text to search for |
+| `topK` | string | No | Number of results to return |
+| `fields` | array | No | Fields to return in the results |
+| `filter` | object | No | Filter to apply to the search |
+| `rerank` | object | No | Reranking parameters |
 
 #### Output
 
@@ -113,6 +125,13 @@ Search for similar vectors in a Pinecone index
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Pinecone API key |
+| `indexHost` | string | Yes | Full Pinecone index host URL |
+| `namespace` | string | No | Namespace to search in |
+| `vector` | array | Yes | Vector to search for |
+| `topK` | number | No | Number of results to return |
+| `filter` | object | No | Filter to apply to the search |
+| `includeValues` | boolean | No | Include vector values in response |
+| `includeMetadata` | boolean | No | Include metadata in response |
 
 #### Output
 
@@ -132,6 +151,9 @@ Fetch vectors by ID from a Pinecone index
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Pinecone API key |
+| `indexHost` | string | Yes | Full Pinecone index host URL |
+| `ids` | array | Yes | Array of vector IDs to fetch |
+| `namespace` | string | No | Namespace to fetch vectors from |
 
 #### Output
 
@@ -144,9 +166,9 @@ Fetch vectors by ID from a Pinecone index
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -154,20 +176,17 @@ Fetch vectors by ID from a Pinecone index
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `matches` | `any` |
-| `upsertedCount` | `any` |
-| `data` | `any` |
-| `model` | `any` |
-| `vector_type` | `any` |
-| `usage` | `any` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `matches` | any | matches of the response |
+| ↳ `upsertedCount` | any | upsertedCount of the response |
+| ↳ `data` | any | data of the response |
+| ↳ `model` | any | model of the response |
+| ↳ `vector_type` | any | vector_type of the response |
+| ↳ `usage` | any | usage of the response |
 
 
 ## Notes

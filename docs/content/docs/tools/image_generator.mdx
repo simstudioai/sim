@@ -60,7 +60,13 @@ Generate images using OpenAI
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `prompt` | string | Yes | A text description of the desired image(s) |
+| `prompt` | string | Yes | A text description of the desired image\(s\) |
+| `model` | string | Yes | The DALL-E model to use \(dall-e-2 or dall-e-3\) |
+| `size` | string | No | The size of the generated images \(1024x1024, 1024x1792, or 1792x1024\) |
+| `quality` | string | No | The quality of the image \(standard or hd\) |
+| `style` | string | No | The style of the image \(vivid or natural\) |
+| `n` | number | No | The number of images to generate \(1-10\) |
+| `apiKey` | string | Yes | Your OpenAI API key |
 
 #### Output
 
@@ -72,9 +78,9 @@ Generate images using OpenAI
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -82,15 +88,14 @@ Generate images using OpenAI
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `image` | `string` |
-| `metadata` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `image` | string | image of the response |
+| ↳ `metadata` | json | metadata of the response |
 
 
 ## Notes

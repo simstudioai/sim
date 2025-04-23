@@ -93,6 +93,11 @@ A powerful web search tool that provides access to Google search results through
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query |
+| `apiKey` | string | Yes | Serper API Key |
+| `num` | number | No | Number of results to return |
+| `gl` | string | No | Country code for search results |
+| `hl` | string | No | Language code for search results |
+| `type` | string | No | Type of search to perform |
 
 #### Output
 
@@ -102,9 +107,9 @@ A powerful web search tool that provides access to Google search results through
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -112,13 +117,12 @@ A powerful web search tool that provides access to Google search results through
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `searchResults` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `searchResults` | json | searchResults of the response |
 
 
 ## Notes

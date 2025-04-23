@@ -57,6 +57,7 @@ Fetch reservation details from Guesty by reservation ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Your Guesty API token |
+| `reservationId` | string | Yes | The ID of the reservation to fetch |
 
 #### Output
 
@@ -76,6 +77,7 @@ Search for guests in Guesty by phone number
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Your Guesty API token |
+| `phoneNumber` | string | Yes | The phone number to search for |
 
 #### Output
 
@@ -91,9 +93,9 @@ Search for guests in Guesty by phone number
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -101,20 +103,19 @@ Search for guests in Guesty by phone number
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `id` | `string` |
-| `guest` | `json` |
-| `checkIn` | `string` |
-| `checkOut` | `string` |
-| `status` | `string` |
-| `listing` | `json` |
-| `money` | `json` |
-| `guests` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `id` | string | id of the response |
+| ↳ `guest` | json | guest of the response |
+| ↳ `checkIn` | string | checkIn of the response |
+| ↳ `checkOut` | string | checkOut of the response |
+| ↳ `status` | string | status of the response |
+| ↳ `listing` | json | listing of the response |
+| ↳ `money` | json | money of the response |
+| ↳ `guests` | json | guests of the response |
 
 
 ## Notes

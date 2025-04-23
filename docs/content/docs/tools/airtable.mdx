@@ -72,6 +72,10 @@ Read records from an Airtable table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID of the table |
+| `maxRecords` | number | No | Maximum number of records to return |
+| `filterFormula` | string | No | Formula to filter records \(e.g.,  |
 
 #### Output
 
@@ -90,6 +94,9 @@ Retrieve a single record from an Airtable table by its ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
+| `recordId` | string | Yes | ID of the record to retrieve |
 
 #### Output
 
@@ -107,6 +114,8 @@ Write new records to an Airtable table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
 
 #### Output
 
@@ -124,6 +133,10 @@ Update an existing record in an Airtable table by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
+| `recordId` | string | Yes | ID of the record to update |
+| `fields` | json | Yes | An object containing the field names and their new values |
 
 #### Output
 
@@ -142,6 +155,8 @@ Update multiple existing records in an Airtable table
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token |
+| `baseId` | string | Yes | ID of the Airtable base |
+| `tableId` | string | Yes | ID or name of the table |
 
 #### Output
 
@@ -153,9 +168,9 @@ Update multiple existing records in an Airtable table
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -163,9 +178,15 @@ Update multiple existing records in an Airtable table
 
 
 
-## Outputs
+### Outputs
 
-This block does not produce any outputs.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `records` | json | records of the response |
+| ↳ `record` | json | record of the response |
+| ↳ `metadata` | json | metadata of the response |
+
 
 ## Notes
 

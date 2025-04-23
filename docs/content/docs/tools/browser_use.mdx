@@ -65,30 +65,12 @@ Execute browser automation tasks with BrowserUse to navigate the web, scrape dat
 
 ### `browser_use_run_task`
 
-Runs a browser automation task using BrowserUse
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `task` | string | Yes | What should the browser agent do |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `id` | string |
-| `task` | string |
-| `output` | string |
-| `status` | string |
-| `steps` | string |
-| `live_url` | string |
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -96,18 +78,17 @@ Runs a browser automation task using BrowserUse
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `id` | `string` |
-| `task` | `string` |
-| `output` | `any` |
-| `status` | `string` |
-| `steps` | `json` |
-| `live_url` | `any` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `id` | string | id of the response |
+| ↳ `task` | string | task of the response |
+| ↳ `output` | any | output of the response |
+| ↳ `status` | string | status of the response |
+| ↳ `steps` | json | steps of the response |
+| ↳ `live_url` | any | live_url of the response |
 
 
 ## Notes

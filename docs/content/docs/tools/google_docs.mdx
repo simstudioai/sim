@@ -59,7 +59,6 @@ Read content from a Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -75,7 +74,6 @@ Write or update content in a Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -91,7 +89,6 @@ Create a new Google Docs document
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -101,9 +98,9 @@ Create a new Google Docs document
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -111,17 +108,14 @@ Create a new Google Docs document
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `metadata` | `json` |
-| `updatedContent` | `boolean` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `metadata` | json | metadata of the response |
+| ↳ `updatedContent` | boolean | updatedContent of the response |
 
 
 ## Notes

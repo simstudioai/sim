@@ -73,6 +73,8 @@ Perform AI-powered web searches using Tavily
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to execute |
+| `max_results` | number | No | Maximum number of results \(1-20\) |
+| `apiKey` | string | Yes | Tavily API Key |
 
 #### Output
 
@@ -93,6 +95,8 @@ Extract raw content from multiple web pages simultaneously using Tavily
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `urls` | string | Yes | URL or array of URLs to extract content from |
+| `apiKey` | string | Yes | Tavily API Key |
+| `extract_depth` | string | No | The depth of extraction \(basic=1 credit/5 URLs, advanced=2 credits/5 URLs\) |
 
 #### Output
 
@@ -103,9 +107,9 @@ Extract raw content from multiple web pages simultaneously using Tavily
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -113,20 +117,17 @@ Extract raw content from multiple web pages simultaneously using Tavily
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `results` | `json` |
-| `answer` | `any` |
-| `query` | `string` |
-| `content` | `string` |
-| `title` | `string` |
-| `url` | `string` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `results` | json | results of the response |
+| ↳ `answer` | any | answer of the response |
+| ↳ `query` | string | query of the response |
+| ↳ `content` | string | content of the response |
+| ↳ `title` | string | title of the response |
+| ↳ `url` | string | url of the response |
 
 
 ## Notes

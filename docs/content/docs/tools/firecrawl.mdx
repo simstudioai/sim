@@ -66,6 +66,8 @@ Extract structured content from web pages with comprehensive metadata support. C
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Firecrawl API key |
+| `url` | string | Yes | The URL to scrape content from |
+| `scrapeOptions` | json | No | Options for content scraping |
 
 #### Output
 
@@ -77,9 +79,9 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -87,15 +89,14 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `markdown` | `string` |
-| `html` | `any` |
-| `metadata` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `markdown` | string | markdown of the response |
+| ↳ `html` | any | html of the response |
+| ↳ `metadata` | json | metadata of the response |
 
 
 ## Notes

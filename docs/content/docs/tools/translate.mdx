@@ -31,7 +31,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Translate](https://www.translate.com) is a tool that allows you to translate text between languages.
+Translate is a tool that allows you to translate text between languages.
 
 With Translate, you can:
 
@@ -63,25 +63,10 @@ Convert text between languages while preserving meaning, nuance, and formatting.
 
 #### Output
 
+This tool does not produce any outputs.
 
 ### `anthropic_chat`
 
-Generate completions using Perplexity AI chat models
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `model` | string |
-| `usage` | string |
-| `completion_tokens` | string |
-| `total_tokens` | string |
 
 ### `google_chat`
 
@@ -92,12 +77,13 @@ Generate completions using Perplexity AI chat models
 
 #### Output
 
+This tool does not produce any outputs.
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -105,15 +91,14 @@ Generate completions using Perplexity AI chat models
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `model` | `string` |
-| `tokens` | `any` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `model` | string | model of the response |
+| ↳ `tokens` | any | tokens of the response |
 
 
 ## Notes

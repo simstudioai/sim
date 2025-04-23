@@ -56,6 +56,9 @@ Fetch PR details including diff and files changed
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `pullNumber` | number | Yes | Pull request number |
+| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -86,6 +89,16 @@ Create comments on GitHub PRs
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `pullNumber` | number | Yes | Pull request number |
+| `body` | string | Yes | Comment content |
+| `path` | string | No | File path for review comment |
+| `position` | number | No | Line number for review comment |
+| `apiKey` | string | Yes | GitHub API token |
+| `commentType` | string | No | Type of comment \(pr_comment or file_comment\) |
+| `line` | number | No | Line number for review comment |
+| `side` | string | No | Side of the diff \(LEFT or RIGHT\) |
+| `commitId` | string | No | The SHA of the commit to comment on |
 
 #### Output
 
@@ -108,7 +121,9 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner (user or organization) |
+| `owner` | string | Yes | Repository owner \(user or organization\) |
+| `repo` | string | Yes | Repository name |
+| `apiKey` | string | Yes | GitHub Personal Access Token |
 
 #### Output
 
@@ -129,7 +144,10 @@ Retrieve the latest commit from a GitHub repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner (user or organization) |
+| `owner` | string | Yes | Repository owner \(user or organization\) |
+| `repo` | string | Yes | Repository name |
+| `branch` | string | No | Branch name \(defaults to the repository |
+| `apiKey` | string | Yes | GitHub API token |
 
 #### Output
 
@@ -144,9 +162,9 @@ Retrieve the latest commit from a GitHub repository
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -154,16 +172,13 @@ Retrieve the latest commit from a GitHub repository
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `metadata` | `json` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `metadata` | json | metadata of the response |
 
 
 ## Notes

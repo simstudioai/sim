@@ -58,6 +58,8 @@ Retrieve content from Confluence pages using the Confluence API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token for Confluence |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to retrieve |
 
 #### Output
 
@@ -77,6 +79,11 @@ Update a Confluence page using the Confluence API.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | OAuth access token for Confluence |
+| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
+| `pageId` | string | Yes | Confluence page ID to update |
+| `title` | string | No | New title for the page |
+| `content` | string | No | New content for the page in Confluence storage format |
+| `version` | number | No | Version number of the page \(required for preventing conflicts\) |
 
 #### Output
 
@@ -89,9 +96,9 @@ Update a Confluence page using the Confluence API.
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -99,19 +106,16 @@ Update a Confluence page using the Confluence API.
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `ts` | `string` |
-| `pageId` | `string` |
-| `content` | `string` |
-| `title` | `string` |
-| `success` | `boolean` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `ts` | string | ts of the response |
+| ↳ `pageId` | string | pageId of the response |
+| ↳ `content` | string | content of the response |
+| ↳ `title` | string | title of the response |
+| ↳ `success` | boolean | success of the response |
 
 
 ## Notes

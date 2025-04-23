@@ -64,27 +64,28 @@ Parse one or more uploaded files or files from URLs (text, PDF, CSV, images, etc
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filePath` | string | Yes | Path to the file(s). Can be a single path, URL, or an array of paths. |
+| `filePath` | string | Yes | Path to the file\(s\). Can be a single path, URL, or an array of paths. |
+| `fileType` | string | No | Type of file to parse \(auto-detected if not specified\) |
 
 #### Output
 
+This tool does not produce any outputs.
 
 
 
-## Configuration
+## Block Configuration
 
 No configuration parameters required.
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `files` | `json` |
-| `combinedContent` | `string` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `files` | json | files of the response |
+| ↳ `combinedContent` | string | combinedContent of the response |
 
 
 ## Notes

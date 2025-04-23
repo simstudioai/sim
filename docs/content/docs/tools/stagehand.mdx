@@ -206,6 +206,9 @@ Extract structured data from a webpage using Stagehand
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `instruction` | string | Yes | Instructions for extraction |
+| `schema` | json | Yes | JSON schema defining the structure of the data to extract |
+| `apiKey` | string | Yes | OpenAI API key for extraction \(required by Stagehand\) |
+| `url` | string | Yes | URL of the webpage to extract data from |
 
 #### Output
 
@@ -215,9 +218,9 @@ Extract structured data from a webpage using Stagehand
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -225,13 +228,12 @@ Extract structured data from a webpage using Stagehand
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `data` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `data` | json | data of the response |
 
 
 ## Notes

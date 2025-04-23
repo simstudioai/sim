@@ -46,10 +46,10 @@ Add memories to Mem0 for persistent storage and retrieval
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `params` | string | Yes | Your Mem0 API key |
+| `apiKey` | string | Yes | Your Mem0 API key |
 | `userId` | string | Yes | User ID associated with the memory |
 | `messages` | json | Yes | Array of message objects with role and content |
-| `version` | string | No | API version to use (v1 or v2). Use v2 if unsure. |
+| `version` | string | No | API version to use \(v1 or v2\). Use v2 if unsure. |
 
 #### Output
 
@@ -65,11 +65,11 @@ Search for memories in Mem0 using semantic search
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `params` | string | Yes | Your Mem0 API key |
+| `apiKey` | string | Yes | Your Mem0 API key |
 | `userId` | string | Yes | User ID to search memories for |
 | `query` | string | Yes | Search query to find relevant memories |
 | `limit` | number | No | Maximum number of results to return |
-| `version` | string | No | API version to use (v1 or v2). Use v2 if unsure. |
+| `version` | string | No | API version to use \(v1 or v2\). Use v2 if unsure. |
 
 #### Output
 
@@ -86,25 +86,25 @@ Retrieve memories from Mem0 by ID or filter criteria
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `params` | string | Yes | Your Mem0 API key |
+| `apiKey` | string | Yes | Your Mem0 API key |
 | `userId` | string | Yes | User ID to retrieve memories for |
 | `memoryId` | string | No | Specific memory ID to retrieve |
-| `startDate` | string | No | Start date for filtering by created_at (format: YYYY-MM-DD) |
-| `endDate` | string | No | End date for filtering by created_at (format: YYYY-MM-DD) |
+| `startDate` | string | No | Start date for filtering by created_at \(format: YYYY-MM-DD\) |
+| `endDate` | string | No | End date for filtering by created_at \(format: YYYY-MM-DD\) |
 | `limit` | number | No | Maximum number of results to return |
-| `version` | string | No | API version to use (v1 or v2). Use v2 if unsure. |
+| `version` | string | No | API version to use \(v1 or v2\). Use v2 if unsure. |
 
 #### Output
 
 | Parameter | Type |
 | --------- | ---- |
-| `memories` | array |
+| `data` | string |
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -112,17 +112,14 @@ Retrieve memories from Mem0 by ID or filter criteria
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `ids` | `any` |
-| `memories` | `any` |
-| `searchResults` | `any` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `ids` | any | ids of the response |
+| ↳ `memories` | any | memories of the response |
+| ↳ `searchResults` | any | searchResults of the response |
 
 
 ## Notes

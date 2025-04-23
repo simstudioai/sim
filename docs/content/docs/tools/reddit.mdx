@@ -58,7 +58,8 @@ Fetch the most popular (hot) posts from a specified subreddit.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `subreddit` | string | Yes | The name of the subreddit to fetch posts from (without the r/ prefix) |
+| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
+| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
 
 #### Output
 
@@ -68,24 +69,23 @@ Fetch the most popular (hot) posts from a specified subreddit.
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `subreddit` | string | No | Subreddit - Enter subreddit name (without r/) |
+| `subreddit` | string | No | Subreddit - Enter subreddit name \(without r/\) |
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `subreddit` | `string` |
-| `posts` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `subreddit` | string | subreddit of the response |
+| ↳ `posts` | json | posts of the response |
 
 
 ## Notes

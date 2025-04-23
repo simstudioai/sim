@@ -1,7 +1,7 @@
 import { ToolConfig } from '../types'
 import { XReadParams, XReadResponse, XTweet } from './types'
 
-export const readTool: ToolConfig<XReadParams, XReadResponse> = {
+export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   id: 'x_read',
   name: 'X Read',
   description: 'Read tweet details, including replies and conversation context',

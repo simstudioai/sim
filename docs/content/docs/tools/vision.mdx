@@ -31,7 +31,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Vision](https://www.vision.com/) is a tool that allows you to analyze images with vision models.
+Vision is a tool that allows you to analyze images with vision models.
 
 With Vision, you can:
 
@@ -62,6 +62,9 @@ Process and analyze images using advanced vision models. Capable of understandin
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | API key for the selected model provider |
+| `imageUrl` | string | Yes | Publicly accessible image URL |
+| `model` | string | No | Vision model to use \(gpt-4o, claude-3-opus-20240229, etc\) |
+| `prompt` | string | No | Custom prompt for image analysis |
 
 #### Output
 
@@ -73,9 +76,9 @@ Process and analyze images using advanced vision models. Capable of understandin
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -83,15 +86,14 @@ Process and analyze images using advanced vision models. Capable of understandin
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `model` | `any` |
-| `tokens` | `any` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `model` | any | model of the response |
+| ↳ `tokens` | any | tokens of the response |
 
 
 ## Notes

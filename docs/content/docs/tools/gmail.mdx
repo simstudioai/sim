@@ -66,6 +66,9 @@ Send emails using Gmail
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | Access token for Gmail API |
+| `to` | string | Yes | Recipient email address |
+| `subject` | string | Yes | Email subject |
+| `body` | string | Yes | Email body content |
 
 #### Output
 
@@ -85,6 +88,10 @@ Read emails from Gmail
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | Access token for Gmail API |
+| `messageId` | string | No | ID of the message to read |
+| `folder` | string | No | Folder/label to read emails from |
+| `unreadOnly` | boolean | No | Only retrieve unread messages |
+| `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
 
 #### Output
 
@@ -102,6 +109,8 @@ Search emails in Gmail
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `accessToken` | string | Yes | Access token for Gmail API |
+| `query` | string | Yes | Search query for emails |
+| `maxResults` | number | No | Maximum number of results to return |
 
 #### Output
 
@@ -111,20 +120,19 @@ Search emails in Gmail
 
 
 
-## Configuration
+## Block Configuration
 
 No configuration parameters required.
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `metadata` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `metadata` | json | metadata of the response |
 
 
 ## Notes

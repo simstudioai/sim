@@ -51,6 +51,9 @@ Search the web for information using Linkup
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `q` | string | Yes | The search query |
+| `apiKey` | string | Yes | Enter your Linkup API key |
+| `depth` | string | Yes | Search depth \(has to either be  |
+| `outputType` | string | Yes | Type of output to return \(has to either be  |
 
 #### Output
 
@@ -61,9 +64,9 @@ Search the web for information using Linkup
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -71,14 +74,13 @@ Search the web for information using Linkup
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `answer` | `string` |
-| `sources` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `answer` | string | answer of the response |
+| ↳ `sources` | json | sources of the response |
 
 
 ## Notes

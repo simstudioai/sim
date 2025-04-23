@@ -62,7 +62,6 @@ Read data from a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -78,7 +77,6 @@ Write data to a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -100,7 +98,6 @@ Update data in a Google Sheets spreadsheet
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | No description |
 
 #### Output
 
@@ -116,9 +113,9 @@ Update data in a Google Sheets spreadsheet
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -126,20 +123,17 @@ Update data in a Google Sheets spreadsheet
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `data` | `json` |
-| `metadata` | `json` |
-| `updatedRange` | `string` |
-| `updatedRows` | `number` |
-| `updatedColumns` | `number` |
-| `updatedCells` | `number` |
-
-**Note:** The actual fields returned will depend on the selected operation.
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `data` | json | data of the response |
+| ↳ `metadata` | json | metadata of the response |
+| ↳ `updatedRange` | string | updatedRange of the response |
+| ↳ `updatedRows` | number | updatedRows of the response |
+| ↳ `updatedColumns` | number | updatedColumns of the response |
+| ↳ `updatedCells` | number | updatedCells of the response |
 
 
 ## Notes

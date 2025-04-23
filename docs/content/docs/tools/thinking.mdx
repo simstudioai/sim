@@ -62,9 +62,9 @@ Processes a provided thought/instruction, making it available for subsequent ste
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -72,13 +72,12 @@ Processes a provided thought/instruction, making it available for subsequent ste
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `acknowledgedThought` | `string` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `acknowledgedThought` | string | acknowledgedThought of the response |
 
 
 ## Notes

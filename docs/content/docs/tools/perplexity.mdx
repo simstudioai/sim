@@ -52,6 +52,10 @@ Generate completions using Perplexity AI chat models
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Perplexity API key |
+| `model` | string | Yes | Model to use for chat completions \(e.g., sonar, mistral\) |
+| `messages` | array | Yes | Array of message objects with role and content |
+| `max_tokens` | number | No | Maximum number of tokens to generate |
+| `temperature` | number | No | Sampling temperature between 0 and 1 |
 
 #### Output
 
@@ -65,9 +69,9 @@ Generate completions using Perplexity AI chat models
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -75,15 +79,14 @@ Generate completions using Perplexity AI chat models
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `content` | `string` |
-| `model` | `string` |
-| `usage` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `content` | string | content of the response |
+| ↳ `model` | string | model of the response |
+| ↳ `usage` | json | usage of the response |
 
 
 ## Notes

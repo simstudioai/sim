@@ -141,6 +141,13 @@ Manage and render prompts using Autoblocks prompt management system
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `promptId` | string | Yes | The ID of the prompt to retrieve |
+| `version` | string | Yes | Version strategy \(latest or specific\) |
+| `specificVersion` | string | No | Specific version to use \(e.g.,  |
+| `templateParams` | object | No | Parameters to render the template with |
+| `apiKey` | string | Yes | Autoblocks API key |
+| `enableABTesting` | boolean | No | Whether to enable A/B testing between versions |
+| `abTestConfig` | object | No | Configuration for A/B testing between versions |
+| `environment` | string | Yes | Environment to use \(production, staging, development\) |
 
 #### Output
 
@@ -153,9 +160,9 @@ Manage and render prompts using Autoblocks prompt management system
 
 
 
-## Configuration
+## Block Configuration
 
-### Input Parameters
+### Input
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
@@ -163,16 +170,15 @@ Manage and render prompts using Autoblocks prompt management system
 
 
 
-## Outputs
+### Outputs
 
-The `response` output contains the following fields:
-
-| Field | Type |
-| ----- | ---- |
-| `promptId` | `string` |
-| `version` | `string` |
-| `renderedPrompt` | `string` |
-| `templates` | `json` |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `promptId` | string | promptId of the response |
+| ↳ `version` | string | version of the response |
+| ↳ `renderedPrompt` | string | renderedPrompt of the response |
+| ↳ `templates` | json | templates of the response |
 
 
 ## Notes
