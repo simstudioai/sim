@@ -39,6 +39,7 @@ import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
 import { elevenLabsTtsTool } from './elevenlabs'
 import { ToolConfig } from './types'
+import { s3GetObjectTool } from './s3'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -118,4 +119,5 @@ export const tools: Record<string, ToolConfig> = {
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
   elevenlabs_tts: elevenLabsTtsTool,
+  get_object: s3GetObjectTool,
 } 

@@ -43,7 +43,18 @@ const copyToClipboard = (data: any) => {
 
 // Helper function to check if an object contains an image URL
 const isImageData = (obj: any): boolean => {
-  return obj && typeof obj === 'object' && 'url' in obj && typeof obj.url === 'string'
+  if (!obj || typeof obj !== 'object' || !('url' in obj) || typeof obj.url !== 'string') {
+    return false
+  }
+
+  // Check if we have metadata with file type
+  if (obj.metadata?.fileType) {
+    return obj.metadata.fileType.startsWith('image/')
+  }
+
+  // Fallback to checking URL extension
+  const url = obj.url.toLowerCase()
+  return url.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/) !== null
 }
 
 // Helper function to check if an object contains an audio URL
@@ -180,7 +191,7 @@ const ImagePreview = ({
   // Determine the source for the image
   const imageSrc =
     isBase64 && imageData && imageData.length > 0
-      ? `data:image/png;base64,${imageData}`
+      ? `data:image/pngbase64,${imageData}`
       : imageUrl || ''
 
   return (
