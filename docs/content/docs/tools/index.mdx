@@ -1,59 +1,60 @@
 ---
 title: Tools
-description: Specialized functionality to extend your workflow capabilities
+description: Powerful tools to enhance your agentic workflows
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Accordion, Accordions } from 'fumadocs-ui/components/accordion'
-import { Files, Folder, File } from 'fumadocs-ui/components/files'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
 
-Tools in Sim Studio provide specialized functionality that can be used standalone or integrated within blocks to extend capabilities.
+Tools are powerful components in Sim Studio that allow your workflows to interact with external services, process data, and perform specialized tasks. They extend the capabilities of your agents and workflows by providing access to various APIs and services.
+
+## What is a Tool?
+
+A tool is a specialized component that provides a specific functionality or integration with external services. Tools can be used to search the web, interact with databases, process images, generate text or images, communicate via messaging platforms, and much more.
+
+## Using Tools in Workflows
+
+There are two primary ways to use tools in your Sim Studio workflows:
+
+<Steps>
+  <Step>
+    <strong>As Standalone Blocks</strong>: Tools can be added as individual blocks on the canvas when you need deterministic, direct access to their functionality. This gives you precise control over when and how the tool is called.
+  </Step>
+  <Step>
+    <strong>As Agent Tools</strong>: Tools can be added to Agent blocks by clicking "Add tools" and configuring the required parameters. This allows agents to dynamically choose which tools to use based on the context and requirements of the task.
+  </Step>
+</Steps>
+
+## Tool Configuration
+
+Each tool requires specific configuration to function properly. Common configuration elements include:
+
+- **API Keys**: Many tools require authentication through API keys
+- **Connection Parameters**: Endpoints, database identifiers, etc.
+- **Input Formatting**: How data should be structured for the tool
+- **Output Handling**: How to process the results from the tool
 
 ## Available Tools
 
-Sim Studio offers a variety of tools to enhance your workflows:
+Sim Studio provides a diverse collection of tools for various purposes, including:
 
-<Files>
-  <Folder name="Tools" defaultOpen>
-    <File name="Data Transformation" annotation="Process and transform data between blocks" />
-    <File name="Configuration Management" annotation="Handle environment variables and secrets" />
-    <File name="Testing Suite" annotation="Validate workflow behavior with test scenarios" />
-    <File name="Logging & Monitoring" annotation="Track execution and performance metrics" />
-  </Folder>
-</Files>
+- **AI and Language Processing**: OpenAI, ElevenLabs, Translation services
+- **Search and Research**: Google Search, Tavily, Exa, Perplexity
+- **Document Manipulation**: Google Docs, Google Sheets, Notion, Confluence
+- **Media Processing**: Vision, Image Generator
+- **Communication**: Slack, WhatsApp, Twilio SMS, Gmail
+- **Data Storage**: Pinecone, Supabase, Airtable
+- **Development**: GitHub
 
-## Using Tools
+Each tool has its own dedicated documentation page with detailed instructions on configuration and usage.
 
-Tools can be integrated with blocks to provide additional functionality. For example, you can use data transformation tools with Function blocks to process data, or logging tools to track the execution of your workflow.
+## Tool Outputs
 
-<Callout type="info">
-  Tools are constantly being added and improved. Check back regularly for new capabilities.
-</Callout>
+Tools typically return structured data that can be processed by subsequent blocks in your workflow. The format of this data varies depending on the tool and operation but generally includes:
 
-## Tool Categories
+- The main content or result
+- Metadata about the operation
+- Status information
 
-<Accordions>
-  <Accordion title="Data Processing Tools">
-    Tools for transforming, validating, and manipulating data as it flows through your workflow.
-    
-    - **Data Validators**: Ensure data meets specific criteria before processing
-    - **Formatters**: Convert data between different formats (JSON, XML, CSV)
-    - **Transformers**: Apply complex transformations to structured data
-  </Accordion>
-  
-  <Accordion title="Integration Tools">
-    Tools for connecting to external services and systems.
-    
-    - **API Connectors**: Pre-built connectors for popular services
-    - **Database Tools**: Tools for querying and manipulating databases
-    - **File System Tools**: Tools for reading and writing files
-  </Accordion>
-  
-  <Accordion title="Utility Tools">
-    General-purpose tools for common tasks.
-    
-    - **Text Processing**: Tools for working with text data
-    - **Math & Statistics**: Tools for numerical calculations
-    - **Date & Time**: Tools for working with temporal data
-  </Accordion>
-</Accordions>
+Refer to each tool's specific documentation to understand its exact output format. 

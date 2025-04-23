@@ -1,7 +1,7 @@
 import { commentTool } from './comment'
-import { latestCommitTool } from './commit'
+import { latestCommitTool } from './latest_commit'
 import { prTool } from './pr'
-import { repoInfoTool } from './repo'
+import { repoInfoTool } from './repo_info'
 
 export const githubCommentTool = commentTool
 export const githubLatestCommitTool = latestCommitTool

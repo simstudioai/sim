@@ -190,7 +190,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   // Output structure depends on the operation, covered by AirtableResponse union type
   outputs: {
     response: {
-      // Define a type structure listing all potential top-level keys mapped to 'json'
       type: {
         records: 'json', // Optional: for list, create, updateMultiple
         record: 'json', // Optional: for get, update single

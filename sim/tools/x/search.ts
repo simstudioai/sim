@@ -1,7 +1,7 @@
 import { ToolConfig } from '../types'
 import { XSearchParams, XSearchResponse, XTweet, XUser } from './types'
 
-export const searchTool: ToolConfig<XSearchParams, XSearchResponse> = {
+export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   id: 'x_search',
   name: 'X Search',
   description: 'Search for tweets using keywords, hashtags, or advanced queries',

@@ -4,7 +4,7 @@ import { XUser, XUserParams, XUserResponse } from './types'
 
 const logger = createLogger('XUserTool')
 
-export const userTool: ToolConfig<XUserParams, XUserResponse> = {
+export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
   id: 'x_user',
   name: 'X User',
   description: 'Get user profile information',

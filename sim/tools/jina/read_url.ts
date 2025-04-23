@@ -2,7 +2,7 @@ import { ToolConfig } from '../types'
 import { ReadUrlParams, ReadUrlResponse } from './types'
 
 export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
-  id: 'jina_readurl',
+  id: 'jina_read_url',
   name: 'Jina Reader',
   description:
     'Extract and process web content into clean, LLM-friendly text using Jina AI Reader. Supports advanced content parsing, link gathering, and multiple output formats with configurable processing options.',

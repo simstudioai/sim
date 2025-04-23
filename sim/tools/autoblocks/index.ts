@@ -1,3 +1,3 @@
-import { promptManagerTool } from './prompt-manager'
+import { promptManagerTool } from './prompt_manager'
 
 export const autoblocksPromptManagerTool = promptManagerTool

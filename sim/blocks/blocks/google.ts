@@ -24,7 +24,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   type: 'google_search',
   name: 'Google Search',
   description: 'Search the web',
-  longDescription: 'Searches the web using Google\'s Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
+  longDescription: 'Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleIcon,

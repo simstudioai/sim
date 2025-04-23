@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { mockGitHubResponses } from '../__test-utils__/mock-data'
 import { ToolTester } from '../__test-utils__/test-tools'
-import { repoInfoTool } from './repo'
+import { repoInfoTool } from './repo_info'
 
 describe('GitHub Repository Info Tool', () => {
   let tester: ToolTester

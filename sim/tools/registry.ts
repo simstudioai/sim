@@ -1,9 +1,9 @@
 import { airtableCreateRecordsTool, airtableGetRecordTool, airtableListRecordsTool, airtableUpdateRecordTool } from './airtable'
 import { autoblocksPromptManagerTool } from './autoblocks'
-import { browserUseRunTaskTool } from './browserUse'
+import { browserUseRunTaskTool } from './browser_use'
 import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
-import { docsCreateTool, docsReadTool, docsWriteTool } from './docs'
-import { driveDownloadTool, driveListTool, driveUploadTool } from './drive'
+import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
+import { driveDownloadTool, driveListTool, driveUploadTool } from './google_drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl'
@@ -25,7 +25,7 @@ import { pineconeFetchTool, pineconeGenerateEmbeddingsTool, pineconeSearchTextTo
 import { redditHotPostsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
-import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './sheets'
+import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './google_sheets'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
 import { supabaseInsertTool, supabaseQueryTool } from './supabase'
@@ -53,10 +53,10 @@ export const tools: Record<string, ToolConfig> = {
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
   google_search: googleSearchTool,
-  jina_readurl: readUrlTool,
+  jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
   slack_message: slackMessageTool,
-  github_repoinfo: githubRepoInfoTool,
+  github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
   serper_search: serperSearch,
   tavily_search: tavilySearchTool,
@@ -105,7 +105,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
-  dalle_generate: dalleTool,
+  openai_dalle: dalleTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,

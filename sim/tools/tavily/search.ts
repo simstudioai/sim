@@ -1,27 +1,7 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { TavilySearchParams, TavilySearchResponse } from './types'
 
-interface SearchParams {
-  query: string
-  apiKey: string
-  max_results?: number
-}
-
-interface SearchResult {
-  title: string
-  url: string
-  snippet: string
-  raw_content?: string
-}
-
-export interface SearchResponse extends ToolResponse {
-  output: {
-    query: string
-    results: SearchResult[]
-    response_time: number
-  }
-}
-
-export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
+export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = {
   id: 'tavily_search',
   name: 'Tavily Search',
   description:

@@ -2,7 +2,7 @@ import { ToolConfig } from '../types'
 import { BaseGitHubParams, RepoInfoResponse } from './types'
 
 export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
-  id: 'github_repoinfo',
+  id: 'github_repo_info',
   name: 'GitHub Repository Info',
   description:
     'Retrieve comprehensive GitHub repository metadata including stars, forks, issues, and primary language. Supports both public and private repositories with optional authentication.',

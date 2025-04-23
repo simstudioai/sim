@@ -271,72 +271,45 @@ Sim Studio is built in a modular fashion where blocks and tools extend the platf
 
 ### Where to Add Your Code
 
-- **Blocks:** Create your new block file under the `/sim/blocks/blocks` directory.
-- **Tools:** Create your new tool file under the `/sim/tools` directory.
+- **Blocks:** Create your new block file under the `/sim/blocks/blocks` directory. The name of the file should match the provider name (e.g., `pinecone.ts`).
+- **Tools:** Create a new directory under `/sim/tools` with the same name as the provider (e.g., `/sim/tools/pinecone`).
 
 In addition, you will need to update the registries:
 
-- **Block Registry:** Update the blocks index (usually `/sim/blocks/index.ts`) to include your new block.
+- **Block Registry:** Update the blocks index (`/sim/blocks/index.ts`) to include your new block.
 - **Tool Registry:** Update the tools registry (`/sim/tools/index.ts`) to add your new tool.
 
 ### How to Create a New Block
 
 1. **Create a New File:**  
-   Create a file for your block (e.g., `newBlock.ts`) in the `/sim/blocks/blocks` directory.
+   Create a file for your block named after the provider (e.g., `pinecone.ts`) in the `/sim/blocks/blocks` directory.
 
 2. **Create a New Icon:**
-   Create a new icon for your block in the `/sim/components/icons.tsx` file.
+   Create a new icon for your block in the `/sim/components/icons.tsx` file. The icon should follow the same naming convention as the block (e.g., `PineconeIcon`).
 
 3. **Define the Block Configuration:**  
    Your block should export a constant of type `BlockConfig`. For example:
 
-   ```typescript:/sim/blocks/blocks/newBlock.ts
-   import { SomeIcon } from '@/components/icons'
+   ```typescript:/sim/blocks/blocks/pinecone.ts
+   import { PineconeIcon } from '@/components/icons'
+   import { PineconeResponse } from '@/tools/pinecone/types'
    import { BlockConfig } from '../types'
 
-   // Define response type if needed
-   interface NewBlockResponse {
-     output: {
-       // Define expected output here
-       result: string
-     }
-   }
-
-   export const NewBlock: BlockConfig<NewBlockResponse> = {
-     type: 'new',
-     name: 'New Block',
-     description: 'Description of the new block',
+   export const PineconeBlock: BlockConfig<PineconeResponse> = {
+     type: 'pinecone',
+     name: 'Pinecone',
+     description: 'Use Pinecone vector database',
      longDescription: 'A more detailed description of what this block does and how to use it.',
      category: 'tools',
      bgColor: '#123456',
-     icon: SomeIcon,
+     icon: PineconeIcon,
 
      // If this block requires OAuth authentication
-     provider: 'new-service',
+     provider: 'pinecone',
 
      // Define subBlocks for the UI configuration
      subBlocks: [
-       {
-         id: 'apiKey',
-         title: 'API Key',
-         type: 'short-input',
-         layout: 'full',
-         placeholder: 'Enter your API key',
-       },
-       {
-         id: 'query',
-         title: 'Query',
-         type: 'long-input',
-         layout: 'full',
-         placeholder: 'Enter your search query',
-       },
-       {
-         id: 'model',
-         title: 'Model',
-         type: 'dropdown',
-         layout: 'half',
-         options: ['model-1', 'model-2', 'model-3'],
-       },
+       // Block configuration options
      ],
    }
    ```
@@ -345,16 +318,16 @@ In addition, you will need to update the registries:
    Import and add your block to the blocks registry (`/sim/blocks/index.ts`) in the appropriate index file so it appears in the workflow builder.
 
    ```typescript:/sim/blocks/index.ts
-   import { NewBlock } from './blocks/newBlock'
+   import { PineconeBlock } from './blocks/pinecone'
 
    export const blocks = [
      // ... existing blocks
-     NewBlock,
+     PineconeBlock,
    ]
 
    export const blocksByType: Record<string, BlockConfig> = {
      // ... existing blocks by type
-     new: NewBlock,
+     pinecone: PineconeBlock,
    }
    ```
 
@@ -364,99 +337,85 @@ In addition, you will need to update the registries:
 ### How to Create a New Tool
 
 1. **Create a New Directory:**  
-   For tools with multiple related functions, create a directory under `/sim/tools` (e.g., `/sim/tools/newService`).
+   Create a directory under `/sim/tools` with the same name as the provider (e.g., `/sim/tools/pinecone`).
 
 2. **Create Tool Files:**  
-   Create files for your tool functionality (e.g., `read.ts`, `write.ts`) in your tool directory.
+   Create separate files for each tool functionality with descriptive names (e.g., `fetch.ts`, `generate_embeddings.ts`, `search_text.ts`) in your tool directory.
 
-3. **Create an Index File:**  
-   Create an `index.ts` file in your tool directory that imports and exports all tools with appropriate prefixes:
+3. **Create a Types File:**  
+   Create a `types.ts` file in your tool directory to define and export all types related to your tools.
 
-   ```typescript:/sim/tools/newService/index.ts
-   import { readTool } from './read'
-   import { writeTool } from './write'
+4. **Create an Index File:**  
+   Create an `index.ts` file in your tool directory that imports and exports all tools:
 
-   export const newServiceReadTool = readTool
-   export const newServiceWriteTool = writeTool
+   ```typescript:/sim/tools/pinecone/index.ts
+   import { fetchTool } from './fetch'
+   import { generateEmbeddingsTool } from './generate_embeddings'
+   import { searchTextTool } from './search_text'
+
+   export { fetchTool, generateEmbeddingsTool, searchTextTool }
    ```
 
-4. **Define the Tool Configuration:**  
-   Your tool should export a constant of type `ToolConfig`. For example:
+5. **Define the Tool Configuration:**  
+   Your tool should export a constant with a naming convention of `{toolName}Tool`. The tool ID should follow the format `{provider}_{tool_name}`. For example:
 
-   ```typescript:/sim/tools/newService/read.ts
+   ```typescript:/sim/tools/pinecone/fetch.ts
    import { ToolConfig, ToolResponse } from '../types'
+   import { PineconeParams, PineconeResponse } from './types'
 
-   interface NewToolParams {
-     apiKey: string
-     query: string
-   }
-
-   interface NewToolResponse extends ToolResponse {
-     output: {
-       result: string
-     }
-   }
-
-   export const readTool: ToolConfig<NewToolParams, NewToolResponse> = {
-     id: 'new_service_read',
-     name: 'New Service Reader',
-     description: 'Description for the new tool',
+   export const fetchTool: ToolConfig<PineconeParams, PineconeResponse> = {
+     id: 'pinecone_fetch', // Follow the {provider}_{tool_name} format
+     name: 'Pinecone Fetch',
+     description: 'Fetch vectors from Pinecone database',
      version: '1.0.0',
 
      // OAuth configuration (if applicable)
-     provider: 'new-service', // ID of the OAuth provider
-     additionalScopes: ['https://api.newservice.com/read'], // Required OAuth scopes
+     provider: 'pinecone', // ID of the OAuth provider
 
      params: {
-       apiKey: {
-         type: 'string',
-         required: true,
-         description: 'API key for authentication',
-       },
-       query: {
-         type: 'string',
-         required: true,
-         description: 'Query to search for',
-       },
+       // Tool parameters
      },
      request: {
-       url: 'https://api.example.com/query',
-       method: 'POST',
-       headers: (params) => ({
-         'Content-Type': 'application/json',
-         Authorization: `Bearer ${params.apiKey}`,
-       }),
-       body: (params) => JSON.stringify({ query: params.query }),
+       // Request configuration
      },
      transformResponse: async (response: Response) => {
-       const data = await response.json()
-       return {
-         success: true,
-         output: { result: data.result },
-       }
+       // Transform response
      },
      transformError: (error) => {
-       return error.message || 'An error occurred while processing the tool request'
+       // Handle errors
      },
    }
    ```
 
-5. **Register Your Tool:**  
-   Update the tools registry in `/sim/tools/index.ts` to include your new tool. Import from your tool's index.ts file:
+6. **Register Your Tool:**  
+   Update the tools registry in `/sim/tools/index.ts` to include your new tool:
 
    ```typescript:/sim/tools/index.ts
-   import { newServiceReadTool, newServiceWriteTool } from './newService'
+   import { fetchTool, generateEmbeddingsTool, searchTextTool } from './pinecone'
    // ... other imports
 
    export const tools: Record<string, ToolConfig> = {
      // ... existing tools
-     new_service_read: newServiceReadTool,
-     new_service_write: newServiceWriteTool,
+     pinecone_fetch: fetchTool,
+     pinecone_generate_embeddings: generateEmbeddingsTool,
+     pinecone_search_text: searchTextTool,
    }
    ```
 
-6. **Test Your Tool:**  
+7. **Test Your Tool:**  
    Ensure that your tool functions correctly by making test requests and verifying the responses.
+
+### Naming Conventions
+
+Maintaining consistent naming across the codebase is critical for auto-generation of tools and documentation. Follow these naming guidelines:
+
+- **Block Files:** Name should match the provider (e.g., `pinecone.ts`)
+- **Block Export:** Should be named `{Provider}Block` (e.g., `PineconeBlock`)
+- **Icons:** Should be named `{Provider}Icon` (e.g., `PineconeIcon`)
+- **Tool Directories:** Should match the provider name (e.g., `/tools/pinecone/`)
+- **Tool Files:** Should be named after their function (e.g., `fetch.ts`, `search_text.ts`)
+- **Tool Exports:** Should be named `{toolName}Tool` (e.g., `fetchTool`)
+- **Tool IDs:** Should follow the format `{provider}_{tool_name}` (e.g., `pinecone_fetch`)
 
 ### Guidelines & Best Practices
 

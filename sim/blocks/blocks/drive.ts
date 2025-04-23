@@ -3,7 +3,7 @@ import {
   GoogleDriveDownloadResponse,
   GoogleDriveListResponse,
   GoogleDriveUploadResponse,
-} from '@/tools/drive/types'
+} from '@/tools/google_drive/types'
 import { BlockConfig } from '../types'
 
 type GoogleDriveResponse =

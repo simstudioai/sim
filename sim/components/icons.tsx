@@ -961,29 +961,33 @@ export function JinaAIIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export const TranslateIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="m5 8 6 6" />
-    <path d="m4 14 6-6 2-3" />
-    <path d="M2 5h12" />
-    <path d="M7 2h1" />
-    <path d="m22 22-5-10-5 10" />
-    <path d="M14 18h6" />
-  </svg>
-)
-export const SlackIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" {...props}>
+export function TranslateIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="m5 8 6 6" />
+      <path d="m4 14 6-6 2-3" />
+      <path d="M2 5h12" />
+      <path d="M7 2h1" /> 
+      <path d="m22 22-5-10-5 10" />
+      <path d="M14 18h6" />
+    </svg>
+  )
+}
+
+export function SlackIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" {...props}>
     <g>
       <path
         d="M53.8412698,161.320635 C53.8412698,176.152381 41.8539683,188.139683 27.0222222,188.139683 C12.1904762,188.139683 0.203174603,176.152381 0.203174603,161.320635 C0.203174603,146.488889 12.1904762,134.501587 27.0222222,134.501587 L53.8412698,134.501587 L53.8412698,161.320635 Z M67.2507937,161.320635 C67.2507937,146.488889 79.2380952,134.501587 94.0698413,134.501587 C108.901587,134.501587 120.888889,146.488889 120.888889,161.320635 L120.888889,228.368254 C120.888889,243.2 108.901587,255.187302 94.0698413,255.187302 C79.2380952,255.187302 67.2507937,243.2 67.2507937,228.368254 L67.2507937,161.320635 Z"
@@ -1003,10 +1007,12 @@ export const SlackIcon = (props: SVGProps<SVGSVGElement>) => (
       />
     </g>
   </svg>
-)
+  )
+}
 
-export const GithubIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
+export function GithubIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
     {...props}
     width="26"
     height="26"
@@ -1017,11 +1023,14 @@ export const GithubIcon = (props: SVGProps<SVGSVGElement>) => (
       d="M13 0C11.2928 0 9.60235 0.336255 8.02511 0.989566C6.44788 1.64288 5.01477 2.60045 3.80761 3.80761C1.36964 6.24558 0 9.55219 0 13C0 18.746 3.731 23.621 8.892 25.35C9.542 25.454 9.75 25.051 9.75 24.7V22.503C6.149 23.283 5.382 20.761 5.382 20.761C4.784 19.253 3.939 18.85 3.939 18.85C2.756 18.044 4.03 18.07 4.03 18.07C5.33 18.161 6.019 19.409 6.019 19.409C7.15 21.385 9.061 20.8 9.802 20.488C9.919 19.643 10.257 19.071 10.621 18.746C7.735 18.421 4.706 17.303 4.706 12.35C4.706 10.907 5.2 9.75 6.045 8.827C5.915 8.502 5.46 7.15 6.175 5.395C6.175 5.395 7.267 5.044 9.75 6.721C10.777 6.435 11.895 6.292 13 6.292C14.105 6.292 15.223 6.435 16.25 6.721C18.733 5.044 19.825 5.395 19.825 5.395C20.54 7.15 20.085 8.502 19.955 8.827C20.8 9.75 21.294 10.907 21.294 12.35C21.294 17.316 18.252 18.408 15.353 18.733C15.821 19.136 16.25 19.929 16.25 21.138V24.7C16.25 25.051 16.458 25.467 17.121 25.35C22.282 23.608 26 18.746 26 13C26 11.2928 25.6637 9.60235 25.0104 8.02511C24.3571 6.44788 23.3995 5.01477 22.1924 3.80761C20.9852 2.60045 19.5521 1.64288 17.9749 0.989566C16.3977 0.336255 14.7072 0 13 0Z"
       fill="currentColor"
     />
-  </svg>
-)
+  </svg> 
+  )
+}
 
-export const SerperIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 654 600" xmlns="http://www.w3.org/2000/svg" {...props}>
+
+export function SerperIcon(props: SVGProps<SVGSVGElement>){
+  return (
+    <svg viewBox="0 0 654 600" xmlns="http://www.w3.org/2000/svg" {...props}>
     <path
       d="M324 38C356 37 389 36 417 47C452 56 484 72 509 94C539 118 561 145 577 176C593 205 601 238 606 271C610 343 590 403 552 452C528 482 499 507 467 523C438 539 404 547 372 552C297 556 235 534 184 492C133 449 103 392 93 330C93 292 89 255 102 224C112 189 128 158 149 132C194 78 255 46 322 38"
       fill="rgb(71,97,118)"
@@ -1071,10 +1080,12 @@ export const SerperIcon = (props: SVGProps<SVGSVGElement>) => (
       fill="rgb(139,198,236)"
     />
   </svg>
-)
+  )
+}
 
-export const TavilyIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" {...props}>
+export function TavilyIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" {...props}>
     <path
       d="M432 291C415 294 418 313 417 326C380 328 342 327 306 328C316 344 312 368 301 381C339 384 377 383 414 384C419 393 415 404 419 412C424 419 431 422 437 421C554 393 539 314 425 290"
       fill="rgb(248,202,81)"
@@ -1104,10 +1115,12 @@ export const TavilyIcon = (props: SVGProps<SVGSVGElement>) => (
       fill="rgb(242,165,165)"
     />
   </svg>
-)
+  )
+}
 
-export const ConnectIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
+export function ConnectIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
     {...props}
     width="24"
     height="24"
@@ -1120,7 +1133,8 @@ export const ConnectIcon = (props: SVGProps<SVGSVGElement>) => (
       fill="currentColor"
     />
   </svg>
-)
+  )
+}
 
 export function YouTubeIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -1140,7 +1154,7 @@ export function YouTubeIcon(props: React.SVGProps<SVGSVGElement>) {
   )
 }
 
-export const PerplexityIcon = (props: SVGProps<SVGSVGElement>) => {
+export function PerplexityIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg width="1em" height="1em" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path
@@ -1152,7 +1166,7 @@ export const PerplexityIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const NotionIcon = (props: SVGProps<SVGSVGElement>) => {
+export function NotionIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="1em" height="1em" {...props}>
       <path
@@ -1163,7 +1177,7 @@ export const NotionIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const GmailIcon = (props: SVGProps<SVGSVGElement>) => {
+export function GmailIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -1190,7 +1204,7 @@ export const GmailIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const GoogleDriveIcon = (props: SVGProps<SVGSVGElement>) => {
+export function GoogleDriveIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -1227,7 +1241,7 @@ export const GoogleDriveIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const xAIIcon = (props: SVGProps<SVGSVGElement>) => {
+export function xAIIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -1258,7 +1272,7 @@ export const xAIIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const xIcon = (props: SVGProps<SVGSVGElement>) => {
+export function xIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="1em" height="1em" {...props}>
       <path
@@ -1269,7 +1283,7 @@ export const xIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const GoogleSheetsIcon = (props: SVGProps<SVGSVGElement>) => {
+export function GoogleSheetsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       {...props}
@@ -1292,13 +1306,14 @@ export const GoogleSheetsIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
-export const S3Icon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    {...props}
-    width="80"
-    height="80"
-    viewBox="0 0 80 80"
-    version="1.1"
+export function S3Icon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width="80"
+      height="80"
+      viewBox="0 0 80 80"
+      version="1.1"
     xmlns="http://www.w3.org/2000/svg"
   >
     <defs>
@@ -1313,15 +1328,17 @@ export const S3Icon = (props: SVGProps<SVGSVGElement>) => (
       </g>
       <g transform="translate(8.000000, 8.000000)" fill="#FFFFFF">
         <path d="M52.8359,34.8926 L53.2199,32.1886 C56.7609,34.3096 56.8069,35.1856 56.8059132,35.2096 C56.7999,35.2146 56.1959,35.7186 52.8359,34.8926 L52.8359,34.8926 Z M50.8929,34.3526 C44.7729,32.5006 36.2499,28.5906 32.8009,26.9606 C32.8009,26.9466 32.8049,26.9336 32.8049,26.9196 C32.8049,25.5946 31.7269,24.5166 30.4009,24.5166 C29.0769,24.5166 27.9989,25.5946 27.9989,26.9196 C27.9989,28.2446 29.0769,29.3226 30.4009,29.3226 C30.9829,29.3226 31.5109,29.1056 31.9279,28.7606 C35.9859,30.6816 44.4429,34.5346 50.6079,36.3546 L48.1699,53.5606 C48.1629,53.6076 48.1599,53.6546 48.1599,53.7016 C48.1599,55.2166 41.4529,57.9996 30.4939,57.9996 C19.4189,57.9996 12.6409,55.2166 12.6409,53.7016 C12.6409,53.6556 12.6379,53.6106 12.6319,53.5656 L7.5379,16.3586 C11.9469,19.3936 21.4299,20.9996 30.4999,20.9996 C39.5559,20.9996 49.0229,19.3996 53.4409,16.3736 L50.8929,34.3526 Z M6.9999,12.4776 C7.0719,11.1616 14.6339,5.9996 30.4999,5.9996 C46.3639,5.9996 53.9269,11.1606 53.9999,12.4776 L53.9999,12.9266 C53.1299,15.8776 43.3299,18.9996 30.4999,18.9996 C17.6479,18.9996 7.8429,15.8676 6.9999,12.9126 L6.9999,12.4776 Z M55.9999,12.4996 C55.9999,9.0346 46.0659,3.9996 30.4999,3.9996 C14.9339,3.9996 4.9999,9.0346 4.9999,12.4996 L5.0939,13.2536 L10.6419,53.7776 C10.7749,58.3096 22.8609,59.9996 30.4939,59.9996 C39.9659,59.9996 50.0289,57.8216 50.1589,53.7806 L52.5549,36.8836 C53.8879,37.2026 54.9849,37.3656 55.8659,37.3656 C57.0489,37.3656 57.8489,37.0766 58.3339,36.4986 C58.7319,36.0246 58.8839,35.4506 58.7699,34.8396 C58.5109,33.4556 56.8679,31.9636 53.5219,30.0546 L55.8979,13.2926 L55.9999,12.4996 Z" />
+        </g>
       </g>
-    </g>
-  </svg>
-)
+    </svg>
+  )
+}
 
-export const GoogleIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24" height="24">
-    <path
-      fill="#fbc02d"
+export function GoogleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24" height="24">
+      <path
+        fill="#fbc02d"
       d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12	s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20	s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"
     />
     <path
@@ -1336,27 +1353,32 @@ export const GoogleIcon = (props: SVGProps<SVGSVGElement>) => (
       fill="#1565c0"
       d="M43.611,20.083L43.595,20L42,20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571	c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"
     />
-  </svg>
-)
+    </svg>
+  )
+}
 
-export const DiscordIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
+export function DiscordIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="24" height="24">
     <path d="M 18.90625 7 C 18.90625 7 12.539063 7.4375 8.375 10.78125 C 8.355469 10.789063 8.332031 10.800781 8.3125 10.8125 C 7.589844 11.480469 7.046875 12.515625 6.375 14 C 5.703125 15.484375 4.992188 17.394531 4.34375 19.53125 C 3.050781 23.808594 2 29.058594 2 34 C 1.996094 34.175781 2.039063 34.347656 2.125 34.5 C 3.585938 37.066406 6.273438 38.617188 8.78125 39.59375 C 11.289063 40.570313 13.605469 40.960938 14.78125 41 C 15.113281 41.011719 15.429688 40.859375 15.625 40.59375 L 18.0625 37.21875 C 20.027344 37.683594 22.332031 38 25 38 C 27.667969 38 29.972656 37.683594 31.9375 37.21875 L 34.375 40.59375 C 34.570313 40.859375 34.886719 41.011719 35.21875 41 C 36.394531 40.960938 38.710938 40.570313 41.21875 39.59375 C 43.726563 38.617188 46.414063 37.066406 47.875 34.5 C 47.960938 34.347656 48.003906 34.175781 48 34 C 48 29.058594 46.949219 23.808594 45.65625 19.53125 C 45.007813 17.394531 44.296875 15.484375 43.625 14 C 42.953125 12.515625 42.410156 11.480469 41.6875 10.8125 C 41.667969 10.800781 41.644531 10.789063 41.625 10.78125 C 37.460938 7.4375 31.09375 7 31.09375 7 C 31.019531 6.992188 30.949219 6.992188 30.875 7 C 30.527344 7.046875 30.234375 7.273438 30.09375 7.59375 C 30.09375 7.59375 29.753906 8.339844 29.53125 9.40625 C 27.582031 9.09375 25.941406 9 25 9 C 24.058594 9 22.417969 9.09375 20.46875 9.40625 C 20.246094 8.339844 19.90625 7.59375 19.90625 7.59375 C 19.734375 7.203125 19.332031 6.964844 18.90625 7 Z M 18.28125 9.15625 C 18.355469 9.359375 18.40625 9.550781 18.46875 9.78125 C 16.214844 10.304688 13.746094 11.160156 11.4375 12.59375 C 11.074219 12.746094 10.835938 13.097656 10.824219 13.492188 C 10.816406 13.882813 11.039063 14.246094 11.390625 14.417969 C 11.746094 14.585938 12.167969 14.535156 12.46875 14.28125 C 17.101563 11.410156 22.996094 11 25 11 C 27.003906 11 32.898438 11.410156 37.53125 14.28125 C 37.832031 14.535156 38.253906 14.585938 38.609375 14.417969 C 38.960938 14.246094 39.183594 13.882813 39.175781 13.492188 C 39.164063 13.097656 38.925781 12.746094 38.5625 12.59375 C 36.253906 11.160156 33.785156 10.304688 31.53125 9.78125 C 31.59375 9.550781 31.644531 9.359375 31.71875 9.15625 C 32.859375 9.296875 37.292969 9.894531 40.3125 12.28125 C 40.507813 12.460938 41.1875 13.460938 41.8125 14.84375 C 42.4375 16.226563 43.09375 18.027344 43.71875 20.09375 C 44.9375 24.125 45.921875 29.097656 45.96875 33.65625 C 44.832031 35.496094 42.699219 36.863281 40.5 37.71875 C 38.5 38.496094 36.632813 38.84375 35.65625 38.9375 L 33.96875 36.65625 C 34.828125 36.378906 35.601563 36.078125 36.28125 35.78125 C 38.804688 34.671875 40.15625 33.5 40.15625 33.5 C 40.570313 33.128906 40.605469 32.492188 40.234375 32.078125 C 39.863281 31.664063 39.226563 31.628906 38.8125 32 C 38.8125 32 37.765625 32.957031 35.46875 33.96875 C 34.625 34.339844 33.601563 34.707031 32.4375 35.03125 C 32.167969 35 31.898438 35.078125 31.6875 35.25 C 29.824219 35.703125 27.609375 36 25 36 C 22.371094 36 20.152344 35.675781 18.28125 35.21875 C 18.070313 35.078125 17.8125 35.019531 17.5625 35.0625 C 16.394531 34.738281 15.378906 34.339844 14.53125 33.96875 C 12.234375 32.957031 11.1875 32 11.1875 32 C 10.960938 31.789063 10.648438 31.699219 10.34375 31.75 C 9.957031 31.808594 9.636719 32.085938 9.53125 32.464844 C 9.421875 32.839844 9.546875 33.246094 9.84375 33.5 C 9.84375 33.5 11.195313 34.671875 13.71875 35.78125 C 14.398438 36.078125 15.171875 36.378906 16.03125 36.65625 L 14.34375 38.9375 C 13.367188 38.84375 11.5 38.496094 9.5 37.71875 C 7.300781 36.863281 5.167969 35.496094 4.03125 33.65625 C 4.078125 29.097656 5.0625 24.125 6.28125 20.09375 C 6.90625 18.027344 7.5625 16.226563 8.1875 14.84375 C 8.8125 13.460938 9.492188 12.460938 9.6875 12.28125 C 12.707031 9.894531 17.140625 9.296875 18.28125 9.15625 Z M 18.5 21 C 15.949219 21 14 23.316406 14 26 C 14 28.683594 15.949219 31 18.5 31 C 21.050781 31 23 28.683594 23 26 C 23 23.316406 21.050781 21 18.5 21 Z M 31.5 21 C 28.949219 21 27 23.316406 27 26 C 27 28.683594 28.949219 31 31.5 31 C 34.050781 31 36 28.683594 36 26 C 36 23.316406 34.050781 21 31.5 21 Z M 18.5 23 C 19.816406 23 21 24.265625 21 26 C 21 27.734375 19.816406 29 18.5 29 C 17.183594 29 16 27.734375 16 26 C 16 24.265625 17.183594 23 18.5 23 Z M 31.5 23 C 32.816406 23 34 24.265625 34 26 C 34 27.734375 32.816406 29 31.5 29 C 30.183594 29 29 27.734375 29 26 C 29 24.265625 30.183594 23 31.5 23 Z" />
-  </svg>
-)
+    </svg>
+  )
+}
 
-export const CrunchbaseIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg
-    {...props}
-    fill="currentColor"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
+export function CrunchbaseIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      fill="currentColor"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
     xmlns="http://www.w3.org/2000/svg"
   >
     <path d="M21.6 0H2.4A2.41 2.41 0 0 0 0 2.4v19.2A2.41 2.41 0 0 0 2.4 24h19.2a2.41 2.41 0 0 0 2.4-2.4V2.4A2.41 2.41 0 0 0 21.6 0zM7.045 14.465A2.11 2.11 0 0 0 9.84 13.42h1.66a3.69 3.69 0 1 1 0-1.75H9.84a2.11 2.11 0 1 0-2.795 2.795zm11.345.845a3.55 3.55 0 0 1-1.06.63 3.68 3.68 0 0 1-3.39-.38v.38h-1.51V5.37h1.5v4.11a3.74 3.74 0 0 1 1.8-.63H16a3.67 3.67 0 0 1 2.39 6.46zm-.223-2.766a2.104 2.104 0 1 1-4.207 0 2.104 2.104 0 0 1 4.207 0z" />
-  </svg>
-)
+    </svg>
+  )
+}
 
 export function InputIcon(props: SVGProps<SVGSVGElement>) {
   return (

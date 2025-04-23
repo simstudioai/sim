@@ -1,9 +1,9 @@
-import { readTool } from './read'
-import { searchTool } from './search'
-import { userTool } from './user'
-import { writeTool } from './write'
+import { xReadTool } from './read'
+import { xSearchTool } from './search'
+import { xUserTool } from './user'
+import { xWriteTool } from './write'
 
-export const xReadTool = readTool
-export const xWriteTool = writeTool
-export const xSearchTool = searchTool
-export const xUserTool = userTool
+export { xReadTool }
+export { xWriteTool }
+export { xSearchTool }
+export { xUserTool }

@@ -1,0 +1,15 @@
+{
+  "name": "sim-doc-generator",
+  "version": "1.0.0",
+  "description": "Documentation generator for Sim Studio blocks",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.1.2",
+    "glob": "^11.0.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

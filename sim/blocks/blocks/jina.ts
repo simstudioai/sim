@@ -40,7 +40,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse> = {
     },
   ],
   tools: {
-    access: ['jina_readurl'],
+    access: ['jina_read_url'],
   },
   inputs: {
     url: { type: 'string', required: true },

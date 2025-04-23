@@ -1,21 +1,6 @@
-import { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig } from '../types'
+import { TypeformFilesParams, TypeformFilesResponse } from './types'
 
-interface TypeformFilesParams {
-  formId: string
-  responseId: string
-  fieldId: string
-  filename: string
-  inline?: boolean
-  apiKey: string
-}
-
-interface TypeformFilesResponse extends ToolResponse {
-  output: {
-    fileUrl: string
-    contentType: string
-    filename: string
-  }
-}
 
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
   id: 'typeform_files',

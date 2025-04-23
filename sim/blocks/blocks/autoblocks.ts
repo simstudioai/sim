@@ -13,7 +13,7 @@ interface AutoblocksResponse extends ToolResponse {
 
 export const AutoblocksBlock: BlockConfig<AutoblocksResponse> = {
   type: 'autoblocks',
-  name: 'Autoblocks Prompts',
+  name: 'Autoblocks',
   description: 'Manage and use versioned prompts with Autoblocks',
   longDescription:
     'Collaborate on prompts with type safety, autocomplete, and backwards-incompatibility protection. Autoblocks prompt management allows product teams to collaborate while maintaining excellent developer experience.',

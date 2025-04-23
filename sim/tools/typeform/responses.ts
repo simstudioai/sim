@@ -1,51 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-interface TypeformResponsesParams {
-  formId: string
-  apiKey: string
-  pageSize?: number
-  since?: string
-  until?: string
-  completed?: string
-}
-
-interface TypeformResponsesResponse extends ToolResponse {
-  output: {
-    total_items: number
-    page_count: number
-    items: Array<{
-      landing_id: string
-      token: string
-      landed_at: string
-      submitted_at: string
-      metadata: {
-        user_agent: string
-        platform: string
-        referer: string
-        network_id: string
-        browser: string
-      }
-      answers: Array<{
-        field: {
-          id: string
-          type: string
-          ref: string
-        }
-        type: string
-        [key: string]: any
-      }>
-      hidden: Record<string, any>
-      calculated: {
-        score: number
-      }
-      variables: Array<{
-        key: string
-        type: string
-        [key: string]: any
-      }>
-    }>
-  }
-}
+import { ToolConfig } from '../types'
+import { TypeformResponsesParams, TypeformResponsesResponse } from './types'
 
 export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponsesResponse> = {
   id: 'typeform_responses',

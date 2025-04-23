@@ -1,44 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-
-interface TypeformInsightsParams {
-  formId: string
-  apiKey: string
-}
-
-// This is the actual output data structure from the API
-interface TypeformInsightsData {
-  fields: Array<{
-    dropoffs: number
-    id: string
-    label: string
-    ref: string
-    title: string
-    type: string
-    views: number
-  }>
-  form: {
-    platforms: Array<{
-      average_time: number
-      completion_rate: number
-      platform: string
-      responses_count: number
-      total_visits: number
-      unique_visits: number
-    }>
-    summary: {
-      average_time: number
-      completion_rate: number
-      responses_count: number
-      total_visits: number
-      unique_visits: number
-    }
-  }
-}
-
-// The ToolResponse uses a union type to allow either successful data or empty object in error case
-interface TypeformInsightsResponse extends ToolResponse {
-  output: TypeformInsightsData | Record<string, never>
-}
+import { ToolConfig } from '../types'
+import { TypeformInsightsParams, TypeformInsightsResponse } from './types'
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',

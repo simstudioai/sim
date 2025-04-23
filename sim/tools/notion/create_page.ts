@@ -2,7 +2,7 @@ import { ToolConfig } from '../types'
 import { NotionCreatePageParams, NotionResponse } from './types'
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
-  id: 'create_notion',
+  id: 'notion_create_page',
   name: 'Notion Page Creator',
   description: 'Create a new page in Notion',
   version: '1.0.0',
