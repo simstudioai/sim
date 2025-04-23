@@ -47,6 +47,7 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
       layout: 'full',
       options: [
         { label: 'Slack', id: 'slack' },
+        { label: 'Twilio', id: 'twilio' },
         { label: 'Airtable', id: 'airtable' },
         { label: 'Generic', id: 'generic' },
         // { label: 'WhatsApp', id: 'whatsapp' },

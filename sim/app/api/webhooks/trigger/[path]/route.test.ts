@@ -169,8 +169,8 @@ describe('Webhook Trigger API Route', () => {
   })
 
   afterEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   /**
    * Test WhatsApp webhook verification challenge
@@ -190,13 +190,13 @@ describe('Webhook Trigger API Route', () => {
       'hub.mode': 'subscribe',
       'hub.verify_token': 'test-token',
       'hub.challenge': 'challenge-123',
-    })
+    });
 
     // Create a mock URL with search params
-    const mockUrl = `http://localhost:3000/api/webhooks/trigger/whatsapp?${verificationParams.toString()}`
+    const mockUrl = `http://localhost:3000/api/webhooks/trigger/whatsapp?${verificationParams.toString()}`;
 
     // Create a mock request with the URL using NextRequest
-    const req = new NextRequest(new URL(mockUrl))
+    const req = new NextRequest(new URL(mockUrl));
 
     // Mock database to return a WhatsApp webhook with matching token
     const { db } = await import('@/db')
@@ -219,21 +219,21 @@ describe('Webhook Trigger API Route', () => {
     })
 
     // Mock the path param
-    const params = Promise.resolve({ path: 'whatsapp' })
+    const params = Promise.resolve({ path: 'whatsapp' });
 
     // Import the handler after mocks are set up
-    const { GET } = await import('./route')
+    const { GET } = await import('./route');
 
     // Call the handler
-    const response = await GET(req, { params })
+    const response = await GET(req, { params });
 
     // Check response
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(200);
 
     // Should return exactly the challenge string
-    const text = await response.text()
-    expect(text).toBe('challenge-123')
-  })
+    const text = await response.text();
+    expect(text).toBe('challenge-123');
+  });
 
   /**
    * Test POST webhook with workflow execution
@@ -276,16 +276,15 @@ describe('Webhook Trigger API Route', () => {
     db.select.mockReturnValue({ from: fromMock })
 
     // Create a mock request with JSON body
-    const req = createMockRequest('POST', webhookPayload)
+    const req = createMockRequest('POST', webhookPayload);
 
-    // Mock the path param
     const params = Promise.resolve({ path: 'test-path' })
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('./route');
 
     // Call the handler
-    const response = await POST(req, { params })
+    const response = await POST(req, { params });
 
     // For the standard path with timeout, we expect 200
     expect(response.status).toBe(200)
@@ -310,16 +309,16 @@ describe('Webhook Trigger API Route', () => {
     db.select.mockReturnValue({ from: fromMock })
 
     // Create a mock request
-    const req = createMockRequest('POST', { event: 'test' })
+    const req = createMockRequest('POST', { event: 'test' });
 
     // Mock the path param
-    const params = Promise.resolve({ path: 'non-existent-path' })
+    const params = Promise.resolve({ path: 'non-existent-path' });
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('./route');
 
     // Call the handler
-    const response = await POST(req, { params })
+    const response = await POST(req, { params });
 
     // Check response - expect 404 since our implementation returns 404 when webhook is not found
     expect(response.status).toBe(404)
@@ -368,16 +367,16 @@ describe('Webhook Trigger API Route', () => {
     db.select.mockReturnValue({ from: fromMock })
 
     // Create a mock request
-    const req = createMockRequest('POST', { event: 'test' })
+    const req = createMockRequest('POST', { event: 'test' });
 
     // Mock the path param
-    const params = Promise.resolve({ path: 'test-path' })
+    const params = Promise.resolve({ path: 'test-path' });
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('./route');
 
     // Call the handler
-    const response = await POST(req, { params })
+    const response = await POST(req, { params });
 
     // Expect 200 response for duplicate
     expect(response.status).toBe(200)
@@ -425,23 +424,23 @@ describe('Webhook Trigger API Route', () => {
     const slackHeaders = {
       'x-slack-signature': 'v0=1234567890abcdef',
       'x-slack-request-timestamp': Math.floor(Date.now() / 1000).toString(),
-    }
+    };
 
     // Create a mock request
     const req = createMockRequest(
       'POST',
       { event_id: 'evt123', type: 'event_callback' },
       slackHeaders
-    )
+    );
 
     // Mock the path param
-    const params = Promise.resolve({ path: 'slack-path' })
+    const params = Promise.resolve({ path: 'slack-path' });
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('./route');
 
     // Call the handler
-    const response = await POST(req, { params })
+    const response = await POST(req, { params });
 
     // Verify response exists
     expect(response).toBeDefined()
@@ -495,16 +494,26 @@ describe('Webhook Trigger API Route', () => {
     db.select.mockReturnValue({ from: fromMock })
 
     // Create a mock request
-    const req = createMockRequest('POST', { event: 'test' })
+    const req = createMockRequest('POST', { event: 'test' });
 
     // Mock the path param
-    const params = Promise.resolve({ path: 'test-path' })
+    const params = Promise.resolve({ path: 'test-path' });
 
     // Import the handler after mocks are set up
-    const { POST } = await import('./route')
+    const { POST } = await import('./route');
 
     // Call the handler
-    const response = await POST(req, { params })
+    const response = await POST(req, { params });
+
+    // Verify response exists and check status code
+    // For non-Airtable webhooks, we expect 200 from the timeout response
+    expect(response).toBeDefined();
+    expect(response.status).toBe(200);
+
+    // Verify response text
+    const text = await response.text();
+    expect(text).toMatch(/received|processing/i);
+  });
 
     // Verify response exists and check status code
     // For non-Airtable webhooks, we expect 200 from the timeout response

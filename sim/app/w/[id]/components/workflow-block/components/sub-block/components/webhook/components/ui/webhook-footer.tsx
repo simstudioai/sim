@@ -28,6 +28,15 @@ export function WebhookDialogFooter({
   onTest,
   onClose,
 }: WebhookDialogFooterProps) {
+  const showTestButton =
+    webhookId &&
+    (webhookProvider === 'whatsapp' ||
+      webhookProvider === 'generic' ||
+      webhookProvider === 'slack' ||
+      webhookProvider === 'twilio') &&
+    onTest
+
+
   return (
     <div className="flex w-full justify-between">
       <div>
