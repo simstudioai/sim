@@ -80,7 +80,7 @@ function generatePresignedUrl(params: any, expiresIn: number = 3600): string {
 
 // Get Object Tool
 export const s3GetObjectTool: ToolConfig = {
-  id: 'get_object',
+  id: 's3_get_object',
   name: 'S3 Get Object',
   description: 'Retrieve an object from an AWS S3 bucket',
   version: '2.0.0',

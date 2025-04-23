@@ -13,6 +13,7 @@ import {
   SalesforceIcon,
   SupabaseIcon,
   xIcon,
+  JiraIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -28,6 +29,8 @@ export type OAuthProvider =
   | 'airtable'
   | 'notion'
   | 'salesforce'
+  | 'jira'
+
   | string
 export type OAuthService =
   | 'google'
@@ -42,6 +45,8 @@ export type OAuthService =
   | 'airtable'
   | 'notion'
   | 'salesforce'
+  | 'jira'
+  
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -197,6 +202,30 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'confluence',
+  },
+  jira: {
+    id: 'jira',
+    name: 'Jira',
+    icon: (props) => JiraIcon(props),
+    services: {
+      jira: {
+        id: 'jira',
+        name: 'Jira',
+        description: 'Access Jira projects and issues.',
+        providerId: 'jira',
+        icon: (props) => JiraIcon(props),
+        baseProviderIcon: (props) => JiraIcon(props),
+        scopes: [ 'read:jira-user',
+          'read:jira-work',
+          'write:jira-work',
+          'read:project:jira',
+          'read:issue-type:jira',
+          'read:me',
+          'offline_access',
+        ],
+      },
+    },
+    defaultService: 'jira',
   },
   airtable: {
     id: 'airtable',

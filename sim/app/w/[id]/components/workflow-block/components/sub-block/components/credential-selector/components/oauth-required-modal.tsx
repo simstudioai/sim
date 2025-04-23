@@ -70,6 +70,22 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'workspace.read': 'Read your Notion workspace',
   'workspace.write': 'Write to your Notion workspace',
   'user.email:read': 'Read your email address',
+  'read:jira-user': 'Read your Jira user',
+  'read:jira-work': 'Read your Jira work',
+  'write:jira-work': 'Write to your Jira work',
+  'write:issue:jira': 'Write to your Jira issues',
+  'read:project:jira': 'Read your Jira projects',
+  'read:issue-type:jira': 'Read your Jira issue types',
+  'read:issue-meta:jira': 'Read your Jira issue meta',
+  'read:issue-security-level:jira': 'Read your Jira issue security level',
+  'read:issue.vote:jira': 'Read your Jira issue votes',
+  'read:issue.changelog:jira': 'Read your Jira issue changelog',
+  'read:avatar:jira': 'Read your Jira avatar',
+  'read:issue:jira': 'Read your Jira issues',
+  'read:status:jira': 'Read your Jira status',
+  'read:user:jira': 'Read your Jira user',
+  'read:field-configuration:jira': 'Read your Jira field configuration',
+  'read:issue-details:jira': 'Read your Jira issue details',
 }
 
 // Convert OAuth scope to user-friendly description

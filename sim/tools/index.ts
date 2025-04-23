@@ -288,7 +288,7 @@ async function handleInternalRequest(
     const endpointUrl =
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
-    const fullUrl = new URL(endpointUrl, baseUrl).toString()
+    const fullUrl = new URL(await endpointUrl, baseUrl).toString()
 
     // For custom tools, validate parameters on the client side before sending
     if (toolId.startsWith('custom_') && tool.request.body) {

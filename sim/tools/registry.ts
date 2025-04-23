@@ -40,6 +40,7 @@ import { youtubeSearchTool } from './youtube'
 import { elevenLabsTtsTool } from './elevenlabs'
 import { ToolConfig } from './types'
 import { s3GetObjectTool } from './s3'
+import { jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -56,6 +57,9 @@ export const tools: Record<string, ToolConfig> = {
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,
+  jira_retrieve: jiraRetrieveTool,
+  jira_update: jiraUpdateTool,
+  jira_write: jiraWriteTool,
   slack_message: slackMessageTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,
@@ -119,5 +123,5 @@ export const tools: Record<string, ToolConfig> = {
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
   elevenlabs_tts: elevenLabsTtsTool,
-  get_object: s3GetObjectTool,
+  s3_get_object: s3GetObjectTool,
 } 
