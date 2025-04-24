@@ -476,15 +476,16 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
 
-  // Only use server key rotation for OpenAI's gpt-4o model on the hosted platform
+  // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
   const isHostedVersion = process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
-  const isGPT4o = model === 'gpt-4o' && provider === 'openai'
+  const isOpenAIModel = provider === 'openai'
+  const isClaudeModel = provider === 'anthropic'
 
-  if (isHostedVersion && isGPT4o) {
+  if (isHostedVersion && (isOpenAIModel || isClaudeModel)) {
     try {
       // Import the key rotation function
       const { getRotatingApiKey } = require('@/lib/utils')
-      const serverKey = getRotatingApiKey('openai')
+      const serverKey = getRotatingApiKey(provider)
       return serverKey
     } catch (error) {
       // If server key fails and we have a user key, fallback to that
