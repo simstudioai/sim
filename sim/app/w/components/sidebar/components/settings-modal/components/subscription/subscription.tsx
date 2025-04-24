@@ -4,6 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
+import { Progress } from '@/components/ui/progress'
 
 interface SubscriptionProps {
   onOpenChange: (open: boolean) => void
@@ -165,6 +166,27 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 <li>• No sharing capabilities</li>
               </ul>
               
+              {!isPro && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span>Usage</span>
+                    <span>
+                      {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
+                    </span>
+                  </div>
+                  <Progress 
+                    value={usageData.percentUsed} 
+                    className={`h-2 ${
+                      usageData.isExceeded 
+                      ? 'bg-muted [&>*]:bg-destructive' 
+                      : usageData.isWarning 
+                      ? 'bg-muted [&>*]:bg-amber-500' 
+                      : ''
+                    }`}
+                  />
+                </div>
+              )}
+              
               <div className="mt-4">
                 {!isPro ? (
                   <div className="text-sm bg-secondary/50 text-secondary-foreground py-1 px-2 rounded inline-block">
@@ -194,6 +216,27 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                 <li>• All features included</li>
                 <li>• Workflow sharing capabilities</li>
               </ul>
+              
+              {isPro && (
+                <div className="mt-4 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span>Usage</span>
+                    <span>
+                      {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
+                    </span>
+                  </div>
+                  <Progress 
+                    value={usageData.percentUsed} 
+                    className={`h-2 ${
+                      usageData.isExceeded 
+                      ? 'bg-muted [&>*]:bg-destructive' 
+                      : usageData.isWarning 
+                      ? 'bg-muted [&>*]:bg-amber-500' 
+                      : ''
+                    }`}
+                  />
+                </div>
+              )}
               
               <div className="mt-4">
                 {isPro ? (
