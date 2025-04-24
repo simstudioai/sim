@@ -117,11 +117,11 @@ export function ControlBar() {
   // Usage limit state
   const [usageExceeded, setUsageExceeded] = useState(false)
   const [usageData, setUsageData] = useState<{
-    percentUsed: number;
-    isWarning: boolean;
-    isExceeded: boolean;
-    currentUsage: number;
-    limit: number;
+    percentUsed: number
+    isWarning: boolean
+    isExceeded: boolean
+    currentUsage: number
+    limit: number
   } | null>(null)
 
   // Register keyboard shortcut for running workflow
@@ -355,7 +355,6 @@ export function ControlBar() {
     async function checkUserUsage() {
       if (session?.user?.id) {
         try {
-          // Call the API to check user usage instead of direct function call
           const response = await fetch('/api/user/usage')
           if (!response.ok) {
             throw new Error('Failed to fetch usage data')
@@ -476,7 +475,6 @@ export function ControlBar() {
         // Check usage after each run to see if we've exceeded the limit
         if (session?.user?.id) {
           try {
-            // Call the API to check user usage instead of direct function call
             const response = await fetch('/api/user/usage')
             if (!response.ok) {
               throw new Error('Failed to fetch usage data')
@@ -915,19 +913,7 @@ export function ControlBar() {
   }
 
   // Helper function to open subscription settings
-  const openSubscriptionSettings = () => {
-    // Show notification about exceeded limit
-    if (activeWorkflowId) {
-      addNotification(
-        'error', 
-        'Usage limit exceeded. Please upgrade your plan to continue running workflows.',
-        activeWorkflowId,
-        { 
-          isPersistent: true
-        }
-      );
-    }
-    
+  const openSubscriptionSettings = () => {    
     // Dispatch custom event to open settings modal with subscription tab
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('open-settings', { 
@@ -980,12 +966,10 @@ export function ControlBar() {
                   : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
               )}
               onClick={usageExceeded ? openSubscriptionSettings : (isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns)}
-              disabled={isExecuting || isMultiRunning || isCancelling || usageExceeded}
+              disabled={isExecuting || isMultiRunning || isCancelling}
             >
               {isCancelling ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-              ) : usageExceeded ? (
-                <CreditCard className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
               ) : isDebugModeEnabled ? (
                 <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
               ) : (
@@ -993,19 +977,17 @@ export function ControlBar() {
               )}
               {isCancelling
                 ? 'Cancelling...'
-                : usageExceeded
-                  ? 'Upgrade Plan'
-                  : isMultiRunning
-                    ? `Running (${completedRuns}/${runCount})`
-                    : isExecuting
-                      ? isDebugging
-                        ? 'Debugging'
-                        : 'Running'
-                      : isDebugModeEnabled
-                        ? 'Debug'
-                        : runCount === 1
-                          ? 'Run'
-                          : `Run (${runCount})`}
+                : isMultiRunning
+                  ? `Running (${completedRuns}/${runCount})`
+                  : isExecuting
+                    ? isDebugging
+                      ? 'Debugging'
+                      : 'Running'
+                    : isDebugModeEnabled
+                      ? 'Debug'
+                      : runCount === 1
+                        ? 'Run'
+                        : `Run (${runCount})`}
             </Button>
           </TooltipTrigger>
           <TooltipContent>
@@ -1032,8 +1014,8 @@ export function ControlBar() {
           </TooltipContent>
         </Tooltip>
 
-        {/* Dropdown Trigger - Only show when not in debug mode and not multi-running and not exceeded usage */}
-        {!isDebugModeEnabled && !isMultiRunning && !usageExceeded && (
+        {/* Dropdown Trigger - Only show when not in debug mode and not multi-running */}
+        {!isDebugModeEnabled && !isMultiRunning && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

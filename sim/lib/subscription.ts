@@ -6,7 +6,8 @@ import { createLogger } from './logs/console-logger'
 
 const logger = createLogger('Subscription')
 
-const isProd = process.env.NODE_ENV === 'production'
+// const isProd = process.env.NODE_ENV === 'production'
+const isProd = true
 
 /**
  * Check if the user is on the Pro plan

@@ -545,6 +545,12 @@ export async function persistExecutionLogs(
             .from(userStats)
             .where(eq(userStats.userId, userId))
 
+          const isProd = process.env.NODE_ENV === 'production'
+          const costMultiplier = isProd 
+            ? parseFloat(process.env.COST_MULTIPLIER!)
+            : 1
+          const costToStore = totalCost * costMultiplier
+
           if (userStatsRecords.length === 0) {
             await db.insert(userStats).values({
               id: crypto.randomUUID(),
@@ -554,7 +560,7 @@ export async function persistExecutionLogs(
               totalWebhookTriggers: 0,
               totalScheduledExecutions: 0,
               totalTokensUsed: totalTokens,
-              totalCost: totalCost.toString(),
+              totalCost: costToStore.toString(),
               lastActive: new Date(),
             })
           } else {
@@ -562,7 +568,7 @@ export async function persistExecutionLogs(
               .update(userStats)
               .set({
                 totalTokensUsed: sql`total_tokens_used + ${totalTokens}`,
-                totalCost: sql`total_cost + ${totalCost}`,
+                totalCost: sql`total_cost + ${costToStore}`,
                 lastActive: new Date(),
               })
               .where(eq(userStats.userId, userId))

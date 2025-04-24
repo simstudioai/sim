@@ -10,7 +10,8 @@ const logger = createLogger('UsageMonitor')
 // Percentage threshold for showing warning
 const WARNING_THRESHOLD = 80
 
-const isProd = process.env.NODE_ENV === 'production'
+// const isProd = process.env.NODE_ENV === 'production'
+const isProd = true
 
 interface UsageData {
   percentUsed: number
@@ -176,5 +177,93 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
     }
   } catch (error) {
     logger.error('Error in usage notification system', { error, userId })
+  }
+}
+
+// Add this function to check usage limits on the server-side for API routes
+/**
+ * Server-side function to check if a user has exceeded their usage limits
+ * For use in API routes, webhooks, and scheduled executions
+ * 
+ * @param userId The ID of the user to check
+ * @returns An object containing the exceeded status and usage details
+ */
+export async function checkServerSideUsageLimits(userId: string): Promise<{
+  isExceeded: boolean;
+  currentUsage: number;
+  limit: number;
+  message?: string;
+}> {
+  try {
+    // In development, always allow execution
+    if (!isProd) {
+      return {
+        isExceeded: false,
+        currentUsage: 0,
+        limit: 1000,
+      }
+    }
+    
+    logger.info('Server-side checking usage limits for user', { userId })
+    
+    // Get the user's subscription
+    const { data: subscriptions } = await client.subscription.list({
+      query: { referenceId: userId }
+    })
+    
+    // Find active subscription
+    const activeSubscription = subscriptions?.find(
+      sub => sub.status === 'active' || sub.status === 'trialing'
+    )
+    
+    // Get configured limits from environment variables or subscription
+    let costLimit: number
+    
+    if (activeSubscription && typeof activeSubscription.limits?.cost === 'number') {
+      // Use the limit from the subscription
+      costLimit = activeSubscription.limits.cost
+    } else {
+      // Use default free tier limit
+      costLimit = process.env.FREE_TIER_COST_LIMIT 
+        ? parseFloat(process.env.FREE_TIER_COST_LIMIT) 
+        : 5
+    }
+    
+    logger.info('Server-side user cost limit from subscription', { userId, costLimit })
+    
+    // Get user's actual usage from the database
+    const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
+    
+    if (statsRecords.length === 0) {
+      // No usage yet, so they haven't exceeded the limit
+      return {
+        isExceeded: false,
+        currentUsage: 0,
+        limit: costLimit
+      }
+    }
+    
+    // Get the current cost and compare with the limit
+    const currentUsage = parseFloat(statsRecords[0].totalCost.toString())
+    const isExceeded = currentUsage >= costLimit
+    
+    return {
+      isExceeded,
+      currentUsage,
+      limit: costLimit,
+      message: isExceeded 
+        ? `Usage limit exceeded: ${currentUsage.toFixed(2)}$ used of ${costLimit}$ limit. Please upgrade your plan to continue.`
+        : undefined
+    }
+  } catch (error) {
+    logger.error('Error in server-side usage limit check', { error, userId })
+    
+    // Be conservative in case of error - allow execution but log the issue
+    return {
+      isExceeded: false,
+      currentUsage: 0,
+      limit: 0,
+      message: `Error checking usage limits: ${error instanceof Error ? error.message : String(error)}`
+    }
   }
 } 

@@ -426,11 +426,16 @@ export function calculateCost(
 
   const outputCost = completionTokens * (pricing.output / 1_000_000)
   const totalCost = inputCost + outputCost
+  
+  const isProd = process.env.NODE_ENV === 'production'
+  const costMultiplier = isProd 
+    ? parseFloat(process.env.COST_MULTIPLIER!)
+    : 1
 
   return {
-    input: parseFloat(inputCost.toFixed(6)),
-    output: parseFloat(outputCost.toFixed(6)),
-    total: parseFloat(totalCost.toFixed(6)),
+    input: parseFloat((inputCost * costMultiplier).toFixed(6)),
+    output: parseFloat((outputCost * costMultiplier).toFixed(6)),
+    total: parseFloat((totalCost * costMultiplier).toFixed(6)),
     pricing,
   }
 }
