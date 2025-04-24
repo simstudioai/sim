@@ -1,6 +1,6 @@
 import { AgentIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
-import { isHostedVersion } from '@/lib/utils'
+import { isHosted } from '@/lib/environment'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { getAllBlocks } from '@/blocks'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
@@ -8,7 +8,6 @@ import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
-const isHosted = isHostedVersion()
 const logger = createLogger('AgentBlock')
 
 interface AgentResponse extends ToolResponse {

@@ -11,6 +11,7 @@ import { openaiProvider } from './openai'
 import { getModelPricing } from './pricing'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
+import { isHosted } from '@/lib/environment'
 
 const logger = createLogger('ProviderUtils')
 
@@ -475,11 +476,10 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const hasUserKey = !!userProvidedKey
 
   // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
-  const isHostedVersion = process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
 
-  if (isHostedVersion && (isOpenAIModel || isClaudeModel)) {
+  if (isHosted && (isOpenAIModel || isClaudeModel)) {
     try {
       // Import the key rotation function
       const { getRotatingApiKey } = require('@/lib/utils')

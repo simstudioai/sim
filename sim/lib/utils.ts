@@ -273,16 +273,6 @@ export function generateApiKey(): string {
 }
 
 /**
- * Determines if the application is running on the hosted/production version
- * @returns boolean indicating if the app is running on the hosted version
- */
-export function isHostedVersion(): boolean {
-  return (
-    typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
-  )
-}
-
-/**
  * Rotates through available API keys for a provider
  * @param provider - The provider to get a key for (e.g., 'openai')
  * @returns The selected API key
