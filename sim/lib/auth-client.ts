@@ -1,6 +1,7 @@
 import { emailOTPClient, genericOAuthClient } from 'better-auth/client/plugins'
 import { stripeClient } from '@better-auth/stripe/client'
 import { createAuthClient } from 'better-auth/react'
+import { isProd } from '@/lib/environment'
 
 export function getBaseURL() {
   let baseURL
@@ -17,8 +18,6 @@ export function getBaseURL() {
   
   return baseURL
 }
-
-const isProd = process.env.NODE_ENV === 'production'
 
 export const client = createAuthClient({
   baseURL: getBaseURL(),

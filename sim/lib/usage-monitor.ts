@@ -4,13 +4,12 @@ import { db } from '@/db'
 import { eq } from 'drizzle-orm'
 import { userStats } from '@/db/schema'
 import { client } from './auth-client'
+import { isProd } from '@/lib/environment'
 
 const logger = createLogger('UsageMonitor')
 
 // Percentage threshold for showing warning
 const WARNING_THRESHOLD = 80
-
-const isProd = process.env.NODE_ENV === 'production'
 
 interface UsageData {
   percentUsed: number

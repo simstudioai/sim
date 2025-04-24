@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { isProd, getCostMultiplier } from '@/lib/environment'
 import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
@@ -427,10 +428,7 @@ export function calculateCost(
   const outputCost = completionTokens * (pricing.output / 1_000_000)
   const totalCost = inputCost + outputCost
   
-  const isProd = process.env.NODE_ENV === 'production'
-  const costMultiplier = isProd 
-    ? parseFloat(process.env.COST_MULTIPLIER!)
-    : 1
+  const costMultiplier = getCostMultiplier()
 
   return {
     input: parseFloat((inputCost * costMultiplier).toFixed(6)),

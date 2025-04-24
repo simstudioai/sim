@@ -1,5 +1,7 @@
 'use server'
 
+import { isProd } from '@/lib/environment'
+
 export async function getOAuthProviderStatus() {
   const githubAvailable = !!(
     process.env.GITHUB_CLIENT_ID &&
@@ -15,7 +17,5 @@ export async function getOAuthProviderStatus() {
     process.env.GOOGLE_CLIENT_SECRET !== 'placeholder'
   )
 
-  const isProduction = process.env.NODE_ENV === 'production'
-
-  return { githubAvailable, googleAvailable, isProduction }
+  return { githubAvailable, googleAvailable, isProduction: isProd }
 }

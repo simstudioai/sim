@@ -5,6 +5,7 @@ import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
 import { stripCustomToolPrefix } from '../workflows/utils'
+import { getCostMultiplier } from '@/lib/environment'
 
 const logger = createLogger('ExecutionLogger')
 
@@ -545,10 +546,7 @@ export async function persistExecutionLogs(
             .from(userStats)
             .where(eq(userStats.userId, userId))
 
-          const isProd = process.env.NODE_ENV === 'production'
-          const costMultiplier = isProd 
-            ? parseFloat(process.env.COST_MULTIPLIER!)
-            : 1
+          const costMultiplier = getCostMultiplier()
           const costToStore = totalCost * costMultiplier
 
           if (userStatsRecords.length === 0) {

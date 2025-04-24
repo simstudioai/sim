@@ -3,10 +3,9 @@ import { db } from '@/db'
 import * as schema from '@/db/schema'
 import { client } from './auth-client'
 import { createLogger } from './logs/console-logger'
+import { isProd } from '@/lib/environment'
 
 const logger = createLogger('Subscription')
-
-const isProd = process.env.NODE_ENV === 'production'
 
 /**
  * Check if the user is on the Pro plan
