@@ -56,6 +56,14 @@ import { useSession } from '@/lib/auth-client'
 
 const logger = createLogger('ControlBar')
 
+// Cache for usage data to prevent excessive API calls
+let usageDataCache = {
+  data: null,
+  timestamp: 0,
+  // Cache expires after 1 minute
+  expirationMs: 60 * 1000
+}
+
 // Predefined run count options
 const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
 
@@ -352,24 +360,53 @@ export function ControlBar() {
 
   // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
-    async function checkUserUsage() {
-      if (session?.user?.id) {
-        try {
-          const response = await fetch('/api/user/usage')
-          if (!response.ok) {
-            throw new Error('Failed to fetch usage data')
-          }
-          const usage = await response.json()
+    if (session?.user?.id) {
+      checkUserUsage(session.user.id).then(usage => {
+        if (usage) {
           setUsageExceeded(usage.isExceeded)
           setUsageData(usage)
-        } catch (error) {
-          logger.error('Error checking usage limits:', { error })
         }
-      }
+      })
+    }
+  }, [session?.user?.id, completedRuns])
+
+  /**
+   * Check user usage data with caching to prevent excessive API calls
+   * @param userId User ID to check usage for
+   * @param forceRefresh Whether to force a fresh API call ignoring cache
+   * @returns Usage data or null if error
+   */
+  async function checkUserUsage(userId: string, forceRefresh = false): Promise<any | null> {
+    const now = Date.now()
+    const cacheAge = now - usageDataCache.timestamp
+    
+    // Use cache if available and not expired
+    if (!forceRefresh && usageDataCache.data && cacheAge < usageDataCache.expirationMs) {
+      logger.info('Using cached usage data', { cacheAge: `${Math.round(cacheAge/1000)}s` })
+      return usageDataCache.data
     }
     
-    checkUserUsage()
-  }, [session?.user?.id, completedRuns])
+    try {
+      const response = await fetch('/api/user/usage')
+      if (!response.ok) {
+        throw new Error('Failed to fetch usage data')
+      }
+      
+      const usage = await response.json()
+      
+      // Update cache
+      usageDataCache = {
+        data: usage,
+        timestamp: now,
+        expirationMs: usageDataCache.expirationMs
+      }
+      
+      return usage
+    } catch (error) {
+      logger.error('Error checking usage limits:', { error })
+      return null
+    }
+  }
 
   /**
    * Workflow name handlers
@@ -457,6 +494,8 @@ export function ControlBar() {
 
     let workflowError = null
     let wasCancelled = false
+    let runCounter = 0
+    let shouldCheckUsage = false
 
     try {
       // Run the workflow multiple times sequentially
@@ -470,32 +509,29 @@ export function ControlBar() {
 
         // Run the workflow and immediately increment counter for visual feedback
         await handleRunWorkflow()
-        setCompletedRuns(i + 1)
+        runCounter = i + 1
+        setCompletedRuns(runCounter)
         
-        // Check usage after each run to see if we've exceeded the limit
-        if (session?.user?.id) {
-          try {
-            const response = await fetch('/api/user/usage')
-            if (!response.ok) {
-              throw new Error('Failed to fetch usage data')
+        // Only check usage periodically to avoid excessive API calls
+        // Check on first run, every 5 runs, and on last run
+        shouldCheckUsage = i === 0 || (i + 1) % 5 === 0 || i === runCount - 1
+        
+        // Check usage if needed
+        if (shouldCheckUsage && session?.user?.id) {
+          const usage = await checkUserUsage(session.user.id, i === 0)
+          
+          if (usage?.isExceeded) {
+            setUsageExceeded(true)
+            setUsageData(usage)
+            // Stop execution if we've exceeded the limit during this batch
+            if (i < runCount - 1) {
+              addNotification(
+                'info', 
+                `Usage limit reached after ${runCounter} runs. Execution stopped.`,
+                activeWorkflowId
+              )
+              break
             }
-            const usage = await response.json()
-            
-            if (usage.isExceeded) {
-              setUsageExceeded(true)
-              setUsageData(usage)
-              // Stop execution if we've exceeded the limit during this batch
-              if (i < runCount - 1) {
-                addNotification(
-                  'info', 
-                  `Usage limit reached after ${i+1} runs. Execution stopped.`,
-                  activeWorkflowId
-                )
-                break
-              }
-            }
-          } catch (error) {
-            logger.error('Error checking usage limits during execution:', { error })
           }
         }
       }
@@ -504,7 +540,7 @@ export function ControlBar() {
       if (!wasCancelled && activeWorkflowId) {
         try {
           // Don't block UI on stats update
-          fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
+          fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCounter}`, {
             method: 'POST',
           }).catch((error) => {
             logger.error(`Failed to update workflow stats: ${error.message}`)

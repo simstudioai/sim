@@ -1,6 +1,6 @@
 import { Key, KeyRound, KeySquare, Settings, UserCircle, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { client } from '@/lib/auth-client'
+import { isDev } from '@/lib/environment'
 
 interface SettingsNavigationProps {
   activeSection: string
@@ -52,7 +52,7 @@ const allNavigationItems: NavigationItem[] = [
 
 export function SettingsNavigation({ activeSection, onSectionChange }: SettingsNavigationProps) {
   const navigationItems = allNavigationItems.filter(item => {
-    if (item.hideInDev && !client.subscription) {
+    if (item.hideInDev && isDev) {
       return false
     }
     return true

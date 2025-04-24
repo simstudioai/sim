@@ -28,6 +28,17 @@ const EnvVarsSchema = z.record(z.string())
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
+// Custom error class for usage limit exceeded
+class UsageLimitError extends Error {
+  statusCode: number
+  
+  constructor(message: string) {
+    super(message)
+    this.name = 'UsageLimitError'
+    this.statusCode = 402 // Payment Required status code
+  }
+}
+
 async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   const workflowId = workflow.id
   const executionId = uuidv4()
@@ -45,7 +56,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       currentUsage: usageCheck.currentUsage,
       limit: usageCheck.limit
     })
-    throw new Error(usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.')
+    throw new UsageLimitError(usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.')
   }
 
   // Log input to help debug
@@ -284,6 +295,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
+    
+    // Check if this is a usage limit error
+    if (error instanceof UsageLimitError) {
+      return createErrorResponse(
+        error.message,
+        error.statusCode,
+        'USAGE_LIMIT_EXCEEDED'
+      )
+    }
+    
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,
@@ -331,6 +352,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
+    
+    // Check if this is a usage limit error
+    if (error instanceof UsageLimitError) {
+      return createErrorResponse(
+        error.message,
+        error.statusCode,
+        'USAGE_LIMIT_EXCEEDED'
+      )
+    }
+    
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,
