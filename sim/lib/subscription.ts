@@ -6,7 +6,6 @@ import { createLogger } from './logs/console-logger'
 
 const logger = createLogger('Subscription')
 
-// Check if we're in production environment
 const isProd = process.env.NODE_ENV === 'production'
 
 /**

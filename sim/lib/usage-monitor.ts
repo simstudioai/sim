@@ -10,7 +10,6 @@ const logger = createLogger('UsageMonitor')
 // Percentage threshold for showing warning
 const WARNING_THRESHOLD = 80
 
-// Check if we're in production environment
 const isProd = process.env.NODE_ENV === 'production'
 
 interface UsageData {

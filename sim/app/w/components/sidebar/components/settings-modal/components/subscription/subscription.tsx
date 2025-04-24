@@ -3,7 +3,6 @@ import { client, useSession } from '@/lib/auth-client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 
 interface SubscriptionProps {

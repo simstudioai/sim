@@ -18,7 +18,6 @@ export function getBaseURL() {
   return baseURL
 }
 
-// Check if we're in production environment
 const isProd = process.env.NODE_ENV === 'production'
 
 export const client = createAuthClient({
@@ -36,7 +35,6 @@ export const client = createAuthClient({
 })
 export const { useSession } = client
 
-// Also export subscription-related functions
 export const useSubscription = () => {
   // In development, provide mock implementations
   if (!isProd) {

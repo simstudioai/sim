@@ -17,7 +17,6 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
-// Create Stripe client
 const isProd = process.env.NODE_ENV === 'production'
 const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-02-24.acacia",
@@ -631,44 +630,13 @@ export const auth = betterAuth({
             customerId: customer.id, 
             userId: user.id 
           })
-          
-          // Create free subscription immediately after customer creation
-          try {
-            logger.info('Creating free subscription for new user', { userId: user.id })
-            
-            // Create a record in the subscription table
-            if (isProd && stripeClient && process.env.STRIPE_FREE_PRICE_ID) {
-              const stripeSubscription = await stripeClient.subscriptions.create({
-                customer: stripeCustomer.id,
-                items: [{ price: process.env.STRIPE_FREE_PRICE_ID }],
-              })
-              
-              // Wait for webhook to process the subscription
-              // The webhook will create the database record automatically
-              logger.info('Free Stripe subscription created, awaiting webhook processing', { 
-                subscriptionId: stripeSubscription.id,
-                userId: user.id
-              })
-            } else {
-              // For development or testing environments
-              logger.info('Development mode: Would create free subscription', {
-                userId: user.id,
-                plan: 'free'
-              })
-            }
-          } catch (error) {
-            logger.error('Error creating free subscription for new user', { 
-              userId: user.id, 
-              error 
-            })
-          }
         },
         subscription: {
           enabled: true,
           plans: [
             {
               name: 'free',
-              priceId: process.env.STRIPE_FREE_PRICE_ID || '',
+              priceId: process.env.STRIPE_FREE_PRICE_ID!,
               limits: {
                 cost: process.env.FREE_TIER_COST_LIMIT ? parseInt(process.env.FREE_TIER_COST_LIMIT) : 5,
                 sharingEnabled: 0,
@@ -676,7 +644,7 @@ export const auth = betterAuth({
             },
             {
               name: 'pro',
-              priceId: process.env.STRIPE_PRO_PRICE_ID || '',
+              priceId: process.env.STRIPE_PRO_PRICE_ID!,
               limits: {
                 cost: process.env.PRO_TIER_COST_LIMIT ? parseInt(process.env.PRO_TIER_COST_LIMIT) : 20,
                 sharingEnabled: 1,
