@@ -19,11 +19,9 @@ const logger = createLogger('Auth')
 
 // Create Stripe client
 const isProd = process.env.NODE_ENV === 'production'
-const stripeClient = isProd && process.env.STRIPE_SECRET_KEY 
-  ? new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2025-03-31.basil',
-    }) 
-  : undefined
+const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2025-02-24.acacia",
+})
 
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
@@ -626,13 +624,44 @@ export const auth = betterAuth({
     ...(isProd && stripeClient ? [
       stripe({
         stripeClient,
-        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
         createCustomerOnSignUp: true,
         onCustomerCreate: async ({ customer, stripeCustomer, user }, request) => {
           logger.info('Stripe customer created', { 
             customerId: customer.id, 
             userId: user.id 
           })
+          
+          // Create free subscription immediately after customer creation
+          try {
+            logger.info('Creating free subscription for new user', { userId: user.id })
+            
+            // Create a record in the subscription table
+            if (isProd && stripeClient && process.env.STRIPE_FREE_PRICE_ID) {
+              const stripeSubscription = await stripeClient.subscriptions.create({
+                customer: stripeCustomer.id,
+                items: [{ price: process.env.STRIPE_FREE_PRICE_ID }],
+              })
+              
+              // Wait for webhook to process the subscription
+              // The webhook will create the database record automatically
+              logger.info('Free Stripe subscription created, awaiting webhook processing', { 
+                subscriptionId: stripeSubscription.id,
+                userId: user.id
+              })
+            } else {
+              // For development or testing environments
+              logger.info('Development mode: Would create free subscription', {
+                userId: user.id,
+                plan: 'free'
+              })
+            }
+          } catch (error) {
+            logger.error('Error creating free subscription for new user', { 
+              userId: user.id, 
+              error 
+            })
+          }
         },
         subscription: {
           enabled: true,
@@ -654,22 +683,14 @@ export const auth = betterAuth({
               }
             }
           ],
-          authorizeReference: async ({ user, session, referenceId, action }) => {
-            if (action === 'upgrade-subscription') {
-              return true // Always allow upgrading
-            }
-            
-            // For all other actions, we'll be conservative and allow the action
-            return true
-          },
           onSubscriptionCreate: async ({ 
             event, 
             stripeSubscription, 
             subscription 
           }: { 
-            event: Stripe.Event; 
-            stripeSubscription: Stripe.Subscription; 
-            subscription: any;
+            event: Stripe.Event 
+            stripeSubscription: Stripe.Subscription 
+            subscription: any
           }) => {
             logger.info('Subscription created', { 
               subscriptionId: subscription.id, 
@@ -699,15 +720,31 @@ export const auth = betterAuth({
             stripeSubscription, 
             subscription 
           }: { 
-            event: Stripe.Event; 
-            stripeSubscription: Stripe.Subscription; 
-            subscription: any;
+            event: Stripe.Event 
+            stripeSubscription: Stripe.Subscription 
+            subscription: any
           }) => {
             logger.info('Subscription deleted', { 
               subscriptionId: subscription.id, 
               referenceId: subscription.referenceId
             })
-          }
+          },
+          onEvent: async (event: any) => {
+            logger.info("Stripe webhook hit")
+            logger.info('Stripe webhook event received', { 
+              type: event.type,
+              id: event.id
+            })
+
+            switch (event.type) {
+              case 'customer.subscription.created':
+                logger.info('Subscription creation event details', {
+                  subscription: event.data.object,
+                  customerId: event.data.object.customer
+                })
+                break
+            }
+          },
         },
       })
     ] : []),

@@ -1,5 +1,6 @@
 import { Key, KeyRound, KeySquare, Settings, UserCircle, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { client } from '@/lib/auth-client'
 
 interface SettingsNavigationProps {
   activeSection: string
@@ -8,7 +9,14 @@ interface SettingsNavigationProps {
   ) => void
 }
 
-const navigationItems = [
+type NavigationItem = {
+  id: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  hideInDev?: boolean
+}
+
+const allNavigationItems: NavigationItem[] = [
   {
     id: 'general',
     label: 'General',
@@ -38,10 +46,18 @@ const navigationItems = [
     id: 'subscription',
     label: 'Subscription',
     icon: CreditCard,
+    hideInDev: true,
   },
-] as const
+]
 
 export function SettingsNavigation({ activeSection, onSectionChange }: SettingsNavigationProps) {
+  const navigationItems = allNavigationItems.filter(item => {
+    if (item.hideInDev && !client.subscription) {
+      return false
+    }
+    return true
+  })
+
   return (
     <div className="py-4">
       {navigationItems.map((item) => (

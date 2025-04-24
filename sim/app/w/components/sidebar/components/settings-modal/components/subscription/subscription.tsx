@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { client, useSession } from '@/lib/auth-client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { LoadingAgent } from '@/components/ui/loading-agent'
 
 interface SubscriptionProps {
   onOpenChange: (open: boolean) => void
@@ -27,7 +27,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     limit: 0
   })
   const [loading, setLoading] = useState<boolean>(true)
-  const [annual, setAnnual] = useState<boolean>(false)
   const [subscriptionData, setSubscriptionData] = useState<any>(null)
   const [isCanceling, setIsCanceling] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,7 +89,6 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
         plan: 'pro',
         successUrl: window.location.href,
         cancelUrl: window.location.href,
-        annual: annual,
       })
       
       if (error) {
@@ -151,8 +149,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          <span>Loading subscription details...</span>
+          <LoadingAgent size="sm" />
+          <span className="ml-2">Loading subscription details...</span>
         </div>
       ) : (
         <>
@@ -163,7 +161,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               <p className="text-sm text-muted-foreground mt-1">For individual users and small projects</p>
               
               <ul className="mt-3 space-y-2 text-sm">
-                <li>• ${!isPro ? 5 : usageData.limit} total cost limit</li>
+                <li>• ${!isPro ? 5 : usageData.limit} of inference credits</li>
                 <li>• Basic features</li>
                 <li>• No sharing capabilities</li>
               </ul>
@@ -180,8 +178,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     onClick={handleCancel}
                     disabled={isCanceling}
                   >
-                    {isCanceling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Downgrade
+                    {isCanceling && <LoadingAgent size="sm" />}
+                    <span className={isCanceling ? "ml-2" : ""}>Downgrade</span>
                   </Button>
                 )}
               </div>
@@ -193,7 +191,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
               <p className="text-sm text-muted-foreground mt-1">For professional users and teams</p>
               
               <ul className="mt-3 space-y-2 text-sm">
-                <li>• ${isPro ? usageData.limit : 50} total cost limit</li>
+                <li>• ${isPro ? usageData.limit : 20} of inference credits</li>
                 <li>• All features included</li>
                 <li>• Workflow sharing capabilities</li>
               </ul>
@@ -204,23 +202,13 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     Current Plan
                   </div>
                 ) : (
-                  <>
-                    <div className="flex items-center space-x-2 mb-4">
-                      <Switch
-                        id="annual-billing"
-                        checked={annual}
-                        onCheckedChange={setAnnual}
-                      />
-                      <Label htmlFor="annual-billing">Annual billing (save 20%)</Label>
-                    </div>
-                    <Button 
-                      variant="default" 
-                      size="sm"
-                      onClick={handleUpgrade}
-                    >
-                      Upgrade
-                    </Button>
-                  </>
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    onClick={handleUpgrade}
+                  >
+                    Upgrade
+                  </Button>
                 )}
               </div>
             </div>
@@ -242,8 +230,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   variant="outline" 
                   size="sm"
                   onClick={() => {
-                    // Open your contact form or redirect to contact page
-                    window.open('mailto:team@simstudio.ai?subject=Enterprise Plan Inquiry', '_blank')
+                    window.open(
+                        'https://calendly.com/emir-simstudio/15min',
+                        '_blank',
+                        'noopener,noreferrer'
+                    )
                   }}
                 >
                   Contact Us
@@ -273,8 +264,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                       onClick={handleCancel} 
                       disabled={isCanceling}
                     >
-                      {isCanceling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Manage Subscription
+                      {isCanceling && <LoadingAgent size="sm" />}
+                      <span className={isCanceling ? "ml-2" : ""}>Manage Subscription</span>
                     </Button>
                   </div>
                 )}

@@ -88,7 +88,7 @@
     "react-simple-code-editor": "^0.14.1",
     "reactflow": "^11.11.4",
     "resend": "^4.1.2",
-    "stripe": "^18.0.0",
+    "stripe": "^17.7.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
