@@ -44,7 +44,6 @@ vi.mock('./setup', () => ({
   S3_CONFIG: {
     bucket: 'test-bucket',
     region: 'test-region',
-    baseUrl: 'https://test-bucket.s3.test-region.amazonaws.com'
   }
 }))
 

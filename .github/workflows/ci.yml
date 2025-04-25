@@ -40,6 +40,13 @@ jobs:
         
       - name: Build application
         working-directory: ./sim
+        env:
+          NODE_OPTIONS: "--no-warnings"
+          NEXT_PUBLIC_APP_URL: "https://www.simstudio.ai"
+          STRIPE_SECRET_KEY: "dummy_key_for_ci_only"
+          STRIPE_WEBHOOK_SECRET: "dummy_secret_for_ci_only"
+          RESEND_API_KEY: "dummy_key_for_ci_only"
+          AWS_REGION: "us-west-2"
         run: npm run build
         
       - name: Upload coverage to Codecov

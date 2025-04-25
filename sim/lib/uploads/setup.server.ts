@@ -1,4 +1,4 @@
-import { ensureUploadsDirectory, USE_S3_STORAGE, S3_CONFIG } from './setup'
+import { ensureUploadsDirectory, USE_S3_STORAGE } from './setup'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('UploadsSetup')
@@ -9,10 +9,6 @@ if (typeof process !== 'undefined') {
   logger.info(`Storage mode: ${USE_S3_STORAGE ? 'S3' : 'Local'}`)
   
   if (USE_S3_STORAGE) {
-    logger.info('Using S3 storage mode with configuration:')
-    logger.info(`- Bucket: ${S3_CONFIG.bucket}`)
-    logger.info(`- Region: ${S3_CONFIG.region}`)
-    
     // Verify AWS credentials
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
       logger.warn('AWS credentials are not set in environment variables.')

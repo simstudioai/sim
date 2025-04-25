@@ -6,7 +6,6 @@ import { emailOTP, genericOAuth } from 'better-auth/plugins'
 import { stripe } from '@better-auth/stripe'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
-import { isProd } from '@/lib/environment'
 import {
   getEmailSubject,
   renderOTPEmail,
@@ -18,7 +17,9 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
-const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const isProd = process.env.NODE_ENV === 'production'
+
+const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: "2025-02-24.acacia",
 })
 
@@ -623,7 +624,7 @@ export const auth = betterAuth({
     ...(isProd && stripeClient ? [
       stripe({
         stripeClient,
-        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
+        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
         createCustomerOnSignUp: true,
         onCustomerCreate: async ({ customer, stripeCustomer, user }, request) => {
           logger.info('Stripe customer created', { 
@@ -636,7 +637,7 @@ export const auth = betterAuth({
           plans: [
             {
               name: 'free',
-              priceId: process.env.STRIPE_FREE_PRICE_ID!,
+              priceId: process.env.STRIPE_FREE_PRICE_ID || '',
               limits: {
                 cost: process.env.FREE_TIER_COST_LIMIT ? parseInt(process.env.FREE_TIER_COST_LIMIT) : 5,
                 sharingEnabled: 0,
@@ -644,7 +645,7 @@ export const auth = betterAuth({
             },
             {
               name: 'pro',
-              priceId: process.env.STRIPE_PRO_PRICE_ID!,
+              priceId: process.env.STRIPE_PRO_PRICE_ID || '',
               limits: {
                 cost: process.env.PRO_TIER_COST_LIMIT ? parseInt(process.env.PRO_TIER_COST_LIMIT) : 20,
                 sharingEnabled: 1,
