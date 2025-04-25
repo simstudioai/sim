@@ -40,7 +40,7 @@ const fileUploadBlock: SubBlockConfig = {
   layout: 'full' as SubBlockLayout,
   acceptedTypes: '.pdf,.csv,.docx',
   multiple: true,
-  maxSize: 100,
+  maxSize: 100, // 100MB max via direct upload
 }
 
 export const FileBlock: BlockConfig<FileParserOutput> = {

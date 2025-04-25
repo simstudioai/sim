@@ -140,35 +140,84 @@ export function FileUpload({
       const uploadedFiles: UploadedFile[] = []
       const uploadErrors: string[] = []
 
+      // Try to get pre-signed URLs first for direct upload
+      let useDirectUpload = false
+      
       // Upload each file separately
       for (const file of validFiles) {
-        // Create FormData for upload
-        const formData = new FormData()
-        formData.append('file', file)
+        try {
+          // First, try to get a pre-signed URL for direct upload
+          const presignedResponse = await fetch('/api/files/presigned', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileName: file.name,
+              contentType: file.type,
+              fileSize: file.size,
+            }),
+          })
 
-        // Upload the file
-        const response = await fetch('/api/files/upload', {
-          method: 'POST',
-          body: formData,
-        })
+          const presignedData = await presignedResponse.json()
+          
+          if (presignedResponse.ok && presignedData.directUploadSupported) {
+            // Use direct upload method
+            useDirectUpload = true
+            
+            // Upload directly to S3 using the pre-signed URL
+            const uploadResponse = await fetch(presignedData.presignedUrl, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': file.type,
+              },
+              body: file,
+            })
 
-        // Handle error response
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: response.statusText }))
-          const errorMessage = errorData.error || `Failed to upload file: ${response.status}`
+            if (!uploadResponse.ok) {
+              throw new Error(`Direct upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`)
+            }
+
+            // Use the file info returned from the presigned URL endpoint
+            uploadedFiles.push(presignedData.fileInfo)
+            
+          } else {
+            // Fallback to traditional upload through API route
+            useDirectUpload = false
+            
+            // Create FormData for upload
+            const formData = new FormData()
+            formData.append('file', file)
+
+            // Upload the file via server
+            const response = await fetch('/api/files/upload', {
+              method: 'POST',
+              body: formData,
+            })
+
+            // Handle error response
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ error: response.statusText }))
+              const errorMessage = errorData.error || `Failed to upload file: ${response.status}`
+              uploadErrors.push(`${file.name}: ${errorMessage}`)
+              continue
+            }
+
+            // Process successful upload
+            const data = await response.json()
+
+            uploadedFiles.push({
+              name: file.name,
+              path: data.path,
+              size: file.size,
+              type: file.type,
+            })
+          }
+        } catch (error) {
+          console.error(`Error uploading ${file.name}:`, error)
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           uploadErrors.push(`${file.name}: ${errorMessage}`)
-          continue
         }
-
-        // Process successful upload
-        const data = await response.json()
-
-        uploadedFiles.push({
-          name: file.name,
-          path: data.path,
-          size: file.size,
-          type: file.type,
-        })
       }
 
       // Clear progress interval
@@ -181,16 +230,17 @@ export function FileUpload({
 
       // Send consolidated notification about uploaded files
       if (uploadedFiles.length > 0) {
+        const uploadMethod = useDirectUpload ? 'direct' : 'server'
         if (uploadedFiles.length === 1) {
           addNotification(
             'console',
-            `${uploadedFiles[0].name} was uploaded successfully`,
+            `${uploadedFiles[0].name} was uploaded successfully (${uploadMethod} upload)`,
             activeWorkflowId
           )
         } else {
           addNotification(
             'console',
-            `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')}`,
+            `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')} (${uploadMethod} upload)`,
             activeWorkflowId
           )
         }

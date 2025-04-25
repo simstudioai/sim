@@ -29,7 +29,7 @@ const fileUploadBlock: SubBlockConfig = {
     field: 'inputMethod',
     value: 'upload',
   },
-  maxSize: 50,
+  maxSize: 50, // 50MB max via direct upload
 }
 
 export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
