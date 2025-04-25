@@ -19,9 +19,18 @@ const logger = createLogger('Auth')
 
 const isProd = process.env.NODE_ENV === 'production'
 
-const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: "2025-02-24.acacia",
-})
+// Only initialize Stripe if the key is provided
+// This allows local development without a Stripe account
+const validStripeKey = process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY.trim() !== '' && process.env.STRIPE_SECRET_KEY !== 'placeholder'
+
+let stripeClient = null
+if (validStripeKey) {
+  stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+    apiVersion: "2025-02-24.acacia",
+  })
+} else {
+  logger.warn('No valid Stripe secret key found.')
+}
 
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
