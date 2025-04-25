@@ -1,13 +1,13 @@
 import { DocumentIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
+import { isProd } from '@/lib/environment'
 import { FileParserOutput } from '@/tools/file/types'
 import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
 const logger = createLogger('FileBlock')
 
-const isProduction = process.env.NODE_ENV === 'production'
 const isS3Enabled = process.env.USE_S3 === 'true'
-const shouldEnableURLInput = isProduction || isS3Enabled
+const shouldEnableURLInput = isProd || isS3Enabled
 
 // Define sub-blocks conditionally
 const inputMethodBlock: SubBlockConfig = {

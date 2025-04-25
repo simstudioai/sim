@@ -5,11 +5,13 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { client } from '@/lib/auth-client'
 import { Account } from './components/account/account'
 import { ApiKeys } from './components/api-keys/api-keys'
 import { Credentials } from './components/credentials/credentials'
 import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
+import { Subscription } from './components/subscription/subscription'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
 
 interface SettingsModalProps {
@@ -17,7 +19,7 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys'
+type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -37,6 +39,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       window.removeEventListener('open-settings', handleOpenSettings as EventListener)
     }
   }, [onOpenChange])
+
+  // Check if subscriptions are enabled
+  const isSubscriptionEnabled = !!client.subscription
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -79,6 +84,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <div className={cn('h-full', activeSection === 'apikeys' ? 'block' : 'hidden')}>
               <ApiKeys onOpenChange={onOpenChange} />
             </div>
+            {isSubscriptionEnabled && (
+              <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
+                <Subscription onOpenChange={onOpenChange} />
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

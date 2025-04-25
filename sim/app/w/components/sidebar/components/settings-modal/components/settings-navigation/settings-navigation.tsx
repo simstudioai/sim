@@ -1,14 +1,22 @@
-import { Key, KeyRound, KeySquare, Settings, UserCircle } from 'lucide-react'
+import { Key, KeyRound, KeySquare, Settings, UserCircle, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isDev } from '@/lib/environment'
 
 interface SettingsNavigationProps {
   activeSection: string
   onSectionChange: (
-    section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys'
+    section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
   ) => void
 }
 
-const navigationItems = [
+type NavigationItem = {
+  id: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  hideInDev?: boolean
+}
+
+const allNavigationItems: NavigationItem[] = [
   {
     id: 'general',
     label: 'General',
@@ -34,9 +42,22 @@ const navigationItems = [
     label: 'API Keys',
     icon: KeySquare,
   },
-] as const
+  {
+    id: 'subscription',
+    label: 'Subscription',
+    icon: CreditCard,
+    hideInDev: true,
+  },
+]
 
 export function SettingsNavigation({ activeSection, onSectionChange }: SettingsNavigationProps) {
+  const navigationItems = allNavigationItems.filter(item => {
+    if (item.hideInDev && isDev) {
+      return false
+    }
+    return true
+  })
+
   return (
     <div className="py-4">
       {navigationItems.map((item) => (

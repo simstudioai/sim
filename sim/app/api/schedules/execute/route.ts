@@ -21,6 +21,7 @@ import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 
 // Add dynamic export to prevent caching
 export const dynamic = 'force-dynamic'
@@ -106,6 +107,39 @@ export async function GET(req: NextRequest) {
 
         if (!workflowRecord) {
           logger.warn(`[${requestId}] Workflow ${schedule.workflowId} not found`)
+          runningExecutions.delete(schedule.workflowId)
+          continue
+        }
+        
+        // Check if the user has exceeded their usage limits
+        const usageCheck = await checkServerSideUsageLimits(workflowRecord.userId)
+        if (usageCheck.isExceeded) {
+          logger.warn(`[${requestId}] User ${workflowRecord.userId} has exceeded usage limits. Skipping scheduled execution.`, {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            workflowId: schedule.workflowId
+          })
+          
+          // Log an execution error for the user to see why their schedule was skipped
+          await persistExecutionError(
+            schedule.workflowId, 
+            executionId, 
+            new Error(usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'),
+            'schedule'
+          )
+          
+          // Update the next run time to avoid constant retries
+          const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
+          const nextRetryAt = new Date(now.getTime() + retryDelay)
+          
+          await db
+            .update(workflowSchedule)
+            .set({
+              updatedAt: now,
+              nextRunAt: nextRetryAt,
+            })
+            .where(eq(workflowSchedule.id, schedule.id))
+            
           runningExecutions.delete(schedule.workflowId)
           continue
         }

@@ -15,9 +15,8 @@ export const UPLOAD_DIR = join(PROJECT_ROOT, 'uploads')
 export const USE_S3_STORAGE = process.env.NODE_ENV === 'production' || process.env.USE_S3 === 'true'
 
 export const S3_CONFIG = {
-  bucket: process.env.S3_BUCKET_NAME || 'sim-studio-files',
-  region: process.env.AWS_REGION || 'us-east-1',
-  baseUrl: process.env.S3_BASE_URL || `https://${process.env.S3_BUCKET_NAME || 'sim-studio-files'}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`
+  bucket: process.env.S3_BUCKET_NAME || '',
+  region: process.env.AWS_REGION || '',
 }
 
 /**
@@ -31,9 +30,7 @@ export async function ensureUploadsDirectory() {
 
   try {
     if (!existsSync(UPLOAD_DIR)) {
-      logger.info(`Creating uploads directory at ${UPLOAD_DIR}`)
       await mkdir(UPLOAD_DIR, { recursive: true })
-      logger.info(`Created uploads directory at ${UPLOAD_DIR}`)
     } else {
       logger.info(`Uploads directory already exists at ${UPLOAD_DIR}`)
     }

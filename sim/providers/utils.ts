@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { isProd, getCostMultiplier } from '@/lib/environment'
 import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
@@ -10,6 +11,7 @@ import { openaiProvider } from './openai'
 import { getModelPricing } from './pricing'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
+import { isHosted } from '@/lib/environment'
 
 const logger = createLogger('ProviderUtils')
 
@@ -426,11 +428,13 @@ export function calculateCost(
 
   const outputCost = completionTokens * (pricing.output / 1_000_000)
   const totalCost = inputCost + outputCost
+  
+  const costMultiplier = getCostMultiplier()
 
   return {
-    input: parseFloat(inputCost.toFixed(6)),
-    output: parseFloat(outputCost.toFixed(6)),
-    total: parseFloat(totalCost.toFixed(6)),
+    input: parseFloat((inputCost * costMultiplier).toFixed(6)),
+    output: parseFloat((outputCost * costMultiplier).toFixed(6)),
+    total: parseFloat((totalCost * costMultiplier).toFixed(6)),
     pricing,
   }
 }
@@ -471,15 +475,15 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // If user provided a key, use it as a fallback
   const hasUserKey = !!userProvidedKey
 
-  // Only use server key rotation for OpenAI's gpt-4o model on the hosted platform
-  const isHostedVersion = process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
-  const isGPT4o = model === 'gpt-4o' && provider === 'openai'
+  // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
+  const isOpenAIModel = provider === 'openai'
+  const isClaudeModel = provider === 'anthropic'
 
-  if (isHostedVersion && isGPT4o) {
+  if (isHosted && (isOpenAIModel || isClaudeModel)) {
     try {
       // Import the key rotation function
       const { getRotatingApiKey } = require('@/lib/utils')
-      const serverKey = getRotatingApiKey('openai')
+      const serverKey = getRotatingApiKey(provider)
       return serverKey
     } catch (error) {
       // If server key fails and we have a user key, fallback to that

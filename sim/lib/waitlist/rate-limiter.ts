@@ -1,13 +1,11 @@
 import { NextRequest } from 'next/server'
 import { getRedisClient } from '../redis'
+import { isProd } from '@/lib/environment'
 
 // Configuration
 const RATE_LIMIT_WINDOW = 60 // 1 minute window (in seconds)
 const WAITLIST_MAX_REQUESTS = 5 // 5 requests per minute per IP
 const WAITLIST_BLOCK_DURATION = 15 * 60 // 15 minutes block (in seconds)
-
-// Environment detection
-const isProduction = process.env.NODE_ENV === 'production'
 
 // Fallback in-memory store for development or if Redis fails
 const inMemoryStore = new Map<
@@ -16,7 +14,7 @@ const inMemoryStore = new Map<
 >()
 
 // Clean up in-memory store periodically (only used in development)
-if (!isProduction && typeof setInterval !== 'undefined') {
+if (!isProd && typeof setInterval !== 'undefined') {
   setInterval(
     () => {
       const now = Math.floor(Date.now() / 1000)

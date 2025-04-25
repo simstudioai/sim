@@ -1,6 +1,5 @@
-import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
-import { isHostedVersion } from '@/lib/utils'
+import { isHosted } from '@/lib/environment'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
@@ -8,9 +7,35 @@ import { executeTool } from '@/tools'
 import { ExecutionContext } from '../../types'
 import { AgentBlockHandler } from './agent-handler'
 
+process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+
+vi.mock('@/lib/environment', () => ({
+  isHosted: vi.fn().mockReturnValue(false),
+  isProd: vi.fn().mockReturnValue(false),
+  isDev: vi.fn().mockReturnValue(true),
+  isTest: vi.fn().mockReturnValue(false),
+  getCostMultiplier: vi.fn().mockReturnValue(1)
+}))
+
+vi.mock('@/providers/utils', () => ({
+  getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
+  transformBlockTool: vi.fn(),
+  getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} })
+}))
+
+vi.mock('@/blocks', () => ({
+  getAllBlocks: vi.fn().mockReturnValue([])
+}))
+
+vi.mock('@/tools', () => ({
+  executeTool: vi.fn()
+}))
+
+global.fetch = vi.fn()
+
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
-const mockIsHostedVersion = isHostedVersion as Mock
+const mockIsHosted = isHosted as unknown as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = global.fetch as Mock
@@ -60,7 +85,7 @@ describe('AgentBlockHandler', () => {
         loops: {},
       } as SerializedWorkflow,
     }
-    mockIsHostedVersion.mockReturnValue(false) // Default to non-hosted env for tests
+    mockIsHosted.mockReturnValue(false) // Default to non-hosted env for tests
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
     // Set up fetch mock to return a successful response
@@ -511,7 +536,7 @@ describe('AgentBlockHandler', () => {
 
     it('should not require API key for gpt-4o on hosted version', async () => {
       // Mock hosted environment
-      mockIsHostedVersion.mockReturnValue(true)
+      mockIsHosted.mockReturnValue(true)
 
       const inputs = {
         model: 'gpt-4o',

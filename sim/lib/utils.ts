@@ -273,37 +273,31 @@ export function generateApiKey(): string {
 }
 
 /**
- * Determines if the application is running on the hosted/production version
- * @returns boolean indicating if the app is running on the hosted version
- */
-export function isHostedVersion(): boolean {
-  return (
-    typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
-  )
-}
-
-/**
  * Rotates through available API keys for a provider
  * @param provider - The provider to get a key for (e.g., 'openai')
  * @returns The selected API key
  * @throws Error if no API keys are configured for rotation
  */
 export function getRotatingApiKey(provider: string): string {
-  if (provider !== 'openai') {
+  if (provider !== 'openai' && provider !== 'anthropic') {
     throw new Error(`No rotation implemented for provider: ${provider}`)
   }
 
-  // Get all OpenAI keys from environment
   const keys = []
 
-  // Add keys if they exist in environment variables
-  if (process.env.OPENAI_API_KEY_1) keys.push(process.env.OPENAI_API_KEY_1)
-  if (process.env.OPENAI_API_KEY_2) keys.push(process.env.OPENAI_API_KEY_2)
-  if (process.env.OPENAI_API_KEY_3) keys.push(process.env.OPENAI_API_KEY_3)
+  if (provider === 'openai') {
+    if (process.env.OPENAI_API_KEY_1) keys.push(process.env.OPENAI_API_KEY_1)
+    if (process.env.OPENAI_API_KEY_2) keys.push(process.env.OPENAI_API_KEY_2)
+    if (process.env.OPENAI_API_KEY_3) keys.push(process.env.OPENAI_API_KEY_3)
+  } else if (provider === 'anthropic') {
+    if (process.env.ANTHROPIC_API_KEY_1) keys.push(process.env.ANTHROPIC_API_KEY_1)
+    if (process.env.ANTHROPIC_API_KEY_2) keys.push(process.env.ANTHROPIC_API_KEY_2)
+    if (process.env.ANTHROPIC_API_KEY_3) keys.push(process.env.ANTHROPIC_API_KEY_3)
+  }
 
   if (keys.length === 0) {
     throw new Error(
-      'No API keys configured for rotation. Please configure OPENAI_API_KEY_1, OPENAI_API_KEY_2, or OPENAI_API_KEY_3.'
+      `No API keys configured for rotation. Please configure ${provider.toUpperCase()}_API_KEY_1, ${provider.toUpperCase()}_API_KEY_2, or ${provider.toUpperCase()}_API_KEY_3.`
     )
   }
 

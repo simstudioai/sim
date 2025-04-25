@@ -16,6 +16,7 @@ import {
   Store,
   Trash2,
   X,
+  CreditCard,
 } from 'lucide-react'
 import {
   AlertDialog,
@@ -51,8 +52,17 @@ import { DeploymentControls } from './components/deployment-controls/deployment-
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+import { useSession } from '@/lib/auth-client'
 
 const logger = createLogger('ControlBar')
+
+// Cache for usage data to prevent excessive API calls
+let usageDataCache = {
+  data: null,
+  timestamp: 0,
+  // Cache expires after 1 minute
+  expirationMs: 60 * 1000
+}
 
 // Predefined run count options
 const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
@@ -63,6 +73,7 @@ const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
  */
 export function ControlBar() {
   const router = useRouter()
+  const { data: session } = useSession()
 
   // Store hooks
   const {
@@ -110,6 +121,16 @@ export function ControlBar() {
   const [showRunProgress, setShowRunProgress] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const cancelFlagRef = useRef(false)
+
+  // Usage limit state
+  const [usageExceeded, setUsageExceeded] = useState(false)
+  const [usageData, setUsageData] = useState<{
+    percentUsed: number
+    isWarning: boolean
+    isExceeded: boolean
+    currentUsage: number
+    limit: number
+  } | null>(null)
 
   // Register keyboard shortcut for running workflow
   useKeyboardShortcuts(
@@ -337,6 +358,56 @@ export function ControlBar() {
     }
   }, [needsRedeployment, activeWorkflowId, notifications, removeNotification, addNotification])
 
+  // Check usage limits when component mounts and when user executes a workflow
+  useEffect(() => {
+    if (session?.user?.id) {
+      checkUserUsage(session.user.id).then(usage => {
+        if (usage) {
+          setUsageExceeded(usage.isExceeded)
+          setUsageData(usage)
+        }
+      })
+    }
+  }, [session?.user?.id, completedRuns])
+
+  /**
+   * Check user usage data with caching to prevent excessive API calls
+   * @param userId User ID to check usage for
+   * @param forceRefresh Whether to force a fresh API call ignoring cache
+   * @returns Usage data or null if error
+   */
+  async function checkUserUsage(userId: string, forceRefresh = false): Promise<any | null> {
+    const now = Date.now()
+    const cacheAge = now - usageDataCache.timestamp
+    
+    // Use cache if available and not expired
+    if (!forceRefresh && usageDataCache.data && cacheAge < usageDataCache.expirationMs) {
+      logger.info('Using cached usage data', { cacheAge: `${Math.round(cacheAge/1000)}s` })
+      return usageDataCache.data
+    }
+    
+    try {
+      const response = await fetch('/api/user/usage')
+      if (!response.ok) {
+        throw new Error('Failed to fetch usage data')
+      }
+      
+      const usage = await response.json()
+      
+      // Update cache
+      usageDataCache = {
+        data: usage,
+        timestamp: now,
+        expirationMs: usageDataCache.expirationMs
+      }
+      
+      return usage
+    } catch (error) {
+      logger.error('Error checking usage limits:', { error })
+      return null
+    }
+  }
+
   /**
    * Workflow name handlers
    */
@@ -407,6 +478,12 @@ export function ControlBar() {
    */
   const handleMultipleRuns = async () => {
     if (isExecuting || isMultiRunning || runCount <= 0) return
+    
+    // Check if usage is exceeded before allowing execution
+    if (usageExceeded) {
+      openSubscriptionSettings()
+      return
+    }
 
     // Reset state and ref for a new batch of runs
     setCompletedRuns(0)
@@ -417,6 +494,8 @@ export function ControlBar() {
 
     let workflowError = null
     let wasCancelled = false
+    let runCounter = 0
+    let shouldCheckUsage = false
 
     try {
       // Run the workflow multiple times sequentially
@@ -430,14 +509,38 @@ export function ControlBar() {
 
         // Run the workflow and immediately increment counter for visual feedback
         await handleRunWorkflow()
-        setCompletedRuns(i + 1)
+        runCounter = i + 1
+        setCompletedRuns(runCounter)
+        
+        // Only check usage periodically to avoid excessive API calls
+        // Check on first run, every 5 runs, and on last run
+        shouldCheckUsage = i === 0 || (i + 1) % 5 === 0 || i === runCount - 1
+        
+        // Check usage if needed
+        if (shouldCheckUsage && session?.user?.id) {
+          const usage = await checkUserUsage(session.user.id, i === 0)
+          
+          if (usage?.isExceeded) {
+            setUsageExceeded(true)
+            setUsageData(usage)
+            // Stop execution if we've exceeded the limit during this batch
+            if (i < runCount - 1) {
+              addNotification(
+                'info', 
+                `Usage limit reached after ${runCounter} runs. Execution stopped.`,
+                activeWorkflowId
+              )
+              break
+            }
+          }
+        }
       }
 
       // Update workflow stats only if the run wasn't cancelled and completed normally
       if (!wasCancelled && activeWorkflowId) {
         try {
           // Don't block UI on stats update
-          fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCount}`, {
+          fetch(`/api/workflows/${activeWorkflowId}/stats?runs=${runCounter}`, {
             method: 'POST',
           }).catch((error) => {
             logger.error(`Failed to update workflow stats: ${error.message}`)
@@ -845,6 +948,16 @@ export function ControlBar() {
     )
   }
 
+  // Helper function to open subscription settings
+  const openSubscriptionSettings = () => {    
+    // Dispatch custom event to open settings modal with subscription tab
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('open-settings', { 
+        detail: { tab: 'subscription' } 
+      }))
+    }
+  }
+
   /**
    * Render run workflow button with multi-run dropdown and cancel button
    */
@@ -888,7 +1001,7 @@ export function ControlBar() {
                   ? 'rounded py-2 px-4 h-10'
                   : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
               )}
-              onClick={isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns}
+              onClick={usageExceeded ? openSubscriptionSettings : (isDebugModeEnabled ? handleRunWorkflow : handleMultipleRuns)}
               disabled={isExecuting || isMultiRunning || isCancelling}
             >
               {isCancelling ? (
@@ -914,14 +1027,26 @@ export function ControlBar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent>
-            {isDebugModeEnabled
-              ? 'Debug Workflow'
-              : runCount === 1
-                ? 'Run Workflow'
-                : `Run Workflow ${runCount} times`}
-            <span className="text-xs text-muted-foreground ml-1">
-              {getKeyboardShortcutText('Enter', true)}
-            </span>
+            {usageExceeded ? (
+              <div className="text-center">
+                <p className="font-medium text-destructive">Usage Limit Exceeded</p>
+                <p className="text-xs">
+                  You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$. 
+                  Upgrade your plan to continue.
+                </p>
+              </div>
+            ) : (
+              <>
+                {isDebugModeEnabled
+                  ? 'Debug Workflow'
+                  : runCount === 1
+                    ? 'Run Workflow'
+                    : `Run Workflow ${runCount} times`}
+                <span className="text-xs text-muted-foreground ml-1">
+                  {getKeyboardShortcutText('Enter', true)}
+                </span>
+              </>
+            )}
           </TooltipContent>
         </Tooltip>
 

@@ -17,7 +17,8 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
-})
+  stripeCustomerId: text('stripe_customer_id')
+});
 
 export const session = pgTable('session', {
   id: text('id').primaryKey(),
@@ -221,3 +222,50 @@ export const customTools = pgTable('custom_tools', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const subscription = pgTable("subscription", {
+  id: text('id').primaryKey(),
+  plan: text('plan').notNull(),
+referenceId: text('reference_id').notNull(),
+stripeCustomerId: text('stripe_customer_id'),
+stripeSubscriptionId: text('stripe_subscription_id'),
+status: text('status'),
+periodStart: timestamp('period_start'),
+periodEnd: timestamp('period_end'),
+cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+seats: integer('seats')
+});
+
+export const chat = pgTable('chat', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  subdomain: text('subdomain').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  isActive: boolean('is_active').notNull().default(true),
+  customizations: json('customizations').default('{}'), // For UI customization options
+  
+  // Authentication options
+  authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
+  password: text('password'), // Stored hashed, populated when authType is 'password'
+  allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email'
+  
+  // Output configuration
+  outputBlockId: text('output_block_id'), // Stores the selected output block ID
+  outputPath: text('output_path'), // Stores the output path within the block
+  
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+},
+(table) => {
+  return {
+    // Ensure subdomains are unique
+    subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
+  }
+}
+)

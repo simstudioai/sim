@@ -50,7 +50,6 @@ describe('File Serve API Route', () => {
       S3_CONFIG: {
         bucket: 'test-bucket',
         region: 'test-region',
-        baseUrl: 'https://test-bucket.s3.test-region.amazonaws.com',
       },
     }))
 
@@ -73,7 +72,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params })
+    const response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify response
     expect(response.status).toBe(200)
@@ -101,7 +100,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params })
+    const response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify file was read with correct path
     expect(mockReadFile).toHaveBeenCalledWith('/test/uploads/nested/path/file.txt')
@@ -124,7 +123,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params })
+    const response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify redirect to presigned URL
     expect(response.status).toBe(307) // Temporary redirect
@@ -154,7 +153,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params })
+    const response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify response falls back to downloading and proxying the file
     expect(response.status).toBe(200)
@@ -176,7 +175,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params })
+    const response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify 404 response
     expect(response.status).toBe(404)
@@ -233,7 +232,6 @@ describe('File Serve API Route', () => {
           S3_CONFIG: {
             bucket: 'test-bucket',
             region: 'test-region',
-            baseUrl: 'https://test-bucket.s3.test-region.amazonaws.com',
           },
         }))
 
@@ -265,7 +263,7 @@ describe('File Serve API Route', () => {
         const { GET } = await import('./route')
 
         // Call the handler
-        const response = await GET(req, { params })
+        const response = await GET(req, { params: Promise.resolve(params) })
 
         // Verify correct content type
         expect(response.headers.get('Content-Type')).toBe(test.contentType)

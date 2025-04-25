@@ -15,6 +15,7 @@ import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
@@ -27,6 +28,17 @@ const EnvVarsSchema = z.record(z.string())
 // Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
+// Custom error class for usage limit exceeded
+class UsageLimitError extends Error {
+  statusCode: number
+  
+  constructor(message: string) {
+    super(message)
+    this.name = 'UsageLimitError'
+    this.statusCode = 402 // Payment Required status code
+  }
+}
+
 async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   const workflowId = workflow.id
   const executionId = uuidv4()
@@ -35,6 +47,16 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   if (runningExecutions.has(workflowId)) {
     logger.warn(`[${requestId}] Workflow is already running: ${workflowId}`)
     throw new Error('Workflow is already running')
+  }
+
+  // Check if the user has exceeded their usage limits
+  const usageCheck = await checkServerSideUsageLimits(workflow.userId)
+  if (usageCheck.isExceeded) {
+    logger.warn(`[${requestId}] User ${workflow.userId} has exceeded usage limits`, {
+      currentUsage: usageCheck.currentUsage,
+      limit: usageCheck.limit
+    })
+    throw new UsageLimitError(usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.')
   }
 
   // Log input to help debug
@@ -273,6 +295,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
+    
+    // Check if this is a usage limit error
+    if (error instanceof UsageLimitError) {
+      return createErrorResponse(
+        error.message,
+        error.statusCode,
+        'USAGE_LIMIT_EXCEEDED'
+      )
+    }
+    
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,
@@ -320,6 +352,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
+    
+    // Check if this is a usage limit error
+    if (error instanceof UsageLimitError) {
+      return createErrorResponse(
+        error.message,
+        error.statusCode,
+        'USAGE_LIMIT_EXCEEDED'
+      )
+    }
+    
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,

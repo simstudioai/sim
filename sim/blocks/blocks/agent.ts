@@ -1,6 +1,6 @@
 import { AgentIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
-import { isHostedVersion } from '@/lib/utils'
+import { isHosted } from '@/lib/environment'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { getAllBlocks } from '@/blocks'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
@@ -8,7 +8,6 @@ import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
 import { BlockConfig } from '../types'
 
-const isHosted = isHostedVersion()
 const logger = createLogger('AgentBlock')
 
 interface AgentResponse extends ToolResponse {
@@ -104,12 +103,22 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
-      // Hide API key for GPT-4o models when running on hosted version
+      // Hide API key for all OpenAI and Claude models when running on hosted version
       condition: isHosted
         ? {
             field: 'model',
-            value: 'gpt-4o',
-            not: true, // Show for all models EXCEPT GPT-4o models
+            // Include all OpenAI models and Claude models for which we don't show the API key field
+            value: [
+              // OpenAI models
+              'gpt-4o',
+              'o1', 'o1-mini', 'o1-preview', 
+              'o3', 'o3-preview',
+              'o4-mini',
+              // Claude models
+              'claude-3-5-sonnet-20240620', 
+              'claude-3-7-sonnet-20250219'
+            ],
+            not: true, // Show for all models EXCEPT those listed
           }
         : undefined, // Show for all models in non-hosted environments
     },

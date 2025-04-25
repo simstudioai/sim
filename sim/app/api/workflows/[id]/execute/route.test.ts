@@ -88,7 +88,7 @@ describe('Workflow Execution API Route', () => {
       decryptSecret: vi.fn().mockResolvedValue({
         decrypted: 'decrypted-secret-value',
       }),
-      isHostedVersion: vi.fn().mockReturnValue(false),
+      isHosted: vi.fn().mockReturnValue(false),
       getRotatingApiKey: vi.fn().mockReturnValue('rotated-api-key'),
     }))
 

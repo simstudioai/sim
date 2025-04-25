@@ -3,6 +3,8 @@ import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import { emailOTP, genericOAuth } from 'better-auth/plugins'
+import { stripe } from '@better-auth/stripe'
+import Stripe from 'stripe'
 import { Resend } from 'resend'
 import {
   getEmailSubject,
@@ -14,6 +16,12 @@ import { db } from '@/db'
 import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
+
+const isProd = process.env.NODE_ENV === 'production'
+
+const stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  apiVersion: "2025-02-24.acacia",
+})
 
 // If there is no resend key, it might be a local dev environment
 // In that case, we don't want to send emails and just log them
@@ -612,6 +620,103 @@ export const auth = betterAuth({
         },
       ],
     }),
+    // Only include the Stripe plugin in production
+    ...(isProd && stripeClient ? [
+      stripe({
+        stripeClient,
+        stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+        createCustomerOnSignUp: true,
+        onCustomerCreate: async ({ customer, stripeCustomer, user }, request) => {
+          logger.info('Stripe customer created', { 
+            customerId: customer.id, 
+            userId: user.id 
+          })
+        },
+        subscription: {
+          enabled: true,
+          plans: [
+            {
+              name: 'free',
+              priceId: process.env.STRIPE_FREE_PRICE_ID || '',
+              limits: {
+                cost: process.env.FREE_TIER_COST_LIMIT ? parseInt(process.env.FREE_TIER_COST_LIMIT) : 5,
+                sharingEnabled: 0,
+              }
+            },
+            {
+              name: 'pro',
+              priceId: process.env.STRIPE_PRO_PRICE_ID || '',
+              limits: {
+                cost: process.env.PRO_TIER_COST_LIMIT ? parseInt(process.env.PRO_TIER_COST_LIMIT) : 20,
+                sharingEnabled: 1,
+              }
+            }
+          ],
+          onSubscriptionCreate: async ({ 
+            event, 
+            stripeSubscription, 
+            subscription 
+          }: { 
+            event: Stripe.Event 
+            stripeSubscription: Stripe.Subscription 
+            subscription: any
+          }) => {
+            logger.info('Subscription created', { 
+              subscriptionId: subscription.id, 
+              referenceId: subscription.referenceId,
+              plan: subscription.plan,
+              status: subscription.status
+            })
+          },
+          onSubscriptionUpdated: async ({ 
+            subscription, 
+            previousStatus, 
+            user 
+          }: { 
+            subscription: any 
+            previousStatus: string 
+            user: any
+          }, request?: any) => {
+            logger.info('Subscription updated', { 
+              subscriptionId: subscription.id, 
+              userId: user.id,
+              previousStatus,
+              newStatus: subscription.status 
+            })
+          },
+          onSubscriptionDeleted: async ({ 
+            event, 
+            stripeSubscription, 
+            subscription 
+          }: { 
+            event: Stripe.Event 
+            stripeSubscription: Stripe.Subscription 
+            subscription: any
+          }) => {
+            logger.info('Subscription deleted', { 
+              subscriptionId: subscription.id, 
+              referenceId: subscription.referenceId
+            })
+          },
+          onEvent: async (event: any) => {
+            logger.info("Stripe webhook hit")
+            logger.info('Stripe webhook event received', { 
+              type: event.type,
+              id: event.id
+            })
+
+            switch (event.type) {
+              case 'customer.subscription.created':
+                logger.info('Subscription creation event details', {
+                  subscription: event.data.object,
+                  customerId: event.data.object.customer
+                })
+                break
+            }
+          },
+        },
+      })
+    ] : []),
   ],
   pages: {
     signIn: '/login',
