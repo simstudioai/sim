@@ -245,7 +245,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'hubspot',
         icon: (props) => HubspotIcon(props),
         baseProviderIcon: (props) => HubspotIcon(props),
-        scopes: [ 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'marketing.forms.read', 'marketing-emails.read'],
+        scopes: [ 'oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'forms' ],
       },
     },
     defaultService: 'hubspot',

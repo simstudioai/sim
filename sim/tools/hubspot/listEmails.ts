@@ -11,7 +11,7 @@ export const listEmailsTool: ToolConfig<ListEmailsParams, ListEmailsResponse> = 
   oauth: {
     required: true,
     provider: 'hubspot',
-    additionalScopes: ['marketing-emails.read'],
+    additionalScopes: ['crm.objects.contacts.read'],
   },
 
   params: {

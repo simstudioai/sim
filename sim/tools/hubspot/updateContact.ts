@@ -16,8 +16,8 @@ export const updateContactTool: ToolConfig<UpdateContactParams, UpdateContactRes
 
   params: {
     accessToken: { type: 'string', required: true },
-    contactId:   { type: 'string', required: true },
-    properties:  { type: 'json',   required: true },
+    contactId: { type: 'string', required: true },
+    properties: { type: 'json',   required: true },
   },
 
   request: {

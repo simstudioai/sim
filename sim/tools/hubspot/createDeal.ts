@@ -16,7 +16,7 @@ export const createDealTool: ToolConfig<CreateDealParams, CreateDealResponse> = 
 
   params: {
     accessToken: { type: 'string', required: true },
-    properties:  { type: 'json',   required: true },
+    properties: { type: 'json',   required: true },
   },
 
   request: {

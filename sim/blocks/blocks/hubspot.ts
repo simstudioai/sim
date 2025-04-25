@@ -67,13 +67,13 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
       provider: 'hubspot',
       serviceId: 'hubspot',
       requiredScopes: [
+        'oauth',
         'crm.objects.contacts.read',
         'crm.objects.contacts.write',
         'crm.objects.deals.read',
         'crm.objects.deals.write',
         'marketing.campaigns.read',
-        'marketing.forms.read',
-        'marketing-emails.read'
+        'forms',
       ],
       placeholder: 'Select HubSpot account',
     },

@@ -15,10 +15,10 @@ export const searchContactsTool: ToolConfig<SearchContactsParams, SearchContacts
   },
 
   params: {
-    accessToken:  { type: 'string', required: true },
+    accessToken: { type: 'string', required: true },
     filterGroups: { type: 'json',   required: true },
-    sorts:        { type: 'array',  required: false },
-    limit:        { type: 'number', required: false },
+    sorts: { type: 'array',  required: false },
+    limit: { type: 'number', required: false },
   },
 
   request: {

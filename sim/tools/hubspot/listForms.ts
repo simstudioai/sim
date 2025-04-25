@@ -11,7 +11,7 @@ export const listFormsTool: ToolConfig<ListFormsParams, ListFormsResponse> = {
   oauth: {
     required: true,
     provider: 'hubspot',
-    additionalScopes: ['marketing.forms.read'],
+    additionalScopes: ['forms'],
   },
 
   params: {

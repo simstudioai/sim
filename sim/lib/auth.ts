@@ -554,13 +554,13 @@ export const auth = betterAuth({
           userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/hubspot`,
           scopes: [
+            'oauth',
             'crm.objects.contacts.read',
             'crm.objects.contacts.write',
             'crm.objects.deals.read',
             'crm.objects.deals.write',
             'marketing.campaigns.read',
-            'marketing.forms.read',
-            'marketing-emails.read'
+            'forms',
           ],
           pkce: true,
           getUserInfo: async (tokens) => {

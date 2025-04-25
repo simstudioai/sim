@@ -16,7 +16,7 @@ export const listDealsTool: ToolConfig<ListDealsParams, ListDealsResponse> = {
 
   params: {
     accessToken: { type: 'string', required: true },
-    limit:       { type: 'number', required: false },
+    limit: { type: 'number', required: false },
   },
 
   request: {

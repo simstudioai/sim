@@ -16,7 +16,7 @@ export const createContactTool: ToolConfig<CreateContactParams, CreateContactRes
 
   params: {
     accessToken: { type: 'string', required: true },
-    properties:  { type: 'json',   required: true },
+    properties: { type: 'json',   required: true },
   },
 
   request: {
