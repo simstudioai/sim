@@ -17,12 +17,13 @@ export async function isProPlan(userId: string): Promise<boolean> {
       return true
     }
     
-    const { data: subscriptions } = await client.subscription.list({
-      query: { referenceId: userId }
-    })
+    const dbSubscriptions = await db.select()
+      .from(schema.subscription)
+      .where(eq(schema.subscription.referenceId, userId))
     
-    const activeSubscription = subscriptions?.find(
-      sub => sub.status === 'active' && sub.plan === 'pro'
+    // Find active pro subscription
+    const activeSubscription = dbSubscriptions.find(
+      sub => (sub.status === 'active') && sub.plan === 'pro'
     )
     
     return !!activeSubscription
@@ -41,8 +42,6 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     if (!isProd) {
       return false
     }
-    
-    logger.info('Checking cost limit for user', { userId })
     
     // Get user's subscription
     const { data: subscriptions } = await client.subscription.list({
