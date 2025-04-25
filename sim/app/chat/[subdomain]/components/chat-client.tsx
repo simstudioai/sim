@@ -1,12 +1,12 @@
 'use client'
 
-import { KeyboardEvent, useEffect, useRef, useState } from 'react'
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { OTPInputForm } from '@/components/ui/input-otp-form'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { OTPInputForm } from '@/components/ui/input-otp-form'
 
 // Define message type
 interface ChatMessage {
@@ -30,6 +30,54 @@ interface ChatConfig {
   authType?: 'public' | 'password' | 'email'
 }
 
+// ChatGPT-style message component
+function ClientChatMessage({ message }: { message: ChatMessage }) {
+  // Check if content is a JSON object
+  const isJsonObject = useMemo(() => {
+    return typeof message.content === 'object' && message.content !== null
+  }, [message.content])
+
+  // For user messages (on the right)
+  if (message.type === 'user') {
+    return (
+      <div className="py-5 px-4">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex justify-end">
+            <div className="bg-[#F4F4F4] dark:bg-gray-600 rounded-3xl max-w-[80%] py-3 px-4">
+              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-[#0D0D0D]">
+                {isJsonObject ? (
+                  <pre>{JSON.stringify(message.content, null, 2)}</pre>
+                ) : (
+                  <span>{message.content}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // For assistant messages (on the left)
+  return (
+    <div className="py-5 px-4">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex">
+          <div className="max-w-[80%]">
+            <div className="whitespace-pre-wrap break-words text-base leading-relaxed">
+              {isJsonObject ? (
+                <pre>{JSON.stringify(message.content, null, 2)}</pre>
+              ) : (
+                <span>{message.content}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
@@ -37,6 +85,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [chatConfig, setChatConfig] = useState<ChatConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
@@ -303,6 +353,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     setInputValue('')
     setIsLoading(true)
 
+    // Ensure focus remains on input field
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+
     try {
       // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
@@ -324,7 +379,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       // Extract content from the response - could be in content or output
       let messageContent = responseData.output
-      
+
       // Handle different response formats from API
       if (!messageContent && responseData.content) {
         // Content could be an object or a string
@@ -337,7 +392,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             try {
               messageContent = JSON.stringify(responseData.content)
             } catch (e) {
-              messageContent = "Received structured data response"
+              messageContent = 'Received structured data response'
             }
           }
         } else {
@@ -345,7 +400,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           messageContent = responseData.content
         }
       }
-      
+
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         content: messageContent || "Sorry, I couldn't process your request.",
@@ -367,6 +422,10 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+      // Ensure focus remains on input field even after the response
+      if (inputRef.current) {
+        inputRef.current.focus()
+      }
     }
   }
 
@@ -430,14 +489,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                   </div>
 
                   <h2 className="text-lg font-medium text-center">Email Verification</h2>
-                  
+
                   {!showOtpVerification ? (
                     // Step 1: Email Input
                     <>
                       <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
                         Enter your email address to access this chat
                       </p>
-                      
+
                       <div className="space-y-3">
                         <div className="space-y-1">
                           <label htmlFor="email" className="text-sm font-medium sr-only">
@@ -454,11 +513,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                             className="w-full"
                           />
                         </div>
-                        
+
                         {authError && (
                           <div className="text-sm text-red-600 dark:text-red-500">{authError}</div>
                         )}
-                        
+
                         <Button
                           onClick={handleAuthenticate}
                           disabled={!email || isSendingOtp || isAuthenticating}
@@ -485,7 +544,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                         Enter the verification code sent to
                       </p>
                       <p className="text-center font-medium text-sm break-all mb-3">{email}</p>
-                      
+
                       <OTPInputForm
                         onSubmit={(value) => {
                           setOtpValue(value)
@@ -494,7 +553,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                         isLoading={isVerifyingOtp}
                         error={authError}
                       />
-                      
+
                       <div className="flex items-center justify-center pt-3">
                         <button
                           type="button"
@@ -540,96 +599,93 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     )
   }
 
-  // Get primary color from customizations or use default
-  const primaryColor = chatConfig.customizations?.primaryColor || '#802FFF'
-
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <header
-        className="p-4 shadow-sm flex items-center"
-        style={{ backgroundColor: primaryColor, color: 'white' }}
-      >
+    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+      <style jsx>{`
+        @keyframes growShrink {
+          0%,
+          100% {
+            transform: scale(0.9);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+        }
+        .loading-dot {
+          animation: growShrink 1.5s infinite ease-in-out;
+        }
+      `}</style>
+
+      {/* Header with title */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <h2 className="text-lg font-medium">
+          {chatConfig.customizations?.headerText || chatConfig.title || 'Chat'}
+        </h2>
         {chatConfig.customizations?.logoUrl && (
           <img
             src={chatConfig.customizations.logoUrl}
             alt={`${chatConfig.title} logo`}
-            className="h-8 w-8 object-contain mr-3"
+            className="h-6 w-6 object-contain"
           />
         )}
-        <h1 className="text-lg font-medium">
-          {chatConfig.customizations?.headerText || chatConfig.title}
-        </h1>
-      </header>
-
-      {/* Chat area */}
-      <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full p-4">
-          <div className="space-y-4 max-w-3xl mx-auto">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  'px-4 py-3 rounded-lg max-w-[85%]',
-                  message.type === 'user'
-                    ? 'ml-auto bg-blue-500 text-white'
-                    : 'mr-auto bg-white border text-gray-800'
-                )}
-              >
-                <div className="whitespace-pre-wrap break-words">{message.content}</div>
-                <div
-                  className={cn(
-                    'text-xs mt-1',
-                    message.type === 'user' ? 'text-blue-100' : 'text-gray-400'
-                  )}
-                >
-                  {message.timestamp.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex items-center px-4 py-3 rounded-lg bg-white border mr-auto">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div
-                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '0.2s' }}
-                  ></div>
-                  <div
-                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '0.4s' }}
-                  ></div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        </ScrollArea>
       </div>
 
-      {/* Input area */}
-      <div className="p-4 border-t bg-white">
-        <div className="flex max-w-3xl mx-auto">
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            className="flex-1 focus-visible:ring-0 focus-visible:ring-offset-0"
-            disabled={isLoading}
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isLoading}
-            className="ml-2"
-            style={{ backgroundColor: primaryColor }}
-          >
-            <ArrowUp className="h-4 w-4" />
-            <span className="sr-only">Send</span>
-          </Button>
+      {/* Messages container */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-10 px-4">
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-medium">How can I help you today?</h3>
+                <p className="text-muted-foreground text-sm">
+                  {chatConfig.description || 'Ask me anything.'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            messages.map((message) => <ClientChatMessage key={message.id} message={message} />)
+          )}
+
+          {/* Loading indicator (shows only when executing) */}
+          {isLoading && (
+            <div className="py-5 px-4">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex">
+                  <div className="max-w-[80%]">
+                    <div className="flex items-center h-6">
+                      <div className="w-3 h-3 rounded-full bg-black dark:bg-black loading-dot"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} className="h-1" />
+        </div>
+      </div>
+
+      {/* Input area (fixed at bottom) */}
+      <div className="bg-background p-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="relative rounded-2xl border bg-background shadow-sm">
+            <Input
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Message..."
+              className="flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-7 pr-16 bg-transparent pl-6 text-base min-h-[50px] rounded-2xl"
+            />
+            <Button
+              onClick={handleSendMessage}
+              size="icon"
+              disabled={!inputValue.trim() || isLoading}
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-black text-white hover:bg-gray-800"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
