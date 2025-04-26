@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { verifyToken } from './lib/waitlist/token'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('Middleware')
 
 // Environment flag to check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development'
@@ -74,7 +77,7 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(new URL('/', request.url))
         }
       } catch (error) {
-        console.error('Token validation error:', error)
+        logger.error('Token validation error:', error)
         // In case of error, redirect signup attempts to home
         if (request.nextUrl.pathname === '/signup') {
           return NextResponse.redirect(new URL('/', request.url))
@@ -95,11 +98,26 @@ export async function middleware(request: NextRequest) {
   )
   
   if (isSuspicious) {
+    logger.warn('Blocked suspicious request', {
+      userAgent,
+      ip: request.headers.get('x-forwarded-for') || 'unknown',
+      url: request.url,
+      method: request.method,
+      pattern: SUSPICIOUS_UA_PATTERNS.find(pattern => pattern.test(userAgent))?.toString()
+    })
+
+    // Return 403 with security headers
     return new NextResponse(null, {
       status: 403,
       statusText: 'Forbidden',
       headers: {
-        'Content-Type': 'text/plain'
+        'Content-Type': 'text/plain',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Content-Security-Policy': "default-src 'none'",
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       }
     })
   }

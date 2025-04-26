@@ -5,7 +5,6 @@ const isStandaloneBuild = process.env.USE_LOCAL_STORAGE === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  crossOrigin: 'anonymous',
   experimental: {
     sri: {
       algorithm: 'sha256'
@@ -41,7 +40,7 @@ const nextConfig: NextConfig = {
         async headers() {
           return [
             {
-              // API routes CORS headers
+              // API routes CORS headers - keep no-cache for dynamic API endpoints
               source: '/api/:path*',
               headers: [
                 { key: 'Access-Control-Allow-Credentials', value: 'true' },
@@ -77,8 +76,30 @@ const nextConfig: NextConfig = {
               ],
             },
             {
-              // Apply security headers to all routes
+              // Static assets - long caching for better performance
+              // This targets common static file extensions
+              source: '/:path*.(js|css|svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|eot)',
+              headers: [
+                {
+                  key: 'Cache-Control',
+                  value: 'public, max-age=31536000, immutable',
+                },
+                {
+                  key: 'Vary',
+                  value: 'User-Agent',
+                },
+              ],
+            },
+            {
+              // HTML/dynamic content - use validation caching instead of no-cache
               source: '/:path*',
+              has: [
+                {
+                  type: 'header',
+                  key: 'Accept',
+                  value: '(.*text/html.*)',
+                },
+              ],
               headers: [
                 {
                   key: 'X-Content-Type-Options',
@@ -94,23 +115,29 @@ const nextConfig: NextConfig = {
                 },
                 {
                   key: 'Cache-Control',
-                  value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
-                },
-                {
-                  key: 'Pragma',
-                  value: 'no-cache',
-                },
-                {
-                  key: 'Expires',
-                  value: '0',
-                },
-                {
-                  key: 'Surrogate-Control',
-                  value: 'no-store',
+                  value: 'public, max-age=0, must-revalidate',
                 },
                 {
                   key: 'Vary',
                   value: 'User-Agent',
+                },
+              ],
+            },
+            {
+              // Apply security headers to all routes
+              source: '/:path*',
+              headers: [
+                {
+                  key: 'X-Content-Type-Options',
+                  value: 'nosniff',
+                },
+                {
+                  key: 'X-Frame-Options',
+                  value: 'SAMEORIGIN',
+                },
+                {
+                  key: 'Content-Security-Policy',
+                  value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'",
                 },
               ],
             },
