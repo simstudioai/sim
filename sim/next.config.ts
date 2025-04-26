@@ -5,6 +5,12 @@ const isStandaloneBuild = process.env.USE_LOCAL_STORAGE === 'true'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  crossOrigin: 'anonymous',
+  experimental: {
+    sri: {
+      algorithm: 'sha256'
+    }
+  },
   images: {
     domains: [
       'avatars.githubusercontent.com',
@@ -51,6 +57,82 @@ const nextConfig: NextConfig = {
                   key: 'Access-Control-Allow-Headers',
                   value:
                     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version',
+                },
+                {
+                  key: 'Cache-Control',
+                  value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+                },
+                {
+                  key: 'Pragma',
+                  value: 'no-cache',
+                },
+                {
+                  key: 'Expires',
+                  value: '0',
+                },
+                {
+                  key: 'Surrogate-Control',
+                  value: 'no-store',
+                },
+              ],
+            },
+            {
+              // Apply security headers to all routes
+              source: '/:path*',
+              headers: [
+                {
+                  key: 'X-Content-Type-Options',
+                  value: 'nosniff',
+                },
+                {
+                  key: 'X-Frame-Options',
+                  value: 'SAMEORIGIN',
+                },
+                {
+                  key: 'Content-Security-Policy',
+                  value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'",
+                },
+                {
+                  key: 'Cache-Control',
+                  value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
+                },
+                {
+                  key: 'Pragma',
+                  value: 'no-cache',
+                },
+                {
+                  key: 'Expires',
+                  value: '0',
+                },
+                {
+                  key: 'Surrogate-Control',
+                  value: 'no-store',
+                },
+                {
+                  key: 'Vary',
+                  value: 'User-Agent',
+                },
+              ],
+            },
+            {
+              // Dynamic routes containing user data - strict no caching
+              source: '/w/:path*',
+              headers: [
+                {
+                  key: 'Cache-Control',
+                  value: 'private, no-store, no-cache, must-revalidate, proxy-revalidate',
+                },
+                {
+                  key: 'Pragma',
+                  value: 'no-cache',
+                },
+                {
+                  key: 'Expires',
+                  value: '0',
+                },
+                {
+                  key: 'Surrogate-Control',
+                  value: 'no-store',
                 },
               ],
             },

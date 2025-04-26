@@ -5,6 +5,14 @@ import { verifyToken } from './lib/waitlist/token'
 // Environment flag to check if we're in development mode
 const isDevelopment = process.env.NODE_ENV === 'development'
 
+const SUSPICIOUS_UA_PATTERNS = [
+  /^\s*$/,                                // Empty user agents
+  /\.\./,                                 // Path traversal attempt
+  /<\s*script/i,                          // Potential XSS payloads
+  /^\(\)\s*{/,                            // Command execution attempt
+  /\b(sqlmap|nikto|gobuster|dirb|nmap)\b/i // Known scanning tools
+]
+
 export async function middleware(request: NextRequest) {
   // Check for active session
   const sessionCookie = getSessionCookie(request)
@@ -80,15 +88,34 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next()
+  const userAgent = request.headers.get('user-agent') || ''
+  
+  const isSuspicious = SUSPICIOUS_UA_PATTERNS.some(pattern => 
+    pattern.test(userAgent)
+  )
+  
+  if (isSuspicious) {
+    return new NextResponse(null, {
+      status: 403,
+      statusText: 'Forbidden',
+      headers: {
+        'Content-Type': 'text/plain'
+      }
+    })
+  }
+  
+  const response = NextResponse.next()
+  
+  response.headers.set('Vary', 'User-Agent')
+  
+  return response
 }
 
-// Update matcher to include admin routes
 export const config = {
   matcher: [
     '/w', // Match exactly /w
     '/w/:path*', // Match protected routes
     '/login',
-    '/signup',
+    '/signup'
   ],
 }
