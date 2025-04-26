@@ -321,7 +321,6 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
     isDeployed: state.isDeployed,
     deployedAt: state.deployedAt,
   }))
-  console.log('Workflow state:', workflowState)
 
   // Create a function to clear the redeployment flag and update deployment status
   const updateDeploymentStatus = (isDeployed: boolean, deployedAt?: Date) => {
@@ -342,7 +341,14 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
         method: 'DELETE',
       })
 
-      if (!response.ok) throw new Error('Failed to delete API deployment')
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Response not ok:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        })
+      }
 
       // Update deployment status in the store
       updateDeploymentStatus(false)
@@ -391,19 +397,14 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
           statusText: response.statusText,
           body: errorText
         })
-        throw new Error('Failed to fetch deployed workflow')
       }
 
       const data = await response.json()
-      console.error('DEBUG - Response data structure:', JSON.stringify(data, null, 2))
 
       // The deployedState is directly in the response, not wrapped in data
       if (data && data.deployedState) {
-        console.error('Found deployed state:', data.deployedState)
         setDeployedWorkflowState(data.deployedState)
         setIsViewingDeployed(true)
-      } else {
-        throw new Error(`No deployed state found in response. Response: ${JSON.stringify(data)}`)
       }
     } catch (error) {
       console.error('Full error details:', {
@@ -419,9 +420,6 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
       )
     }
   }
-
-  // Debug log
-  console.log('Rendering API notification, type:', type)
 
   return (
     <>
@@ -561,7 +559,14 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
                                 method: 'POST',
                               })
 
-                              if (!response.ok) throw new Error('Failed to redeploy workflow')
+                              if (!response.ok) {
+                                const errorText = await response.text()
+                                console.error('Response not ok:', {
+                                  status: response.status,
+                                  statusText: response.statusText,
+                                  body: errorText
+                                })
+                              }
 
                               // Get the response data
                               const data = await response.json()
