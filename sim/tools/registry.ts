@@ -1,7 +1,7 @@
 import { airtableCreateRecordsTool, airtableGetRecordTool, airtableListRecordsTool, airtableUpdateRecordTool } from './airtable'
 import { autoblocksPromptManagerTool } from './autoblocks'
 import { browserUseRunTaskTool } from './browser_use'
-import { confluenceListTool, confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
+import { confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
 import { driveDownloadTool, driveListTool, driveUploadTool } from './google_drive'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
@@ -107,7 +107,6 @@ export const tools: Record<string, ToolConfig> = {
   guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
   confluence_retrieve: confluenceRetrieveTool,
-  confluence_list: confluenceListTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
   openai_dalle: dalleTool,
