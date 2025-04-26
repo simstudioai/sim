@@ -14,10 +14,11 @@ Thank you for your interest in contributing to Sim Studio! Our goal is to provid
 - [Pull Request Process](#pull-request-process)
 - [Commit Message Guidelines](#commit-message-guidelines)
 - [Local Development Setup](#local-development-setup)
-- [License](#license)
 - [Adding New Blocks and Tools](#adding-new-blocks-and-tools)
 - [Local Storage Mode](#local-storage-mode)
 - [Standalone Build](#standalone-build)
+- [License](#license)
+- [Contributor License Agreement (CLA)](#contributor-license-agreement-cla)
 
 ---
 
@@ -181,6 +182,7 @@ Dev Containers provide a consistent and easy-to-use development environment:
    - [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension for VS Code
 
 2. **Setup Steps:**
+
    - Clone the repository:
      ```bash
      git clone https://github.com/<your-username>/sim.git
@@ -244,11 +246,13 @@ If you prefer not to use Docker or Dev Containers:
 When working on email templates, you can preview them using a local email preview server:
 
 1. **Run the Email Preview Server:**
+
    ```bash
    npm run email:dev
    ```
 
 2. **Access the Preview:**
+
    - Open `http://localhost:3000` in your browser
    - You'll see a list of all email templates
    - Click on any template to view and test it with various parameters
@@ -256,12 +260,6 @@ When working on email templates, you can preview them using a local email previe
 3. **Templates Location:**
    - Email templates are located in `sim/app/emails/`
    - After making changes to templates, they will automatically update in the preview
-
----
-
-## License
-
-This project is licensed under the Apache License 2.0. By contributing, you agree that your contributions will be licensed under the Apache License 2.0 as well.
 
 ---
 
@@ -426,6 +424,28 @@ Maintaining consistent naming across the codebase is critical for auto-generatio
 - **Commit Changes:** Update all related components and registries, and describe your changes in your pull request.
 
 Happy coding!
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. By contributing, you agree that your contributions will be licensed under the Apache License 2.0 as well.
+
+---
+
+## Contributor License Agreement (CLA)
+
+By contributing to this repository, you agree that your contributions are provided under the terms of the Apache License Version 2.0, as included in the LICENSE file of this repository.
+
+In addition, by submitting your contributions, you grant Sim Studio, Inc. ("The Licensor") a perpetual, irrevocable, worldwide, royalty-free, sublicensable right and license to:
+
+- Use, copy, modify, distribute, publicly display, publicly perform, and prepare derivative works of your contributions.
+- Incorporate your contributions into other works or products.
+- Re-license your contributions under a different license at any time in the future, at the Licensor's sole discretion.
+
+You represent and warrant that you have the legal authority to grant these rights and that your contributions are original or you have sufficient rights to submit them under these terms.
+
+If you do not agree with these terms, you must not contribute your work to this repository.
 
 ---
 

@@ -28,8 +28,6 @@ if (validStripeKey) {
   stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
     apiVersion: "2025-02-24.acacia",
   })
-} else {
-  logger.warn('No valid Stripe secret key found.')
 }
 
 // If there is no resend key, it might be a local dev environment
