@@ -345,8 +345,34 @@ export class InputResolver {
     context: ExecutionContext,
     currentBlock: SerializedBlock
   ): string {
+    // Skip resolution for API block body content that looks like XML
+    if (
+      currentBlock.metadata?.id === 'api' && 
+      typeof value === 'string' && 
+      (
+        // Check if this looks like XML content
+        (value.includes('<?xml') || value.includes('xmlns:') || value.includes('</')) && 
+        (value.includes('<') && value.includes('>'))
+      )
+    ) {
+      return value;
+    }
+
     const blockMatches = value.match(/<([^>]+)>/g)
     if (!blockMatches) return value
+
+    // If we're in an API block body, check each match to see if it looks like XML rather than a reference
+    if (currentBlock.metadata?.id === 'api' && blockMatches.some(match => {
+      const innerContent = match.slice(1, -1);
+      // Patterns that suggest this is XML, not a block reference:
+      return innerContent.includes(':') || // namespaces like soap:Envelope
+        innerContent.includes('=') || // attributes like xmlns="http://..."
+        innerContent.includes(' ') || // any space indicates attributes
+        innerContent.includes('/') || // self-closing tags
+        !innerContent.includes('.'); // block refs always have dots
+    })) {
+      return value; // Likely XML content, return unchanged
+    }
 
     let resolvedValue = value
 
@@ -363,6 +389,11 @@ export class InputResolver {
 
       const path = match.slice(1, -1)
       const [blockRef, ...pathParts] = path.split('.')
+      
+      // Skip XML-like tags that have no path parts (not a valid block reference)
+      if (pathParts.length === 0 || blockRef.includes(':') || blockRef.includes(' ')) {
+        continue;
+      }
 
       // Special case for "start" references
       // This allows users to reference the starter block using <start.response.type.input>
