@@ -238,14 +238,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     name:'HubSpot',
     icon: (props) => HubspotIcon(props),
     services: {
-      notion: {
+      hubspot: {
         id: 'hubspot',
         name: 'HubSpot',
         description: 'Connect to your HubSpot Account to manage CRM.',
         providerId: 'hubspot',
         icon: (props) => HubspotIcon(props),
         baseProviderIcon: (props) => HubspotIcon(props),
-        scopes: [ 'oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'forms' ],
+        scopes: ['oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'forms' ],
       },
     },
     defaultService: 'hubspot',

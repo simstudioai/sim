@@ -20,15 +20,6 @@ export interface CreateContactResponse extends ToolResponse {
   output: any  // Newly created contact object
 }
 
-export interface UpdateContactParams {
-  accessToken: string
-  contactId: string
-  properties: Record<string, any>
-}
-export interface UpdateContactResponse extends ToolResponse {
-  output: any  // Updated contact object
-}
-
 export interface SearchContactsParams {
   accessToken: string
   filterGroups: any[]
@@ -58,15 +49,6 @@ export interface CreateDealResponse extends ToolResponse {
   output: any  // Newly created deal
 }
 
-export interface UpdateDealParams {
-  accessToken: string
-  dealId: string
-  properties: Record<string, any>
-}
-export interface UpdateDealResponse extends ToolResponse {
-  output: any  // Updated deal
-}
-
 export interface SearchDealsParams {
   accessToken: string
   filterGroups: any[]
@@ -94,12 +76,4 @@ export interface ListFormsParams {
 }
 export interface ListFormsResponse extends ToolResponse {
   output: any  // Page of forms
-}
-
-export interface ListEmailsParams {
-  accessToken: string
-  limit?: number
-}
-export interface ListEmailsResponse extends ToolResponse {
-  output: any  // Page of marketing emails
 }

@@ -60,7 +60,7 @@ export const auth = betterAuth({
         'supabase',
         'x',
         'notion',
-        'hubspot'
+        'hubspot',
       ],
     },
   },
@@ -553,15 +553,7 @@ export const auth = betterAuth({
           tokenUrl: 'https://api.hubapi.com/oauth/v1/token',
           userInfoUrl: 'https://api.hubapi.com/oauth/v1/access-tokens',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/hubspot`,
-          scopes: [
-            'oauth',
-            'crm.objects.contacts.read',
-            'crm.objects.contacts.write',
-            'crm.objects.deals.read',
-            'crm.objects.deals.write',
-            'marketing.campaigns.read',
-            'forms',
-          ],
+          scopes: ['oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'forms' ],
           pkce: true,
           getUserInfo: async (tokens) => {
             const res = await fetch(
@@ -573,9 +565,9 @@ export const auth = betterAuth({
             const info = await res.json();
             const now = new Date();
             return {
-              id: info.user.userId.toString(),
-              name: info.user.email,
-              email: info.user.email,
+              id: info.user_id.toString(),
+              name: info.user,
+              email: info.user,
               image: null,
               emailVerified: true,
               createdAt: now,

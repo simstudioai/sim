@@ -4,29 +4,23 @@ import { BlockConfig } from '../types'
 import {
   ListContactsResponse,
   CreateContactResponse,
-  UpdateContactResponse,
   SearchContactsResponse,
   ListDealsResponse,
   CreateDealResponse,
-  UpdateDealResponse,
   SearchDealsResponse,
   ListCampaignsResponse,
   ListFormsResponse,
-  ListEmailsResponse
 } from '@/tools/hubspot/types'
 
 type HubspotResponse =
   | ListContactsResponse
   | CreateContactResponse
-  | UpdateContactResponse
   | SearchContactsResponse
   | ListDealsResponse
   | CreateDealResponse
-  | UpdateDealResponse
   | SearchDealsResponse
   | ListCampaignsResponse
   | ListFormsResponse
-  | ListEmailsResponse
 
 export const HubspotBlock: BlockConfig<HubspotResponse> = {
   type: 'hubspot',
@@ -47,15 +41,12 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
       options: [
         { label: 'List Contacts', id: 'list_contacts' },
         { label: 'Create Contact', id: 'create_contact' },
-        { label: 'Update Contact', id: 'update_contact' },
         { label: 'Search Contacts', id: 'search_contacts' },
         { label: 'List Deals', id: 'list_deals' },
         { label: 'Create Deal', id: 'create_deal' },
-        { label: 'Update Deal', id: 'update_deal' },
         { label: 'Search Deals', id: 'search_deals' },
         { label: 'List Campaigns', id: 'list_campaigns' },
         { label: 'List Forms', id: 'list_forms' },
-        { label: 'List Emails', id: 'list_emails' },
       ],
       value: () => 'list_contacts',
     },
@@ -66,15 +57,7 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
       layout: 'full',
       provider: 'hubspot',
       serviceId: 'hubspot',
-      requiredScopes: [
-        'oauth',
-        'crm.objects.contacts.read',
-        'crm.objects.contacts.write',
-        'crm.objects.deals.read',
-        'crm.objects.deals.write',
-        'marketing.campaigns.read',
-        'forms',
-      ],
+      requiredScopes: [ 'oauth', 'crm.objects.contacts.read', 'crm.objects.contacts.write', 'crm.objects.deals.read', 'crm.objects.deals.write', 'marketing.campaigns.read', 'forms' ],
       placeholder: 'Select HubSpot account',
     },
     // -- CONTACTS --
@@ -87,17 +70,6 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
       condition: {
         field: 'operation',
         value: ['list_contacts', 'list_deals']
-      }
-    },
-    {
-      id: 'contactId',
-      title: 'Contact ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'e.g. 12345',
-      condition: {
-        field: 'operation',
-        value: ['update_contact']
       }
     },
     {
@@ -125,17 +97,6 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
 
     // -- DEALS --
     {
-      id: 'dealId',
-      title: 'Deal ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'e.g. 67890',
-      condition: {
-        field: 'operation',
-        value: ['update_deal']
-      }
-    },
-    {
       id: 'dealProperties',
       title: 'Deal Properties (JSON)',
       type: 'long-input',
@@ -143,7 +104,7 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
       placeholder: '{"dealname":"Big Deal","amount":50000}',
       condition: {
         field: 'operation',
-        value: ['create_deal', 'update_deal']
+        value: ['create_deal']
       }
     },
     {
@@ -175,44 +136,30 @@ export const HubspotBlock: BlockConfig<HubspotResponse> = {
       placeholder: '100',
       condition: { field: 'operation', value: 'list_forms' }
     },
-    {
-      id: 'emailLimit',
-      title: 'Email Page Size',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: '100',
-      condition: { field: 'operation', value: 'list_emails' }
-    },
   ],
 
   tools: {
     access: [
       'hubspot_list_contacts',
       'hubspot_create_contact',
-      'hubspot_update_contact',
       'hubspot_search_contacts',
       'hubspot_list_deals',
       'hubspot_create_deal',
-      'hubspot_update_deal',
       'hubspot_search_deals',
       'hubspot_list_campaigns',
       'hubspot_list_forms',
-      'hubspot_list_emails'
     ],
     config: {
       tool: params => {
         switch (params.operation) {
           case 'list_contacts': return 'hubspot_list_contacts'
           case 'create_contact': return 'hubspot_create_contact'
-          case 'update_contact': return 'hubspot_update_contact'
           case 'search_contacts': return 'hubspot_search_contacts'
           case 'list_deals': return 'hubspot_list_deals'
           case 'create_deal': return 'hubspot_create_deal'
-          case 'update_deal': return 'hubspot_update_deal'
           case 'search_deals': return 'hubspot_search_deals'
           case 'list_campaigns': return 'hubspot_list_campaigns'
           case 'list_forms': return 'hubspot_list_forms'
-          case 'list_emails': return 'hubspot_list_emails'
           default: throw new Error('Invalid operation')
         }
       },

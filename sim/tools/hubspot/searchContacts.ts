@@ -24,13 +24,17 @@ export const searchContactsTool: ToolConfig<SearchContactsParams, SearchContacts
   request: {
     url: () => `https://api.hubapi.com/crm/v3/objects/contacts/search`,
     method: 'POST',
-    headers: () => ({}),
+    headers: params => ({
+        Authorization: `Bearer ${params.accessToken}`,
+        'Content-Type': 'application/json',
+       }),
     body: params => ({
       filterGroups: params.filterGroups,
       sorts: params.sorts,
       limit: params.limit
     })
   },
+
 
   transformResponse: async response => {
     if (!response.ok) {

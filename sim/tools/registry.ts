@@ -13,7 +13,7 @@ import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { searchTool as googleSearchTool } from './google'
 import { requestTool as httpRequest } from './http/request'
-import { contactsTool as hubspotContacts } from './hubspot/contacts'
+import { hubspotListContactsTool, hubspotCreateContactTool, hubspotSearchContactsTool, hubspotListDealsTool, hubspotCreateDealTool, hubspotSearchDealsTool, hubspotListCampaignsTool, hubspotListFormsTool } from './hubspot'
 import { readUrlTool } from './jina/reader'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0SearchMemoriesTool, mem0GetMemoriesTool } from './mem0'
@@ -47,7 +47,14 @@ export const tools: Record<string, ToolConfig> = {
   autoblocks_prompt_manager: autoblocksPromptManagerTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
-  hubspot_contacts: hubspotContacts,
+  hubspot_list_contacts: hubspotListContactsTool,
+  hubspot_create_contact: hubspotCreateContactTool,
+  hubspot_search_contacts: hubspotSearchContactsTool,
+  hubspot_list_deals: hubspotListDealsTool,
+  hubspot_create_deal: hubspotCreateDealTool,
+  hubspot_search_deals: hubspotSearchDealsTool,
+  hubspot_list_campaigns: hubspotListCampaignsTool,
+  hubspot_list_forms: hubspotListFormsTool, 
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
   vision_tool: visionTool,
