@@ -1,0 +1,12 @@
+export const id_pkix = "1.3.6.1.5.5.7";
+export const id_pe = `${id_pkix}.1`;
+export const id_qt = `${id_pkix}.2`;
+export const id_kp = `${id_pkix}.3`;
+export const id_ad = `${id_pkix}.48`;
+export const id_qt_csp = `${id_qt}.1`;
+export const id_qt_unotice = `${id_qt}.2`;
+export const id_ad_ocsp = `${id_ad}.1`;
+export const id_ad_caIssuers = `${id_ad}.2`;
+export const id_ad_timeStamping = `${id_ad}.3`;
+export const id_ad_caRepository = `${id_ad}.5`;
+export const id_ce = "2.5.29";

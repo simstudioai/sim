@@ -804,37 +804,37 @@ export function ControlBar() {
   /**
    * Render publish button
    */
-  const renderPublishButton = () => {
-    const isPublished = isPublishedToMarketplace()
+  // const renderPublishButton = () => {
+  //   const isPublished = isPublishedToMarketplace()
 
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handlePublishWorkflow}
-            disabled={isPublishing}
-            className={cn('hover:text-[#802FFF]', isPublished && 'text-[#802FFF]')}
-          >
-            {isPublishing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Store className="h-5 w-5" />
-            )}
-            <span className="sr-only">Publish to Marketplace</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {isPublishing
-            ? 'Publishing...'
-            : isPublished
-              ? 'Published to Marketplace'
-              : 'Publish to Marketplace'}
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
+  //   return (
+  //     <Tooltip>
+  //       <TooltipTrigger asChild>
+  //         <Button
+  //           variant="ghost"
+  //           size="icon"
+  //           onClick={handlePublishWorkflow}
+  //           disabled={isPublishing}
+  //           className={cn('hover:text-[#802FFF]', isPublished && 'text-[#802FFF]')}
+  //         >
+  //           {isPublishing ? (
+  //             <Loader2 className="h-5 w-5 animate-spin" />
+  //           ) : (
+  //             <Store className="h-5 w-5" />
+  //           )}
+  //           <span className="sr-only">Publish to Marketplace</span>
+  //         </Button>
+  //       </TooltipTrigger>
+  //       <TooltipContent>
+  //         {isPublishing
+  //           ? 'Publishing...'
+  //           : isPublished
+  //             ? 'Published to Marketplace'
+  //             : 'Publish to Marketplace'}
+  //       </TooltipContent>
+  //     </Tooltip>
+  //   )
+  // }
 
   /**
    * Render workflow duplicate button

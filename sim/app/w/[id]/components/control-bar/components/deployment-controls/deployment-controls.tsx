@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, Rocket } from 'lucide-react'
+import { Loader2, Rocket, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -27,7 +27,12 @@ export function DeploymentControls({
 
   // Local state
   const [isDeploying, setIsDeploying] = useState(false)
+<<<<<<< HEAD
   const [isModalOpen, setIsModalOpen] = useState(false)
+=======
+  const [isViewingDeployed, setIsViewingDeployed] = useState(false)
+  const [deployedWorkflowState, setDeployedWorkflowState] = useState<any>(null)
+>>>>>>> d1701fdb (generic workflow preview and view deployed modal)
 
   /**
    * Open the deployment modal
@@ -44,7 +49,11 @@ export function DeploymentControls({
             <Button
               variant="ghost"
               size="icon"
+<<<<<<< HEAD
               onClick={handleOpenModal}
+=======
+              onClick={handleDeploy}
+>>>>>>> d1701fdb (generic workflow preview and view deployed modal)
               disabled={isDeploying}
               className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
             >
@@ -73,6 +82,7 @@ export function DeploymentControls({
             ? 'Deploying...'
             : isDeployed && needsRedeployment
               ? 'Workflow changes detected'
+<<<<<<< HEAD
               : isDeployed
                 ? 'Deployment Settings'
                 : 'Deploy as API'}
@@ -86,6 +96,11 @@ export function DeploymentControls({
         needsRedeployment={needsRedeployment}
         setNeedsRedeployment={setNeedsRedeployment}
       />
+=======
+              : 'Deployment Settings'}
+        </TooltipContent>
+      </Tooltip>
+>>>>>>> d1701fdb (generic workflow preview and view deployed modal)
     </>
   )
 }
