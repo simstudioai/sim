@@ -1,0 +1,42 @@
+{
+  "name": "@peculiar/asn1-android",
+  "version": "2.3.16",
+  "description": "",
+  "files": [
+    "build/**/*.{js,d.ts}",
+    "LICENSE",
+    "README.md"
+  ],
+  "bugs": {
+    "url": "https://github.com/PeculiarVentures/asn1-schema/issues"
+  },
+  "homepage": "https://github.com/PeculiarVentures/asn1-schema/tree/master/packages/android#readme",
+  "keywords": [
+    "asn"
+  ],
+  "author": "PeculiarVentures, LLC",
+  "license": "MIT",
+  "main": "build/cjs/index.js",
+  "module": "build/es2015/index.js",
+  "types": "build/types/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "mocha",
+    "clear": "rimraf build",
+    "build": "npm run build:module && npm run build:types",
+    "build:module": "npm run build:cjs && npm run build:es2015",
+    "build:cjs": "tsc -p tsconfig.compile.json --removeComments --module commonjs --outDir build/cjs",
+    "build:es2015": "tsc -p tsconfig.compile.json --removeComments --module ES2015 --outDir build/es2015",
+    "prebuild:types": "rimraf build/types",
+    "build:types": "tsc -p tsconfig.compile.json --outDir build/types --declaration --emitDeclarationOnly",
+    "rebuild": "npm run clear && npm run build"
+  },
+  "dependencies": {
+    "@peculiar/asn1-schema": "^2.3.15",
+    "asn1js": "^3.0.5",
+    "tslib": "^2.8.1"
+  },
+  "gitHead": "a37321bc09c123bc3bc888e0d14bdb7fa99011e1"
+}

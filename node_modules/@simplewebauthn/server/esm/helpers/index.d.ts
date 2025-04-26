@@ -1,0 +1,17 @@
+export * from './convertAAGUIDToString.js';
+export * from './convertCertBufferToPEM.js';
+export * from './convertCOSEtoPKCS.js';
+export * from './decodeAttestationObject.js';
+export * from './decodeClientDataJSON.js';
+export * from './decodeCredentialPublicKey.js';
+export * from './generateChallenge.js';
+export * from './generateUserID.js';
+export * from './getCertificateInfo.js';
+export * from './isCertRevoked.js';
+export * from './parseAuthenticatorData.js';
+export * from './toHash.js';
+export * from './validateCertificatePath.js';
+export * from './verifySignature.js';
+export * from './iso/index.js';
+export * as cose from './cose.js';
+//# sourceMappingURL=index.d.ts.map

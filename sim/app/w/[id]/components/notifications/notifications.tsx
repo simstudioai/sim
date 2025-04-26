@@ -21,6 +21,7 @@ import { MAX_VISIBLE_NOTIFICATIONS, useNotificationStore } from '@/stores/notifi
 import { Notification } from '@/stores/notifications/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { DeployedWorkflowModal } from '../control-bar/components/deployment-controls/components/deployed-workflow-modal'
 
 const logger = createLogger('Notifications')
 
@@ -310,7 +311,17 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
   const { setDeploymentStatus } = useWorkflowStore()
   const { isDeployed } = useWorkflowStore((state) => ({
     isDeployed: state.isDeployed,
+    deployedAt: state.deployedAt,
   }))
+  const [isViewingDeployed, setIsViewingDeployed] = useState(false)
+  const [deployedWorkflowState, setDeployedWorkflowState] = useState<any>(null)
+
+  // Debug the workflow store subscription
+  const workflowState = useWorkflowStore((state) => ({
+    isDeployed: state.isDeployed,
+    deployedAt: state.deployedAt,
+  }))
+  console.log('Workflow state:', workflowState)
 
   // Create a function to clear the redeployment flag and update deployment status
   const updateDeploymentStatus = (isDeployed: boolean, deployedAt?: Date) => {
@@ -366,6 +377,56 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
       .replace(' -d ', '\n  -d ')
       .replace(' http', '\n  http')
   }
+
+  // Handle viewing deployed workflow
+  const handleViewDeployed = async () => {
+    if (!workflowId) return
+
+    try {
+      const response = await fetch(`/api/workflows/${workflowId}/deployed`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Response not ok:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        })
+        throw new Error('Failed to fetch deployed workflow')
+      }
+
+      // Parse the response data
+      const rawData = await response.json()
+      console.error('Raw response:', rawData)
+
+      // If the data is a string, parse it
+      const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData
+      console.error('Parsed data:', data)
+
+      if (data && data.deployedState && Object.keys(data.deployedState).length > 0) {
+        console.error('Found valid deployed state:', data.deployedState)
+        setDeployedWorkflowState(data.deployedState)
+        setIsViewingDeployed(true)
+      } else {
+        console.error('Invalid or empty deployed state:', data)
+        throw new Error('No valid deployed state found in response')
+      }
+    } catch (error) {
+      console.error('Full error details:', {
+        error: error as any,
+        message: (error as any).message,
+        stack: (error as any).stack
+      })
+      
+      useNotificationStore.getState().addNotification(
+        'error',
+        `Failed to fetch deployed workflow: ${(error as any).message}`,
+        workflowId
+      )
+    }
+  }
+
+  // Debug log
+  console.log('Rendering API notification, type:', type)
 
   return (
     <>
@@ -487,7 +548,28 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={() => console.log('Div clicked')}>
+                    {/* Debug log */}
+                    {(() => {
+                      console.log('Rendering button section, isDeployed:', isDeployed)
+                      return null
+                    })()}
+                    
+                    {/* View Deployed button */}
+                    {isDeployed && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-[#802FFF] hover:bg-[#802FFF]/10"
+                        onClick={() => {
+                          handleViewDeployed()
+                        }}
+                      >
+                        View Deployed
+                      </Button>
+                    )}
+
+                    {/* Existing Redeploy button */}
                     {options?.needsRedeployment && (
                       <Button
                         variant="ghost"
@@ -637,6 +719,15 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
         onConfirm={handleDeleteApi}
         workflowId={workflowId}
       />
+
+      {/* Add the modal */}
+      {deployedWorkflowState && (
+        <DeployedWorkflowModal
+          isOpen={isViewingDeployed}
+          onClose={() => setIsViewingDeployed(false)}
+          deployedWorkflowState={deployedWorkflowState}
+        />
+      )}
     </>
   )
 }

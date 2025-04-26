@@ -1,0 +1,1 @@
+{"version":3,"file":"verifyAttestationTPM.d.ts","sourceRoot":"","sources":["../../../../src/registration/verifications/tpm/verifyAttestationTPM.ts"],"names":[],"mappings":"AAUA,OAAO,KAAK,EAAE,6BAA6B,EAAE,MAAM,qCAAqC,CAAC;AAuBzF,wBAAsB,oBAAoB,CACxC,OAAO,EAAE,6BAA6B,GACrC,OAAO,CAAC,OAAO,CAAC,CA+VlB"}
