@@ -3,6 +3,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -34,7 +35,7 @@ export function DeployedWorkflowModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto"
+        className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
         style={{
           zIndex: 1000,
           
@@ -42,11 +43,20 @@ export function DeployedWorkflowModal({
       >
         <DialogHeader>
           <DialogTitle>Workflow Deployment View</DialogTitle>
+          <DialogDescription>This is the currently deployed version of your workflow.</DialogDescription>
         </DialogHeader>
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
           deployedWorkflowState={deployedWorkflowState}
         />
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+          >
+            Close
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   )

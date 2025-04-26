@@ -44,6 +44,9 @@ interface WorkflowPreviewProps {
   // Optional height/width overrides
   height?: string | number
   width?: string | number
+  isPannable?: boolean
+  defaultPosition?: { x: number, y: number }
+  defaultZoom?: number
 }
 
 interface ExtendedSubBlockConfig extends SubBlockConfig {
@@ -325,6 +328,9 @@ function WorkflowPreviewContent({
   className,
   height = '100%',
   width = '100%',
+  isPannable = false,
+  defaultPosition,
+  defaultZoom,
 }: WorkflowPreviewProps) {
   // Transform blocks and loops into ReactFlow nodes
   const nodes: Node[] = useMemo(() => {
@@ -383,35 +389,27 @@ function WorkflowPreviewContent({
   }, [workflowState.edges])
 
   return (
-    <div className={cn('relative', className)} style={{ height, width }}>
+    <div style={{ height, width }} className={className}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{
-          padding: 0.2,
-          minZoom: 0.2,
-          maxZoom: 3,
-        }}
-        minZoom={0.2}
-        maxZoom={3}
-        defaultEdgeOptions={{ type: 'workflowEdge' }}
-        proOptions={{ hideAttribution: true }}
         connectionLineType={ConnectionLineType.SmoothStep}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        elementsSelectable={false}
+        fitView
         panOnScroll={false}
+        panOnDrag={isPannable}
         zoomOnScroll={false}
-        zoomOnPinch={false}
-        zoomOnDoubleClick={false}
-        panOnDrag={false}
-        preventScrolling={false}
-        disableKeyboardA11y={true}
+        draggable={false}
+        defaultViewport={{
+          x: defaultPosition?.x ?? 0,
+          y: defaultPosition?.y ?? 0,
+          zoom: defaultZoom ?? 1,
+        }}
+        minZoom={0.1}
+        maxZoom={2}
       >
-        <Background gap={12} size={1} className="opacity-30" />
+        <Background />
       </ReactFlow>
     </div>
   )

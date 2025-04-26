@@ -80,6 +80,9 @@ export function DeployedWorkflowCard({
               showSubBlocks={showSubBlocks}
               height="100%"
               width="100%"
+              isPannable={true}
+              defaultPosition={{ x: 0, y: 0 }}
+              defaultZoom={1}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground">

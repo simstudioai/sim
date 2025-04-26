@@ -1,6 +1,6 @@
 // NOTE: API NOTIFICATIONS NO LONGER EXIST, BUT IF YOU DELETE THEM FROM THIS FILE THE APPLICATION WILL BREAK
 import { useEffect, useState } from 'react'
-import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
+import { Info, Rocket, Store, Terminal, X, Eye } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -394,21 +394,16 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
         throw new Error('Failed to fetch deployed workflow')
       }
 
-      // Parse the response data
-      const rawData = await response.json()
-      console.error('Raw response:', rawData)
+      const data = await response.json()
+      console.error('DEBUG - Response data structure:', JSON.stringify(data, null, 2))
 
-      // If the data is a string, parse it
-      const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData
-      console.error('Parsed data:', data)
-
-      if (data && data.deployedState && Object.keys(data.deployedState).length > 0) {
-        console.error('Found valid deployed state:', data.deployedState)
+      // The deployedState is directly in the response, not wrapped in data
+      if (data && data.deployedState) {
+        console.error('Found deployed state:', data.deployedState)
         setDeployedWorkflowState(data.deployedState)
         setIsViewingDeployed(true)
       } else {
-        console.error('Invalid or empty deployed state:', data)
-        throw new Error('No valid deployed state found in response')
+        throw new Error(`No deployed state found in response. Response: ${JSON.stringify(data)}`)
       }
     } catch (error) {
       console.error('Full error details:', {
@@ -505,127 +500,129 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
                   )
                 })}
 
-                {/* Status and Delete button row - with pulsing green indicator */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">Status:</span>
-                    <div className="flex items-center gap-1.5">
-                      <div className="relative flex items-center justify-center">
-                        {isDeployed ? (
-                          options?.needsRedeployment ? (
-                            <>
-                              <div className="absolute h-3 w-3 rounded-full bg-amber-500/20 animate-ping"></div>
-                              <div className="relative h-2 w-2 rounded-full bg-amber-500"></div>
-                            </>
+                {/* Status and action buttons section */}
+                <div className="space-y-3"> {/* Add vertical spacing between sections */}
+                  {/* Status and Delete/Redeploy button row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">Status:</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="relative flex items-center justify-center">
+                          {isDeployed ? (
+                            options?.needsRedeployment ? (
+                              <>
+                                <div className="absolute h-3 w-3 rounded-full bg-amber-500/20 animate-ping"></div>
+                                <div className="relative h-2 w-2 rounded-full bg-amber-500"></div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="absolute h-3 w-3 rounded-full bg-green-500/20 animate-ping"></div>
+                                <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
+                              </>
+                            )
                           ) : (
                             <>
-                              <div className="absolute h-3 w-3 rounded-full bg-green-500/20 animate-ping"></div>
-                              <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
+                              <div className="absolute h-3 w-3 rounded-full bg-red-500/20 animate-ping"></div>
+                              <div className="relative h-2 w-2 rounded-full bg-red-500"></div>
                             </>
-                          )
-                        ) : (
-                          <>
-                            <div className="absolute h-3 w-3 rounded-full bg-red-500/20 animate-ping"></div>
-                            <div className="relative h-2 w-2 rounded-full bg-red-500"></div>
-                          </>
-                        )}
-                      </div>
-                      <span
-                        className={cn(
-                          'text-xs font-medium',
-                          isDeployed
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            'text-xs font-medium',
+                            isDeployed
+                              ? options?.needsRedeployment
+                                ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400'
+                                : ApiStatusStyles.active
+                              : ApiStatusStyles.inactive
+                          )}
+                        >
+                          {isDeployed
                             ? options?.needsRedeployment
-                              ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400'
-                              : ApiStatusStyles.active
-                            : ApiStatusStyles.inactive
-                        )}
-                      >
-                        {isDeployed
-                          ? options?.needsRedeployment
-                            ? 'Changes Detected'
-                            : 'Active'
-                          : 'Inactive'}
-                      </span>
+                              ? 'Changes Detected'
+                              : 'Active'
+                            : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      {/* Redeploy button */}
+                      {options?.needsRedeployment && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                          onClick={async () => {
+                            if (!workflowId) return
+
+                            try {
+                              // Call the deploy endpoint to redeploy the workflow
+                              const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+                                method: 'POST',
+                              })
+
+                              if (!response.ok) throw new Error('Failed to redeploy workflow')
+
+                              // Get the response data
+                              const data = await response.json()
+
+                              // Update deployment status in the store (resets needsRedeployment flag)
+                              updateDeploymentStatus(
+                                data.isDeployed,
+                                data.deployedAt ? new Date(data.deployedAt) : undefined
+                              )
+
+                              // First close this notification
+                              onHide(id)
+
+                              // Show a temporary success notification without creating another API notification
+                              useNotificationStore
+                                .getState()
+                                .addNotification(
+                                  'info',
+                                  'Workflow successfully redeployed',
+                                  workflowId,
+                                  { isPersistent: false }
+                                )
+                            } catch (error) {
+                              logger.error('Error redeploying workflow:', { error })
+                            }
+                          }}
+                        >
+                          Redeploy
+                        </Button>
+                      )}
+
+                      {/* Delete button */}
+                      {isDeployed && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                          onClick={() => setIsDeleteDialogOpen(true)}
+                        >
+                          Delete
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-2" onClick={() => console.log('Div clicked')}>
-                    {/* Debug log */}
-                    {(() => {
-                      console.log('Rendering button section, isDeployed:', isDeployed)
-                      return null
-                    })()}
-                    
-                    {/* View Deployed button */}
-                    {isDeployed && (
+
+                  {/* View Deployed button on its own row */}
+                  {isDeployed && (
+                    <div className="flex justify-start">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-[#802FFF] hover:bg-[#802FFF]/10"
+                        className="h-7 px-2.5 text-xs font-medium border border-[#2563eb] text-[#2563eb] hover:text-[#2563eb] hover:bg-[#2563eb]/10 flex items-center gap-1.5"
                         onClick={() => {
                           handleViewDeployed()
                         }}
                       >
+                        <Eye className="h-3.5 w-3.5" />
                         View Deployed
                       </Button>
-                    )}
-
-                    {/* Existing Redeploy button */}
-                    {options?.needsRedeployment && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
-                        onClick={async () => {
-                          if (!workflowId) return
-
-                          try {
-                            // Call the deploy endpoint to redeploy the workflow
-                            const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
-                              method: 'POST',
-                            })
-
-                            if (!response.ok) throw new Error('Failed to redeploy workflow')
-
-                            // Get the response data
-                            const data = await response.json()
-
-                            // Update deployment status in the store (resets needsRedeployment flag)
-                            updateDeploymentStatus(
-                              data.isDeployed,
-                              data.deployedAt ? new Date(data.deployedAt) : undefined
-                            )
-
-                            // First close this notification
-                            onHide(id)
-
-                            // Show a temporary success notification without creating another API notification
-                            useNotificationStore
-                              .getState()
-                              .addNotification(
-                                'info',
-                                'Workflow successfully redeployed',
-                                workflowId,
-                                { isPersistent: false }
-                              )
-                          } catch (error) {
-                            logger.error('Error redeploying workflow:', { error })
-                          }
-                        }}
-                      >
-                        Redeploy
-                      </Button>
-                    )}
-                    {isDeployed && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => setIsDeleteDialogOpen(true)}
-                      >
-                        Delete
-                      </Button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </AlertDescription>
             </div>
