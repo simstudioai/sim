@@ -86,7 +86,6 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
       )
       
       if (orgHasTeamPlan) {
-        logger.info('User has team plan via organization', { userId, orgId: membership.organizationId })
         return true
       }
     }

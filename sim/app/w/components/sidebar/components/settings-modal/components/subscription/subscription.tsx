@@ -29,11 +29,9 @@ interface SubscriptionProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function Subscription({ onOpenChange }: SubscriptionProps) {
-  const { data: session } = useSession()
-  const { data: activeOrg } = useActiveOrganization()
-  
+const useSubscriptionData = (userId: string | null | undefined, activeOrgId: string | null | undefined) => {
   const [isPro, setIsPro] = useState<boolean>(false)
+  const [isTeam, setIsTeam] = useState<boolean>(false)
   const [usageData, setUsageData] = useState<{
     percentUsed: number;
     isWarning: boolean;
@@ -47,134 +45,140 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     currentUsage: 0,
     limit: 0
   })
-  const [loading, setLoading] = useState<boolean>(true)
   const [subscriptionData, setSubscriptionData] = useState<any>(null)
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadSubscriptionData() {
+      if (!userId) return
+      
+      try {
+        setLoading(true)
+        setError(null)
+        
+        // Fetch subscription status and usage data in parallel
+        const [proStatusResponse, usageResponse] = await Promise.all([
+          fetch('/api/user/subscription'),
+          fetch('/api/user/usage')
+        ])
+        
+        if (!proStatusResponse.ok) {
+          throw new Error('Failed to fetch subscription status')
+        }
+        if (!usageResponse.ok) {
+          throw new Error('Failed to fetch usage data')
+        }
+        
+        // Process the responses
+        const proStatusData = await proStatusResponse.json()
+        setIsPro(proStatusData.isPro)
+        setIsTeam(proStatusData.isTeam)
+        
+        const usageDataResponse = await usageResponse.json()
+        setUsageData(usageDataResponse)
+        
+        logger.info('Subscription status and usage data retrieved', { 
+          isPro: proStatusData.isPro, 
+          isTeam: proStatusData.isTeam,
+          usage: usageDataResponse
+        })
+        
+        // Main subscription logic - prioritize organization team subscription
+        let activeSubscription = null
+        
+        // First check if user has an active organization with a team subscription
+        if (activeOrgId) {
+          logger.info('Checking organization subscription first', { orgId: activeOrgId })
+          
+          // Get the organization's subscription
+          const { data: orgSubscriptions, error: orgSubError } = await client.subscription.list({
+            query: { referenceId: activeOrgId }
+          })
+          
+          if (orgSubError) {
+            logger.error('Error fetching organization subscription details', orgSubError)
+          } else {
+            // Find active team subscription for the organization
+            activeSubscription = orgSubscriptions?.find(
+              sub => sub.status === 'active' && sub.plan === 'team'
+            )
+            
+            if (activeSubscription) {
+              logger.info('Using organization team subscription as primary', {
+                id: activeSubscription.id,
+                seats: activeSubscription.seats
+              })
+            }
+          }
+        }
+        
+        // If no org team subscription was found, check for personal subscription
+        if (!activeSubscription) {
+          // Fetch detailed subscription data for the user
+          const { data: userSubscriptions, error: userSubError } = await client.subscription.list()
+          
+          if (userSubError) {
+            logger.error('Error fetching user subscription details', userSubError)
+          } else {
+            // Find active subscription for the user
+            activeSubscription = userSubscriptions?.find(
+              sub => sub.status === 'active'
+            )
+          }
+        }
+        
+        if (activeSubscription) {
+          logger.info('Using active subscription', { 
+            id: activeSubscription.id,
+            plan: activeSubscription.plan,
+            status: activeSubscription.status
+          })
+          
+          setSubscriptionData(activeSubscription)
+        } else {
+          logger.warn('No active subscription found')
+        }
+      } catch (error) {
+        logger.error('Error checking subscription status:', error)
+        setError('Failed to load subscription data')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadSubscriptionData()
+  }, [userId, activeOrgId])
+
+  return { isPro, isTeam, usageData, subscriptionData, loading, error }
+}
+
+export function Subscription({ onOpenChange }: SubscriptionProps) {
+  const { data: session } = useSession()
+  const { data: activeOrg } = useActiveOrganization()
+  
+  const { 
+    isPro, 
+    isTeam, 
+    usageData, 
+    subscriptionData, 
+    loading, 
+    error: subscriptionError 
+  } = useSubscriptionData(session?.user?.id, activeOrg?.id)
+  
   const [isCanceling, setIsCanceling] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [isTeam, setIsTeam] = useState<boolean>(false)
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState<boolean>(false)
   const [seats, setSeats] = useState<number>(1)
   const [isUpgradingTeam, setIsUpgradingTeam] = useState<boolean>(false)
   const [isUpgrading, setIsUpgrading] = useState<boolean>(false)
 
+  // Set error from subscription hook if there is one
   useEffect(() => {
-    async function checkSubscriptionStatus() {
-      if (session?.user?.id) {
-        try {
-          setLoading(true)
-          setError(null)
-          
-          // Fetch subscription status from API
-          const proStatusResponse = await fetch('/api/user/subscription')
-          if (!proStatusResponse.ok) {
-            throw new Error('Failed to fetch subscription status')
-          }
-          const proStatusData = await proStatusResponse.json()
-          setIsPro(proStatusData.isPro)
-          setIsTeam(proStatusData.isTeam)
-          
-          logger.info('Subscription status', { isPro: proStatusData.isPro, isTeam: proStatusData.isTeam })
-          
-          // Fetch usage data from API
-          const usageResponse = await fetch('/api/user/usage')
-          if (!usageResponse.ok) {
-            throw new Error('Failed to fetch usage data')
-          }
-          const usageData = await usageResponse.json()
-          logger.info('Usage data retrieved', usageData)
-          setUsageData(usageData)
-          
-          // Main subscription logic - prioritize organization team subscription
-          let activeSubscription = null
-          
-          // First check if user has an active organization with a team subscription
-          if (activeOrg?.id) {
-            logger.info('Checking organization subscription first', { 
-              orgId: activeOrg.id, 
-              orgName: activeOrg.name 
-            })
-            
-            // Get the organization's subscription
-            const { data: orgSubscriptions, error: orgSubError } = await client.subscription.list({
-              query: { referenceId: activeOrg.id }
-            })
-            
-            if (orgSubError) {
-              logger.error('Error fetching organization subscription details', orgSubError)
-            } else {
-              logger.info('Organization subscriptions', { 
-                orgId: activeOrg.id,
-                subscriptionsCount: orgSubscriptions?.length || 0,
-                subscriptions: orgSubscriptions?.map(s => ({
-                  id: s.id,
-                  plan: s.plan,
-                  status: s.status,
-                  seats: s.seats
-                }))
-              })
-              
-              // Find active team subscription for the organization
-              activeSubscription = orgSubscriptions?.find(
-                sub => sub.status === 'active' && sub.plan === 'team'
-              )
-              
-              if (activeSubscription) {
-                logger.info('Using organization team subscription as primary', {
-                  id: activeSubscription.id,
-                  seats: activeSubscription.seats
-                })
-              }
-            }
-          }
-          
-          // If no org team subscription was found, check for personal subscription
-          if (!activeSubscription) {
-            // Fetch detailed subscription data for the user
-            const { data: userSubscriptions, error: userSubError } = await client.subscription.list()
-            
-            if (userSubError) {
-              logger.error('Error fetching user subscription details', userSubError)
-            } else {
-              // Find active subscription for the user
-              activeSubscription = userSubscriptions?.find(
-                sub => sub.status === 'active'
-              )
-              
-              logger.info('User subscription data', { 
-                found: !!activeSubscription, 
-                subscriptions: userSubscriptions?.map(s => ({
-                  id: s.id,
-                  plan: s.plan,
-                  status: s.status,
-                  seats: s.seats
-                }))
-              })
-            }
-          }
-          
-          if (activeSubscription) {
-            logger.info('Using active subscription', { 
-              id: activeSubscription.id,
-              plan: activeSubscription.plan,
-              status: activeSubscription.status,
-              seats: activeSubscription.seats,
-              referenceId: activeSubscription.referenceId
-            })
-            
-            setSubscriptionData(activeSubscription)
-          } else {
-            logger.warn('No active subscription found')
-          }
-        } catch (error) {
-          logger.error('Error checking subscription status:', error)
-        } finally {
-          setLoading(false)
-        }
-      }
+    if (subscriptionError) {
+      setError(subscriptionError)
     }
-    
-    checkSubscriptionStatus()
-  }, [session?.user?.id, activeOrg])
+  }, [subscriptionError])
 
   const handleUpgrade = async (plan: string) => {
     if (!session?.user) {

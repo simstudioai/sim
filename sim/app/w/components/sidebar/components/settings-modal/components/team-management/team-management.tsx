@@ -19,74 +19,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('TeamManagement')
 
-// Skeleton component for team management loading state
-function TeamManagementSkeleton() {
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-9 w-32" />
-      </div>
-      
-      <div className="space-y-4">
-        <div className="rounded-md border p-4">
-          <Skeleton className="h-5 w-32 mb-4" />
-          <div className="flex items-center space-x-2">
-            <Skeleton className="h-9 flex-1" />
-            <Skeleton className="h-9 w-24" />
-          </div>
-        </div>
-        
-        <div className="rounded-md border p-4">
-          <Skeleton className="h-5 w-32 mb-4" />
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-            <Skeleton className="h-2 w-full" />
-            <div className="flex justify-between mt-4">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-24" />
-            </div>
-          </div>
-        </div>
-        
-        <div className="rounded-md border">
-          <Skeleton className="h-5 w-32 p-4 border-b" />
-          <div className="p-4 space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-48" />
-                  <Skeleton className="h-4 w-16" />
-                </div>
-                <Skeleton className="h-9 w-9" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Skeleton component for loading state in buttons
-function ButtonSkeleton() {
-  return <Skeleton className="h-9 w-24" />
-}
-
-// Skeleton component for loading state in team seats
-function TeamSeatsSkeleton() {
-  return (
-    <div className="flex items-center space-x-2">
-      <Skeleton className="h-4 w-4" />
-      <Skeleton className="h-4 w-32" />
-    </div>
-  )
-}
-
 export function TeamManagement() {
   const { data: session } = useSession()
   const { data: activeOrg } = client.useActiveOrganization()
@@ -115,6 +47,37 @@ export function TeamManagement() {
   const [userRole, setUserRole] = useState<string>('member')
   const [isAdminOrOwner, setIsAdminOrOwner] = useState(false)
   
+  const loadData = useCallback(async () => {
+    if (!session?.user) return
+    
+    try {
+      setIsLoading(true)
+      setError(null)
+      
+      // Get all organizations the user is a member of
+      const orgsResponse = await client.organization.list()
+      setOrganizations(orgsResponse.data || [])
+      
+      // Check if user has a team subscription
+      const response = await fetch('/api/user/subscription')
+      const data = await response.json()
+      setHasTeamPlan(data.isTeam)
+      
+      // If user has team plan but no organizations, prompt to create one
+      if (data.isTeam && (!orgsResponse.data || orgsResponse.data.length === 0)) {
+        setOrgName(`${session.user.name || 'My'}'s Team`)
+        setOrgSlug(generateSlug(`${session.user.name || 'My'}'s Team`))
+        setCreateOrgDialogOpen(true)
+      }
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to load data')
+      logger.error('Failed to load data:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [session?.user])
+  
   // Update local state when the active organization changes
   useEffect(() => {
     if (activeOrg) {
@@ -135,57 +98,68 @@ export function TeamManagement() {
           })
         }
       }
+      
+      // Load subscription data for the organization
+      if (activeOrg.id) {
+        loadOrganizationSubscription(activeOrg.id)
+      }
     }
   }, [activeOrg, session?.user?.email])
   
-  // Load organizations
-  useEffect(() => {
-    async function loadOrganizations() {
-      if (!session?.user) return
+  // Load organization's subscription data
+  const loadOrganizationSubscription = async (orgId: string) => {
+    try {
+      setIsLoadingSubscription(true)
+      logger.info('Loading subscription for organization', { orgId })
       
-      try {
-        setIsLoading(true)
-        
-        // Get all organizations the user is a member of
-        const orgsResponse = await client.organization.list();
-        setOrganizations(orgsResponse.data || []);
-        
-      } catch (err: any) {
-        setError(err.message || 'Failed to load team data')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    
-    loadOrganizations()
-  }, [session?.user])
-  
-  // Check if user has team subscription but no organization
-  useEffect(() => {
-    async function checkTeamSubscription() {
-      if (!session?.user?.id) return
+      const { data, error } = await client.subscription.list({
+        query: { referenceId: orgId }
+      })
       
-      try {
-        // Check if user has a team subscription
-        const response = await fetch('/api/user/subscription')
-        const data = await response.json()
-        setHasTeamPlan(data.isTeam)
+      if (error) {
+        logger.error('Error fetching organization subscription', { error })
+        setError('Failed to load subscription data')
+      } else {
+        logger.info('Organization subscription data loaded', { 
+          subscriptions: data?.map(s => ({
+            id: s.id,
+            plan: s.plan,
+            status: s.status,
+            seats: s.seats,
+            referenceId: s.referenceId
+          }))
+        })
         
-        // If user has team plan but no organizations, prompt to create one
-        if (data.isTeam && (!organizations || organizations.length === 0)) {
-          setOrgName(`${session.user.name || 'My'}'s Team`)
-          setOrgSlug(generateSlug(`${session.user.name || 'My'}'s Team`))
-          setCreateOrgDialogOpen(true)
+        // Filter to only active team subscription
+        const teamSubscription = data?.find(
+          sub => sub.status === 'active' && sub.plan === 'team' 
+        )
+        
+        if (teamSubscription) {
+          logger.info('Found active team subscription', { 
+            id: teamSubscription.id,
+            seats: teamSubscription.seats 
+          })
+          setSubscriptionData([teamSubscription])
+        } else {
+          logger.warn('No active team subscription found for organization', { 
+            orgId 
+          })
+          setSubscriptionData([])
         }
-      } catch (err) {
-        logger.error('Failed to check team subscription:', err)
       }
+    } catch (err: any) {
+      logger.error('Error loading subscription data', { error: err })
+      setError(err.message || 'Failed to load subscription data')
+    } finally {
+      setIsLoadingSubscription(false)
     }
-    
-    if ((!activeOrganization && !isLoading) || (!organizations || organizations.length === 0)) {
-      checkTeamSubscription()
-    }
-  }, [session?.user?.id, organizations, activeOrganization, isLoading])
+  }
+  
+  // Initial data loading
+  useEffect(() => {
+    loadData()
+  }, [loadData])
   
   // Refresh organization data
   const refreshOrganization = useCallback(async () => {
@@ -194,6 +168,11 @@ export function TeamManagement() {
     try {
       const fullOrgResponse = await client.organization.getFullOrganization()
       setActiveOrganization(fullOrgResponse.data)
+      
+      // Also refresh subscription data when organization is refreshed
+      if (fullOrgResponse.data?.id) {
+        await loadOrganizationSubscription(fullOrgResponse.data.id)
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to refresh organization data')
     }
@@ -241,13 +220,7 @@ export function TeamManagement() {
       if (error) {
         setError(error.message || 'Failed to update seat count')
       } else {
-        // Reload subscription data
-        const { data } = await client.subscription.list({
-          query: {
-            referenceId: activeOrganization.id
-          }
-        })
-        setSubscriptionData(data)
+        await refreshOrganization()
       }
     } catch (err: any) {
       setError(err.message || 'Failed to reduce seats')
@@ -334,8 +307,7 @@ export function TeamManagement() {
       }
       
       // Refresh the organization list
-      const orgsResponse = await client.organization.list()
-      setOrganizations(orgsResponse.data || [])
+      await loadData()
       
       // Close the dialog
       setCreateOrgDialogOpen(false)
@@ -370,13 +342,7 @@ export function TeamManagement() {
       if (error) {
         setError(error.message || 'Failed to upgrade to team subscription')
       } else {
-        // Reload subscription data
-        const { data } = await client.subscription.list({
-          query: {
-            referenceId: activeOrganization.id
-          }
-        })
-        setSubscriptionData(data)
+        await refreshOrganization()
       }
     } catch (err: any) {
       setError(err.message || 'Failed to upgrade to team subscription')
@@ -523,15 +489,8 @@ export function TeamManagement() {
         }
       }
       
-      // Refresh the organization and subscription data
+      // Refresh the organization
       await refreshOrganization()
-      
-      const { data } = await client.subscription.list({
-        query: {
-          referenceId: activeOrganization.id
-        }
-      })
-      setSubscriptionData(data)
       
       // Close the dialog
       setRemoveMemberDialog({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
@@ -564,64 +523,6 @@ export function TeamManagement() {
       setIsLoading(false)
     }
   }
-  
-  // Load subscription data
-  useEffect(() => {
-    async function loadSubscription() {
-      if (!activeOrganization?.id) return
-      
-      try {
-        setIsLoadingSubscription(true)
-        logger.info('Loading subscription for organization', { 
-          orgId: activeOrganization.id 
-        })
-        
-        const { data, error } = await client.subscription.list({
-          query: { referenceId: activeOrganization.id }
-        })
-        
-        if (error) {
-          logger.error('Error fetching organization subscription', { error })
-          setError('Failed to load subscription data')
-        } else {
-          logger.info('Organization subscription data loaded', { 
-            subscriptions: data?.map(s => ({
-              id: s.id,
-              plan: s.plan,
-              status: s.status,
-              seats: s.seats,
-              referenceId: s.referenceId
-            }))
-          })
-          
-          // Filter to only active team subscription
-          const teamSubscription = data?.find(
-            sub => sub.status === 'active' && sub.plan === 'team' 
-          )
-          
-          if (teamSubscription) {
-            logger.info('Found active team subscription', { 
-              id: teamSubscription.id,
-              seats: teamSubscription.seats 
-            })
-            setSubscriptionData([teamSubscription])
-          } else {
-            logger.warn('No active team subscription found for organization', { 
-              orgId: activeOrganization.id 
-            })
-            setSubscriptionData([])
-          }
-        }
-      } catch (err: any) {
-        logger.error('Error loading subscription data', { error: err })
-        setError(err.message || 'Failed to load subscription data')
-      } finally {
-        setIsLoadingSubscription(false)
-      }
-    }
-    
-    loadSubscription()
-  }, [activeOrganization?.id])
   
   if (isLoading && !activeOrganization && !hasTeamPlan) {
     return <TeamManagementSkeleton />
@@ -1077,4 +978,72 @@ export function TeamManagement() {
       </Dialog>
     </div>
   )
-} 
+}
+
+// Skeleton component for team management loading state
+function TeamManagementSkeleton() {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-9 w-32" />
+        </div>
+        
+        <div className="space-y-4">
+          <div className="rounded-md border p-4">
+            <Skeleton className="h-5 w-32 mb-4" />
+            <div className="flex items-center space-x-2">
+              <Skeleton className="h-9 flex-1" />
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </div>
+          
+          <div className="rounded-md border p-4">
+            <Skeleton className="h-5 w-32 mb-4" />
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-2 w-full" />
+              <div className="flex justify-between mt-4">
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-24" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="rounded-md border">
+            <Skeleton className="h-5 w-32 p-4 border-b" />
+            <div className="p-4 space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  <Skeleton className="h-9 w-9" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  
+  // Skeleton component for loading state in buttons
+  function ButtonSkeleton() {
+    return <Skeleton className="h-9 w-24" />
+  }
+  
+  // Skeleton component for loading state in team seats
+  function TeamSeatsSkeleton() {
+    return (
+      <div className="flex items-center space-x-2">
+        <Skeleton className="h-4 w-4" />
+        <Skeleton className="h-4 w-32" />
+      </div>
+    )
+  }
