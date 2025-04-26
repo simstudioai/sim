@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isProPlan } from '@/lib/subscription'
+import { isProPlan, isTeamPlan } from '@/lib/subscription'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -21,7 +21,10 @@ export async function GET(request: NextRequest) {
     // Check if the user is on the Pro plan
     const isPro = await isProPlan(session.user.id)
     
-    return NextResponse.json({ isPro })
+    // Check if the user is on the Team plan
+    const isTeam = await isTeamPlan(session.user.id)
+    
+    return NextResponse.json({ isPro, isTeam })
   } catch (error) {
     logger.error('Error checking subscription status:', error)
     return NextResponse.json(

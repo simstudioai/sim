@@ -3,6 +3,7 @@ import {
   decimal,
   integer,
   json,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -31,6 +32,7 @@ export const session = pgTable('session', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  activeOrganizationId: text('active_organization_id').references(() => organization.id, { onDelete: 'set null' }),
 })
 
 export const account = pgTable('account', {
@@ -226,14 +228,16 @@ export const customTools = pgTable('custom_tools', {
 export const subscription = pgTable("subscription", {
   id: text('id').primaryKey(),
   plan: text('plan').notNull(),
-referenceId: text('reference_id').notNull(),
-stripeCustomerId: text('stripe_customer_id'),
-stripeSubscriptionId: text('stripe_subscription_id'),
-status: text('status'),
-periodStart: timestamp('period_start'),
-periodEnd: timestamp('period_end'),
-cancelAtPeriodEnd: boolean('cancel_at_period_end'),
-seats: integer('seats')
+  referenceId: text('reference_id').notNull(),
+  stripeCustomerId: text('stripe_customer_id'),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  status: text('status'),
+  periodStart: timestamp('period_start'),
+  periodEnd: timestamp('period_end'),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end'),
+  seats: integer('seats'),
+  trialStart: timestamp('trial_start'),
+  trialEnd: timestamp('trial_end')
 });
 
 export const chat = pgTable('chat', {
@@ -269,3 +273,32 @@ export const chat = pgTable('chat', {
   }
 }
 )
+
+export const organization = pgTable("organization", {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  logo: text('logo'),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const member = pgTable("member", {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+export const invitation = pgTable("invitation", {
+  id: text('id').primaryKey(),
+  email: text('email').notNull(),
+  inviterId: text('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  role: text('role').notNull(),
+  status: text('status').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});

@@ -1,4 +1,4 @@
-import { isProPlan } from './subscription'
+import { isProPlan, isTeamPlan } from './subscription'
 import { createLogger } from './logs/console-logger'
 import { db } from '@/db'
 import { eq } from 'drizzle-orm'
@@ -25,6 +25,8 @@ interface UsageData {
  */
 export async function checkUsageStatus(userId: string): Promise<UsageData> {
   try {
+    logger.info('Starting usage status check for user', { userId })
+    
     // In development, always return permissive limits
     if (!isProd) {
       // Get actual usage from the database for display purposes
@@ -35,6 +37,8 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       
       // In development, set a very high limit to avoid restrictions
       const devLimit = 1000
+      
+      logger.info('Development mode usage data', { currentUsage, devLimit })
       
       return {
         percentUsed: Math.min(Math.round((currentUsage / devLimit) * 100), 100),
@@ -49,23 +53,143 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     
     // Get user's subscription details
     const isPro = await isProPlan(userId)
+    const isTeam = await isTeamPlan(userId)
     
-    // Get the subscription limits
-    const { data: subscriptions } = await client.subscription.list({
-      query: { referenceId: userId }
-    })
+    logger.info('User subscription status', { userId, isPro, isTeam })
     
-    // Find active subscription
-    const activeSubscription = subscriptions?.find(
-      sub => sub.status === 'active' || sub.status === 'trialing'
-    )
+    // First try to find the user's active organization and check for team subscription
+    let activeSubscription = null
+    if (isTeam) {
+      logger.info('User is on team plan, checking organization subscriptions first', { userId })
+      
+      // Get user's active organization
+      const { data: activeOrg } = await client.useActiveOrganization()
+      
+      logger.info('User active organization', { 
+        userId, 
+        hasActiveOrg: !!activeOrg,
+        orgId: activeOrg?.id
+      })
+      
+      if (activeOrg?.id) {
+        // Check for organization's team subscription
+        const { data: orgSubscriptions } = await client.subscription.list({
+          query: { referenceId: activeOrg.id }
+        })
+        
+        logger.info('Organization subscriptions', { 
+          userId, 
+          orgId: activeOrg.id,
+          subscriptionsCount: orgSubscriptions?.length || 0,
+          subscriptions: orgSubscriptions?.map(s => ({ 
+            id: s.id, 
+            plan: s.plan, 
+            status: s.status, 
+            seats: s.seats 
+          }))
+        })
+        
+        activeSubscription = orgSubscriptions?.find(
+          sub => (sub.status === 'active' && sub.plan === 'team')
+        )
+        
+        logger.info('Organization active team subscription', { 
+          userId, 
+          orgId: activeOrg.id,
+          found: !!activeSubscription,
+          subscription: activeSubscription ? {
+            id: activeSubscription.id,
+            plan: activeSubscription.plan,
+            status: activeSubscription.status,
+            seats: activeSubscription.seats,
+            limits: activeSubscription.limits
+          } : null
+        })
+      }
+    }
+    
+    // If no org team subscription was found, check personal subscription
+    if (!activeSubscription) {
+      logger.info('No organization team subscription found, checking personal subscription', { userId })
+      
+      // Get the subscription limits
+      const { data: subscriptions } = await client.subscription.list({
+        query: { referenceId: userId }
+      })
+      
+      logger.info('User direct subscriptions', { 
+        userId, 
+        subscriptionsCount: subscriptions?.length || 0,
+        subscriptions: subscriptions?.map(s => ({ 
+          id: s.id, 
+          plan: s.plan, 
+          status: s.status, 
+          seats: s.seats 
+        }))
+      })
+      
+      // Find active subscription
+      activeSubscription = subscriptions?.find(
+        sub => sub.status === 'active'
+      )
+      
+      logger.info('User active direct subscription', { 
+        userId, 
+        found: !!activeSubscription,
+        subscription: activeSubscription ? {
+          id: activeSubscription.id,
+          plan: activeSubscription.plan,
+          status: activeSubscription.status,
+          seats: activeSubscription.seats,
+          limits: activeSubscription.limits
+        } : null
+      })
+    }
     
     // Get configured limits from environment variables or subscription
     let limit: number
     
-    if (activeSubscription && typeof activeSubscription.limits?.cost === 'number') {
-      // Use the limit from the subscription if available
-      limit = activeSubscription.limits.cost
+    if (activeSubscription) {
+      if (activeSubscription.plan === 'team' && activeSubscription.seats) {
+        // For team plans, multiply the per-seat limit by the number of seats
+        const perSeatLimit = process.env.TEAM_TIER_COST_LIMIT 
+          ? parseFloat(process.env.TEAM_TIER_COST_LIMIT) 
+          : 40
+        
+        limit = perSeatLimit * activeSubscription.seats
+        
+        logger.info('Calculated team plan limit', { 
+          userId, 
+          perSeatLimit, 
+          seats: activeSubscription.seats,
+          totalLimit: limit
+        })
+      } 
+      else if (typeof activeSubscription.limits?.cost === 'number') {
+        // Use the limit from the subscription if available
+        limit = activeSubscription.limits.cost
+        logger.info('Using subscription cost limit', { userId, limit })
+      }
+      else {
+        // Use default limits based on plan
+        if (activeSubscription.plan === 'pro') {
+          limit = process.env.PRO_TIER_COST_LIMIT 
+            ? parseFloat(process.env.PRO_TIER_COST_LIMIT) 
+            : 20
+          logger.info('Using default pro plan limit', { userId, limit })
+        } else if (activeSubscription.plan === 'team') {
+          limit = process.env.TEAM_TIER_COST_LIMIT 
+            ? parseFloat(process.env.TEAM_TIER_COST_LIMIT) 
+            : 40
+          logger.info('Using default team plan limit (without seats multiplier)', { userId, limit })
+        } else {
+          // Free plan
+          limit = process.env.FREE_TIER_COST_LIMIT 
+            ? parseFloat(process.env.FREE_TIER_COST_LIMIT) 
+            : 5
+          logger.info('Using default free plan limit', { userId, limit })
+        }
+      }
     } else {
       // Fallback to environment variables
       const freeLimit = process.env.FREE_TIER_COST_LIMIT 
@@ -74,10 +198,24 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       
       const proLimit = process.env.PRO_TIER_COST_LIMIT 
         ? parseFloat(process.env.PRO_TIER_COST_LIMIT) 
-        : 50
+        : 20
+
+      const teamLimit = process.env.TEAM_TIER_COST_LIMIT 
+        ? parseFloat(process.env.TEAM_TIER_COST_LIMIT) 
+        : 40
       
       // Set the appropriate limit based on subscription
-      limit = isPro ? proLimit : freeLimit
+      limit = isPro ? proLimit : isTeam ? teamLimit : freeLimit
+      
+      logger.info('Using fallback limit', { 
+        userId, 
+        isPro, 
+        isTeam, 
+        freeLimit, 
+        proLimit, 
+        teamLimit, 
+        selectedLimit: limit 
+      })
     }
     
     // Get actual usage from the database
@@ -85,6 +223,8 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     
     // If no stats record exists, create a default one
     if (statsRecords.length === 0) {
+      logger.info('No usage stats found for user', { userId, limit })
+      
       return {
         percentUsed: 0,
         isWarning: false,
@@ -103,6 +243,15 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     // Check if usage exceeds threshold or limit
     const isWarning = percentUsed >= WARNING_THRESHOLD && percentUsed < 100
     const isExceeded = currentUsage >= limit
+    
+    logger.info('Final usage statistics', { 
+      userId, 
+      currentUsage, 
+      limit, 
+      percentUsed, 
+      isWarning, 
+      isExceeded 
+    })
     
     return {
       percentUsed,
