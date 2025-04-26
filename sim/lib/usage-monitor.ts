@@ -2,8 +2,7 @@ import { isProPlan, isTeamPlan } from './subscription'
 import { createLogger } from './logs/console-logger'
 import { db } from '@/db'
 import { eq } from 'drizzle-orm'
-import { userStats } from '@/db/schema'
-import { client } from './auth-client'
+import { userStats, member, organization as organizationTable, subscription } from '@/db/schema'
 import { isProd } from '@/lib/environment'
 
 const logger = createLogger('UsageMonitor')
@@ -17,6 +16,66 @@ interface UsageData {
   isExceeded: boolean
   currentUsage: number
   limit: number
+}
+
+/**
+ * Gets the number of seats for a team subscription
+ * Used to calculate usage limits for team plans
+ */
+async function getTeamSeats(userId: string): Promise<number> {
+  try {
+    // First check if user is part of an organization with a team subscription
+    const memberships = await db.select()
+      .from(member)
+      .where(eq(member.userId, userId))
+      .limit(1)
+    
+    if (memberships.length > 0) {
+      const orgId = memberships[0].organizationId
+      
+      // Check for organization's team subscription
+      const orgSubscriptions = await db.select()
+        .from(subscription)
+        .where(eq(subscription.referenceId, orgId))
+      
+      const teamSubscription = orgSubscriptions.find(
+        sub => (sub.status === 'active' && sub.plan === 'team')
+      )
+      
+      if (teamSubscription?.seats) {
+        logger.info('Found organization team subscription with seats', { 
+          userId, 
+          orgId,
+          seats: teamSubscription.seats 
+        })
+        return teamSubscription.seats
+      }
+    }
+    
+    // If no organization team subscription, check for personal team subscription
+    const userSubscriptions = await db.select()
+      .from(subscription)
+      .where(eq(subscription.referenceId, userId))
+    
+    const teamSubscription = userSubscriptions.find(
+      sub => (sub.status === 'active' && sub.plan === 'team')
+    )
+    
+    if (teamSubscription?.seats) {
+      logger.info('Found personal team subscription with seats', { 
+        userId, 
+        seats: teamSubscription.seats 
+      })
+      return teamSubscription.seats
+    }
+    
+    // Default to 10 seats if we know they're on a team plan but couldn't get seats info
+    return 10
+  } catch (error) {
+    logger.error('Error getting team seats', { error, userId })
+    // Default to 10 seats on error
+    return 10
+  }
 }
 
 /**
@@ -35,17 +94,12 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
         ? parseFloat(statsRecords[0].totalCost.toString())
         : 0
       
-      // In development, set a very high limit to avoid restrictions
-      const devLimit = 1000
-      
-      logger.info('Development mode usage data', { currentUsage, devLimit })
-      
       return {
-        percentUsed: Math.min(Math.round((currentUsage / devLimit) * 100), 100),
+        percentUsed: Math.min(Math.round((currentUsage / 1000) * 100), 100),
         isWarning: false,
         isExceeded: false,
         currentUsage,
-        limit: devLimit
+        limit: 1000
       }
     }
     
@@ -57,165 +111,38 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     
     logger.info('User subscription status', { userId, isPro, isTeam })
     
-    // First try to find the user's active organization and check for team subscription
-    let activeSubscription = null
-    if (isTeam) {
-      logger.info('User is on team plan, checking organization subscriptions first', { userId })
-      
-      // Get user's active organization
-      const { data: activeOrg } = await client.useActiveOrganization()
-      
-      logger.info('User active organization', { 
-        userId, 
-        hasActiveOrg: !!activeOrg,
-        orgId: activeOrg?.id
-      })
-      
-      if (activeOrg?.id) {
-        // Check for organization's team subscription
-        const { data: orgSubscriptions } = await client.subscription.list({
-          query: { referenceId: activeOrg.id }
-        })
-        
-        logger.info('Organization subscriptions', { 
-          userId, 
-          orgId: activeOrg.id,
-          subscriptionsCount: orgSubscriptions?.length || 0,
-          subscriptions: orgSubscriptions?.map(s => ({ 
-            id: s.id, 
-            plan: s.plan, 
-            status: s.status, 
-            seats: s.seats 
-          }))
-        })
-        
-        activeSubscription = orgSubscriptions?.find(
-          sub => (sub.status === 'active' && sub.plan === 'team')
-        )
-        
-        logger.info('Organization active team subscription', { 
-          userId, 
-          orgId: activeOrg.id,
-          found: !!activeSubscription,
-          subscription: activeSubscription ? {
-            id: activeSubscription.id,
-            plan: activeSubscription.plan,
-            status: activeSubscription.status,
-            seats: activeSubscription.seats,
-            limits: activeSubscription.limits
-          } : null
-        })
-      }
-    }
-    
-    // If no org team subscription was found, check personal subscription
-    if (!activeSubscription) {
-      logger.info('No organization team subscription found, checking personal subscription', { userId })
-      
-      // Get the subscription limits
-      const { data: subscriptions } = await client.subscription.list({
-        query: { referenceId: userId }
-      })
-      
-      logger.info('User direct subscriptions', { 
-        userId, 
-        subscriptionsCount: subscriptions?.length || 0,
-        subscriptions: subscriptions?.map(s => ({ 
-          id: s.id, 
-          plan: s.plan, 
-          status: s.status, 
-          seats: s.seats 
-        }))
-      })
-      
-      // Find active subscription
-      activeSubscription = subscriptions?.find(
-        sub => sub.status === 'active'
-      )
-      
-      logger.info('User active direct subscription', { 
-        userId, 
-        found: !!activeSubscription,
-        subscription: activeSubscription ? {
-          id: activeSubscription.id,
-          plan: activeSubscription.plan,
-          status: activeSubscription.status,
-          seats: activeSubscription.seats,
-          limits: activeSubscription.limits
-        } : null
-      })
-    }
-    
-    // Get configured limits from environment variables or subscription
+    // Determine the limit based on subscription type
     let limit: number
     
-    if (activeSubscription) {
-      if (activeSubscription.plan === 'team' && activeSubscription.seats) {
-        // For team plans, multiply the per-seat limit by the number of seats
-        const perSeatLimit = process.env.TEAM_TIER_COST_LIMIT 
-          ? parseFloat(process.env.TEAM_TIER_COST_LIMIT) 
-          : 40
-        
-        limit = perSeatLimit * activeSubscription.seats
-        
-        logger.info('Calculated team plan limit', { 
-          userId, 
-          perSeatLimit, 
-          seats: activeSubscription.seats,
-          totalLimit: limit
-        })
-      } 
-      else if (typeof activeSubscription.limits?.cost === 'number') {
-        // Use the limit from the subscription if available
-        limit = activeSubscription.limits.cost
-        logger.info('Using subscription cost limit', { userId, limit })
-      }
-      else {
-        // Use default limits based on plan
-        if (activeSubscription.plan === 'pro') {
-          limit = process.env.PRO_TIER_COST_LIMIT 
-            ? parseFloat(process.env.PRO_TIER_COST_LIMIT) 
-            : 20
-          logger.info('Using default pro plan limit', { userId, limit })
-        } else if (activeSubscription.plan === 'team') {
-          limit = process.env.TEAM_TIER_COST_LIMIT 
-            ? parseFloat(process.env.TEAM_TIER_COST_LIMIT) 
-            : 40
-          logger.info('Using default team plan limit (without seats multiplier)', { userId, limit })
-        } else {
-          // Free plan
-          limit = process.env.FREE_TIER_COST_LIMIT 
-            ? parseFloat(process.env.FREE_TIER_COST_LIMIT) 
-            : 5
-          logger.info('Using default free plan limit', { userId, limit })
-        }
-      }
-    } else {
-      // Fallback to environment variables
-      const freeLimit = process.env.FREE_TIER_COST_LIMIT 
-        ? parseFloat(process.env.FREE_TIER_COST_LIMIT) 
-        : 5
-      
-      const proLimit = process.env.PRO_TIER_COST_LIMIT 
-        ? parseFloat(process.env.PRO_TIER_COST_LIMIT) 
-        : 20
-
-      const teamLimit = process.env.TEAM_TIER_COST_LIMIT 
+    if (isTeam) {
+      // For team plans, get the number of seats and multiply by per-seat limit
+      const teamSeats = await getTeamSeats(userId)
+      const perSeatLimit = process.env.TEAM_TIER_COST_LIMIT 
         ? parseFloat(process.env.TEAM_TIER_COST_LIMIT) 
         : 40
       
-      // Set the appropriate limit based on subscription
-      limit = isPro ? proLimit : isTeam ? teamLimit : freeLimit
+      limit = perSeatLimit * teamSeats
       
-      logger.info('Using fallback limit', { 
+      logger.info('Using team plan limit', { 
         userId, 
-        isPro, 
-        isTeam, 
-        freeLimit, 
-        proLimit, 
-        teamLimit, 
-        selectedLimit: limit 
+        seats: teamSeats,
+        perSeatLimit,
+        totalLimit: limit
       })
+    } else if (isPro) {
+      // Pro plan has a fixed limit
+      limit = process.env.PRO_TIER_COST_LIMIT 
+        ? parseFloat(process.env.PRO_TIER_COST_LIMIT) 
+        : 20
+      
+      logger.info('Using pro plan limit', { userId, limit })
+    } else {
+      // Free tier limit
+      limit = process.env.FREE_TIER_COST_LIMIT 
+        ? parseFloat(process.env.FREE_TIER_COST_LIMIT) 
+        : 5
+      
+      logger.info('Using free tier limit', { userId, limit })
     }
     
     // Get actual usage from the database
@@ -261,7 +188,10 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       limit
     }
   } catch (error) {
-    logger.error('Error checking usage status', { error, userId })
+    logger.error('Error checking usage status', { 
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error, 
+      userId 
+    })
     
     // Return default values in case of error
     return {
@@ -327,7 +257,6 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
   }
 }
 
-// Add this function to check usage limits on the server-side for API routes
 /**
  * Server-side function to check if a user has exceeded their usage limits
  * For use in API routes, webhooks, and scheduled executions
@@ -353,57 +282,22 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
     
     logger.info('Server-side checking usage limits for user', { userId })
     
-    // Get the user's subscription
-    const { data: subscriptions } = await client.subscription.list({
-      query: { referenceId: userId }
-    })
-    
-    // Find active subscription
-    const activeSubscription = subscriptions?.find(
-      sub => sub.status === 'active' || sub.status === 'trialing'
-    )
-    
-    // Get configured limits from environment variables or subscription
-    let costLimit: number
-    
-    if (activeSubscription && typeof activeSubscription.limits?.cost === 'number') {
-      // Use the limit from the subscription
-      costLimit = activeSubscription.limits.cost
-    } else {
-      // Use default free tier limit
-      costLimit = process.env.FREE_TIER_COST_LIMIT 
-        ? parseFloat(process.env.FREE_TIER_COST_LIMIT) 
-        : 5
-    }
-    
-    logger.info('Server-side user cost limit from subscription', { userId, costLimit })
-    
-    // Get user's actual usage from the database
-    const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
-    
-    if (statsRecords.length === 0) {
-      // No usage yet, so they haven't exceeded the limit
-      return {
-        isExceeded: false,
-        currentUsage: 0,
-        limit: costLimit
-      }
-    }
-    
-    // Get the current cost and compare with the limit
-    const currentUsage = parseFloat(statsRecords[0].totalCost.toString())
-    const isExceeded = currentUsage >= costLimit
+    // Get usage data using the same function we use for client-side
+    const usageData = await checkUsageStatus(userId)
     
     return {
-      isExceeded,
-      currentUsage,
-      limit: costLimit,
-      message: isExceeded 
-        ? `Usage limit exceeded: ${currentUsage.toFixed(2)}$ used of ${costLimit}$ limit. Please upgrade your plan to continue.`
+      isExceeded: usageData.isExceeded,
+      currentUsage: usageData.currentUsage,
+      limit: usageData.limit,
+      message: usageData.isExceeded 
+        ? `Usage limit exceeded: ${usageData.currentUsage.toFixed(2)}$ used of ${usageData.limit}$ limit. Please upgrade your plan to continue.`
         : undefined
     }
   } catch (error) {
-    logger.error('Error in server-side usage limit check', { error, userId })
+    logger.error('Error in server-side usage limit check', { 
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error, 
+      userId 
+    })
     
     // Be conservative in case of error - allow execution but log the issue
     return {

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Copy, PlusCircle, UserX, RefreshCw, CheckCircle, XCircle, Building } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { LoadingAgent } from '@/components/ui/loading-agent'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,74 @@ import { Progress } from '@/components/ui/progress'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('TeamManagement')
+
+// Skeleton component for team management loading state
+function TeamManagementSkeleton() {
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-9 w-32" />
+      </div>
+      
+      <div className="space-y-4">
+        <div className="rounded-md border p-4">
+          <Skeleton className="h-5 w-32 mb-4" />
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-9 flex-1" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+        
+        <div className="rounded-md border p-4">
+          <Skeleton className="h-5 w-32 mb-4" />
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-2 w-full" />
+            <div className="flex justify-between mt-4">
+              <Skeleton className="h-9 w-24" />
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </div>
+        </div>
+        
+        <div className="rounded-md border">
+          <Skeleton className="h-5 w-32 p-4 border-b" />
+          <div className="p-4 space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <Skeleton className="h-9 w-9" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Skeleton component for loading state in buttons
+function ButtonSkeleton() {
+  return <Skeleton className="h-9 w-24" />
+}
+
+// Skeleton component for loading state in team seats
+function TeamSeatsSkeleton() {
+  return (
+    <div className="flex items-center space-x-2">
+      <Skeleton className="h-4 w-4" />
+      <Skeleton className="h-4 w-32" />
+    </div>
+  )
+}
 
 export function TeamManagement() {
   const { data: session } = useSession()
@@ -556,12 +624,7 @@ export function TeamManagement() {
   }, [activeOrganization?.id])
   
   if (isLoading && !activeOrganization && !hasTeamPlan) {
-    return (
-      <div className="p-6 flex flex-col items-center justify-center">
-        <LoadingAgent size="lg" />
-        <p className="text-sm text-muted-foreground mt-4">Loading team information...</p>
-      </div>
-    )
+    return <TeamManagementSkeleton />
   }
   
   const getInvitationStatus = (status: string) => {
@@ -667,7 +730,7 @@ export function TeamManagement() {
                 onClick={handleCreateOrganization}
                 disabled={!orgName || !orgSlug || isCreatingOrg}
               >
-                {isCreatingOrg && <LoadingAgent size="sm" />}
+                {isCreatingOrg && <ButtonSkeleton />}
                 <span className={isCreatingOrg ? "ml-2" : ""}>
                   Create Team Workspace
                 </span>
@@ -730,7 +793,7 @@ export function TeamManagement() {
                   onClick={handleInviteMember} 
                   disabled={!inviteEmail || isInviting}
                 >
-                  {isInviting ? <LoadingAgent size="sm" /> : <PlusCircle className="w-4 h-4 mr-2" />}
+                  {isInviting ? <ButtonSkeleton /> : <PlusCircle className="w-4 h-4 mr-2" />}
                   <span>Invite</span>
                 </Button>
               </div>
@@ -749,10 +812,7 @@ export function TeamManagement() {
               <h4 className="text-sm font-medium mb-2">Team Seats</h4>
               
               {isLoadingSubscription ? (
-                <div className="flex items-center space-x-2">
-                  <LoadingAgent size="sm" />
-                  <span className="text-sm">Loading seat information...</span>
-                </div>
+                <TeamSeatsSkeleton />
               ) : subscriptionData && subscriptionData.length > 0 ? (
                 <>
                   <div className="flex justify-between text-sm mb-2">
@@ -914,10 +974,7 @@ export function TeamManagement() {
               <div>
                 <h4 className="text-sm font-medium mb-2">Subscription Status</h4>
                 {isLoadingSubscription ? (
-                  <div className="flex items-center space-x-2">
-                    <LoadingAgent size="sm" />
-                    <span className="text-sm">Loading subscription details...</span>
-                  </div>
+                  <TeamSeatsSkeleton />
                 ) : subscriptionData ? (
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">

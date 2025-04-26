@@ -3,8 +3,8 @@ import { client, useSession, useActiveOrganization } from '@/lib/auth-client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { LoadingAgent } from '@/components/ui/loading-agent'
 import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -55,6 +55,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
   const [isTeamDialogOpen, setIsTeamDialogOpen] = useState<boolean>(false)
   const [seats, setSeats] = useState<number>(1)
   const [isUpgradingTeam, setIsUpgradingTeam] = useState<boolean>(false)
+  const [isUpgrading, setIsUpgrading] = useState<boolean>(false)
 
   useEffect(() => {
     async function checkSubscriptionStatus() {
@@ -181,9 +182,10 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       return
     }
     
+    setIsUpgrading(true)
+    setError(null)
+    
     try {
-      setError(null)
-      
       const { error } = await client.subscription.upgrade({
         plan: plan,
         successUrl: window.location.href,
@@ -197,6 +199,8 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     } catch (error: any) {
       logger.error('Subscription upgrade exception:', error)
       setError(error.message || `There was an unexpected error upgrading to the ${plan} plan`)
+    } finally {
+      setIsUpgrading(false)
     }
   }
 
@@ -287,10 +291,7 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
       )}
       
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <LoadingAgent size="sm" />
-          <span className="ml-2">Loading subscription details...</span>
-        </div>
+        <SubscriptionSkeleton />
       ) : (
         <>
           <div className="grid gap-6 md:grid-cols-2">
@@ -338,8 +339,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     onClick={handleCancel}
                     disabled={isCanceling}
                   >
-                    {isCanceling && <LoadingAgent size="sm" />}
-                    <span className={isCanceling ? "ml-2" : ""}>Downgrade</span>
+                    {isCanceling ? <ButtonSkeleton /> : (
+                      <span>Downgrade</span>
+                    )}
                   </Button>
                 )}
               </div>
@@ -387,8 +389,11 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                     variant={!isPro ? "default" : "outline"}
                     size="sm"
                     onClick={() => handleUpgrade('pro')}
+                    disabled={isUpgrading}
                   >
-                    {!isPro ? "Upgrade" : "Switch"}
+                    {isUpgrading ? <ButtonSkeleton /> : (
+                      <span>{!isPro ? "Upgrade" : "Switch"}</span>
+                    )}
                   </Button>
                 )}
               </div>
@@ -500,8 +505,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                       onClick={handleCancel} 
                       disabled={isCanceling}
                     >
-                      {isCanceling && <LoadingAgent size="sm" />}
-                      <span className={isCanceling ? "ml-2" : ""}>Manage Subscription</span>
+                      {isCanceling ? <ButtonSkeleton /> : (
+                        <span>Manage Subscription</span>
+                      )}
                     </Button>
                   </div>
                 )}
@@ -553,10 +559,9 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
                   onClick={confirmTeamUpgrade}
                   disabled={isUpgradingTeam}
                 >
-                  {isUpgradingTeam && <LoadingAgent size="sm" />}
-                  <span className={isUpgradingTeam ? "ml-2" : ""}>
-                    Upgrade to Team Plan
-                  </span>
+                  {isUpgradingTeam ? <ButtonSkeleton /> : (
+                    <span>Upgrade to Team Plan</span>
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -566,3 +571,83 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     </div>
   )
 } 
+
+// Skeleton component for subscription loading state
+function SubscriptionSkeleton() {
+  return (
+    <div className="space-y-6">      
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Free Tier Skeleton */}
+        <div className="border rounded-lg p-4">
+          <Skeleton className="h-5 w-24 mb-2" />
+          <Skeleton className="h-4 w-48 mb-4" />
+          
+          <div className="space-y-2 mt-3">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-44" />
+          </div>
+          
+          <div className="mt-4">
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+        
+        {/* Pro Tier Skeleton */}
+        <div className="border rounded-lg p-4">
+          <Skeleton className="h-5 w-24 mb-2" />
+          <Skeleton className="h-4 w-48 mb-4" />
+          
+          <div className="space-y-2 mt-3">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-44" />
+          </div>
+          
+          <div className="mt-4">
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+        
+        {/* Team Tier Skeleton */}
+        <div className="border rounded-lg p-4">
+          <Skeleton className="h-5 w-24 mb-2" />
+          <Skeleton className="h-4 w-48 mb-4" />
+          
+          <div className="space-y-2 mt-3">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          
+          <div className="mt-4">
+            <Skeleton className="h-9 w-32" />
+          </div>
+        </div>
+        
+        {/* Enterprise Tier Skeleton */}
+        <div className="border rounded-lg p-4 col-span-full">
+          <Skeleton className="h-5 w-24 mb-2" />
+          <Skeleton className="h-4 w-48 mb-4" />
+          
+          <div className="space-y-2 mt-3">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+          
+          <div className="mt-4">
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Skeleton component for loading state in buttons
+function ButtonSkeleton() {
+  return <Skeleton className="h-9 w-24" />
+}

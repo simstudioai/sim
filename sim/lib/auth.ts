@@ -67,6 +67,41 @@ export const auth = betterAuth({
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
   },
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          try {            
+            // Find the first organization this user is a member of
+            const members = await db.select()
+              .from(schema.member)
+              .where(eq(schema.member.userId, session.userId))
+              .limit(1);
+            
+            if (members.length > 0) {
+              logger.info('Found organization for user', { 
+                userId: session.userId, 
+                organizationId: members[0].organizationId 
+              });
+              
+              return {
+                data: {
+                  ...session,
+                  activeOrganizationId: members[0].organizationId
+                }
+              };
+            } else {
+              logger.info('No organizations found for user', { userId: session.userId });
+              return { data: session };
+            }
+          } catch (error) {
+            logger.error('Error setting active organization', { error, userId: session.userId });
+            return { data: session };
+          }
+        }
+      }
+    }
+  },
   account: {
     accountLinking: {
       enabled: true,
