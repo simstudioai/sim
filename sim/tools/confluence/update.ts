@@ -10,12 +10,6 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   oauth: {
     required: true,
     provider: 'confluence',
-    additionalScopes: [
-      'read:confluence-content.all',
-      'write:confluence-content',
-      'read:me',
-      'offline_access',
-    ],
   },
 
   params: {

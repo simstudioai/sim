@@ -190,10 +190,9 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         baseProviderIcon: (props) => ConfluenceIcon(props),
         scopes: [
           'read:page:confluence',
-          'read:confluence-content.all',
+          'write:page:confluence',
           'read:me',
           'offline_access',
-          'write:confluence-content',
         ],
       },
     },
