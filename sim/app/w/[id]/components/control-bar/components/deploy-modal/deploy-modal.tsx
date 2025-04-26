@@ -72,6 +72,7 @@ export function DeployModal({
   const [isChatDeploying, setIsChatDeploying] = useState(false)
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
+  const [chatExists, setChatExists] = useState(false)
 
   // Generate an example input format for the API request
   const getInputFormatExample = () => {
@@ -196,10 +197,14 @@ export function DeployModal({
     // Reset any previous errors
     setApiDeployError(null)
 
+    if (chatDeploy) {
+      // Immediately move to chat deployment step
+      setCurrentStep('chat')
+      return
+    }
+
     try {
-      if (!chatDeploy) {
-        setIsSubmitting(true)
-      }
+      setIsSubmitting(true)
 
       // Deploy the workflow with the selected API key
       const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
@@ -240,25 +245,13 @@ export function DeployModal({
 
       setDeploymentInfo(newDeploymentInfo)
 
-      if (chatDeploy) {
-        // Move to chat deployment step
-        setCurrentStep('chat')
-      } else {
-        // Show the deployment info view for regular deploy
-        setViewDeploymentInfo(true)
-      }
+      // Show the deployment info view for regular deploy
+      setViewDeploymentInfo(true)
 
       // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
-
-      if (chatDeploy) {
-        // If we fail during chat deploy, return to API step and show error
-        setCurrentStep('api')
-        setApiDeployError(error.message || 'Failed to deploy workflow for chat')
-      } else {
-        addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
-      }
+      addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
     } finally {
       setIsSubmitting(false)
     }
@@ -380,10 +373,14 @@ export function DeployModal({
       } else {
         logger.error('Chat deploy form not found in the DOM')
         setChatSubmitting(false)
+        // Go back to first step on error
+        setCurrentStep('api')
       }
     } catch (error) {
       logger.error('Error handling chat deployment submission:', error)
       setChatSubmitting(false) // Reset state if there's an error
+      // Go back to first step on error
+      setCurrentStep('api')
     }
   }
 
@@ -412,45 +409,48 @@ export function DeployModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="pt-4 px-6 pb-6">
-            {currentStep === 'api' &&
-              (viewDeploymentInfo ? (
-                <DeploymentInfo
-                  isLoading={isLoading}
-                  deploymentInfo={deploymentInfo}
-                  onRedeploy={handleRedeploy}
-                  onUndeploy={handleUndeploy}
-                  isSubmitting={isSubmitting}
-                  isUndeploying={isUndeploying}
-                />
-              ) : (
-                <>
-                  {apiDeployError && (
-                    <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
-                      <div className="font-semibold">API Deployment Error</div>
-                      <div>{apiDeployError}</div>
-                    </div>
-                  )}
-                  <DeployForm
-                    apiKeys={apiKeys}
-                    keysLoaded={keysLoaded}
-                    endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-                    workflowId={workflowId || ''}
-                    onSubmit={onDeploy}
-                    getInputFormatExample={getInputFormatExample}
-                    onApiKeyCreated={fetchApiKeys}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="overflow-y-auto">
+            <div className="pt-4 px-6 pb-6">
+              {currentStep === 'api' &&
+                (viewDeploymentInfo ? (
+                  <DeploymentInfo
+                    isLoading={isLoading}
+                    deploymentInfo={deploymentInfo}
+                    onRedeploy={handleRedeploy}
+                    onUndeploy={handleUndeploy}
+                    isSubmitting={isSubmitting}
+                    isUndeploying={isUndeploying}
                   />
-                </>
-              ))}
+                ) : (
+                  <>
+                    {apiDeployError && (
+                      <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+                        <div className="font-semibold">API Deployment Error</div>
+                        <div>{apiDeployError}</div>
+                      </div>
+                    )}
+                    <DeployForm
+                      apiKeys={apiKeys}
+                      keysLoaded={keysLoaded}
+                      endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                      workflowId={workflowId || ''}
+                      onSubmit={onDeploy}
+                      getInputFormatExample={getInputFormatExample}
+                      onApiKeyCreated={fetchApiKeys}
+                    />
+                  </>
+                ))}
 
-            {currentStep === 'chat' && (
-              <ChatDeploy
-                workflowId={workflowId || ''}
-                onClose={() => onOpenChange(false)}
-                deploymentInfo={deploymentInfo}
-              />
-            )}
+              {currentStep === 'chat' && (
+                <ChatDeploy
+                  workflowId={workflowId || ''}
+                  onClose={() => onOpenChange(false)}
+                  deploymentInfo={deploymentInfo}
+                  onChatExistsChange={setChatExists}
+                />
+              )}
+            </div>
           </div>
         </div>
 
@@ -474,14 +474,17 @@ export function DeployModal({
                     Deploying...
                   </>
                 ) : (
-                  'Deploy'
+                  'API Deploy'
                 )}
               </Button>
 
               <Button
                 type="button"
-                onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' }, true)}
-                disabled={isSubmitting || (!keysLoaded && !apiKeys.length)}
+                onClick={() => {
+                  // Immediately go to chat step
+                  onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' }, true)
+                }}
+                disabled={!keysLoaded && !apiKeys.length}
                 className={cn(
                   // Base styles
                   'gap-2 font-medium',
@@ -536,7 +539,7 @@ export function DeployModal({
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
                 )}
               >
-                Deploy Chat
+                {chatExists ? 'Update Chat' : 'Deploy Chat'}
               </Button>
             </div>
           </div>

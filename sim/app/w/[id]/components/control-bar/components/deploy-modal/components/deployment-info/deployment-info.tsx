@@ -15,10 +15,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { LoadingAgent } from '@/components/ui/loading-agent'
-import { ApiEndpoint } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/api-endpoint/api-endpoint'
-import { ApiKey } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/api-key/api-key'
 import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-status/deploy-status'
-import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/example-command/example-command'
+import { ApiEndpoint } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-endpoint/api-endpoint'
+import { ApiKey } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
+import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
 
 interface DeploymentInfoProps {
   isLoading: boolean
@@ -64,7 +64,7 @@ export function DeploymentInfo({
   }
 
   return (
-    <div className="space-y-5 px-1">
+    <div className="space-y-5 px-1 overflow-y-auto">
       <ApiEndpoint endpoint={deploymentInfo.endpoint} />
       <ApiKey apiKey={deploymentInfo.apiKey} />
       <ExampleCommand command={deploymentInfo.exampleCommand} apiKey={deploymentInfo.apiKey} />

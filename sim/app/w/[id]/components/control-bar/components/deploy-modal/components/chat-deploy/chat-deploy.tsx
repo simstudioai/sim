@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
@@ -43,6 +44,7 @@ interface ChatDeployProps {
   deploymentInfo: {
     apiKey: string
   } | null
+  onChatExistsChange?: (exists: boolean) => void
 }
 
 type AuthType = 'public' | 'password' | 'email'
@@ -69,7 +71,12 @@ const chatSchema = z.object({
   outputPath: z.string().nullish(),
 })
 
-export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployProps) {
+export function ChatDeploy({
+  workflowId,
+  onClose,
+  deploymentInfo,
+  onChatExistsChange,
+}: ChatDeployProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
 
@@ -202,6 +209,11 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             const chatDetail = await detailResponse.json()
             setExistingChat(chatDetail)
 
+            // Notify parent component that a chat exists
+            if (onChatExistsChange) {
+              onChatExistsChange(true)
+            }
+
             // Populate form with existing data
             setSubdomain(chatDetail.subdomain || '')
             setTitle(chatDetail.title || '')
@@ -236,6 +248,11 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
         } else {
           setExistingChat(null)
           setOriginalValues(null)
+
+          // Notify parent component that no chat exists
+          if (onChatExistsChange) {
+            onChatExistsChange(false)
+          }
         }
       }
     } catch (error) {
@@ -647,9 +664,44 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
   if (isLoading) {
     return (
-      <div className="py-4 flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading chat information...</p>
+      <div className="space-y-4 py-3">
+        {/* Subdomain section */}
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-24" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+
+        {/* Title section */}
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+
+        {/* Description section */}
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+
+        {/* Output configuration section */}
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-32 w-full rounded-lg" />
+        </div>
+
+        {/* Access control section */}
+        <div className="space-y-2">
+          <Skeleton className="h-5 w-28" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+          </div>
+          <Skeleton className="h-40 w-full rounded-lg" />
+        </div>
+
+        {/* Submit button */}
+        <Skeleton className="h-10 w-32" />
       </div>
     )
   }
@@ -722,7 +774,7 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
           e.preventDefault() // Prevent default form submission
           handleSubmit(e) // Call our submit handler directly
         }}
-        className="space-y-4 chat-deploy-form"
+        className="space-y-4 chat-deploy-form overflow-y-auto"
       >
         <div className="grid gap-4">
           {errorMessage && (
@@ -806,43 +858,38 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             </div>
           </div>
 
-          {/* Output Configuration - moved above Access Control */}
-          <div className="space-y-3">
+          {/* Output Configuration */}
+          <div className="space-y-2">
             <div>
-              <Label className="text-sm font-medium">Output Configuration</Label>
+              <Label className="text-sm font-medium">Chat Output</Label>
             </div>
 
-            <Card className="border-border/40">
-              <CardContent className="p-4 space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Output Block</h3>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Select which block's output to return to the user in the chat interface.
-                  </p>
-                  <div className="block w-full">
-                    <OutputSelect
-                      workflowId={workflowId}
-                      selectedOutput={selectedOutputBlock}
-                      onOutputSelect={(value) => {
-                        logger.info(`Output block selection changed to: ${value}`)
-                        setSelectedOutputBlock(value)
+            <Card className="border-input rounded-md shadow-none">
+              <CardContent className="p-1">
+                <OutputSelect
+                  workflowId={workflowId}
+                  selectedOutput={selectedOutputBlock}
+                  onOutputSelect={(value) => {
+                    logger.info(`Output block selection changed to: ${value}`)
+                    setSelectedOutputBlock(value)
 
-                        // Mark as changed to enable update button
-                        if (existingChat) {
-                          setHasChanges(true)
-                        }
-                      }}
-                      placeholder="Select which block output to use"
-                      disabled={isDeploying}
-                    />
-                  </div>
-                </div>
+                    // Mark as changed to enable update button
+                    if (existingChat) {
+                      setHasChanges(true)
+                    }
+                  }}
+                  placeholder="Select which block output to use"
+                  disabled={isDeploying}
+                />
               </CardContent>
             </Card>
+            <p className="text-xs text-muted-foreground mt-2">
+              Select which block's output to return to the user in the chat interface
+            </p>
           </div>
 
           {/* Authentication Options */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div>
               <Label className="text-sm font-medium">Access Control</Label>
             </div>
@@ -850,24 +897,17 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
-                  authType === 'public' ? 'border-primary bg-primary/5' : 'border-border'
+                  'cursor-pointer overflow-hidden border shadow-none transition-colors hover:border-primary/50',
+                  authType === 'public' ? 'border-primary bg-primary/5' : 'border-input'
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
+                <CardContent className="p-3 flex flex-col items-center text-center space-y-2 relative">
                   <button
                     type="button"
                     className="w-full h-full absolute inset-0 cursor-pointer z-10"
                     onClick={() => !isDeploying && setAuthType('public')}
                     aria-label="Select public access"
                   />
-                  <div className="h-5 w-5 flex items-center justify-center mb-1 relative z-0">
-                    {authType === 'public' ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : (
-                      <Circle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
                   <div className="relative z-0">
                     <h3 className="font-medium text-sm">Public Access</h3>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -879,24 +919,17 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
-                  authType === 'password' ? 'border-primary bg-primary/5' : 'border-border'
+                  'cursor-pointer overflow-hidden border shadow-none transition-colors hover:border-primary/50',
+                  authType === 'password' ? 'border-primary bg-primary/5' : 'border-input'
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
+                <CardContent className="p-3 flex flex-col items-center text-center space-y-2 relative">
                   <button
                     type="button"
                     className="w-full h-full absolute inset-0 cursor-pointer z-10"
                     onClick={() => !isDeploying && setAuthType('password')}
                     aria-label="Select password protected access"
                   />
-                  <div className="h-5 w-5 flex items-center justify-center mb-1 relative z-0">
-                    {authType === 'password' ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : (
-                      <Circle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
                   <div className="relative z-0">
                     <h3 className="font-medium text-sm">Password Protected</h3>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -908,24 +941,17 @@ export function ChatDeploy({ workflowId, onClose, deploymentInfo }: ChatDeployPr
 
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden border transition-colors hover:border-primary/50',
-                  authType === 'email' ? 'border-primary bg-primary/5' : 'border-border'
+                  'cursor-pointer overflow-hidden border shadow-none transition-colors hover:border-primary/50',
+                  authType === 'email' ? 'border-primary bg-primary/5' : 'border-input'
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center text-center space-y-2 relative">
+                <CardContent className="p-3 flex flex-col items-center text-center space-y-2 relative">
                   <button
                     type="button"
                     className="w-full h-full absolute inset-0 cursor-pointer z-10"
                     onClick={() => !isDeploying && setAuthType('email')}
                     aria-label="Select email access"
                   />
-                  <div className="h-5 w-5 flex items-center justify-center mb-1 relative z-0">
-                    {authType === 'email' ? (
-                      <Check className="h-4 w-4 text-primary" />
-                    ) : (
-                      <Circle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
                   <div className="relative z-0">
                     <h3 className="font-medium text-sm">Email Access</h3>
                     <p className="text-xs text-muted-foreground mt-1">
