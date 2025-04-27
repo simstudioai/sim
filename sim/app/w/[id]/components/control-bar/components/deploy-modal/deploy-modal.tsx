@@ -495,7 +495,6 @@ export function DeployModal({
     }
   }
 
-  // Add a callback function to reset chat submission state
   const handleChatDeploymentComplete = () => {
     setChatSubmitting(false);
   };

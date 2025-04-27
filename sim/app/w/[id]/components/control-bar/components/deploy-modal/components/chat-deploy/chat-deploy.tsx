@@ -706,12 +706,10 @@ export function ChatDeploy({
         logger.info(`Chat ${existingChat ? 'updated' : 'deployed'} successfully:`, chatUrl)
         setDeployedChatUrl(chatUrl)
         
-        // Notify parent component that deployment is complete
         if (onDeploymentComplete) {
           onDeploymentComplete()
         }
         
-        // Notify parent that chat exists
         if (onChatExistsChange) {
           onChatExistsChange(true)
         }
