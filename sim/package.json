@@ -56,7 +56,7 @@
     "@vercel/og": "^0.6.5",
     "@vercel/speed-insights": "^1.2.0",
     "ai": "^4.3.2",
-    "better-auth": "^1.2.5-beta.5",
+    "better-auth": "^1.2.7",
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

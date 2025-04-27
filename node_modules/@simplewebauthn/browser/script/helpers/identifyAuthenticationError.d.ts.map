@@ -1,0 +1,1 @@
+{"version":3,"file":"identifyAuthenticationError.d.ts","sourceRoot":"","sources":["../../src/helpers/identifyAuthenticationError.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,aAAa,EAAE,MAAM,oBAAoB,CAAC;AAEnD;;GAEG;AACH,wBAAgB,2BAA2B,CAAC,EAC1C,KAAK,EACL,OAAO,GACR,EAAE;IACD,KAAK,EAAE,KAAK,CAAC;IACb,OAAO,EAAE,wBAAwB,CAAC;CACnC,GAAG,aAAa,GAAG,KAAK,CAuDxB"}

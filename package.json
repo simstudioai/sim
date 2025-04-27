@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "better-auth": "https://pkg.pr.new/better-auth/better-auth@2460"
+  }
+}
