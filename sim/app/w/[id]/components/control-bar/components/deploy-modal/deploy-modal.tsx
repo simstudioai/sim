@@ -1,9 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { Info, Loader2, X } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { CopyButton } from '@/components/ui/copy-button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { TabsContent } from '@/components/ui/tabs'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -46,7 +60,7 @@ interface DeployFormValues {
   newKeyName?: string
 }
 
-type DeployStep = 'api' | 'chat'
+type TabView = 'api' | 'chat'
 
 export function DeployModal({
   open,
@@ -67,12 +81,13 @@ export function DeployModal({
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [keysLoaded, setKeysLoaded] = useState(false)
-  const [viewDeploymentInfo, setViewDeploymentInfo] = useState(false)
-  const [currentStep, setCurrentStep] = useState<DeployStep>('api')
+  const [activeTab, setActiveTab] = useState<TabView>('api')
   const [isChatDeploying, setIsChatDeploying] = useState(false)
   const [chatSubmitting, setChatSubmitting] = useState(false)
   const [apiDeployError, setApiDeployError] = useState<string | null>(null)
   const [chatExists, setChatExists] = useState(false)
+  const [deployedChatUrl, setDeployedChatUrl] = useState<string | null>(null)
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
 
   // Generate an example input format for the API request
   const getInputFormatExample = () => {
@@ -138,11 +153,44 @@ export function DeployModal({
     }
   }
 
+  // Fetch chat deployment info when modal opens
+  const fetchChatDeploymentInfo = async () => {
+    if (!open || !workflowId) return
+
+    try {
+      setIsLoading(true)
+      const response = await fetch(`/api/workflows/${workflowId}/chat/status`)
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.isDeployed && data.deployment && data.deployment.chatUrl) {
+          setDeployedChatUrl(data.deployment.chatUrl)
+          setChatExists(true)
+        } else {
+          setDeployedChatUrl(null)
+          setChatExists(false)
+        }
+      } else {
+        setDeployedChatUrl(null)
+        setChatExists(false)
+      }
+    } catch (error) {
+      logger.error('Error fetching chat deployment info:', { error })
+      setDeployedChatUrl(null)
+      setChatExists(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   // Call fetchApiKeys when the modal opens
   useEffect(() => {
     if (open) {
+      // Set loading state immediately when modal opens
+      setIsLoading(true)
       fetchApiKeys()
-      setCurrentStep('api')
+      fetchChatDeploymentInfo()
+      setActiveTab('api')
     }
   }, [open, workflowId])
 
@@ -151,6 +199,10 @@ export function DeployModal({
     async function fetchDeploymentInfo() {
       if (!open || !workflowId || !isDeployed) {
         setDeploymentInfo(null)
+        // Only reset loading if modal is closed
+        if (!open) {
+          setIsLoading(false)
+        }
         return
       }
 
@@ -188,7 +240,7 @@ export function DeployModal({
   }, [open, workflowId, isDeployed, addNotification, needsRedeployment])
 
   // Handle form submission for deployment
-  const onDeploy = async (data: DeployFormValues, chatDeploy = false) => {
+  const onDeploy = async (data: DeployFormValues) => {
     if (!workflowId) {
       addNotification('error', 'No active workflow to deploy', null)
       return
@@ -196,12 +248,6 @@ export function DeployModal({
 
     // Reset any previous errors
     setApiDeployError(null)
-
-    if (chatDeploy) {
-      // Immediately move to chat deployment step
-      setCurrentStep('chat')
-      return
-    }
 
     try {
       setIsSubmitting(true)
@@ -214,6 +260,7 @@ export function DeployModal({
         },
         body: JSON.stringify({
           apiKey: data.apiKey,
+          deployChatEnabled: false, // Separate chat deployment
         }),
       })
 
@@ -244,9 +291,6 @@ export function DeployModal({
       }
 
       setDeploymentInfo(newDeploymentInfo)
-
-      // Show the deployment info view for regular deploy
-      setViewDeploymentInfo(true)
 
       // No notification on successful deploy
     } catch (error: any) {
@@ -279,6 +323,10 @@ export function DeployModal({
       // Update deployment status in the store
       setDeploymentStatus(false)
 
+      // Reset chat deployment info
+      setDeployedChatUrl(null)
+      setChatExists(false)
+
       // Add a success notification
       addNotification('info', 'Workflow successfully undeployed', workflowId)
 
@@ -304,6 +352,12 @@ export function DeployModal({
 
       const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deployChatEnabled: false, // Separate chat deployment
+        }),
       })
 
       if (!response.ok) {
@@ -321,66 +375,11 @@ export function DeployModal({
 
       // Add a success notification
       addNotification('info', 'Workflow successfully redeployed', workflowId)
-
-      // Close the modal
-      onOpenChange(false)
     } catch (error: any) {
       logger.error('Error redeploying workflow:', { error })
       addNotification('error', `Failed to redeploy workflow: ${error.message}`, workflowId)
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  // Reset view when modal is closed or reopened
-  useEffect(() => {
-    if (!open) {
-      setViewDeploymentInfo(!!isDeployed)
-      setCurrentStep('api')
-      // Reset loading states when modal is closed
-      setIsSubmitting(false)
-      setIsChatDeploying(false)
-      setChatSubmitting(false)
-    } else if (open && isDeployed) {
-      setViewDeploymentInfo(true)
-      // Also reset when reopening
-      setIsSubmitting(false)
-      setIsChatDeploying(false)
-      setChatSubmitting(false)
-    }
-  }, [open, isDeployed])
-
-  // Render title based on current step
-  const renderTitle = () => {
-    if (currentStep === 'chat') {
-      return 'Deploy Workflow as Chat'
-    }
-    return viewDeploymentInfo ? 'API Deployment' : 'Deploy Workflow'
-  }
-
-  // Handle chat deployment submission
-  const handleChatDeploySubmit = async () => {
-    if (chatSubmitting) return // Prevent multiple submissions
-
-    setChatSubmitting(true)
-    try {
-      // Find the ChatDeploy component and extract the form data
-      const chatDeployForm = document.querySelector('.chat-deploy-form') as HTMLFormElement
-
-      if (chatDeployForm) {
-        // Submit the form directly
-        chatDeployForm.requestSubmit()
-      } else {
-        logger.error('Chat deploy form not found in the DOM')
-        setChatSubmitting(false)
-        // Go back to first step on error
-        setCurrentStep('api')
-      }
-    } catch (error) {
-      logger.error('Error handling chat deployment submission:', error)
-      setChatSubmitting(false) // Reset state if there's an error
-      // Go back to first step on error
-      setCurrentStep('api')
     }
   }
 
@@ -393,6 +392,145 @@ export function DeployModal({
     onOpenChange(false)
   }
 
+  // Add a new handler for chat undeploy
+  const handleChatUndeploy = async () => {
+    if (!workflowId) {
+      addNotification('error', 'No active workflow to undeploy chat', null)
+      return
+    }
+
+    try {
+      setIsUndeploying(true)
+
+      // First get the chat deployment info
+      const response = await fetch(`/api/workflows/${workflowId}/chat/status`)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to get chat info')
+      }
+
+      const data = await response.json()
+
+      if (!data.isDeployed || !data.deployment || !data.deployment.id) {
+        throw new Error('No active chat deployment found')
+      }
+
+      // Delete the chat
+      const deleteResponse = await fetch(`/api/chat/edit/${data.deployment.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!deleteResponse.ok) {
+        const errorData = await deleteResponse.json()
+        throw new Error(errorData.error || 'Failed to undeploy chat')
+      }
+
+      // Reset chat deployment info
+      setDeployedChatUrl(null)
+      setChatExists(false)
+
+      // Add a success notification
+      addNotification('info', 'Chat successfully undeployed', workflowId)
+
+      // Close the modal
+      onOpenChange(false)
+    } catch (error: any) {
+      logger.error('Error undeploying chat:', { error })
+      addNotification('error', `Failed to undeploy chat: ${error.message}`, workflowId)
+    } finally {
+      setIsUndeploying(false)
+      setShowDeleteConfirmation(false)
+    }
+  }
+
+  // Find or create appropriate method to handle chat deployment
+  const handleChatSubmit = async () => {
+    if (!workflowId) {
+      addNotification('error', 'No active workflow to deploy', null)
+      return
+    }
+
+    // Check if workflow is deployed
+    if (!isDeployed) {
+      // Deploy workflow first
+      try {
+        setChatSubmitting(true)
+
+        // Call the API to deploy the workflow
+        const response = await fetch(`/api/workflows/${workflowId}/deploy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            deployApiEnabled: true,
+            deployChatEnabled: false,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to deploy workflow')
+        }
+
+        const { isDeployed: newDeployStatus, deployedAt } = await response.json()
+
+        // Update the store with the deployment status
+        setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+
+        logger.info('Workflow automatically deployed for chat deployment')
+      } catch (error: any) {
+        logger.error('Error auto-deploying workflow for chat:', { error })
+        addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
+        setChatSubmitting(false)
+        return
+      }
+    }
+
+    // Now submit the chat deploy form
+    const form = document.querySelector('.chat-deploy-form') as HTMLFormElement
+    if (form) {
+      form.requestSubmit()
+    }
+  }
+
+  // Render deployed chat view
+  const renderDeployedChatView = () => {
+    if (!deployedChatUrl) {
+      return (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <div className="flex flex-col items-center gap-2">
+            <Info className="h-5 w-5" />
+            <p className="text-sm">No chat deployment information available</p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-4">
+        <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20">
+          <CardContent className="p-6 text-green-800 dark:text-green-400">
+            <h3 className="text-base font-medium mb-2">Chat Deployment Active</h3>
+            <p className="mb-3">Your chat is available at:</p>
+            <div className="bg-white/50 dark:bg-gray-900/50 p-3 rounded-md border border-green-200 dark:border-green-900/50 relative group">
+              <a
+                href={deployedChatUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-primary underline break-all block pr-8"
+              >
+                {deployedChatUrl}
+              </a>
+              <CopyButton text={deployedChatUrl || ''} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleCloseModal}>
       <DialogContent
@@ -401,7 +539,7 @@ export function DeployModal({
       >
         <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">{renderTitle()}</DialogTitle>
+            <DialogTitle className="text-lg font-medium">Deploy Workflow</DialogTitle>
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleCloseModal}>
               <X className="h-4 w-4" />
               <span className="sr-only">Close</span>
@@ -410,136 +548,180 @@ export function DeployModal({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="overflow-y-auto">
-            <div className="pt-4 px-6 pb-6">
-              {currentStep === 'api' &&
-                (viewDeploymentInfo ? (
-                  <DeploymentInfo
-                    isLoading={isLoading}
-                    deploymentInfo={deploymentInfo}
-                    onRedeploy={handleRedeploy}
-                    onUndeploy={handleUndeploy}
-                    isSubmitting={isSubmitting}
-                    isUndeploying={isUndeploying}
-                  />
-                ) : (
-                  <>
-                    {apiDeployError && (
-                      <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
-                        <div className="font-semibold">API Deployment Error</div>
-                        <div>{apiDeployError}</div>
-                      </div>
-                    )}
-                    <DeployForm
-                      apiKeys={apiKeys}
-                      keysLoaded={keysLoaded}
-                      endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-                      workflowId={workflowId || ''}
-                      onSubmit={onDeploy}
-                      getInputFormatExample={getInputFormatExample}
-                      onApiKeyCreated={fetchApiKeys}
-                    />
-                  </>
-                ))}
+          <div className="flex-none flex items-center h-14 px-6 border-b">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setActiveTab('api')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  activeTab === 'api'
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                }`}
+              >
+                API
+              </button>
+              <button
+                onClick={() => setActiveTab('chat')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                  activeTab === 'chat'
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                }`}
+              >
+                Chat
+              </button>
+            </div>
+          </div>
 
-              {currentStep === 'chat' && (
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {activeTab === 'api' && (
+                <>
+                  {isDeployed ? (
+                    <DeploymentInfo
+                      isLoading={isLoading}
+                      deploymentInfo={deploymentInfo}
+                      onRedeploy={handleRedeploy}
+                      onUndeploy={handleUndeploy}
+                      isSubmitting={isSubmitting}
+                      isUndeploying={isUndeploying}
+                    />
+                  ) : (
+                    <>
+                      {apiDeployError && (
+                        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+                          <div className="font-semibold">API Deployment Error</div>
+                          <div>{apiDeployError}</div>
+                        </div>
+                      )}
+                      <div className="px-1 -mx-1">
+                        <DeployForm
+                          apiKeys={apiKeys}
+                          keysLoaded={keysLoaded}
+                          endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                          workflowId={workflowId || ''}
+                          onSubmit={onDeploy}
+                          getInputFormatExample={getInputFormatExample}
+                          onApiKeyCreated={fetchApiKeys}
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'chat' && (
                 <ChatDeploy
                   workflowId={workflowId || ''}
                   onClose={() => onOpenChange(false)}
                   deploymentInfo={deploymentInfo}
                   onChatExistsChange={setChatExists}
+                  showDeleteConfirmation={showDeleteConfirmation}
+                  setShowDeleteConfirmation={setShowDeleteConfirmation}
                 />
               )}
             </div>
           </div>
         </div>
 
-        {/* Footer buttons - always visible for both steps */}
-        {currentStep === 'api' && !viewDeploymentInfo && (
+        {/* Footer buttons */}
+        {activeTab === 'api' && !isDeployed && (
+          <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
+            <Button variant="outline" onClick={handleCloseModal}>
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' })}
+              disabled={isSubmitting || (!keysLoaded && !apiKeys.length) || isChatDeploying}
+              className={cn(
+                'gap-2 font-medium',
+                'bg-[#802FFF] hover:bg-[#7028E6]',
+                'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                'text-white transition-all duration-200',
+                'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+              )}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  Deploying...
+                </>
+              ) : (
+                'Deploy API'
+              )}
+            </Button>
+          </div>
+        )}
+
+        {activeTab === 'chat' && (
           <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
             <Button variant="outline" onClick={handleCloseModal}>
               Cancel
             </Button>
 
             <div className="flex gap-2">
+              {chatExists && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={chatSubmitting || isUndeploying}>
+                      {isUndeploying ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                          Undeploying...
+                        </>
+                      ) : (
+                        'Delete'
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Chat</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete this chat? This will remove the chat
+                        interface and make it unavailable to external users.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleChatUndeploy}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
               <Button
                 type="button"
-                onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' })}
-                disabled={isSubmitting || (!keysLoaded && !apiKeys.length) || isChatDeploying}
-                variant="outline"
+                onClick={handleChatSubmit}
+                disabled={chatSubmitting}
+                className={cn(
+                  'gap-2 font-medium',
+                  'bg-[#802FFF] hover:bg-[#7028E6]',
+                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                  'text-white transition-all duration-200',
+                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                )}
               >
-                {isSubmitting ? (
+                {chatSubmitting ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                    Deploying...
+                    {isDeployed
+                      ? chatExists
+                        ? 'Updating...'
+                        : 'Deploying...'
+                      : 'Deploying Workflow...'}
                   </>
+                ) : chatExists ? (
+                  'Update'
                 ) : (
-                  'API Deploy'
+                  'Deploy Chat'
                 )}
-              </Button>
-
-              <Button
-                type="button"
-                onClick={() => {
-                  // Immediately go to chat step
-                  onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' }, true)
-                }}
-                disabled={!keysLoaded && !apiKeys.length}
-                className={cn(
-                  // Base styles
-                  'gap-2 font-medium',
-                  // Brand color with hover states
-                  'bg-[#802FFF] hover:bg-[#7028E6]',
-                  // Hover effect with brand color
-                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                  // Text color and transitions
-                  'text-white transition-all duration-200',
-                  // Disabled state
-                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
-                )}
-              >
-                Chat Deploy
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 'chat' && (
-          <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
-            <Button variant="outline" onClick={handleCloseModal} type="button">
-              Cancel
-            </Button>
-
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setChatSubmitting(false) // Reset state when going back
-                  setCurrentStep('api')
-                }}
-                disabled={chatSubmitting}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                onClick={handleChatDeploySubmit}
-                disabled={chatSubmitting}
-                className={cn(
-                  // Base styles
-                  'gap-2 font-medium',
-                  // Brand color with hover states
-                  'bg-[#802FFF] hover:bg-[#7028E6]',
-                  // Hover effect with brand color
-                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                  // Text color and transitions
-                  'text-white transition-all duration-200',
-                  // Disabled state
-                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
-                )}
-              >
-                {chatExists ? 'Update Chat' : 'Deploy Chat'}
               </Button>
             </div>
           </div>
