@@ -1,11 +1,11 @@
-import { and, count, desc, eq, like, or, SQL } from 'drizzle-orm'
+import { and, count, desc, eq, like, or, SQL, inArray } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import {
   getEmailSubject,
   renderWaitlistApprovalEmail,
   renderWaitlistConfirmationEmail,
 } from '@/components/emails/render-email'
-import { sendEmail } from '@/lib/mailer'
+import { sendEmail, sendBatchEmails } from '@/lib/mailer'
 import { createToken, verifyToken } from '@/lib/waitlist/token'
 import { db } from '@/db'
 import { waitlist } from '@/db/schema'
@@ -488,6 +488,162 @@ export async function resendApprovalEmail(
     return {
       success: false,
       message: 'An error occurred while resending approval email',
+    }
+  }
+}
+
+// Approve multiple users from the waitlist and send approval emails in batches
+export async function approveBatchWaitlistUsers(
+  emails: string[]
+): Promise<{ 
+  success: boolean 
+  message: string 
+  results: Array<{ email: string, success: boolean, message: string }>
+  emailErrors?: any 
+  rateLimited?: boolean
+}> {
+  try {
+    if (!emails || emails.length === 0) {
+      return {
+        success: false,
+        message: 'No emails provided for batch approval',
+        results: [],
+      }
+    }
+
+    // Fetch all users from the waitlist that match the emails
+    const normalizedEmails = emails.map(email => email.trim().toLowerCase())
+    
+    const users = await db
+      .select()
+      .from(waitlist)
+      .where(
+        and(
+          inArray(waitlist.email, normalizedEmails),
+          // Only select users who aren't already approved
+          or(
+            eq(waitlist.status, 'pending'),
+            eq(waitlist.status, 'rejected')
+          )
+        )
+      )
+
+    if (users.length === 0) {
+      return {
+        success: false,
+        message: 'No valid users found for approval',
+        results: emails.map(email => ({
+          email,
+          success: false,
+          message: 'User not found or already approved',
+        })),
+      }
+    }
+
+    // Create email options for each user
+    const emailOptions = await Promise.all(
+      users.map(async user => {
+        // Create a special signup token
+        const token = await createToken({
+          email: user.email,
+          type: 'waitlist-approval',
+          expiresIn: '7d',
+        })
+
+        // Generate signup link with token
+        const signupLink = `${process.env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
+
+        // Generate email HTML
+        const emailHtml = await renderWaitlistApprovalEmail(user.email, signupLink)
+        const subject = getEmailSubject('waitlist-approval')
+
+        return {
+          to: user.email,
+          subject,
+          html: emailHtml,
+        }
+      })
+    )
+
+    // Send batch emails
+    const emailResults = await sendBatchEmails({ emails: emailOptions })
+
+    // Process results and update database
+    const results = users.map((user, index) => {
+      const emailResult = emailResults.results[index]
+      
+      if (emailResult?.success) {
+        // Update user status to approved in database
+        return {
+          email: user.email,
+          success: true,
+          message: 'User approved and email sent successfully',
+          data: emailResult.data,
+        }
+      } else {
+        return {
+          email: user.email,
+          success: false,
+          message: emailResult?.message || 'Failed to send approval email',
+          error: emailResult,
+        }
+      }
+    })
+
+    // Update approved users in the database
+    const successfulEmails = results
+      .filter(result => result.success)
+      .map(result => result.email)
+
+    if (successfulEmails.length > 0) {
+      await db
+        .update(waitlist)
+        .set({
+          status: 'approved',
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            inArray(waitlist.email, successfulEmails),
+            // Only update users who aren't already approved
+            or(
+              eq(waitlist.status, 'pending'),
+              eq(waitlist.status, 'rejected')
+            )
+          )
+        )
+    }
+
+    // Check if any rate limit errors occurred
+    const rateLimitError = emailResults.results.some(
+      (result: { message?: string }) => 
+        result.message?.toLowerCase().includes('rate') || 
+        result.message?.toLowerCase().includes('too many') ||
+        result.message?.toLowerCase().includes('limit')
+    )
+
+    return {
+      success: successfulEmails.length > 0,
+      message: successfulEmails.length === users.length 
+        ? 'All users approved successfully' 
+        : successfulEmails.length > 0 
+          ? 'Some users approved successfully' 
+          : 'Failed to approve any users',
+      results: results.map(({ email, success, message }: { email: string; success: boolean; message: string }) => 
+        ({ email, success, message })),
+      emailErrors: emailResults.results.some((r: { success: boolean }) => !r.success),
+      rateLimited: rateLimitError,
+    }
+  } catch (error) {
+    console.error('Error approving batch waitlist users:', error)
+    return {
+      success: false,
+      message: 'An error occurred while approving users',
+      results: emails.map(email => ({
+        email,
+        success: false,
+        message: 'Operation failed due to server error',
+      })),
     }
   }
 }
