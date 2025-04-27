@@ -17,6 +17,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -47,6 +48,7 @@ function WorkflowContent() {
   // State
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
 
   // Hooks
   const params = useParams()
@@ -473,7 +475,9 @@ function WorkflowContent() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden">
+    <div
+      className={`flex flex-col h-screen w-full overflow-hidden ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+    >
       <ControlBar />
       <Toolbar />
       <Panel />

@@ -4,15 +4,28 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
-import { HelpCircle, Plus, ScrollText, Settings } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  Home,
+  PanelRight,
+  PenLine,
+  ScrollText,
+  Settings,
+  Store,
+} from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { HelpModal } from './components/help-modal/help-modal'
+import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
-import { WorkflowFolders } from './components/workflow-folders/workflow-folders'
+import { WorkflowList } from './components/workflow-list/workflow-list'
+import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
   const { workflows, createWorkflow } = useWorkflowRegistry()
@@ -20,6 +33,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const { isCollapsed, toggleCollapsed } = useSidebarStore()
 
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
@@ -83,127 +97,171 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
-      {/* Top navigation - Logo and Add button */}
-      <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-5">
-        {/* Sim Studio Logo */}
-        <Link
-          href="/w/1"
-          className="group flex h-8 w-8 items-center justify-center rounded-lg bg-[#802FFF]"
-        >
-          <AgentIcon className="text-white transition-all group-hover:scale-110 -translate-y-[0.5px] w-5 h-5" />
-          <span className="sr-only">Sim Studio</span>
-        </Link>
+    <aside
+      className={clsx(
+        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-all duration-200',
+        isCollapsed ? 'w-14' : 'w-60'
+      )}
+    >
+      {/* Workspace Header */}
+      <WorkspaceHeader onCreateWorkflow={handleCreateWorkflow} isCollapsed={isCollapsed} />
 
-        {/* Add Workflow */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCreateWorkflow}
-              className="h-9 w-9 md:h-8 md:w-8"
-            >
-              <Plus className="h-5 w-5" />
-              <span className="sr-only">Add Workflow</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Add Workflow</TooltipContent>
-        </Tooltip>
-      </nav>
-
-      {/* Workflow sections - This area scrolls */}
-      <div className="flex-1 overflow-y-auto px-2 scrollbar-none">
-        <div className="pb-2">
-          <WorkflowFolders
-            regularWorkflows={regularWorkflows}
-            marketplaceWorkflows={tempWorkflows}
+      {/* Main navigation and content - This area scrolls */}
+      <div className="flex-1 overflow-y-auto px-2 pt-1 pb-2 scrollbar-none">
+        {/* Main Navigation */}
+        <NavSection>
+          <NavSection.Item
+            icon={<Home className="h-[18px] w-[18px]" />}
+            href="/w/1"
+            label="Home"
+            active={pathname === '/w/1'}
+            isCollapsed={isCollapsed}
           />
+          <NavSection.Item
+            icon={<PanelRight className="h-[18px] w-[18px]" />}
+            href="/w/templates"
+            label="Templates"
+            active={pathname === '/w/templates'}
+            isCollapsed={isCollapsed}
+          />
+          <NavSection.Item
+            icon={<Store className="h-[18px] w-[18px]" />}
+            href="/w/marketplace"
+            label="Marketplace"
+            active={pathname === '/w/marketplace'}
+            isCollapsed={isCollapsed}
+          />
+        </NavSection>
+
+        {/* Workflows Section */}
+        <div className="mt-6">
+          <h2
+            className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${isCollapsed ? 'text-center' : ''}`}
+          >
+            {isCollapsed ? '' : 'Workflows'}
+          </h2>
+          {isCollapsed ? (
+            <div className="space-y-1 px-2">
+              {regularWorkflows.map((workflow) => {
+                // Generate a deterministic color based on workflow id
+                const getWorkflowColor = (id: string) => {
+                  const colors = [
+                    'bg-blue-500',
+                    'bg-green-500',
+                    'bg-yellow-500',
+                    'bg-purple-500',
+                    'bg-pink-500',
+                    'bg-indigo-500',
+                    'bg-red-500',
+                    'bg-orange-500',
+                  ]
+
+                  // Simple hash function to get a stable index
+                  const hash = id.split('').reduce((acc, char) => {
+                    return char.charCodeAt(0) + ((acc << 5) - acc)
+                  }, 0)
+
+                  const index = Math.abs(hash) % colors.length
+                  return colors[index]
+                }
+
+                return (
+                  <Link
+                    key={workflow.id}
+                    href={`/w/${workflow.id}`}
+                    className={clsx(
+                      'flex w-full items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground',
+                      pathname === `/w/${workflow.id}` ? 'bg-accent' : 'hover:bg-accent/50'
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        'h-3 w-3 rounded flex-shrink-0',
+                        getWorkflowColor(workflow.id)
+                      )}
+                    />
+                  </Link>
+                )
+              })}
+            </div>
+          ) : (
+            <WorkflowList
+              regularWorkflows={regularWorkflows}
+              marketplaceWorkflows={tempWorkflows}
+            />
+          )}
+        </div>
+
+        {/* Logs and Settings Navigation - Moved here from bottom */}
+        <div className="mt-6">
+          <NavSection>
+            <NavSection.Item
+              icon={<ScrollText className="h-[18px] w-[18px]" />}
+              href="/w/logs"
+              label="Logs"
+              active={pathname === '/w/logs'}
+              isCollapsed={isCollapsed}
+            />
+            <NavSection.Item
+              icon={<Settings className="h-[18px] w-[18px]" />}
+              onClick={() => setShowSettings(true)}
+              label="Settings"
+              isCollapsed={isCollapsed}
+            />
+          </NavSection>
         </div>
       </div>
 
-      {/* Bottom navigation - Always visible */}
-      <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-[18px]">
-        {/* Marketplace */}
-        {/* <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-                {
-                  'bg-accent': pathname === '/w/marketplace',
-                }
-              )}
-            >
-              <Link href="/w/marketplace">
-                <Store className="!h-5 !w-5" />
-                <span className="sr-only">Marketplace</span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Marketplace</TooltipContent>
-        </Tooltip> */}
+      {/* Bottom buttons container */}
+      <div className="flex-shrink-0 px-2 py-3">
+        {isCollapsed ? (
+          <div className="flex flex-col gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  onClick={() => setShowHelp(true)}
+                  className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                >
+                  <HelpCircle className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Help</TooltipContent>
+            </Tooltip>
 
-        {/* Logs */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-                {
-                  'bg-accent': pathname === '/w/logs',
-                }
-              )}
-            >
-              <Link href="/w/logs">
-                <ScrollText className="!h-5 !w-5" />
-                <span className="sr-only">Logs</span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Logs</TooltipContent>
-        </Tooltip>
-
-        {/* Help & Support */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  onClick={toggleCollapsed}
+                  className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                >
+                  <ChevronRight className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Expand</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : (
+          <div className="flex justify-between">
+            {/* Help button on left */}
+            <div
               onClick={() => setShowHelp(true)}
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8'
-              )}
+              className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
-              <HelpCircle className="!h-5 !w-5" />
-              <span className="sr-only">Help & Support</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Help & Support</TooltipContent>
-        </Tooltip>
+              <HelpCircle className="h-[18px] w-[18px]" />
+              <span className="sr-only">Help</span>
+            </div>
 
-        {/* Settings */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowSettings(true)}
-              className="flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8"
+            {/* Collapse/Expand button on right */}
+            <div
+              onClick={toggleCollapsed}
+              className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
-              <Settings className="!h-5 !w-5" />
-              <span className="sr-only">Settings</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Settings</TooltipContent>
-        </Tooltip>
-      </nav>
+              <ChevronLeft className="h-[18px] w-[18px]" />
+              <span className="sr-only">Collapse</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />

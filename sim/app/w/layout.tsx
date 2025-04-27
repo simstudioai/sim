@@ -8,7 +8,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
         <div className="z-20">
           <Sidebar />
         </div>
-        <div className="flex-1 flex flex-col pl-14">{children}</div>
+        <div className="flex-1 flex flex-col">{children}</div>
       </div>
     </Providers>
   )
