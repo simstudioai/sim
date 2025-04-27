@@ -1,1 +1,0 @@
-{"version":3,"file":"mapX509SignatureAlgToCOSEAlg.d.ts","sourceRoot":"","sources":["../../src/helpers/mapX509SignatureAlgToCOSEAlg.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,WAAW,CAAC;AAEpC;;;;;GAKG;AACH,wBAAgB,4BAA4B,CAC1C,kBAAkB,EAAE,MAAM,GACzB,OAAO,CAwBT"}
