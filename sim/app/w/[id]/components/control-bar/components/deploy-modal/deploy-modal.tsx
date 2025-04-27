@@ -495,6 +495,11 @@ export function DeployModal({
     }
   }
 
+  // Add a callback function to reset chat submission state
+  const handleChatDeploymentComplete = () => {
+    setChatSubmitting(false);
+  };
+
   // Render deployed chat view
   const renderDeployedChatView = () => {
     if (!deployedChatUrl) {
@@ -618,6 +623,7 @@ export function DeployModal({
                   onChatExistsChange={setChatExists}
                   showDeleteConfirmation={showDeleteConfirmation}
                   setShowDeleteConfirmation={setShowDeleteConfirmation}
+                  onDeploymentComplete={handleChatDeploymentComplete}
                 />
               )}
             </div>
