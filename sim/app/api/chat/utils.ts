@@ -9,6 +9,8 @@ import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/utils'
+import { persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 
 const logger = createLogger('ChatAuthUtils')
 const isDevelopment = process.env.NODE_ENV === 'development'
@@ -371,14 +373,46 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   )
   
   // Execute and capture the result
-  const executionResult = await executor.execute(workflowId)
+  const result = await executor.execute(workflowId)
   
-  if (!executionResult.success) {
-    logger.error(`[${requestId}] Workflow execution failed:`, executionResult.error)
-    throw new Error(`Workflow execution failed: ${executionResult.error}`)
+  // Mark as chat execution in metadata
+  if (result) {
+    (result as any).metadata = {
+      ...(result.metadata || {}),
+      source: 'chat'
+    }
   }
   
-  logger.debug(`[${requestId}] Workflow executed successfully, blocks executed: ${executionResult.logs?.length || 0}`)
+  // Persist execution logs using the 'chat' trigger type
+  try {
+    // Build trace spans to enrich the logs (same as in use-workflow-execution.ts)
+    const { traceSpans, totalDuration } = buildTraceSpans(result)
+    
+    // Create enriched result with trace data
+    const enrichedResult = {
+      ...result,
+      traceSpans,
+      totalDuration,
+    }
+    
+    // Generate a unique execution ID for this chat interaction
+    const executionId = uuidv4()
+    
+    // Persist the logs with 'chat' trigger type
+    await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
+    
+    logger.debug(`[${requestId}] Persisted execution logs for chat with ID: ${executionId}`)
+  } catch (error) {
+    // Don't fail the chat response if logging fails
+    logger.error(`[${requestId}] Failed to persist chat execution logs:`, error)
+  }
+  
+  if (!result.success) {
+    logger.error(`[${requestId}] Workflow execution failed:`, result.error)
+    throw new Error(`Workflow execution failed: ${result.error}`)
+  }
+  
+  logger.debug(`[${requestId}] Workflow executed successfully, blocks executed: ${result.logs?.length || 0}`)
   
   // Get the output based on the selected block
   let output
@@ -392,23 +426,23 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
     logger.debug(`[${requestId}] Looking for output from block ${blockId} with path ${path || 'none'}`)
     
     // Extract the specific block output
-    if (executionResult.logs) {
-      output = extractBlockOutput(executionResult.logs, blockId, path || undefined)
+    if (result.logs) {
+      output = extractBlockOutput(result.logs, blockId, path || undefined)
       
       if (output !== null && output !== undefined) {
         logger.debug(`[${requestId}] Found specific block output`)
       } else {
         logger.warn(`[${requestId}] Could not find specific block output, falling back to final output`)
-        output = executionResult.output?.response || executionResult.output
+        output = result.output?.response || result.output
       }
     } else {
       logger.warn(`[${requestId}] No logs found in execution result, using final output`)
-      output = executionResult.output?.response || executionResult.output
+      output = result.output?.response || result.output
     }
   } else {
     // No specific block selected, use final output
     logger.debug(`[${requestId}] No output block specified, using final output`)
-    output = executionResult.output?.response || executionResult.output
+    output = result.output?.response || result.output
   }
   
   // Format the output the same way ChatMessage does

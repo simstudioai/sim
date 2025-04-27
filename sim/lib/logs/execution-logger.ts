@@ -63,13 +63,13 @@ export async function persistLog(log: LogEntry) {
  * @param workflowId - The ID of the workflow
  * @param executionId - The ID of the execution
  * @param result - The execution result
- * @param triggerType - The type of trigger (api, webhook, schedule, manual)
+ * @param triggerType - The type of trigger (api, webhook, schedule, manual, chat)
  */
 export async function persistExecutionLogs(
   workflowId: string,
   executionId: string,
   result: ExecutorResult,
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 ) {
   try {
     // Get the workflow record to get the userId
@@ -601,13 +601,13 @@ export async function persistExecutionLogs(
  * @param workflowId - The ID of the workflow
  * @param executionId - The ID of the execution
  * @param error - The error that occurred
- * @param triggerType - The type of trigger (api, webhook, schedule, manual)
+ * @param triggerType - The type of trigger (api, webhook, schedule, manual, chat)
  */
 export async function persistExecutionError(
   workflowId: string,
   executionId: string,
   error: Error,
-  triggerType: 'api' | 'webhook' | 'schedule' | 'manual'
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 ) {
   try {
     const errorPrefix = getTriggerErrorPrefix(triggerType)
@@ -630,7 +630,7 @@ export async function persistExecutionError(
 }
 
 // Helper functions for trigger-specific messages
-function getTriggerSuccessMessage(triggerType: 'api' | 'webhook' | 'schedule' | 'manual'): string {
+function getTriggerSuccessMessage(triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'): string {
   switch (triggerType) {
     case 'api':
       return 'API workflow executed successfully'
@@ -640,12 +640,14 @@ function getTriggerSuccessMessage(triggerType: 'api' | 'webhook' | 'schedule' | 
       return 'Scheduled workflow executed successfully'
     case 'manual':
       return 'Manual workflow executed successfully'
+    case 'chat':
+      return 'Chat workflow executed successfully'
     default:
       return 'Workflow executed successfully'
   }
 }
 
-function getTriggerErrorPrefix(triggerType: 'api' | 'webhook' | 'schedule' | 'manual'): string {
+function getTriggerErrorPrefix(triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'): string {
   switch (triggerType) {
     case 'api':
       return 'API workflow'
@@ -655,6 +657,8 @@ function getTriggerErrorPrefix(triggerType: 'api' | 'webhook' | 'schedule' | 'ma
       return 'Scheduled workflow'
     case 'manual':
       return 'Manual workflow'
+    case 'chat':
+      return 'Chat workflow'
     default:
       return 'Workflow'
   }
