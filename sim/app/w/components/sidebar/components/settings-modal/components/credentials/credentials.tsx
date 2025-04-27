@@ -374,14 +374,14 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                     )}
                     ref={pendingService === service.id ? pendingServiceRef : undefined}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
+                    <div className="flex items-start w-full gap-4">
+                      <div className="flex items-start gap-4 w-full">
                         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted shrink-0">
                           {typeof service.icon === 'function'
                             ? service.icon({ className: 'h-5 w-5' })
                             : service.icon}
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 w-full">
                           <div>
                             <h4 className="font-medium leading-none">{service.name}</h4>
                             <p className="text-sm text-muted-foreground mt-1">
@@ -389,11 +389,11 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                             </p>
                           </div>
                           {service.accounts && service.accounts.length > 0 && (
-                            <div className="pt-3 space-y-2">
+                            <div className="pt-3 space-y-2 w-full">
                               {service.accounts.map((account) => (
                                 <div
                                   key={account.id}
-                                  className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2"
+                                  className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2 w-full"
                                 >
                                   <div className="flex items-center gap-2">
                                     <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center">
@@ -441,22 +441,24 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                       </div>
 
                       {!service.accounts?.length && (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleConnect(service)}
-                          disabled={isConnecting === service.id}
-                          className="shrink-0"
-                        >
-                          {isConnecting === service.id ? (
-                            <>
-                              <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                              Connecting...
-                            </>
-                          ) : (
-                            'Connect'
-                          )}
-                        </Button>
+                        <div className="flex justify-end ml-auto">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleConnect(service)}
+                            disabled={isConnecting === service.id}
+                            className="shrink-0"
+                          >
+                            {isConnecting === service.id ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                                Connecting...
+                              </>
+                            ) : (
+                              'Connect'
+                            )}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </Card>
