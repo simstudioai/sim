@@ -589,6 +589,7 @@ export function DeployModal({
                       onUndeploy={handleUndeploy}
                       isSubmitting={isSubmitting}
                       isUndeploying={isUndeploying}
+                      workflowId={workflowId || undefined}
                     />
                   ) : (
                     <>
