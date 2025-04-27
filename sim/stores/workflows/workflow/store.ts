@@ -9,7 +9,7 @@ import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
-import { Loop, Position, SubBlockState } from './types'
+import { Loop, Position, SubBlockState, WorkflowState } from './types'
 import { detectCycle } from './utils'
 
 const initialState = {
@@ -668,6 +668,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           set({ hasActiveWebhook })
           get().updateLastSaved()
         }
+      },
+
+      revertToDeployedState: (deployedState: WorkflowState) => {
+        const newState = {
+          blocks: deployedState.blocks,
+          edges: deployedState.edges,
+          loops: deployedState.loops,
+          isDeployed: true,
+          needsRedeployment: false,
+        }
+        
+        set(newState)
+        pushHistory(set, get, newState, 'Reverted to deployed state')
+        get().updateLastSaved()
+        workflowSync.sync()
       },
     })),
     { name: 'workflow-store' }
