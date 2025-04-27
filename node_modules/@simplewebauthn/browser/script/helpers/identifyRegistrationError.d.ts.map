@@ -1,1 +1,0 @@
-{"version":3,"file":"identifyRegistrationError.d.ts","sourceRoot":"","sources":["../../src/helpers/identifyRegistrationError.ts"],"names":[],"mappings":"AACA,OAAO,EAAE,aAAa,EAAE,MAAM,oBAAoB,CAAC;AAEnD;;GAEG;AACH,wBAAgB,yBAAyB,CAAC,EACxC,KAAK,EACL,OAAO,GACR,EAAE;IACD,KAAK,EAAE,KAAK,CAAC;IACb,OAAO,EAAE,yBAAyB,CAAC;CACpC,GAAG,aAAa,GAAG,KAAK,CA4HxB"}
