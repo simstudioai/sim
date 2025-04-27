@@ -31,6 +31,7 @@ export interface ConfluenceUpdateParams {
   title?: string
   content?: string
   version?: number
+  cloudId?: string
 }
 
 export interface ConfluenceUpdateResponse extends ToolResponse {
