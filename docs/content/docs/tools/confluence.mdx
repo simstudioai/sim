@@ -60,6 +60,7 @@ Retrieve content from Confluence pages using the Confluence API.
 | `accessToken` | string | Yes | OAuth access token for Confluence |
 | `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
 | `pageId` | string | Yes | Confluence page ID to retrieve |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -84,6 +85,7 @@ Update a Confluence page using the Confluence API.
 | `title` | string | No | New title for the page |
 | `content` | string | No | New content for the page in Confluence storage format |
 | `version` | number | No | Version number of the page \(required for preventing conflicts\) |
+| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
@@ -92,6 +94,7 @@ Update a Confluence page using the Confluence API.
 | `ts` | string |
 | `pageId` | string |
 | `title` | string |
+| `body` | string |
 | `success` | string |
 
 
