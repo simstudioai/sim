@@ -14,9 +14,11 @@ interface WorkspaceHeaderProps {
 export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHeaderProps) {
   return (
     <div className="py-2 px-2">
-      <div className="group relative rounded-md cursor-pointer">
-        {/* Hover background with consistent padding */}
-        <div className="absolute inset-0 rounded-md group-hover:bg-accent/50" />
+      <div
+        className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
+      >
+        {/* Hover background with consistent padding - only when not collapsed */}
+        {!isCollapsed && <div className="absolute inset-0 rounded-md group-hover:bg-accent/50" />}
 
         {/* Content with consistent padding */}
         <div
@@ -58,24 +60,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
         </div>
       </div>
 
-      {isCollapsed && (
-        <div className="mt-2 flex justify-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onCreateWorkflow}
-                className="rounded-md px-2 py-1 h-auto w-auto flex items-center justify-center"
-              >
-                <PenLine className="h-[18px] w-[18px]" />
-                <span className="sr-only">New Workflow</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">New Workflow</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
+      {/* Removing the collapsed workflow button as requested */}
     </div>
   )
 }

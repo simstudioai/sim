@@ -19,12 +19,12 @@ interface NavItemProps {
 }
 
 export function NavSection({ children }: NavSectionProps) {
-  return <nav className="space-y-1">{children}</nav>
+  return <nav className="space-y-[1px]">{children}</nav>
 }
 
 function NavItem({ icon, label, href, active, onClick, isCollapsed }: NavItemProps) {
   const className = clsx(
-    'flex w-full items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground',
+    'flex w-full items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium text-muted-foreground',
     {
       'bg-accent': active,
       'hover:bg-accent/50': !active,

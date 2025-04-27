@@ -73,7 +73,7 @@ function WorkflowItem({ workflow, active, isMarketplace }: WorkflowItemProps) {
     <Link
       href={`/w/${workflow.id}`}
       className={clsx(
-        'flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-muted-foreground',
+        'flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium text-muted-foreground',
         {
           'bg-accent': active,
           'hover:bg-accent/50': !active,

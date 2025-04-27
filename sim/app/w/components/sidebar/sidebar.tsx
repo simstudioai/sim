@@ -107,7 +107,7 @@ export function Sidebar() {
       <WorkspaceHeader onCreateWorkflow={handleCreateWorkflow} isCollapsed={isCollapsed} />
 
       {/* Main navigation and content - This area scrolls */}
-      <div className="flex-1 overflow-y-auto px-2 pt-1 pb-2 scrollbar-none">
+      <div className="flex-1 overflow-y-auto px-2 pt-0 pb-2 scrollbar-none">
         {/* Main Navigation */}
         <NavSection>
           <NavSection.Item
@@ -141,7 +141,7 @@ export function Sidebar() {
             {isCollapsed ? '' : 'Workflows'}
           </h2>
           {isCollapsed ? (
-            <div className="space-y-1 px-2">
+            <div className="space-y-2 px-2">
               {regularWorkflows.map((workflow) => {
                 // Generate a deterministic color based on workflow id
                 const getWorkflowColor = (id: string) => {
@@ -170,7 +170,7 @@ export function Sidebar() {
                     key={workflow.id}
                     href={`/w/${workflow.id}`}
                     className={clsx(
-                      'flex w-full items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground',
+                      'flex w-full items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-muted-foreground',
                       pathname === `/w/${workflow.id}` ? 'bg-accent' : 'hover:bg-accent/50'
                     )}
                   >
@@ -192,7 +192,7 @@ export function Sidebar() {
           )}
         </div>
 
-        {/* Logs and Settings Navigation - Moved here from bottom */}
+        {/* Logs and Settings Navigation  */}
         <div className="mt-6">
           <NavSection>
             <NavSection.Item
@@ -215,12 +215,12 @@ export function Sidebar() {
       {/* Bottom buttons container */}
       <div className="flex-shrink-0 px-2 py-3">
         {isCollapsed ? (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
                   onClick={() => setShowHelp(true)}
-                  className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                  className="flex items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
                 >
                   <HelpCircle className="h-[18px] w-[18px]" />
                 </div>
@@ -245,7 +245,7 @@ export function Sidebar() {
             {/* Help button on left */}
             <div
               onClick={() => setShowHelp(true)}
-              className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
               <HelpCircle className="h-[18px] w-[18px]" />
               <span className="sr-only">Help</span>
@@ -254,7 +254,7 @@ export function Sidebar() {
             {/* Collapse/Expand button on right */}
             <div
               onClick={toggleCollapsed}
-              className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
               <ChevronLeft className="h-[18px] w-[18px]" />
               <span className="sr-only">Collapse</span>
