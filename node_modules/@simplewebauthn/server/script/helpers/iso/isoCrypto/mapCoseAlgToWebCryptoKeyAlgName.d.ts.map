@@ -1,1 +1,0 @@
-{"version":3,"file":"mapCoseAlgToWebCryptoKeyAlgName.d.ts","sourceRoot":"","sources":["../../../../src/helpers/iso/isoCrypto/mapCoseAlgToWebCryptoKeyAlgName.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,OAAO,EAAE,MAAM,eAAe,CAAC;AACxC,OAAO,EAAE,sBAAsB,EAAE,MAAM,cAAc,CAAC;AAEtD;;GAEG;AACH,wBAAgB,+BAA+B,CAC7C,GAAG,EAAE,OAAO,GACX,sBAAsB,CAoBxB"}
