@@ -1,0 +1,64 @@
+{
+  "name": "@simplewebauthn/server",
+  "version": "13.1.1",
+  "description": "SimpleWebAuthn for Servers",
+  "keywords": [
+    "typescript",
+    "webauthn",
+    "passkeys",
+    "fido",
+    "node"
+  ],
+  "author": "Matthew Miller <matthew@millerti.me>",
+  "homepage": "https://github.com/MasterKale/SimpleWebAuthn/tree/master/packages/server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MasterKale/SimpleWebAuthn.git",
+    "directory": "packages/server"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/MasterKale/SimpleWebAuthn/issues"
+  },
+  "main": "./script/index.js",
+  "module": "./esm/index.js",
+  "exports": {
+    ".": {
+      "import": "./esm/index.js",
+      "require": "./script/index.js"
+    },
+    "./helpers": {
+      "import": "./esm/helpers/index.js",
+      "require": "./script/helpers/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "esm/index.d.ts"
+      ],
+      "helpers": [
+        "esm/helpers/index.d.ts"
+      ]
+    }
+  },
+  "dependencies": {
+    "@hexagon/base64": "^1.1.27",
+    "@levischuck/tiny-cbor": "^0.2.2",
+    "@peculiar/asn1-android": "^2.3.10",
+    "@peculiar/asn1-ecc": "^2.3.8",
+    "@peculiar/asn1-rsa": "^2.3.8",
+    "@peculiar/asn1-schema": "^2.3.8",
+    "@peculiar/asn1-x509": "^2.3.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.9.0"
+  },
+  "_generatedBy": "dnt@dev"
+}
