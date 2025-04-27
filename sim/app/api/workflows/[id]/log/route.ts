@@ -30,8 +30,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         success: result.success,
       })
 
+      // Check if this execution is from chat using only the explicit source flag
+      const isChatExecution = result.metadata?.source === 'chat'
+
       // Use persistExecutionLogs which handles tool call extraction
-      await persistExecutionLogs(id, executionId, result, 'manual')
+      // Use 'chat' trigger type for chat executions, otherwise 'manual'
+      await persistExecutionLogs(id, executionId, result, isChatExecution ? 'chat' : 'manual')
 
       return createSuccessResponse({
         message: 'Execution logs persisted successfully',

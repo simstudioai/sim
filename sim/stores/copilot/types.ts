@@ -1,20 +1,20 @@
-export interface ChatMessage {
+export interface CopilotMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: number
 }
 
-export interface ChatState {
-  messages: ChatMessage[]
+export interface CopilotState {
+  messages: CopilotMessage[]
   isProcessing: boolean
   error: string | null
 }
 
-export interface ChatActions {
+export interface CopilotActions {
   sendMessage: (content: string) => Promise<void>
-  clearChat: () => void
+  clearCopilot: () => void
   setError: (error: string | null) => void
 }
 
-export type ChatStore = ChatState & ChatActions
+export type CopilotStore = CopilotState & CopilotActions

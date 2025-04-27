@@ -35,6 +35,8 @@ const getTriggerBadgeStyles = (trigger: string) => {
       return 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
     case 'schedule':
       return 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
+    case 'chat':
+      return 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
     default:
       return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400'
   }
