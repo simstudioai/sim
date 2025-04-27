@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
+import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 export async function POST(request: Request) {
   try {
-    const { domain, accessToken, title, limit = 50 } = await request.json()
+    const { domain, accessToken, title, cloudId: providedCloudId,limit = 50 } = await request.json()
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -12,16 +13,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
-    // Log request details for debugging
-    console.log('Request details:', {
-      domain,
-      tokenLength: accessToken ? accessToken.length : 0,
-      hasTitle: !!title,
-      limit,
-    })
+    // Use provided cloudId or fetch it if not provided
+    const cloudId = providedCloudId || await getConfluenceCloudId(domain, accessToken)
 
     // Build the URL with query parameters
-    const baseUrl = `https://${domain}/wiki/api/v2/pages`
+    const baseUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages`
     const queryParams = new URLSearchParams()
 
     if (limit) {

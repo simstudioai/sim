@@ -41,8 +41,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
       serviceId: 'confluence',
       requiredScopes: [
         'read:page:confluence',
-        'read:confluence-content.all',
-        'write:confluence-content',
+        'write:page:confluence',
         'read:me',
         'offline_access',
       ],

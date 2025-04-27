@@ -446,10 +446,9 @@ export const auth = betterAuth({
           userInfoUrl: 'https://api.atlassian.com/me',
           scopes: [
             'read:page:confluence',
-            'read:confluence-content.all',
+            'write:page:confluence',
             'read:me',
             'offline_access',
-            'write:confluence-content',
           ],
           responseType: 'code',
           pkce: true,

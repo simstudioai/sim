@@ -1,4 +1,4 @@
-export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
+export async function getConfluenceCloudId(domain: string, accessToken: string): Promise<string> {
     try {
         const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
             method: 'GET',
@@ -26,7 +26,7 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
             return resources[0].id
         }
 
-        throw new Error('No Jira resources found')
+        throw new Error('No Confluence resources found')
     } catch (error) {
         throw error
     }
