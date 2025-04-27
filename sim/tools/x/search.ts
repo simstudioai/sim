@@ -72,7 +72,7 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
       if (params.endTime) queryParams.append('end_time', params.endTime)
       if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
 
-      return `https://api.x.com/2/tweets/search/recent?${queryParams.toString()}`
+      return `https://api.twitter.com/2/tweets/search/recent?${queryParams.toString()}`
     },
     method: 'GET',
     headers: (params) => ({

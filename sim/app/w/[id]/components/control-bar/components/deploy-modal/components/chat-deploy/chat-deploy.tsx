@@ -48,6 +48,7 @@ interface ChatDeployProps {
   onChatExistsChange?: (exists: boolean) => void
   showDeleteConfirmation?: boolean
   setShowDeleteConfirmation?: (show: boolean) => void
+  onDeploymentComplete?: () => void
 }
 
 type AuthType = 'public' | 'password' | 'email'
@@ -81,6 +82,7 @@ export function ChatDeploy({
   onChatExistsChange,
   showDeleteConfirmation: externalShowDeleteConfirmation,
   setShowDeleteConfirmation: externalSetShowDeleteConfirmation,
+  onDeploymentComplete,
 }: ChatDeployProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
@@ -703,6 +705,14 @@ export function ChatDeploy({
       if (chatUrl) {
         logger.info(`Chat ${existingChat ? 'updated' : 'deployed'} successfully:`, chatUrl)
         setDeployedChatUrl(chatUrl)
+        
+        if (onDeploymentComplete) {
+          onDeploymentComplete()
+        }
+        
+        if (onChatExistsChange) {
+          onChatExistsChange(true)
+        }
       } else {
         throw new Error('Response missing chatUrl')
       }
@@ -810,7 +820,7 @@ export function ChatDeploy({
               {domainSuffix}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Your chat is now live at this URL</p>
+          <p className="text-xs text-muted-foreground">Your chat is now live at <a href={deployedChatUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">this URL</a></p>
         </div>
       </div>
     )

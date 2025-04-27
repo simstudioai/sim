@@ -42,7 +42,7 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
         'attachments.poll_ids',
       ].join(',')
 
-      return `https://api.x.com/2/tweets/${params.tweetId}?expansions=${expansions}`
+      return `https://api.twitter.com/2/tweets/${params.tweetId}?expansions=${expansions}`
     },
     method: 'GET',
     headers: (params) => ({
