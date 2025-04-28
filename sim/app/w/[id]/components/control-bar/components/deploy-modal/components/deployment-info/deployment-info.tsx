@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Info, Loader2, Eye } from 'lucide-react'
+import { Info, Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -137,9 +137,7 @@ export function DeploymentInfo({
               variant="outline"
               size="sm"
               onClick={handleViewDeployed}
-              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
             >
-              <Eye className="h-4 w-4 mr-2" />
               View Deployment
             </Button>
             {deploymentInfo.needsRedeployment && (
