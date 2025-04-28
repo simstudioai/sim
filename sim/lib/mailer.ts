@@ -126,10 +126,20 @@ export async function sendBatchEmails({
     const BATCH_SIZE = 50
     let allSuccessful = true
     
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    
+    let rateDelay = 500
+    
     for (let i = 0; i < batchEmails.length; i += BATCH_SIZE) {
+      if (i > 0) {
+        logger.info(`Rate limit protection: Waiting ${rateDelay}ms before sending next batch`)
+        await delay(rateDelay)
+      }
+      
       const batch = batchEmails.slice(i, i + BATCH_SIZE)
       
       try {
+        logger.info(`Sending batch ${Math.floor(i/BATCH_SIZE) + 1} of ${Math.ceil(batchEmails.length/BATCH_SIZE)} (${batch.length} emails)`)
         const response = await resend.batch.send(batch)
         
         if (response.error) {
@@ -167,15 +177,77 @@ export async function sendBatchEmails({
       } catch (error) {
         logger.error('Error sending batch emails:', error)
         
-        // Add failure results for this batch
-        batch.forEach(() => {
-          results.push({
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to send batch email',
+        // Check if it's a rate limit error
+        if (error instanceof Error && 
+            (error.message.toLowerCase().includes('rate') || 
+             error.message.toLowerCase().includes('too many') ||
+             error.message.toLowerCase().includes('429'))) {
+          logger.warn('Rate limit exceeded, increasing delay and retrying...')
+          
+          // Wait a bit longer and try again with this batch
+          await delay(rateDelay * 5)
+          
+          try {
+            logger.info(`Retrying batch ${Math.floor(i/BATCH_SIZE) + 1} with longer delay`)
+            const retryResponse = await resend.batch.send(batch)
+            
+            if (retryResponse.error) {
+              logger.error('Retry failed with error:', retryResponse.error)
+              
+              batch.forEach(() => {
+                results.push({
+                  success: false,
+                  message: retryResponse.error?.message || 'Failed to send batch email after retry',
+                })
+              })
+              
+              allSuccessful = false
+            } else if (retryResponse.data) {
+              if (Array.isArray(retryResponse.data)) {
+                retryResponse.data.forEach((item: { id: string }) => {
+                  results.push({
+                    success: true,
+                    message: 'Email sent successfully on retry',
+                    data: item,
+                  })
+                })
+              } else {
+                batch.forEach((_, index) => {
+                  results.push({
+                    success: true,
+                    message: 'Email sent successfully on retry',
+                    data: { id: `retry-batch-${i}-item-${index}` },
+                  })
+                })
+              }
+              
+              // Increase the standard delay since we hit a rate limit
+              logger.info('Increasing delay between batches after rate limit hit')
+              rateDelay = rateDelay * 2
+            }
+          } catch (retryError) {
+            logger.error('Retry also failed:', retryError)
+            
+            batch.forEach(() => {
+              results.push({
+                success: false,
+                message: retryError instanceof Error ? retryError.message : 'Failed to send email even after retry',
+              })
+            })
+            
+            allSuccessful = false
+          }
+        } else {
+          // Non-rate limit error
+          batch.forEach(() => {
+            results.push({
+              success: false,
+              message: error instanceof Error ? error.message : 'Failed to send batch email',
+            })
           })
-        })
-        
-        allSuccessful = false
+          
+          allSuccessful = false
+        }
       }
     }
 
