@@ -1,16 +1,16 @@
-import { Key, KeyRound, KeySquare, Settings, UserCircle, CreditCard } from 'lucide-react'
+import { Key, KeyRound, KeySquare, Settings, UserCircle, CreditCard, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isDev } from '@/lib/environment'
 
 interface SettingsNavigationProps {
   activeSection: string
   onSectionChange: (
-    section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
+    section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team'
   ) => void
 }
 
 type NavigationItem = {
-  id: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
+  id: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team'
   label: string
   icon: React.ComponentType<{ className?: string }>
   hideInDev?: boolean
@@ -46,6 +46,12 @@ const allNavigationItems: NavigationItem[] = [
     id: 'subscription',
     label: 'Subscription',
     icon: CreditCard,
+    hideInDev: true,
+  },
+  {
+    id: 'team',
+    label: 'Team',
+    icon: Users,
     hideInDev: true,
   },
 ]

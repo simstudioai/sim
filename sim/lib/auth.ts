@@ -2,7 +2,7 @@ import { headers } from 'next/headers'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
-import { emailOTP, genericOAuth } from 'better-auth/plugins'
+import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { stripe } from '@better-auth/stripe'
 import Stripe from 'stripe'
 import { Resend } from 'resend'
@@ -10,10 +10,12 @@ import {
   getEmailSubject,
   renderOTPEmail,
   renderPasswordResetEmail,
+  renderInvitationEmail,
 } from '@/components/emails/render-email'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
+import { eq, and } from 'drizzle-orm'
 
 const logger = createLogger('Auth')
 
@@ -62,6 +64,41 @@ export const auth = betterAuth({
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
     freshAge: 60 * 60, // 1 hour (or set to 0 to disable completely)
+  },
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          try {            
+            // Find the first organization this user is a member of
+            const members = await db.select()
+              .from(schema.member)
+              .where(eq(schema.member.userId, session.userId))
+              .limit(1);
+            
+            if (members.length > 0) {
+              logger.info('Found organization for user', { 
+                userId: session.userId, 
+                organizationId: members[0].organizationId 
+              });
+              
+              return {
+                data: {
+                  ...session,
+                  activeOrganizationId: members[0].organizationId
+                }
+              };
+            } else {
+              logger.info('No organizations found for user', { userId: session.userId });
+              return { data: session };
+            }
+          } catch (error) {
+            logger.error('Error setting active organization', { error, userId: session.userId });
+            return { data: session };
+          }
+        }
+      }
+    }
   },
   account: {
     accountLinking: {
@@ -647,6 +684,8 @@ export const auth = betterAuth({
               limits: {
                 cost: process.env.FREE_TIER_COST_LIMIT ? parseInt(process.env.FREE_TIER_COST_LIMIT) : 5,
                 sharingEnabled: 0,
+                multiplayerEnabled: 0,
+                workspaceCollaborationEnabled: 0
               }
             },
             {
@@ -655,16 +694,75 @@ export const auth = betterAuth({
               limits: {
                 cost: process.env.PRO_TIER_COST_LIMIT ? parseInt(process.env.PRO_TIER_COST_LIMIT) : 20,
                 sharingEnabled: 1,
+                multiplayerEnabled: 0,
+                workspaceCollaborationEnabled: 0
+              }
+            },
+            {
+              name: 'team',
+              priceId: process.env.STRIPE_TEAM_PRICE_ID || '',
+              limits: {
+                cost: process.env.TEAM_TIER_COST_LIMIT ? parseInt(process.env.TEAM_TIER_COST_LIMIT) : 40, // $40 per seat
+                sharingEnabled: 1,
+                multiplayerEnabled: 1,
+                workspaceCollaborationEnabled: 1
               }
             }
           ],
-          onSubscriptionCreate: async ({ 
+          authorizeReference: async ({ user, referenceId, action }) => {
+            // User can always manage their own subscriptions
+            if (referenceId === user.id) {
+              return true
+            }
+            
+            // Check if referenceId is an organizationId the user has admin rights to
+            const members = await db.select()
+              .from(schema.member)
+              .where(
+                and(
+                  eq(schema.member.userId, user.id),
+                  eq(schema.member.organizationId, referenceId)
+                )
+              )
+            
+            const member = members[0]
+            
+            // Allow if the user is an owner or admin of the organization
+            return member?.role === 'owner' || member?.role === 'admin'
+          },
+          getCheckoutSessionParams: async ({ user, plan, subscription }, request) => {
+            if (plan.name === 'team') {
+              return {
+                params: {
+                  allow_promotion_codes: true,
+                  line_items: [
+                    {
+                      price: plan.priceId,
+                      quantity: subscription?.seats || 1,
+                      adjustable_quantity: {
+                        enabled: true, 
+                        minimum: 1,
+                        maximum: 50
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+            
+            return {
+              params: {
+                allow_promotion_codes: true
+              }
+            }
+          },
+          onSubscriptionComplete: async ({ 
             event, 
             stripeSubscription, 
             subscription 
-          }: { 
-            event: Stripe.Event 
-            stripeSubscription: Stripe.Subscription 
+          }: {
+            event: Stripe.Event
+            stripeSubscription: Stripe.Subscription
             subscription: any
           }) => {
             logger.info('Subscription created', { 
@@ -674,29 +772,25 @@ export const auth = betterAuth({
               status: subscription.status
             })
           },
-          onSubscriptionUpdated: async ({ 
-            subscription, 
-            previousStatus, 
-            user 
-          }: { 
-            subscription: any 
-            previousStatus: string 
-            user: any
-          }, request?: any) => {
+          onSubscriptionUpdate: async ({ 
+            event,
+            subscription 
+          }: {
+            event: Stripe.Event
+            subscription: any
+          }) => {
             logger.info('Subscription updated', { 
-              subscriptionId: subscription.id, 
-              userId: user.id,
-              previousStatus,
-              newStatus: subscription.status 
+              subscriptionId: subscription.id,
+              status: subscription.status
             })
           },
           onSubscriptionDeleted: async ({ 
             event, 
             stripeSubscription, 
             subscription 
-          }: { 
-            event: Stripe.Event 
-            stripeSubscription: Stripe.Subscription 
+          }: {
+            event: Stripe.Event
+            stripeSubscription: Stripe.Subscription
             subscription: any
           }) => {
             logger.info('Subscription deleted', { 
@@ -704,22 +798,96 @@ export const auth = betterAuth({
               referenceId: subscription.referenceId
             })
           },
-          onEvent: async (event: any) => {
-            logger.info("Stripe webhook hit")
-            logger.info('Stripe webhook event received', { 
-              type: event.type,
-              id: event.id
+        },
+      }),
+      // Add organization plugin as a separate entry in the plugins array
+      organization({
+        // Allow team plan subscribers to create organizations
+        allowUserToCreateOrganization: async (user) => {
+          // Get subscription data
+          const dbSubscriptions = await db.select()
+            .from(schema.subscription)
+            .where(eq(schema.subscription.referenceId, user.id))
+          
+          // Check if user has active team subscription
+          const hasTeamPlan = dbSubscriptions.some(
+            sub => (sub.status === 'active') && sub.plan === 'team'
+          )
+          
+          return hasTeamPlan
+        },
+        // Set a fixed membership limit of 50, but the actual limit will be enforced in the invitation flow
+        membershipLimit: 50,
+        // Validate seat limits before sending invitations
+        beforeInvite: async ({ organization }: { organization: { id: string } }) => {
+          // Get subscription for this organization
+          const subscriptions = await db.select()
+            .from(schema.subscription)
+            .where(
+              and(
+                eq(schema.subscription.referenceId, organization.id),
+                eq(schema.subscription.status, 'active')
+              )
+            )
+          
+          const teamSubscription = subscriptions.find(sub => sub.plan === 'team')
+          
+          if (!teamSubscription) {
+            throw new Error('No active team subscription for this organization')
+          }
+          
+          // Count current members + pending invitations
+          const members = await db.select()
+            .from(schema.member)
+            .where(eq(schema.member.organizationId, organization.id))
+            
+          const pendingInvites = await db.select()
+            .from(schema.invitation)
+            .where(
+              and(
+                eq(schema.invitation.organizationId, organization.id),
+                eq(schema.invitation.status, 'pending')
+              )
+            )
+            
+          const totalCount = members.length + pendingInvites.length
+          const seatLimit = teamSubscription.seats || 1
+          
+          if (totalCount >= seatLimit) {
+            throw new Error(`Organization has reached its seat limit of ${seatLimit}`)
+          }
+        },
+        sendInvitationEmail: async (data: any) => {
+          try {
+            const { invitation, organization, inviter } = data
+            
+            const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitation.id}`
+            const inviterName = inviter.user?.name || 'A team member'
+            
+            const html = await renderInvitationEmail(
+              inviterName,
+              organization.name,
+              inviteUrl,
+              invitation.email
+            )
+            
+            await resend.emails.send({
+              from: 'Sim Studio <team@simstudio.ai>',
+              to: invitation.email,
+              subject: `${inviterName} has invited you to join ${organization.name} on Sim Studio`,
+              html,
             })
-
-            switch (event.type) {
-              case 'customer.subscription.created':
-                logger.info('Subscription creation event details', {
-                  subscription: event.data.object,
-                  customerId: event.data.object.customer
-                })
-                break
-            }
-          },
+          } catch (error) {
+            logger.error('Error sending invitation email', { error })
+          }
+        },
+        organizationCreation: {
+          afterCreate: async ({ organization, member, user }) => {
+            logger.info('Organization created', { 
+              organizationId: organization.id, 
+              creatorId: user.id
+            })
+          }
         },
       })
     ] : []),

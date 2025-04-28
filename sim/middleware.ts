@@ -51,6 +51,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/w/1', request.url))
   }
 
+  // Allow access to invitation links
+  if (request.nextUrl.pathname.startsWith('/invite/')) {
+    return NextResponse.next()
+  }
+
   // Handle protected routes that require authentication
   if (url.pathname.startsWith('/w/') || url.pathname === '/w') {
     if (!hasActiveSession) {
@@ -78,6 +83,12 @@ export async function middleware(request: NextRequest) {
 
     // Check for a waitlist token in the URL
     const waitlistToken = url.searchParams.get('token')
+    
+    // If there's a redirect to the invite page, bypass waitlist check
+    const redirectParam = request.nextUrl.searchParams.get('redirect')
+    if (redirectParam && redirectParam.startsWith('/invite/')) {
+      return NextResponse.next()
+    }
     
     // Validate the token if present
     if (waitlistToken) {
@@ -151,12 +162,14 @@ export async function middleware(request: NextRequest) {
   return response
 }
 
+// Update matcher to include invitation routes
 export const config = {
   matcher: [
     '/w', // Match exactly /w
     '/w/:path*', // Match protected routes
     '/login',
     '/signup',
+    '/invite/:path*', // Match invitation routes
     '/((?!_next/static|_next/image|favicon.ico).*)'
   ],
 }

@@ -13,16 +13,21 @@ import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
 import { Subscription } from './components/subscription/subscription'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
+import { TeamManagement } from './components/team-management/team-management'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('SettingsModal')
 
 interface SettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription'
+type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+  const [isTeam, setIsTeam] = useState(false)
 
   // Listen for the custom event to open the settings modal with a specific tab
   useEffect(() => {
@@ -39,6 +44,25 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       window.removeEventListener('open-settings', handleOpenSettings as EventListener)
     }
   }, [onOpenChange])
+
+  // Check if user is on team plan
+  useEffect(() => {
+    async function checkTeamPlan() {
+      try {
+        const response = await fetch('/api/user/subscription')
+        if (response.ok) {
+          const data = await response.json()
+          setIsTeam(data.isTeam)
+        }
+      } catch (error) {
+        logger.error('Error checking team plan:', error)
+      }
+    }
+    
+    if (open) {
+      checkTeamPlan()
+    }
+  }, [open])
 
   // Check if subscriptions are enabled
   const isSubscriptionEnabled = !!client.subscription
@@ -87,6 +111,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             {isSubscriptionEnabled && (
               <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
                 <Subscription onOpenChange={onOpenChange} />
+              </div>
+            )}
+            {isTeam && (
+              <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
+                <TeamManagement />
               </div>
             )}
           </div>

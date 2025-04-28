@@ -1,5 +1,6 @@
 import { emailOTPClient, genericOAuthClient } from 'better-auth/client/plugins'
 import { stripeClient } from '@better-auth/stripe/client'
+import { organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import { isProd } from '@/lib/environment'
 
@@ -22,17 +23,19 @@ export function getBaseURL() {
 export const client = createAuthClient({
   baseURL: getBaseURL(),
   plugins: [
-    genericOAuthClient(), 
     emailOTPClient(),
+    genericOAuthClient(),
     // Only include Stripe client in production
     ...(isProd ? [
       stripeClient({
         subscription: true // Enable subscription management
       })
     ] : []),
+    organizationClient(),
   ],
 })
-export const { useSession } = client
+
+export const { useSession, useActiveOrganization } = client
 
 export const useSubscription = () => {
   // In development, provide mock implementations

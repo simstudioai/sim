@@ -3,6 +3,7 @@ import { OTPVerificationEmail } from './otp-verification-email'
 import { ResetPasswordEmail } from './reset-password-email'
 import { WaitlistApprovalEmail } from './waitlist-approval-email'
 import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
+import { InvitationEmail } from './invitation-email'
 
 /**
  * Renders the OTP verification email to HTML
@@ -23,6 +24,24 @@ export async function renderPasswordResetEmail(
   resetLink: string
 ): Promise<string> {
   return await renderAsync(ResetPasswordEmail({ username, resetLink, updatedDate: new Date() }))
+}
+
+/**
+ * Renders the invitation email to HTML
+ */
+export async function renderInvitationEmail(
+  inviterName: string,
+  organizationName: string,
+  inviteLink: string,
+  invitedEmail: string
+): Promise<string> {
+  return await renderAsync(InvitationEmail({ 
+    inviterName, 
+    organizationName, 
+    inviteLink, 
+    invitedEmail, 
+    updatedDate: new Date() 
+  }))
 }
 
 /**
@@ -53,6 +72,7 @@ export function getEmailSubject(
     | 'reset-password'
     | 'waitlist-confirmation'
     | 'waitlist-approval'
+    | 'invitation'
 ): string {
   switch (type) {
     case 'sign-in':
@@ -67,6 +87,8 @@ export function getEmailSubject(
       return 'Welcome to the Sim Studio Waitlist'
     case 'waitlist-approval':
       return "You've Been Approved to Join Sim Studio!"
+    case 'invitation':
+      return "You've been invited to join a team on Sim Studio"
     default:
       return 'Sim Studio'
   }
