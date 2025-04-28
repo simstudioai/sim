@@ -7,6 +7,7 @@ interface SettingsNavigationProps {
   onSectionChange: (
     section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team'
   ) => void
+  isTeam?: boolean
 }
 
 type NavigationItem = {
@@ -14,6 +15,7 @@ type NavigationItem = {
   label: string
   icon: React.ComponentType<{ className?: string }>
   hideInDev?: boolean
+  requiresTeam?: boolean
 }
 
 const allNavigationItems: NavigationItem[] = [
@@ -53,14 +55,22 @@ const allNavigationItems: NavigationItem[] = [
     label: 'Team',
     icon: Users,
     hideInDev: true,
+    requiresTeam: true,
   },
 ]
 
-export function SettingsNavigation({ activeSection, onSectionChange }: SettingsNavigationProps) {
+export function SettingsNavigation({ activeSection, onSectionChange, isTeam = false }: SettingsNavigationProps) {
   const navigationItems = allNavigationItems.filter(item => {
+    // Hide items based on development environment
     if (item.hideInDev && isDev) {
       return false
     }
+    
+    // Hide team tab if user doesn't have team subscription
+    if (item.requiresTeam && !isTeam) {
+      return false
+    }
+    
     return true
   })
 
