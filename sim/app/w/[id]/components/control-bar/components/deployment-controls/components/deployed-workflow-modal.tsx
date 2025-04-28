@@ -12,6 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DeployedWorkflowCard } from './deployed-workflow-card'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useState } from 'react'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface DeployedWorkflowModalProps {
   isOpen: boolean
@@ -30,10 +32,11 @@ export function DeployedWorkflowModal({
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
   const { revertToDeployedState } = useWorkflowStore()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
   // Get current workflow state to compare with deployed state
   const currentWorkflowState = useWorkflowStore((state) => ({
-    blocks: state.blocks,
+    blocks: activeWorkflowId ? mergeSubblockState(state.blocks, activeWorkflowId) : state.blocks,
     edges: state.edges,
     loops: state.loops,
   }))
