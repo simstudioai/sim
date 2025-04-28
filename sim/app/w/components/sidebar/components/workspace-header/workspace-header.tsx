@@ -158,7 +158,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                   )}
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-68 p-1">
+              <DropdownMenuContent align="start" className="p-1">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-1">
                     <div className="flex items-center gap-2">

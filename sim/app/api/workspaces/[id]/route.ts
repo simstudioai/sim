@@ -5,8 +5,8 @@ import { db } from '@/db'
 import { workspace, workspaceMember } from '@/db/schema'
 
 export async function GET(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: { id: string } }
 ) {
   const session = await getSession()
   
@@ -14,7 +14,7 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const workspaceId = params.id
+  const workspaceId = context.params.id
   
   // Check if user is a member of this workspace
   const membership = await db
@@ -52,8 +52,8 @@ export async function GET(
 }
 
 export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: { id: string } }
 ) {
   const session = await getSession()
   
@@ -61,7 +61,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const workspaceId = params.id
+  const workspaceId = context.params.id
   
   // Check if user is a member with appropriate permissions
   const membership = await db
@@ -85,7 +85,7 @@ export async function PATCH(
   }
   
   try {
-    const { name } = await req.json()
+    const { name } = await request.json()
     
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
@@ -120,8 +120,8 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: { params: { id: string } }
 ) {
   const session = await getSession()
   
@@ -129,7 +129,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const workspaceId = params.id
+  const workspaceId = context.params.id
   
   // Check if user is the owner
   const membership = await db
