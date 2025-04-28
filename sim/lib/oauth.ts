@@ -415,6 +415,12 @@ export async function refreshOAuthToken(
         clientSecret = process.env.JIRA_CLIENT_SECRET
         useBasicAuth = true
         break
+      case 'jira':
+        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
+        clientId = process.env.JIRA_CLIENT_ID
+        clientSecret = process.env.JIRA_CLIENT_SECRET
+        useBasicAuth = true
+        break
       case 'airtable':
         tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
         clientId = process.env.AIRTABLE_CLIENT_ID
@@ -529,6 +535,12 @@ export async function refreshOAuthToken(
     if (provider === 'airtable' && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info('Received new refresh token from Airtable')
+    }
+
+    // For Confluence and Jira, check if we got a new refresh token
+    if ((provider === 'confluence' || provider === 'jira') && data.refresh_token) {
+      newRefreshToken = data.refresh_token
+      logger.info(`Received new refresh token from ${provider}`)
     }
 
     // Get expiration time - use provider's value or default to 1 hour (3600 seconds)
