@@ -37,7 +37,7 @@ export function Toolbar() {
         <TooltipTrigger asChild>
           <button
             onClick={() => setIsCollapsed(false)}
-            className={`fixed ${isSidebarCollapsed ? 'left-[74px]' : 'left-[244px]'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground transition-colors hover:text-foreground hover:bg-accent border`}
+            className={`fixed transition-left duration-200 ${isSidebarCollapsed ? 'left-20' : 'left-64'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground hover:text-foreground hover:bg-accent border`}
           >
             <PanelRight className="h-5 w-5" />
             <span className="sr-only">Open Toolbar</span>
@@ -50,7 +50,7 @@ export function Toolbar() {
 
   return (
     <div
-      className={`fixed ${isSidebarCollapsed ? 'left-14' : 'left-60'} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
+      className={`fixed transition-left duration-200 ${isSidebarCollapsed ? 'left-14' : 'left-60'} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
     >
       <div className="flex flex-col h-full">
         <div className="px-4 pt-4 pb-1 sticky top-0 bg-background z-20">
@@ -90,7 +90,7 @@ export function Toolbar() {
             <TooltipTrigger asChild>
               <button
                 onClick={() => setIsCollapsed(true)}
-                className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+                className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
               >
                 <PanelLeftClose className="h-5 w-5" />
                 <span className="sr-only">Close Toolbar</span>

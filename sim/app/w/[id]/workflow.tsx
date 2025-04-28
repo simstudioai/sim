@@ -476,7 +476,7 @@ function WorkflowContent() {
 
   return (
     <div
-      className={`flex flex-col h-screen w-full overflow-hidden ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+      className={`flex flex-col h-screen w-full overflow-hidden transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       <ControlBar />
       <Toolbar />

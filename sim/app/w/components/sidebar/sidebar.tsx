@@ -99,7 +99,7 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-all duration-200',
+        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-width duration-200',
         isCollapsed ? 'w-14' : 'w-60'
       )}
     >
@@ -141,44 +141,20 @@ export function Sidebar() {
             {isCollapsed ? '' : 'Workflows'}
           </h2>
           {isCollapsed ? (
-            <div className="space-y-2 px-2">
+            <div className="space-y-[1px]">
               {regularWorkflows.map((workflow) => {
-                // Generate a deterministic color based on workflow id
-                const getWorkflowColor = (id: string) => {
-                  const colors = [
-                    'bg-blue-500',
-                    'bg-green-500',
-                    'bg-yellow-500',
-                    'bg-purple-500',
-                    'bg-pink-500',
-                    'bg-indigo-500',
-                    'bg-red-500',
-                    'bg-orange-500',
-                  ]
-
-                  // Simple hash function to get a stable index
-                  const hash = id.split('').reduce((acc, char) => {
-                    return char.charCodeAt(0) + ((acc << 5) - acc)
-                  }, 0)
-
-                  const index = Math.abs(hash) % colors.length
-                  return colors[index]
-                }
-
                 return (
                   <Link
                     key={workflow.id}
                     href={`/w/${workflow.id}`}
                     className={clsx(
-                      'flex w-full items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-muted-foreground',
+                      'flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground w-8 h-8 mx-auto',
                       pathname === `/w/${workflow.id}` ? 'bg-accent' : 'hover:bg-accent/50'
                     )}
                   >
                     <div
-                      className={clsx(
-                        'h-3 w-3 rounded flex-shrink-0',
-                        getWorkflowColor(workflow.id)
-                      )}
+                      className="h-[14px] w-[14px] rounded flex-shrink-0"
+                      style={{ backgroundColor: workflow.color }}
                     />
                   </Link>
                 )
@@ -215,12 +191,12 @@ export function Sidebar() {
       {/* Bottom buttons container */}
       <div className="flex-shrink-0 px-2 py-3">
         {isCollapsed ? (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col space-y-[1px]">
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
                   onClick={() => setShowHelp(true)}
-                  className="flex items-center justify-center rounded-md px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
                 >
                   <HelpCircle className="h-[18px] w-[18px]" />
                 </div>
@@ -232,7 +208,7 @@ export function Sidebar() {
               <TooltipTrigger asChild>
                 <div
                   onClick={toggleCollapsed}
-                  className="flex items-center justify-center rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
                 >
                   <ChevronRight className="h-[18px] w-[18px]" />
                 </div>

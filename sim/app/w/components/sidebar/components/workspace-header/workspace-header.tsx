@@ -29,7 +29,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
               href="/w/1"
               className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
             >
-              <AgentIcon className="text-white transition-all group-hover:scale-110 -translate-y-[0.5px] w-[18px] h-[18px]" />
+              <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
             </Link>
             {!isCollapsed && (
               <div className="flex items-center">
