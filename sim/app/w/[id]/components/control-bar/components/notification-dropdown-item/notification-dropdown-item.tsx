@@ -19,17 +19,17 @@ interface NotificationDropdownItemProps {
 const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
-  api: Rocket,
   marketplace: Store,
   info: AlertCircle,
+  api: Rocket,
 }
 
 const NotificationColors = {
   error: 'text-destructive',
   console: 'text-foreground',
-  api: 'text-[#802FFF]',
   marketplace: 'text-foreground',
   info: 'text-foreground',
+  api: 'text-foreground',
 }
 
 export function NotificationDropdownItem({
@@ -89,13 +89,11 @@ export function NotificationDropdownItem({
           <span className="text-xs font-medium">
             {type === 'error'
               ? 'Error'
-              : type === 'api'
-                ? 'API'
-                : type === 'marketplace'
-                  ? 'Marketplace'
-                  : type === 'info'
-                    ? 'Info'
-                    : 'Console'}
+              : type === 'marketplace'
+                ? 'Marketplace'
+                : type === 'info'
+                  ? 'Info'
+                  : 'Console'}
           </span>
           <span className="text-xs text-muted-foreground">{timeAgo}</span>
         </div>

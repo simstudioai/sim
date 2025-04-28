@@ -29,8 +29,8 @@ function ModalChatMessage({ message }: ChatMessageProps) {
       <div className="py-5 px-4">
         <div className="max-w-3xl mx-auto">
           <div className="flex justify-end">
-            <div className="bg-[#F4F4F4] dark:bg-gray-600 rounded-3xl max-w-[80%] py-3 px-4">
-              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-[#0D0D0D]">
+            <div className="bg-[#F4F4F4] dark:bg-primary/10 rounded-3xl max-w-[80%] py-3 px-4 shadow-sm">
+              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-[#0D0D0D] dark:text-white">
                 {isJsonObject ? (
                   <JSONView data={message.content} initiallyExpanded={false} />
                 ) : (
@@ -124,8 +124,18 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
     // Clear input
     setChatMessage('')
 
+    // Ensure input stays focused
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+
     // Execute the workflow to generate a response
     await handleRunWorkflow({ input: sentMessage })
+
+    // Ensure input stays focused even after response
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
   }
 
   // Handle key press
@@ -156,7 +166,7 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
       `}</style>
 
       {/* Header with title and close button */}
-      <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-3">
         <h2 className="text-lg font-medium">Chat</h2>
         <Button
           variant="ghost"
@@ -217,19 +227,15 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
               onKeyDown={handleKeyPress}
               placeholder="Message..."
               className="flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-7 pr-16 bg-transparent pl-6 text-base min-h-[50px] rounded-2xl"
-              disabled={!activeWorkflowId || isExecuting}
+              disabled={!activeWorkflowId}
             />
             <Button
               onClick={handleSendMessage}
               size="icon"
               disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100 rounded-xl"
+              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-black dark:bg-primary text-white hover:bg-gray-800 dark:hover:bg-primary/80"
             >
-              {isExecuting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <ArrowUp className="h-4 w-4" />
-              )}
+              <ArrowUp className="h-4 w-4 dark:text-black" />
             </Button>
           </div>
 

@@ -49,9 +49,9 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Sim Studio | Create Workflows with Drag and Drop Agents',
+  title: 'Sim Studio',
   description:
-    'Create powerful workflows by dragging and dropping agents. Build, customize, and deploy automated processes with Sim Studio powered by Simplicity.',
+    'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
   applicationName: 'Sim Studio',
   authors: [{ name: 'Simplicity' }],
   generator: 'Next.js',
@@ -90,7 +90,7 @@ export const metadata: Metadata = {
     url: 'https://simstudio.ai',
     title: 'Sim Studio | Create Workflows with Drag and Drop Agents',
     description:
-      'Create powerful workflows by dragging and dropping agents. Build, customize, and deploy automated processes with Sim Studio powered by Simplicity.',
+      'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
     siteName: 'Sim Studio',
     images: [
       {
@@ -103,9 +103,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Sim Studio | Create Workflows with Drag and Drop Agents',
+    title: 'Sim Studio',
     description:
-      'Create powerful workflows by dragging and dropping agents. Build, customize, and deploy automated processes with Sim Studio.',
+      'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
     images: ['/sim.png'],
     creator: '@simplicity',
     site: '@simstudio',

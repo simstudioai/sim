@@ -33,8 +33,8 @@ export const mem0AddMemoriesTool: ToolConfig = {
       url: 'https://api.mem0.ai/v1/memories/',
       method: 'POST',
       headers: (params) => ({
+         Authorization: `Token ${params.apiKey}`,
         'Content-Type': 'application/json',
-        Authorization: `Token ${params.apiKey}`,
       }),
       body: (params) => {
         // First, ensure messages is an array
@@ -61,8 +61,8 @@ export const mem0AddMemoriesTool: ToolConfig = {
         // Prepare request body
         const body: Record<string, any> = {
           messages: messagesArray,
-          user_id: params.userId,
-          version: params.version || 'v2'
+          version: params.version || 'v2',
+          user_id: params.userId
         }
         
         return body

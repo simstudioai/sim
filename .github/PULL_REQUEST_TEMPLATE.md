@@ -30,12 +30,12 @@ Please describe the tests that you ran to verify your changes. Provide instructi
 - [ ] My changes generate no new warnings
 - [ ] Any dependent changes have been merged and published in downstream modules
 - [ ] I have updated version numbers as needed (if needed)
+- [ ] I confirm that I have read and agree to the terms outlined in the [Contributor License Agreement (CLA)](./CONTRIBUTING.md#contributor-license-agreement-cla)
 
 ## Security Considerations:
 
 - [ ] My changes do not introduce any new security vulnerabilities
 - [ ] I have considered the security implications of my changes
-
 
 ## Additional Information:
 

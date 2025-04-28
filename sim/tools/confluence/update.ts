@@ -10,12 +10,6 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   oauth: {
     required: true,
     provider: 'confluence',
-    additionalScopes: [
-      'read:confluence-content.all',
-      'write:confluence-content',
-      'read:me',
-      'offline_access',
-    ],
   },
 
   params: {
@@ -50,63 +44,71 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
       required: false,
       description: 'Version number of the page (required for preventing conflicts)',
     },
+    cloudId: {
+      type: 'string',
+      required: false,
+      description: 'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+    },
   },
 
   request: {
     url: (params: ConfluenceUpdateParams) => {
-      return `https://${params.domain}/wiki/api/v2/pages/${params.pageId}`
+      return '/api/auth/oauth/confluence/page'
     },
     method: 'PUT',
     headers: (params: ConfluenceUpdateParams) => {
       return {
+        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        'Authorization': `Bearer ${params.accessToken}`,
       }
     },
     body: (params: ConfluenceUpdateParams) => {
-      const body: Record<string, any> = {}
-
-      if (params.title) {
-        body.title = params.title
-      }
-
-      if (params.content) {
-        body.body = {
+      
+      const body: Record<string, any> = {
+        domain: params.domain,
+        accessToken: params.accessToken,
+        pageId: params.pageId,
+        cloudId: params.cloudId,
+        title: params.title,
+        body: params.content ? {
           representation: 'storage',
-          value: params.content,
+          value: params.content
+        } : undefined,
+        version: {
+          number: params.version || 1,
+          message: params.version ? 'Updated via Sim Studio' : 'Initial update via Sim Studio'
         }
       }
-
-      if (params.version) {
-        body.version = {
-          number: params.version,
-          message: 'Updated via Sim Studio',
-        }
-      }
-
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.message || 'Confluence API error')
+      const errorData = await response.json().catch(() => null)
+      console.error('Update tool error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      })
+      console.error(errorData?.error || `Failed to update Confluence page: ${response.status} ${response.statusText}`)
     }
 
+    const data = await response.json()
     return {
       success: true,
       output: {
         ts: new Date().toISOString(),
         pageId: data.id,
         title: data.title,
+        body: data.body,
         success: true,
       },
     }
   },
 
   transformError: (error: any) => {
-    const message = error.message || 'Confluence update failed'
-    return message
+    return error.message || 'Failed to update Confluence page'
   },
 }

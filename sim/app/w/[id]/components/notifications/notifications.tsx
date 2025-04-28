@@ -1,3 +1,4 @@
+// NOTE: API NOTIFICATIONS NO LONGER EXIST, BUT IF YOU DELETE THEM FROM THIS FILE THE APPLICATION WILL BREAK
 import { useEffect, useState } from 'react'
 import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'

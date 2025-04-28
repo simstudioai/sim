@@ -1,8 +1,5 @@
 import type { NextConfig } from 'next'
 
-// Check if we're building for standalone distribution
-const isStandaloneBuild = process.env.USE_LOCAL_STORAGE === 'true'
-
 const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
@@ -10,9 +7,7 @@ const nextConfig: NextConfig = {
       'avatars.githubusercontent.com',
       'oaidalleapiprodscus.blob.core.windows.net',
       'api.stability.ai',
-    ],
-    // Enable static image optimization for standalone export
-    unoptimized: isStandaloneBuild,
+    ]
   },
   // Always use 'standalone' output to support API routes
   output: 'standalone',
@@ -29,12 +24,9 @@ const nextConfig: NextConfig = {
     return config
   },
   // Only include headers when not building for standalone export
-  ...(isStandaloneBuild
-    ? {}
-    : {
-        async headers() {
-          return [
-            {
+  async headers() {
+    return [
+      {
               // API routes CORS headers
               source: '/api/:path*',
               headers: [
@@ -78,9 +70,26 @@ const nextConfig: NextConfig = {
                 },
               ],
             },
+            // Apply security headers to all routes
+            {
+              source: '/:path*',
+              headers: [
+                {
+                 key: 'X-Content-Type-Options',
+                 value: 'nosniff',
+               },
+               {
+                 key: 'X-Frame-Options',
+                 value: 'SAMEORIGIN',
+               },
+               {
+                 key: 'Content-Security-Policy',
+                 value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'",
+               },
+             ],
+           },
           ]
-        },
-      }),
+  },
 }
 
 export default nextConfig

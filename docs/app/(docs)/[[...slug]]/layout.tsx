@@ -3,10 +3,9 @@ import Link from 'next/link'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { GithubIcon, ExternalLink } from 'lucide-react'
 import { source } from '@/lib/source'
-import { AgentIcon } from '@/components/icons'
 
 const GitHubLink = () => (
-  <div className="fixed bottom-4 left-4 z-50">
+  <div className="fixed bottom-4 right-4 z-50">
     <Link
       href="https://github.com/simstudioai/sim"
       target="_blank"
@@ -25,10 +24,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         tree={source.pageTree}
         nav={{
           title: (
-            <div className="flex items-center gap-2">
-              <AgentIcon className="h-4 w-4 text-[#8b5cf6]" />
-              Sim Studio
-            </div>
+            <div className="flex items-center font-medium">Sim Studio</div>
           ),
         }}
         links={[
@@ -36,8 +32,13 @@ export default function Layout({ children }: { children: ReactNode }) {
             text: 'Visit Sim Studio',
             url: 'https://simstudio.ai',
             icon: <ExternalLink className="h-4 w-4" />,
-          }
+          },
         ]}
+        sidebar={{
+          defaultOpenLevel: 1,
+          collapsible: true,
+          footer: null,
+        }}
       >
         {children}
       </DocsLayout>

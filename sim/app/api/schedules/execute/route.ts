@@ -233,6 +233,10 @@ export async function GET(req: NextRequest) {
         // Add workflowId to the input for OAuth credential resolution
         const input = {
           workflowId: schedule.workflowId,
+          // Add _context with workflowId to ensure OAuth token resolution works properly
+          _context: {
+            workflowId: schedule.workflowId
+          }
         }
 
         // Process the block states to ensure response formats are properly parsed

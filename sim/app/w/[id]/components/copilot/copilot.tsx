@@ -5,10 +5,10 @@ import { MessageCircle, Send, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useChatStore } from '@/stores/chat/store'
+import { useCopilotStore } from '@/stores/copilot/store'
 
-export function Chat() {
-  const { sendMessage } = useChatStore()
+export function Copilot() {
+  const { sendMessage } = useCopilotStore()
   const [isOpen, setIsOpen] = useState(false)
   const [message, setMessage] = useState('')
 

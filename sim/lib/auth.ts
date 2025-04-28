@@ -30,8 +30,6 @@ if (validStripeKey) {
   stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
     apiVersion: "2025-02-24.acacia",
   })
-} else {
-  logger.warn('No valid Stripe secret key found.')
 }
 
 // If there is no resend key, it might be a local dev environment
@@ -485,10 +483,9 @@ export const auth = betterAuth({
           userInfoUrl: 'https://api.atlassian.com/me',
           scopes: [
             'read:page:confluence',
-            'read:confluence-content.all',
+            'write:page:confluence',
             'read:me',
             'offline_access',
-            'write:confluence-content',
           ],
           responseType: 'code',
           pkce: true,

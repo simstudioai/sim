@@ -97,6 +97,12 @@ export function useWorkflowExecution() {
     }
 
     const executionId = uuidv4()
+    
+    // Determine if this is a chat execution
+    // Only true if the execution is initiated from the chat panel
+    // or through a chat-specific execution path
+    const isChatExecution = activeTab === 'chat' && 
+                          (workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput)
 
     try {
       // Clear any existing state
@@ -153,6 +159,15 @@ export function useWorkflowExecution() {
 
       // Execute workflow
       const result = await newExecutor.execute(activeWorkflowId)
+
+      // Add metadata about source being chat if applicable
+      if (isChatExecution) {
+        // Use type assertion for adding custom metadata
+        (result as any).metadata = {
+          ...(result.metadata || {}),
+          source: 'chat'
+        };
+      }
 
       // If we're in debug mode, store the execution context for later steps
       if (result.metadata?.isDebugSession && result.metadata.context) {

@@ -4,6 +4,7 @@ export interface ConfluenceRetrieveParams {
   accessToken: string
   pageId: string
   domain: string
+  cloudId?: string
 }
 
 export interface ConfluenceRetrieveResponse extends ToolResponse {
@@ -15,27 +16,12 @@ export interface ConfluenceRetrieveResponse extends ToolResponse {
   }
 }
 
-export interface ConfluenceListParams {
-  accessToken: string
-  domain: string
-  limit?: number
-  spaceKey?: string
-  title?: string
-}
-
 export interface ConfluencePage {
   id: string
   title: string
   spaceKey?: string
   url?: string
   lastModified?: string
-}
-
-export interface ConfluenceListResponse extends ToolResponse {
-  output: {
-    ts: string
-    pages: ConfluencePage[]
-  }
 }
 
 export interface ConfluenceUpdateParams {
@@ -45,6 +31,7 @@ export interface ConfluenceUpdateParams {
   title?: string
   content?: string
   version?: number
+  cloudId?: string
 }
 
 export interface ConfluenceUpdateResponse extends ToolResponse {

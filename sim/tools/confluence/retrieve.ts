@@ -14,12 +14,6 @@ export const confluenceRetrieveTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'confluence',
-    additionalScopes: [
-      'read:page:confluence',
-      'read:confluence-content.all',
-      'read:me',
-      'offline_access',
-    ],
   },
 
   params: {
@@ -39,49 +33,80 @@ export const confluenceRetrieveTool: ToolConfig<
       required: true,
       description: 'Confluence page ID to retrieve',
     },
+    cloudId: {
+      type: 'string',
+      required: false,
+      description: 'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+    },
   },
 
   request: {
     url: (params: ConfluenceRetrieveParams) => {
-      return `https://${params.domain}/wiki/api/v2/pages/${params.pageId}?expand=body.view`
+      // Instead of calling Confluence API directly, use your API route
+      return '/api/auth/oauth/confluence/page'
     },
-    method: 'GET',
+    method: 'POST',
     headers: (params: ConfluenceRetrieveParams) => {
       return {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken}`,
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${params.accessToken}`,
+      }
+    },
+    body: (params: ConfluenceRetrieveParams) => {
+      return {
+        domain: params.domain,
+        accessToken: params.accessToken,
+        pageId: params.pageId,
+        cloudId: params.cloudId,
       }
     },
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.message || 'Confluence API error')
+      const errorData = await response.json().catch(() => null)
+      throw new Error(errorData?.error || `Failed to retrieve Confluence page: ${response.status} ${response.statusText}`)
     }
 
-    const cleanContent = data.body.view.value
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    return {
-      success: true,
-      output: {
-        ts: new Date().toISOString(),
-        pageId: data.id,
-        content: cleanContent,
-        title: data.title,
-      },
-    }
+    const data = await response.json()
+    return transformPageData(data)
   },
 
   transformError: (error: any) => {
-    const message = error.message || 'Confluence retrieve failed'
-    return message
+    return error.message || 'Failed to retrieve Confluence page'
   },
+}
+
+function transformPageData(data: any) {
+  // More lenient check - only require id and title
+  if (!data || !data.id || !data.title) {
+    throw new Error('Invalid response format from Confluence API - missing required fields')
+  }
+
+  // Get content from wherever we can find it
+  const content = data.body?.view?.value || 
+                 data.body?.storage?.value || 
+                 data.body?.atlas_doc_format?.value ||
+                 data.content ||
+                 data.description ||
+                 `Content for page ${data.title}`
+
+  const cleanContent = content
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return {
+    success: true,
+    output: {
+      ts: new Date().toISOString(),
+      pageId: data.id,
+      content: cleanContent,
+      title: data.title,
+    },
+  }
 }

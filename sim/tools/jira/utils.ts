@@ -1,5 +1,3 @@
-import { JiraCloudResource } from './types'
-
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
     try {
         const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {

@@ -17,12 +17,13 @@ import EmailFooter from './footer'
 interface OTPVerificationEmailProps {
   otp: string
   email?: string
-  type?: 'sign-in' | 'email-verification' | 'forget-password'
+  type?: 'sign-in' | 'email-verification' | 'forget-password' | 'chat-access'
+  chatTitle?: string
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
-const getSubjectByType = (type: string) => {
+const getSubjectByType = (type: string, chatTitle?: string) => {
   switch (type) {
     case 'sign-in':
       return 'Sign in to Sim Studio'
@@ -30,6 +31,8 @@ const getSubjectByType = (type: string) => {
       return 'Verify your email for Sim Studio'
     case 'forget-password':
       return 'Reset your Sim Studio password'
+    case 'chat-access':
+      return `Verification code for ${chatTitle || 'Chat'}`
     default:
       return 'Verification code for Sim Studio'
   }
@@ -39,12 +42,27 @@ export const OTPVerificationEmail = ({
   otp,
   email = '',
   type = 'email-verification',
+  chatTitle,
 }: OTPVerificationEmailProps) => {
+  // Get a message based on the type
+  const getMessage = () => {
+    switch (type) {
+      case 'sign-in':
+        return 'Sign in to Sim Studio'
+      case 'forget-password':
+        return 'Reset your password for Sim Studio'
+      case 'chat-access':
+        return `Access ${chatTitle || 'the chat'}`
+      default:
+        return 'Welcome to Sim Studio'
+    }
+  }
+
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>{getSubjectByType(type)}</Preview>
+        <Preview>{getSubjectByType(type, chatTitle)}</Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -68,14 +86,7 @@ export const OTPVerificationEmail = ({
             </Row>
           </Section>
           <Section style={baseStyles.content}>
-            <Text style={baseStyles.paragraph}>
-              {type === 'sign-in'
-                ? 'Sign in to'
-                : type === 'forget-password'
-                  ? 'Reset your password for'
-                  : 'Welcome to'}{' '}
-              Sim Studio!
-            </Text>
+            <Text style={baseStyles.paragraph}>{getMessage()}</Text>
             <Text style={baseStyles.paragraph}>Your verification code is:</Text>
             <Section style={baseStyles.codeContainer}>
               <Text style={baseStyles.code}>{otp}</Text>
