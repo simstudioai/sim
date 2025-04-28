@@ -13,6 +13,7 @@ import {
   PenLine,
   ScrollText,
   Settings,
+  Shapes,
   Store,
 } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
@@ -103,12 +104,13 @@ export function Sidebar() {
         isCollapsed ? 'w-14' : 'w-60'
       )}
     >
-      {/* Workspace Header */}
-      <WorkspaceHeader onCreateWorkflow={handleCreateWorkflow} isCollapsed={isCollapsed} />
+      {/* Workspace Header - Fixed at top */}
+      <div className="flex-shrink-0">
+        <WorkspaceHeader onCreateWorkflow={handleCreateWorkflow} isCollapsed={isCollapsed} />
+      </div>
 
-      {/* Main navigation and content - This area scrolls */}
-      <div className="flex-1 overflow-y-auto px-2 pt-0 pb-2 scrollbar-none">
-        {/* Main Navigation */}
+      {/* Main navigation - Fixed at top below header */}
+      <div className="flex-shrink-0 px-2 pt-0">
         <NavSection>
           <NavSection.Item
             icon={<Home className="h-[18px] w-[18px]" />}
@@ -118,58 +120,40 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
           />
           <NavSection.Item
-            icon={<PanelRight className="h-[18px] w-[18px]" />}
+            icon={<Shapes className="h-[18px] w-[18px]" />}
             href="/w/templates"
             label="Templates"
             active={pathname === '/w/templates'}
             isCollapsed={isCollapsed}
           />
-          <NavSection.Item
+          {/* <NavSection.Item
             icon={<Store className="h-[18px] w-[18px]" />}
             href="/w/marketplace"
             label="Marketplace"
             active={pathname === '/w/marketplace'}
             isCollapsed={isCollapsed}
-          />
+          /> */}
         </NavSection>
+      </div>
 
+      {/* Scrollable Content Area - Contains Workflows and Logs/Settings */}
+      <div className="flex-1 overflow-auto scrollbar-none flex flex-col px-2 py-0">
         {/* Workflows Section */}
-        <div className="mt-6">
+        <div className="mt-6 flex-shrink-0">
           <h2
             className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${isCollapsed ? 'text-center' : ''}`}
           >
             {isCollapsed ? '' : 'Workflows'}
           </h2>
-          {isCollapsed ? (
-            <div className="space-y-[1px]">
-              {regularWorkflows.map((workflow) => {
-                return (
-                  <Link
-                    key={workflow.id}
-                    href={`/w/${workflow.id}`}
-                    className={clsx(
-                      'flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground w-8 h-8 mx-auto',
-                      pathname === `/w/${workflow.id}` ? 'bg-accent' : 'hover:bg-accent/50'
-                    )}
-                  >
-                    <div
-                      className="h-[14px] w-[14px] rounded flex-shrink-0"
-                      style={{ backgroundColor: workflow.color }}
-                    />
-                  </Link>
-                )
-              })}
-            </div>
-          ) : (
-            <WorkflowList
-              regularWorkflows={regularWorkflows}
-              marketplaceWorkflows={tempWorkflows}
-            />
-          )}
+          <WorkflowList
+            regularWorkflows={regularWorkflows}
+            marketplaceWorkflows={tempWorkflows}
+            isCollapsed={isCollapsed}
+          />
         </div>
 
-        {/* Logs and Settings Navigation  */}
-        <div className="mt-6">
+        {/* Logs and Settings Navigation - Follows workflows */}
+        <div className="mt-6 flex-shrink-0">
           <NavSection>
             <NavSection.Item
               icon={<ScrollText className="h-[18px] w-[18px]" />}
@@ -186,10 +170,13 @@ export function Sidebar() {
             />
           </NavSection>
         </div>
+
+        {/* Push the bottom controls down when content is short */}
+        <div className="flex-grow"></div>
       </div>
 
-      {/* Bottom buttons container */}
-      <div className="flex-shrink-0 px-2 py-3">
+      {/* Bottom buttons container - Always at bottom */}
+      <div className="flex-shrink-0 px-3 py-3">
         {isCollapsed ? (
           <div className="flex flex-col space-y-[1px]">
             <Tooltip>
