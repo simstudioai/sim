@@ -20,6 +20,7 @@ export interface WorkflowRegistryState {
 }
 
 export interface WorkflowRegistryActions {
+  setLoading: (loading: boolean) => void
   setActiveWorkflow: (id: string) => Promise<void>
   removeWorkflow: (id: string) => void
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void

@@ -26,6 +26,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       isLoading: false,
       error: null,
 
+      // Set loading state
+      setLoading: (loading: boolean) => {
+        set({ isLoading: loading })
+      },
+
       // Switch to a different workflow and manage state persistence
       setActiveWorkflow: async (id: string) => {
         const { workflows } = get()

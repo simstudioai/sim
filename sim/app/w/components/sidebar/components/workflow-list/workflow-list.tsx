@@ -4,24 +4,31 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import { ScrollText } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   marketplaceWorkflows: WorkflowMetadata[]
   isCollapsed?: boolean
+  isLoading?: boolean
 }
 
 export function WorkflowList({
   regularWorkflows,
   marketplaceWorkflows,
   isCollapsed,
+  isLoading = false,
 }: WorkflowListProps) {
   const pathname = usePathname()
 
   // Calculate if we need scrolling (more than 16 total workflows)
   const totalWorkflows = regularWorkflows.length + marketplaceWorkflows.length
   const needsScrolling = totalWorkflows > 16
+
+  if (isLoading) {
+    return isCollapsed ? <WorkflowListSkeletonCollapsed /> : <WorkflowListSkeleton />
+  }
 
   if (isCollapsed) {
     // Collapsed view
@@ -136,5 +143,34 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
         </span>
       )}
     </Link>
+  )
+}
+
+function WorkflowListSkeleton() {
+  return (
+    <div className="space-y-[1px] max-h-[calc(100vh-350px)]">
+      {Array(6)
+        .fill(0)
+        .map((_, i) => (
+          <div key={i} className="flex items-center rounded-md py-[6px] px-2 gap-2">
+            <Skeleton className="h-[12px] w-[12px] rounded shrink-0" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+        ))}
+    </div>
+  )
+}
+
+function WorkflowListSkeletonCollapsed() {
+  return (
+    <div className="space-y-[1px] max-h-[calc(100vh-350px)]">
+      {Array(6)
+        .fill(0)
+        .map((_, i) => (
+          <div key={i} className="flex items-center justify-center w-8 h-8 mx-auto">
+            <Skeleton className="h-[14px] w-[14px] rounded" />
+          </div>
+        ))}
+    </div>
   )
 }

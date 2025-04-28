@@ -18,10 +18,12 @@ import {
 } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { HelpModal } from './components/help-modal/help-modal'
 import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
@@ -29,7 +31,9 @@ import { WorkflowList } from './components/workflow-list/workflow-list'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
-  const { workflows, createWorkflow } = useWorkflowRegistry()
+  useRegistryLoading()
+
+  const { workflows, createWorkflow, isLoading } = useWorkflowRegistry()
   const router = useRouter()
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
@@ -111,7 +115,7 @@ export function Sidebar() {
 
       {/* Main navigation - Fixed at top below header */}
       <div className="flex-shrink-0 px-2 pt-0">
-        <NavSection>
+        <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
           <NavSection.Item
             icon={<Home className="h-[18px] w-[18px]" />}
             href="/w/1"
@@ -143,18 +147,29 @@ export function Sidebar() {
           <h2
             className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${isCollapsed ? 'text-center' : ''}`}
           >
-            {isCollapsed ? '' : 'Workflows'}
+            {isLoading ? (
+              isCollapsed ? (
+                ''
+              ) : (
+                <Skeleton className="w-16 h-4" />
+              )
+            ) : isCollapsed ? (
+              ''
+            ) : (
+              'Workflows'
+            )}
           </h2>
           <WorkflowList
             regularWorkflows={regularWorkflows}
             marketplaceWorkflows={tempWorkflows}
             isCollapsed={isCollapsed}
+            isLoading={isLoading}
           />
         </div>
 
         {/* Logs and Settings Navigation - Follows workflows */}
         <div className="mt-6 flex-shrink-0">
-          <NavSection>
+          <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className="h-[18px] w-[18px]" />}
               href="/w/logs"

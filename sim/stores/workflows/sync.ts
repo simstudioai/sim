@@ -48,6 +48,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
   if (typeof window === 'undefined') return
 
   try {
+    // Set loading state in registry
+    useWorkflowRegistry.getState().setLoading(true)
+    
     // Set flag to prevent sync back to DB during loading
     isLoadingFromDB = true
     loadingFromDBToken = 'loading'
@@ -196,6 +199,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     setTimeout(() => {
       isLoadingFromDB = false
       loadingFromDBToken = null
+      
+      // Set loading state to false
+      useWorkflowRegistry.getState().setLoading(false)
 
       // Verify if registry has workflows as a final check
       const registryWorkflows = useWorkflowRegistry.getState().workflows
