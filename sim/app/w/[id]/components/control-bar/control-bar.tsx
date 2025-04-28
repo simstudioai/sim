@@ -617,11 +617,11 @@ export function ControlBar() {
           onBlur={handleNameSubmit}
           onKeyDown={handleNameKeyDown}
           autoFocus
-          className="font-semibold text-sm bg-transparent border-none outline-none p-0 w-[200px]"
+          className="text-sm font-medium bg-transparent border-none outline-none p-0 w-[200px]"
         />
       ) : (
         <h2
-          className="font-semibold text-sm hover:text-muted-foreground w-fit"
+          className="text-sm font-medium hover:text-muted-foreground w-fit cursor-pointer"
           onClick={handleNameClick}
         >
           {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
@@ -1129,13 +1129,13 @@ export function ControlBar() {
   return (
     <div className="flex h-16 w-full items-center justify-between bg-background border-b">
       {/* Left Section - Workflow Info */}
-      <div className="pl-6">{renderWorkflowName()}</div>
+      <div className="pl-4">{renderWorkflowName()}</div>
 
       {/* Middle Section - Reserved for future use */}
       <div className="flex-1" />
 
       {/* Right Section - Actions */}
-      <div className="flex items-center gap-2 pr-6">
+      <div className="flex items-center gap-1 pr-4">
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
