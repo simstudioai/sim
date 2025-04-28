@@ -2,6 +2,17 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 :root {
-    --color-fd-primary: #8b5cf6; /* or your desired purple hue */
+    --color-fd-primary: #802FFF; /* Purple from control-bar component */
 }
+
+/* Custom text highlighting styles */
+.text-highlight {
+    color: var(--color-fd-primary);
+}
+
+/* Override marker color for highlighted lists */
+.highlight-markers li::marker {
+    color: var(--color-fd-primary);
+}
+
 @source '../node_modules/fumadocs-ui/dist/**/*.js';

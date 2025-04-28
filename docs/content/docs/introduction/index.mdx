@@ -11,7 +11,7 @@ Sim Studio is a powerful platform for building, testing, and optimizing agentic 
 
 ## Why Sim Studio?
 
-Building agentic applications requires extensive coding and integration work. Developers spend more time on infrastructure and plumbing than focusing on core AI logic. Sim Studio changes this with a <span className="text-[#B5A1D4]">comprehensive visual workflow editor</span> that handles complexity while keeping you in control of what matters.
+Building agentic applications requires extensive coding and integration work. Developers spend more time on infrastructure and plumbing than focusing on core AI logic. Sim Studio changes this with a <span className="text-highlight">comprehensive visual workflow editor</span> that handles complexity while keeping you in control of what matters.
 
 ## How Sim Studio Differs
 
@@ -21,19 +21,24 @@ Sim Studio takes a fundamentally different approach from existing agent developm
 
 Developers waste countless hours customizing multi-agent frameworks, writing boilerplate code, creating integrations, and building tooling from scratch. By the time they've configured their environment, precious resources are consumed before any real agent work begins.
 
-Sim Studio eliminates this overhead. We've distilled agent development to its essence, removing boilerplate and infrastructure complexity. With Sim Studio, you can <span className="text-[#B5A1D4]">immediately start designing intelligence</span> rather than wrestling with configuration. Your time is best spent refining agent behaviors, not writing glue code that doesn't improve the end-user experience.
+Sim Studio eliminates this overhead. We've distilled agent development to its essence, removing boilerplate and infrastructure complexity. With Sim Studio, you can <span className="text-highlight">immediately start designing intelligence</span> rather than wrestling with configuration. Your time is best spent refining agent behaviors, not writing glue code that doesn't improve the end-user experience.
 
 ### Provider-Aligned Interfaces
 
 Existing frameworks abstract away provider-specific features, forcing developers to navigate layers of abstraction to access specific capabilities. The result: lost functionality, reduced flexibility, and additional code to bridge these gaps.
 
-Sim Studio stays <span className="text-[#B5A1D4]">close to provider definitions</span>, directly exposing the parameters that matter:
-<ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
+Sim Studio stays <span className="text-highlight">close to provider definitions</span>, directly exposing the parameters that matter:
+
+<ul className="list-disc pl-6 space-y-2 highlight-markers">
   <li>System prompts and instructions with native formatting</li>
-  <li>Tool definitions and access patterns that match provider implementations</li>
+  <li>
+    Tool definitions and access patterns that match provider implementations
+  </li>
   <li>Temperature and sampling parameters with their full range of options</li>
   <li>Structured output formatting that aligns with provider capabilities</li>
-  <li>Model selection and configuration with provider-specific optimizations</li>
+  <li>
+    Model selection and configuration with provider-specific optimizations
+  </li>
 </ul>
 
 This approach gives you full control over agent behavior without unnecessary complexity. You leverage each provider's full capabilities without sacrificing the convenience of a unified platform.
@@ -42,28 +47,34 @@ This approach gives you full control over agent behavior without unnecessary com
 
 Most environments lock you into a specific LLM provider early in development. Changing providers later requires significant refactoring, often affecting your entire application architecture and limiting your ability to leverage advances in model capabilities.
 
-Our platform provides a <span className="text-[#B5A1D4]">consistent interface across different AI models</span>, letting you switch between OpenAI, Anthropic, Claude, Llama, Gemini and others without rewriting your agent logic. This model-agnostic approach future-proofs your applications and gives you freedom to select the best model for each specific use case—optimize for cost with one agent and performance with another, all within the same workflow.
+Our platform provides a <span className="text-highlight">consistent interface across different AI models</span>, letting you switch between OpenAI, Anthropic, Claude, Llama, Gemini and others without rewriting your agent logic. This model-agnostic approach future-proofs your applications and gives you freedom to select the best model for each specific use case—optimize for cost with one agent and performance with another, all within the same workflow.
 
 ### AI-Native Design
 
 Traditional development environments were designed for conventional software and later adapted for AI. These adaptations often feel like afterthoughts, with AI capabilities awkwardly grafted onto existing paradigms.
 
-Sim Studio is <span className="text-[#B5A1D4]">built from the ground up as an AI-native application</span>. Every aspect—from the visual workflow editor to testing environments—is designed specifically for agent development. Common AI development patterns are first-class concepts in our platform, not workarounds. Testing prompts, adjusting parameters, or implementing complex tool calling patterns feel natural because they're core to our design philosophy.
+Sim Studio is <span className="text-highlight">built from the ground up as an AI-native application</span>. Every aspect—from the visual workflow editor to testing environments—is designed specifically for agent development. Common AI development patterns are first-class concepts in our platform, not workarounds. Testing prompts, adjusting parameters, or implementing complex tool calling patterns feel natural because they're core to our design philosophy.
 
 ### Local Development Support
 
 Many AI platforms force you to develop against cloud APIs, creating dependencies on internet connectivity, increasing costs, and introducing privacy concerns with sensitive data.
 
-Sim Studio supports <span className="text-[#B5A1D4]">full local development</span> using Ollama integration. Develop with privacy-preserving local models, then seamlessly deploy with cloud providers in production. This hybrid approach gives you the best of both worlds: privacy, cost-efficiency, and reliability during development, with scalability and performance in production.
+Sim Studio supports <span className="text-highlight">full local development</span> using Ollama integration. Develop with privacy-preserving local models, then seamlessly deploy with cloud providers in production. This hybrid approach gives you the best of both worlds: privacy, cost-efficiency, and reliability during development, with scalability and performance in production.
 
 ### Comprehensive Observability
 
 Existing solutions provide limited visibility into agent performance, making it difficult to identify bottlenecks, understand costs, or diagnose failures. Developers build custom instrumentation or operate in the dark.
 
-Sim Studio provides <span className="text-[#B5A1D4]">full visibility into agent performance</span> with integrated observability:
-<ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
-  <li>Detailed execution logs capturing every interaction between agents and models</li>
-  <li>Latency tracing with span visualization to identify performance bottlenecks</li>
+Sim Studio provides <span className="text-highlight">full visibility into agent performance</span> with integrated observability:
+
+<ul className="list-disc pl-6 space-y-2 highlight-markers">
+  <li>
+    Detailed execution logs capturing every interaction between agents and
+    models
+  </li>
+  <li>
+    Latency tracing with span visualization to identify performance bottlenecks
+  </li>
   <li>Cost tracking and optimization to prevent budget overruns</li>
   <li>Error analysis and debugging tools for complex workflows</li>
   <li>Performance comparisons across different model configurations</li>
@@ -77,6 +88,6 @@ Sim Studio provides a wide range of features designed to accelerate your develop
 
 <Features />
 
-## 
+##
 
-Ready to get started? Check out our [Getting Started](/docs/getting-started) guide or explore our [Blocks](/docs/blocks) and [Tools](/docs/tools) in more detail. 
+Ready to get started? Check out our [Getting Started](/getting-started) guide or explore our [Blocks](/docs/blocks) and [Tools](/docs/tools) in more detail.

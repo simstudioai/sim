@@ -19,7 +19,8 @@ export default function Layout({ children }: { children: ReactNode }) {
 
 export const metadata = {
   title: 'Sim Studio',
-  description: 'Drag and drop agents to create workflows. Powered by Simplicity',
+  description:
+    'Build agents in seconds with a drag and drop workflow builder. Access comprehensive documentation to help you create efficient workflows and maximize your automation capabilities.',
   manifest: '/favicon/site.webmanifest',
   icons: {
     icon: [
