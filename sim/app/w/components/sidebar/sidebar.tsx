@@ -20,6 +20,7 @@ import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSession } from '@/lib/auth-client'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -33,7 +34,9 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 export function Sidebar() {
   useRegistryLoading()
 
-  const { workflows, createWorkflow, isLoading } = useWorkflowRegistry()
+  const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
+  const { isPending: sessionLoading } = useSession()
+  const isLoading = workflowsLoading || sessionLoading
   const router = useRouter()
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)

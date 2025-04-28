@@ -45,6 +45,7 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -75,6 +76,7 @@ const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
 export function ControlBar() {
   const router = useRouter()
   const { data: session } = useSession()
+  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
 
   // Store hooks
   const {
@@ -1125,15 +1127,15 @@ export function ControlBar() {
   )
 
   return (
-    <div className="flex h-16 w-full items-center justify-between bg-background px-6 border-b transition-all duration-300">
+    <div className="flex h-16 w-full items-center justify-between bg-background border-b transition-all duration-200">
       {/* Left Section - Workflow Info */}
-      {renderWorkflowName()}
+      <div className="pl-6">{renderWorkflowName()}</div>
 
       {/* Middle Section - Reserved for future use */}
       <div className="flex-1" />
 
       {/* Right Section - Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 pr-6">
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
