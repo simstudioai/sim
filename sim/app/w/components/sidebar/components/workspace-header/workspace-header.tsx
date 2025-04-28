@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ChevronDown, PenLine, Settings, UserPlus } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ interface Workspace {
   id: string
   name: string
   ownerId: string
+  role?: string
 }
 
 interface WorkspaceHeaderProps {
@@ -35,6 +37,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
+  const router = useRouter()
 
   const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
 
@@ -52,60 +55,63 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
 
       // Fetch user's workspaces
       setIsWorkspacesLoading(true)
-      // This is a mock implementation - we'd actually call the API here
-      // fetch('/api/workspaces')
-      //   .then((res) => res.json())
-      //   .then((data) => handleWorkspaces(data))
-
-      // Mock implementation for now
-      setTimeout(() => {
-        const defaultWorkspace = {
-          id: '1',
-          name: `${userName}'s Workspace`,
-          ownerId: sessionData.user.id,
-        }
-        setWorkspaces([defaultWorkspace])
-        setActiveWorkspace(defaultWorkspace)
-        setIsWorkspacesLoading(false)
-      }, 500)
+      fetch('/api/workspaces')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.workspaces && Array.isArray(data.workspaces)) {
+            setWorkspaces(data.workspaces)
+            // Set the first workspace as active by default
+            if (data.workspaces.length > 0) {
+              setActiveWorkspace(data.workspaces[0])
+            }
+          }
+          setIsWorkspacesLoading(false)
+        })
+        .catch((err) => {
+          console.error('Error fetching workspaces:', err)
+          setIsWorkspacesLoading(false)
+        })
     }
-  }, [sessionData?.user?.id, userName])
-
-  // This would be used when we have the actual API
-  // const handleWorkspaces = (data: { workspaces: Workspace[] }) => {
-  //   if (data.workspaces.length === 0) {
-  //     // Create a default workspace if none exists
-  //     createDefaultWorkspace();
-  //   } else {
-  //     setWorkspaces(data.workspaces);
-  //     setActiveWorkspace(data.workspaces[0]);
-  //     setIsWorkspacesLoading(false);
-  //   }
-  // }
-
-  // const createDefaultWorkspace = () => {
-  //   // Create a default workspace for the user
-  //   fetch('/api/workspaces', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ name: `${userName}'s Workspace` })
-  //   })
-  //     .then(res => res.json())
-  //     .then(data => {
-  //       setWorkspaces([data.workspace]);
-  //       setActiveWorkspace(data.workspace);
-  //       setIsWorkspacesLoading(false);
-  //     })
-  //     .catch(err => {
-  //       console.error('Error creating workspace:', err);
-  //       setIsWorkspacesLoading(false);
-  //     });
-  // }
+  }, [sessionData?.user?.id])
 
   const switchWorkspace = (workspace: Workspace) => {
     setActiveWorkspace(workspace)
-    // In a real implementation, we would navigate or update the app state
-    // router.push(`/w/${workspace.id}`);
+    setIsOpen(false)
+
+    // In a full implementation, we would store the active workspace ID in local storage
+    // and update the global app state to reflect the change
+    localStorage.setItem('activeWorkspaceId', workspace.id)
+
+    // For now, just reload the page
+    // router.refresh()
+  }
+
+  const createWorkspace = () => {
+    // Show a prompt for the workspace name
+    const name = prompt('Enter workspace name:')
+    if (!name) return
+
+    setIsWorkspacesLoading(true)
+
+    fetch('/api/workspaces', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.workspace) {
+          setWorkspaces((prev) => [...prev, data.workspace])
+          setActiveWorkspace(data.workspace)
+        }
+        setIsWorkspacesLoading(false)
+      })
+      .catch((err) => {
+        console.error('Error creating workspace:', err)
+        setIsWorkspacesLoading(false)
+      })
   }
 
   return (
@@ -202,6 +208,14 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                       ))}
                     </div>
                   )}
+
+                  {/* Create new workspace button */}
+                  <DropdownMenuItem
+                    className="text-sm rounded-md px-2 py-1.5 cursor-pointer mt-1 text-muted-foreground"
+                    onClick={createWorkspace}
+                  >
+                    <span className="truncate">+ New workspace</span>
+                  </DropdownMenuItem>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
