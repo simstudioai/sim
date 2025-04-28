@@ -1127,7 +1127,7 @@ export function ControlBar() {
   )
 
   return (
-    <div className="flex h-16 w-full items-center justify-between bg-background border-b transition-all duration-200">
+    <div className="flex h-16 w-full items-center justify-between bg-background border-b">
       {/* Left Section - Workflow Info */}
       <div className="pl-6">{renderWorkflowName()}</div>
 

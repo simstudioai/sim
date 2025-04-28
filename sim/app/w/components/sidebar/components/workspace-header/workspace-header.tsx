@@ -115,15 +115,19 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
           {!isCollapsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onCreateWorkflow}
-                  className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
-                >
-                  <PenLine className="h-[18px] w-[18px]" />
-                  <span className="sr-only">New Workflow</span>
-                </Button>
+                {isLoading ? (
+                  <Skeleton className="h-6 w-6 shrink-0" />
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onCreateWorkflow}
+                    className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
+                  >
+                    <PenLine className="h-[18px] w-[18px]" />
+                    <span className="sr-only">New Workflow</span>
+                  </Button>
+                )}
               </TooltipTrigger>
               <TooltipContent>New Workflow</TooltipContent>
             </Tooltip>

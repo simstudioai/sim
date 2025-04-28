@@ -28,7 +28,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
       // Set loading state
       setLoading: (loading: boolean) => {
-        set({ isLoading: loading })
+        // Only set loading to true if workflows is empty
+        if (!loading || Object.keys(get().workflows).length === 0) {
+          set({ isLoading: loading })
+        }
       },
 
       // Switch to a different workflow and manage state persistence

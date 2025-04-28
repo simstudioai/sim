@@ -475,13 +475,15 @@ function WorkflowContent() {
   }
 
   return (
-    <div
-      className={`flex flex-col h-screen w-full overflow-hidden transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
-    >
-      <ControlBar />
-      <Toolbar />
-      <Panel />
-      <div className="flex-1 relative w-full h-full">
+    <div className="flex flex-col h-screen w-full overflow-hidden">
+      <div className={`transition-all duration-200 ${isSidebarCollapsed ? 'ml-14' : 'ml-60'}`}>
+        <ControlBar />
+        <Toolbar />
+      </div>
+      <div
+        className={`flex-1 relative w-full h-full transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+      >
+        <Panel />
         <NotificationList />
         <ReactFlow
           nodes={nodes}
