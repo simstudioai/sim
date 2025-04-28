@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
 import { cn } from '@/lib/utils'
@@ -30,8 +28,6 @@ export function DeployedWorkflowCard({
   deployedWorkflowState,
   className,
 }: DeployedWorkflowCardProps) {
-  // State for toggling subblocks visibility
-  const [showSubBlocks, setShowSubBlocks] = useState(true)
   // State for toggling between deployed and current workflow
   const [showingDeployed, setShowingDeployed] = useState(true)
 
@@ -47,16 +43,6 @@ export function DeployedWorkflowCard({
           </h3>
           {/* Controls */}
           <div className="flex items-center gap-4">
-            {/* SubBlocks toggle */}
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="show-subblocks"
-                checked={showSubBlocks}
-                onCheckedChange={setShowSubBlocks}
-              />
-              <Label htmlFor="show-subblocks">Show Subblocks</Label>
-            </div>
-            
             {/* Version toggle - only show if there's a current version */}
             {currentWorkflowState && (
               <Button
@@ -77,7 +63,7 @@ export function DeployedWorkflowCard({
           {workflowToShow ? (
             <WorkflowPreview
               workflowState={workflowToShow}
-              showSubBlocks={showSubBlocks}
+              showSubBlocks={true}
               height="100%"
               width="100%"
               isPannable={true}

@@ -53,10 +53,6 @@ export function DeployedWorkflowModal({
         className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
         style={{ zIndex: 1000 }}
       >
-        <DialogHeader>
-          <DialogTitle>Workflow Deployment View</DialogTitle>
-          <DialogDescription>This is the currently deployed version of your workflow.</DialogDescription>
-        </DialogHeader>
         
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
