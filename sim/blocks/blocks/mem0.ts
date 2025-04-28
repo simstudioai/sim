@@ -25,12 +25,16 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       placeholder: 'Select an operation',
     },
     {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
+      id: 'limit',
+      title: 'Result Limit',
+      type: 'slider',
       layout: 'full',
-      placeholder: 'Enter your Mem0 API key',
-      password: true,
+      min: 1,
+      max: 50,
+      condition: {
+        field: 'operation',
+        value: ['search', 'get'],
+      },
     },
     {
       id: 'userId',
@@ -55,7 +59,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       title: 'Messages',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter messages as JSON array with role and content',
+      placeholder: 'JSON array, e.g. [{"role": "user", "content": "I love Sim Studio!"}]',
       language: 'json',
       condition: {
         field: 'operation',
@@ -107,16 +111,12 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       },
     },
     {
-      id: 'limit',
-      title: 'Result Limit',
-      type: 'slider',
-      layout: 'half',
-      min: 1,
-      max: 50,
-      condition: {
-        field: 'operation',
-        value: ['search', 'get'],
-      },
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your Mem0 API key',
+      password: true,
     },
   ],
   tools: {
