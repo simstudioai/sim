@@ -86,6 +86,7 @@
     "react-dom": "^18.2.0",
     "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.54.2",
+    "react-markdown": "^10.1.0",
     "react-simple-code-editor": "^0.14.1",
     "reactflow": "^11.11.4",
     "resend": "^4.1.2",
@@ -96,6 +97,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
