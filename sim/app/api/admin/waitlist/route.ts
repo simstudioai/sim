@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Logger } from '@/lib/logs/console-logger'
 import { 
   approveWaitlistUser, 
+  approveBatchWaitlistUsers,
   getWaitlistEntries, 
   rejectWaitlistUser,
   resendApprovalEmail 
@@ -22,6 +23,12 @@ const getQuerySchema = z.object({
 const actionSchema = z.object({
   email: z.string().email(),
   action: z.enum(['approve', 'reject', 'resend']),
+})
+
+// Schema for batch approval request
+const batchActionSchema = z.object({
+  emails: z.array(z.string().email()).min(1).max(100),
+  action: z.literal('batchApprove'),
 })
 
 // Admin password from environment variables
@@ -149,265 +156,321 @@ export async function POST(request: NextRequest) {
     // Parse request body
     const body = await request.json()
 
-    // Validate request
-    const validatedData = actionSchema.safeParse(body)
+    // Check if it's a batch action
+    if (body.action === 'batchApprove' && Array.isArray(body.emails)) {
+      // Validate batch request
+      const validatedData = batchActionSchema.safeParse(body)
 
-    if (!validatedData.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Invalid request',
-          errors: validatedData.error.format(),
-        },
-        { status: 400 }
-      )
-    }
+      if (!validatedData.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Invalid batch request',
+            errors: validatedData.error.format(),
+          },
+          { status: 400 }
+        )
+      }
 
-    const { email, action } = validatedData.data
-
-    let result: any
-
-    // Perform the requested action
-    if (action === 'approve') {
+      const { emails } = validatedData.data
+      
+      logger.info(`Processing batch approval for ${emails.length} emails`)
+      
       try {
-        // Need to handle email errors specially to prevent approving users when email fails
-        result = await approveWaitlistUser(email)
-        
-        // First check for email delivery errors from Resend
-        if (!result.success && result?.emailError) {
-          logger.error('Email delivery error:', result.emailError)
-          
-          // Check if it's a rate limit error
-          if (result.rateLimited || detectResendRateLimitError(result.emailError)) {
-            return NextResponse.json(
-              {
-                success: false,
-                message: 'Rate limit exceeded for email sending. User was NOT approved.',
-                rateLimited: true,
-                emailError: true
-              },
-              { status: 429 }
-            )
-          }
-          
-          return NextResponse.json(
-            {
-              success: false,
-              message: `Email delivery failed: ${result.message || 'Unknown email error'}. User was NOT approved.`,
-              emailError: true
-            },
-            { status: 500 }
-          )
-        }
+        const result = await approveBatchWaitlistUsers(emails)
         
         // Check for rate limiting
-        if (!result.success && result?.rateLimited) {
+        if (!result.success && result.rateLimited) {
           logger.warn('Rate limit reached for email sending')
           return NextResponse.json(
             {
               success: false,
-              message: 'Rate limit exceeded for email sending. User was NOT approved.',
-              rateLimited: true
+              message: 'Rate limit exceeded for email sending. Users were NOT approved.',
+              rateLimited: true,
+              results: result.results
             },
             { status: 429 }
           )
         }
         
-        // General failure
-        if (!result.success) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: result.message || 'Failed to approve user'
-            },
-            { status: 400 }
-          )
-        }
+        // Return the result, even if partially successful
+        return NextResponse.json({
+          success: result.success,
+          message: result.message,
+          results: result.results
+        })
       } catch (error) {
-        logger.error('Error approving waitlist user:', error)
-        
-        // Check if it's the JWT_SECRET missing error
-        if (error instanceof Error && error.message.includes('JWT_SECRET')) {
-          return NextResponse.json(
-            {
-              success: false,
-              message:
-                'Configuration error: JWT_SECRET environment variable is missing. Please contact the administrator.',
-            },
-            { status: 500 }
-          )
-        }
-        
-        // Handle Resend API errors specifically
-        if (error instanceof Error && 
-            (error.message.includes('email') || 
-             error.message.includes('resend'))) {
+        logger.error('Error in batch approval:', error)
+        return NextResponse.json(
+          {
+            success: false,
+            message: error instanceof Error ? error.message : 'Failed to process batch approval',
+          },
+          { status: 500 }
+        )
+      }
+    } else {
+      // Handle individual actions
+      // Validate request
+      const validatedData = actionSchema.safeParse(body)
+
+      if (!validatedData.success) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: 'Invalid request',
+            errors: validatedData.error.format(),
+          },
+          { status: 400 }
+        )
+      }
+
+      const { email, action } = validatedData.data
+
+      let result: any
+
+      // Perform the requested action
+      if (action === 'approve') {
+        try {
+          // Need to handle email errors specially to prevent approving users when email fails
+          result = await approveWaitlistUser(email)
           
-          // Handle rate limiting specifically
-          if (detectResendRateLimitError(error)) {
+          // First check for email delivery errors from Resend
+          if (!result.success && result?.emailError) {
+            logger.error('Email delivery error:', result.emailError)
+            
+            // Check if it's a rate limit error
+            if (result.rateLimited || detectResendRateLimitError(result.emailError)) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  message: 'Rate limit exceeded for email sending. User was NOT approved.',
+                  rateLimited: true,
+                  emailError: true
+                },
+                { status: 429 }
+              )
+            }
+            
+            return NextResponse.json(
+              {
+                success: false,
+                message: `Email delivery failed: ${result.message || 'Unknown email error'}. User was NOT approved.`,
+                emailError: true
+              },
+              { status: 500 }
+            )
+          }
+          
+          // Check for rate limiting
+          if (!result.success && result?.rateLimited) {
+            logger.warn('Rate limit reached for email sending')
             return NextResponse.json(
               {
                 success: false,
                 message: 'Rate limit exceeded for email sending. User was NOT approved.',
-                rateLimited: true,
-                emailError: true
+                rateLimited: true
               },
               { status: 429 }
             )
           }
           
-          return NextResponse.json(
-            {
-              success: false,
-              message: `Email delivery failed: ${error.message}. User was NOT approved.`,
-              emailError: true
-            },
-            { status: 500 }
-          )
-        }
-        
-        return NextResponse.json(
-          {
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to approve user',
-          },
-          { status: 500 }
-        )
-      }
-    } else if (action === 'reject') {
-      try {
-        result = await rejectWaitlistUser(email)
-      } catch (error) {
-        logger.error('Error rejecting waitlist user:', error)
-        return NextResponse.json(
-          {
-            success: false,
-            message: error instanceof Error ? error.message : 'Failed to reject user',
-          },
-          { status: 500 }
-        )
-      }
-    } else if (action === 'resend') {
-      try {
-        result = await resendApprovalEmail(email)
-        
-        // First check for email delivery errors from Resend
-        if (!result.success && result?.emailError) {
-          logger.error('Email delivery error:', result.emailError)
-          
-          // Check if it's a rate limit error
-          if (result.rateLimited || detectResendRateLimitError(result.emailError)) {
+          // General failure
+          if (!result.success) {
             return NextResponse.json(
               {
                 success: false,
-                message: 'Rate limit exceeded for email sending.',
-                rateLimited: true,
+                message: result.message || 'Failed to approve user'
+              },
+              { status: 400 }
+            )
+          }
+        } catch (error) {
+          logger.error('Error approving waitlist user:', error)
+          
+          // Check if it's the JWT_SECRET missing error
+          if (error instanceof Error && error.message.includes('JWT_SECRET')) {
+            return NextResponse.json(
+              {
+                success: false,
+                message:
+                  'Configuration error: JWT_SECRET environment variable is missing. Please contact the administrator.',
+              },
+              { status: 500 }
+            )
+          }
+          
+          // Handle Resend API errors specifically
+          if (error instanceof Error && 
+              (error.message.includes('email') || 
+               error.message.includes('resend'))) {
+            
+            // Handle rate limiting specifically
+            if (detectResendRateLimitError(error)) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  message: 'Rate limit exceeded for email sending. User was NOT approved.',
+                  rateLimited: true,
+                  emailError: true
+                },
+                { status: 429 }
+              )
+            }
+            
+            return NextResponse.json(
+              {
+                success: false,
+                message: `Email delivery failed: ${error.message}. User was NOT approved.`,
                 emailError: true
               },
-              { status: 429 }
+              { status: 500 }
             )
           }
           
           return NextResponse.json(
             {
               success: false,
-              message: `Email delivery failed: ${result.message || 'Unknown email error'}`,
-              emailError: true
+              message: error instanceof Error ? error.message : 'Failed to approve user',
             },
             { status: 500 }
           )
         }
-        
-        // Check for rate limiting
-        if (!result.success && result?.rateLimited) {
-          logger.warn('Rate limit reached for email sending')
+      } else if (action === 'reject') {
+        try {
+          result = await rejectWaitlistUser(email)
+        } catch (error) {
+          logger.error('Error rejecting waitlist user:', error)
           return NextResponse.json(
             {
               success: false,
-              message: 'Rate limit exceeded for email sending',
-              rateLimited: true
-            },
-            { status: 429 }
-          )
-        }
-        
-        // General failure
-        if (!result.success) {
-          return NextResponse.json(
-            {
-              success: false,
-              message: result.message || 'Failed to resend approval email'
-            },
-            { status: 400 }
-          )
-        }
-      } catch (error) {
-        logger.error('Error resending approval email:', error)
-        
-        // Check if it's the JWT_SECRET missing error
-        if (error instanceof Error && error.message.includes('JWT_SECRET')) {
-          return NextResponse.json(
-            {
-              success: false,
-              message:
-                'Configuration error: JWT_SECRET environment variable is missing. Please contact the administrator.',
+              message: error instanceof Error ? error.message : 'Failed to reject user',
             },
             { status: 500 }
           )
         }
-        
-        // Handle Resend API errors specifically
-        if (error instanceof Error && 
-            (error.message.includes('email') || 
-             error.message.includes('resend'))) {
+      } else if (action === 'resend') {
+        try {
+          result = await resendApprovalEmail(email)
           
-          // Handle rate limiting specifically
-          if (detectResendRateLimitError(error)) {
+          // First check for email delivery errors from Resend
+          if (!result.success && result?.emailError) {
+            logger.error('Email delivery error:', result.emailError)
+            
+            // Check if it's a rate limit error
+            if (result.rateLimited || detectResendRateLimitError(result.emailError)) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  message: 'Rate limit exceeded for email sending.',
+                  rateLimited: true,
+                  emailError: true
+                },
+                { status: 429 }
+              )
+            }
+            
+            return NextResponse.json(
+              {
+                success: false,
+                message: `Email delivery failed: ${result.message || 'Unknown email error'}`,
+                emailError: true
+              },
+              { status: 500 }
+            )
+          }
+          
+          // Check for rate limiting
+          if (!result.success && result?.rateLimited) {
+            logger.warn('Rate limit reached for email sending')
             return NextResponse.json(
               {
                 success: false,
                 message: 'Rate limit exceeded for email sending',
-                rateLimited: true,
-                emailError: true
+                rateLimited: true
               },
               { status: 429 }
+            )
+          }
+          
+          // General failure
+          if (!result.success) {
+            return NextResponse.json(
+              {
+                success: false,
+                message: result.message || 'Failed to resend approval email'
+              },
+              { status: 400 }
+            )
+          }
+        } catch (error) {
+          logger.error('Error resending approval email:', error)
+          
+          // Check if it's the JWT_SECRET missing error
+          if (error instanceof Error && error.message.includes('JWT_SECRET')) {
+            return NextResponse.json(
+              {
+                success: false,
+                message:
+                  'Configuration error: JWT_SECRET environment variable is missing. Please contact the administrator.',
+              },
+              { status: 500 }
+            )
+          }
+          
+          // Handle Resend API errors specifically
+          if (error instanceof Error && 
+              (error.message.includes('email') || 
+               error.message.includes('resend'))) {
+            
+            // Handle rate limiting specifically
+            if (detectResendRateLimitError(error)) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  message: 'Rate limit exceeded for email sending',
+                  rateLimited: true,
+                  emailError: true
+                },
+                { status: 429 }
+              )
+            }
+            
+            return NextResponse.json(
+              {
+                success: false,
+                message: `Email delivery failed: ${error.message}`,
+                emailError: true
+              },
+              { status: 500 }
             )
           }
           
           return NextResponse.json(
             {
               success: false,
-              message: `Email delivery failed: ${error.message}`,
-              emailError: true
+              message: error instanceof Error ? error.message : 'Failed to resend approval email',
             },
             { status: 500 }
           )
         }
-        
+      }
+
+      if (!result || !result.success) {
         return NextResponse.json(
           {
             success: false,
-            message: error instanceof Error ? error.message : 'Failed to resend approval email',
+            message: result?.message || 'Failed to perform action',
           },
-          { status: 500 }
+          { status: 400 }
         )
       }
-    }
 
-    if (!result || !result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: result?.message || 'Failed to perform action',
-        },
-        { status: 400 }
-      )
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+      })
     }
-
-    return NextResponse.json({
-      success: true,
-      message: result.message,
-    })
   } catch (error) {
     logger.error('Admin waitlist API error:', error)
 
