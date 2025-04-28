@@ -1,6 +1,6 @@
 ---
 title: Reddit
-description: Fetch popular posts from Reddit
+description: Access Reddit data and content
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -44,7 +44,7 @@ In Sim Studio, the Reddit integration enables your agents to programmatically ac
 
 ## Usage Instructions
 
-Access Reddit data to retrieve the most popular (hot) posts from any subreddit. Get post titles, content, authors, scores, and more.
+Access Reddit data to retrieve posts and comments from any subreddit. Get post titles, content, authors, scores, comments and more.
 
 
 
@@ -67,6 +67,50 @@ Fetch the most popular (hot) posts from a specified subreddit.
 | --------- | ---- |
 | `subreddit` | string |
 
+### `reddit_get_posts`
+
+Fetch posts from a subreddit with different sorting options
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `subreddit` | string | Yes | The name of the subreddit to fetch posts from \(without the r/ prefix\) |
+| `sort` | string | No | Sort method for posts:  |
+| `limit` | number | No | Maximum number of posts to return \(default: 10, max: 100\) |
+| `time` | string | No | Time filter for  |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `subreddit` | string |
+
+### `reddit_get_comments`
+
+Fetch comments from a specific Reddit post
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `postId` | string | Yes | The ID of the Reddit post to fetch comments from |
+| `subreddit` | string | Yes | The subreddit where the post is located \(without the r/ prefix\) |
+| `sort` | string | No | Sort method for comments:  |
+| `limit` | number | No | Maximum number of comments to return \(default: 50, max: 100\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `post` | string |
+| `title` | string |
+| `author` | string |
+| `selftext` | string |
+| `created_utc` | string |
+| `score` | string |
+| `permalink` | string |
+
 
 
 ## Block Configuration
@@ -75,7 +119,7 @@ Fetch the most popular (hot) posts from a specified subreddit.
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `subreddit` | string | No | Subreddit - Enter subreddit name \(without r/\) |
+| `action` | string | No | Action |
 
 
 
@@ -86,6 +130,8 @@ Fetch the most popular (hot) posts from a specified subreddit.
 | `response` | object | Output from response |
 | ↳ `subreddit` | string | subreddit of the response |
 | ↳ `posts` | json | posts of the response |
+| ↳ `post` | json | post of the response |
+| ↳ `comments` | json | comments of the response |
 
 
 ## Notes

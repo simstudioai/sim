@@ -22,7 +22,7 @@ import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool, embeddingsTool as openAIEmbeddings } from './openai'
 import { perplexityChatTool } from './perplexity'
 import { pineconeFetchTool, pineconeGenerateEmbeddingsTool, pineconeSearchTextTool, pineconeSearchVectorTool, pineconeUpsertTextTool } from './pinecone'
-import { redditHotPostsTool } from './reddit'
+import { redditHotPostsTool, redditGetPostsTool, redditGetCommentsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
 import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './google_sheets'
@@ -94,6 +94,8 @@ export const tools: Record<string, ToolConfig> = {
   exa_find_similar_links: exaFindSimilarLinksTool,
   exa_answer: exaAnswerTool,
   reddit_hot_posts: redditHotPostsTool,
+  reddit_get_posts: redditGetPostsTool,
+  reddit_get_comments: redditGetCommentsTool,
   google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
