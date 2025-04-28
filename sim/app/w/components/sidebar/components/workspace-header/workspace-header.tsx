@@ -8,12 +8,19 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
+
+interface Workspace {
+  id: string
+  name: string
+  ownerId: string
+}
 
 interface WorkspaceHeaderProps {
   onCreateWorkflow: () => void
@@ -25,6 +32,11 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
   const { data: sessionData, isPending } = useSession()
   const [plan, setPlan] = useState('Free Plan')
   const isLoading = isPending
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
+  const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
+
+  const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
 
   useEffect(() => {
     // Fetch subscription status if user is logged in
@@ -37,10 +49,64 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
         .catch((err) => {
           console.error('Error fetching subscription status:', err)
         })
-    }
-  }, [sessionData?.user?.id])
 
-  const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
+      // Fetch user's workspaces
+      setIsWorkspacesLoading(true)
+      // This is a mock implementation - we'd actually call the API here
+      // fetch('/api/workspaces')
+      //   .then((res) => res.json())
+      //   .then((data) => handleWorkspaces(data))
+
+      // Mock implementation for now
+      setTimeout(() => {
+        const defaultWorkspace = {
+          id: '1',
+          name: `${userName}'s Workspace`,
+          ownerId: sessionData.user.id,
+        }
+        setWorkspaces([defaultWorkspace])
+        setActiveWorkspace(defaultWorkspace)
+        setIsWorkspacesLoading(false)
+      }, 500)
+    }
+  }, [sessionData?.user?.id, userName])
+
+  // This would be used when we have the actual API
+  // const handleWorkspaces = (data: { workspaces: Workspace[] }) => {
+  //   if (data.workspaces.length === 0) {
+  //     // Create a default workspace if none exists
+  //     createDefaultWorkspace();
+  //   } else {
+  //     setWorkspaces(data.workspaces);
+  //     setActiveWorkspace(data.workspaces[0]);
+  //     setIsWorkspacesLoading(false);
+  //   }
+  // }
+
+  // const createDefaultWorkspace = () => {
+  //   // Create a default workspace for the user
+  //   fetch('/api/workspaces', {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ name: `${userName}'s Workspace` })
+  //   })
+  //     .then(res => res.json())
+  //     .then(data => {
+  //       setWorkspaces([data.workspace]);
+  //       setActiveWorkspace(data.workspace);
+  //       setIsWorkspacesLoading(false);
+  //     })
+  //     .catch(err => {
+  //       console.error('Error creating workspace:', err);
+  //       setIsWorkspacesLoading(false);
+  //     });
+  // }
+
+  const switchWorkspace = (workspace: Workspace) => {
+    setActiveWorkspace(workspace)
+    // In a real implementation, we would navigate or update the app state
+    // router.push(`/w/${workspace.id}`);
+  }
 
   return (
     <div className="py-2 px-2">
@@ -74,12 +140,15 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                   >
                     <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
                   </Link>
-                  {isLoading ? (
+                  {isLoading || isWorkspacesLoading ? (
                     <Skeleton className="h-4 w-[140px]" />
                   ) : (
-                    <span className="truncate max-w-[140px] text-sm font-medium">
-                      {userName}'s Workspace
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="truncate max-w-[120px] text-sm font-medium">
+                        {activeWorkspace?.name || `${userName}'s Workspace`}
+                      </span>
+                      <ChevronDown className="h-3 w-3 opacity-60" />
+                    </div>
                   )}
                 </div>
               </DropdownMenuTrigger>
@@ -91,7 +160,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                         <AgentIcon className="text-white w-5 h-5" />
                       </div>
                       <div className="flex flex-col max-w-full">
-                        {isLoading ? (
+                        {isLoading || isWorkspacesLoading ? (
                           <>
                             <Skeleton className="h-4 w-[140px] mb-1" />
                             <Skeleton className="h-3 w-16" />
@@ -99,7 +168,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                         ) : (
                           <>
                             <span className="text-sm font-medium truncate">
-                              {userName}'s Workspace
+                              {activeWorkspace?.name || `${userName}'s Workspace`}
                             </span>
                             <span className="text-xs text-muted-foreground">{plan}</span>
                           </>
@@ -107,6 +176,32 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <DropdownMenuSeparator />
+
+                {/* Workspaces list */}
+                <div className="py-1 px-1">
+                  <div className="text-xs font-medium text-muted-foreground mb-1 pl-1">
+                    Workspaces
+                  </div>
+                  {isWorkspacesLoading ? (
+                    <div className="py-1 px-2">
+                      <Skeleton className="h-5 w-full" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {workspaces.map((workspace) => (
+                        <DropdownMenuItem
+                          key={workspace.id}
+                          className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''}`}
+                          onClick={() => switchWorkspace(workspace)}
+                        >
+                          <span className="truncate">{workspace.name}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
