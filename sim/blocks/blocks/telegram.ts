@@ -44,6 +44,15 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       layout: 'full',
       placeholder: 'Enter the message to send',
     },
+    {
+      id: 'botToken',
+      title: 'Bot Token',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your Telegram Bot Token',
+      password: true,
+      connectionDroppable: false,
+    },
   ],
   tools: {
     access: ['telegram_message'],
