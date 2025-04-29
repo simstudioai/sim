@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -48,7 +48,10 @@ export function TelegramConfig({
             <Input
               id="telegram-bot-token"
               value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
+              onChange={(e) => {
+                console.error('Setting bot token:', e.target.value);
+                setBotToken(e.target.value);
+              }}
               placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
               type="password"
               required
@@ -67,7 +70,10 @@ export function TelegramConfig({
             <Input
               id="telegram-trigger-phrase"
               value={triggerPhrase}
-              onChange={(e) => setTriggerPhrase(e.target.value)}
+              onChange={(e) => {
+                console.error('Setting trigger phrase:', e.target.value);
+                setTriggerPhrase(e.target.value);
+              }}
               placeholder="/start_workflow"
               required
             />
