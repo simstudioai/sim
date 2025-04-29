@@ -80,8 +80,7 @@ export function WebhookModal({
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
   const [telegramBotToken, setTelegramBotToken] = useState('')
-  const [telegramChatId, setTelegramChatId] = useState('')
-
+  const [telegramTriggerPhrase, setTelegramTriggerPhrase] = useState('')
   // Airtable-specific state
   const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
   const [airtableBaseId, setAirtableBaseId] = useState('')
@@ -104,7 +103,7 @@ export function WebhookModal({
     airtableTableId: '',
     airtableIncludeCellValues: false,
     telegramBotToken: '',
-    telegramChatId: '',
+    telegramTriggerPhrase: '',
   })
 
   // Get the current provider configuration
@@ -218,17 +217,17 @@ export function WebhookModal({
                   airtableTableId: tableIdVal,
                   airtableIncludeCellValues: includeCells,
                 }))
-              } else if (webhookProvider === 'telegram' && 'botToken' in config && 'chatId' in config) {
+              } else if (webhookProvider === 'telegram') {
                 const botToken = config.botToken || ''
-                const chatId = config.chatId || ''
+                const triggerPhrase = config.triggerPhrase || ''
 
                 setTelegramBotToken(botToken)
-                setTelegramChatId(chatId)
+                setTelegramTriggerPhrase(triggerPhrase)
 
                 setOriginalValues((prev) => ({
                   ...prev,
                   telegramBotToken: botToken,
-                  telegramChatId: chatId,
+                  telegramTriggerPhrase: triggerPhrase,
                 }))
               }
             }
@@ -270,7 +269,7 @@ export function WebhookModal({
           airtableIncludeCellValues !== originalValues.airtableIncludeCellValues)) ||
       (webhookProvider === 'telegram' &&
         (telegramBotToken !== originalValues.telegramBotToken ||
-          telegramChatId !== originalValues.telegramChatId))
+          telegramTriggerPhrase !== originalValues.telegramTriggerPhrase))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -290,7 +289,7 @@ export function WebhookModal({
     airtableTableId,
     airtableIncludeCellValues,
     telegramBotToken,
-    telegramChatId,
+    telegramTriggerPhrase,
   ])
 
   // Validate required fields for current provider
@@ -304,7 +303,6 @@ export function WebhookModal({
         isValid = slackSigningSecret.trim() !== ''
         break
       case 'whatsapp':
-        // Although we auto-generate a token on creation, user could clear it when editing
         isValid = whatsappVerificationToken.trim() !== ''
         break
       case 'github':
@@ -314,7 +312,7 @@ export function WebhookModal({
         isValid = discordWebhookName.trim() !== ''
         break
       case 'telegram':
-        isValid = telegramBotToken.trim() !== '' && telegramChatId.trim() !== ''
+        isValid = telegramBotToken.trim() !== '' && telegramTriggerPhrase.trim() !== ''
         break
     }
     setIsCurrentConfigValid(isValid)
@@ -325,7 +323,7 @@ export function WebhookModal({
     slackSigningSecret,
     whatsappVerificationToken,
     telegramBotToken,
-    telegramChatId,
+    telegramTriggerPhrase,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -385,7 +383,7 @@ export function WebhookModal({
       case 'telegram':
         return {
           botToken: telegramBotToken || undefined,
-          chatId: telegramChatId || undefined,
+          triggerPhrase: telegramTriggerPhrase || undefined,
         }
       default:
         return {}
@@ -418,6 +416,58 @@ export function WebhookModal({
         await new Promise((resolve) => setTimeout(resolve, 100))
 
         if (saveSuccessful) {
+          // If this is a Telegram webhook, set up the webhook URL with Telegram
+          if (webhookProvider === 'telegram' && 'botToken' in providerConfig) {
+            try {
+              // Check if the webhook URL is HTTPS
+              if (!webhookUrl.startsWith('https://')) {
+                throw new Error('Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.')
+              }
+
+              const telegramUrl = `https://api.telegram.org/bot${providerConfig.botToken}/setWebhook`
+              const payload = {
+                url: webhookUrl,
+                allowed_updates: ['message'],
+              }
+
+              logger.info('Setting up Telegram webhook:', {
+                url: telegramUrl,
+                webhookUrl: webhookUrl,
+                payload,
+              })
+
+              const response = await fetch(telegramUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              })
+
+              const data = await response.json()
+              logger.info('Telegram webhook response:', data)
+
+              if (!data.ok) {
+                throw new Error(data.description || 'Failed to set Telegram webhook')
+              }
+
+              logger.info('Successfully set Telegram webhook URL')
+            } catch (error) {
+              logger.error('Error setting Telegram webhook:', {
+                error,
+                webhookUrl,
+                botToken: providerConfig.botToken ? '***' : undefined,
+              })
+              setTestResult({
+                success: false,
+                message: error instanceof Error 
+                  ? error.message 
+                  : 'Webhook configuration saved but failed to set up Telegram webhook. Please ensure your domain has a valid SSL certificate.',
+              })
+              return
+            }
+          }
+
           setOriginalValues({
             whatsappVerificationToken,
             githubContentType,
@@ -433,7 +483,7 @@ export function WebhookModal({
             airtableTableId,
             airtableIncludeCellValues,
             telegramBotToken,
-            telegramChatId,
+            telegramTriggerPhrase,
           })
           setHasUnsavedChanges(false)
           setTestResult({
@@ -531,10 +581,26 @@ export function WebhookModal({
           test: data.test,
         })
       } else {
-        setTestResult({
-          success: false,
-          message: data.message || data.error || 'Webhook test failed with success=false',
-        })
+        // For Telegram, provide more specific error messages
+        if (webhookProvider === 'telegram') {
+          const errorMessage = data.message || data.error || 'Webhook test failed'
+          if (errorMessage.includes('SSL')) {
+            setTestResult({
+              success: false,
+              message: 'Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.',
+            })
+          } else {
+            setTestResult({
+              success: false,
+              message: `Telegram webhook test failed: ${errorMessage}`,
+            })
+          }
+        } else {
+          setTestResult({
+            success: false,
+            message: data.message || data.error || 'Webhook test failed with success=false',
+          })
+        }
       }
     } catch (error: any) {
       logger.error('Error testing webhook:', { error })
@@ -636,8 +702,8 @@ export function WebhookModal({
           <TelegramConfig
             botToken={telegramBotToken}
             setBotToken={setTelegramBotToken}
-            chatId={telegramChatId}
-            setChatId={setTelegramChatId}
+            triggerPhrase={telegramTriggerPhrase}
+            setTriggerPhrase={setTelegramTriggerPhrase}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}

@@ -73,7 +73,7 @@ export interface AirtableWebhookConfig {
 
 export interface TelegramConfig {
   botToken: string
-  chatId: string
+  triggerPhrase: string
 }
 
 // Union type for all provider configurations
@@ -230,11 +230,11 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         placeholder: 'Enter your Telegram Bot Token',
         description: 'The token for your Telegram bot.',
       },
-      chatId: {
+      triggerPhrase: {
         type: 'string',
-        label: 'Chat ID',
-        placeholder: 'Enter your Telegram Chat ID',
-        description: 'The ID of the Telegram chat to send messages to.',
+        label: 'Trigger Phrase',
+        placeholder: '/start_workflow',
+        description: 'The phrase that will trigger the workflow when sent to the bot.',
       },
     },
   },
@@ -267,6 +267,14 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
   // Store provider-specific configuration
   const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+
+  // Reset provider config when provider changes
+  useEffect(() => {
+    if (webhookProvider) {
+      // Reset the provider config when the provider changes
+      setProviderConfig({})
+    }
+  }, [webhookProvider, setProviderConfig])
 
   // Store the actual provider from the database
   const [actualProvider, setActualProvider] = useState<string | null>(null)
