@@ -117,6 +117,15 @@ export function TelegramConfig({
             </ol>
           </li>
           <li>
+            After creating your bot, set the webhook manually using the following curl command:
+            <pre className="bg-gray-100 p-2 rounded text-sm whitespace-pre-wrap">
+              curl -X POST "https://api.telegram.org/bot&lt;your_bot_token&gt;/setWebhook" \
+              -H "Content-Type: application/json" \
+              -d {"{'"}url": "https://simstudio.ngrok.app/api/webhooks/trigger/55749e98-37cd-40b7-b91a-c6e11d71e184", \
+              "allowed_updates": ["message"]{"}"}
+            </pre>
+          </li>
+          <li>
             In SimStudio, enter your Bot Token and set a trigger phrase.
             <ol className="list-disc ml-5 mt-1">
               <li>The webhook URL will be automatically configured</li>
