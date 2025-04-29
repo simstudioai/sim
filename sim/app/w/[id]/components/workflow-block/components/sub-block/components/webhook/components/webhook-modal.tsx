@@ -417,58 +417,6 @@ export function WebhookModal({
         await new Promise((resolve) => setTimeout(resolve, 100))
 
         if (saveSuccessful) {
-          // If this is a Telegram webhook, set up the webhook URL with Telegram
-          if (webhookProvider === 'telegram' && 'botToken' in providerConfig) {
-            try {
-              // Check if the webhook URL is HTTPS
-              if (!webhookUrl.startsWith('https://')) {
-                throw new Error('Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.')
-              }
-
-              const telegramUrl = `https://api.telegram.org/bot${providerConfig.botToken}/setWebhook`
-              const payload = {
-                url: webhookUrl,
-                allowed_updates: ['message'],
-              }
-
-              logger.info('Setting up Telegram webhook:', {
-                url: telegramUrl,
-                webhookUrl: webhookUrl,
-                payload,
-              })
-
-              const response = await fetch(telegramUrl, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-              })
-
-              const data = await response.json()
-              logger.info('Telegram webhook response:', data)
-
-              if (!data.ok) {
-                throw new Error(data.description || 'Failed to set Telegram webhook')
-              }
-
-              logger.info('Successfully set Telegram webhook URL')
-            } catch (error) {
-              logger.error('Error setting Telegram webhook:', {
-                error,
-                webhookUrl,
-                botToken: providerConfig.botToken ? '***' : undefined,
-              })
-              setTestResult({
-                success: false,
-                message: error instanceof Error 
-                  ? error.message 
-                  : 'Webhook configuration saved but failed to set up Telegram webhook. Please ensure your domain has a valid SSL certificate.',
-              })
-              return
-            }
-          }
-
           setOriginalValues({
             whatsappVerificationToken,
             githubContentType,
