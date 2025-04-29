@@ -8,6 +8,7 @@ import {
   SlackIcon,
   StripeIcon,
   WhatsAppIcon,
+  TelegramIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -70,6 +71,11 @@ export interface AirtableWebhookConfig {
   includeCellValuesInFieldIds?: 'all' | undefined
 }
 
+export interface TelegramConfig {
+  botToken: string
+  chatId: string
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -79,6 +85,7 @@ export type ProviderConfig =
   | GeneralWebhookConfig
   | SlackConfig
   | AirtableWebhookConfig
+  | TelegramConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -209,6 +216,25 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         placeholder: 'tblXXXXXXXXXXXXXX',
         description: 'The ID of the Airtable Table within the Base to monitor.',
         defaultValue: '', // Default empty, user must provide
+      },
+    },
+  },
+  telegram: {
+    id: 'telegram',
+    name: 'Telegram',
+    icon: (props) => <TelegramIcon {...props} />,
+    configFields: {
+      botToken: {
+        type: 'string',
+        label: 'Bot Token',
+        placeholder: 'Enter your Telegram Bot Token',
+        description: 'The token for your Telegram bot.',
+      },
+      chatId: {
+        type: 'string',
+        label: 'Chat ID',
+        placeholder: 'Enter your Telegram Chat ID',
+        description: 'The ID of the Telegram chat to send messages to.',
       },
     },
   },

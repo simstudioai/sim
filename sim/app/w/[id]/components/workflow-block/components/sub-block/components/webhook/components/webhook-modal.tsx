@@ -22,6 +22,7 @@ import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
 import { WebhookUrlField } from './ui/webhook-url'
+import { TelegramConfig } from './providers/telegram-config'
 
 const logger = createLogger('WebhookModal')
 
@@ -78,6 +79,8 @@ export function WebhookModal({
   const [discordWebhookName, setDiscordWebhookName] = useState('')
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
+  const [telegramBotToken, setTelegramBotToken] = useState('')
+  const [telegramChatId, setTelegramChatId] = useState('')
 
   // Airtable-specific state
   const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
@@ -100,6 +103,8 @@ export function WebhookModal({
     airtableBaseId: '',
     airtableTableId: '',
     airtableIncludeCellValues: false,
+    telegramBotToken: '',
+    telegramChatId: '',
   })
 
   // Get the current provider configuration
@@ -213,6 +218,18 @@ export function WebhookModal({
                   airtableTableId: tableIdVal,
                   airtableIncludeCellValues: includeCells,
                 }))
+              } else if (webhookProvider === 'telegram' && 'botToken' in config && 'chatId' in config) {
+                const botToken = config.botToken || ''
+                const chatId = config.chatId || ''
+
+                setTelegramBotToken(botToken)
+                setTelegramChatId(chatId)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  telegramBotToken: botToken,
+                  telegramChatId: chatId,
+                }))
               }
             }
           }
@@ -250,7 +267,10 @@ export function WebhookModal({
         (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
           airtableBaseId !== originalValues.airtableBaseId ||
           airtableTableId !== originalValues.airtableTableId ||
-          airtableIncludeCellValues !== originalValues.airtableIncludeCellValues))
+          airtableIncludeCellValues !== originalValues.airtableIncludeCellValues)) ||
+      (webhookProvider === 'telegram' &&
+        (telegramBotToken !== originalValues.telegramBotToken ||
+          telegramChatId !== originalValues.telegramChatId))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -269,6 +289,8 @@ export function WebhookModal({
     airtableBaseId,
     airtableTableId,
     airtableIncludeCellValues,
+    telegramBotToken,
+    telegramChatId,
   ])
 
   // Validate required fields for current provider
@@ -291,6 +313,9 @@ export function WebhookModal({
       case 'discord':
         isValid = discordWebhookName.trim() !== ''
         break
+      case 'telegram':
+        isValid = telegramBotToken.trim() !== '' && telegramChatId.trim() !== ''
+        break
     }
     setIsCurrentConfigValid(isValid)
   }, [
@@ -299,6 +324,8 @@ export function WebhookModal({
     airtableTableId,
     slackSigningSecret,
     whatsappVerificationToken,
+    telegramBotToken,
+    telegramChatId,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -355,6 +382,11 @@ export function WebhookModal({
           tableId: airtableTableId,
           includeCellValuesInFieldIds: airtableIncludeCellValues ? 'all' : undefined,
         }
+      case 'telegram':
+        return {
+          botToken: telegramBotToken || undefined,
+          chatId: telegramChatId || undefined,
+        }
       default:
         return {}
     }
@@ -400,6 +432,8 @@ export function WebhookModal({
             airtableBaseId,
             airtableTableId,
             airtableIncludeCellValues,
+            telegramBotToken,
+            telegramChatId,
           })
           setHasUnsavedChanges(false)
           setTestResult({
@@ -588,6 +622,22 @@ export function WebhookModal({
             setTableId={setAirtableTableId}
             includeCellValues={airtableIncludeCellValues}
             setIncludeCellValues={setAirtableIncludeCellValues}
+            isLoadingToken={isLoadingToken}
+            testResult={testResult}
+            copied={copied}
+            copyToClipboard={copyToClipboard}
+            testWebhook={testWebhook}
+            webhookId={webhookId}
+            webhookUrl={webhookUrl}
+          />
+        )
+      case 'telegram':
+        return (
+          <TelegramConfig
+            botToken={telegramBotToken}
+            setBotToken={setTelegramBotToken}
+            chatId={telegramChatId}
+            setChatId={setTelegramChatId}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}
