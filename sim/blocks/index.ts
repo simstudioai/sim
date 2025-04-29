@@ -48,6 +48,7 @@ import { YouTubeBlock } from './blocks/youtube'
 import { BlockConfig } from './types'
 import { Mem0Block } from './blocks/mem0'
 import { S3Block } from './blocks/s3'
+import { TelegramBlock } from './blocks/telegram'
 
 // Export blocks for ease of use
 export {
@@ -99,6 +100,7 @@ export {
   StagehandBlock,
   StagehandAgentBlock,
   S3Block,
+  TelegramBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -151,6 +153,7 @@ const blocks: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  telegram: TelegramBlock,
 }
 
 // Helper functions
