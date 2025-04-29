@@ -72,6 +72,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:jira-user': 'Read your Jira user',
   'read:jira-work': 'Read your Jira work',
   'write:jira-work': 'Write to your Jira work',
+  'read:issue-event:jira': 'Read your Jira issue events',
   'write:issue:jira': 'Write to your Jira issues',
   'read:project:jira': 'Read your Jira projects',
   'read:issue-type:jira': 'Read your Jira issue types',
