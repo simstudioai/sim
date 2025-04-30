@@ -25,34 +25,12 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       placeholder: 'Select an operation',
     },
     {
-      id: 'limit',
-      title: 'Result Limit',
-      type: 'slider',
-      layout: 'full',
-      min: 1,
-      max: 50,
-      condition: {
-        field: 'operation',
-        value: ['search', 'get'],
-      },
-    },
-    {
       id: 'userId',
       title: 'User ID',
       type: 'short-input',
-      layout: 'half',
+      layout: 'full',
       placeholder: 'Enter user identifier',
       value: () => 'userid', // Default to the working user ID from curl example
-    },
-    {
-      id: 'version',
-      title: 'API Version',
-      type: 'dropdown',
-      layout: 'half',
-      options: [
-        { label: 'v2 (Default)', id: 'v2' },
-        { label: 'v1', id: 'v1' }
-      ],
     },
     {
       id: 'messages',
@@ -117,6 +95,20 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       layout: 'full',
       placeholder: 'Enter your Mem0 API key',
       password: true,
+    },
+    {
+      id: 'limit',
+      title: 'Result Limit',
+      type: 'slider',
+      layout: 'full',
+      min: 1,
+      max: 50,
+      step: 1,
+      integer: true,
+      condition: {
+        field: 'operation',
+        value: ['search', 'get'],
+      },
     },
   ],
   tools: {

@@ -38,12 +38,6 @@ export const mem0GetMemoriesTool: ToolConfig = {
         default: 10,
         description: 'Maximum number of results to return',
       },
-      version: {
-        type: 'string',
-        required: false,
-        default: 'v2',
-        description: 'API version to use (v1 or v2). Use v2 if unsure.',
-      },
     },
     request: {
       url: (params: Record<string, any>) => {

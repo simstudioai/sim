@@ -12,10 +12,10 @@ import { DateInput } from './components/date-input'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
-import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
 import { FileUpload } from './components/file-upload'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
 import { LongInput } from './components/long-input'
+import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
 import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -90,6 +90,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             min={config.min}
             max={config.max}
             defaultValue={(config.min || 0) + ((config.max || 100) - (config.min || 0)) / 2}
+            step={config.step}
+            integer={config.integer}
           />
         )
       case 'table':
