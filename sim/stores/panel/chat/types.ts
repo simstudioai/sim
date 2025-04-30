@@ -19,5 +19,5 @@ export interface ChatStore {
   clearChat: (workflowId: string | null) => void
   getWorkflowMessages: (workflowId: string) => ChatMessage[]
   setSelectedWorkflowOutput: (workflowId: string, outputIds: string[]) => void
-  getSelectedWorkflowOutput: (workflowId: string) => string[] | null
+  getSelectedWorkflowOutput: (workflowId: string) => string[]
 } 

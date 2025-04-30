@@ -3,9 +3,7 @@ import { ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
-import { createLogger } from '@/lib/logs/console-logger'
-
-const logger = createLogger("OutputSelect")
+import { Button } from '@/components/ui/button'
 
 interface OutputSelectProps {
   workflowId: string | null
@@ -316,13 +314,14 @@ export function OutputSelect({
           
           {/* Done button to close dropdown */}
           <div className="border-t p-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setIsOutputDropdownOpen(false)}
-              className="w-full px-3 py-1 bg-primary text-white text-sm rounded-md hover:bg-primary/90"
+              className="w-full bg-secondary/80 text-secondary-foreground hover:bg-secondary/90"
             >
               Done
-            </button>
+            </Button>
           </div>
         </div>
       )}

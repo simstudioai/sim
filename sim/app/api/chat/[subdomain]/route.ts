@@ -107,7 +107,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           // Format multiple outputs in a way that they can be displayed as separate messages
           // Join all contents, ensuring each is on a new line if they're strings
           const formattedContents = result.contents.map(content => {
-            return typeof content === 'string' ? content : JSON.stringify(content)
+            if (typeof content === 'string') {
+              return content
+            }
+            
+            try {
+              return JSON.stringify(content)
+            } catch (error) {
+              logger.warn(`[${requestId}] Error stringifying content:`, error)
+              return "[Object cannot be serialized]"
+            }
           })
           
           // Set output to be the joined contents
@@ -127,9 +136,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
               formattedResult.output = result.content.text
             } else {
               // Keep the original structure but also add an output field
-              formattedResult = {
-                ...result,
-                output: JSON.stringify(result.content)
+              try {
+                formattedResult = {
+                  ...result,
+                  output: JSON.stringify(result.content)
+                }
+              } catch (error) {
+                logger.warn(`[${requestId}] Error stringifying content:`, error)
+                formattedResult = {
+                  ...result,
+                  output: "[Object cannot be serialized]"
+                }
               }
             }
           } else {
