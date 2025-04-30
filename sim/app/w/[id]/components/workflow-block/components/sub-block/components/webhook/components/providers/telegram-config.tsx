@@ -49,7 +49,6 @@ export function TelegramConfig({
               id="telegram-bot-token"
               value={botToken}
               onChange={(e) => {
-                console.error('Setting bot token:', e.target.value);
                 setBotToken(e.target.value);
               }}
               placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
@@ -71,7 +70,6 @@ export function TelegramConfig({
               id="telegram-trigger-phrase"
               value={triggerPhrase}
               onChange={(e) => {
-                console.error('Setting trigger phrase:', e.target.value);
                 setTriggerPhrase(e.target.value);
               }}
               placeholder="/start_workflow"
@@ -121,8 +119,7 @@ export function TelegramConfig({
             <pre className="bg-gray-100 p-2 rounded text-sm whitespace-pre-wrap">
               curl -X POST "https://api.telegram.org/bot&lt;your_bot_token&gt;/setWebhook" \
               -H "Content-Type: application/json" \
-              -d {"{'"}url": "https://simstudio.ngrok.app/api/webhooks/trigger/55749e98-37cd-40b7-b91a-c6e11d71e184", \
-              "allowed_updates": ["message"]{"}"}
+              -d {"{'"}url": "&lt;Webhook_URL&gt;", "allowed_updates": ["message"]{"}"}
             </pre>
           </li>
           <li>
