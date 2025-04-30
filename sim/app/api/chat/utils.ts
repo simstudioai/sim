@@ -241,8 +241,8 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
       id: chat.id,
       workflowId: chat.workflowId,
       userId: chat.userId,
-      outputBlockId: chat.outputBlockId,
-      outputPath: chat.outputPath,
+      outputConfigs: chat.outputConfigs,
+      customizations: chat.customizations,
     })
     .from(chat)
     .where(eq(chat.id, chatId))
@@ -255,6 +255,35 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   
   const deployment = deploymentResult[0]
   const workflowId = deployment.workflowId
+  
+  // Check for multi-output configuration in customizations
+  const customizations = (deployment.customizations || {}) as Record<string, any>
+  let outputBlockIds: string[] = []
+  let outputPaths: string[] = []
+  
+  // Extract output configs from the new schema format
+  if (deployment.outputConfigs && Array.isArray(deployment.outputConfigs)) {
+    // Extract block IDs and paths from the new outputConfigs array format
+    logger.debug(`[${requestId}] Found ${deployment.outputConfigs.length} output configs in deployment`)
+    deployment.outputConfigs.forEach(config => {
+      logger.debug(`[${requestId}] Processing output config: blockId=${config.blockId}, path=${config.path || 'none'}`)
+    })
+    
+    outputBlockIds = deployment.outputConfigs.map(config => config.blockId)
+    outputPaths = deployment.outputConfigs.map(config => config.path || '')
+  } else {
+    // Use customizations as fallback
+    outputBlockIds = Array.isArray(customizations.outputBlockIds) ? customizations.outputBlockIds : []
+    outputPaths = Array.isArray(customizations.outputPaths) ? customizations.outputPaths : []
+  }
+  
+  // Fall back to customizations if we still have no outputs
+  if (outputBlockIds.length === 0 && customizations.outputBlockIds && customizations.outputBlockIds.length > 0) {
+    outputBlockIds = customizations.outputBlockIds
+    outputPaths = customizations.outputPaths || new Array(outputBlockIds.length).fill('')
+  }
+  
+  logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
   
   // Find the workflow
   const workflowResult = await db
@@ -414,56 +443,104 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   
   logger.debug(`[${requestId}] Workflow executed successfully, blocks executed: ${result.logs?.length || 0}`)
   
-  // Get the output based on the selected block
-  let output
+  // Get the outputs from all selected blocks
+  let outputs: {content: any}[] = []
+  let hasFoundOutputs = false
   
-  if (deployment.outputBlockId) {
-    // Determine appropriate output
-    const blockId = deployment.outputBlockId
-    const path = deployment.outputPath
+  if (outputBlockIds.length > 0 && result.logs) {
+    logger.debug(`[${requestId}] Looking for outputs from ${outputBlockIds.length} configured blocks`)
     
-    // This is identical to what the chat panel does to extract outputs
-    logger.debug(`[${requestId}] Looking for output from block ${blockId} with path ${path || 'none'}`)
-    
-    // Extract the specific block output
-    if (result.logs) {
-      output = extractBlockOutput(result.logs, blockId, path || undefined)
+    // Extract outputs from each selected block
+    for (let i = 0; i < outputBlockIds.length; i++) {
+      const blockId = outputBlockIds[i]
+      const path = outputPaths[i] || undefined
       
-      if (output !== null && output !== undefined) {
-        logger.debug(`[${requestId}] Found specific block output`)
-      } else {
-        logger.warn(`[${requestId}] Could not find specific block output, falling back to final output`)
-        output = result.output?.response || result.output
+      logger.debug(`[${requestId}] Looking for output from block ${blockId} with path ${path || 'none'}`)
+      
+      // Find the block log entry
+      const blockLog = result.logs.find(log => log.blockId === blockId)
+      if (!blockLog || !blockLog.output) {
+        logger.debug(`[${requestId}] No output found for block ${blockId}`)
+        continue
       }
-    } else {
-      logger.warn(`[${requestId}] No logs found in execution result, using final output`)
-      output = result.output?.response || result.output
+      
+      // Extract the specific path if provided
+      let specificOutput = blockLog.output
+      if (path) {
+        logger.debug(`[${requestId}] Extracting path ${path} from output`)
+        const pathParts = path.split('.')
+        for (const part of pathParts) {
+          if (specificOutput === null || specificOutput === undefined || typeof specificOutput !== 'object') {
+            logger.debug(`[${requestId}] Cannot extract path ${part}, output is not an object`)
+            specificOutput = null
+            break
+          }
+          specificOutput = specificOutput[part]
+        }
+      }
+      
+      if (specificOutput !== null && specificOutput !== undefined) {
+        logger.debug(`[${requestId}] Found output for block ${blockId}`)
+        outputs.push({
+          content: specificOutput
+        })
+        hasFoundOutputs = true
+      }
+    }
+  }
+  
+  // If no specific outputs were found, use the final result
+  if (!hasFoundOutputs) {
+    logger.debug(`[${requestId}] No specific outputs found, using final output`)
+    if (result.output) {
+      if (result.output.response) {
+        outputs.push({
+          content: result.output.response
+        })
+      } else {
+        outputs.push({
+          content: result.output
+        })
+      }
+    }
+  }
+  
+  // Simplify the response format to match what the chat panel expects
+  if (outputs.length === 1) {
+    const content = outputs[0].content
+    // Don't wrap strings in an object
+    if (typeof content === 'string') {
+      return {
+        id: uuidv4(),
+        content: content,
+        timestamp: new Date().toISOString(),
+        type: 'workflow'
+      }
+    }
+    // Return the content directly - avoid extra nesting
+    return {
+      id: uuidv4(),
+      content: content,
+      timestamp: new Date().toISOString(),
+      type: 'workflow'
+    }
+  } else if (outputs.length > 1) {
+    // For multiple outputs, create a structured object that can be handled better by the client
+    // This approach allows the client to decide how to render multiple outputs
+    return {
+      id: uuidv4(),
+      multipleOutputs: true,
+      contents: outputs.map(o => o.content),
+      timestamp: new Date().toISOString(),
+      type: 'workflow'
     }
   } else {
-    // No specific block selected, use final output
-    logger.debug(`[${requestId}] No output block specified, using final output`)
-    output = result.output?.response || result.output
-  }
-  
-  // Format the output the same way ChatMessage does
-  let formattedOutput
-  
-  if (typeof output === 'object' && output !== null) {
-    // For objects, use the entire object (ChatMessage component handles display)
-    formattedOutput = output
-  } else {
-    // For strings or primitives, format as text
-    formattedOutput = { text: String(output) }
-  }
-  
-  // Add a timestamp like the chat panel adds to messages
-  const timestamp = new Date().toISOString()
-  
-  // Create a response that mimics the structure in the chat panel
-  return {
-    id: uuidv4(),
-    content: formattedOutput,
-    timestamp: timestamp,
-    type: 'workflow'
+    // Fallback for no outputs - should rarely happen
+    return {
+      id: uuidv4(),
+      content: "No output returned from workflow",
+      timestamp: new Date().toISOString(),
+      type: 'workflow'
+    }
   }
 } 

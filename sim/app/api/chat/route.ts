@@ -25,8 +25,10 @@ const chatSchema = z.object({
   authType: z.enum(["public", "password", "email"]).default("public"),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
-  outputBlockId: z.string().optional(),
-  outputPath: z.string().optional(),
+  outputConfigs: z.array(z.object({
+    blockId: z.string(),
+    path: z.string()
+  })).optional().default([]),
 })
 
 export async function GET(request: NextRequest) {
@@ -74,8 +76,7 @@ export async function POST(request: NextRequest) {
         authType = 'public',
         password,
         allowedEmails = [],
-        outputBlockId,
-        outputPath
+        outputConfigs = []
       } = validatedData
       
       // Perform additional validation specific to auth types
@@ -132,9 +133,15 @@ export async function POST(request: NextRequest) {
         authType,
         hasPassword: !!encryptedPassword,
         emailCount: allowedEmails?.length || 0,
-        outputBlockId,
-        outputPath
+        outputConfigsCount: outputConfigs.length
       })
+      
+      // Merge customizations with the additional fields
+      const mergedCustomizations = {
+        ...(customizations || {}),
+        primaryColor: customizations?.primaryColor || '#802FFF',
+        welcomeMessage: customizations?.welcomeMessage || 'Hi there! How can I help you today?'
+      }
       
       await db.insert(chat).values({
         id,
@@ -143,13 +150,12 @@ export async function POST(request: NextRequest) {
         subdomain,
         title,
         description: description || '',
-        customizations: customizations || {},
+        customizations: mergedCustomizations,
         isActive: true,
         authType,
         password: encryptedPassword,
         allowedEmails: authType === 'email' ? allowedEmails : [],
-        outputBlockId: outputBlockId || null,  
-        outputPath: outputPath || null,        
+        outputConfigs,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

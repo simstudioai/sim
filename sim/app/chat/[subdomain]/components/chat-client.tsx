@@ -412,38 +412,67 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       const responseData = await response.json()
       console.log('Message response:', responseData)
 
-      // Extract content from the response - could be in content or output
-      let messageContent = responseData.output
-
       // Handle different response formats from API
-      if (!messageContent && responseData.content) {
-        // Content could be an object or a string
-        if (typeof responseData.content === 'object') {
-          // If it's an object with a text property, use that
-          if (responseData.content.text) {
-            messageContent = responseData.content.text
-          } else {
-            // Try to convert to string for display
+      if (responseData.multipleOutputs && responseData.contents && Array.isArray(responseData.contents)) {
+        // For multiple outputs, create separate assistant messages for each
+        const assistantMessages = responseData.contents.map((content: any) => {
+          // Format the content appropriately
+          let formattedContent = content
+          
+          // Convert objects to strings for display
+          if (typeof formattedContent === 'object' && formattedContent !== null) {
             try {
-              messageContent = JSON.stringify(responseData.content)
+              formattedContent = JSON.stringify(formattedContent)
             } catch (e) {
-              messageContent = 'Received structured data response'
+              formattedContent = 'Received structured data response'
             }
           }
-        } else {
-          // Direct string content
-          messageContent = responseData.content
+          
+          return {
+            id: crypto.randomUUID(),
+            content: formattedContent || "No content found",
+            type: 'assistant' as const,
+            timestamp: new Date(),
+          }
+        })
+        
+        // Add all messages at once
+        setMessages((prev) => [...prev, ...assistantMessages])
+      } else {
+        // Handle single output as before
+        // Extract content from the response - could be in content or output
+        let messageContent = responseData.output
+
+        // Handle different response formats from API
+        if (!messageContent && responseData.content) {
+          // Content could be an object or a string
+          if (typeof responseData.content === 'object') {
+            // If it's an object with a text property, use that
+            if (responseData.content.text) {
+              messageContent = responseData.content.text
+            } else {
+              // Try to convert to string for display
+              try {
+                messageContent = JSON.stringify(responseData.content)
+              } catch (e) {
+                messageContent = 'Received structured data response'
+              }
+            }
+          } else {
+            // Direct string content
+            messageContent = responseData.content
+          }
         }
-      }
 
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        content: messageContent || "Sorry, I couldn't process your request.",
-        type: 'assistant',
-        timestamp: new Date(),
-      }
+        const assistantMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          content: messageContent || "Sorry, I couldn't process your request.",
+          type: 'assistant',
+          timestamp: new Date(),
+        }
 
-      setMessages((prev) => [...prev, assistantMessage])
+        setMessages((prev) => [...prev, assistantMessage])
+      }
     } catch (error) {
       console.error('Error sending message:', error)
 
@@ -640,14 +669,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         @keyframes growShrink {
           0%,
           100% {
-            transform: scale(0.9);
+            transform: scale(0.9)
           }
           50% {
-            transform: scale(1.1);
+            transform: scale(1.1)
           }
         }
         .loading-dot {
-          animation: growShrink 1.5s infinite ease-in-out;
+          animation: growShrink 1.5s infinite ease-in-out
         }
       `}</style>
 

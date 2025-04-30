@@ -39,17 +39,26 @@ export const useChatStore = create<ChatStore>()(
           return get().messages.filter((message) => message.workflowId === workflowId)
         },
 
-        setSelectedWorkflowOutput: (workflowId, outputId) => {
-          set((state) => ({
-            selectedWorkflowOutputs: {
-              ...state.selectedWorkflowOutputs,
-              [workflowId]: outputId,
-            },
-          }))
+        setSelectedWorkflowOutput: (workflowId, outputIds) => {
+          set((state) => {
+            // Create a new copy of the selections state
+            const newSelections = { ...state.selectedWorkflowOutputs }
+            
+            // If empty array, explicitly remove the key to prevent empty arrays from persisting
+            if (outputIds.length === 0) {
+              // Delete the key entirely instead of setting to empty array
+              delete newSelections[workflowId]
+            } else {
+              // Ensure no duplicates in the selection by using Set
+              newSelections[workflowId] = [...new Set(outputIds)]
+            }
+            
+            return { selectedWorkflowOutputs: newSelections }
+          })
         },
 
         getSelectedWorkflowOutput: (workflowId) => {
-          return get().selectedWorkflowOutputs[workflowId] || null
+          return get().selectedWorkflowOutputs[workflowId] || []
         },
       }),
       {

@@ -9,7 +9,6 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
@@ -25,7 +24,6 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const { messages, addMessage, selectedWorkflowOutputs, setSelectedWorkflowOutput } =
     useChatStore()
   const { entries } = useConsoleStore()
-  const blocks = useWorkflowStore((state) => state.blocks)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Use the execution store state to track if a workflow is executing
@@ -48,13 +46,27 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
   }, [messages, activeWorkflowId])
 
-  // Get selected workflow output
-  const selectedOutput = useMemo(() => {
-    if (!activeWorkflowId) return null
-    const selectedId = selectedWorkflowOutputs[activeWorkflowId]
-    if (!selectedId) return outputEntries[0]?.id || null
-    return selectedId
-  }, [selectedWorkflowOutputs, activeWorkflowId, outputEntries])
+  // Get selected workflow outputs
+  const selectedOutputs = useMemo(() => {
+    if (!activeWorkflowId) return []
+    const selected = selectedWorkflowOutputs[activeWorkflowId]
+    
+    if (!selected || selected.length === 0) {
+      const defaultSelection = outputEntries.length > 0 ? [outputEntries[0].id] : []
+      return defaultSelection
+    }
+    
+    // Ensure we have no duplicates in the selection
+    const dedupedSelection = [...new Set(selected)]
+    
+    // If deduplication removed items, update the store
+    if (dedupedSelection.length !== selected.length) {
+      setSelectedWorkflowOutput(activeWorkflowId, dedupedSelection)
+      return dedupedSelection
+    }
+    
+    return selected
+  }, [selectedWorkflowOutputs, activeWorkflowId, outputEntries, setSelectedWorkflowOutput])
 
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
@@ -94,9 +106,17 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   }
 
   // Handle output selection
-  const handleOutputSelection = (value: string) => {
+  const handleOutputSelection = (values: string[]) => {
+    // Ensure no duplicates in selection
+    const dedupedValues = [...new Set(values)]
+    
     if (activeWorkflowId) {
-      setSelectedWorkflowOutput(activeWorkflowId, value)
+      // If array is empty, explicitly set to empty array to ensure complete reset
+      if (dedupedValues.length === 0) {
+        setSelectedWorkflowOutput(activeWorkflowId, [])
+      } else {
+        setSelectedWorkflowOutput(activeWorkflowId, dedupedValues)
+      }
     }
   }
 
@@ -106,10 +126,10 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       <div className="flex-none border-b px-4 py-2">
         <OutputSelect 
           workflowId={activeWorkflowId}
-          selectedOutput={selectedOutput}
+          selectedOutputs={selectedOutputs}
           onOutputSelect={handleOutputSelection}
           disabled={!activeWorkflowId}
-          placeholder="Select output source"
+          placeholder="Select output sources"
         />
       </div>
 
