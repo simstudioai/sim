@@ -350,7 +350,7 @@ export function ChatDeploy({
 
     try {
       const response = await fetch(
-        `/api/chat/subdomain-check?subdomain=${encodeURIComponent(domain)}`
+        `/api/chat/subdomains/validate?subdomain=${encodeURIComponent(domain)}`
       )
       const data = await response.json()
 
@@ -488,7 +488,7 @@ export function ChatDeploy({
       setIsCheckingSubdomain(true)
       try {
         const response = await fetch(
-          `/api/chat/subdomain-check?subdomain=${encodeURIComponent(subdomain)}`
+          `/api/chat/subdomains/validate?subdomain=${encodeURIComponent(subdomain)}`
         )
         const data = await response.json()
 

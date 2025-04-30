@@ -11,7 +11,6 @@ import { encryptSecret } from '@/lib/utils'
 
 const logger = createLogger('ChatAPI')
 
-// Define Zod schema for API request validation
 const chatSchema = z.object({
   workflowId: z.string().min(1, "Workflow ID is required"),
   subdomain: z.string().min(1, "Subdomain is required")
