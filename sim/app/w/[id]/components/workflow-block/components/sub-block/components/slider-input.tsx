@@ -9,6 +9,7 @@ interface SliderInputProps {
   blockId: string
   subBlockId: string
   step?: number
+  integer?: boolean
 }
 
 export function SliderInput({
@@ -18,6 +19,7 @@ export function SliderInput({
   blockId,
   subBlockId,
   step = 0.1,
+  integer = false,
 }: SliderInputProps) {
   const [value, setValue] = useSubBlockValue<number>(blockId, subBlockId)
 
@@ -28,12 +30,14 @@ export function SliderInput({
     // If value exceeds max, scale it down proportionally
     if (value > max) {
       const prevMax = Math.max(max * 2, value) // Assume previous max was at least the current value
-      return (value / prevMax) * max
+      const scaledValue = (value / prevMax) * max
+      return integer ? Math.round(scaledValue) : scaledValue
     }
 
     // Otherwise just clamp it
-    return Math.min(Math.max(value, min), max)
-  }, [value, min, max, defaultValue])
+    const clampedValue = Math.min(Math.max(value, min), max)
+    return integer ? Math.round(clampedValue) : clampedValue
+  }, [value, min, max, defaultValue, integer])
 
   // Update the value if it needs normalization
   useEffect(() => {
@@ -48,8 +52,8 @@ export function SliderInput({
         value={[normalizedValue]}
         min={min}
         max={max}
-        step={step}
-        onValueChange={(value) => setValue(value[0])}
+        step={integer ? 1 : step}
+        onValueChange={(value) => setValue(integer ? Math.round(value[0]) : value[0])}
         className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[class*=SliderTrack]]:h-1"
       />
       <div
@@ -64,7 +68,7 @@ export function SliderInput({
           top: '24px',
         }}
       >
-        {Number(normalizedValue).toFixed(1)}
+        {integer ? Math.round(normalizedValue).toString() : Number(normalizedValue).toFixed(1)}
       </div>
     </div>
   )

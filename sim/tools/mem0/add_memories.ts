@@ -22,12 +22,6 @@ export const mem0AddMemoriesTool: ToolConfig = {
         required: true,
         description: 'Array of message objects with role and content',
       },
-      version: {
-        type: 'string',
-        required: false,
-        default: 'v2',
-        description: 'API version to use (v1 or v2). Use v2 if unsure.',
-      },
     },
     request: {
       url: 'https://api.mem0.ai/v1/memories/',
@@ -61,7 +55,7 @@ export const mem0AddMemoriesTool: ToolConfig = {
         // Prepare request body
         const body: Record<string, any> = {
           messages: messagesArray,
-          version: params.version || 'v2',
+          version: 'v2',
           user_id: params.userId
         }
         
