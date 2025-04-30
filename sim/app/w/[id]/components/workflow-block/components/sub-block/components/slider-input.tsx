@@ -8,6 +8,7 @@ interface SliderInputProps {
   defaultValue: number
   blockId: string
   subBlockId: string
+  step?: number
 }
 
 export function SliderInput({
@@ -16,6 +17,7 @@ export function SliderInput({
   defaultValue,
   blockId,
   subBlockId,
+  step = 0.1,
 }: SliderInputProps) {
   const [value, setValue] = useSubBlockValue<number>(blockId, subBlockId)
 
@@ -46,7 +48,7 @@ export function SliderInput({
         value={[normalizedValue]}
         min={min}
         max={max}
-        step={0.1}
+        step={step}
         onValueChange={(value) => setValue(value[0])}
         className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[class*=SliderTrack]]:h-1"
       />

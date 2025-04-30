@@ -123,6 +123,8 @@ export interface SubBlockConfig {
   acceptedTypes?: string
   multiple?: boolean
   maxSize?: number
+  // Slider-specific properties
+  step?: number
 }
 
 // Main block definition

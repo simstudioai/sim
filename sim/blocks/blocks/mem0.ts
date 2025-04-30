@@ -31,6 +31,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       layout: 'full',
       min: 1,
       max: 50,
+      step: 1,
       condition: {
         field: 'operation',
         value: ['search', 'get'],
