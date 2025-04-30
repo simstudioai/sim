@@ -6,7 +6,7 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 import { ModelsObject } from './types'
 
 const logger = createLogger('Ollama Provider')
-const OLLAMA_HOST = 'http://localhost:11434'
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434'
 
 export const ollamaProvider: ProviderConfig = {
   id: 'ollama',
