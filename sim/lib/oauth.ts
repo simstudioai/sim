@@ -407,11 +407,13 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = process.env.CONFLUENCE_CLIENT_ID
         clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
+        useBasicAuth = true
         break
       case 'jira':
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = process.env.JIRA_CLIENT_ID
         clientSecret = process.env.JIRA_CLIENT_SECRET
+        useBasicAuth = true
         break
       case 'airtable':
         tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
@@ -466,8 +468,8 @@ export async function refreshOAuthToken(
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
-    } else if (provider === 'x') {
-      // Handle X differently
+    } else if (provider === 'x' || provider === 'confluence' || provider === 'jira') {
+      // Handle X and Atlassian services (Confluence, Jira) the same way
       // Confidential client - use Basic Auth
       const authString = `${clientId}:${clientSecret}`
       const basicAuth = Buffer.from(authString).toString('base64')
@@ -475,6 +477,7 @@ export async function refreshOAuthToken(
 
       // When using Basic Auth, don't include client_id in body
       delete bodyParams.client_id
+      delete bodyParams.client_secret
     } else {
       // For other providers, use the general approach
       if (useBasicAuth) {
