@@ -1,21 +1,22 @@
 import { and, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workspace, workspaceMember } from '@/db/schema'
 
 // PATCH /api/workspaces/members/[id] - Update a member's role
 export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const session = await getSession()
   
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const membershipId = params.id
+  const membershipId = id
   
   try {
     const { role } = await req.json()
@@ -82,16 +83,17 @@ export async function PATCH(
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const session = await getSession()
   
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const membershipId = params.id
+  const membershipId = id
   
   try {
     // Get the membership to delete

@@ -1,20 +1,21 @@
 import { and, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workspace, workspaceMember } from '@/db/schema'
 
 export async function GET(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const session = await getSession()
   
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const workspaceId = context.params.id
+  const workspaceId = id
   
   // Check if user is a member of this workspace
   const membership = await db
@@ -52,16 +53,17 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const session = await getSession()
   
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const workspaceId = context.params.id
+  const workspaceId = id
   
   // Check if user is a member with appropriate permissions
   const membership = await db
@@ -120,16 +122,17 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: Request,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
   const session = await getSession()
   
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  const workspaceId = context.params.id
+  const workspaceId = id
   
   // Check if user is the owner
   const membership = await db
