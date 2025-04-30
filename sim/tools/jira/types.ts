@@ -18,6 +18,24 @@ export interface JiraRetrieveResponse extends ToolResponse {
   }
 }
 
+export interface JiraRetrieveBulkParams {
+  accessToken: string
+  domain: string
+  projectId: string
+  cloudId: string
+}
+
+export interface JiraRetrieveResponseBulk extends ToolResponse {
+  output: {
+    ts: string
+    summary: string
+    description: string
+    created: string
+    updated: string
+  }[]
+}
+
+
 export interface JiraUpdateParams {
   accessToken: string
   domain: string

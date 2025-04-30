@@ -1,6 +1,5 @@
 import { ToolConfig } from '../types'
-import { JiraRetrieveResponse } from './types'
-import { JiraRetrieveParams } from './types'
+import { JiraRetrieveResponse, JiraRetrieveParams } from './types'
 
 export const jiraRetrieveTool: ToolConfig<JiraRetrieveParams, JiraRetrieveResponse> = {
     id: 'jira_retrieve',
