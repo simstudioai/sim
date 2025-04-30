@@ -34,8 +34,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         authType: chat.authType,
         password: chat.password,
         allowedEmails: chat.allowedEmails,
-        outputBlockId: chat.outputBlockId,
-        outputPath: chat.outputPath,
+        outputConfigs: chat.outputConfigs,
       })
       .from(chat)
       .where(eq(chat.subdomain, subdomain))
@@ -102,36 +101,74 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // If it's text or another primitive, make sure it's accessible
       let formattedResult: any = { output: null }
       
-      if (result && result.content) {
-        if (typeof result.content === 'object') {
-          // For objects like { text: "some content" }
-          if (result.content.text) {
-            formattedResult.output = result.content.text
+      if (result) {
+        // Check if we have multiple outputs
+        if (result.multipleOutputs && Array.isArray(result.contents)) {
+          // Format multiple outputs in a way that they can be displayed as separate messages
+          // Join all contents, ensuring each is on a new line if they're strings
+          const formattedContents = result.contents.map(content => {
+            if (typeof content === 'string') {
+              return content
+            }
+            
+            try {
+              return JSON.stringify(content)
+            } catch (error) {
+              logger.warn(`[${requestId}] Error stringifying content:`, error)
+              return "[Object cannot be serialized]"
+            }
+          })
+          
+          // Set output to be the joined contents
+          formattedResult = {
+            ...result,
+            output: formattedContents.join('\n\n') // Separate each output with double newline
+          }
+          
+          // Keep the original contents for clients that can handle structured data
+          formattedResult.multipleOutputs = true
+          formattedResult.contents = result.contents
+        } else if (result.content) {
+          // Handle single output cases
+          if (typeof result.content === 'object') {
+            // For objects like { text: "some content" }
+            if (result.content.text) {
+              formattedResult.output = result.content.text
+            } else {
+              // Keep the original structure but also add an output field
+              try {
+                formattedResult = {
+                  ...result,
+                  output: JSON.stringify(result.content)
+                }
+              } catch (error) {
+                logger.warn(`[${requestId}] Error stringifying content:`, error)
+                formattedResult = {
+                  ...result,
+                  output: "[Object cannot be serialized]"
+                }
+              }
+            }
           } else {
-            // Keep the original structure but also add an output field
+            // For direct string content
             formattedResult = {
               ...result,
-              output: JSON.stringify(result.content)
+              output: result.content
             }
           }
         } else {
-          // For direct string content
+          // Fallback if no content
           formattedResult = {
             ...result,
-            output: result.content
+            output: "No output returned from workflow"
           }
-        }
-      } else {
-        // Fallback if no content
-        formattedResult = {
-          ...result,
-          output: "No output returned from workflow"
         }
       }
       
       logger.info(`[${requestId}] Returning formatted chat response:`, { 
         hasOutput: !!formattedResult.output,
-        outputType: typeof formattedResult.output
+        outputType: typeof formattedResult.output,
+        isMultipleOutputs: !!formattedResult.multipleOutputs
       })
       
       // Add CORS headers before returning the response
@@ -166,6 +203,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         authType: chat.authType,
         password: chat.password,
         allowedEmails: chat.allowedEmails,
+        outputConfigs: chat.outputConfigs,
       })
       .from(chat)
       .where(eq(chat.subdomain, subdomain))

@@ -1,23 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
+import { Button } from '@/components/ui/button'
 
 interface OutputSelectProps {
   workflowId: string | null
-  selectedOutput: string | null
-  onOutputSelect: (outputId: string) => void
+  selectedOutputs: string[]
+  onOutputSelect: (outputIds: string[]) => void
   disabled?: boolean
   placeholder?: string
 }
 
 export function OutputSelect({
   workflowId,
-  selectedOutput,
+  selectedOutputs = [],
   onOutputSelect,
   disabled = false,
-  placeholder = 'Select output source',
+  placeholder = 'Select output sources',
 }: OutputSelectProps) {
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -76,19 +77,38 @@ export function OutputSelect({
     return outputs
   }, [blocks, workflowId])
 
-  // Get selected output display name
-  const selectedOutputDisplayName = useMemo(() => {
-    if (!selectedOutput) return placeholder
-    const output = workflowOutputs.find((o) => o.id === selectedOutput)
-    return output
-      ? `${output.blockName.replace(/\s+/g, '').toLowerCase()}.${output.path}`
-      : placeholder
-  }, [selectedOutput, workflowOutputs, placeholder])
+  // Get selected outputs display text
+  const selectedOutputsDisplayText = useMemo(() => {    
+    if (!selectedOutputs || selectedOutputs.length === 0) {
+      return placeholder
+    }
+    
+    // Ensure all selected outputs exist in the workflowOutputs array
+    const validOutputs = selectedOutputs.filter(id => workflowOutputs.some(o => o.id === id))
+    
+    if (validOutputs.length === 0) {
+      return placeholder
+    }
+    
+    if (validOutputs.length === 1) {
+      const output = workflowOutputs.find((o) => o.id === validOutputs[0])
+      if (output) {
+        return `${output.blockName.replace(/\s+/g, '').toLowerCase()}.${output.path}`
+      }
+      return placeholder
+    }
+    
+    return `${validOutputs.length} outputs selected`
+  }, [selectedOutputs, workflowOutputs, placeholder])
 
-  // Get selected output block info
+  // Get first selected output info for display icon
   const selectedOutputInfo = useMemo(() => {
-    if (!selectedOutput) return null
-    const output = workflowOutputs.find((o) => o.id === selectedOutput)
+    if (!selectedOutputs || selectedOutputs.length === 0) return null
+    
+    const validOutputs = selectedOutputs.filter(id => workflowOutputs.some(o => o.id === id))
+    if (validOutputs.length === 0) return null
+    
+    const output = workflowOutputs.find((o) => o.id === validOutputs[0])
     if (!output) return null
 
     return {
@@ -97,7 +117,7 @@ export function OutputSelect({
       blockType: output.blockType,
       path: output.path,
     }
-  }, [selectedOutput, workflowOutputs])
+  }, [selectedOutputs, workflowOutputs])
 
   // Group output options by block
   const groupedOutputs = useMemo(() => {
@@ -192,10 +212,18 @@ export function OutputSelect({
     }
   }, [])
 
-  // Handle output selection
+  // Handle output selection - toggle selection
   const handleOutputSelection = (value: string) => {
-    onOutputSelect(value)
-    setIsOutputDropdownOpen(false)
+    let newSelectedOutputs: string[]
+    const index = selectedOutputs.indexOf(value)
+    
+    if (index === -1) {
+      newSelectedOutputs = [...new Set([...selectedOutputs, value])]
+    } else {
+      newSelectedOutputs = selectedOutputs.filter((id) => id !== value)
+    }
+    
+    onOutputSelect(newSelectedOutputs)
   }
 
   return (
@@ -225,10 +253,10 @@ export function OutputSelect({
                 {selectedOutputInfo.blockName.charAt(0).toUpperCase()}
               </span>
             </div>
-            <span className="truncate">{selectedOutputDisplayName}</span>
+            <span className="truncate">{selectedOutputsDisplayText}</span>
           </div>
         ) : (
-          <span className="truncate w-[calc(100%-24px)]">{selectedOutputDisplayName}</span>
+          <span className="truncate w-[calc(100%-24px)]">{selectedOutputsDisplayText}</span>
         )}
         <ChevronDown
           className={`h-4 w-4 transition-transform ml-1 flex-shrink-0 ${
@@ -254,10 +282,18 @@ export function OutputSelect({
                       className={cn(
                         'flex items-center gap-2 text-sm text-left w-full px-3 py-1.5',
                         'hover:bg-accent hover:text-accent-foreground',
-                        'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                        selectedOutput === output.id && 'bg-accent text-accent-foreground'
+                        'focus:bg-accent focus:text-accent-foreground focus:outline-none'
                       )}
                     >
+                      <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                        {selectedOutputs.includes(output.id) ? (
+                          <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded border border-input" />
+                        )}
+                      </div>
                       <div
                         className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
                         style={{
@@ -268,12 +304,24 @@ export function OutputSelect({
                           {blockName.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="truncate max-w-[calc(100%-28px)]">{output.path}</span>
+                      <span className="truncate max-w-[calc(100%-48px)]">{output.path}</span>
                     </button>
                   ))}
                 </div>
               </div>
             ))}
+          </div>
+          
+          {/* Done button to close dropdown */}
+          <div className="border-t p-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsOutputDropdownOpen(false)}
+              className="w-full bg-secondary/80 text-secondary-foreground hover:bg-secondary/90"
+            >
+              Done
+            </Button>
           </div>
         </div>
       )}

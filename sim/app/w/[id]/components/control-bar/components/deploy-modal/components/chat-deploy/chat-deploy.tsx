@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Check,
-  Circle,
   Copy,
   Eye,
   EyeOff,
@@ -27,7 +26,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { CopyButton } from '@/components/ui/copy-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -36,6 +34,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
+import { OutputConfig } from '@/stores/panel/chat/types'
 
 const logger = createLogger('ChatDeploy')
 
@@ -71,8 +70,8 @@ const chatSchema = z.object({
   authType: z.enum(['public', 'password', 'email']),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
-  outputBlockId: z.string().nullish(),
-  outputPath: z.string().nullish(),
+  outputBlockIds: z.array(z.string()).optional(),
+  outputPaths: z.array(z.string()).optional(),
 })
 
 export function ChatDeploy({
@@ -121,7 +120,7 @@ export function ChatDeploy({
     description: string
     authType: AuthType
     emails: string[]
-    outputBlockId: string | null
+    selectedOutputIds: string[]
   } | null>(null)
 
   // State to track if any changes have been made
@@ -132,7 +131,7 @@ export function ChatDeploy({
   const [internalShowDeleteConfirmation, setInternalShowDeleteConfirmation] = useState(false)
 
   // Output block selection
-  const [selectedOutputBlock, setSelectedOutputBlock] = useState<string | null>(null)
+  const [selectedOutputBlocks, setSelectedOutputBlocks] = useState<string[]>([])
 
   // Track manual submission state
   const [chatSubmitting, setChatSubmitting] = useState(false)
@@ -191,7 +190,7 @@ export function ChatDeploy({
       const subdomainChanged = subdomain !== originalValues.subdomain
       const titleChanged = title !== originalValues.title
       const descriptionChanged = description !== originalValues.description
-      const outputBlockChanged = selectedOutputBlock !== originalValues.outputBlockId
+      const outputBlockChanged = selectedOutputBlocks.some((blockId) => !originalValues.selectedOutputIds.includes(blockId))
       const welcomeMessageChanged =
         welcomeMessage !==
         (existingChat.customizations?.welcomeMessage || 'Hi there! How can I help you today?')
@@ -224,7 +223,7 @@ export function ChatDeploy({
     authType,
     emails,
     password,
-    selectedOutputBlock,
+    selectedOutputBlocks,
     welcomeMessage,
     originalValues,
   ])
@@ -263,7 +262,9 @@ export function ChatDeploy({
               description: chatDetail.description || '',
               authType: chatDetail.authType || 'public',
               emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
-              outputBlockId: chatDetail.outputBlockId || null,
+              selectedOutputIds: Array.isArray(chatDetail.outputConfigs) 
+                ? chatDetail.outputConfigs.map((config: OutputConfig) => `${config.blockId}_${config.path}`) 
+                : [],
             })
 
             // Set emails if using email auth
@@ -273,10 +274,13 @@ export function ChatDeploy({
 
             // For security, we don't populate password - user will need to enter a new one if changing it
 
-            // Inside the fetchExistingChat function - after loading other form values
-            if (chatDetail.outputBlockId && chatDetail.outputPath) {
-              const combinedOutputId = `${chatDetail.outputBlockId}_${chatDetail.outputPath}`
-              setSelectedOutputBlock(combinedOutputId)
+            // Inside the fetchExistingChat function - update how we load output configs
+            if (chatDetail.outputConfigs) {
+              const configs = Array.isArray(chatDetail.outputConfigs) ? chatDetail.outputConfigs as OutputConfig[] : []
+              const combinedOutputIds = configs.map(config => 
+                `${config.blockId}_${config.path}`
+              )
+              setSelectedOutputBlocks(combinedOutputIds)
             }
 
             // Set welcome message if it exists
@@ -346,7 +350,7 @@ export function ChatDeploy({
 
     try {
       const response = await fetch(
-        `/api/chat/subdomain-check?subdomain=${encodeURIComponent(domain)}`
+        `/api/chat/subdomains/validate?subdomain=${encodeURIComponent(domain)}`
       )
       const data = await response.json()
 
@@ -465,7 +469,7 @@ export function ChatDeploy({
       subdomain,
       title,
       authType,
-      hasOutputBlockSelection: !!selectedOutputBlock,
+      hasOutputBlockSelection: !!selectedOutputBlocks.length,
     })
 
     // Basic validation
@@ -484,7 +488,7 @@ export function ChatDeploy({
       setIsCheckingSubdomain(true)
       try {
         const response = await fetch(
-          `/api/chat/subdomain-check?subdomain=${encodeURIComponent(subdomain)}`
+          `/api/chat/subdomains/validate?subdomain=${encodeURIComponent(subdomain)}`
         )
         const data = await response.json()
 
@@ -505,14 +509,11 @@ export function ChatDeploy({
     }
 
     // Verify output selection if it's set
-    if (selectedOutputBlock) {
-      const firstUnderscoreIndex = selectedOutputBlock.indexOf('_')
-      if (firstUnderscoreIndex === -1) {
-        logger.error('Invalid output block format', { selectedOutputBlock })
-        setErrorMessage('Invalid output block format. Please select a valid output.')
-        setChatSubmitting(false)
-        return
-      }
+    if (selectedOutputBlocks.length === 0) {
+      logger.error('No output blocks selected')
+      setErrorMessage('Please select at least one output block')
+      setChatSubmitting(false)
+      return
     }
 
     if (subdomainError) {
@@ -596,24 +597,42 @@ export function ChatDeploy({
       }
 
       // Add output block configuration if selected
-      if (selectedOutputBlock) {
-        const firstUnderscoreIndex = selectedOutputBlock.indexOf('_')
-        if (firstUnderscoreIndex !== -1) {
-          const blockId = selectedOutputBlock.substring(0, firstUnderscoreIndex)
-          const path = selectedOutputBlock.substring(firstUnderscoreIndex + 1)
-
-          payload.outputBlockId = blockId
-          payload.outputPath = path
-
-          logger.info('Added output configuration to payload:', {
-            outputBlockId: blockId,
-            outputPath: path,
+      if (selectedOutputBlocks && selectedOutputBlocks.length > 0) {
+        const outputConfigs = selectedOutputBlocks
+          .map(outputId => {
+            const firstUnderscoreIndex = outputId.indexOf('_')
+            // Only process IDs that have the correct blockId_path format
+            if (firstUnderscoreIndex !== -1) {
+              const blockId = outputId.substring(0, firstUnderscoreIndex)
+              const path = outputId.substring(firstUnderscoreIndex + 1)
+              
+              // Additional validation to ensure both parts are non-empty
+              if (blockId && path) {
+                return { blockId, path } as OutputConfig
+              }
+              logger.warn(`Invalid output format: ${outputId}, missing blockId or path`)
+              return null
+            }
+            logger.warn(`Invalid output ID format: ${outputId}, missing required format blockId_path`)
+            return null
           })
+          .filter(Boolean) as OutputConfig[] // Remove any null values
+        
+        // Only include output configurations if we have valid ones
+        if (outputConfigs.length > 0) {
+          payload.outputConfigs = outputConfigs
+          
+          logger.info('Added output configuration to payload:', {
+            outputConfigsCount: outputConfigs.length,
+            outputConfigs: outputConfigs
+          })
+        } else {
+          logger.warn('No valid output configurations found in selection')
+          payload.outputConfigs = []
         }
       } else {
-        // No output block selected - explicitly set to null
-        payload.outputBlockId = null
-        payload.outputPath = null
+        // No output blocks selected - explicitly set to empty array
+        payload.outputConfigs = []
       }
 
       // Pass the API key from workflow deployment
@@ -658,7 +677,7 @@ export function ChatDeploy({
         authType: payload.authType,
         hasPassword: !!payload.password,
         emailCount: payload.allowedEmails?.length || 0,
-        hasOutputConfig: !!payload.outputBlockId,
+        hasOutputConfig: !!payload.outputConfigs.length,
         deployApiEnabled: payload.deployApiEnabled,
       })
 
@@ -948,17 +967,17 @@ export function ChatDeploy({
               <CardContent className="p-1">
                 <OutputSelect
                   workflowId={workflowId}
-                  selectedOutput={selectedOutputBlock}
-                  onOutputSelect={(value) => {
-                    logger.info(`Output block selection changed to: ${value}`)
-                    setSelectedOutputBlock(value)
+                  selectedOutputs={selectedOutputBlocks}
+                  onOutputSelect={(values) => {
+                    logger.info(`Output block selection changed to: ${values}`)
+                    setSelectedOutputBlocks(values)
 
                     // Mark as changed to enable update button
                     if (existingChat) {
                       setHasChanges(true)
                     }
                   }}
-                  placeholder="Select which block output to use"
+                  placeholder="Select which block outputs to use"
                   disabled={isDeploying}
                 />
               </CardContent>

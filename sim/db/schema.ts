@@ -260,8 +260,7 @@ export const chat = pgTable('chat', {
   allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email'
   
   // Output configuration
-  outputBlockId: text('output_block_id'), // Stores the selected output block ID
-  outputPath: text('output_path'), // Stores the output path within the block
+  outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
   
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

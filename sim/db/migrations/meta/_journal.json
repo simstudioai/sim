@@ -225,6 +225,13 @@
       "when": 1745638714702,
       "tag": "0031_lively_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1745973220228,
+      "tag": "0032_rare_nico_minoru",
+      "breakpoints": true
     }
   ]
 }
