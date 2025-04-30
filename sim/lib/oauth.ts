@@ -304,6 +304,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'x'
   } else if (provider === 'confluence') {
     return 'confluence'
+  } else if (provider === 'jira') {
+    return 'jira'
   } else if (provider === 'airtable') {
     return 'airtable'
   } else if (provider === 'notion') {
