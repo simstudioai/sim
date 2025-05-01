@@ -232,6 +232,13 @@
       "when": 1745973220228,
       "tag": "0032_rare_nico_minoru",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1746037443324,
+      "tag": "0033_solid_stellaris",
+      "breakpoints": true
     }
   ]
 }

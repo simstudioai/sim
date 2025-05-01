@@ -19,7 +19,7 @@ export const user = pgTable('user', {
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
   stripeCustomerId: text('stripe_customer_id')
-});
+})
 
 export const session = pgTable('session', {
   id: text('id').primaryKey(),
@@ -126,7 +126,20 @@ export const settings = pgTable('settings', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One settings record per user
-  general: json('general').notNull(),
+  
+  // General settings
+  theme: text('theme').notNull().default('system'),
+  debugMode: boolean('debug_mode').notNull().default(false),
+  autoConnect: boolean('auto_connect').notNull().default(true),
+  autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true),
+  
+  // Privacy settings
+  telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
+  telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),
+  
+  // Keep general for future flexible settings
+  general: json('general').notNull().default('{}'),
+  
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -238,7 +251,7 @@ export const subscription = pgTable("subscription", {
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),
   trialEnd: timestamp('trial_end')
-});
+})
 
 export const chat = pgTable('chat', {
   id: text('id').primaryKey(),
@@ -281,7 +294,7 @@ export const organization = pgTable("organization", {
   metadata: jsonb('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-});
+})
 
 export const member = pgTable("member", {
   id: text('id').primaryKey(),
@@ -289,7 +302,7 @@ export const member = pgTable("member", {
   organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
   role: text('role').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull()
-});
+})
 
 export const invitation = pgTable("invitation", {
   id: text('id').primaryKey(),
@@ -300,4 +313,4 @@ export const invitation = pgTable("invitation", {
   status: text('status').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull()
-});
+})

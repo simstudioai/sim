@@ -66,3 +66,12 @@ docs/.content-collections
 
 # database instantiation
 **/postgres_data/
+
+# file uploads
+uploads/
+uploads/*
+
+# collector configuration
+collector-config.yaml
+docker-compose.collector.yml
+start-collector.sh
