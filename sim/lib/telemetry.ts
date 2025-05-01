@@ -29,7 +29,7 @@ export type TelemetryStatus = {
 const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
 
 let telemetryConfig = {
-  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.dev/v1/traces',
+  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
   serviceName: 'sim-studio',
   serviceVersion: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
 }

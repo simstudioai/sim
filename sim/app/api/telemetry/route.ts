@@ -48,7 +48,7 @@ async function forwardToCollector(data: any): Promise<boolean> {
       telemetryConfig = require('@/telemetry.config.js')
     } catch (e) {
       telemetryConfig = {
-        endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.dev/v1/traces',
+        endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
       }
     }
     

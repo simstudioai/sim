@@ -28,7 +28,7 @@ module.exports = {
    * Endpoint URL where telemetry data is sent
    * Change this if you want to send telemetry to your own collector
    */
-  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.dev/v1/traces',
+  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
 
   /**
    * Service name used to identify this instance
