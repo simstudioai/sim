@@ -34,6 +34,18 @@ export async function GET(request: Request) {
         { status: 400 }
       )
     }
+    
+    // Protect reserved subdomains
+    const reservedSubdomains = ['telemetry', 'docs', 'api', 'admin', 'www', 'app', 'auth', 'blog', 'help', 'support'];
+    if (reservedSubdomains.includes(subdomain)) {
+      return NextResponse.json(
+        {
+          available: false,
+          error: 'This subdomain is reserved'
+        },
+        { status: 400 }
+      )
+    }
 
     // Query database to see if subdomain already exists
     const existingDeployment = await db
