@@ -3,9 +3,9 @@ title: Slack
 description: Send a message to Slack
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="slack"
   color="#611f69"
   icon={true}
@@ -32,27 +32,30 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Slack](https://www.slack.com/) is a business communication platform that offers teams a unified place for messaging, tools, and files. It's designed to replace email as the primary method of communication and sharing for teams, providing organized conversations, searchable history, and seamless integration with hundreds of apps and services.
+[Slack](https://www.slack.com/) is a business communication platform that offers teams a unified place for messaging, tools, and files.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/Wva1AKTgF2c"
+  title="Slack Integration with Sim Studio"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowFullScreen
+></iframe>
 
 With Slack, you can:
 
-- **Streamline communication**: Centralize team discussions in organized channels
-- **Share files and information**: Easily exchange documents, images, and data
-- **Integrate with other tools**: Connect with hundreds of third-party services
-- **Automate workflows**: Create custom automations to reduce manual tasks
-- **Organize conversations**: Keep discussions topic-based in dedicated channels
-- **Search message history**: Quickly find past conversations and shared content
-- **Collaborate in real-time**: Engage with team members through instant messaging
+- **Automate agent notifications**: Send real-time updates from your Sim Studio agents to any Slack channel
+- **Create webhook endpoints**: Configure Slack bots as webhooks to trigger Sim Studio workflows from Slack activities
+- **Enhance agent workflows**: Integrate Slack messaging into your agents to deliver results, alerts, and status updates
 
 In Sim Studio, the Slack integration enables your agents to programmatically send messages to any Slack channel or user as part of their workflows. This allows for powerful automation scenarios such as sending notifications, alerts, updates, and reports directly to your team's communication hub. Your agents can deliver timely information, share results from processes they've completed, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed without manual intervention. By connecting Sim Studio with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing insights automatically, and reduce the need for manual status updates - all while leveraging your existing Slack workspace where your team already communicates.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Send messages to any Slack channel using OAuth authentication. Integrate automated notifications and alerts into your workflow to keep your team informed.
-
-
 
 ## Tools
 
@@ -62,39 +65,34 @@ Send messages to Slack channels or users through the Slack API. Enables direct c
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Slack API token |
-| `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
-| `text` | string | Yes | Message text to send |
+| Parameter | Type   | Required | Description                             |
+| --------- | ------ | -------- | --------------------------------------- |
+| `apiKey`  | string | Yes      | Your Slack API token                    |
+| `channel` | string | Yes      | Target Slack channel \(e.g., #general\) |
+| `text`    | string | Yes      | Message text to send                    |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
+| Parameter | Type   |
+| --------- | ------ |
+| `ts`      | string |
 | `channel` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | Yes | OAuth Token - Enter your Slack OAuth token |
-
-
+| Parameter | Type   | Required | Description                                |
+| --------- | ------ | -------- | ------------------------------------------ |
+| `apiKey`  | string | Yes      | OAuth Token - Enter your Slack OAuth token |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `ts` | string | ts of the response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
+| ↳ `ts`      | string | ts of the response      |
 | ↳ `channel` | string | channel of the response |
-
 
 ## Notes
 
