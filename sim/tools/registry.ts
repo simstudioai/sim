@@ -40,7 +40,7 @@ import { youtubeSearchTool } from './youtube'
 import { elevenLabsTtsTool } from './elevenlabs'
 import { ToolConfig } from './types'
 import { s3GetObjectTool } from './s3'
-import { jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
+import { jiraRetrieveTool, jiraUpdateTool, jiraWriteTool, jiraBulkRetrieveTool } from './jira'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -60,6 +60,7 @@ export const tools: Record<string, ToolConfig> = {
   jira_retrieve: jiraRetrieveTool,
   jira_update: jiraUpdateTool,
   jira_write: jiraWriteTool,
+  jira_bulk_read: jiraBulkRetrieveTool,
   slack_message: slackMessageTool,
   github_repo_info: githubRepoInfoTool,
   github_latest_commit: githubLatestCommitTool,

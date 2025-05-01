@@ -490,6 +490,7 @@ export const auth = betterAuth({
           responseType: 'code',
           pkce: true,
           accessType: 'offline',
+          authentication: 'basic',
           prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/confluence`,
           getUserInfo: async (tokens) => {
@@ -534,7 +535,6 @@ export const auth = betterAuth({
           clientId: process.env.JIRA_CLIENT_ID as string,
           clientSecret: process.env.JIRA_CLIENT_SECRET as string,
           authorizationUrl: 'https://auth.atlassian.com/authorize',
-          prompt: 'consent',
           tokenUrl: 'https://auth.atlassian.com/oauth/token',
           userInfoUrl: 'https://api.atlassian.com/me',
           scopes: [
@@ -557,6 +557,11 @@ export const auth = betterAuth({
             'read:field-configuration:jira',
             'read:issue-details:jira'
           ],
+          responseType: 'code',
+          pkce: true,
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
           redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira`,
           getUserInfo: async (tokens) => {
             try {

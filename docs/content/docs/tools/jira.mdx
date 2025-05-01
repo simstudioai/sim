@@ -114,6 +114,25 @@ Write a Jira issue
 | `success` | string |
 | `url` | string |
 
+### `jira_bulk_read`
+
+Retrieve multiple Jira issues in bulk
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | OAuth access token for Jira |
+| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `projectId` | string | Yes | Jira project ID |
+| `cloudId` | string | No | Jira cloud ID |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `issues` | array |
+
 
 
 ## Block Configuration

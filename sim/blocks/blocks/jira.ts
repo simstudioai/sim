@@ -1,8 +1,8 @@
 import { JiraIcon } from '@/components/icons'
 import { BlockConfig } from '../types'
-import { JiraRetrieveResponse, JiraUpdateResponse, JiraWriteResponse } from '@/tools/jira/types'
+import { JiraRetrieveResponse, JiraUpdateResponse, JiraWriteResponse, JiraRetrieveResponseBulk } from '@/tools/jira/types'
 
-type JiraResponse = JiraRetrieveResponse | JiraUpdateResponse | JiraWriteResponse
+type JiraResponse = JiraRetrieveResponse | JiraUpdateResponse | JiraWriteResponse | JiraRetrieveResponseBulk
 
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
@@ -22,6 +22,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       layout: 'full',
       options: [
         { label: 'Read Issue', id: 'read' },
+        { label: 'Read Issues', id: 'read-bulk' },
         { label: 'Update Issue', id: 'update' },
         { label: 'Write Issue', id: 'write' },
       ],
@@ -60,7 +61,6 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
       provider: 'jira',
       serviceId: 'jira',
       placeholder: 'Select Jira project',
-      condition: { field: 'operation', value: ['read', 'update', 'write'] },
     },
     {
       id: 'issueKey',
@@ -90,7 +90,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
     },
   ],
   tools: {
-    access: ['jira_retrieve', 'jira_update', 'jira_write'],
+    access: ['jira_retrieve', 'jira_update', 'jira_write', 'jira_bulk_read'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -100,6 +100,8 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             return 'jira_update'
           case 'write':
             return 'jira_write'
+          case 'read-bulk':
+            return 'jira_bulk_read'
           default:
             return 'jira_retrieve'
         }
@@ -147,6 +149,13 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
             return {
               ...baseParams,
               issueKey: params.issueKey,
+            }
+          }
+          case 'read-bulk': {
+            // For read-bulk operations, only include read-bulk-specific fields
+            return {
+              ...baseParams,
+              projectId: params.projectId,
             }
           }
           default:
