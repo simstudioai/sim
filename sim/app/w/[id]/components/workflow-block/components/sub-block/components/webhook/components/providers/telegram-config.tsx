@@ -6,6 +6,7 @@ import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
+import { CodeBlock } from '@/components/ui/code-block'
 
 interface TelegramConfigProps {
   botToken: string
