@@ -95,7 +95,7 @@ export function TelegramConfig({
       <InstructionsSection>
         <ol className="list-decimal list-inside space-y-2">
           <li>
-            Message{' '}
+            Message "/newbot" to {' '}
             <a
               href="https://t.me/BotFather"
               target="_blank"
@@ -110,7 +110,7 @@ export function TelegramConfig({
               @BotFather
             </a>{' '} in Telegram to create a bot and copy its token.
           </li>
-          <li>Enter your Bot Token and a trigger phrase below.</li>
+          <li>Enter your Bot Token and a trigger phrase above.</li>
           <li>Ensure your webhook URL uses HTTPS with a valid SSL certificate.</li>
           <li>Save settings and send the trigger phrase to your bot to start the workflow.</li>
         </ol>

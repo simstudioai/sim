@@ -210,7 +210,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
               <TooltipTrigger asChild>
                 <Info className="h-4 w-4 text-muted-foreground cursor-pointer" />
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[400px]">
+              <TooltipContent side="top" className="max-w-[400px] select-text whitespace-pre-wrap">
                 {config.description.split('\n').map((line, idx) => (
                   <p
                     key={idx}
