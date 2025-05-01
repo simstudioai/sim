@@ -95,46 +95,24 @@ export function TelegramConfig({
       <InstructionsSection>
         <ol className="list-decimal list-inside space-y-2">
           <li>
-            Create a bot by messaging{' '}
+            Message{' '}
             <a
               href="https://t.me/BotFather"
               target="_blank"
               rel="noopener noreferrer"
               className="link text-primary underline hover:text-primary/80 transition-colors"
               onClick={(e) => {
-                e.stopPropagation()
-                window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer')
-                e.preventDefault()
+                e.stopPropagation();
+                window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer');
+                e.preventDefault();
               }}
             >
               @BotFather
-            </a>{' '}
-            on Telegram.
+            </a>{' '} in Telegram to create a bot and copy its token.
           </li>
-          <li>
-            Create your bot:
-            <ol className="list-disc ml-5 mt-1">
-              <li>Use the <code>/newbot</code> command</li>
-              <li>Follow the prompts to set a name and username</li>
-              <li>Copy the Bot Token that BotFather provides</li>
-            </ol>
-          </li>
-          <li>
-            After creating your bot, set the webhook manually using the following curl command:
-            <div className="mt-2">
-              <CodeBlock code={curlCommand} />
-            </div>
-          </li>
-          <li>
-            In SimStudio, enter your Bot Token and set a trigger phrase.
-            <ol className="list-disc ml-5 mt-1">
-              <li>The webhook URL will be automatically configured</li>
-              <li>Note: Telegram webhooks require HTTPS. Your domain must have a valid SSL certificate.</li>
-            </ol>
-          </li>
-          <li>
-            Save your settings. Now, when someone sends the trigger phrase to your bot, your workflow will start automatically.
-          </li>
+          <li>Enter your Bot Token and a trigger phrase below.</li>
+          <li>Ensure your webhook URL uses HTTPS with a valid SSL certificate.</li>
+          <li>Save settings and send the trigger phrase to your bot to start the workflow.</li>
         </ol>
       </InstructionsSection>
     </div>
