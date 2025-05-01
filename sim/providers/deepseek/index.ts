@@ -6,6 +6,28 @@ import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Deepseek Provider')
 
+/**
+ * Helper function to convert a DeepSeek (OpenAI-compatible) stream to a ReadableStream
+ * of text chunks that can be consumed by the browser.
+ */
+function createReadableStreamFromDeepseekStream(deepseekStream: any): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of deepseekStream) {
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    }
+  })
+}
+
 export const deepseekProvider: ProviderConfig = {
   id: 'deepseek',
   name: 'Deepseek',
@@ -14,7 +36,7 @@ export const deepseekProvider: ProviderConfig = {
   models: ['deepseek-chat'],
   defaultModel: 'deepseek-chat',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Deepseek')
     }
@@ -101,6 +123,18 @@ export const deepseekProvider: ProviderConfig = {
             model: request.model || 'deepseek-v3',
           })
         }
+      }
+
+      // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
+      if (request.stream && (!tools || tools.length === 0)) {
+        logger.info('Using streaming response for DeepSeek request (no tools)')
+        
+        const streamResponse = await deepseek.chat.completions.create({
+          ...payload,
+          stream: true,
+        })
+        
+        return createReadableStreamFromDeepseekStream(streamResponse)
       }
 
       // Make the initial API request
@@ -349,6 +383,19 @@ export const deepseekProvider: ProviderConfig = {
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
+
+      // POST-TOOL STREAMING: stream final response after tool calls if requested
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final DeepSeek response after tool calls')
+        
+        const streamResponse = await deepseek.chat.completions.create({
+          ...payload,
+          messages: currentMessages,
+          stream: true,
+        })
+        
+        return createReadableStreamFromDeepseekStream(streamResponse)
+      }
 
       return {
         content,

@@ -5,6 +5,29 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 
 const logger = createLogger('Cerebras Provider')
 
+/**
+ * Helper to convert a Cerebras streaming response (async iterable) into a ReadableStream.
+ * Enqueues only the model's text delta chunks as UTF-8 encoded bytes.
+ */
+function createReadableStreamFromCerebrasStream(cerebrasStream: AsyncIterable<any>): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of cerebrasStream) {
+          // Expecting delta content similar to OpenAI: chunk.choices[0]?.delta?.content
+          const content = chunk.choices?.[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    }
+  })
+}
+
 export const cerebrasProvider: ProviderConfig = {
   id: 'cerebras',
   name: 'Cerebras',
@@ -12,7 +35,7 @@ export const cerebrasProvider: ProviderConfig = {
   version: '1.0.0',
   models: ['cerebras/llama-3.3-70b'],
   defaultModel: 'cerebras/llama-3.3-70b',
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Cerebras')
     }
@@ -104,6 +127,16 @@ export const cerebrasProvider: ProviderConfig = {
           // Handle case where all tools are filtered out
           logger.info(`All tools have usageControl='none', removing tools from request`)
         }
+      }
+
+      // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
+      if (request.stream && (!tools || tools.length === 0)) {
+        logger.info('Using streaming response for Cerebras request (no tools)')
+        const streamResponse: any = await client.chat.completions.create({
+          ...payload,
+          stream: true,
+        })
+        return createReadableStreamFromCerebrasStream(streamResponse)
       }
 
       // Make the initial API request
@@ -347,6 +380,18 @@ export const cerebrasProvider: ProviderConfig = {
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
+
+      // POST-TOOL-STREAMING: stream after tool calls if requested
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final Cerebras response after tool calls')
+        const streamResponse: any = await client.chat.completions.create({
+          ...payload,
+          messages: currentMessages,
+          tool_choice: 'none',
+          stream: true,
+        })
+        return createReadableStreamFromCerebrasStream(streamResponse)
+      }
 
       return {
         content,
