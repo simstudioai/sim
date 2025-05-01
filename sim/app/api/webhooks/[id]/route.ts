@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
+import { deleteTelegramWebhookSubscription } from '@/app/api/webhooks/route'
 
 const logger = createLogger('WebhookAPI')
 
@@ -160,7 +161,25 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Delete the webhook
+    const foundWebhook = webhooks[0].webhook
+
+    // If it's a Telegram webhook, delete it from Telegram first
+    if (foundWebhook.provider === 'telegram') {
+      try {
+        await deleteTelegramWebhookSubscription(request, session.user.id, foundWebhook, requestId)
+      } catch (err) {
+        logger.error(`[${requestId}] Error deleting Telegram webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to delete webhook from Telegram',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Delete the webhook from the database
     await db.delete(webhook).where(eq(webhook.id, id))
 
     logger.info(`[${requestId}] Successfully deleted webhook: ${id}`)

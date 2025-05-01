@@ -379,3 +379,54 @@ async function createTelegramWebhookSubscription(
   }
 }
 
+// Helper function to delete the webhook subscription from Telegram
+export async function deleteTelegramWebhookSubscription(
+  request: NextRequest,
+  userId: string,
+  webhookData: any,
+  requestId: string
+) {
+  try {
+    const { providerConfig } = webhookData
+    const { botToken } = providerConfig || {}
+
+    if (!botToken) {
+      logger.warn(`[${requestId}] Missing botToken for Telegram webhook deletion.`, {
+        webhookId: webhookData.id,
+      })
+      return // Cannot proceed without botToken
+    } 
+
+    const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
+
+    const telegramResponse = await fetch(telegramApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+
+    const responseBody = await telegramResponse.json()
+    if (!telegramResponse.ok || !responseBody.ok) {
+      const errorMessage = responseBody.description || `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
+      logger.error(`[${requestId}] ${errorMessage}`, {
+        response: responseBody
+      })
+      throw new Error(errorMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully deleted Telegram webhook for webhook ${webhookData.id}.`
+    )
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Telegram webhook deletion for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+    throw error
+  }
+}
+
