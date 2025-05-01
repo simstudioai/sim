@@ -14,7 +14,26 @@ import { Button } from '@/components/ui/button'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { createLogger } from '@/lib/logs/console-logger'
 
+declare global {
+  interface Window {
+    __SIM_TELEMETRY_ENABLED?: boolean
+    __SIM_TRACK_EVENT?: (eventName: string, properties?: Record<string, any>) => void
+  }
+}
+
 const logger = createLogger('TelemetryConsentDialog')
+
+const trackEvent = (eventName: string, properties?: Record<string, any>) => {
+  if (typeof window !== 'undefined' && window.__SIM_TELEMETRY_ENABLED) {
+    try {
+      if (window.__SIM_TRACK_EVENT) {
+        window.__SIM_TRACK_EVENT(eventName, properties)
+      }
+    } catch (error) {
+      logger.error(`Failed to track event ${eventName}:`, error)
+    }
+  }
+}
 
 export function TelemetryConsentDialog() {
   const [open, setOpen] = useState(false)
@@ -28,22 +47,29 @@ export function TelemetryConsentDialog() {
   const hasShownDialogThisSession = useRef(false)
 
   useEffect(() => {
+    let isMounted = true
     const fetchSettings = async () => {
       try {
         await loadSettings(true)
-        setSettingsLoaded(true)
+        if (isMounted) {
+          setSettingsLoaded(true)
+        }
       } catch (error) {
         logger.error('Failed to load settings:', error)
-        setSettingsLoaded(true)
+        if (isMounted) {
+          setSettingsLoaded(true)
+        }
       }
     }
     
     fetchSettings()
+    
+    return () => {
+      isMounted = false
+    }
   }, [loadSettings])
 
-  // Show dialog when settings are properly loaded from the database
   useEffect(() => {
-    // Only proceed if settings are fully loaded from the database
     if (!settingsLoaded) return
     
     logger.debug('Settings loaded state:', { 
@@ -64,11 +90,21 @@ export function TelemetryConsentDialog() {
   }, [settingsLoaded, telemetryNotifiedUser, telemetryEnabled])
 
   const handleAccept = () => {
+    trackEvent('telemetry_consent_accepted', {
+      source: 'consent_dialog',
+      defaultEnabled: true
+    })
+    
     setTelemetryNotifiedUser(true)
     setOpen(false)
   }
 
   const handleDecline = () => {
+    trackEvent('telemetry_consent_declined', {
+      source: 'consent_dialog',
+      defaultEnabled: false
+    })
+    
     setTelemetryEnabled(false)
     setTelemetryNotifiedUser(true)
     setOpen(false)

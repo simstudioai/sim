@@ -1,6 +1,6 @@
 import { useRouter } from 'next/navigation'
-import { Info } from 'lucide-react'
-import { useEffect } from 'react'
+import { Info, AlertTriangle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +24,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { resetAllStores } from '@/stores'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -36,8 +37,10 @@ const TOOLTIPS = {
 
 export function General() {
   const router = useRouter()
+  const [retryCount, setRetryCount] = useState(0)
   
   const isLoading = useGeneralStore(state => state.isLoading)
+  const error = useGeneralStore(state => state.error)
   const theme = useGeneralStore(state => state.theme)
   const isAutoConnectEnabled = useGeneralStore(state => state.isAutoConnectEnabled)
   const isDebugModeEnabled = useGeneralStore(state => state.isDebugModeEnabled)
@@ -50,8 +53,11 @@ export function General() {
   const loadSettings = useGeneralStore(state => state.loadSettings)
   
   useEffect(() => {
-    loadSettings()
-  }, [loadSettings])
+    const loadData = async () => {
+      await loadSettings(retryCount > 0)
+    }
+    loadData()
+  }, [loadSettings, retryCount])
 
   const handleThemeChange = (value: 'system' | 'light' | 'dark') => {
     setTheme(value)
@@ -80,8 +86,29 @@ export function General() {
     router.push('/w/1') // Redirect to home page after reset
   }
 
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1)
+  }
+
   return (
     <div className="p-6 space-y-6">
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex justify-between items-center">
+            <span>Failed to load settings: {error}</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRetry}
+              disabled={isLoading}
+            >
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div>
         <h2 className="text-lg font-medium mb-[22px]">General Settings</h2>
         <div className="space-y-4">
@@ -127,6 +154,7 @@ export function General() {
                         size="sm"
                         className="text-gray-500 p-1 h-7"
                         aria-label="Learn more about debug mode"
+                        disabled={isLoading}
                       >
                         <Info className="h-5 w-5" />
                       </Button>
@@ -155,6 +183,7 @@ export function General() {
                         size="sm"
                         className="text-gray-500 p-1 h-7"
                         aria-label="Learn more about auto-connect feature"
+                        disabled={isLoading}
                       >
                         <Info className="h-5 w-5" />
                       </Button>
@@ -183,6 +212,7 @@ export function General() {
                         size="sm"
                         className="text-gray-500 p-1 h-7"
                         aria-label="Learn more about auto-fill environment variables"
+                        disabled={isLoading}
                       >
                         <Info className="h-5 w-5" />
                       </Button>
@@ -216,6 +246,7 @@ export function General() {
                   size="sm"
                   className="text-gray-500 p-1 h-7"
                   aria-label="Learn more about resetting all data"
+                  disabled={isLoading}
                 >
                   <Info className="h-5 w-5" />
                 </Button>
@@ -227,7 +258,7 @@ export function General() {
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm">
+              <Button variant="destructive" size="sm" disabled={isLoading}>
                 Reset Data
               </Button>
             </AlertDialogTrigger>

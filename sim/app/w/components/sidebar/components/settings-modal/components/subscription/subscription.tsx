@@ -61,7 +61,7 @@ const useSubscriptionData = (
   const [subscriptionData, setSubscriptionData] = useState<any>(cachedSubscriptionData || null)
   const [loading, setLoading] = useState<boolean>(isParentLoading !== undefined ? isParentLoading : true)
   const [error, setError] = useState<string | null>(null)
-  const subscription = useMemo(() => useSubscription(), [])
+  const subscription = useSubscription()
 
   useEffect(() => {
     if (
@@ -198,7 +198,7 @@ export function Subscription({
 }: SubscriptionProps) {
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
-  const subscription = useMemo(() => useSubscription(), [])
+  const subscription = useSubscription()
   
   const { 
     isPro, 

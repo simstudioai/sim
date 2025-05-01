@@ -69,7 +69,6 @@ docs/.content-collections
 
 # file uploads
 uploads/
-uploads/*
 
 # collector configuration
 collector-config.yaml

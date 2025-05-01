@@ -16,6 +16,19 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('otel-instrumentation')
 
+const DEFAULT_TELEMETRY_CONFIG = {
+  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
+  serviceName: 'sim-studio',
+  serviceVersion: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
+  serverSide: { enabled: true },
+  batchSettings: {
+    maxQueueSize: 100,
+    maxExportBatchSize: 10,
+    scheduledDelayMillis: 5000,
+    exportTimeoutMillis: 30000,
+  },
+}
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     try {
@@ -28,18 +41,7 @@ export async function register() {
       try {
         telemetryConfig = require('./telemetry.config.js')
       } catch (e) {
-        telemetryConfig = {
-          endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
-          serviceName: 'sim-studio',
-          serviceVersion: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
-          serverSide: { enabled: true },
-          batchSettings: {
-            maxQueueSize: 100,
-            maxExportBatchSize: 10,
-            scheduledDelayMillis: 5000,
-            exportTimeoutMillis: 30000,
-          },
-        }
+        telemetryConfig = DEFAULT_TELEMETRY_CONFIG
       }
 
       if (telemetryConfig.serverSide?.enabled === false) {
@@ -58,10 +60,10 @@ export async function register() {
       })
       
       const spanProcessor = new BatchSpanProcessor(exporter, {
-        maxQueueSize: telemetryConfig.batchSettings?.maxQueueSize || 100,
-        maxExportBatchSize: telemetryConfig.batchSettings?.maxExportBatchSize || 10,
-        scheduledDelayMillis: telemetryConfig.batchSettings?.scheduledDelayMillis || 5000,
-        exportTimeoutMillis: telemetryConfig.batchSettings?.exportTimeoutMillis || 30000,
+        maxQueueSize: telemetryConfig.batchSettings?.maxQueueSize || DEFAULT_TELEMETRY_CONFIG.batchSettings.maxQueueSize,
+        maxExportBatchSize: telemetryConfig.batchSettings?.maxExportBatchSize || DEFAULT_TELEMETRY_CONFIG.batchSettings.maxExportBatchSize,
+        scheduledDelayMillis: telemetryConfig.batchSettings?.scheduledDelayMillis || DEFAULT_TELEMETRY_CONFIG.batchSettings.scheduledDelayMillis,
+        exportTimeoutMillis: telemetryConfig.batchSettings?.exportTimeoutMillis || DEFAULT_TELEMETRY_CONFIG.batchSettings.exportTimeoutMillis,
       })
       
       const configResource = resourceFromAttributes({

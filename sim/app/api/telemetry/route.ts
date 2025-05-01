@@ -12,10 +12,16 @@ const ALLOWED_CATEGORIES = [
   'consent',
 ]
 
+const DEFAULT_TIMEOUT = 5000 // 5 seconds timeout
+
 /**
  * Validates telemetry data to ensure it doesn't contain sensitive information
  */
 function validateTelemetryData(data: any): boolean {
+  if (!data || typeof data !== 'object') {
+    return false
+  }
+  
   if (!data.category || !data.action) {
     return false
   }
@@ -39,61 +45,128 @@ function validateTelemetryData(data: any): boolean {
 }
 
 /**
+ * Safely converts a value to string, handling undefined and null values
+ */
+function safeStringValue(value: any): string {
+  if (value === undefined || value === null) {
+    return ''
+  }
+  
+  try {
+    return String(value)
+  } catch (e) {
+    return ''
+  }
+}
+
+/**
+ * Creates a safe attribute object for OpenTelemetry
+ */
+function createSafeAttributes(data: Record<string, any>): Array<{key: string, value: {stringValue: string}}> {
+  if (!data || typeof data !== 'object') {
+    return []
+  }
+  
+  const attributes: Array<{key: string, value: {stringValue: string}}> = []
+  
+  Object.entries(data).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && key) {
+      attributes.push({
+        key,
+        value: { stringValue: safeStringValue(value) }
+      })
+    }
+  })
+  
+  return attributes
+}
+
+/**
  * Forwards telemetry data to OpenTelemetry collector
  */
 async function forwardToCollector(data: any): Promise<boolean> {
+  if (!data || typeof data !== 'object') {
+    logger.error('Invalid telemetry data format')
+    return false
+  }
+  
+  const endpoint = process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  const timeout = parseInt(process.env.TELEMETRY_TIMEOUT || '') || DEFAULT_TIMEOUT
+  
   try {
-    let telemetryConfig
-    try {
-      telemetryConfig = require('@/telemetry.config.js')
-    } catch (e) {
-      telemetryConfig = {
-        endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
-      }
-    }
+    const timestamp = Date.now() * 1000000
     
-    const timestamp = new Date().getTime() * 1000 // Convert to nanoseconds
-    const span = {
-      name: `${data.category}.${data.action}`,
-      kind: 1, 
-      startTimeUnixNano: timestamp,
-      endTimeUnixNano: timestamp + 1000000, // 1ms duration
-      attributes: Object.entries(data).map(([key, value]) => ({
-        key,
-        value: { stringValue: String(value) },
-      })),
-    }
+    const safeAttrs = createSafeAttributes(data)
+    
+    const serviceAttrs = [
+      { key: 'service.name', value: { stringValue: 'sim-studio' } },
+      { key: 'service.version', value: { stringValue: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0' } },
+      { key: 'deployment.environment', value: { stringValue: process.env.NODE_ENV || 'production' } }
+    ]
+    
+    const spanName = data.category && data.action ? `${data.category}.${data.action}` : 'telemetry.event'
     
     const payload = {
-      resourceSpans: [
-        {
-          resource: {
-            attributes: [
-              { key: 'service.name', value: { stringValue: data.service || 'sim-studio' } },
-              { key: 'service.version', value: { stringValue: data.version || '0.1.0' } },
-              { key: 'deployment.environment', value: { stringValue: process.env.NODE_ENV || 'production' } },
-            ],
-          },
-          instrumentationLibrarySpans: [
-            {
-              spans: [span],
-            },
-          ],
+      resourceSpans: [{
+        resource: {
+          attributes: serviceAttrs
         },
-      ],
+        instrumentationLibrarySpans: [{
+          spans: [{
+            name: spanName,
+            kind: 1,
+            startTimeUnixNano: timestamp,
+            endTimeUnixNano: timestamp + 1000000,
+            attributes: safeAttrs
+          }]
+        }]
+      }]
     }
     
-    const response = await fetch(telemetryConfig.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+    // Safe debug log of the payload structure without sensitive data
+    logger.debug('Preparing to send telemetry payload', { 
+      endpoint,
+      hasAttributes: safeAttrs.length > 0,
+      attributeCount: safeAttrs.length
     })
     
-    return response.ok
+    // Create explicit AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    
+    try {
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      }
+      
+      const response = await fetch(endpoint, options)
+      clearTimeout(timeoutId)
+      
+      if (!response.ok) {
+        logger.error('Telemetry collector returned error', { 
+          status: response.status,
+          statusText: response.statusText
+        })
+        return false
+      }
+      
+      return true
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        logger.error('Telemetry request timed out', { endpoint })
+      } else {
+        logger.error('Failed to send telemetry to collector', fetchError)
+      }
+      return false
+    }
   } catch (error) {
-    logger.error('Failed to forward telemetry to collector', error)
+    logger.error('Error preparing telemetry payload', error)
     return false
   }
 }
@@ -103,11 +176,19 @@ async function forwardToCollector(data: any): Promise<boolean> {
  */
 export async function POST(req: NextRequest) {
   try {
-    const eventData = await req.json()
+    let eventData
+    try {
+      eventData = await req.json()
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
     
     if (!validateTelemetryData(eventData)) {
       return NextResponse.json(
-        { error: 'Invalid telemetry data' },
+        { error: 'Invalid telemetry data format or contains sensitive information' },
         { status: 400 }
       )
     }
@@ -125,4 +206,4 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

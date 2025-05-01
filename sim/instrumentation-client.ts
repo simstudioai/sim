@@ -21,7 +21,63 @@ if (typeof window !== 'undefined') {
       }
     }
   } catch (e) {
-    telemetryEnabled = true
+    telemetryEnabled = false
+  }
+
+  /**
+   * Safe serialize function to ensure we don't include circular references or invalid data
+   */
+  function safeSerialize(obj: any): any {
+    if (obj === null || obj === undefined) return null
+    if (typeof obj !== 'object') return obj
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => safeSerialize(item))
+    }
+    
+    const result: Record<string, any> = {}
+    
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const value = obj[key]
+        if (value === undefined || value === null || typeof value === 'function' || typeof value === 'symbol') {
+          continue
+        }
+        
+        try {
+          result[key] = safeSerialize(value)
+        } catch (e) {
+          try {
+            result[key] = String(value)
+          } catch (e2) {
+          }
+        }
+      }
+    }
+    
+    return result
+  }
+
+  (window as any).__SIM_TELEMETRY_ENABLED = telemetryEnabled;
+  (window as any).__SIM_TRACK_EVENT = (eventName: string, properties?: any) => {
+    if (!telemetryEnabled) return
+    
+    const safeProps = properties || {}
+    
+    const payload = {
+      category: 'feature_usage',
+      action: eventName || 'unknown_event',
+      timestamp: Date.now(),
+      ...safeSerialize(safeProps)
+    }
+    
+    fetch('/api/telemetry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      // Silently fail if sending metrics fails
+    })
   }
 
   if (telemetryEnabled) {
@@ -40,36 +96,114 @@ if (typeof window !== 'undefined') {
       performance.mark('sim-studio-loaded')
       performance.measure('page-load', 'sim-studio-init', 'sim-studio-loaded')
       
-      if ('web-vital' in performance) {
-        const observer = new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) {
+      if (typeof PerformanceObserver !== 'undefined') {
+        const lcpObserver = new PerformanceObserver((list) => {
+          const entries = list.getEntries()
+          
+          entries.forEach(entry => {
+            const value = entry.entryType === 'largest-contentful-paint' 
+              ? (entry as any).startTime 
+              : (entry as any).value || 0
+              
+            // Ensure we have non-null values for all fields
             const metric = {
-              name: entry.name,
-              value: entry.startTime,
-              rating: entry.entryType,
+              name: entry.name || 'unknown',
+              value: value || 0,
+              entryType: entry.entryType || 'unknown'
             }
             
             if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
+              const safePayload = {
+                category: 'performance',
+                action: 'web_vital',
+                label: metric.name,
+                value: metric.value,
+                entryType: metric.entryType,
+                timestamp: Date.now()
+              }
+              
               fetch('/api/telemetry', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  category: 'performance',
-                  action: 'web_vital',
-                  label: metric.name,
-                  value: metric.value,
-                  rating: metric.rating,
-                }),
+                body: JSON.stringify(safePayload),
               }).catch(() => {
                 // Silently fail if sending metrics fails
               })
             }
-          }
+          })
+          
+          lcpObserver.disconnect()
         })
         
-        observer.observe({ type: 'layout-shift', buffered: true })
-        observer.observe({ type: 'largest-contentful-paint', buffered: true })
-        observer.observe({ type: 'first-input', buffered: true })
+        const clsObserver = new PerformanceObserver((list) => {
+          const entries = list.getEntries()
+          let clsValue = 0
+          
+          entries.forEach(entry => {
+            clsValue += (entry as any).value || 0
+          })
+          
+          if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
+            const safePayload = {
+              category: 'performance',
+              action: 'web_vital',
+              label: 'CLS',
+              value: clsValue || 0,
+              entryType: 'layout-shift',
+              timestamp: Date.now()
+            }
+            
+            fetch('/api/telemetry', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(safePayload),
+            }).catch(() => {
+              // Silently fail if sending metrics fails
+            })
+          }
+          
+          clsObserver.disconnect()
+        })
+        
+        const fidObserver = new PerformanceObserver((list) => {
+          const entries = list.getEntries()
+          
+          entries.forEach(entry => {
+            const processingStart = (entry as any).processingStart || 0
+            const startTime = (entry as any).startTime || 0
+            
+            const metric = {
+              name: entry.name || 'unknown',
+              value: processingStart - startTime,
+              entryType: entry.entryType || 'unknown'
+            }
+            
+            if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
+              const safePayload = {
+                category: 'performance',
+                action: 'web_vital',
+                label: 'FID',
+                value: metric.value,
+                entryType: metric.entryType,
+                timestamp: Date.now()
+              }
+              
+              fetch('/api/telemetry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(safePayload),
+              }).catch(() => {
+                // Silently fail if sending metrics fails
+              })
+            }
+          })
+          
+          fidObserver.disconnect()
+        })
+        
+        lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true })
+        clsObserver.observe({ type: 'layout-shift', buffered: true })
+        fidObserver.observe({ type: 'first-input', buffered: true })
       }
     })
 
@@ -79,19 +213,22 @@ if (typeof window !== 'undefined') {
           message: event.error?.message || 'Unknown error',
           stack: event.error?.stack?.split('\n')[0] || '',
           url: window.location.pathname,
+          timestamp: Date.now()
         }
         
-        // Send anonymized error to telemetry API
+        const safePayload = {
+          category: 'error',
+          action: 'client_error',
+          label: errorDetails.message,
+          stack: errorDetails.stack,
+          url: errorDetails.url,
+          timestamp: errorDetails.timestamp
+        }
+        
         fetch('/api/telemetry', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            category: 'error',
-            action: 'client_error',
-            label: errorDetails.message,
-            stack: errorDetails.stack,
-            url: errorDetails.url,
-          }),
+          body: JSON.stringify(safePayload),
         }).catch(() => {
           // Silently fail if sending error fails
         })

@@ -6,12 +6,14 @@ import { GeneralStore } from './types'
 const logger = createLogger('GeneralStore')
 
 const CACHE_TIMEOUT = 5000
+const MAX_ERROR_RETRIES = 2
 
 export const useGeneralStore = create<GeneralStore>()(
   devtools(
     persist(
       (set, get) => {
         let lastLoadTime = 0
+        let errorRetryCount = 0
         
         return {
           isAutoConnectEnabled: true,
@@ -88,6 +90,7 @@ export const useGeneralStore = create<GeneralStore>()(
               })
               
               lastLoadTime = now
+              errorRetryCount = 0
             } catch (error) {
               logger.error('Error loading settings:', error)
               set({ 
@@ -112,11 +115,18 @@ export const useGeneralStore = create<GeneralStore>()(
               set({ error: null })
               
               lastLoadTime = Date.now()
+              errorRetryCount = 0
             } catch (error) {
               logger.error(`Error updating setting ${key}:`, error)
               set({ error: error instanceof Error ? error.message : 'Unknown error' })
               
-              get().loadSettings(true)
+              if (errorRetryCount < MAX_ERROR_RETRIES) {
+                errorRetryCount++
+                logger.debug(`Retry attempt ${errorRetryCount} after error`)
+                get().loadSettings(true)
+              } else {
+                logger.warn(`Max retries (${MAX_ERROR_RETRIES}) exceeded, skipping automatic loadSettings`)
+              }
             }
           }
         }

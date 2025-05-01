@@ -27,6 +27,25 @@ import {
 const logger = createLogger('Executor')
 
 /**
+ * Tracks telemetry events for workflow execution if telemetry is enabled
+ */
+function trackWorkflowTelemetry(eventName: string, data: Record<string, any>) {
+  if (typeof window !== 'undefined' && window.__SIM_TRACK_EVENT) {
+    // Add timestamp and sanitize the data to avoid circular references
+    const safeData = {
+      ...data,
+      timestamp: Date.now()
+    }
+    
+    // Track the event through the global telemetry function
+    window.__SIM_TRACK_EVENT(eventName, {
+      category: 'workflow',
+      ...safeData
+    })
+  }
+}
+
+/**
  * Core execution engine that runs workflow blocks in topological order.
  *
  * Handles block execution, state management, and error handling.
@@ -88,6 +107,14 @@ export class Executor {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
+
+    // Track workflow execution start
+    trackWorkflowTelemetry('workflow_execution_started', {
+      workflowId,
+      blockCount: this.workflow.blocks.length,
+      connectionCount: this.workflow.connections.length,
+      startTime: startTime.toISOString()
+    })
 
     this.validateWorkflow()
 
@@ -162,12 +189,23 @@ export class Executor {
 
       const endTime = new Date()
       context.metadata.endTime = endTime.toISOString()
+      const duration = endTime.getTime() - startTime.getTime()
+
+      trackWorkflowTelemetry('workflow_execution_completed', {
+        workflowId,
+        duration,
+        blockCount: this.workflow.blocks.length,
+        executedBlockCount: context.executedBlocks.size,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+        success: true
+      })
 
       return {
         success: true,
         output: finalOutput,
         metadata: {
-          duration: endTime.getTime() - startTime.getTime(),
+          duration: duration,
           startTime: context.metadata.startTime!,
           endTime: context.metadata.endTime!,
           workflowConnections: this.workflow.connections.map((conn) => ({
@@ -179,6 +217,15 @@ export class Executor {
       }
     } catch (error: any) {
       logger.error('Workflow execution failed:', this.sanitizeError(error))
+
+      // Track workflow execution failure
+      trackWorkflowTelemetry('workflow_execution_failed', {
+        workflowId,
+        duration: new Date().getTime() - startTime.getTime(),
+        error: this.extractErrorMessage(error),
+        executedBlockCount: context.executedBlocks.size,
+        blockLogs: context.blockLogs.length
+      })
 
       return {
         success: false,
@@ -732,6 +779,16 @@ export class Executor {
       // Resolve inputs (which will look up references to other blocks including starter)
       const inputs = this.resolver.resolveInputs(block, context)
 
+      // Track block execution start
+      trackWorkflowTelemetry('block_execution_start', {
+        workflowId: context.workflowId,
+        blockId: block.id,
+        blockType: block.metadata?.id || 'unknown',
+        blockName: block.metadata?.name || 'Unnamed Block',
+        inputSize: Object.keys(inputs).length,
+        startTime: new Date().toISOString()
+      })
+
       // Find the appropriate handler
       const handler = this.blockHandlers.find((h) => h.canHandle(block))
       if (!handler) {
@@ -778,6 +835,15 @@ export class Executor {
         blockId: block.id,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
+      })
+
+      trackWorkflowTelemetry('block_execution', {
+        workflowId: context.workflowId,
+        blockId: block.id,
+        blockType: block.metadata?.id || 'unknown',
+        blockName: block.metadata?.name || 'Unnamed Block',
+        durationMs: Math.round(executionTime),
+        success: true
       })
 
       return output
@@ -858,6 +924,16 @@ export class Executor {
           if (error.type) errorMessage += ` (type: ${error.type})`
         }
       }
+
+      trackWorkflowTelemetry('block_execution_error', {
+        workflowId: context.workflowId,
+        blockId: block.id,
+        blockType: block.metadata?.id || 'unknown',
+        blockName: block.metadata?.name || 'Unnamed Block',
+        durationMs: blockLog.durationMs,
+        errorType: error.name || 'Error',
+        errorMessage: this.extractErrorMessage(error)
+      })
 
       throw new Error(errorMessage)
     }
