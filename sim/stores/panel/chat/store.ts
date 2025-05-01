@@ -66,7 +66,6 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             const newMessages = state.messages.map((message) => {
               if (message.id === messageId) {
-                console.log(`Appending content to message ${messageId}. Current length: ${message.content?.length || 0}, adding: ${content.length}`);
                 return {
                   ...message,
                   content: typeof message.content === 'string' 

@@ -70,13 +70,6 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
     return String(message.content || '')
   }, [message.content, isJsonObject])
 
-  // For debugging streaming issues
-  useEffect(() => {
-    if (message.isStreaming) {
-      console.log(`Streaming message updated: ${message.id}, content length: ${formattedContent.length}`);
-    }
-  }, [message.id, message.isStreaming, formattedContent]);
-
   return (
     <div className="w-full border-b border-border p-4 space-y-4 hover:bg-accent/50 transition-colors">
       {/* Header with time on left and message type on right */}

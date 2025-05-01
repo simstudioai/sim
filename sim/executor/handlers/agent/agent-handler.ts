@@ -186,14 +186,13 @@ export class AgentBlockHandler implements BlockHandler {
       isBlockSelectedForOutput,
       hasOutgoingConnections,
       selectedOutputIds: context.selectedOutputIds,
-      shouldUseStreaming: context.stream && isBlockSelectedForOutput && !hasOutgoingConnections && (!formattedTools || formattedTools.length === 0)
+      shouldUseStreaming: context.stream && isBlockSelectedForOutput && !hasOutgoingConnections
     });
     
     // Determine if we should use streaming for this block
     const shouldUseStreaming = context.stream && 
                               isBlockSelectedForOutput && 
-                              !hasOutgoingConnections && 
-                              (!formattedTools || formattedTools.length === 0);
+                              !hasOutgoingConnections;
     
     if (shouldUseStreaming) {
       logger.info(`Block ${block.id} will use streaming response (selected for output with no outgoing connections)`)

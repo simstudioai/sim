@@ -132,7 +132,6 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           
           // Decode and append chunk
           const chunk = decoder.decode(value, { stream: true }); // Use stream option
-          console.log("Received chunk:", chunk);
           
           if (chunk) {
             appendMessageContent(messageId, chunk);

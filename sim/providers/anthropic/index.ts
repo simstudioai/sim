@@ -6,6 +6,28 @@ import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Anthropic Provider')
 
+/**
+ * Helper to wrap Anthropic streaming (async iterable of SSE events) into a browser-friendly
+ * ReadableStream of raw assistant text chunks. We enqueue only `content_block_delta` events
+ * with `delta.type === 'text_delta'`, since that contains the incremental text tokens.
+ */
+function createReadableStreamFromAnthropicStream(anthropicStream: AsyncIterable<any>): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of anthropicStream) {
+          if (event.type === 'content_block_delta' && event.delta?.text) {
+            controller.enqueue(new TextEncoder().encode(event.delta.text))
+          }
+        }
+        controller.close()
+      } catch (err) {
+        controller.error(err)
+      }
+    },
+  })
+}
+
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -14,7 +36,7 @@ export const anthropicProvider: ProviderConfig = {
   models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
   defaultModel: 'claude-3-7-sonnet-20250219',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Anthropic')
     }
@@ -231,6 +253,19 @@ ${fieldDescriptions}
       if (toolChoice !== 'auto') {
         payload.tool_choice = toolChoice
       }
+    }
+
+    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
+    // we can directly stream the completion.
+    if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
+      logger.info('Using streaming response for Anthropic request (no tools)')
+
+      const streamResponse: any = await anthropic.messages.create({
+        ...payload,
+        stream: true,
+      })
+
+      return createReadableStreamFromAnthropicStream(streamResponse)
     }
 
     // Start execution timer for the entire provider execution
@@ -518,6 +553,19 @@ ${fieldDescriptions}
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
+
+      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final Anthropic response after tool calls')
+
+        const streamResponse: any = await anthropic.messages.create({
+          ...payload,
+          messages: currentMessages,
+          stream: true,
+        })
+
+        return createReadableStreamFromAnthropicStream(streamResponse)
+      }
 
       return {
         content,
