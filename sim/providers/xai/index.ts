@@ -6,6 +6,28 @@ import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('XAI Provider')
 
+/**
+ * Helper to wrap XAI (OpenAI-compatible) streaming into a browser-friendly
+ * ReadableStream of raw assistant text chunks.
+ */
+function createReadableStreamFromXAIStream(xaiStream: any): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of xaiStream) {
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (err) {
+        controller.error(err)
+      }
+    },
+  })
+}
+
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
   name: 'xAI',
@@ -14,9 +36,118 @@ export const xAIProvider: ProviderConfig = {
   models: ['grok-3-latest', 'grok-3-fast-latest'],
   defaultModel: 'grok-3-latest',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
     if (!request.apiKey) {
       throw new Error('API key is required for xAI')
+    }
+
+    // Initialize OpenAI client for xAI
+    const xai = new OpenAI({
+      apiKey: request.apiKey,
+      baseURL: 'https://api.x.ai/v1',
+    })
+    
+    // Prepare messages
+    const allMessages = []
+
+    if (request.systemPrompt) {
+      allMessages.push({
+        role: 'system',
+        content: request.systemPrompt,
+      })
+    }
+
+    if (request.context) {
+      allMessages.push({
+        role: 'user',
+        content: request.context,
+      })
+    }
+
+    if (request.messages) {
+      allMessages.push(...request.messages)
+    }
+
+    // Set up tools
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          type: 'function',
+          function: {
+            name: tool.id,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }))
+      : undefined
+
+    // Build the request payload
+    const payload: any = {
+      model: request.model || 'grok-3-latest',
+      messages: allMessages,
+    }
+
+    if (request.temperature !== undefined) payload.temperature = request.temperature
+    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+
+    if (request.responseFormat) {
+      payload.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: request.responseFormat.name || 'structured_response',
+          schema: request.responseFormat.schema || request.responseFormat,
+          strict: request.responseFormat.strict !== false,
+        },
+      }
+
+      if (allMessages.length > 0 && allMessages[0].role === 'system') {
+        allMessages[0].content = `${allMessages[0].content}\n\nYou MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`
+      } else {
+        allMessages.unshift({
+          role: 'system',
+          content: `You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`,
+        })
+      }
+    }
+
+    // Handle tools and tool usage control
+    let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+
+    if (tools?.length) {
+      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
+      const { tools: filteredTools, toolChoice } = preparedTools
+
+      if (filteredTools?.length && toolChoice) {
+        payload.tools = filteredTools
+        payload.tool_choice = toolChoice
+
+        logger.info(`XAI request configuration:`, {
+          toolCount: filteredTools.length,
+          toolChoice:
+            typeof toolChoice === 'string'
+              ? toolChoice
+              : toolChoice.type === 'function'
+                ? `force:${toolChoice.function.name}`
+                : toolChoice.type === 'tool'
+                  ? `force:${toolChoice.name}`
+                  : toolChoice.type === 'any'
+                    ? `force:${toolChoice.any?.name || 'unknown'}`
+                    : 'unknown',
+          model: request.model || 'grok-3-latest',
+        })
+      }
+    }
+
+    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
+    // we can directly stream the completion.
+    if (request.stream && (!tools || tools.length === 0)) {
+      logger.info('Using streaming response for XAI request (no tools)')
+
+      const streamResponse = await xai.chat.completions.create({
+        ...payload,
+        stream: true,
+      })
+
+      return createReadableStreamFromXAIStream(streamResponse)
     }
 
     // Start execution timer for the entire provider execution
@@ -24,98 +155,6 @@ export const xAIProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      const xai = new OpenAI({
-        apiKey: request.apiKey,
-        baseURL: 'https://api.x.ai/v1',
-      })
-
-      const allMessages = []
-
-      if (request.systemPrompt) {
-        allMessages.push({
-          role: 'system',
-          content: request.systemPrompt,
-        })
-      }
-
-      if (request.context) {
-        allMessages.push({
-          role: 'user',
-          content: request.context,
-        })
-      }
-
-      if (request.messages) {
-        allMessages.push(...request.messages)
-      }
-
-      const tools = request.tools?.length
-        ? request.tools.map((tool) => ({
-            type: 'function',
-            function: {
-              name: tool.id,
-              description: tool.description,
-              parameters: tool.parameters,
-            },
-          }))
-        : undefined
-
-      const payload: any = {
-        model: request.model || 'grok-3-latest',
-        messages: allMessages,
-      }
-
-      if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
-
-      if (request.responseFormat) {
-        payload.response_format = {
-          type: 'json_schema',
-          json_schema: {
-            name: request.responseFormat.name || 'structured_response',
-            schema: request.responseFormat.schema || request.responseFormat,
-            strict: request.responseFormat.strict !== false,
-          },
-        }
-
-        if (allMessages.length > 0 && allMessages[0].role === 'system') {
-          allMessages[0].content = `${allMessages[0].content}\n\nYou MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`
-        } else {
-          allMessages.unshift({
-            role: 'system',
-            content: `You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`,
-          })
-        }
-      }
-
-      // Handle tools and tool usage control
-      let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
-
-      if (tools?.length) {
-        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
-        const { tools: filteredTools, toolChoice } = preparedTools
-
-        if (filteredTools?.length && toolChoice) {
-          payload.tools = filteredTools
-          payload.tool_choice = toolChoice
-
-          logger.info(`XAI request configuration:`, {
-            toolCount: filteredTools.length,
-            toolChoice:
-              typeof toolChoice === 'string'
-                ? toolChoice
-                : toolChoice.type === 'function'
-                  ? `force:${toolChoice.function.name}`
-                  : toolChoice.type === 'tool'
-                    ? `force:${toolChoice.name}`
-                    : toolChoice.type === 'any'
-                      ? `force:${toolChoice.any?.name || 'unknown'}`
-                      : 'unknown',
-            model: request.model || 'grok-3-latest',
-          })
-        }
-      }
-
       // Make the initial API request
       const initialCallTime = Date.now()
 
@@ -326,6 +365,19 @@ export const xAIProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('Error in xAI request:', { error })
+      }
+
+      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final XAI response after tool calls')
+
+        const streamResponse = await xai.chat.completions.create({
+          ...payload,
+          messages: currentMessages,
+          stream: true,
+        })
+
+        return createReadableStreamFromXAIStream(streamResponse)
       }
 
       // Calculate overall timing

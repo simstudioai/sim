@@ -5,6 +5,27 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 
 const logger = createLogger('Groq Provider')
 
+/**
+ * Helper to wrap Groq streaming into a browser-friendly ReadableStream
+ * of raw assistant text chunks.
+ */
+function createReadableStreamFromGroqStream(groqStream: any): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of groqStream) {
+          if (chunk.choices[0]?.delta?.content) {
+            controller.enqueue(new TextEncoder().encode(chunk.choices[0].delta.content))
+          }
+        }
+        controller.close()
+      } catch (err) {
+        controller.error(err)
+      }
+    },
+  })
+}
+
 export const groqProvider: ProviderConfig = {
   id: 'groq',
   name: 'Groq',
@@ -17,9 +38,102 @@ export const groqProvider: ProviderConfig = {
   ],
   defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Groq')
+    }
+
+    // Create Groq client
+    const groq = new Groq({ apiKey: request.apiKey })
+
+    // Start with an empty array for all messages
+    const allMessages = []
+
+    // Add system prompt if present
+    if (request.systemPrompt) {
+      allMessages.push({
+        role: 'system',
+        content: request.systemPrompt,
+      })
+    }
+
+    // Add context if present
+    if (request.context) {
+      allMessages.push({
+        role: 'user',
+        content: request.context,
+      })
+    }
+
+    // Add remaining messages
+    if (request.messages) {
+      allMessages.push(...request.messages)
+    }
+
+    // Transform tools to function format if provided
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          type: 'function',
+          function: {
+            name: tool.id,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }))
+      : undefined
+
+    // Build the request payload
+    const payload: any = {
+      model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace('groq/', ''),
+      messages: allMessages,
+    }
+
+    // Add optional parameters
+    if (request.temperature !== undefined) payload.temperature = request.temperature
+    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+
+    // Add response format for structured output if specified
+    if (request.responseFormat) {
+      payload.response_format = {
+        type: 'json_schema',
+        schema: request.responseFormat.schema || request.responseFormat,
+      }
+    }
+
+    // Handle tools and tool usage control
+    if (tools?.length) {
+      // Filter out any tools with usageControl='none', but ignore 'force' since Groq doesn't support it
+      const filteredTools = tools.filter((tool) => {
+        const toolId = tool.function?.name
+        const toolConfig = request.tools?.find((t) => t.id === toolId)
+        // Only filter out 'none', treat 'force' as 'auto'
+        return toolConfig?.usageControl !== 'none'
+      })
+
+      if (filteredTools?.length) {
+        payload.tools = filteredTools
+        // Always use 'auto' for Groq, regardless of the tool_choice setting
+        payload.tool_choice = 'auto'
+
+        logger.info(`Groq request configuration:`, {
+          toolCount: filteredTools.length,
+          toolChoice: 'auto', // Groq always uses auto
+          model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+        })
+      }
+    }
+
+    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
+    // we can directly stream the completion.
+    if (request.stream && (!tools || tools.length === 0)) {
+      logger.info('Using streaming response for Groq request (no tools)')
+
+      const streamResponse = await groq.chat.completions.create({
+        ...payload,
+        stream: true,
+      })
+
+      return createReadableStreamFromGroqStream(streamResponse)
     }
 
     // Start execution timer for the entire provider execution
@@ -27,85 +141,6 @@ export const groqProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      const groq = new Groq({ apiKey: request.apiKey })
-
-      // Start with an empty array for all messages
-      const allMessages = []
-
-      // Add system prompt if present
-      if (request.systemPrompt) {
-        allMessages.push({
-          role: 'system',
-          content: request.systemPrompt,
-        })
-      }
-
-      // Add context if present
-      if (request.context) {
-        allMessages.push({
-          role: 'user',
-          content: request.context,
-        })
-      }
-
-      // Add remaining messages
-      if (request.messages) {
-        allMessages.push(...request.messages)
-      }
-
-      // Transform tools to function format if provided
-      const tools = request.tools?.length
-        ? request.tools.map((tool) => ({
-            type: 'function',
-            function: {
-              name: tool.id,
-              description: tool.description,
-              parameters: tool.parameters,
-            },
-          }))
-        : undefined
-
-      // Build the request payload
-      const payload: any = {
-        model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace('groq/', ''),
-        messages: allMessages,
-      }
-
-      // Add optional parameters
-      if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
-
-      // Add response format for structured output if specified
-      if (request.responseFormat) {
-        payload.response_format = {
-          type: 'json_schema',
-          schema: request.responseFormat.schema || request.responseFormat,
-        }
-      }
-
-      // Handle tools and tool usage control
-      if (tools?.length) {
-        // Filter out any tools with usageControl='none', but ignore 'force' since Groq doesn't support it
-        const filteredTools = tools.filter((tool) => {
-          const toolId = tool.function?.name
-          const toolConfig = request.tools?.find((t) => t.id === toolId)
-          // Only filter out 'none', treat 'force' as 'auto'
-          return toolConfig?.usageControl !== 'none'
-        })
-
-        if (filteredTools?.length) {
-          payload.tools = filteredTools
-          // Always use 'auto' for Groq, regardless of the tool_choice setting
-          payload.tool_choice = 'auto'
-
-          logger.info(`Groq request configuration:`, {
-            toolCount: filteredTools.length,
-            toolChoice: 'auto', // Groq always uses auto
-            model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-          })
-        }
-      }
-
       // Make the initial API request
       const initialCallTime = Date.now()
 
@@ -265,6 +300,19 @@ export const groqProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('Error in Groq request:', { error })
+      }
+
+      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final Groq response after tool calls')
+
+        const streamResponse = await groq.chat.completions.create({
+          ...payload,
+          messages: currentMessages,
+          stream: true,
+        })
+
+        return createReadableStreamFromGroqStream(streamResponse)
       }
 
       // Calculate overall timing
