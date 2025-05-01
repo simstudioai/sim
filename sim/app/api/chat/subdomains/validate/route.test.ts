@@ -162,6 +162,29 @@ describe('Subdomain Validation API Route', () => {
       subdomain: 'available-subdomain',
     })
   })
+  
+  it('should return available=false when subdomain is reserved', async () => {
+    vi.doMock('@/lib/auth', () => ({
+      getSession: vi.fn().mockResolvedValue({
+        user: { id: 'user-id' },
+      }),
+    }))
+
+    const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=telemetry')
+
+    const { GET } = await import('./route')
+
+    const response = await GET(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(data).toHaveProperty('available', false)
+    expect(data).toHaveProperty('error', 'This subdomain is reserved')
+    expect(mockNextResponseJson).toHaveBeenCalledWith(
+      { available: false, error: 'This subdomain is reserved' },
+      { status: 400 }
+    )
+  })
 
   it('should return available=false when subdomain is already in use', async () => {
     vi.doMock('@/lib/auth', () => ({

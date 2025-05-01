@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from 'next'
-import { SpeedInsights } from '@vercel/speed-insights/next'
 import { createLogger } from '@/lib/logs/console-logger'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
+import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 
 const logger = createLogger('RootLayout')
 
@@ -20,9 +20,7 @@ const BROWSER_EXTENSION_ATTRIBUTES = [
 if (typeof window !== 'undefined') {
   const originalError = console.error
   console.error = (...args) => {
-    // Check if it's a hydration error
     if (args[0].includes('Hydration')) {
-      // Check if the error is related to browser extensions
       const isExtensionError = BROWSER_EXTENSION_ATTRIBUTES.some((attr) =>
         args.some((arg) => typeof arg === 'string' && arg.includes(attr))
       )
@@ -151,7 +149,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body suppressHydrationWarning>
         <ZoomPrevention />
-        <SpeedInsights />
+        <TelemetryConsentDialog />
         {children}
       </body>
     </html>

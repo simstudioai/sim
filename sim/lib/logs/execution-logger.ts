@@ -21,7 +21,6 @@ export interface LogEntry {
   metadata?: ToolCallMetadata | Record<string, any>
 }
 
-// Define types for tool call tracking
 export interface ToolCallMetadata {
   toolCalls?: ToolCall[]
   cost?: {
@@ -101,7 +100,6 @@ export async function persistExecutionLogs(
       // Check for agent block and tool calls
       let metadata: ToolCallMetadata | undefined = undefined
 
-      logger.debug('Block type:', log.blockType)
       // If this is an agent block
       if (log.blockType === 'agent' && log.output) {
         logger.debug('Processing agent block output for tool calls', {
@@ -177,10 +175,6 @@ export async function persistExecutionLogs(
 
         // Case 1: Direct toolCalls array
         if (Array.isArray(log.output.toolCalls)) {
-          logger.debug('Found direct toolCalls array', {
-            count: log.output.toolCalls.length,
-          })
-
           // Log raw timing data for debugging
           log.output.toolCalls.forEach((tc: any, idx: number) => {
             logger.debug(`Tool call ${idx} raw timing data:`, {
@@ -202,14 +196,6 @@ export async function persistExecutionLogs(
               blockEndTime ? new Date(blockEndTime) : undefined
             )
 
-            // Log what we extracted
-            logger.debug(`Tool call timing extracted:`, {
-              name: toolCall.name,
-              extracted_duration: duration,
-              extracted_startTime: timing.startTime,
-              extracted_endTime: timing.endTime,
-            })
-
             return {
               name: toolCall.name,
               duration: duration,
@@ -224,10 +210,6 @@ export async function persistExecutionLogs(
         }
         // Case 2: toolCalls with a list array (as seen in the screenshot)
         else if (log.output.toolCalls && Array.isArray(log.output.toolCalls.list)) {
-          logger.debug('Found toolCalls with list array', {
-            count: log.output.toolCalls.list.length,
-          })
-
           // Log raw timing data for debugging
           log.output.toolCalls.list.forEach((tc: any, idx: number) => {
             logger.debug(`Tool call list ${idx} raw timing data:`, {
@@ -299,14 +281,6 @@ export async function persistExecutionLogs(
               blockStartTime ? new Date(blockStartTime) : undefined,
               blockEndTime ? new Date(blockEndTime) : undefined
             )
-
-            // Log what we extracted
-            logger.debug(`Response tool call timing extracted:`, {
-              name: toolCall.name,
-              extracted_duration: duration,
-              extracted_startTime: timing.startTime,
-              extracted_endTime: timing.endTime,
-            })
 
             return {
               name: toolCall.name,
@@ -696,45 +670,21 @@ function getToolCallTimings(
     // Force a minimum duration of 1000ms if none exists
     if (!enhancedToolCall.duration || enhancedToolCall.duration === 0) {
       enhancedToolCall.duration = Math.max(1000, toolDuration)
-      logger.debug(`Setting minimum duration for tool ${toolCall.name}`, {
-        duration: enhancedToolCall.duration,
-      })
     }
 
     // Force reasonable startTime and endTime if missing
     if (!enhancedToolCall.startTime) {
       const startTimestamp = new Date(blockStart).getTime() + toolStartOffset
       enhancedToolCall.startTime = new Date(startTimestamp).toISOString()
-      logger.debug(`Setting startTime for tool ${toolCall.name}`, {
-        startTime: enhancedToolCall.startTime,
-      })
     }
 
     if (!enhancedToolCall.endTime) {
       const endTimestamp =
         new Date(enhancedToolCall.startTime).getTime() + enhancedToolCall.duration
       enhancedToolCall.endTime = new Date(endTimestamp).toISOString()
-      logger.debug(`Setting endTime for tool ${toolCall.name}`, {
-        endTime: enhancedToolCall.endTime,
-      })
     }
 
     return enhancedToolCall
-  })
-
-  logger.debug('Finished estimating tool call timings', {
-    originalTools: toolCalls.map((t) => ({
-      name: t.name,
-      hadDuration: !!t.duration,
-      hadStartTime: !!t.startTime,
-      hadEndTime: !!t.endTime,
-    })),
-    enhancedTools: result.map((t) => ({
-      name: t.name,
-      duration: t.duration,
-      startTime: t.startTime,
-      endTime: t.endTime,
-    })),
   })
 
   return result
@@ -816,15 +766,6 @@ function extractTimingInfo(
   blockStartTime?: Date,
   blockEndTime?: Date
 ): { startTime?: Date; endTime?: Date } {
-  logger.debug('Extracting timing info from tool call', {
-    tool: toolCall.name,
-    hasStartTime: !!toolCall.startTime,
-    hasEndTime: !!toolCall.endTime,
-    hasTiming: !!toolCall.timing,
-    blockStartRef: blockStartTime?.toISOString(),
-    blockEndRef: blockEndTime?.toISOString(),
-  })
-
   let startTime: Date | undefined = undefined
   let endTime: Date | undefined = undefined
 
@@ -849,21 +790,13 @@ function extractTimingInfo(
     endTime = new Date(toolCall.completedAt)
   }
 
-  // If we have start time but no end time, calculate end time from duration
   if (startTime && !endTime) {
     const duration = extractDuration(toolCall)
     if (duration > 0) {
       endTime = new Date(startTime.getTime() + duration)
-      logger.debug('Calculated end time from start time and duration', {
-        tool: toolCall.name,
-        startTime: startTime.toISOString(),
-        duration,
-        calculatedEndTime: endTime.toISOString(),
-      })
     }
   }
 
-  // Log the final timing information
   logger.debug('Final extracted timing info', {
     tool: toolCall.name,
     startTime: startTime?.toISOString(),

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { client, useSession, useActiveOrganization } from '@/lib/auth-client'
+import { useState, useEffect, useMemo } from 'react'
+import { client, useSession, useActiveOrganization, useSubscription } from '@/lib/auth-client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -27,29 +27,58 @@ const logger = createLogger('Subscription')
 
 interface SubscriptionProps {
   onOpenChange: (open: boolean) => void
+  cachedIsPro?: boolean
+  cachedIsTeam?: boolean
+  cachedUsageData?: any
+  cachedSubscriptionData?: any
+  isLoading?: boolean
 }
 
-const useSubscriptionData = (userId: string | null | undefined, activeOrgId: string | null | undefined) => {
-  const [isPro, setIsPro] = useState<boolean>(false)
-  const [isTeam, setIsTeam] = useState<boolean>(false)
+const useSubscriptionData = (
+  userId: string | null | undefined, 
+  activeOrgId: string | null | undefined,
+  cachedIsPro?: boolean,
+  cachedIsTeam?: boolean,
+  cachedUsageData?: any,
+  cachedSubscriptionData?: any,
+  isParentLoading?: boolean
+) => {
+  const [isPro, setIsPro] = useState<boolean>(cachedIsPro || false)
+  const [isTeam, setIsTeam] = useState<boolean>(cachedIsTeam || false)
   const [usageData, setUsageData] = useState<{
-    percentUsed: number;
-    isWarning: boolean;
-    isExceeded: boolean;
-    currentUsage: number;
-    limit: number;
-  }>({
+    percentUsed: number
+    isWarning: boolean
+    isExceeded: boolean
+    currentUsage: number
+    limit: number
+  }>(cachedUsageData || {
     percentUsed: 0,
     isWarning: false,
     isExceeded: false,
     currentUsage: 0,
     limit: 0
   })
-  const [subscriptionData, setSubscriptionData] = useState<any>(null)
-  const [loading, setLoading] = useState<boolean>(true)
+  const [subscriptionData, setSubscriptionData] = useState<any>(cachedSubscriptionData || null)
+  const [loading, setLoading] = useState<boolean>(isParentLoading !== undefined ? isParentLoading : true)
   const [error, setError] = useState<string | null>(null)
+  const subscription = useSubscription()
 
   useEffect(() => {
+    if (
+      isParentLoading !== undefined || 
+      (cachedIsPro !== undefined && 
+       cachedIsTeam !== undefined && 
+       cachedUsageData && 
+       cachedSubscriptionData)
+    ) {
+      if (cachedIsPro !== undefined) setIsPro(cachedIsPro)
+      if (cachedIsTeam !== undefined) setIsTeam(cachedIsTeam)
+      if (cachedUsageData) setUsageData(cachedUsageData)
+      if (cachedSubscriptionData) setSubscriptionData(cachedSubscriptionData)
+      if (isParentLoading !== undefined) setLoading(isParentLoading)
+      return
+    }
+
     async function loadSubscriptionData() {
       if (!userId) return
       
@@ -92,15 +121,18 @@ const useSubscriptionData = (userId: string | null | undefined, activeOrgId: str
           logger.info('Checking organization subscription first', { orgId: activeOrgId })
           
           // Get the organization's subscription
-          const { data: orgSubscriptions, error: orgSubError } = await client.subscription.list({
+          const result = await subscription.list({
             query: { referenceId: activeOrgId }
           })
           
+          const orgSubscriptions = result.data
+          const orgSubError = 'error' in result ? result.error : null
+          
           if (orgSubError) {
             logger.error('Error fetching organization subscription details', orgSubError)
-          } else {
+          } else if (orgSubscriptions) {
             // Find active team subscription for the organization
-            activeSubscription = orgSubscriptions?.find(
+            activeSubscription = orgSubscriptions.find(
               sub => sub.status === 'active' && sub.plan === 'team'
             )
             
@@ -116,13 +148,16 @@ const useSubscriptionData = (userId: string | null | undefined, activeOrgId: str
         // If no org team subscription was found, check for personal subscription
         if (!activeSubscription) {
           // Fetch detailed subscription data for the user
-          const { data: userSubscriptions, error: userSubError } = await client.subscription.list()
+          const result = await subscription.list()
+          
+          const userSubscriptions = result.data
+          const userSubError = 'error' in result ? result.error : null
           
           if (userSubError) {
             logger.error('Error fetching user subscription details', userSubError)
-          } else {
+          } else if (userSubscriptions) {
             // Find active subscription for the user
-            activeSubscription = userSubscriptions?.find(
+            activeSubscription = userSubscriptions.find(
               sub => sub.status === 'active'
             )
           }
@@ -148,14 +183,22 @@ const useSubscriptionData = (userId: string | null | undefined, activeOrgId: str
     }
     
     loadSubscriptionData()
-  }, [userId, activeOrgId])
+  }, [userId, activeOrgId, subscription, cachedIsPro, cachedIsTeam, cachedUsageData, cachedSubscriptionData, isParentLoading])
 
   return { isPro, isTeam, usageData, subscriptionData, loading, error }
 }
 
-export function Subscription({ onOpenChange }: SubscriptionProps) {
+export function Subscription({
+  onOpenChange,
+  cachedIsPro,
+  cachedIsTeam,
+  cachedUsageData,
+  cachedSubscriptionData,
+  isLoading
+}: SubscriptionProps) {
   const { data: session } = useSession()
   const { data: activeOrg } = useActiveOrganization()
+  const subscription = useSubscription()
   
   const { 
     isPro, 
@@ -164,7 +207,15 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     subscriptionData, 
     loading, 
     error: subscriptionError 
-  } = useSubscriptionData(session?.user?.id, activeOrg?.id)
+  } = useSubscriptionData(
+    session?.user?.id, 
+    activeOrg?.id,
+    cachedIsPro,
+    cachedIsTeam,
+    cachedUsageData,
+    cachedSubscriptionData,
+    isLoading
+  )
   
   const [isCanceling, setIsCanceling] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -190,15 +241,15 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     setError(null)
     
     try {
-      const { error } = await client.subscription.upgrade({
+      const result = await subscription.upgrade({
         plan: plan,
         successUrl: window.location.href,
         cancelUrl: window.location.href,
       })
       
-      if (error) {
-        setError(error.message || `There was an error upgrading to the ${plan} plan`)
-        logger.error('Subscription upgrade error:', error)
+      if ('error' in result && result.error) {
+        setError(result.error.message || `There was an error upgrading to the ${plan} plan`)
+        logger.error('Subscription upgrade error:', result.error)
       }
     } catch (error: any) {
       logger.error('Subscription upgrade exception:', error)
@@ -218,13 +269,13 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     setError(null)
     
     try {
-      const { error } = await client.subscription.cancel({
+      const result = await subscription.cancel({
         returnUrl: window.location.href,
       })
       
-      if (error) {
-        setError(error.message || 'There was an error canceling your subscription')
-        logger.error('Subscription cancellation error:', error)
+      if ('error' in result && result.error) {
+        setError(result.error.message || 'There was an error canceling your subscription')
+        logger.error('Subscription cancellation error:', result.error)
       }
     } catch (error: any) {
       logger.error('Subscription cancellation exception:', error)
@@ -248,17 +299,18 @@ export function Subscription({ onOpenChange }: SubscriptionProps) {
     setError(null)
     
     try {
-      const { error } = await client.subscription.upgrade({
+      const result = await subscription.upgrade({
         plan: 'team',
+        seats,
         successUrl: window.location.href,
         cancelUrl: window.location.href,
-        seats: seats
       })
       
-      if (error) {
-        setError(error.message || 'There was an error upgrading to the team plan')
-        logger.error('Team subscription upgrade error:', error)
+      if ('error' in result && result.error) {
+        setError(result.error.message || 'There was an error upgrading to the team plan')
+        logger.error('Team subscription upgrade error:', result.error)
       } else {
+        // Close the dialog after successful upgrade
         setIsTeamDialogOpen(false)
       }
     } catch (error: any) {
