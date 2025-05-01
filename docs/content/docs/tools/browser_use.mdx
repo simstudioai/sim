@@ -65,6 +65,27 @@ Execute browser automation tasks with BrowserUse to navigate the web, scrape dat
 
 ### `browser_use_run_task`
 
+Runs a browser automation task using BrowserUse
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `task` | string | Yes | What should the browser agent do |
+| `apiKey` | string | Yes | API key for BrowserUse API |
+| `pollInterval` | number | No | Interval between polling requests in milliseconds \(default: 5000\) |
+| `maxPollTime` | number | No | Maximum time to poll for task completion in milliseconds \(default: 300000 - 5 minutes\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `id` | string |
+| `task` | string |
+| `output` | string |
+| `status` | string |
+| `steps` | string |
+| `live_url` | string |
 
 
 

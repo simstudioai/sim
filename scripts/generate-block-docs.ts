@@ -526,7 +526,7 @@ function extractToolInfo(toolName: string, fileContent: string, filePath: string
     // If we couldn't extract outputs from transformResponse, try an alternative approach
     if (Object.keys(outputs).length === 0) {
       // Look for output in successful response in transformResponse
-      const successOutputRegex = /success\s*:\s*true,\s*output\s*:\s*(\{[^}]*\}|\w+(\.\w+)+\s*\|\|\s*\{[^}]*\})/
+      const successOutputRegex = /success\s*:\s*true,\s*output\s*:\s*(\{[^}]*\}|\w+(\.\w+)+\s*\|\|\s*\{[^}]*\}|\w+(\.\w+)+\.map\s*\()/
       const successOutputMatch = fileContent.match(successOutputRegex)
       
       if (successOutputMatch) {
@@ -535,6 +535,22 @@ function extractToolInfo(toolName: string, fileContent: string, filePath: string
         // Handle case where output is something like "data.data || {}"
         if (outputExpression.includes('||')) {
           outputs.data = 'json'
+        }
+        // Handle array mapping like "data.issues.map(...)"
+        else if (outputExpression.includes('.map')) {
+          // Try to extract the array object being mapped
+          const arrayMapMatch = outputExpression.match(/(\w+(?:\.\w+)+)\.map/)
+          if (arrayMapMatch) {
+            const arrayPath = arrayMapMatch[1]
+            // Get the base object being mapped to an array
+            const arrayObject = arrayPath.split('.').pop()
+            if (arrayObject) {
+              outputs[arrayObject] = 'Array of mapped items'
+            }
+          } else {
+            // Fallback if we can't extract the exact array object
+            outputs.items = 'Array of mapped items'
+          }
         }
         // Handle direct object assignment like "output: { field1, field2 }"
         else if (outputExpression.startsWith('{')) {
@@ -657,8 +673,8 @@ async function getToolInfo(toolName: string): Promise<{
     let toolPrefix = toolName.split('_')[0]
     let toolSuffix = toolName.split('_').slice(1).join('_')
 
-    // Handle special cases for Google tools
-    if (toolPrefix === 'google' && (toolName.startsWith('google_docs_') || toolName.startsWith('google_sheets_') || toolName.startsWith('google_drive_'))) {
+    // Handle special cases for tools that have multiple parts
+    if (toolPrefix === 'google' && (toolName.startsWith('google_docs_') || toolName.startsWith('google_sheets_') || toolName.startsWith('google_drive_')) || toolName.startsWith('browser_use')) {
       toolPrefix = toolName.split('_').slice(0, 2).join('_')
       toolSuffix = toolName.split('_').slice(2).join('_')
     }

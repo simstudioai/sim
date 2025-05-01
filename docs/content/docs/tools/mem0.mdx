@@ -49,7 +49,6 @@ Add memories to Mem0 for persistent storage and retrieval
 | `apiKey` | string | Yes | Your Mem0 API key |
 | `userId` | string | Yes | User ID associated with the memory |
 | `messages` | json | Yes | Array of message objects with role and content |
-| `version` | string | No | API version to use \(v1 or v2\). Use v2 if unsure. |
 
 #### Output
 
@@ -69,7 +68,6 @@ Search for memories in Mem0 using semantic search
 | `userId` | string | Yes | User ID to search memories for |
 | `query` | string | Yes | Search query to find relevant memories |
 | `limit` | number | No | Maximum number of results to return |
-| `version` | string | No | API version to use \(v1 or v2\). Use v2 if unsure. |
 
 #### Output
 
@@ -92,7 +90,6 @@ Retrieve memories from Mem0 by ID or filter criteria
 | `startDate` | string | No | Start date for filtering by created_at \(format: YYYY-MM-DD\) |
 | `endDate` | string | No | End date for filtering by created_at \(format: YYYY-MM-DD\) |
 | `limit` | number | No | Maximum number of results to return |
-| `version` | string | No | API version to use \(v1 or v2\). Use v2 if unsure. |
 
 #### Output
 
