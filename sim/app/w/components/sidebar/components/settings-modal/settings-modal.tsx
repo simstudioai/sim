@@ -38,21 +38,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const subscription = useMemo(() => useSubscription(), [])
   const hasLoadedInitialData = useRef(false)
 
-  // Load all settings data when the modal is opened
   useEffect(() => {
     async function loadAllSettings() {
       if (!open) return
       
-      // Skip if we already loaded data in this session
       if (hasLoadedInitialData.current) return
       
       setIsLoading(true)
       
       try {
-        // Load general settings
         await loadSettings()
         
-        // Fetch subscription status
         const proStatusResponse = await fetch('/api/user/subscription')
         
         if (proStatusResponse.ok) {
@@ -60,20 +56,17 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           setIsPro(subData.isPro)
           setIsTeam(subData.isTeam)
           
-          // Reset active section if user doesn't have team access
           if (!subData.isTeam && activeSection === 'team') {
             setActiveSection('general')
           }
         }
         
-        // Fetch usage data
         const usageResponse = await fetch('/api/user/usage')
         if (usageResponse.ok) {
           const usageData = await usageResponse.json()
           setUsageData(usageData)
         }
         
-        // Load subscription details
         try {
           const result = await subscription.list()
           
@@ -90,7 +83,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           logger.error('Error fetching subscription information', error)
         }
         
-        // Mark data as loaded
         hasLoadedInitialData.current = true
       } catch (error) {
         logger.error('Error loading settings data:', error)
@@ -102,28 +94,23 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     if (open) {
       loadAllSettings()
     } else {
-      // Reset the flag when modal is closed so data refreshes on next open
       hasLoadedInitialData.current = false
     }
   }, [open, loadSettings, subscription, activeSection])
 
-  // Listen for the custom event to open the settings modal with a specific tab
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
       setActiveSection(event.detail.tab)
       onOpenChange(true)
     }
 
-    // Add event listener
     window.addEventListener('open-settings', handleOpenSettings as EventListener)
 
-    // Clean up
     return () => {
       window.removeEventListener('open-settings', handleOpenSettings as EventListener)
     }
   }, [onOpenChange])
 
-  // Check if subscriptions are enabled
   const isSubscriptionEnabled = !!client.subscription
 
   return (

@@ -20,7 +20,6 @@ export function Privacy() {
   const setTelemetryNotifiedUser = useGeneralStore(state => state.setTelemetryNotifiedUser)
   const loadSettings = useGeneralStore(state => state.loadSettings)
   
-  // Load settings on initial render
   useEffect(() => {
     loadSettings()
   }, [loadSettings])
@@ -28,11 +27,9 @@ export function Privacy() {
   const handleTelemetryToggle = (checked: boolean) => {
     setTelemetryEnabled(checked)
 
-    // If telemetry is being enabled, mark as notified
     if (checked) {
       setTelemetryNotifiedUser(true)
       
-      // Track this change for analytics
       if (typeof window !== 'undefined') {
         fetch('/api/telemetry', {
           method: 'POST',

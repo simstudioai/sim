@@ -37,27 +37,22 @@ const TOOLTIPS = {
 export function General() {
   const router = useRouter()
   
-  // Get all state and actions from store
   const isLoading = useGeneralStore(state => state.isLoading)
   const theme = useGeneralStore(state => state.theme)
   const isAutoConnectEnabled = useGeneralStore(state => state.isAutoConnectEnabled)
   const isDebugModeEnabled = useGeneralStore(state => state.isDebugModeEnabled)
   const isAutoFillEnvVarsEnabled = useGeneralStore(state => state.isAutoFillEnvVarsEnabled)
-  const telemetryEnabled = useGeneralStore(state => state.telemetryEnabled)
   
-  // Get all actions from store
   const setTheme = useGeneralStore(state => state.setTheme)
   const toggleAutoConnect = useGeneralStore(state => state.toggleAutoConnect)
   const toggleDebugMode = useGeneralStore(state => state.toggleDebugMode)
   const toggleAutoFillEnvVars = useGeneralStore(state => state.toggleAutoFillEnvVars)
   const loadSettings = useGeneralStore(state => state.loadSettings)
   
-  // Load settings on initial render
   useEffect(() => {
     loadSettings()
   }, [loadSettings])
 
-  // Handle direct changes without using intermediary functions
   const handleThemeChange = (value: 'system' | 'light' | 'dark') => {
     setTheme(value)
   }

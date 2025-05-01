@@ -63,9 +63,7 @@ const useSubscriptionData = (
   const [error, setError] = useState<string | null>(null)
   const subscription = useMemo(() => useSubscription(), [])
 
-  // Use cached data if provided, otherwise fetch data
   useEffect(() => {
-    // If parent is handling loading state or we have cached data, use it
     if (
       isParentLoading !== undefined || 
       (cachedIsPro !== undefined && 
@@ -81,7 +79,6 @@ const useSubscriptionData = (
       return
     }
 
-    // Otherwise load data ourselves
     async function loadSubscriptionData() {
       if (!userId) return
       
