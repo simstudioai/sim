@@ -45,6 +45,7 @@ export function TelemetryConsentDialog() {
   const loadSettings = useGeneralStore(state => state.loadSettings)
   
   const hasShownDialogThisSession = useRef(false)
+  const isDevelopment = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
     let isMounted = true
@@ -75,7 +76,8 @@ export function TelemetryConsentDialog() {
     logger.debug('Settings loaded state:', { 
       telemetryNotifiedUser, 
       telemetryEnabled, 
-      hasShownInSession: hasShownDialogThisSession.current
+      hasShownInSession: hasShownDialogThisSession.current,
+      environment: process.env.NODE_ENV
     })
     
     // Only show dialog if:
@@ -83,11 +85,14 @@ export function TelemetryConsentDialog() {
     // 2. User has not been notified yet (according to database)
     // 3. Telemetry is currently enabled (default)
     // 4. Dialog hasn't been shown in this session already (extra protection)
-    if (settingsLoaded && !telemetryNotifiedUser && telemetryEnabled && !hasShownDialogThisSession.current) {
+    // 5. We're in development environment
+    if (settingsLoaded && !telemetryNotifiedUser && telemetryEnabled && !hasShownDialogThisSession.current && isDevelopment) {
       setOpen(true)
       hasShownDialogThisSession.current = true
+    } else if (settingsLoaded && !telemetryNotifiedUser && !isDevelopment) {
+      setTelemetryNotifiedUser(true)
     }
-  }, [settingsLoaded, telemetryNotifiedUser, telemetryEnabled])
+  }, [settingsLoaded, telemetryNotifiedUser, telemetryEnabled, setTelemetryNotifiedUser])
 
   const handleAccept = () => {
     trackEvent('telemetry_consent_accepted', {
