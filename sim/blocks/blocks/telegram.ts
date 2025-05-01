@@ -18,6 +18,11 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Telegram Chat ID',
+      description: `Getting Chat ID:
+1. Add your bot as a member to desired Telegram channel
+2. Send any message to the channel
+3. Visit https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
+4. Look for the chat field in the JSON response where you'll find the chat ID`,
     },
     {
       id: 'text',
