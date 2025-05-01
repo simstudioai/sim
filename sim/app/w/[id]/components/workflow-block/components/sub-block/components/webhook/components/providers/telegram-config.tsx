@@ -6,6 +6,7 @@ import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
+import { CodeBlock } from '@/components/ui/code-block'
 
 interface TelegramConfigProps {
   botToken: string
@@ -34,6 +35,10 @@ export function TelegramConfig({
   webhookId,
   webhookUrl,
 }: TelegramConfigProps) {
+  const curlCommand = `curl -X POST "https://api.telegram.org/bot<your_bot_token>/setWebhook" \\
+  -H "Content-Type: application/json" \\
+  -d '{"url": "${webhookUrl}", "allowed_updates": ["message"]}'`
+
   return (
     <div className="space-y-4">
       <ConfigSection title="Telegram Configuration">
@@ -116,11 +121,9 @@ export function TelegramConfig({
           </li>
           <li>
             After creating your bot, set the webhook manually using the following curl command:
-            <pre className="bg-gray-100 p-2 rounded text-sm whitespace-pre-wrap">
-              curl -X POST "https://api.telegram.org/bot&lt;your_bot_token&gt;/setWebhook" \
-              -H "Content-Type: application/json" \
-              -d {"{'"}url": "&lt;Webhook_URL&gt;", "allowed_updates": ["message"]{"}"}
-            </pre>
+            <div className="mt-2">
+              <CodeBlock code={curlCommand} />
+            </div>
           </li>
           <li>
             In SimStudio, enter your Bot Token and set a trigger phrase.
