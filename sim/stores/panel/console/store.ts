@@ -71,22 +71,28 @@ export const useConsoleStore = create<ConsoleStore>()(
 
         addConsole: (entry) => {
           set((state) => {
-            // Create a new entry with redacted API keys
+            // Determine early if this entry represents a streaming output
+            const isStreamingOutput =
+              typeof ReadableStream !== 'undefined' && entry.output instanceof ReadableStream
+
+            // Create a new entry with redacted API keys (if not a stream)
             const redactedEntry = { ...entry }
 
-            // If the entry has output and it's an object, redact API keys
-            if (redactedEntry.output && typeof redactedEntry.output === 'object') {
+            // If output is a stream, we skip redaction (it's not an object we want to recurse into)
+            if (!isStreamingOutput && redactedEntry.output && typeof redactedEntry.output === 'object') {
               redactedEntry.output = redactApiKeys(redactedEntry.output)
             }
 
-            const newEntry: ConsoleEntry = {
-              ...redactedEntry,
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
-            }
-
             // Keep only the last MAX_ENTRIES
-            const newEntries = [newEntry, ...state.entries].slice(0, MAX_ENTRIES)
+            const newEntries = [
+              { ...redactedEntry, id: crypto.randomUUID(), timestamp: new Date().toISOString() },
+              ...state.entries,
+            ].slice(0, MAX_ENTRIES)
+
+            // If the block produced a streaming output, skip automatic chat message creation
+            if (isStreamingOutput) {
+              return { entries: newEntries }
+            }
 
             // Check if this block matches a selected workflow output
             if (entry.workflowId && entry.blockName) {

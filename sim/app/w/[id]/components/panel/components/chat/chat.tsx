@@ -21,8 +21,14 @@ interface ChatProps {
 
 export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const { activeWorkflowId } = useWorkflowRegistry()
-  const { messages, addMessage, selectedWorkflowOutputs, setSelectedWorkflowOutput } =
-    useChatStore()
+  const { 
+    messages, 
+    addMessage, 
+    selectedWorkflowOutputs, 
+    setSelectedWorkflowOutput,
+    appendMessageContent,
+    finalizeMessageStream
+  } = useChatStore()
   const { entries } = useConsoleStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -93,8 +99,52 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     setChatMessage('')
 
     // Execute the workflow to generate a response, passing the chat message as input
-    // The workflow execution will trigger block executions which will add messages to the chat via the console store
-    await handleRunWorkflow({ input: sentMessage })
+    const result = await handleRunWorkflow({ input: sentMessage })
+    
+    // Check if we got a streaming response
+    if (result && 'stream' in result && result.stream instanceof ReadableStream) {
+      // Generate a unique ID for the message
+      const messageId = crypto.randomUUID();
+      
+      // Add placeholder message with the specific ID
+      addMessage({
+        id: messageId,
+        content: '',
+        workflowId: activeWorkflowId,
+        type: 'workflow',
+        isStreaming: true,
+        timestamp: new Date().toISOString(),
+      } as any);
+      
+      try {
+        // Process the stream
+        const reader = result.stream.getReader();
+        const decoder = new TextDecoder();
+        
+        console.log("Starting to read from stream");
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log("Stream complete");
+            break;
+          }
+          
+          // Decode and append chunk
+          const chunk = decoder.decode(value, { stream: true }); // Use stream option
+          console.log("Received chunk:", chunk);
+          
+          if (chunk) {
+            appendMessageContent(messageId, chunk);
+          }
+        }
+      } catch (error) {
+        console.error('Error processing stream:', error);
+      } finally {
+        console.log("Finalizing stream");
+        finalizeMessageStream(messageId);
+      }
+    }
   }
 
   // Handle key press

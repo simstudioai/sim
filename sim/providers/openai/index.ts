@@ -7,6 +7,27 @@ import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 const logger = createLogger('OpenAI Provider')
 
 /**
+ * Helper function to convert an OpenAI stream to a standard ReadableStream
+ */
+function createReadableStreamFromOpenAIStream(openaiStream: any): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of openaiStream) {
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    }
+  })
+}
+
+/**
  * OpenAI provider configuration
  */
 export const openaiProvider: ProviderConfig = {
@@ -17,7 +38,7 @@ export const openaiProvider: ProviderConfig = {
   models: ['gpt-4o', 'o1', 'o3', 'o4-mini'],
   defaultModel: 'gpt-4o',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
     logger.info('Preparing OpenAI request', {
       model: request.model || 'gpt-4o',
       hasSystemPrompt: !!request.systemPrompt,
@@ -25,6 +46,7 @@ export const openaiProvider: ProviderConfig = {
       hasTools: !!request.tools?.length,
       toolCount: request.tools?.length || 0,
       hasResponseFormat: !!request.responseFormat,
+      stream: !!request.stream,
     })
 
     // API key is now handled server-side before this function is called
@@ -124,6 +146,20 @@ export const openaiProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
+      // Check if we can stream directly (no tools required)
+      if (request.stream && (!tools || tools.length === 0)) {
+        logger.info('Using streaming response for OpenAI request')
+        
+        // Create a streaming request
+        const streamResponse = await openai.chat.completions.create({
+          ...payload,
+          stream: true,
+        })
+        
+        // Convert the OpenAI stream to a standard ReadableStream
+        return createReadableStreamFromOpenAIStream(streamResponse)
+      }
+
       // Make the initial API request
       const initialCallTime = Date.now()
 
@@ -341,6 +377,19 @@ export const openaiProvider: ProviderConfig = {
         }
 
         iterationCount++
+      }
+
+      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final response after tool calls')
+        
+        const streamResponse = await openai.chat.completions.create({
+          ...payload,
+          messages: currentMessages,
+          stream: true,
+        })
+        
+        return createReadableStreamFromOpenAIStream(streamResponse)
       }
 
       // Calculate overall timing

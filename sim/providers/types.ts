@@ -42,7 +42,7 @@ export interface ProviderConfig {
   models: string[]
   defaultModel: string
   initialize?: () => Promise<void>
-  executeRequest?: (request: ProviderRequest) => Promise<ProviderResponse>
+  executeRequest?: (request: ProviderRequest) => Promise<ProviderResponse | ReadableStream>
 }
 
 export interface FunctionCallResponse {
@@ -142,6 +142,7 @@ export interface ProviderRequest {
   }
   local_execution?: boolean
   workflowId?: string // Optional workflow ID for authentication context
+  stream?: boolean
 }
 
 // Map of provider IDs to their configurations

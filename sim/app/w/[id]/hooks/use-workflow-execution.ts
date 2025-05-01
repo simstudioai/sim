@@ -104,6 +104,15 @@ export function useWorkflowExecution() {
     const isChatExecution = activeTab === 'chat' && 
                           (workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput)
 
+    // If this is a chat execution, get the selected outputs
+    let selectedOutputIds: string[] | undefined = undefined
+    if (isChatExecution && activeWorkflowId) {
+      // Get selected outputs from chat store
+      const chatStore = await import('@/stores/panel/chat/store').then(mod => mod.useChatStore)
+      selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
+      logger.info('Chat execution with selected outputs:', selectedOutputIds)
+    }
+
     try {
       // Clear any existing state
       setDebugContext(null)
@@ -147,18 +156,46 @@ export function useWorkflowExecution() {
       // Create serialized workflow
       const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
-      // Create executor and store in global state
-      const newExecutor = new Executor(
+      // Create executor options with streaming support for chat
+      const executorOptions: any = {
+        // Default executor options
         workflow,
         currentBlockStates,
         envVarValues,
         workflowInput,
-        workflowVariables
-      )
+        workflowVariables,
+      }
+
+      // Add streaming context for chat executions
+      if (isChatExecution && selectedOutputIds && selectedOutputIds.length > 0) {
+        executorOptions.contextExtensions = {
+          stream: true,
+          selectedOutputIds,
+          edges: workflow.connections.map(conn => ({ 
+            source: conn.source, 
+            target: conn.target 
+          }))
+        }
+      }
+
+      // Create executor and store in global state
+      const newExecutor = new Executor(executorOptions)
       setExecutor(newExecutor)
 
       // Execute workflow
       const result = await newExecutor.execute(activeWorkflowId)
+
+      // Streaming results are handled differently - they won't have a standard result
+      if (result instanceof ReadableStream) {
+        logger.info('Received streaming result from executor')
+        
+        // For streaming results, we need to handle them in the component
+        // that initiated the execution (chat panel)
+        return {
+          success: true,
+          stream: result,
+        }
+      }
 
       // Add metadata about source being chat if applicable
       if (isChatExecution) {
@@ -204,6 +241,8 @@ export function useWorkflowExecution() {
           logger.error('Error persisting logs:', { error: err })
         })
       }
+
+      return result
     } catch (error: any) {
       logger.error('Workflow Execution Error:', error)
 
@@ -292,6 +331,8 @@ export function useWorkflowExecution() {
       persistLogs(executionId, errorResult).catch((err) => {
         logger.error('Error persisting logs:', { error: err })
       })
+
+      return errorResult
     }
   }, [
     activeWorkflowId,

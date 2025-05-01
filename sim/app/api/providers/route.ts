@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       apiKey,
       responseFormat,
       workflowId,
+      stream,
     } = body
 
     let finalApiKey: string
@@ -48,8 +49,22 @@ export async function POST(request: NextRequest) {
       apiKey: finalApiKey,
       responseFormat,
       workflowId,
+      stream,
     })
 
+    // Check if the response is a ReadableStream for streaming
+    if (response instanceof ReadableStream) {
+      logger.info('Streaming response from provider')
+      return new Response(response, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      })
+    }
+
+    // Return regular JSON response for non-streaming
     return NextResponse.json(response)
   } catch (error) {
     logger.error('Provider request failed:', error)

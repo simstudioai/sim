@@ -21,7 +21,7 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput> {
+  ): Promise<BlockOutput | ReadableStream> {
     logger.info(`Executing agent block: ${block.id}`)
 
     // Check for null values and try to resolve from environment variables
@@ -155,6 +155,49 @@ export class AgentBlockHandler implements BlockHandler {
           )
         ).filter((t: any): t is NonNullable<typeof t> => t !== null)
       : []
+      
+    // Check if streaming is requested and this block is selected for streaming
+    const isBlockSelectedForOutput = context.selectedOutputIds?.some(outputId => {
+      // First check for direct match (if the entire outputId is the blockId)
+      if (outputId === block.id) {
+        logger.info(`Direct match found for block ${block.id} in selected outputs`)
+        return true;
+      }
+      
+      // Then try parsing the blockId from the blockId_path format
+      const firstUnderscoreIndex = outputId.indexOf('_');
+      if (firstUnderscoreIndex !== -1) {
+        const blockId = outputId.substring(0, firstUnderscoreIndex);
+        const isMatch = blockId === block.id;
+        if (isMatch) {
+          logger.info(`Path match found for block ${block.id} in selected outputs (from ${outputId})`)
+        }
+        return isMatch;
+      }
+      return false;
+    }) ?? false;
+    
+    // Check if this block has any outgoing connections
+    const hasOutgoingConnections = context.edges?.some(edge => edge.source === block.id) ?? false;
+    
+    // Log detailed information about streaming decision
+    logger.info(`Streaming decision for block ${block.id}:`, {
+      stream: context.stream,
+      isBlockSelectedForOutput,
+      hasOutgoingConnections,
+      selectedOutputIds: context.selectedOutputIds,
+      shouldUseStreaming: context.stream && isBlockSelectedForOutput && !hasOutgoingConnections && (!formattedTools || formattedTools.length === 0)
+    });
+    
+    // Determine if we should use streaming for this block
+    const shouldUseStreaming = context.stream && 
+                              isBlockSelectedForOutput && 
+                              !hasOutgoingConnections && 
+                              (!formattedTools || formattedTools.length === 0);
+    
+    if (shouldUseStreaming) {
+      logger.info(`Block ${block.id} will use streaming response (selected for output with no outgoing connections)`)
+    }
 
     // Debug request before sending to provider
     const providerRequest = {
@@ -172,6 +215,7 @@ export class AgentBlockHandler implements BlockHandler {
       apiKey: inputs.apiKey,
       responseFormat,
       workflowId: context.workflowId,
+      stream: shouldUseStreaming,
     }
 
     logger.info(`Provider request prepared`, {
@@ -181,6 +225,9 @@ export class AgentBlockHandler implements BlockHandler {
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
       workflowId: providerRequest.workflowId,
+      stream: shouldUseStreaming,
+      isBlockSelectedForOutput,
+      hasOutgoingConnections,
     })
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
@@ -207,6 +254,13 @@ export class AgentBlockHandler implements BlockHandler {
           // If JSON parsing fails, use the original error message
         }
         throw new Error(errorMessage)
+      }
+
+      // Check if we're getting a streaming response
+      const contentType = response.headers.get('Content-Type');
+      if (contentType?.includes('text/event-stream')) {
+        logger.info(`Received streaming response for block ${block.id}`)
+        return response.body as ReadableStream;
       }
 
       const result = await response.json()

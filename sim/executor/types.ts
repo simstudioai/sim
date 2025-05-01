@@ -100,6 +100,11 @@ export interface ExecutionContext {
   activeExecutionPath: Set<string> // Set of block IDs in the current execution path
 
   workflow?: SerializedWorkflow // Reference to the workflow being executed
+  
+  // Streaming support and output selection
+  stream?: boolean // Whether to use streaming responses when available
+  selectedOutputIds?: string[] // IDs of blocks selected for streaming output
+  edges?: Array<{source: string, target: string}> // Workflow edge connections
 }
 
 /**
@@ -151,13 +156,13 @@ export interface BlockHandler {
    * @param block - Block to execute
    * @param inputs - Resolved input parameters
    * @param context - Current execution context
-   * @returns Block execution output
+   * @returns Block execution output or ReadableStream for streaming
    */
   execute(
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput>
+  ): Promise<BlockOutput | ReadableStream>
 }
 
 /**
