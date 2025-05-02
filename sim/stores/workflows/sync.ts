@@ -56,8 +56,16 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     loadingFromDBToken = 'loading'
     loadingFromDBStartTime = Date.now()
 
-    // Call the API endpoint to get workflows from DB
-    const response = await fetch(API_ENDPOINTS.SYNC, {
+    // Get active workspace ID to filter workflows
+    const activeWorkspaceId = useWorkflowRegistry.getState().activeWorkspaceId
+
+    // Call the API endpoint to get workflows from DB with workspace filter
+    const url = new URL(API_ENDPOINTS.SYNC, window.location.origin)
+    if (activeWorkspaceId) {
+      url.searchParams.append('workspaceId', activeWorkspaceId)
+    }
+
+    const response = await fetch(url.toString(), {
       method: 'GET',
     })
 
@@ -98,6 +106,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         apiKey,
         createdAt,
         marketplaceData,
+        workspaceId, // Extract workspaceId
       } = workflow
 
       // 1. Update registry store with workflow metadata
@@ -109,6 +118,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         // Use createdAt for sorting if available, otherwise fall back to lastSynced
         lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
         marketplaceData: marketplaceData || null,
+        workspaceId, // Include workspaceId in metadata
       }
 
       // 2. Prepare workflow state data
@@ -254,6 +264,9 @@ const workflowSyncConfig = {
     // Get all workflows with values
     const workflowsData = getAllWorkflowsWithValues()
 
+    // Get the active workspace ID
+    const activeWorkspaceId = useWorkflowRegistry.getState().activeWorkspaceId
+
     // Skip sync if there are no workflows to sync
     if (Object.keys(workflowsData).length === 0) {
       // Safety check: if registry has workflows but we're sending empty data, something is wrong
@@ -271,6 +284,7 @@ const workflowSyncConfig = {
 
     return {
       workflows: workflowsData,
+      workspaceId: activeWorkspaceId, // Include active workspace ID in the payload
     }
   },
   method: 'POST' as const,

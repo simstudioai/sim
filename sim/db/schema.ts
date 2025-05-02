@@ -67,6 +67,8 @@ export const workflow = pgTable('workflow', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id')
+    .references(() => workspace.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   state: json('state').notNull(),

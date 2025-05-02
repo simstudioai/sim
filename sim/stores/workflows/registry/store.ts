@@ -17,12 +17,16 @@ import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 const logger = createLogger('Workflow Registry')
 
+// Storage key for active workspace
+const ACTIVE_WORKSPACE_KEY = 'active-workspace-id'
+
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
       // Store state
       workflows: {},
       activeWorkflowId: null,
+      activeWorkspaceId: typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null,
       isLoading: false,
       error: null,
 
@@ -32,6 +36,23 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         if (!loading || Object.keys(get().workflows).length === 0) {
           set({ isLoading: loading })
         }
+      },
+
+      // Set active workspace and update UI
+      setActiveWorkspace: (id: string) => {
+        // Save to localStorage for persistence
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(ACTIVE_WORKSPACE_KEY, id)
+        }
+        
+        set({ 
+          activeWorkspaceId: id,
+          // Reset active workflow when switching workspaces
+          activeWorkflowId: null 
+        })
+        
+        // Trigger a sync to fetch workflows for this workspace
+        workflowSync.sync()
       },
 
       // Switch to a different workflow and manage state persistence
@@ -142,8 +163,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
        * @returns The ID of the newly created workflow
        */
       createWorkflow: (options = {}) => {
-        const { workflows } = get()
+        const { workflows, activeWorkspaceId } = get()
         const id = crypto.randomUUID()
+
+        // Use provided workspace ID or fall back to active workspace ID
+        const workspaceId = options.workspaceId || activeWorkspaceId || undefined;
 
         // Generate workflow metadata with appropriate name and color
         const newWorkflow: WorkflowMetadata = {
@@ -155,6 +179,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           marketplaceData: options.marketplaceId
             ? { id: options.marketplaceId, status: 'temp' as const }
             : undefined,
+          workspaceId, // Associate with workspace
         }
 
         let initialState

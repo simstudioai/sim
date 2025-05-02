@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -39,14 +39,18 @@ const WorkflowSchema = z.object({
   color: z.string().optional(),
   state: WorkflowStateSchema,
   marketplaceData: MarketplaceDataSchema,
+  workspaceId: z.string().optional(),
 })
 
 const SyncPayloadSchema = z.object({
   workflows: z.record(z.string(), WorkflowSchema),
+  workspaceId: z.string().optional(),
 })
 
 export async function GET(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const url = new URL(request.url)
+  const workspaceId = url.searchParams.get('workspaceId')
 
   try {
     // Get the session directly in the API route
@@ -58,8 +62,25 @@ export async function GET(request: Request) {
 
     const userId = session.user.id
 
-    // Fetch all workflows for the user
-    const workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
+    // Fetch workflows for the user
+    let workflows
+    
+    if (workspaceId) {
+      // Filter by user ID and workspace ID
+      workflows = await db
+        .select()
+        .from(workflow)
+        .where(and(
+          eq(workflow.userId, userId),
+          eq(workflow.workspaceId, workspaceId)
+        ))
+    } else {
+      // Filter by user ID only
+      workflows = await db
+        .select()
+        .from(workflow)
+        .where(eq(workflow.userId, userId))
+    }
 
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })
@@ -82,7 +103,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
 
     try {
-      const { workflows: clientWorkflows } = SyncPayloadSchema.parse(body)
+      const { workflows: clientWorkflows, workspaceId } = SyncPayloadSchema.parse(body)
 
       // CRITICAL SAFEGUARD: Prevent wiping out existing workflows
       // If client is sending empty workflows object, first check if user has existing workflows
@@ -137,6 +158,7 @@ export async function POST(req: NextRequest) {
             db.insert(workflow).values({
               id: clientWorkflow.id,
               userId: session.user.id,
+              workspaceId: clientWorkflow.workspaceId || workspaceId || null,
               name: clientWorkflow.name,
               description: clientWorkflow.description,
               color: clientWorkflow.color,
