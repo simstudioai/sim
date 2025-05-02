@@ -12,13 +12,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   
-  // Get all workspaces where the user is a member
+  // Get all workspaces where the user is a member with a single join query
   const memberWorkspaces = await db
     .select({
-      workspaceId: workspaceMember.workspaceId,
+      workspace: workspace,
       role: workspaceMember.role,
     })
     .from(workspaceMember)
+    .innerJoin(workspace, eq(workspaceMember.workspaceId, workspace.id))
     .where(eq(workspaceMember.userId, session.user.id))
     .orderBy(desc(workspaceMember.joinedAt))
   
@@ -33,23 +34,13 @@ export async function GET() {
   }
   
   // If user has workspaces but might have orphaned workflows, migrate them
-  await ensureWorkflowsHaveWorkspace(session.user.id, memberWorkspaces[0].workspaceId)
+  await ensureWorkflowsHaveWorkspace(session.user.id, memberWorkspaces[0].workspace.id)
   
-  // Get full workspace details for all the workspaces
-  const workspaces = await Promise.all(
-    memberWorkspaces.map(async (memberWorkspace) => {
-      const workspaceDetails = await db
-        .select()
-        .from(workspace)
-        .where(eq(workspace.id, memberWorkspace.workspaceId))
-        .then((rows) => rows[0])
-      
-      return {
-        ...workspaceDetails,
-        role: memberWorkspace.role,
-      }
-    })
-  )
+  // Format the response
+  const workspaces = memberWorkspaces.map(({ workspace: workspaceDetails, role }) => ({
+    ...workspaceDetails,
+    role
+  }))
   
   return NextResponse.json({ workspaces })
 }
@@ -107,14 +98,15 @@ async function createWorkspace(userId: string, name: string) {
     updatedAt: new Date(),
   })
   
-  // Get the created workspace
-  const newWorkspace = await db
-    .select()
-    .from(workspace)
-    .where(eq(workspace.id, workspaceId))
-    .then((rows) => rows[0])
-  
-  return { ...newWorkspace, role: 'owner' }
+  // Return the workspace data directly instead of querying again
+  return { 
+    id: workspaceId,
+    name,
+    ownerId: userId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    role: 'owner' 
+  }
 }
 
 // Helper function to migrate existing workflows to a workspace
@@ -134,43 +126,43 @@ async function migrateExistingWorkflows(userId: string, workspaceId: string) {
   
   console.log(`Migrating ${orphanedWorkflows.length} workflows to workspace ${workspaceId} for user ${userId}`)
   
-  // Update each workflow to associate it with the workspace
-  for (const { id } of orphanedWorkflows) {
-    await db
-      .update(workflow)
-      .set({
-        workspaceId: workspaceId,
-        updatedAt: new Date()
-      })
-      .where(eq(workflow.id, id))
-  }
+  // Bulk update all orphaned workflows at once
+  await db
+    .update(workflow)
+    .set({
+      workspaceId: workspaceId,
+      updatedAt: new Date()
+    })
+    .where(and(
+      eq(workflow.userId, userId),
+      isNull(workflow.workspaceId)
+    ))
 }
 
 // Helper function to ensure all workflows have a workspace
 async function ensureWorkflowsHaveWorkspace(userId: string, defaultWorkspaceId: string) {
-  // Find any workflows that still don't have a workspace ID
+  // First check if there are any orphaned workflows
   const orphanedWorkflows = await db
-    .select({ id: workflow.id })
+    .select()
     .from(workflow)
     .where(and(
       eq(workflow.userId, userId),
       isNull(workflow.workspaceId)
     ))
   
-  if (orphanedWorkflows.length === 0) {
-    return // No orphaned workflows to fix
-  }
-  
-  console.log(`Fixing ${orphanedWorkflows.length} orphaned workflows for user ${userId}`)
-  
-  // Update each orphaned workflow to associate it with the user's first workspace
-  for (const { id } of orphanedWorkflows) {
+  if (orphanedWorkflows.length > 0) {
+    // Directly update any workflows that don't have a workspace ID in a single query
     await db
       .update(workflow)
       .set({
         workspaceId: defaultWorkspaceId,
         updatedAt: new Date()
       })
-      .where(eq(workflow.id, id))
+      .where(and(
+        eq(workflow.userId, userId),
+        isNull(workflow.workspaceId)
+      ))
+    
+    console.log(`Fixed ${orphanedWorkflows.length} orphaned workflows for user ${userId}`)
   }
 } 
