@@ -391,7 +391,7 @@ export function WebhookModal({
   }
 
   const handleSave = async () => {
-    console.log('Saving webhook...')
+    logger.debug('Saving webhook...')
     if (!isCurrentConfigValid) {
       logger.warn('Attempted to save with invalid configuration')
       // Add user feedback for invalid configuration
@@ -447,7 +447,7 @@ export function WebhookModal({
         }
       }
     } catch (error: any) {
-      console.log('Error saving webhook:', error)
+      logger.error('Error saving webhook:', error)
       setTestResult({
         success: false,
         message:
