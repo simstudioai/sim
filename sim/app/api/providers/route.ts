@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey } from '@/providers/utils'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -52,6 +53,63 @@ export async function POST(request: NextRequest) {
       stream,
     })
 
+    // Check if the response is a StreamingExecution
+    if (response && typeof response === 'object' && 'stream' in response && 'execution' in response) {
+      const streamingExec = response as StreamingExecution
+      logger.info('Received StreamingExecution from provider')
+
+      // Extract the stream and execution data
+      const stream = streamingExec.stream
+      const executionData = streamingExec.execution
+
+      // Attach the execution data as a custom header
+      // We need to safely serialize the execution data to avoid circular references
+      let executionDataHeader
+      try {
+        // Create a safe version of execution data with the most important fields
+        const safeExecutionData = {
+          success: executionData.success,
+          output: {
+            response: {
+              content: executionData.output?.response?.content || '',
+              model: executionData.output?.response?.model,
+              tokens: executionData.output?.response?.tokens || {
+                prompt: 0,
+                completion: 0,
+                total: 0
+              },
+              toolCalls: executionData.output?.response?.toolCalls
+            }
+          },
+          error: executionData.error,
+          logs: executionData.logs || [],
+          metadata: {
+            startTime: executionData.metadata?.startTime,
+            endTime: executionData.metadata?.endTime,
+            duration: executionData.metadata?.duration
+          },
+          isStreaming: true, // Always mark streaming execution data as streaming
+        }
+        executionDataHeader = JSON.stringify(safeExecutionData)
+      } catch (error) {
+        logger.error('Failed to serialize execution data:', error)
+        executionDataHeader = JSON.stringify({
+          success: executionData.success,
+          error: 'Failed to serialize full execution data'
+        })
+      }
+      
+      // Return the stream with execution data in a header
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Execution-Data': executionDataHeader
+        },
+      })
+    }
+    
     // Check if the response is a ReadableStream for streaming
     if (response instanceof ReadableStream) {
       logger.info('Streaming response from provider')

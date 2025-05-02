@@ -416,6 +416,38 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
     return result
   }
   
+  // Handle StreamingExecution format (combined stream + execution data)
+  if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+    // Persist execution logs in the background
+    (async () => {
+      try {
+        // Build trace spans to enrich the logs (same as below)
+        const { traceSpans, totalDuration } = buildTraceSpans(result.execution)
+        
+        // Create enriched result with trace data
+        const enrichedResult = {
+          ...result.execution,
+          traceSpans,
+          totalDuration,
+        }
+        
+        // Generate a unique execution ID for this chat interaction
+        const executionId = uuidv4()
+        
+        // Persist the logs with 'chat' trigger type
+        await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
+        
+        logger.debug(`[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}`)
+      } catch (error) {
+        // Don't fail the chat response if logging fails
+        logger.error(`[${requestId}] Failed to persist streaming chat execution logs:`, error)
+      }
+    })();
+    
+    // Forward just the stream component to the client
+    return result.stream
+  }
+  
   // Mark as chat execution in metadata
   if (result) {
     (result as any).metadata = {
@@ -424,7 +456,7 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
     }
   }
   
-  // Persist execution logs using the 'chat' trigger type
+  // Persist execution logs using the 'chat' trigger type for non-streaming results
   try {
     // Build trace spans to enrich the logs (same as in use-workflow-execution.ts)
     const { traceSpans, totalDuration } = buildTraceSpans(result)

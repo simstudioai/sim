@@ -1,3 +1,5 @@
+import { StreamingExecution } from '@/executor/types'
+
 export type ProviderId =
   | 'openai'
   | 'anthropic'
@@ -42,7 +44,9 @@ export interface ProviderConfig {
   models: string[]
   defaultModel: string
   initialize?: () => Promise<void>
-  executeRequest?: (request: ProviderRequest) => Promise<ProviderResponse | ReadableStream>
+  executeRequest: (
+    request: ProviderRequest
+  ) => Promise<ProviderResponse | ReadableStream<any> | StreamingExecution>
 }
 
 export interface FunctionCallResponse {

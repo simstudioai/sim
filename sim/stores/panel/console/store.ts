@@ -73,7 +73,11 @@ export const useConsoleStore = create<ConsoleStore>()(
           set((state) => {
             // Determine early if this entry represents a streaming output
             const isStreamingOutput =
-              typeof ReadableStream !== 'undefined' && entry.output instanceof ReadableStream
+              (typeof ReadableStream !== 'undefined' && entry.output instanceof ReadableStream) ||
+              (typeof entry.output === 'object' && entry.output && entry.output.isStreaming === true) ||
+              (typeof entry.output === 'object' && entry.output && 'executionData' in entry.output &&
+               typeof entry.output.executionData === 'object' && entry.output.executionData?.isStreaming === true) ||
+              (typeof entry.output === 'object' && entry.output && 'stream' in entry.output)
 
             // Create a new entry with redacted API keys (if not a stream)
             const redactedEntry = { ...entry }
@@ -122,7 +126,12 @@ export const useConsoleStore = create<ConsoleStore>()(
                     
                     // Format the value appropriately for display
                     let formattedValue: string
-                    if (specificValue === undefined) {
+                    // For streaming responses, use empty string and set isStreaming flag
+                    if (isStreamingOutput) {
+                      // Skip adding a message since we'll handle streaming in workflow execution
+                      // This prevents the "Output value not found" message for streams
+                      continue;
+                    } else if (specificValue === undefined) {
                       formattedValue = "Output value not found"
                     } else if (typeof specificValue === 'object') {
                       formattedValue = JSON.stringify(specificValue, null, 2)
@@ -136,6 +145,7 @@ export const useConsoleStore = create<ConsoleStore>()(
                       workflowId: entry.workflowId,
                       type: 'workflow',
                       blockId: entry.blockId,
+                      isStreaming: isStreamingOutput,
                     })
                   }
                 }

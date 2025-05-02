@@ -5,7 +5,7 @@ import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getToolAsync, getTool } from '@/tools/utils'
-import { BlockHandler, ExecutionContext } from '../../types'
+import { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
 
 const logger = createLogger('AgentBlockHandler')
 
@@ -259,10 +259,86 @@ export class AgentBlockHandler implements BlockHandler {
       const contentType = response.headers.get('Content-Type');
       if (contentType?.includes('text/event-stream')) {
         logger.info(`Received streaming response for block ${block.id}`)
-        return response.body as ReadableStream;
+        
+        // Ensure we have a valid body stream
+        if (!response.body) {
+          throw new Error(`No response body in streaming response for block ${block.id}`);
+        }
+        
+        // Check if we have execution data in the header
+        const executionDataHeader = response.headers.get('X-Execution-Data');
+        if (executionDataHeader) {
+          try {
+            // Parse the execution data from the header
+            const executionData = JSON.parse(executionDataHeader);
+            
+            // Add block-specific data to the execution logs if needed
+            if (executionData && executionData.logs) {
+              for (const log of executionData.logs) {
+                if (!log.blockId) log.blockId = block.id;
+                if (!log.blockName && block.metadata?.name) log.blockName = block.metadata.name;
+                if (!log.blockType && block.metadata?.id) log.blockType = block.metadata.id;
+              }
+            }
+            
+            // Add block metadata to the execution data if missing
+            if (executionData.output?.response) {
+              // Ensure model and block info is set
+              if (block.metadata?.name && !executionData.blockName) {
+                executionData.blockName = block.metadata.name;
+              }
+              if (block.metadata?.id && !executionData.blockType) {
+                executionData.blockType = block.metadata.id;
+              }
+              if (!executionData.blockId) {
+                executionData.blockId = block.id;
+              }
+              
+              // Add explicit streaming flag to make it easier to identify streaming executions
+              executionData.isStreaming = true;
+            }
+            
+            // Return both the stream and the execution data as separate properties
+            return {
+              stream: response.body,
+              executionData
+            };
+          } catch (error) {
+            logger.error(`Error parsing execution data header: ${error}`);
+            // Continue with just the stream if there's an error
+          }
+        }
+        
+        // No execution data in header, just return the stream
+        return response.body;
       }
-
-      const result = await response.json()
+      
+      // Check if we have a combined response with both stream and execution data
+      const result = await response.json();
+      
+      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+        logger.info(`Received combined streaming response for block ${block.id}`);
+        
+        // Extract the execution data for block logs
+        const executionData = result.execution;
+        
+        // Get the stream as a ReadableStream (need to convert from serialized format)
+        const stream = new ReadableStream({
+          start(controller) {
+            // Since stream was serialized as JSON, we need to reconstruct it
+            // For now, we'll just use a placeholder message
+            const encoder = new TextEncoder();
+            controller.enqueue(encoder.encode('Stream data cannot be serialized as JSON. You will need to return a proper stream.'));
+            controller.close();
+          }
+        });
+        
+        // Return both in a format the executor can handle
+        return {
+          stream,
+          executionData
+        };
+      }
 
       logger.info(`Provider response received`, {
         contentLength: result.content ? result.content.length : 0,

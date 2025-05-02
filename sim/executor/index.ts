@@ -22,6 +22,7 @@ import {
   ExecutionContext,
   ExecutionResult,
   NormalizedBlockOutput,
+  StreamingExecution,
 } from './types'
 
 const logger = createLogger('Executor')
@@ -141,9 +142,9 @@ export class Executor {
    * Executes the workflow and returns the result.
    *
    * @param workflowId - Unique identifier for the workflow execution
-   * @returns Execution result containing output, logs, and metadata
+   * @returns Execution result containing output, logs, and metadata, or a stream, or combined execution and stream
    */
-  async execute(workflowId: string): Promise<ExecutionResult | ReadableStream> {
+  async execute(workflowId: string): Promise<ExecutionResult | ReadableStream | StreamingExecution> {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
@@ -209,16 +210,70 @@ export class Executor {
             const outputs = await this.executeLayer(nextLayer, context)
             
             // Check if we got a streaming response from any block
-            if (outputs.some(output => output instanceof ReadableStream)) {
-              const streamOutput = outputs.find(output => output instanceof ReadableStream);
-              if (streamOutput) {
-                return streamOutput as ReadableStream;
+            const streamingOutput = outputs.find(output => 
+              output instanceof ReadableStream || 
+              (typeof output === 'object' && output !== null && 'stream' in output && 'executionData' in output)
+            );
+            
+            if (streamingOutput) {
+              if (streamingOutput instanceof ReadableStream) {
+                logger.info('Returning direct ReadableStream from block')
+                return streamingOutput;
+              } else if ('stream' in streamingOutput && 'executionData' in streamingOutput) {
+                // This is a combined response with both stream and execution data
+                logger.info('Found combined stream+execution response from block')
+                
+                // Incorporate the execution data from the block into our context
+                const executionData = streamingOutput.executionData;
+                
+                // Add any logs from the execution data to our context
+                if (executionData.logs && Array.isArray(executionData.logs)) {
+                  context.blockLogs.push(...executionData.logs);
+                }
+                
+                // Build a complete execution result with our context's logs
+                const execution: ExecutionResult & { isStreaming: boolean } = {
+                  success: executionData.success !== false,
+                  output: executionData.output || { response: {} },
+                  error: executionData.error,
+                  logs: context.blockLogs,
+                  metadata: {
+                    duration: Date.now() - startTime.getTime(),
+                    startTime: context.metadata.startTime!,
+                    endTime: new Date().toISOString(),
+                    workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+                      source: conn.source,
+                      target: conn.target,
+                    })),
+                  },
+                  isStreaming: true,
+                };
+                
+                // Add block metadata to logs if missing
+                if (context.blockLogs.length > 0) {
+                  for (const log of context.blockLogs) {
+                    if (!log.output) log.output = { response: {} };
+                    if (log.output && executionData.output?.response?.content && !log.output.response?.content) {
+                      if (!log.output.response) log.output.response = {};
+                      log.output.response.content = executionData.output.response.content;
+                    }
+                  }
+                }
+                
+                // Return a properly formed StreamingExecution object
+                return {
+                  stream: streamingOutput.stream,
+                  execution,
+                };
               }
             }
 
             if (outputs.length > 0) {
-              // Ensure we're not dealing with a ReadableStream (already handled above)
-              const normalizedOutputs = outputs.filter(output => !(output instanceof ReadableStream));
+              // Ensure we're not dealing with a ReadableStream or stream+execution (already handled above)
+              const normalizedOutputs = outputs.filter(output => 
+                !(output instanceof ReadableStream) &&
+                !(typeof output === 'object' && output !== null && 'stream' in output && 'executionData' in output)
+              );
               if (normalizedOutputs.length > 0) {
                 finalOutput = normalizedOutputs[normalizedOutputs.length - 1] as NormalizedBlockOutput;
               }

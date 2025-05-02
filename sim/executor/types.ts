@@ -119,6 +119,15 @@ export interface ExecutionResult {
 }
 
 /**
+ * Streaming execution result combining a readable stream with execution metadata.
+ * This allows us to stream content to the UI while still capturing all execution logs.
+ */
+export interface StreamingExecution {
+  stream: ReadableStream // The streaming response for the UI to consume
+  execution: ExecutionResult & { isStreaming?: boolean } // The complete execution data for logging purposes
+}
+
+/**
  * Interface for a block executor component.
  */
 export interface BlockExecutor {

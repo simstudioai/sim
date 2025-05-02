@@ -196,6 +196,41 @@ export function useWorkflowExecution() {
           stream: result,
         }
       }
+      
+      // Handle StreamingExecution format (combined stream + execution result)
+      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+        logger.info('Received combined stream+execution result from executor')
+        
+        // Persist logs immediately using the execution part
+        const executionId = uuidv4();
+        
+        // Ensure the execution has necessary fields for the logs
+        if (result.execution.output && result.execution.output.response) {
+          // Make sure we have content (may be empty for streaming at this point)
+          if (!result.execution.output.response.content) {
+            result.execution.output.response.content = '';
+          }
+          
+          // Add metadata about source being chat if applicable
+          result.execution.metadata = {
+            ...(result.execution.metadata || {}),
+            source: isChatExecution ? 'chat' : 'manual'
+          } as any;
+          
+          // Ensure isStreaming flag is set
+          (result.execution as any).isStreaming = true;
+        }
+        
+        persistLogs(executionId, result.execution).catch((err) => {
+          logger.error('Error persisting logs for streaming execution:', { error: err })
+        })
+        
+        // Return just the stream part for the UI to consume
+        return {
+          success: true,
+          stream: result.stream,
+        }
+      }
 
       // Add metadata about source being chat if applicable
       if (isChatExecution) {

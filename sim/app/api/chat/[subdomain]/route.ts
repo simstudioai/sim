@@ -107,6 +107,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         return addCorsHeaders(streamResponse, request)
       }
       
+      // Handle StreamingExecution format
+      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+        const streamResponse = new NextResponse(result.stream as ReadableStream, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        })
+        return addCorsHeaders(streamResponse, request)
+      }
+      
       // Format the result for the client
       // If result.content is an object, preserve it for structured handling
       // If it's text or another primitive, make sure it's accessible

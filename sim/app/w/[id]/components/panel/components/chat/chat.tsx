@@ -124,21 +124,29 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         console.log("Starting to read from stream");
         
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            console.log("Stream complete");
+          try {
+            const { done, value } = await reader.read();
+            if (done) {
+              console.log("Stream complete");
+              break;
+            }
+            
+            // Decode and append chunk
+            const chunk = decoder.decode(value, { stream: true }); // Use stream option
+            
+            if (chunk) {
+              appendMessageContent(messageId, chunk);
+            }
+          } catch (streamError) {
+            console.error('Error reading from stream:', streamError);
+            // Break the loop on error
             break;
-          }
-          
-          // Decode and append chunk
-          const chunk = decoder.decode(value, { stream: true }); // Use stream option
-          
-          if (chunk) {
-            appendMessageContent(messageId, chunk);
           }
         }
       } catch (error) {
         console.error('Error processing stream:', error);
+        // If there's an error with the stream, append an error message
+        appendMessageContent(messageId, "\n\nError: Failed to process the streaming response.");
       } finally {
         console.log("Finalizing stream");
         finalizeMessageStream(messageId);
