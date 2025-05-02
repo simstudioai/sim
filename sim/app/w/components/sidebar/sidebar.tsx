@@ -142,7 +142,7 @@ export function Sidebar() {
       </div>
 
       {/* Main navigation - Fixed at top below header */}
-      <div className="flex-shrink-0 px-2 pt-0">
+      {/* <div className="flex-shrink-0 px-2 pt-0">
         <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
           <NavSection.Item
             icon={<Home className="h-[18px] w-[18px]" />}
@@ -158,20 +158,20 @@ export function Sidebar() {
             active={pathname === '/w/templates'}
             isCollapsed={isCollapsed}
           />
-          {/* <NavSection.Item
+          <NavSection.Item
             icon={<Store className="h-[18px] w-[18px]" />}
             href="/w/marketplace"
             label="Marketplace"
             active={pathname === '/w/marketplace'}
             isCollapsed={isCollapsed}
-          /> */}
+          />
         </NavSection>
-      </div>
+      </div> */}
 
       {/* Scrollable Content Area - Contains Workflows and Logs/Settings */}
       <div className="flex-1 overflow-auto scrollbar-none flex flex-col px-2 py-0">
         {/* Workflows Section */}
-        <div className="mt-6 flex-shrink-0">
+        <div className="flex-shrink-0">
           <h2
             className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${isCollapsed ? 'text-center' : ''}`}
           >
