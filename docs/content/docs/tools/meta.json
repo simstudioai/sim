@@ -33,6 +33,7 @@
     "stagehand_agent",
     "supabase",
     "tavily",
+    "telegram",
     "thinking",
     "translate",
     "twilio_sms",
