@@ -378,12 +378,6 @@ async function createTelegramWebhookSubscription(
     )
   }
 }
-<<<<<<< HEAD
-=======
-
-<<<<<<< HEAD
->>>>>>> 18a92d46 (added setWebhook logic)
-=======
 // Helper function to delete the webhook subscription from Telegram
 export async function deleteTelegramWebhookSubscription(
   request: NextRequest,
@@ -434,5 +428,3 @@ export async function deleteTelegramWebhookSubscription(
     throw error
   }
 }
-
->>>>>>> 5f16aaa9 (added delete webhook logic)
