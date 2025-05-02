@@ -33,6 +33,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
     method: 'POST',
     headers: (params: ClayPopulateParams) => ({
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.authToken}`,
     }),
     body: (params: ClayPopulateParams) => ({
       data: params.data,
