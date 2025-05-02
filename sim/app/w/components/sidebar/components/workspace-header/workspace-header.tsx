@@ -3,7 +3,16 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, Pencil, PenLine, Trash2, X } from 'lucide-react'
+import {
+  ChevronDown,
+  GitPullRequestCreate,
+  GitPullRequestCreateArrow,
+  Pencil,
+  PenLine,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import {
   AlertDialog,
@@ -427,26 +436,26 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
         workspace={editingWorkspace}
       />
 
-      <div
-        className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
-      >
-        {/* Hover background with consistent padding - only when not collapsed */}
-        {!isCollapsed && <div className="absolute inset-0 rounded-md group-hover:bg-accent/50" />}
-
-        {/* Content with consistent padding */}
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <div
-          className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} px-2 py-[6px] relative z-10`}
+          className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
         >
+          {/* Hover background with consistent padding - only when not collapsed */}
+          {!isCollapsed && <div className="absolute inset-0 rounded-md group-hover:bg-accent/50" />}
+
+          {/* Content with consistent padding */}
           {isCollapsed ? (
-            <Link
-              href={workspaceUrl}
-              className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
-            >
-              <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
-            </Link>
+            <div className="flex items-center justify-center px-2 py-[6px] relative z-10">
+              <Link
+                href={workspaceUrl}
+                className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
+              >
+                <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
+              </Link>
+            </div>
           ) : (
-            <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-              <DropdownMenuTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center justify-between px-2 py-[6px] relative z-10 w-full">
                 <div className="flex items-center gap-2 overflow-hidden">
                   <Link
                     href={workspaceUrl}
@@ -468,143 +477,144 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                     </div>
                   )}
                 </div>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="p-1">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-1">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#802FFF]">
-                        <AgentIcon className="text-white w-5 h-5" />
-                      </div>
-                      <div className="flex flex-col max-w-full">
-                        {isClientLoading || isWorkspacesLoading ? (
-                          <>
-                            <Skeleton className="h-4 w-[140px] mb-1" />
-                            <Skeleton className="h-3 w-16" />
-                          </>
+
+                {!isCollapsed && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {isClientLoading ? (
+                          <Skeleton className="h-6 w-6 shrink-0" />
                         ) : (
-                          <>
-                            <span className="text-sm font-medium truncate">
-                              {activeWorkspace?.name || `${userName}'s Workspace`}
-                            </span>
-                            <span className="text-xs text-muted-foreground">{plan}</span>
-                          </>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onCreateWorkflow()
+                            }}
+                            className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
+                          >
+                            <Plus className="h-[18px] w-[18px] stroke-[2px]" />
+                            <span className="sr-only">New Workflow</span>
+                          </Button>
                         )}
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                <DropdownMenuSeparator />
-
-                {/* Workspaces list */}
-                <div className="py-1 px-1">
-                  <div className="text-xs font-medium text-muted-foreground mb-1 pl-1">
-                    Workspaces
-                  </div>
-                  {isWorkspacesLoading ? (
-                    <div className="py-1 px-2">
-                      <Skeleton className="h-5 w-full" />
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {workspaces.map((workspace) => (
-                        <DropdownMenuItem
-                          key={workspace.id}
-                          className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''} group relative`}
-                          onClick={() => switchWorkspace(workspace)}
-                        >
-                          <span className="truncate pr-16">{workspace.name}</span>
-                          <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 p-0 text-muted-foreground"
-                              onClick={(e) => openEditModal(workspace, e)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 p-0 text-muted-foreground"
-                                  onClick={(e) => e.stopPropagation()}
-                                  disabled={isDeleting || workspaces.length <= 1}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  <span className="sr-only">Delete</span>
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete "{workspace.name}"? This action
-                                    cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
-                                    Cancel
-                                  </AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      handleDeleteWorkspace(workspace.id)
-                                    }}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Create new workspace button */}
-                  <DropdownMenuItem
-                    className="text-sm rounded-md px-2 py-1.5 cursor-pointer mt-1 text-muted-foreground"
-                    onClick={() => setIsWorkspaceModalOpen(true)}
-                  >
-                    <span className="truncate">+ New workspace</span>
-                  </DropdownMenuItem>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {!isCollapsed && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  {isClientLoading ? (
-                    <Skeleton className="h-6 w-6 shrink-0" />
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={onCreateWorkflow}
-                      className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
-                    >
-                      <PenLine className="h-[18px] w-[18px]" />
-                      <span className="sr-only">New Workflow</span>
-                    </Button>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>New Workflow</TooltipContent>
-            </Tooltip>
+                    </TooltipTrigger>
+                    <TooltipContent>New Workflow</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            </DropdownMenuTrigger>
           )}
         </div>
-      </div>
+        <DropdownMenuContent align="start" className="p-1 min-w-[224px]">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-1">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#802FFF]">
+                  <AgentIcon className="text-white w-5 h-5" />
+                </div>
+                <div className="flex flex-col max-w-full">
+                  {isClientLoading || isWorkspacesLoading ? (
+                    <>
+                      <Skeleton className="h-4 w-[140px] mb-1" />
+                      <Skeleton className="h-3 w-16" />
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-medium truncate">
+                        {activeWorkspace?.name || `${userName}'s Workspace`}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{plan}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DropdownMenuSeparator />
+
+          {/* Workspaces list */}
+          <div className="py-1 px-1">
+            <div className="text-xs font-medium text-muted-foreground mb-1 pl-1">Workspaces</div>
+            {isWorkspacesLoading ? (
+              <div className="py-1 px-2">
+                <Skeleton className="h-5 w-full" />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {workspaces.map((workspace) => (
+                  <DropdownMenuItem
+                    key={workspace.id}
+                    className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''} group relative`}
+                    onClick={() => switchWorkspace(workspace)}
+                  >
+                    <span className="truncate pr-16">{workspace.name}</span>
+                    <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 p-0 text-muted-foreground"
+                        onClick={(e) => openEditModal(workspace, e)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 p-0 text-muted-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={isDeleting || workspaces.length <= 1}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="sr-only">Delete</span>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{workspace.name}"? This action cannot
+                              be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+                              Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteWorkspace(workspace.id)
+                              }}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            )}
+
+            {/* Create new workspace button */}
+            <DropdownMenuItem
+              className="text-sm rounded-md px-2 py-1.5 cursor-pointer mt-1 text-muted-foreground"
+              onClick={() => setIsWorkspaceModalOpen(true)}
+            >
+              <span className="truncate">+ New workspace</span>
+            </DropdownMenuItem>
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

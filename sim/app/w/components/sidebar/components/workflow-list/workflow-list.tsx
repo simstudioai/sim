@@ -23,16 +23,14 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
       href={`/w/${workflow.id}`}
       className={clsx(
         'flex items-center rounded-md px-2 py-1.5 text-sm font-medium',
-        active
-          ? 'bg-accent text-accent-foreground'
-          : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
-        isCollapsed && 'justify-center w-10 mx-auto'
+        active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
+        isCollapsed && 'justify-center w-8 h-8 mx-auto'
       )}
     >
       <div
         className={clsx(
           'flex-shrink-0 rounded',
-          isCollapsed ? 'h-[18px] w-[18px]' : 'h-[14px] w-[14px] mr-2'
+          isCollapsed ? 'h-[14px] w-[14px]' : 'h-[14px] w-[14px] mr-2'
         )}
         style={{ backgroundColor: workflow.color }}
       />
@@ -75,10 +73,10 @@ export function WorkflowList({
           }`}
         >
           {isCollapsed ? (
-            <Skeleton className="h-[18px] w-[18px] rounded-md" />
+            <Skeleton className="h-[14px] w-[14px] rounded-md" />
           ) : (
             <>
-              <Skeleton className="h-[18px] w-[18px] rounded-md" />
+              <Skeleton className="h-[14px] w-[14px] rounded-md" />
               <Skeleton className="h-4 w-20" />
             </>
           )}

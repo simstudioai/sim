@@ -45,10 +45,9 @@ export function NavSection({
 
 function NavItem({ icon, label, href, active, onClick, isCollapsed }: NavItemProps) {
   const className = clsx(
-    'flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium text-muted-foreground',
+    'flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium',
+    active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
     {
-      'bg-accent': active,
-      'hover:bg-accent/50': !active,
       'cursor-pointer': onClick,
       'justify-center': isCollapsed,
       'w-full': !isCollapsed,
