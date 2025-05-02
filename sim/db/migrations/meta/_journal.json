@@ -239,6 +239,13 @@
       "when": 1746037443324,
       "tag": "0033_solid_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1746167417863,
+      "tag": "0034_brainy_revanche",
+      "breakpoints": true
     }
   ]
 }
