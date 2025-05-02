@@ -67,6 +67,8 @@ export const workflow = pgTable('workflow', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id')
+    .references(() => workspace.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   state: json('state').notNull(),
@@ -314,3 +316,35 @@ export const invitation = pgTable("invitation", {
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull()
 })
+
+export const workspace = pgTable('workspace', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerId: text('owner_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const workspaceMember = pgTable(
+  'workspace_member',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'), // e.g., 'owner', 'admin', 'member'
+    joinedAt: timestamp('joined_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Create index on userId for fast lookups of workspaces by user
+      userIdIdx: uniqueIndex('user_workspace_idx').on(table.userId, table.workspaceId),
+    }
+  }
+)

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
@@ -61,6 +62,7 @@ export default function Logs() {
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
+  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
 
   // Group logs by executionId to identify the last log in each group
   const executionGroups = useMemo(() => {
@@ -206,7 +208,9 @@ export default function Logs() {
   ])
 
   return (
-    <div className="flex flex-col h-[100vh]">
+    <div
+      className={`flex flex-col h-[100vh] transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+    >
       {/* Add the animation styles */}
       <style jsx global>
         {selectedRowAnimation}

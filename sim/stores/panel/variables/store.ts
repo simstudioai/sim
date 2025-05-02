@@ -14,6 +14,11 @@ const saveTimers = new Map<string, NodeJS.Timeout>()
 // Track which workflows have already been loaded
 const loadedWorkflows = new Set<string>()
 
+// Clear a workspace from the loaded tracking when switching workspaces
+export function clearWorkflowVariablesTracking() {
+  loadedWorkflows.clear();
+}
+
 export const useVariablesStore = create<VariablesStore>()(
   devtools(
     persist(

@@ -1,67 +1,110 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
-import { HelpCircle, Plus, ScrollText, Settings } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  HelpCircle,
+  Home,
+  PanelRight,
+  PenLine,
+  ScrollText,
+  Settings,
+  Shapes,
+  Store,
+} from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSession } from '@/lib/auth-client'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { HelpModal } from './components/help-modal/help-modal'
+import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
-import { WorkflowFolders } from './components/workflow-folders/workflow-folders'
+import { WorkflowList } from './components/workflow-list/workflow-list'
+import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
-  const { workflows, createWorkflow } = useWorkflowRegistry()
+  useRegistryLoading()
+
+  const {
+    workflows,
+    activeWorkspaceId,
+    createWorkflow,
+    isLoading: workflowsLoading,
+  } = useWorkflowRegistry()
+  const { isPending: sessionLoading } = useSession()
+  const isLoading = workflowsLoading || sessionLoading
   const router = useRouter()
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const { isCollapsed, toggleCollapsed } = useSidebarStore()
+
+  // Track when active workspace changes to ensure we refresh the UI
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      // We don't need to do anything here, just force a re-render
+      // when activeWorkspaceId changes to ensure fresh data
+    }
+  }, [activeWorkspaceId])
 
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
     const regular: WorkflowMetadata[] = []
     const temp: WorkflowMetadata[] = []
 
-    Object.values(workflows).forEach((workflow) => {
-      if (workflow.marketplaceData?.status === 'temp') {
-        temp.push(workflow)
-      } else {
-        regular.push(workflow)
-      }
-    })
+    // Only process workflows when not in loading state
+    if (!isLoading) {
+      Object.values(workflows).forEach((workflow) => {
+        // Include workflows that either:
+        // 1. Belong to the active workspace, OR
+        // 2. Don't have a workspace ID (legacy workflows)
+        if (workflow.workspaceId === activeWorkspaceId || !workflow.workspaceId) {
+          if (workflow.marketplaceData?.status === 'temp') {
+            temp.push(workflow)
+          } else {
+            regular.push(workflow)
+          }
+        }
+      })
 
-    // Sort regular workflows by last modified date (newest first)
-    regular.sort((a, b) => {
-      const dateA =
-        a.lastModified instanceof Date
-          ? a.lastModified.getTime()
-          : new Date(a.lastModified).getTime()
-      const dateB =
-        b.lastModified instanceof Date
-          ? b.lastModified.getTime()
-          : new Date(b.lastModified).getTime()
-      return dateB - dateA
-    })
+      // Sort regular workflows by last modified date (newest first)
+      regular.sort((a, b) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
+      })
 
-    // Sort temp workflows by last modified date (newest first)
-    temp.sort((a, b) => {
-      const dateA =
-        a.lastModified instanceof Date
-          ? a.lastModified.getTime()
-          : new Date(a.lastModified).getTime()
-      const dateB =
-        b.lastModified instanceof Date
-          ? b.lastModified.getTime()
-          : new Date(b.lastModified).getTime()
-      return dateB - dateA
-    })
+      // Sort temp workflows by last modified date (newest first)
+      temp.sort((a, b) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
+      })
+    }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
-  }, [workflows])
+  }, [workflows, isLoading, activeWorkspaceId])
 
   // Create workflow
   const handleCreateWorkflow = async () => {
@@ -75,7 +118,11 @@ export function Sidebar() {
         return
       }
 
-      const id = createWorkflow()
+      // Create the workflow and ensure it's associated with the active workspace
+      const id = createWorkflow({
+        workspaceId: activeWorkspaceId || undefined,
+      })
+
       router.push(`/w/${id}`)
     } catch (error) {
       console.error('Error creating workflow:', error)
@@ -83,127 +130,144 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
-      {/* Top navigation - Logo and Add button */}
-      <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-5">
-        {/* Sim Studio Logo */}
-        <Link
-          href="/w/1"
-          className="group flex h-8 w-8 items-center justify-center rounded-lg bg-[#802FFF]"
-        >
-          <AgentIcon className="text-white transition-all group-hover:scale-110 -translate-y-[0.5px] w-5 h-5" />
-          <span className="sr-only">Sim Studio</span>
-        </Link>
-
-        {/* Add Workflow */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCreateWorkflow}
-              className="h-9 w-9 md:h-8 md:w-8"
-            >
-              <Plus className="h-5 w-5" />
-              <span className="sr-only">Add Workflow</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Add Workflow</TooltipContent>
-        </Tooltip>
-      </nav>
-
-      {/* Workflow sections - This area scrolls */}
-      <div className="flex-1 overflow-y-auto px-2 scrollbar-none">
-        <div className="pb-2">
-          <WorkflowFolders
-            regularWorkflows={regularWorkflows}
-            marketplaceWorkflows={tempWorkflows}
-          />
-        </div>
+    <aside
+      className={clsx(
+        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-width duration-200',
+        isCollapsed ? 'w-14' : 'w-60'
+      )}
+    >
+      {/* Workspace Header - Fixed at top */}
+      <div className="flex-shrink-0">
+        <WorkspaceHeader onCreateWorkflow={handleCreateWorkflow} isCollapsed={isCollapsed} />
       </div>
 
-      {/* Bottom navigation - Always visible */}
-      <nav className="flex-shrink-0 flex flex-col items-center gap-4 px-2 py-[18px]">
-        {/* Marketplace */}
-        {/* <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-                {
-                  'bg-accent': pathname === '/w/marketplace',
-                }
-              )}
-            >
-              <Link href="/w/marketplace">
-                <Store className="!h-5 !w-5" />
-                <span className="sr-only">Marketplace</span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Marketplace</TooltipContent>
-        </Tooltip> */}
+      {/* Main navigation - Fixed at top below header */}
+      {/* <div className="flex-shrink-0 px-2 pt-0">
+        <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
+          <NavSection.Item
+            icon={<Home className="h-[18px] w-[18px]" />}
+            href="/w/1"
+            label="Home"
+            active={pathname === '/w/1'}
+            isCollapsed={isCollapsed}
+          />
+          <NavSection.Item
+            icon={<Shapes className="h-[18px] w-[18px]" />}
+            href="/w/templates"
+            label="Templates"
+            active={pathname === '/w/templates'}
+            isCollapsed={isCollapsed}
+          />
+          <NavSection.Item
+            icon={<Store className="h-[18px] w-[18px]" />}
+            href="/w/marketplace"
+            label="Marketplace"
+            active={pathname === '/w/marketplace'}
+            isCollapsed={isCollapsed}
+          />
+        </NavSection>
+      </div> */}
 
-        {/* Logs */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              asChild
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8',
-                {
-                  'bg-accent': pathname === '/w/logs',
-                }
-              )}
-            >
-              <Link href="/w/logs">
-                <ScrollText className="!h-5 !w-5" />
-                <span className="sr-only">Logs</span>
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Logs</TooltipContent>
-        </Tooltip>
+      {/* Scrollable Content Area - Contains Workflows and Logs/Settings */}
+      <div className="flex-1 overflow-auto scrollbar-none flex flex-col px-2 py-0">
+        {/* Workflows Section */}
+        <div className="flex-shrink-0">
+          <h2
+            className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${isCollapsed ? 'text-center' : ''}`}
+          >
+            {isLoading ? (
+              isCollapsed ? (
+                ''
+              ) : (
+                <Skeleton className="w-16 h-4" />
+              )
+            ) : isCollapsed ? (
+              ''
+            ) : (
+              'Workflows'
+            )}
+          </h2>
+          <WorkflowList
+            regularWorkflows={regularWorkflows}
+            marketplaceWorkflows={tempWorkflows}
+            isCollapsed={isCollapsed}
+            isLoading={isLoading}
+          />
+        </div>
 
-        {/* Help & Support */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowHelp(true)}
-              className={clsx(
-                'flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8'
-              )}
-            >
-              <HelpCircle className="!h-5 !w-5" />
-              <span className="sr-only">Help & Support</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Help & Support</TooltipContent>
-        </Tooltip>
-
-        {/* Settings */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
+        {/* Logs and Settings Navigation - Follows workflows */}
+        <div className="mt-6 flex-shrink-0">
+          <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
+            <NavSection.Item
+              icon={<ScrollText className="h-[18px] w-[18px]" />}
+              href="/w/logs"
+              label="Logs"
+              active={pathname === '/w/logs'}
+              isCollapsed={isCollapsed}
+            />
+            <NavSection.Item
+              icon={<Settings className="h-[18px] w-[18px]" />}
               onClick={() => setShowSettings(true)}
-              className="flex !h-9 !w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8"
+              label="Settings"
+              isCollapsed={isCollapsed}
+            />
+          </NavSection>
+        </div>
+
+        {/* Push the bottom controls down when content is short */}
+        <div className="flex-grow"></div>
+      </div>
+
+      {/* Bottom buttons container - Always at bottom */}
+      <div className="flex-shrink-0 px-3 py-3">
+        {isCollapsed ? (
+          <div className="flex flex-col space-y-[1px]">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  onClick={() => setShowHelp(true)}
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                >
+                  <HelpCircle className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Help</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  onClick={toggleCollapsed}
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                >
+                  <ChevronRight className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Expand</TooltipContent>
+            </Tooltip>
+          </div>
+        ) : (
+          <div className="flex justify-between">
+            {/* Help button on left */}
+            <div
+              onClick={() => setShowHelp(true)}
+              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
-              <Settings className="!h-5 !w-5" />
-              <span className="sr-only">Settings</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Settings</TooltipContent>
-        </Tooltip>
-      </nav>
+              <HelpCircle className="h-[18px] w-[18px]" />
+              <span className="sr-only">Help</span>
+            </div>
+
+            {/* Collapse/Expand button on right */}
+            <div
+              onClick={toggleCollapsed}
+              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+            >
+              <ChevronLeft className="h-[18px] w-[18px]" />
+              <span className="sr-only">Collapse</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />

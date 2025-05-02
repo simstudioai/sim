@@ -77,12 +77,21 @@ export function getBlockWithValues(blockId: string): BlockState | null {
 
 // Get all workflows with their values merged
 export function getAllWorkflowsWithValues() {
-  const { workflows } = useWorkflowRegistry.getState()
+  const { workflows, activeWorkspaceId } = useWorkflowRegistry.getState()
   const result: Record<string, any> = {}
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
 
+  // Log for debugging
+  logger.info(`Preparing workflows for sync with active workspace: ${activeWorkspaceId}`);
+  
   for (const [id, metadata] of Object.entries(workflows)) {
+    // Skip workflows that don't belong to the active workspace
+    if (activeWorkspaceId && metadata.workspaceId !== activeWorkspaceId) {
+      logger.debug(`Skipping workflow ${id} - belongs to workspace ${metadata.workspaceId}, not active workspace ${activeWorkspaceId}`);
+      continue;
+    }
+    
     // Load the specific state for this workflow
     let workflowState: WorkflowState
 
@@ -116,6 +125,7 @@ export function getAllWorkflowsWithValues() {
       description: metadata.description,
       color: metadata.color || '#3972F6',
       marketplaceData: metadata.marketplaceData || null,
+      workspaceId: metadata.workspaceId, // Include workspaceId in the result
       state: {
         blocks: mergedBlocks,
         edges: workflowState.edges,
@@ -127,6 +137,7 @@ export function getAllWorkflowsWithValues() {
     }
   }
 
+  logger.info(`Prepared ${Object.keys(result).length} workflows for sync from workspace ${activeWorkspaceId}`);
   return result
 }
 

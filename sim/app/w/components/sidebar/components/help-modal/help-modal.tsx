@@ -30,7 +30,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[700px] h-[78vh] flex flex-col p-0 gap-0 overflow-hidden"
+        className="sm:max-w-[700px] h-[80vh] flex flex-col p-0 gap-0 overflow-hidden"
         hideCloseButton
       >
         <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
