@@ -454,34 +454,39 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
               </Link>
             </div>
           ) : (
-            <DropdownMenuTrigger asChild>
-              <div className="flex items-center justify-between px-2 py-[6px] relative z-10 w-full">
-                <div className="flex items-center gap-2 overflow-hidden cursor-pointer">
-                  <Link
-                    href={workspaceUrl}
-                    className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
-                    onClick={(e) => {
-                      if (isOpen) e.preventDefault()
-                    }}
-                  >
-                    <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
-                  </Link>
-                  {isClientLoading || isWorkspacesLoading ? (
-                    <Skeleton className="h-4 w-[140px]" />
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <span className="truncate max-w-[120px] text-sm font-medium">
-                        {activeWorkspace?.name || `${userName}'s Workspace`}
-                      </span>
-                      <ChevronDown className="h-3 w-3 opacity-60" />
-                    </div>
-                  )}
+            <div className="relative">
+              <DropdownMenuTrigger asChild>
+                <div className="flex items-center px-2 py-[6px] relative z-10 w-full">
+                  <div className="flex items-center gap-2 overflow-hidden cursor-pointer">
+                    <Link
+                      href={workspaceUrl}
+                      className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
+                      onClick={(e) => {
+                        if (isOpen) e.preventDefault()
+                      }}
+                    >
+                      <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
+                    </Link>
+                    {isClientLoading || isWorkspacesLoading ? (
+                      <Skeleton className="h-4 w-[140px]" />
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <span className="truncate max-w-[120px] text-sm font-medium">
+                          {activeWorkspace?.name || `${userName}'s Workspace`}
+                        </span>
+                        <ChevronDown className="h-3 w-3 opacity-60" />
+                      </div>
+                    )}
+                  </div>
                 </div>
+              </DropdownMenuTrigger>
 
-                {!isCollapsed && (
+              {/* Plus button positioned absolutely */}
+              {!isCollapsed && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="relative z-20" onClick={(e) => e.stopPropagation()}>
+                      <div>
                         {isClientLoading ? (
                           <Skeleton className="h-6 w-6 shrink-0" />
                         ) : (
@@ -489,7 +494,6 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                             variant="ghost"
                             size="icon"
                             onClick={(e) => {
-                              e.stopPropagation()
                               onCreateWorkflow()
                             }}
                             className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
@@ -502,9 +506,9 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                     </TooltipTrigger>
                     <TooltipContent>New Workflow</TooltipContent>
                   </Tooltip>
-                )}
-              </div>
-            </DropdownMenuTrigger>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <DropdownMenuContent align="start" className="p-1 min-w-[224px]">
