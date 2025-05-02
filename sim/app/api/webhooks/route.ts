@@ -162,6 +162,26 @@ export async function POST(request: NextRequest) {
     }
     // --- End Airtable specific logic ---
 
+    // --- Attempt to create webhook in Telegram if provider is 'telegram' ---
+    if (savedWebhook && provider === 'telegram') {
+      logger.info(
+        `[${requestId}] Telegram provider detected. Attempting to create webhook in Telegram.`
+      )
+      try {
+        await createTelegramWebhookSubscription(request, userId, savedWebhook, requestId)
+      } catch (err) {
+        logger.error(`[${requestId}] Error creating Telegram webhook`, err)
+        return NextResponse.json(
+          {
+            error: 'Failed to create webhook in Telegram',
+            details: err instanceof Error ? err.message : 'Unknown error',
+          },
+          { status: 500 }
+        )
+      }
+    }
+    // --- End Telegram specific logic ---
+
     const status = existingWebhooks.length > 0 ? 200 : 201
     return NextResponse.json({ webhook: savedWebhook }, { status })
   } catch (error: any) {
@@ -282,6 +302,75 @@ async function createAirtableWebhookSubscription(
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Airtable webhook creation for webhook ${webhookData.id}.`,
+      {
+        message: error.message,
+        stack: error.stack,
+      }
+    )
+  }
+}
+
+// Helper function to create the webhook subscription in Telegram
+async function createTelegramWebhookSubscription(
+  request: NextRequest,
+  userId: string,
+  webhookData: any,
+  requestId: string
+) {
+  try {
+    const { path, providerConfig } = webhookData
+    const { botToken, triggerPhrase } = providerConfig || {}
+
+    if (!botToken || !triggerPhrase) {
+      logger.warn(`[${requestId}] Missing botToken or triggerPhrase for Telegram webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      return // Cannot proceed without botToken and triggerPhrase
+    } 
+
+    const requestOrigin = new URL(request.url).origin
+    // Ensure origin does not point to localhost for external API calls
+    const effectiveOrigin = requestOrigin.includes('localhost')
+      ? process.env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
+      : requestOrigin
+
+    const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${path}`
+    if (effectiveOrigin !== requestOrigin) {
+      logger.debug(
+        `[${requestId}] Remapped localhost origin to ${effectiveOrigin} for notificationUrl`
+      )
+    }
+
+    const telegramApiUrl = `https://api.telegram.org/bot${botToken}/setWebhook`
+
+    const requestBody: any = {
+      url: notificationUrl,
+      allowed_updates: ['message'],
+    }
+
+    const telegramResponse = await fetch(telegramApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    })
+
+    const responseBody = await telegramResponse.json()
+    if (!telegramResponse.ok || !responseBody.ok) {
+      const errorMessage = responseBody.description || `Failed to create Telegram webhook. Status: ${telegramResponse.status}`
+      logger.error(`[${requestId}] ${errorMessage}`, {
+        response: responseBody
+      })
+      throw new Error(errorMessage)
+    }
+
+    logger.info(
+      `[${requestId}] Successfully created Telegram webhook for webhook ${webhookData.id}.`
+    )
+  } catch (error: any) {
+    logger.error(
+      `[${requestId}] Exception during Telegram webhook creation for webhook ${webhookData.id}.`,
       {
         message: error.message,
         stack: error.stack,

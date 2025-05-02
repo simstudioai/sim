@@ -304,6 +304,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'x'
   } else if (provider === 'confluence') {
     return 'confluence'
+  } else if (provider === 'jira') {
+    return 'jira'
   } else if (provider === 'airtable') {
     return 'airtable'
   } else if (provider === 'notion') {
@@ -529,6 +531,12 @@ export async function refreshOAuthToken(
     if (provider === 'airtable' && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info('Received new refresh token from Airtable')
+    }
+
+    // For Confluence and Jira, check if we got a new refresh token
+    if ((provider === 'confluence' || provider === 'jira') && data.refresh_token) {
+      newRefreshToken = data.refresh_token
+      logger.info(`Received new refresh token from ${provider}`)
     }
 
     // Get expiration time - use provider's value or default to 1 hour (3600 seconds)

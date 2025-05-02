@@ -25,6 +25,7 @@ import { Table } from './components/table'
 import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
 import { WebhookConfig } from './components/webhook/webhook-config'
+import { Info } from 'lucide-react'
 
 interface SubBlockProps {
   blockId: string
@@ -192,15 +193,32 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   return (
     <div className="space-y-1" onMouseDown={handleMouseDown}>
       {config.type !== 'switch' && (
-        <Label>
+        <Label className="flex items-center gap-1">
           {config.title}
           {required && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-red-500 ml-1 cursor-help">*</span>
+                <span className="text-red-500 cursor-help">*</span>
               </TooltipTrigger>
               <TooltipContent side="top">
                 <p>This field is required</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {config.description && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-4 w-4 text-muted-foreground cursor-pointer" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[400px] select-text whitespace-pre-wrap">
+                {config.description.split('\n').map((line, idx) => (
+                  <p
+                    key={idx}
+                    className={idx === 0 ? 'text-sm mb-1' : 'text-xs text-muted-foreground'}
+                  >
+                    {line}
+                  </p>
+                ))}
               </TooltipContent>
             </Tooltip>
           )}

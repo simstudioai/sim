@@ -8,6 +8,7 @@ import {
   SlackIcon,
   StripeIcon,
   WhatsAppIcon,
+  TelegramIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -70,6 +71,11 @@ export interface AirtableWebhookConfig {
   includeCellValuesInFieldIds?: 'all' | undefined
 }
 
+export interface TelegramConfig {
+  botToken: string
+  triggerPhrase: string
+}
+
 // Union type for all provider configurations
 export type ProviderConfig =
   | WhatsAppConfig
@@ -79,6 +85,7 @@ export type ProviderConfig =
   | GeneralWebhookConfig
   | SlackConfig
   | AirtableWebhookConfig
+  | TelegramConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -212,6 +219,25 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
       },
     },
   },
+  telegram: {
+    id: 'telegram',
+    name: 'Telegram',
+    icon: (props) => <TelegramIcon {...props} />,
+    configFields: {
+      botToken: {
+        type: 'string',
+        label: 'Bot Token',
+        placeholder: 'Enter your Telegram Bot Token',
+        description: 'The token for your Telegram bot.',
+      },
+      triggerPhrase: {
+        type: 'string',
+        label: 'Trigger Phrase',
+        placeholder: '/start_workflow',
+        description: 'The phrase that will trigger the workflow when sent to the bot.',
+      },
+    },
+  },
 }
 
 interface WebhookConfigProps {
@@ -241,6 +267,14 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
   // Store provider-specific configuration
   const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+
+  // Reset provider config when provider changes
+  useEffect(() => {
+    if (webhookProvider) {
+      // Reset the provider config when the provider changes
+      setProviderConfig({})
+    }
+  }, [webhookProvider, setProviderConfig])
 
   // Store the actual provider from the database
   const [actualProvider, setActualProvider] = useState<string | null>(null)
