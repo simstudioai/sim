@@ -3,9 +3,21 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, PenLine } from 'lucide-react'
+import { ChevronDown, Pencil, PenLine, Trash2, X } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +25,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
+import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface Workspace {
@@ -30,20 +44,202 @@ interface WorkspaceHeaderProps {
   isCollapsed?: boolean
 }
 
+// New WorkspaceModal component
+interface WorkspaceModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreateWorkspace: (name: string) => void
+}
+
+function WorkspaceModal({ open, onOpenChange, onCreateWorkspace }: WorkspaceModalProps) {
+  const [workspaceName, setWorkspaceName] = useState('')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (workspaceName.trim()) {
+      onCreateWorkspace(workspaceName.trim())
+      setWorkspaceName('')
+      onOpenChange(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        hideCloseButton
+      >
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-lg font-medium">Create New Workspace</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 p-0"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="px-6 pt-4 pb-6">
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="workspace-name" className="text-sm font-medium">
+                  Workspace Name
+                </label>
+                <Input
+                  id="workspace-name"
+                  value={workspaceName}
+                  onChange={(e) => setWorkspaceName(e.target.value)}
+                  placeholder="Enter workspace name"
+                  className="w-full"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!workspaceName.trim()}
+                  className={cn(
+                    'gap-2 font-medium',
+                    'bg-[#802FFF] hover:bg-[#7028E6]',
+                    'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                    'text-white transition-all duration-200',
+                    'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                  )}
+                >
+                  Create
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// New WorkspaceEditModal component
+interface WorkspaceEditModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onUpdateWorkspace: (id: string, name: string) => void
+  workspace: Workspace | null
+}
+
+function WorkspaceEditModal({
+  open,
+  onOpenChange,
+  onUpdateWorkspace,
+  workspace,
+}: WorkspaceEditModalProps) {
+  const [workspaceName, setWorkspaceName] = useState('')
+
+  useEffect(() => {
+    if (workspace && open) {
+      setWorkspaceName(workspace.name)
+    }
+  }, [workspace, open])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (workspace && workspaceName.trim()) {
+      onUpdateWorkspace(workspace.id, workspaceName.trim())
+      setWorkspaceName('')
+      onOpenChange(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        hideCloseButton
+      >
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-lg font-medium">Edit Workspace</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 p-0"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="px-6 pt-4 pb-6">
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="workspace-name-edit" className="text-sm font-medium">
+                  Workspace Name
+                </label>
+                <Input
+                  id="workspace-name-edit"
+                  value={workspaceName}
+                  onChange={(e) => setWorkspaceName(e.target.value)}
+                  placeholder="Enter workspace name"
+                  className="w-full"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!workspaceName.trim()}
+                  className={cn(
+                    'gap-2 font-medium',
+                    'bg-[#802FFF] hover:bg-[#7028E6]',
+                    'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                    'text-white transition-all duration-200',
+                    'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                  )}
+                >
+                  Update
+                </Button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHeaderProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { data: sessionData, isPending } = useSession()
   const [plan, setPlan] = useState('Free Plan')
-  const isLoading = isPending
+  // Use client-side loading instead of isPending to avoid hydration mismatch
+  const [isClientLoading, setIsClientLoading] = useState(true)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [activeWorkspace, setActiveWorkspace] = useState<Workspace | null>(null)
   const [isWorkspacesLoading, setIsWorkspacesLoading] = useState(true)
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false)
+  const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
   // Get workflowRegistry state and actions
   const { activeWorkspaceId, setActiveWorkspace: setActiveWorkspaceId } = useWorkflowRegistry()
 
   const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
+
+  // Set isClientLoading to false after hydration
+  useEffect(() => {
+    setIsClientLoading(false)
+  }, [])
 
   useEffect(() => {
     // Fetch subscription status if user is logged in
@@ -92,6 +288,12 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
   }, [sessionData?.user?.id, activeWorkspaceId, setActiveWorkspaceId])
 
   const switchWorkspace = (workspace: Workspace) => {
+    // If already on this workspace, do nothing
+    if (activeWorkspace?.id === workspace.id) {
+      setIsOpen(false)
+      return
+    }
+
     setActiveWorkspace(workspace)
     setIsOpen(false)
 
@@ -102,11 +304,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
     router.push(`/w/${workspace.id}`)
   }
 
-  const createWorkspace = () => {
-    // Show a prompt for the workspace name
-    const name = prompt('Enter workspace name:')
-    if (!name) return
-
+  const handleCreateWorkspace = (name: string) => {
     setIsWorkspacesLoading(true)
 
     fetch('/api/workspaces', {
@@ -137,11 +335,98 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
       })
   }
 
+  const handleUpdateWorkspace = async (id: string, name: string) => {
+    setIsWorkspacesLoading(true)
+
+    try {
+      const response = await fetch(`/api/workspaces/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update workspace')
+      }
+
+      const { workspace } = await response.json()
+
+      // Update workspaces list
+      setWorkspaces((prevWorkspaces) =>
+        prevWorkspaces.map((w) => (w.id === workspace.id ? { ...w, name: workspace.name } : w))
+      )
+
+      // If active workspace was updated, update it too
+      if (activeWorkspace?.id === workspace.id) {
+        setActiveWorkspace({ ...activeWorkspace, name: workspace.name } as Workspace)
+      }
+    } catch (err) {
+      console.error('Error updating workspace:', err)
+    } finally {
+      setIsWorkspacesLoading(false)
+    }
+  }
+
+  const handleDeleteWorkspace = async (id: string) => {
+    setIsDeleting(true)
+
+    try {
+      const response = await fetch(`/api/workspaces/${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete workspace')
+      }
+
+      // Remove from workspace list
+      const updatedWorkspaces = workspaces.filter((w) => w.id !== id)
+      setWorkspaces(updatedWorkspaces)
+
+      // If deleted workspace was active, switch to another workspace
+      if (activeWorkspace?.id === id && updatedWorkspaces.length > 0) {
+        // Use the specialized method for handling workspace deletion
+        const newWorkspaceId = updatedWorkspaces[0].id
+        useWorkflowRegistry.getState().handleWorkspaceDeletion(newWorkspaceId)
+        setActiveWorkspace(updatedWorkspaces[0])
+      }
+
+      setIsOpen(false)
+    } catch (err) {
+      console.error('Error deleting workspace:', err)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const openEditModal = (workspace: Workspace, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingWorkspace(workspace)
+    setIsEditModalOpen(true)
+  }
+
   // Determine URL for workspace links
   const workspaceUrl = activeWorkspace ? `/w/${activeWorkspace.id}` : '/w'
 
   return (
     <div className="py-2 px-2">
+      {/* Workspace Modal */}
+      <WorkspaceModal
+        open={isWorkspaceModalOpen}
+        onOpenChange={setIsWorkspaceModalOpen}
+        onCreateWorkspace={handleCreateWorkspace}
+      />
+
+      {/* Edit Workspace Modal */}
+      <WorkspaceEditModal
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        onUpdateWorkspace={handleUpdateWorkspace}
+        workspace={editingWorkspace}
+      />
+
       <div
         className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
       >
@@ -172,7 +457,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                   >
                     <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
                   </Link>
-                  {isLoading || isWorkspacesLoading ? (
+                  {isClientLoading || isWorkspacesLoading ? (
                     <Skeleton className="h-4 w-[140px]" />
                   ) : (
                     <div className="flex items-center gap-1">
@@ -192,7 +477,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                         <AgentIcon className="text-white w-5 h-5" />
                       </div>
                       <div className="flex flex-col max-w-full">
-                        {isLoading || isWorkspacesLoading ? (
+                        {isClientLoading || isWorkspacesLoading ? (
                           <>
                             <Skeleton className="h-4 w-[140px] mb-1" />
                             <Skeleton className="h-3 w-16" />
@@ -226,10 +511,59 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                       {workspaces.map((workspace) => (
                         <DropdownMenuItem
                           key={workspace.id}
-                          className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''}`}
+                          className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''} group relative`}
                           onClick={() => switchWorkspace(workspace)}
                         >
-                          <span className="truncate">{workspace.name}</span>
+                          <span className="truncate pr-16">{workspace.name}</span>
+                          <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 p-0 text-muted-foreground"
+                              onClick={(e) => openEditModal(workspace, e)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 p-0 text-muted-foreground"
+                                  onClick={(e) => e.stopPropagation()}
+                                  disabled={isDeleting || workspaces.length <= 1}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span className="sr-only">Delete</span>
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete "{workspace.name}"? This action
+                                    cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+                                    Cancel
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDeleteWorkspace(workspace.id)
+                                    }}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </DropdownMenuItem>
                       ))}
                     </div>
@@ -238,7 +572,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                   {/* Create new workspace button */}
                   <DropdownMenuItem
                     className="text-sm rounded-md px-2 py-1.5 cursor-pointer mt-1 text-muted-foreground"
-                    onClick={createWorkspace}
+                    onClick={() => setIsWorkspaceModalOpen(true)}
                   >
                     <span className="truncate">+ New workspace</span>
                   </DropdownMenuItem>
@@ -250,19 +584,21 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
           {!isCollapsed && (
             <Tooltip>
               <TooltipTrigger asChild>
-                {isLoading ? (
-                  <Skeleton className="h-6 w-6 shrink-0" />
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onCreateWorkflow}
-                    className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
-                  >
-                    <PenLine className="h-[18px] w-[18px]" />
-                    <span className="sr-only">New Workflow</span>
-                  </Button>
-                )}
+                <div>
+                  {isClientLoading ? (
+                    <Skeleton className="h-6 w-6 shrink-0" />
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onCreateWorkflow}
+                      className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
+                    >
+                      <PenLine className="h-[18px] w-[18px]" />
+                      <span className="sr-only">New Workflow</span>
+                    </Button>
+                  )}
+                </div>
               </TooltipTrigger>
               <TooltipContent>New Workflow</TooltipContent>
             </Tooltip>

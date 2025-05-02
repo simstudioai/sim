@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
@@ -34,7 +34,12 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 export function Sidebar() {
   useRegistryLoading()
 
-  const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
+  const {
+    workflows,
+    activeWorkspaceId,
+    createWorkflow,
+    isLoading: workflowsLoading,
+  } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
   const isLoading = workflowsLoading || sessionLoading
   const router = useRouter()
@@ -43,47 +48,63 @@ export function Sidebar() {
   const [showHelp, setShowHelp] = useState(false)
   const { isCollapsed, toggleCollapsed } = useSidebarStore()
 
+  // Track when active workspace changes to ensure we refresh the UI
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      // We don't need to do anything here, just force a re-render
+      // when activeWorkspaceId changes to ensure fresh data
+    }
+  }, [activeWorkspaceId])
+
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
     const regular: WorkflowMetadata[] = []
     const temp: WorkflowMetadata[] = []
 
-    Object.values(workflows).forEach((workflow) => {
-      if (workflow.marketplaceData?.status === 'temp') {
-        temp.push(workflow)
-      } else {
-        regular.push(workflow)
-      }
-    })
+    // Only process workflows when not in loading state
+    if (!isLoading) {
+      Object.values(workflows).forEach((workflow) => {
+        // Include workflows that either:
+        // 1. Belong to the active workspace, OR
+        // 2. Don't have a workspace ID (legacy workflows)
+        if (workflow.workspaceId === activeWorkspaceId || !workflow.workspaceId) {
+          if (workflow.marketplaceData?.status === 'temp') {
+            temp.push(workflow)
+          } else {
+            regular.push(workflow)
+          }
+        }
+      })
 
-    // Sort regular workflows by last modified date (newest first)
-    regular.sort((a, b) => {
-      const dateA =
-        a.lastModified instanceof Date
-          ? a.lastModified.getTime()
-          : new Date(a.lastModified).getTime()
-      const dateB =
-        b.lastModified instanceof Date
-          ? b.lastModified.getTime()
-          : new Date(b.lastModified).getTime()
-      return dateB - dateA
-    })
+      // Sort regular workflows by last modified date (newest first)
+      regular.sort((a, b) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
+      })
 
-    // Sort temp workflows by last modified date (newest first)
-    temp.sort((a, b) => {
-      const dateA =
-        a.lastModified instanceof Date
-          ? a.lastModified.getTime()
-          : new Date(a.lastModified).getTime()
-      const dateB =
-        b.lastModified instanceof Date
-          ? b.lastModified.getTime()
-          : new Date(b.lastModified).getTime()
-      return dateB - dateA
-    })
+      // Sort temp workflows by last modified date (newest first)
+      temp.sort((a, b) => {
+        const dateA =
+          a.lastModified instanceof Date
+            ? a.lastModified.getTime()
+            : new Date(a.lastModified).getTime()
+        const dateB =
+          b.lastModified instanceof Date
+            ? b.lastModified.getTime()
+            : new Date(b.lastModified).getTime()
+        return dateB - dateA
+      })
+    }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
-  }, [workflows])
+  }, [workflows, isLoading, activeWorkspaceId])
 
   // Create workflow
   const handleCreateWorkflow = async () => {
@@ -97,7 +118,11 @@ export function Sidebar() {
         return
       }
 
-      const id = createWorkflow()
+      // Create the workflow and ensure it's associated with the active workspace
+      const id = createWorkflow({
+        workspaceId: activeWorkspaceId || undefined,
+      })
+
       router.push(`/w/${id}`)
     } catch (error) {
       console.error('Error creating workflow:', error)

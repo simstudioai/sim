@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { workflow, workspace } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -62,6 +62,23 @@ export async function GET(request: Request) {
 
     const userId = session.user.id
 
+    // If workspaceId is provided, verify it exists first
+    if (workspaceId) {
+      const workspaceExists = await db
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .then(rows => rows.length > 0)
+        
+      if (!workspaceExists) {
+        logger.warn(`[${requestId}] Attempt to fetch workflows for non-existent workspace: ${workspaceId}`)
+        return NextResponse.json({ error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' }, { status: 404 })
+      }
+      
+      // Migrate any orphaned workflows to this workspace
+      await migrateOrphanedWorkflows(userId, workspaceId)
+    }
+    
     // Fetch workflows for the user
     let workflows
     
@@ -75,7 +92,7 @@ export async function GET(request: Request) {
           eq(workflow.workspaceId, workspaceId)
         ))
     } else {
-      // Filter by user ID only
+      // Filter by user ID only, including workflows without workspace IDs
       workflows = await db
         .select()
         .from(workflow)
@@ -87,6 +104,40 @@ export async function GET(request: Request) {
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow fetch error`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
+
+// Helper function to migrate orphaned workflows to a workspace
+async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
+  try {
+    // Find workflows without workspace IDs for this user
+    const orphanedWorkflows = await db
+      .select({ id: workflow.id })
+      .from(workflow)
+      .where(and(
+        eq(workflow.userId, userId),
+        isNull(workflow.workspaceId)
+      ))
+      
+    if (orphanedWorkflows.length === 0) {
+      return // No orphaned workflows to migrate
+    }
+    
+    logger.info(`Migrating ${orphanedWorkflows.length} orphaned workflows to workspace ${workspaceId}`)
+    
+    // Update each workflow to associate it with the provided workspace
+    for (const { id } of orphanedWorkflows) {
+      await db
+        .update(workflow)
+        .set({
+          workspaceId: workspaceId,
+          updatedAt: new Date()
+        })
+        .where(eq(workflow.id, id))
+    }
+  } catch (error) {
+    logger.error('Error migrating orphaned workflows:', error)
+    // Continue execution even if migration fails
   }
 }
 
@@ -108,15 +159,27 @@ export async function POST(req: NextRequest) {
       // CRITICAL SAFEGUARD: Prevent wiping out existing workflows
       // If client is sending empty workflows object, first check if user has existing workflows
       if (Object.keys(clientWorkflows).length === 0) {
-        const existingWorkflows = await db
-          .select()
-          .from(workflow)
-          .where(eq(workflow.userId, session.user.id))
+        let existingWorkflows;
+        
+        if (workspaceId) {
+          existingWorkflows = await db
+            .select()
+            .from(workflow)
+            .where(and(
+              eq(workflow.userId, session.user.id),
+              eq(workflow.workspaceId, workspaceId)
+            ));
+        } else {
+          existingWorkflows = await db
+            .select()
+            .from(workflow)
+            .where(eq(workflow.userId, session.user.id));
+        }
 
         // If user has existing workflows, but client sends empty, reject the sync
         if (existingWorkflows.length > 0) {
           logger.warn(
-            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has ${existingWorkflows.length} workflows`
+            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has ${existingWorkflows.length} workflows in workspace ${workspaceId || 'default'}`
           )
           return NextResponse.json(
             {
@@ -128,11 +191,41 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Validate that the workspace exists if one is specified
+      if (workspaceId) {
+        const workspaceExists = await db
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(eq(workspace.id, workspaceId))
+          .then(rows => rows.length > 0)
+          
+        if (!workspaceExists) {
+          logger.warn(`[${requestId}] Attempt to sync workflows to non-existent workspace: ${workspaceId}`)
+          return NextResponse.json({ 
+            error: 'Workspace not found', 
+            code: 'WORKSPACE_NOT_FOUND' 
+          }, { status: 404 })
+        }
+      }
+
       // Get all workflows for the user from the database
-      const dbWorkflows = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.userId, session.user.id))
+      // If workspaceId is provided, only get workflows for that workspace
+      let dbWorkflows;
+      
+      if (workspaceId) {
+        dbWorkflows = await db
+          .select()
+          .from(workflow)
+          .where(and(
+            eq(workflow.userId, session.user.id),
+            eq(workflow.workspaceId, workspaceId)
+          ))
+      } else {
+        dbWorkflows = await db
+          .select()
+          .from(workflow)
+          .where(eq(workflow.userId, session.user.id))
+      }
 
       const now = new Date()
       const operations: Promise<any>[] = []
@@ -151,6 +244,9 @@ export async function POST(req: NextRequest) {
         if (clientWorkflow.state.isPublished && !clientWorkflow.marketplaceData) {
           clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: 'owner' }
         }
+        
+        // Ensure the workflow has the correct workspaceId
+        const effectiveWorkspaceId = clientWorkflow.workspaceId || workspaceId;
 
         if (!dbWorkflow) {
           // New workflow - create
@@ -158,7 +254,7 @@ export async function POST(req: NextRequest) {
             db.insert(workflow).values({
               id: clientWorkflow.id,
               userId: session.user.id,
-              workspaceId: clientWorkflow.workspaceId || workspaceId || null,
+              workspaceId: effectiveWorkspaceId,
               name: clientWorkflow.name,
               description: clientWorkflow.description,
               color: clientWorkflow.color,
@@ -176,6 +272,7 @@ export async function POST(req: NextRequest) {
             dbWorkflow.name !== clientWorkflow.name ||
             dbWorkflow.description !== clientWorkflow.description ||
             dbWorkflow.color !== clientWorkflow.color ||
+            dbWorkflow.workspaceId !== effectiveWorkspaceId ||
             JSON.stringify(dbWorkflow.marketplaceData) !==
               JSON.stringify(clientWorkflow.marketplaceData)
 
@@ -187,6 +284,7 @@ export async function POST(req: NextRequest) {
                   name: clientWorkflow.name,
                   description: clientWorkflow.description,
                   color: clientWorkflow.color,
+                  workspaceId: effectiveWorkspaceId,
                   state: clientWorkflow.state,
                   marketplaceData: clientWorkflow.marketplaceData || null,
                   lastSynced: now,
@@ -199,8 +297,10 @@ export async function POST(req: NextRequest) {
       }
 
       // Handle deletions - workflows in DB but not in client
+      // Only delete workflows for the current workspace!
       for (const dbWorkflow of dbWorkflows) {
-        if (!processedIds.has(dbWorkflow.id)) {
+        if (!processedIds.has(dbWorkflow.id) && 
+            (!workspaceId || dbWorkflow.workspaceId === workspaceId)) {
           operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
         }
       }

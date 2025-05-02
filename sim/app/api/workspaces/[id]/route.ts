@@ -161,4 +161,12 @@ export async function DELETE(
     console.error('Error deleting workspace:', error)
     return NextResponse.json({ error: 'Failed to delete workspace' }, { status: 500 })
   }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  // Reuse the PATCH handler implementation for PUT requests
+  return PATCH(request, { params })
 } 
