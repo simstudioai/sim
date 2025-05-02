@@ -409,69 +409,104 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         throw new Error('Failed to get response')
       }
 
-      const responseData = await response.json()
-      console.log('Message response:', responseData)
+      // Detect streaming response via content-type (text/plain) or absence of JSON content-type
+      const contentType = response.headers.get('Content-Type') || ''
 
-      // Handle different response formats from API
-      if (responseData.multipleOutputs && responseData.contents && Array.isArray(responseData.contents)) {
-        // For multiple outputs, create separate assistant messages for each
-        const assistantMessages = responseData.contents.map((content: any) => {
-          // Format the content appropriately
-          let formattedContent = content
-          
-          // Convert objects to strings for display
-          if (typeof formattedContent === 'object' && formattedContent !== null) {
-            try {
-              formattedContent = JSON.stringify(formattedContent)
-            } catch (e) {
-              formattedContent = 'Received structured data response'
-            }
-          }
-          
-          return {
-            id: crypto.randomUUID(),
-            content: formattedContent || "No content found",
-            type: 'assistant' as const,
+      if (contentType.includes('text/plain')) {
+        // Handle streaming response
+        const messageId = crypto.randomUUID()
+
+        // Add placeholder message
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: messageId,
+            content: '',
+            type: 'assistant',
             timestamp: new Date(),
-          }
-        })
-        
-        // Add all messages at once
-        setMessages((prev) => [...prev, ...assistantMessages])
-      } else {
-        // Handle single output as before
-        // Extract content from the response - could be in content or output
-        let messageContent = responseData.output
+          },
+        ])
 
-        // Handle different response formats from API
-        if (!messageContent && responseData.content) {
-          // Content could be an object or a string
-          if (typeof responseData.content === 'object') {
-            // If it's an object with a text property, use that
-            if (responseData.content.text) {
-              messageContent = responseData.content.text
-            } else {
-              // Try to convert to string for display
-              try {
-                messageContent = JSON.stringify(responseData.content)
-              } catch (e) {
-                messageContent = 'Received structured data response'
+        // Ensure the response body exists and is a ReadableStream
+        const reader = response.body?.getReader()
+        if (reader) {
+          const decoder = new TextDecoder()
+          let done = false
+          while (!done) {
+            const { value, done: readerDone } = await reader.read()
+            if (value) {
+              const chunk = decoder.decode(value, { stream: true })
+              if (chunk) {
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === messageId ? { ...msg, content: msg.content + chunk } : msg
+                  )
+                )
               }
             }
-          } else {
-            // Direct string content
-            messageContent = responseData.content
+            done = readerDone
           }
         }
+      } else {
+        // Fallback to JSON response handling
+        const responseData = await response.json()
+        console.log('Message response:', responseData)
 
-        const assistantMessage: ChatMessage = {
-          id: crypto.randomUUID(),
-          content: messageContent || "Sorry, I couldn't process your request.",
-          type: 'assistant',
-          timestamp: new Date(),
+        // Handle different response formats from API
+        if (responseData.multipleOutputs && responseData.contents && Array.isArray(responseData.contents)) {
+          // For multiple outputs, create separate assistant messages for each
+          const assistantMessages = responseData.contents.map((content: any) => {
+            // Format the content appropriately
+            let formattedContent = content
+
+            // Convert objects to strings for display
+            if (typeof formattedContent === 'object' && formattedContent !== null) {
+              try {
+                formattedContent = JSON.stringify(formattedContent)
+              } catch (e) {
+                formattedContent = 'Received structured data response'
+              }
+            }
+
+            return {
+              id: crypto.randomUUID(),
+              content: formattedContent || 'No content found',
+              type: 'assistant' as const,
+              timestamp: new Date(),
+            }
+          })
+
+          // Add all messages at once
+          setMessages((prev) => [...prev, ...assistantMessages])
+        } else {
+          // Handle single output as before
+          let messageContent = responseData.output
+
+          if (!messageContent && responseData.content) {
+            if (typeof responseData.content === 'object') {
+              if (responseData.content.text) {
+                messageContent = responseData.content.text
+              } else {
+                try {
+                  messageContent = JSON.stringify(responseData.content)
+                } catch (e) {
+                  messageContent = 'Received structured data response'
+                }
+              }
+            } else {
+              messageContent = responseData.content
+            }
+          }
+
+          const assistantMessage: ChatMessage = {
+            id: crypto.randomUUID(),
+            content: messageContent || "Sorry, I couldn't process your request.",
+            type: 'assistant',
+            timestamp: new Date(),
+          }
+
+          setMessages((prev) => [...prev, assistantMessage])
         }
-
-        setMessages((prev) => [...prev, assistantMessage])
       }
     } catch (error) {
       console.error('Error sending message:', error)

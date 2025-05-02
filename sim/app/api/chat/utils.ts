@@ -393,16 +393,28 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   )
   
   // Create and execute the workflow - mimicking use-workflow-execution.ts
-  const executor = new Executor(
-    serializedWorkflow,
-    processedBlockStates,
-    decryptedEnvVars,
-    { input: message },
-    workflowVariables
-  )
-  
+  // Enable streaming support by passing context extensions similar to the chat panel implementation
+  const executor = new Executor({
+    workflow: serializedWorkflow,
+    currentBlockStates: processedBlockStates,
+    envVarValues: decryptedEnvVars,
+    workflowInput: { input: message },
+    workflowVariables,
+    contextExtensions: {
+      // Always request streaming – the executor will downgrade gracefully if unsupported
+      stream: true,
+      selectedOutputIds: outputBlockIds,
+      edges: edges.map((e: any) => ({ source: e.source, target: e.target })),
+    },
+  })
+
   // Execute and capture the result
   const result = await executor.execute(workflowId)
+
+  // If the executor returned a ReadableStream, forward it directly for streaming
+  if (result instanceof ReadableStream) {
+    return result
+  }
   
   // Mark as chat execution in metadata
   if (result) {
