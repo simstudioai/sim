@@ -71,24 +71,35 @@ export async function POST(request: NextRequest) {
           success: executionData.success,
           output: {
             response: {
-              content: executionData.output?.response?.content || '',
+              // Sanitize content to remove non-ASCII characters that would cause ByteString errors
+              content: executionData.output?.response?.content 
+                ? String(executionData.output.response.content).replace(/[\u0080-\uFFFF]/g, '')
+                : '',
               model: executionData.output?.response?.model,
               tokens: executionData.output?.response?.tokens || {
                 prompt: 0,
                 completion: 0,
                 total: 0
               },
+              // Sanitize any potential Unicode characters in tool calls
               toolCalls: executionData.output?.response?.toolCalls
+                ? sanitizeToolCalls(executionData.output.response.toolCalls)
+                : undefined,
+              providerTiming: executionData.output?.response?.providerTiming,
+              cost: executionData.output?.response?.cost,
             }
           },
           error: executionData.error,
-          logs: executionData.logs || [],
+          logs: [], // Strip logs from header to avoid encoding issues
           metadata: {
             startTime: executionData.metadata?.startTime,
             endTime: executionData.metadata?.endTime,
             duration: executionData.metadata?.duration
           },
           isStreaming: true, // Always mark streaming execution data as streaming
+          blockId: executionData.logs?.[0]?.blockId,
+          blockName: executionData.logs?.[0]?.blockName,
+          blockType: executionData.logs?.[0]?.blockType,
         }
         executionDataHeader = JSON.stringify(safeExecutionData)
       } catch (error) {
@@ -131,4 +142,90 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Helper function to sanitize tool calls to remove Unicode characters
+ */
+function sanitizeToolCalls(toolCalls: any) {
+  // If it's an object with a list property, sanitize the list
+  if (toolCalls && typeof toolCalls === 'object' && Array.isArray(toolCalls.list)) {
+    return {
+      ...toolCalls,
+      list: toolCalls.list.map(sanitizeToolCall)
+    }
+  }
+  
+  // If it's an array, sanitize each item
+  if (Array.isArray(toolCalls)) {
+    return toolCalls.map(sanitizeToolCall)
+  }
+  
+  return toolCalls
+}
+
+/**
+ * Sanitize a single tool call to remove Unicode characters
+ */
+function sanitizeToolCall(toolCall: any) {
+  if (!toolCall || typeof toolCall !== 'object') return toolCall
+  
+  // Create a sanitized copy
+  const sanitized = { ...toolCall }
+  
+  // Sanitize any string fields that might contain Unicode
+  if (typeof sanitized.name === 'string') {
+    sanitized.name = sanitized.name.replace(/[\u0080-\uFFFF]/g, '')
+  }
+  
+  // Sanitize input/arguments
+  if (sanitized.input && typeof sanitized.input === 'object') {
+    sanitized.input = sanitizeObject(sanitized.input)
+  }
+  
+  if (sanitized.arguments && typeof sanitized.arguments === 'object') {
+    sanitized.arguments = sanitizeObject(sanitized.arguments)
+  }
+  
+  // Sanitize output/result
+  if (sanitized.output && typeof sanitized.output === 'object') {
+    sanitized.output = sanitizeObject(sanitized.output)
+  }
+  
+  if (sanitized.result && typeof sanitized.result === 'object') {
+    sanitized.result = sanitizeObject(sanitized.result)
+  }
+  
+  // Sanitize error message
+  if (typeof sanitized.error === 'string') {
+    sanitized.error = sanitized.error.replace(/[\u0080-\uFFFF]/g, '')
+  }
+  
+  return sanitized
+}
+
+/**
+ * Recursively sanitize an object to remove Unicode characters from strings
+ */
+function sanitizeObject(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeObject(item))
+  }
+  
+  // Handle objects
+  const result: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      result[key] = value.replace(/[\u0080-\uFFFF]/g, '')
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = sanitizeObject(value)
+    } else {
+      result[key] = value
+    }
+  }
+  
+  return result
 }

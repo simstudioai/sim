@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('XAI Provider')
@@ -36,7 +37,7 @@ export const xAIProvider: ProviderConfig = {
   models: ['grok-3-latest', 'grok-3-fast-latest'],
   defaultModel: 'grok-3-latest',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for xAI')
     }
@@ -142,12 +143,65 @@ export const xAIProvider: ProviderConfig = {
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info('Using streaming response for XAI request (no tools)')
 
+      // Start execution timer for the entire provider execution
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
       const streamResponse = await xai.chat.completions.create({
         ...payload,
         stream: true,
       })
 
-      return createReadableStreamFromXAIStream(streamResponse)
+      // Start collecting token usage
+      let tokenUsage = {
+        prompt: 0,
+        completion: 0,
+        total: 0
+      }
+      
+      // Create a StreamingExecution response with a readable stream
+      const streamingResult = {
+        stream: createReadableStreamFromXAIStream(streamResponse),
+        execution: {
+          success: true,
+          output: {
+            response: {
+              content: '', // Will be filled by streaming content in chat component
+              model: request.model || 'grok-3-latest',
+              tokens: tokenUsage,
+              toolCalls: undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                timeSegments: [{
+                  type: 'model',
+                  name: 'Streaming response',
+                  startTime: providerStartTime,
+                  endTime: Date.now(),
+                  duration: Date.now() - providerStartTime,
+                }]
+              },
+              // Estimate token cost
+              cost: {
+                total: 0.0,
+                input: 0.0,
+                output: 0.0
+              }
+            }
+          },
+          logs: [], // No block logs for direct streaming
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: Date.now() - providerStartTime,
+          },
+          isStreaming: true
+        }
+      }
+      
+      // Return the streaming execution object
+      return streamingResult as StreamingExecution
     }
 
     // Start execution timer for the entire provider execution
@@ -377,7 +431,53 @@ export const xAIProvider: ProviderConfig = {
           stream: true,
         })
 
-        return createReadableStreamFromXAIStream(streamResponse)
+        // Create a StreamingExecution response with all collected data
+        const streamingResult = {
+          stream: createReadableStreamFromXAIStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'grok-3-latest',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls: toolCalls.length > 0 ? { 
+                  list: toolCalls,
+                  count: toolCalls.length 
+                } : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001,
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001
+                }
+              }
+            },
+            logs: [], // No block logs at provider level
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
       }
 
       // Calculate overall timing

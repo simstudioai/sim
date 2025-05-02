@@ -2,6 +2,7 @@ import { Groq } from 'groq-sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('Groq Provider')
 
@@ -38,7 +39,7 @@ export const groqProvider: ProviderConfig = {
   ],
   defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Groq')
     }
@@ -128,12 +129,64 @@ export const groqProvider: ProviderConfig = {
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info('Using streaming response for Groq request (no tools)')
 
+      // Start execution timer for the entire provider execution
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+      
       const streamResponse = await groq.chat.completions.create({
         ...payload,
         stream: true,
       })
 
-      return createReadableStreamFromGroqStream(streamResponse)
+      // Start collecting token usage
+      let tokenUsage = {
+        prompt: 0,
+        completion: 0,
+        total: 0
+      }
+      
+      // Create a StreamingExecution response with a readable stream
+      const streamingResult = {
+        stream: createReadableStreamFromGroqStream(streamResponse),
+        execution: {
+          success: true,
+          output: {
+            response: {
+              content: '', // Will be filled by streaming content in chat component
+              model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+              tokens: tokenUsage,
+              toolCalls: undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                timeSegments: [{
+                  type: 'model',
+                  name: 'Streaming response',
+                  startTime: providerStartTime,
+                  endTime: Date.now(),
+                  duration: Date.now() - providerStartTime,
+                }]
+              },
+              cost: {
+                total: 0.0,
+                input: 0.0,
+                output: 0.0
+              }
+            }
+          },
+          logs: [], // No block logs for direct streaming
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: Date.now() - providerStartTime,
+          },
+          isStreaming: true
+        }
+      }
+      
+      // Return the streaming execution object
+      return streamingResult as StreamingExecution
     }
 
     // Start execution timer for the entire provider execution
@@ -312,7 +365,53 @@ export const groqProvider: ProviderConfig = {
           stream: true,
         })
 
-        return createReadableStreamFromGroqStream(streamResponse)
+        // Create a StreamingExecution response with all collected data
+        const streamingResult = {
+          stream: createReadableStreamFromGroqStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls: toolCalls.length > 0 ? { 
+                  list: toolCalls,
+                  count: toolCalls.length 
+                } : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001,
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001
+                }
+              }
+            },
+            logs: [], // No block logs at provider level
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
       }
 
       // Calculate overall timing

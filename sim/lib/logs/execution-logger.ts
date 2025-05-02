@@ -110,6 +110,34 @@ export async function persistExecutionLogs(
           hasResponse: !!log.output.response,
         })
 
+        // Special case for streaming responses from agent blocks
+        // This format has both stream and executionData properties
+        if (log.output.stream && log.output.executionData) {
+          logger.debug('Found streaming response with executionData', {
+            blockId: log.blockId,
+            hasExecutionData: !!log.output.executionData,
+            executionDataKeys: log.output.executionData ? Object.keys(log.output.executionData) : [],
+          })
+
+          // Extract the executionData and use it as our primary source of information
+          const executionData = log.output.executionData
+          
+          // If executionData has output with response, use that as our response
+          // This is especially important for streaming responses where the final content
+          // is set in the executionData structure by the executor
+          if (executionData.output?.response) {
+            log.output.response = executionData.output.response
+            logger.debug('Using response from executionData', {
+              responseKeys: Object.keys(log.output.response),
+              hasContent: !!log.output.response.content,
+              contentLength: log.output.response.content?.length || 0,
+              hasToolCalls: !!log.output.response.toolCalls,
+              hasTokens: !!log.output.response.tokens,
+              hasCost: !!log.output.response.cost,
+            })
+          }
+        }
+
         // Extract tool calls and other metadata
         if (log.output.response) {
           const response = log.output.response
@@ -347,7 +375,49 @@ export async function persistExecutionLogs(
             }
           })
         }
-        // Case 5: Parse the response string for toolCalls as a last resort
+        // Case 5: Look in executionData.output.response for streaming responses
+        else if (log.output.executionData?.output?.response?.toolCalls) {
+          const toolCallsObj = log.output.executionData.output.response.toolCalls
+          const list = Array.isArray(toolCallsObj) ? toolCallsObj : (toolCallsObj.list || [])
+          
+          logger.debug('Found toolCalls in executionData output response', {
+            count: list.length,
+          })
+          
+          // Log raw timing data for debugging
+          list.forEach((tc: any, idx: number) => {
+            logger.debug(`executionData toolCalls ${idx} raw timing data:`, {
+              name: stripCustomToolPrefix(tc.name),
+              startTime: tc.startTime,
+              endTime: tc.endTime,
+              duration: tc.duration,
+              timing: tc.timing,
+              argumentKeys: tc.arguments ? Object.keys(tc.arguments) : undefined,
+            })
+          })
+          
+          toolCallData = list.map((toolCall: any) => {
+            // Extract timing info - try various formats that providers might use
+            const duration = extractDuration(toolCall)
+            const timing = extractTimingInfo(
+              toolCall,
+              blockStartTime ? new Date(blockStartTime) : undefined,
+              blockEndTime ? new Date(blockEndTime) : undefined
+            )
+            
+            return {
+              name: toolCall.name,
+              duration: duration,
+              startTime: timing.startTime,
+              endTime: timing.endTime,
+              status: toolCall.error ? 'error' : 'success',
+              input: toolCall.arguments || toolCall.input,
+              output: toolCall.result || toolCall.output,
+              error: toolCall.error,
+            }
+          })
+        }
+        // Case 6: Parse the response string for toolCalls as a last resort
         else if (typeof log.output.response === 'string') {
           const match = log.output.response.match(/"toolCalls"\s*:\s*({[^}]*}|(\[.*?\]))/s)
           if (match) {
@@ -446,7 +516,11 @@ export async function persistExecutionLogs(
         executionId,
         level: log.success ? 'info' : 'error',
         message: log.success
-          ? `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${JSON.stringify(log.output?.response || {})}`
+          ? `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${
+              log.output?.response?.content || 
+              log.output?.executionData?.output?.response?.content || 
+              JSON.stringify(log.output?.response || {})
+            }`
           : `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${log.error || 'Failed'}`,
         duration: log.success ? `${log.durationMs}ms` : 'NA',
         trigger: triggerType,
@@ -510,6 +584,23 @@ export async function persistExecutionLogs(
             workflowMetadata.cost.pricing = log.output.response.cost.pricing
             break
           }
+        }
+      }
+
+      // If result has a direct cost field (for streaming responses completed with calculated cost),
+      // use that as a safety check to ensure we have cost data
+      if (result.metadata && 'cost' in result.metadata && (!workflowMetadata.cost || workflowMetadata.cost.total <= 0)) {
+        const resultCost = (result.metadata as any).cost
+        workflowMetadata.cost = {
+          model: primaryModel,
+          total: typeof resultCost === 'number' ? resultCost : (resultCost?.total || 0),
+          input: resultCost?.input || 0,
+          output: resultCost?.output || 0,
+          tokens: {
+            prompt: totalPromptTokens,
+            completion: totalCompletionTokens,
+            total: totalTokens,
+          },
         }
       }
 

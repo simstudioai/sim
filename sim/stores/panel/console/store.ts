@@ -69,7 +69,7 @@ export const useConsoleStore = create<ConsoleStore>()(
         entries: [],
         isOpen: false,
 
-        addConsole: (entry) => {
+        addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
           set((state) => {
             // Determine early if this entry represents a streaming output
             const isStreamingOutput =
@@ -79,6 +79,14 @@ export const useConsoleStore = create<ConsoleStore>()(
                typeof entry.output.executionData === 'object' && entry.output.executionData?.isStreaming === true) ||
               (typeof entry.output === 'object' && entry.output && 'stream' in entry.output)
 
+            // Skip adding raw streaming objects that have both stream and executionData
+            // These are the internal streaming structures that would cause duplicate logs
+            if (typeof entry.output === 'object' && entry.output && 
+                'stream' in entry.output && 'executionData' in entry.output) {
+              // Don't add this entry - it will be processed by our explicit formatting code in executor/index.ts
+              return { entries: state.entries };
+            }
+
             // Create a new entry with redacted API keys (if not a stream)
             const redactedEntry = { ...entry }
 
@@ -87,15 +95,22 @@ export const useConsoleStore = create<ConsoleStore>()(
               redactedEntry.output = redactApiKeys(redactedEntry.output)
             }
 
+            // Create the new entry with ID and timestamp
+            const newEntry = { 
+              ...redactedEntry, 
+              id: crypto.randomUUID(), 
+              timestamp: new Date().toISOString() 
+            };
+
             // Keep only the last MAX_ENTRIES
             const newEntries = [
-              { ...redactedEntry, id: crypto.randomUUID(), timestamp: new Date().toISOString() },
+              newEntry,
               ...state.entries,
             ].slice(0, MAX_ENTRIES)
 
             // If the block produced a streaming output, skip automatic chat message creation
             if (isStreamingOutput) {
-              return { entries: newEntries }
+              return { entries: newEntries };
             }
 
             // Check if this block matches a selected workflow output
@@ -139,6 +154,11 @@ export const useConsoleStore = create<ConsoleStore>()(
                       formattedValue = String(specificValue)
                     }
                     
+                    // Skip empty content messages (important for preventing empty entries)
+                    if (!formattedValue || formattedValue.trim() === '') {
+                      continue;
+                    }
+                    
                     // Add the specific value to chat, not the whole output
                     chatStore.addMessage({
                       content: formattedValue,
@@ -152,8 +172,11 @@ export const useConsoleStore = create<ConsoleStore>()(
               }
             }
 
-            return { entries: newEntries }
-          })
+            return { entries: newEntries };
+          });
+          
+          // Return the created entry by finding it in the updated store
+          return get().entries[0];
         },
 
         clearConsole: (workflowId: string | null) => {
@@ -170,6 +193,22 @@ export const useConsoleStore = create<ConsoleStore>()(
 
         toggleConsole: () => {
           set((state) => ({ isOpen: !state.isOpen }))
+        },
+
+        updateConsole: (entryId: string, updatedData: Partial<Omit<ConsoleEntry, 'id' | 'timestamp'>>) => {
+          set((state) => {
+            const updatedEntries = state.entries.map(entry => {
+              if (entry.id === entryId) {
+                return {
+                  ...entry,
+                  ...updatedData,
+                  output: updatedData.output ? redactApiKeys(updatedData.output) : entry.output,
+                };
+              }
+              return entry;
+            });
+            return { entries: updatedEntries };
+          });
         },
       }),
       {

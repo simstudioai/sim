@@ -82,16 +82,16 @@ export class Executor {
   ) {
     // Handle new constructor format with options object
     if (typeof workflowParam === 'object' && 'workflow' in workflowParam) {
-      const options = workflowParam;
-      this.actualWorkflow = options.workflow;
-      this.initialBlockStates = options.currentBlockStates || {};
-      this.environmentVariables = options.envVarValues || {};
-      this.workflowInput = options.workflowInput || {};
-      this.workflowVariables = options.workflowVariables || {};
+      const options = workflowParam
+      this.actualWorkflow = options.workflow
+      this.initialBlockStates = options.currentBlockStates || {}
+      this.environmentVariables = options.envVarValues || {}
+      this.workflowInput = options.workflowInput || {}
+      this.workflowVariables = options.workflowVariables || {}
       
       // Store context extensions for streaming and output selection
       if (options.contextExtensions) {
-        this.contextExtensions = options.contextExtensions;
+        this.contextExtensions = options.contextExtensions
         
         if (this.contextExtensions.stream) {
           logger.info('Executor initialized with streaming enabled', {
@@ -100,11 +100,11 @@ export class Executor {
               ? this.contextExtensions.selectedOutputIds.length 
               : 0,
             selectedOutputIds: this.contextExtensions.selectedOutputIds || [],
-          });
+          })
         }
       }
     } else {
-      this.actualWorkflow = workflowParam;
+      this.actualWorkflow = workflowParam
       
       if (workflowInput) {
         this.workflowInput = workflowInput
@@ -213,22 +213,102 @@ export class Executor {
             const streamingOutput = outputs.find(output => 
               output instanceof ReadableStream || 
               (typeof output === 'object' && output !== null && 'stream' in output && 'executionData' in output)
-            );
+            )
             
             if (streamingOutput) {
               if (streamingOutput instanceof ReadableStream) {
                 logger.info('Returning direct ReadableStream from block')
-                return streamingOutput;
+                return streamingOutput
               } else if ('stream' in streamingOutput && 'executionData' in streamingOutput) {
                 // This is a combined response with both stream and execution data
                 logger.info('Found combined stream+execution response from block')
                 
                 // Incorporate the execution data from the block into our context
-                const executionData = streamingOutput.executionData;
+                const executionData = streamingOutput.executionData
                 
                 // Add any logs from the execution data to our context
                 if (executionData.logs && Array.isArray(executionData.logs)) {
-                  context.blockLogs.push(...executionData.logs);
+                  context.blockLogs.push(...executionData.logs)
+                }
+                
+                // Add proper console entry for the streaming block
+                // This ensures identical formatting between streamed and non-streamed outputs
+                if (executionData.output) {
+                  const blockLog = executionData.logs?.find((log: BlockLog) => log.blockId === executionData.blockId)
+                  const consoleStore = useConsoleStore.getState()
+                  
+                  // Create a complete console entry with the full output structure, not the raw streaming object
+                  const consoleEntry = {
+                    output: executionData.output, // Use just the output, not the whole streaming structure
+                    durationMs: blockLog?.durationMs || executionData.metadata?.duration || 0,
+                    startedAt: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                    endedAt: blockLog?.endedAt || executionData.metadata?.endTime || new Date().toISOString(),
+                    workflowId: context.workflowId,
+                    timestamp: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                    blockId: executionData.blockId,
+                    blockName: executionData.blockName || blockLog?.blockName || 'Agent Block',
+                    blockType: executionData.blockType || blockLog?.blockType || 'agent'
+                  }
+                  
+                  // Add to console
+                  const newEntry = consoleStore.addConsole(consoleEntry)
+                  
+                  // Save the entryId for potential updates when stream completes
+                  const consoleEntryId = newEntry?.id
+                  
+                  // Set up a stream completion handler to update the console with final content
+                  if (consoleEntryId && 'stream' in streamingOutput) {
+                    // Clone the stream so we don't consume the original one
+                    const originalStream = streamingOutput.stream
+                    const [contentStream, returnStream] = originalStream.tee()
+                    
+                    // Replace the original stream with our cloned version that will be returned
+                    streamingOutput.stream = returnStream
+                    
+                    // Create a reader to process the cloned stream for content collection
+                    const reader = contentStream.getReader()
+                    const decoder = new TextDecoder()
+                    let fullContent = '';
+                    
+                    // Process the stream in the background to collect the full content
+                    (async () => {
+                      try {
+                        while (true) {
+                          const { done, value } = await reader.read()
+                          if (done) break
+                          const chunk = decoder.decode(value, { stream: true })
+                          fullContent += chunk
+                        }
+                        // Once stream is complete, update the console entry with the final content
+                        if (fullContent.length > 0 && executionData.output?.response) {
+                          const updatedOutput = {
+                            ...executionData.output,
+                            response: {
+                              ...executionData.output.response,
+                              content: fullContent
+                            }
+                          }
+                          
+                          // Update the console UI with the final content
+                          consoleStore.updateConsole(consoleEntryId, { output: updatedOutput })
+                          
+                          // Update the execution data itself with the final content 
+                          // so that when logs are persisted, they have the complete content
+                          executionData.output.response.content = fullContent
+
+                          // If there's a block log for this execution, update it with the final content
+                          if (executionData.blockId) {
+                            const blockLog = context.blockLogs.find(log => log.blockId === executionData.blockId)
+                            if (blockLog?.output?.response) {
+                              blockLog.output.response.content = fullContent
+                            }
+                          }
+                        }
+                      } catch (e) {
+                        logger.error('Error processing stream for console update:', e)
+                      }
+                    })()
+                  }
                 }
                 
                 // Build a complete execution result with our context's logs
@@ -247,15 +327,28 @@ export class Executor {
                     })),
                   },
                   isStreaming: true,
-                };
+                }
                 
                 // Add block metadata to logs if missing
                 if (context.blockLogs.length > 0) {
                   for (const log of context.blockLogs) {
-                    if (!log.output) log.output = { response: {} };
-                    if (log.output && executionData.output?.response?.content && !log.output.response?.content) {
-                      if (!log.output.response) log.output.response = {};
-                      log.output.response.content = executionData.output.response.content;
+                    if (!log.output) log.output = { response: {} }
+                    
+                    // For blocks matching the streaming block, ensure we add response and content properly
+                    if (log.blockId === executionData.blockId) {
+                      if (!log.output.response) log.output.response = {}
+                      
+                      // Add the output structure, preferring direct response content if available
+                      if (executionData.output?.response) {
+                        // Copy all properties from executionData response
+                        Object.assign(log.output.response, executionData.output.response)
+                        
+                        // For streaming, we may not have content yet, so we store a placeholder
+                        // that will be updated when the stream completes
+                        if (!log.output.response.content && executionData.output.response.content) {
+                          log.output.response.content = executionData.output.response.content
+                        }
+                      }
                     }
                   }
                 }
@@ -264,7 +357,7 @@ export class Executor {
                 return {
                   stream: streamingOutput.stream,
                   execution,
-                };
+                }
               }
             }
 
@@ -273,9 +366,9 @@ export class Executor {
               const normalizedOutputs = outputs.filter(output => 
                 !(output instanceof ReadableStream) &&
                 !(typeof output === 'object' && output !== null && 'stream' in output && 'executionData' in output)
-              );
+              )
               if (normalizedOutputs.length > 0) {
-                finalOutput = normalizedOutputs[normalizedOutputs.length - 1] as NormalizedBlockOutput;
+                finalOutput = normalizedOutputs[normalizedOutputs.length - 1] as NormalizedBlockOutput
               }
             }
 
@@ -539,10 +632,10 @@ export class Executor {
               // This handles both input formats: { input: { field: value } } and { field: value }
               const inputValue = this.workflowInput?.input?.[field.name] !== undefined 
                 ? this.workflowInput.input[field.name]  // Try to get from input.field
-                : this.workflowInput?.[field.name];     // Fallback to direct field access
+                : this.workflowInput?.[field.name]     // Fallback to direct field access
               
               logger.info(`[Executor] Processing input field ${field.name} (${field.type}):`, 
-                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined');
+                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined')
 
               // Convert the value to the appropriate type
               let typedValue = inputValue
@@ -569,15 +662,15 @@ export class Executor {
           }
 
           // Check if we managed to process any fields - if not, use the raw input
-          const hasProcessedFields = Object.keys(structuredInput).length > 0;
+          const hasProcessedFields = Object.keys(structuredInput).length > 0
           
           // If no fields matched the input format, extract the raw input to use instead
           const rawInputData = this.workflowInput?.input !== undefined
             ? this.workflowInput.input  // Use the nested input data
-            : this.workflowInput;       // Fallback to direct input
+            : this.workflowInput       // Fallback to direct input
           
           // Use the structured input if we processed fields, otherwise use raw input
-          const finalInput = hasProcessedFields ? structuredInput : rawInputData;
+          const finalInput = hasProcessedFields ? structuredInput : rawInputData
           
           // Initialize the starter block with structured input
           // Ensure both input and direct fields are available
@@ -588,7 +681,7 @@ export class Executor {
             },
           }
           
-          logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2));
+          logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2))
 
           context.blockStates.set(starterBlock.id, {
             output: starterOutput,
@@ -942,7 +1035,6 @@ export class Executor {
         startedAt: blockLog.startedAt,
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
-        timestamp: blockLog.startedAt,
         blockId: block.id,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
@@ -985,7 +1077,6 @@ export class Executor {
         startedAt: blockLog.startedAt,
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
-        timestamp: blockLog.startedAt,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })

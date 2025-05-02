@@ -12,6 +12,12 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
+import { BlockLog } from '@/executor/types'
+import { calculateCost } from '@/providers/utils'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('chat')
 
 interface ChatProps {
   panelWidth: number
@@ -104,52 +110,180 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {
       // Generate a unique ID for the message
-      const messageId = crypto.randomUUID();
+      const messageId = crypto.randomUUID()
       
-      // Add placeholder message with the specific ID
-      addMessage({
-        id: messageId,
-        content: '',
-        workflowId: activeWorkflowId,
-        type: 'workflow',
-        isStreaming: true,
-        timestamp: new Date().toISOString(),
-      } as any);
+      // Create a content buffer to collect initial content
+      let initialContent = ''
+      let fullContent = '' // Store the complete content for updating logs later
+      let hasAddedMessage = false
+      let executionResult = (result as any).execution // Store the execution result with type assertion
       
       try {
         // Process the stream
-        const reader = result.stream.getReader();
-        const decoder = new TextDecoder();
+        const reader = result.stream.getReader()
+        const decoder = new TextDecoder()
         
-        console.log("Starting to read from stream");
+        console.log("Starting to read from stream")
         
         while (true) {
           try {
-            const { done, value } = await reader.read();
+            const { done, value } = await reader.read()
             if (done) {
-              console.log("Stream complete");
-              break;
+              console.log("Stream complete")
+              break
             }
             
             // Decode and append chunk
-            const chunk = decoder.decode(value, { stream: true }); // Use stream option
+            const chunk = decoder.decode(value, { stream: true }) // Use stream option
             
             if (chunk) {
-              appendMessageContent(messageId, chunk);
+              initialContent += chunk
+              fullContent += chunk
+              
+              // Only add the message to UI once we have some actual content to show
+              if (!hasAddedMessage && initialContent.trim().length > 0) {
+                // Add message with initial content - cast to any to bypass type checking for id
+                addMessage({
+                  content: initialContent,
+                  workflowId: activeWorkflowId,
+                  type: 'workflow',
+                  isStreaming: true,
+                  id: messageId
+                } as any)
+                hasAddedMessage = true
+              } else if (hasAddedMessage) {
+                // Append to existing message
+                appendMessageContent(messageId, chunk)
+              }
             }
           } catch (streamError) {
-            console.error('Error reading from stream:', streamError);
+            console.error('Error reading from stream:', streamError)
             // Break the loop on error
-            break;
+            break
+          }
+        }
+        
+        // If we never added a message (no content received), add it now
+        if (!hasAddedMessage && initialContent.trim().length > 0) {
+          addMessage({
+            content: initialContent,
+            workflowId: activeWorkflowId,
+            type: 'workflow',
+            id: messageId
+          } as any)
+        }
+        
+        // Update logs with the full streaming content if available
+        if (executionResult && fullContent.trim().length > 0) {
+          try {
+            // Format the final content properly to match what's shown for manual executions
+            // Include all the markdown and formatting from the streamed response
+            const formattedContent = fullContent
+            
+            // Calculate cost based on token usage if available
+            let costData = undefined
+            if (executionResult.output?.response?.tokens) {
+              logger.info('Calculating cost for chat response')
+              const tokens = executionResult.output.response.tokens
+              const model = executionResult.output?.response?.model || 'gpt-4o'
+              const cost = calculateCost(
+                model, 
+                tokens.prompt || 0, 
+                tokens.completion || 0, 
+                false // Don't use cached input for chat responses
+              )
+              costData = { ...cost, model } as any
+            }
+            logger.info('Cost data:', costData)
+            
+            // Build trace spans and total duration before persisting
+            const { traceSpans, totalDuration } = buildTraceSpans(executionResult as any)
+            
+            // Create a completed execution ID
+            const completedExecutionId = executionResult.metadata?.executionId || crypto.randomUUID()
+            
+            // Import the workflow execution hook for direct access to the workflow service
+            const workflowExecutionApi = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                executionId: completedExecutionId,
+                result: {
+                  ...executionResult,
+                  output: {
+                    ...executionResult.output,
+                    response: {
+                      ...executionResult.output?.response,
+                      content: formattedContent,
+                      model: executionResult.output?.response?.model,
+                      tokens: executionResult.output?.response?.tokens,
+                      toolCalls: executionResult.output?.response?.toolCalls,
+                      providerTiming: executionResult.output?.response?.providerTiming, 
+                      cost: costData || executionResult.output?.response?.cost,
+                    }
+                  },
+                  cost: costData,
+                  // Update the message to include the formatted content
+                  logs: (executionResult.logs || []).map((log: BlockLog) => {
+                    if (log.blockType === 'agent' && log.output?.response) {
+                      return {
+                        ...log,
+                        output: {
+                          ...log.output,
+                          response: {
+                            ...log.output.response,
+                            content: formattedContent,
+                            providerTiming: log.output.response.providerTiming,
+                            cost: costData || log.output.response.cost,
+                          }
+                        }
+                      }
+                    }
+                    return log
+                  }),
+                  metadata: {
+                    ...executionResult.metadata,
+                    source: 'chat',
+                    completedAt: new Date().toISOString(),
+                    isStreamingComplete: true,
+                    cost: costData || executionResult.metadata?.cost,
+                    providerTiming: executionResult.output?.response?.providerTiming,
+                  },
+                  traceSpans: traceSpans,
+                  totalDuration: totalDuration,
+                }
+              }),
+            })
+            
+            if (!workflowExecutionApi.ok) {
+              console.error('Failed to log complete streaming execution')
+            }
+          } catch (logError) {
+            console.error('Error logging complete streaming execution:', logError)
           }
         }
       } catch (error) {
-        console.error('Error processing stream:', error);
-        // If there's an error with the stream, append an error message
-        appendMessageContent(messageId, "\n\nError: Failed to process the streaming response.");
+        console.error('Error processing stream:', error)
+        
+        // If there's an error and we haven't added a message yet, add an error message
+        if (!hasAddedMessage) {
+          addMessage({
+            content: "Error: Failed to process the streaming response.",
+            workflowId: activeWorkflowId,
+            type: 'workflow',
+            id: messageId
+          } as any)
+        } else {
+          // Otherwise append the error to the existing message
+          appendMessageContent(messageId, "\n\nError: Failed to process the streaming response.")
+        }
       } finally {
-        console.log("Finalizing stream");
-        finalizeMessageStream(messageId);
+        console.log("Finalizing stream")
+        if (hasAddedMessage) {
+          finalizeMessageStream(messageId)
+        }
       }
     }
   }

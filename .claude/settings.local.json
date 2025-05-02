@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(ls:*)",
+      "Bash(tsc:*)",
+      "Bash(tsc:*)"
+    ],
+    "deny": []
+  }
+}

@@ -12,8 +12,8 @@ const logger = createLogger('OpenAI Provider')
  * and collect completion metrics
  */
 function createReadableStreamFromOpenAIStream(openaiStream: any, onComplete?: (content: string, usage?: any) => void): ReadableStream {
-  let fullContent = '';
-  let usageData: any = null;
+  let fullContent = ''
+  let usageData: any = null
   
   return new ReadableStream({
     async start(controller) {
@@ -21,27 +21,27 @@ function createReadableStreamFromOpenAIStream(openaiStream: any, onComplete?: (c
         for await (const chunk of openaiStream) {
           // Check for usage data in the final chunk
           if (chunk.usage) {
-            usageData = chunk.usage;
+            usageData = chunk.usage
           }
           
-          const content = chunk.choices[0]?.delta?.content || '';
+          const content = chunk.choices[0]?.delta?.content || ''
           if (content) {
-            fullContent += content;
-            controller.enqueue(new TextEncoder().encode(content));
+            fullContent += content
+            controller.enqueue(new TextEncoder().encode(content))
           }
         }
         
         // Once stream is complete, call the completion callback with the final content and usage
         if (onComplete) {
-          onComplete(fullContent, usageData);
+          onComplete(fullContent, usageData)
         }
         
-        controller.close();
+        controller.close()
       } catch (error) {
-        controller.error(error);
+        controller.error(error)
       }
     }
-  });
+  })
 }
 
 /**
@@ -55,7 +55,7 @@ export const openaiProvider: ProviderConfig = {
   models: ['gpt-4o', 'o1', 'o3', 'o4-mini'],
   defaultModel: 'gpt-4o',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | ReadableStream | StreamingExecution> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     logger.info('Preparing OpenAI request', {
       model: request.model || 'gpt-4o',
       hasSystemPrompt: !!request.systemPrompt,
@@ -181,35 +181,52 @@ export const openaiProvider: ProviderConfig = {
           total: 0
         }
         
-        let streamContent = '';
+        let streamContent = ''
         
         // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
-            streamContent = content;
-            streamingResult.execution.output.response.content = content;
+            streamContent = content
+            streamingResult.execution.output.response.content = content
+            
+            // Update the timing information with the actual completion time
+            const streamEndTime = Date.now()
+            const streamEndTimeISO = new Date(streamEndTime).toISOString()
+            
+            if (streamingResult.execution.output.response.providerTiming) {
+              streamingResult.execution.output.response.providerTiming.endTime = streamEndTimeISO
+              streamingResult.execution.output.response.providerTiming.duration = streamEndTime - providerStartTime
+              
+              // Update the time segment as well
+              if (streamingResult.execution.output.response.providerTiming.timeSegments?.[0]) {
+                streamingResult.execution.output.response.providerTiming.timeSegments[0].endTime = streamEndTime
+                streamingResult.execution.output.response.providerTiming.timeSegments[0].duration = streamEndTime - providerStartTime
+              }
+            }
             
             // Update token usage if available from the stream
             if (usage) {
-              streamingResult.execution.output.response.tokens = {
-                prompt: usage.prompt_tokens || 0,
-                completion: usage.completion_tokens || 0,
-                total: usage.total_tokens || 0
-              };
+              const newTokens = {
+                prompt: usage.prompt_tokens || tokenUsage.prompt,
+                completion: usage.completion_tokens || tokenUsage.completion,
+                total: usage.total_tokens || tokenUsage.total
+              }
+              
+              streamingResult.execution.output.response.tokens = newTokens
             } else {
               // Estimate tokens if not provided by the API
               const promptTokens = payload.messages.reduce(
                 (acc: number, msg: any) => acc + Math.ceil((typeof msg.content === 'string' ? msg.content.length : 20) / 4), 
                 0
-              );
-              const completionTokens = Math.ceil(content.length / 4);
+              )
+              const completionTokens = Math.ceil(content.length / 4)
               
               streamingResult.execution.output.response.tokens = {
                 prompt: promptTokens,
                 completion: completionTokens,
                 total: promptTokens + completionTokens
-              };
+              }
             }
           }),
           execution: {
@@ -220,6 +237,23 @@ export const openaiProvider: ProviderConfig = {
                 model: request.model,
                 tokens: tokenUsage,
                 toolCalls: undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  timeSegments: [{
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  }]
+                },
+                cost: tokenUsage.total ? {
+                  total: (tokenUsage.total || 0) * 0.0001,
+                  input: (tokenUsage.prompt || 0) * 0.0001,
+                  output: (tokenUsage.completion || 0) * 0.0001
+                } : undefined
               }
             },
             logs: [], // No block logs for direct streaming
@@ -229,10 +263,10 @@ export const openaiProvider: ProviderConfig = {
               duration: Date.now() - providerStartTime,
             }
           }
-        } as StreamingExecution;
+        } as StreamingExecution
         
         // Return the streaming execution object with explicit casting
-        return streamingResult as unknown as (ReadableStream<any> | ProviderResponse | StreamingExecution);
+        return streamingResult as StreamingExecution
       }
 
       // Make the initial API request
@@ -466,13 +500,13 @@ export const openaiProvider: ProviderConfig = {
         })
         
         // Create the StreamingExecution object with all collected data
-        let streamContent = '';
+        let streamContent = ''
         
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
-            streamContent = content;
-            streamingResult.execution.output.response.content = content;
+            streamContent = content
+            streamingResult.execution.output.response.content = content
             
             // Update token usage if available from the stream
             if (usage) {
@@ -480,9 +514,9 @@ export const openaiProvider: ProviderConfig = {
                 prompt: usage.prompt_tokens || tokens.prompt,
                 completion: usage.completion_tokens || tokens.completion,
                 total: usage.total_tokens || tokens.total
-              };
+              }
               
-              streamingResult.execution.output.response.tokens = newTokens;
+              streamingResult.execution.output.response.tokens = newTokens
             }
           }),
           execution: {
@@ -524,10 +558,10 @@ export const openaiProvider: ProviderConfig = {
               duration: Date.now() - providerStartTime,
             }
           }
-        } as StreamingExecution;
+        } as StreamingExecution
         
         // Return the streaming execution object with explicit casting
-        return streamingResult as unknown as (ReadableStream<any> | ProviderResponse | StreamingExecution);
+        return streamingResult as StreamingExecution
       }
 
       // Calculate overall timing

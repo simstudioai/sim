@@ -19,19 +19,14 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   return sanitizedRequest
 }
 
-// Type guard for ProviderResponse
-function isProviderResponse(response: any): response is ProviderResponse {
-  return response && typeof response === 'object' && 'content' in response && 'model' in response;
-}
-
 // Type guard for StreamingExecution
 function isStreamingExecution(response: any): response is StreamingExecution {
-  return response && typeof response === 'object' && 'stream' in response && 'execution' in response;
+  return response && typeof response === 'object' && 'stream' in response && 'execution' in response
 }
 
 // Type guard for ReadableStream
 function isReadableStream(response: any): response is ReadableStream {
-  return response instanceof ReadableStream;
+  return response instanceof ReadableStream
 }
 
 export async function executeProviderRequest(
@@ -84,12 +79,12 @@ export async function executeProviderRequest(
   // If we received a StreamingExecution or ReadableStream, just pass it through
   if (isStreamingExecution(response)) {
     logger.info(`Provider returned StreamingExecution`)
-    return response;
+    return response
   }
   
   if (isReadableStream(response)) {
     logger.info(`Provider returned ReadableStream`)
-    return response;
+    return response
   }
   
   // At this point, we know we have a ProviderResponse

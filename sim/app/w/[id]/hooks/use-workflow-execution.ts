@@ -42,7 +42,7 @@ export function useWorkflowExecution() {
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
-  const persistLogs = async (executionId: string, result: ExecutionResult) => {
+  const persistLogs = async (executionId: string, result: ExecutionResult, streamContent?: string) => {
     try {
       // Build trace spans from execution logs
       const { traceSpans, totalDuration } = buildTraceSpans(result)
@@ -52,6 +52,21 @@ export function useWorkflowExecution() {
         ...result,
         traceSpans,
         totalDuration,
+      }
+
+      // If this was a streaming response and we have the final content, update it
+      if (streamContent && result.output?.response && typeof streamContent === 'string') {
+        // Update the content with the final streaming content
+        enrichedResult.output.response.content = streamContent
+        
+        // Also update any block logs to include the content where appropriate
+        if (enrichedResult.logs) {
+          for (const log of enrichedResult.logs) {
+            if (log.blockType === 'agent' && log.output?.response) {
+              log.output.response.content = streamContent
+            }
+          }
+        }
       }
 
       const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
@@ -68,8 +83,11 @@ export function useWorkflowExecution() {
       if (!response.ok) {
         throw new Error('Failed to persist logs')
       }
+      
+      return executionId
     } catch (error) {
       logger.error('Error persisting logs:', { error })
+      return executionId
     }
   }
 
@@ -201,34 +219,26 @@ export function useWorkflowExecution() {
       if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
         logger.info('Received combined stream+execution result from executor')
         
-        // Persist logs immediately using the execution part
-        const executionId = uuidv4();
-        
-        // Ensure the execution has necessary fields for the logs
-        if (result.execution.output && result.execution.output.response) {
-          // Make sure we have content (may be empty for streaming at this point)
-          if (!result.execution.output.response.content) {
-            result.execution.output.response.content = '';
-          }
-          
-          // Add metadata about source being chat if applicable
-          result.execution.metadata = {
-            ...(result.execution.metadata || {}),
-            source: isChatExecution ? 'chat' : 'manual'
-          } as any;
-          
-          // Ensure isStreaming flag is set
-          (result.execution as any).isStreaming = true;
-        }
-        
-        persistLogs(executionId, result.execution).catch((err) => {
-          logger.error('Error persisting logs for streaming execution:', { error: err })
-        })
-        
-        // Return just the stream part for the UI to consume
+        // Generate an executionId and store it in the execution metadata so that
+        // the chat component can persist the logs *after* the stream finishes.
+        const executionId = uuidv4()
+
+        // Attach streaming / source metadata and the newly generated executionId
+        result.execution.metadata = {
+          ...(result.execution.metadata || {}),
+          executionId,
+          source: isChatExecution ? 'chat' : 'manual',
+        } as any
+
+        // Mark the execution as streaming so that downstream code can recognise it
+        (result.execution as any).isStreaming = true
+
+        // Return both the stream and the execution object so the caller (chat panel)
+        // can collect the full content and then persist the logs in one go.
         return {
           success: true,
           stream: result.stream,
+          execution: result.execution,
         }
       }
 
@@ -238,7 +248,7 @@ export function useWorkflowExecution() {
         (result as any).metadata = {
           ...(result.metadata || {}),
           source: 'chat'
-        };
+        }
       }
 
       // If we're in debug mode, store the execution context for later steps
