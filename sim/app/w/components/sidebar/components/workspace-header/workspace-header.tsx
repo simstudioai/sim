@@ -456,7 +456,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
           ) : (
             <DropdownMenuTrigger asChild>
               <div className="flex items-center justify-between px-2 py-[6px] relative z-10 w-full">
-                <div className="flex items-center gap-2 overflow-hidden">
+                <div className="flex items-center gap-2 overflow-hidden cursor-pointer">
                   <Link
                     href={workspaceUrl}
                     className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
@@ -481,7 +481,7 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
                 {!isCollapsed && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div onClick={(e) => e.stopPropagation()}>
+                      <div className="relative z-20" onClick={(e) => e.stopPropagation()}>
                         {isClientLoading ? (
                           <Skeleton className="h-6 w-6 shrink-0" />
                         ) : (
