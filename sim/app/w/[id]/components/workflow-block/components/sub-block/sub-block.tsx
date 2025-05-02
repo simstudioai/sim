@@ -210,15 +210,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
               <TooltipTrigger asChild>
                 <Info className="h-4 w-4 text-muted-foreground cursor-pointer" />
               </TooltipTrigger>
-<<<<<<< HEAD
-<<<<<<< HEAD
               <TooltipContent side="top" className="max-w-[400px] select-text whitespace-pre-wrap">
-=======
-              <TooltipContent side="top" className="max-w-[400px]">
->>>>>>> 9535d002 (added some documentation for chat ID)
-=======
-              <TooltipContent side="top" className="max-w-[400px] select-text whitespace-pre-wrap">
->>>>>>> 95c18073 (styling changes)
                 {config.description.split('\n').map((line, idx) => (
                   <p
                     key={idx}
