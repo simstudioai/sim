@@ -41,14 +41,26 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-    if (!data.ok) {
-      throw new Error(data.error || 'Clay API error')
+    const contentType = response.headers.get('content-type')
+    let data
+    
+    if (contentType?.includes('application/json')) {
+      data = await response.json()
+      if (!data.ok) {
+        throw new Error(data.error || 'Clay API error')
+      }
+    } else {
+      // Handle text response
+      data = await response.text()
+      if (data !== 'OK' && !response.ok) {
+        throw new Error(data || 'Clay API error')
+      }
     }
+
     return {
       success: true,
       output: {
-        data: data,
+        data: contentType?.includes('application/json') ? data : { message: data },
       },
     }
   },

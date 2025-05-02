@@ -21,10 +21,14 @@ export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
     },
     {
       id: 'data',
-      title: 'Data',
+      title: 'Data (JSON or Plain Text)',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter your data',
+      placeholder: 'Enter your JSON data to populate your Clay table',
+      description: `JSON vs. Plain Text:
+JSON: Best for populating multiple columns.
+Plain Text: Best for populating a table in free-form style.
+      `,
     },
     {
       id: 'apiKey',
