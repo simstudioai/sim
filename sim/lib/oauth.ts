@@ -417,12 +417,6 @@ export async function refreshOAuthToken(
         clientSecret = process.env.JIRA_CLIENT_SECRET
         useBasicAuth = true
         break
-      case 'jira':
-        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
-        clientId = process.env.JIRA_CLIENT_ID
-        clientSecret = process.env.JIRA_CLIENT_SECRET
-        useBasicAuth = true
-        break
       case 'airtable':
         tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
         clientId = process.env.AIRTABLE_CLIENT_ID

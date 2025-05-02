@@ -1,12 +1,9 @@
-import React, { useEffect } from 'react'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
-import { CodeBlock } from '@/components/ui/code-block'
 
 interface TelegramConfigProps {
   botToken: string
@@ -14,7 +11,7 @@ interface TelegramConfigProps {
   triggerPhrase: string
   setTriggerPhrase: (value: string) => void
   isLoadingToken: boolean
-  testResult: any // Define a more specific type if possible
+  testResult: any 
   copied: string | null
   copyToClipboard: (text: string, type: string) => void
   testWebhook?: () => void // Optional test function
@@ -35,9 +32,6 @@ export function TelegramConfig({
   webhookId,
   webhookUrl,
 }: TelegramConfigProps) {
-  const curlCommand = `curl -X POST "https://api.telegram.org/bot<your_bot_token>/setWebhook" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url": "${webhookUrl}", "allowed_updates": ["message"]}'`
 
   return (
     <div className="space-y-4">
