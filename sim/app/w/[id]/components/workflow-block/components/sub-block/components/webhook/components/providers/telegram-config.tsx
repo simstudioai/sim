@@ -1,12 +1,9 @@
-import React, { useEffect } from 'react'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
-import { CodeBlock } from '@/components/ui/code-block'
 
 interface TelegramConfigProps {
   botToken: string
