@@ -144,7 +144,7 @@ export class Executor {
    * @param workflowId - Unique identifier for the workflow execution
    * @returns Execution result containing output, logs, and metadata, or a stream, or combined execution and stream
    */
-  async execute(workflowId: string): Promise<ExecutionResult | ReadableStream | StreamingExecution> {
+  async execute(workflowId: string): Promise<ExecutionResult | StreamingExecution> {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
@@ -209,163 +209,157 @@ export class Executor {
           } else {
             const outputs = await this.executeLayer(nextLayer, context)
             
-            // Check if we got a streaming response from any block
+            // Check if we got a StreamingExecution response from any block
             const streamingOutput = outputs.find(output => 
-              output instanceof ReadableStream || 
-              (typeof output === 'object' && output !== null && 'stream' in output && 'executionData' in output)
+              typeof output === 'object' && output !== null && 
+              'stream' in output && 'execution' in output
             )
             
             if (streamingOutput) {
-              if (streamingOutput instanceof ReadableStream) {
-                logger.info('Returning direct ReadableStream from block')
-                return streamingOutput
-              } else if ('stream' in streamingOutput && 'executionData' in streamingOutput) {
-                // This is a combined response with both stream and execution data
-                logger.info('Found combined stream+execution response from block')
+              // This is a combined response with both stream and execution data
+              logger.info('Found combined stream+execution response from block')
+              
+              // Incorporate the execution data from the block into our context
+              const executionData = streamingOutput.execution
+              
+              // Add any logs from the execution data to our context
+              if (executionData.logs && Array.isArray(executionData.logs)) {
+                context.blockLogs.push(...executionData.logs)
+              }
+              
+              // Add proper console entry for the streaming block
+              // This ensures identical formatting between streamed and non-streamed outputs
+              if (executionData.output) {
+                const blockLog = executionData.logs?.find((log: BlockLog) => log.blockId === executionData.blockId)
+                const consoleStore = useConsoleStore.getState()
                 
-                // Incorporate the execution data from the block into our context
-                const executionData = streamingOutput.executionData
-                
-                // Add any logs from the execution data to our context
-                if (executionData.logs && Array.isArray(executionData.logs)) {
-                  context.blockLogs.push(...executionData.logs)
+                // Create a complete console entry with the full output structure, not the raw streaming object
+                const consoleEntry = {
+                  output: executionData.output, // Use just the output, not the whole streaming structure
+                  durationMs: blockLog?.durationMs || executionData.metadata?.duration || 0,
+                  startedAt: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                  endedAt: blockLog?.endedAt || executionData.metadata?.endTime || new Date().toISOString(),
+                  workflowId: context.workflowId,
+                  timestamp: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                  blockId: executionData.blockId,
+                  blockName: executionData.blockName || blockLog?.blockName || 'Agent Block',
+                  blockType: executionData.blockType || blockLog?.blockType || 'agent'
                 }
                 
-                // Add proper console entry for the streaming block
-                // This ensures identical formatting between streamed and non-streamed outputs
-                if (executionData.output) {
-                  const blockLog = executionData.logs?.find((log: BlockLog) => log.blockId === executionData.blockId)
-                  const consoleStore = useConsoleStore.getState()
+                // Add to console
+                const newEntry = consoleStore.addConsole(consoleEntry)
+                
+                // Save the entryId for potential updates when stream completes
+                const consoleEntryId = newEntry?.id
+                
+                // Set up a stream completion handler to update the console with final content
+                if (consoleEntryId && 'stream' in streamingOutput) {
+                  // Clone the stream so we don't consume the original one
+                  const originalStream = streamingOutput.stream
+                  const [contentStream, returnStream] = originalStream.tee()
                   
-                  // Create a complete console entry with the full output structure, not the raw streaming object
-                  const consoleEntry = {
-                    output: executionData.output, // Use just the output, not the whole streaming structure
-                    durationMs: blockLog?.durationMs || executionData.metadata?.duration || 0,
-                    startedAt: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
-                    endedAt: blockLog?.endedAt || executionData.metadata?.endTime || new Date().toISOString(),
-                    workflowId: context.workflowId,
-                    timestamp: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
-                    blockId: executionData.blockId,
-                    blockName: executionData.blockName || blockLog?.blockName || 'Agent Block',
-                    blockType: executionData.blockType || blockLog?.blockType || 'agent'
-                  }
+                  // Replace the original stream with our cloned version that will be returned
+                  streamingOutput.stream = returnStream
                   
-                  // Add to console
-                  const newEntry = consoleStore.addConsole(consoleEntry)
+                  // Create a reader to process the cloned stream for content collection
+                  const reader = contentStream.getReader()
+                  const decoder = new TextDecoder()
+                  let fullContent = '';
                   
-                  // Save the entryId for potential updates when stream completes
-                  const consoleEntryId = newEntry?.id
-                  
-                  // Set up a stream completion handler to update the console with final content
-                  if (consoleEntryId && 'stream' in streamingOutput) {
-                    // Clone the stream so we don't consume the original one
-                    const originalStream = streamingOutput.stream
-                    const [contentStream, returnStream] = originalStream.tee()
-                    
-                    // Replace the original stream with our cloned version that will be returned
-                    streamingOutput.stream = returnStream
-                    
-                    // Create a reader to process the cloned stream for content collection
-                    const reader = contentStream.getReader()
-                    const decoder = new TextDecoder()
-                    let fullContent = '';
-                    
-                    // Process the stream in the background to collect the full content
-                    (async () => {
-                      try {
-                        while (true) {
-                          const { done, value } = await reader.read()
-                          if (done) break
-                          const chunk = decoder.decode(value, { stream: true })
-                          fullContent += chunk
-                        }
-                        // Once stream is complete, update the console entry with the final content
-                        if (fullContent.length > 0 && executionData.output?.response) {
-                          const updatedOutput = {
-                            ...executionData.output,
-                            response: {
-                              ...executionData.output.response,
-                              content: fullContent
-                            }
-                          }
-                          
-                          // Update the console UI with the final content
-                          consoleStore.updateConsole(consoleEntryId, { output: updatedOutput })
-                          
-                          // Update the execution data itself with the final content 
-                          // so that when logs are persisted, they have the complete content
-                          executionData.output.response.content = fullContent
-
-                          // If there's a block log for this execution, update it with the final content
-                          if (executionData.blockId) {
-                            const blockLog = context.blockLogs.find(log => log.blockId === executionData.blockId)
-                            if (blockLog?.output?.response) {
-                              blockLog.output.response.content = fullContent
-                            }
-                          }
-                        }
-                      } catch (e) {
-                        logger.error('Error processing stream for console update:', e)
+                  // Process the stream in the background to collect the full content
+                  (async () => {
+                    try {
+                      while (true) {
+                        const { done, value } = await reader.read()
+                        if (done) break
+                        const chunk = decoder.decode(value, { stream: true })
+                        fullContent += chunk
                       }
-                    })()
-                  }
-                }
-                
-                // Build a complete execution result with our context's logs
-                const execution: ExecutionResult & { isStreaming: boolean } = {
-                  success: executionData.success !== false,
-                  output: executionData.output || { response: {} },
-                  error: executionData.error,
-                  logs: context.blockLogs,
-                  metadata: {
-                    duration: Date.now() - startTime.getTime(),
-                    startTime: context.metadata.startTime!,
-                    endTime: new Date().toISOString(),
-                    workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
-                      source: conn.source,
-                      target: conn.target,
-                    })),
-                  },
-                  isStreaming: true,
-                }
-                
-                // Add block metadata to logs if missing
-                if (context.blockLogs.length > 0) {
-                  for (const log of context.blockLogs) {
-                    if (!log.output) log.output = { response: {} }
-                    
-                    // For blocks matching the streaming block, ensure we add response and content properly
-                    if (log.blockId === executionData.blockId) {
-                      if (!log.output.response) log.output.response = {}
-                      
-                      // Add the output structure, preferring direct response content if available
-                      if (executionData.output?.response) {
-                        // Copy all properties from executionData response
-                        Object.assign(log.output.response, executionData.output.response)
-                        
-                        // For streaming, we may not have content yet, so we store a placeholder
-                        // that will be updated when the stream completes
-                        if (!log.output.response.content && executionData.output.response.content) {
-                          log.output.response.content = executionData.output.response.content
+                      // Once stream is complete, update the console entry with the final content
+                      if (fullContent.length > 0 && executionData.output?.response) {
+                        const updatedOutput = {
+                          ...executionData.output,
+                          response: {
+                            ...executionData.output.response,
+                            content: fullContent
+                          }
                         }
+                        
+                        // Update the console UI with the final content
+                        consoleStore.updateConsole(consoleEntryId, { output: updatedOutput })
+                        
+                        // Update the execution data itself with the final content 
+                        // so that when logs are persisted, they have the complete content
+                        executionData.output.response.content = fullContent
+
+                        // If there's a block log for this execution, update it with the final content
+                        if (executionData.blockId) {
+                          const blockLog = context.blockLogs.find(log => log.blockId === executionData.blockId)
+                          if (blockLog?.output?.response) {
+                            blockLog.output.response.content = fullContent
+                          }
+                        }
+                      }
+                    } catch (e) {
+                      logger.error('Error processing stream for console update:', e)
+                    }
+                  })()
+                }
+              }
+              
+              // Build a complete execution result with our context's logs
+              const execution: ExecutionResult & { isStreaming: boolean } = {
+                success: executionData.success !== false,
+                output: executionData.output || { response: {} },
+                error: executionData.error,
+                logs: context.blockLogs,
+                metadata: {
+                  duration: Date.now() - startTime.getTime(),
+                  startTime: context.metadata.startTime!,
+                  endTime: new Date().toISOString(),
+                  workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+                    source: conn.source,
+                    target: conn.target,
+                  })),
+                },
+                isStreaming: true,
+              }
+              
+              // Add block metadata to logs if missing
+              if (context.blockLogs.length > 0) {
+                for (const log of context.blockLogs) {
+                  if (!log.output) log.output = { response: {} }
+                  
+                  // For blocks matching the streaming block, ensure we add response and content properly
+                  if (log.blockId === executionData.blockId) {
+                    if (!log.output.response) log.output.response = {}
+                    
+                    // Add the output structure, preferring direct response content if available
+                    if (executionData.output?.response) {
+                      // Copy all properties from executionData response
+                      Object.assign(log.output.response, executionData.output.response)
+                      
+                      // For streaming, we may not have content yet, so we store a placeholder
+                      // that will be updated when the stream completes
+                      if (!log.output.response.content && executionData.output.response.content) {
+                        log.output.response.content = executionData.output.response.content
                       }
                     }
                   }
                 }
-                
-                // Return a properly formed StreamingExecution object
-                return {
-                  stream: streamingOutput.stream,
-                  execution,
-                }
+              }
+              
+              // Return a properly formed StreamingExecution object
+              return {
+                stream: streamingOutput.stream,
+                execution,
               }
             }
 
             if (outputs.length > 0) {
-              // Ensure we're not dealing with a ReadableStream or stream+execution (already handled above)
+              // Filter out StreamingExecution objects (already handled above)
               const normalizedOutputs = outputs.filter(output => 
-                !(output instanceof ReadableStream) &&
-                !(typeof output === 'object' && output !== null && 'stream' in output && 'executionData' in output)
+                !(typeof output === 'object' && output !== null && 'stream' in output && 'execution' in output)
               )
               if (normalizedOutputs.length > 0) {
                 finalOutput = normalizedOutputs[normalizedOutputs.length - 1] as NormalizedBlockOutput

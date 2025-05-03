@@ -21,7 +21,7 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput | ReadableStream> {
+  ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing agent block: ${block.id}`)
 
     // Check for null values and try to resolve from environment variables
@@ -299,10 +299,11 @@ export class AgentBlockHandler implements BlockHandler {
             }
             
             // Return both the stream and the execution data as separate properties
-            return {
+            const streamingExecution: StreamingExecution = {
               stream: response.body,
-              executionData
+              execution: executionData
             };
+            return streamingExecution;
           } catch (error) {
             logger.error(`Error parsing execution data header: ${error}`);
             // Continue with just the stream if there's an error
@@ -310,7 +311,20 @@ export class AgentBlockHandler implements BlockHandler {
         }
         
         // No execution data in header, just return the stream
-        return response.body;
+        // Create a minimal StreamingExecution with empty execution data
+        const minimalExecution: StreamingExecution = {
+          stream: response.body,
+          execution: {
+            success: true,
+            output: { response: {} },
+            logs: [],
+            metadata: {
+              duration: 0,
+              startTime: new Date().toISOString()
+            }
+          }
+        };
+        return minimalExecution;
       }
       
       // Check if we have a combined response with both stream and execution data
@@ -318,9 +332,6 @@ export class AgentBlockHandler implements BlockHandler {
       
       if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
         logger.info(`Received combined streaming response for block ${block.id}`);
-        
-        // Extract the execution data for block logs
-        const executionData = result.execution;
         
         // Get the stream as a ReadableStream (need to convert from serialized format)
         const stream = new ReadableStream({
@@ -334,10 +345,11 @@ export class AgentBlockHandler implements BlockHandler {
         });
         
         // Return both in a format the executor can handle
-        return {
+        const streamingExecution: StreamingExecution = {
           stream,
-          executionData
+          execution: result.execution
         };
+        return streamingExecution;
       }
 
       logger.info(`Provider response received`, {

@@ -77,13 +77,21 @@ export const useConsoleStore = create<ConsoleStore>()(
               (typeof entry.output === 'object' && entry.output && entry.output.isStreaming === true) ||
               (typeof entry.output === 'object' && entry.output && 'executionData' in entry.output &&
                typeof entry.output.executionData === 'object' && entry.output.executionData?.isStreaming === true) ||
-              (typeof entry.output === 'object' && entry.output && 'stream' in entry.output)
+              (typeof entry.output === 'object' && entry.output && 'stream' in entry.output) ||
+              (typeof entry.output === 'object' && entry.output && 
+               'stream' in entry.output && 'execution' in entry.output)
 
             // Skip adding raw streaming objects that have both stream and executionData
-            // These are the internal streaming structures that would cause duplicate logs
             if (typeof entry.output === 'object' && entry.output && 
                 'stream' in entry.output && 'executionData' in entry.output) {
               // Don't add this entry - it will be processed by our explicit formatting code in executor/index.ts
+              return { entries: state.entries };
+            }
+
+            // Also skip raw StreamingExecution objects (with stream and execution properties)
+            if (typeof entry.output === 'object' && entry.output && 
+                'stream' in entry.output && 'execution' in entry.output) {
+              // Don't add this entry to prevent duplicate console entries for streaming responses
               return { entries: state.entries };
             }
 

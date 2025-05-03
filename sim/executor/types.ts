@@ -165,13 +165,13 @@ export interface BlockHandler {
    * @param block - Block to execute
    * @param inputs - Resolved input parameters
    * @param context - Current execution context
-   * @returns Block execution output or ReadableStream for streaming
+   * @returns Block execution output or StreamingExecution for streaming
    */
   execute(
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput | ReadableStream>
+  ): Promise<BlockOutput | StreamingExecution>
 }
 
 /**
