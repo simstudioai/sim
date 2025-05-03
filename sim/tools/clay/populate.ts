@@ -9,11 +9,11 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
   version: '1.0.0',
 
   params: {
-    webhookId: {
+    webhookURL: {
       type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: 'The webhook ID to populate',
+      description: 'The webhook URL to populate',
     },
     data: {
       type: 'json',
@@ -29,7 +29,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
   },
 
   request: {
-    url: (params: ClayPopulateParams) => params.webhookId,
+    url: (params: ClayPopulateParams) => params.webhookURL,
     method: 'POST',
     headers: (params: ClayPopulateParams) => ({
       'Content-Type': 'application/json',

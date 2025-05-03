@@ -1,7 +1,7 @@
 import { ToolResponse } from "../types"
 
 export interface ClayPopulateParams {
-    webhookId: string
+    webhookURL: string
     data: JSON
     authToken?: string
 }
