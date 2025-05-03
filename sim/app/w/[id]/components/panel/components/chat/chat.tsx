@@ -227,7 +227,13 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   cost: costData,
                   // Update the message to include the formatted content
                   logs: (executionResult.logs || []).map((log: BlockLog) => {
-                    if (log.blockType === 'agent' && log.output?.response) {
+                    // Check if this is the streaming block by comparing with the selected output IDs
+                    // Selected output IDs typically include the block ID we are streaming from
+                    const isStreamingBlock = selectedOutputs.some(outputId => 
+                      outputId === log.blockId || outputId.startsWith(`${log.blockId}_`)
+                    )
+                    
+                    if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
                       return {
                         ...log,
                         output: {

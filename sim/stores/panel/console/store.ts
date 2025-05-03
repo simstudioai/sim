@@ -85,14 +85,14 @@ export const useConsoleStore = create<ConsoleStore>()(
             if (typeof entry.output === 'object' && entry.output && 
                 'stream' in entry.output && 'executionData' in entry.output) {
               // Don't add this entry - it will be processed by our explicit formatting code in executor/index.ts
-              return { entries: state.entries };
+              return { entries: state.entries }
             }
 
             // Also skip raw StreamingExecution objects (with stream and execution properties)
             if (typeof entry.output === 'object' && entry.output && 
                 'stream' in entry.output && 'execution' in entry.output) {
               // Don't add this entry to prevent duplicate console entries for streaming responses
-              return { entries: state.entries };
+              return { entries: state.entries }
             }
 
             // Create a new entry with redacted API keys (if not a stream)
@@ -108,7 +108,7 @@ export const useConsoleStore = create<ConsoleStore>()(
               ...redactedEntry, 
               id: crypto.randomUUID(), 
               timestamp: new Date().toISOString() 
-            };
+            }
 
             // Keep only the last MAX_ENTRIES
             const newEntries = [
@@ -118,7 +118,7 @@ export const useConsoleStore = create<ConsoleStore>()(
 
             // If the block produced a streaming output, skip automatic chat message creation
             if (isStreamingOutput) {
-              return { entries: newEntries };
+              return { entries: newEntries }
             }
 
             // Check if this block matches a selected workflow output
@@ -153,7 +153,7 @@ export const useConsoleStore = create<ConsoleStore>()(
                     if (isStreamingOutput) {
                       // Skip adding a message since we'll handle streaming in workflow execution
                       // This prevents the "Output value not found" message for streams
-                      continue;
+                      continue
                     } else if (specificValue === undefined) {
                       formattedValue = "Output value not found"
                     } else if (typeof specificValue === 'object') {
@@ -164,7 +164,7 @@ export const useConsoleStore = create<ConsoleStore>()(
                     
                     // Skip empty content messages (important for preventing empty entries)
                     if (!formattedValue || formattedValue.trim() === '') {
-                      continue;
+                      continue
                     }
                     
                     // Add the specific value to chat, not the whole output
@@ -180,11 +180,11 @@ export const useConsoleStore = create<ConsoleStore>()(
               }
             }
 
-            return { entries: newEntries };
-          });
+            return { entries: newEntries }
+          })
           
           // Return the created entry by finding it in the updated store
-          return get().entries[0];
+          return get().entries[0]
         },
 
         clearConsole: (workflowId: string | null) => {
@@ -211,12 +211,12 @@ export const useConsoleStore = create<ConsoleStore>()(
                   ...entry,
                   ...updatedData,
                   output: updatedData.output ? redactApiKeys(updatedData.output) : entry.output,
-                };
+                }
               }
-              return entry;
-            });
-            return { entries: updatedEntries };
-          });
+              return entry
+            })
+            return { entries: updatedEntries }
+          })
         },
       }),
       {

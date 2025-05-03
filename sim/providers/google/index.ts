@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment, StreamingExecution } from '../types'
+import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('Google Provider')
 

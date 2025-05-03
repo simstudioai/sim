@@ -93,9 +93,9 @@ describe('AgentBlockHandler', () => {
         ok: true,
         headers: {
           get: (name: string) => {
-            if (name === 'Content-Type') return 'application/json';
-            if (name === 'X-Execution-Data') return null;
-            return null;
+            if (name === 'Content-Type') return 'application/json'
+            if (name === 'X-Execution-Data') return null
+            return null
           }
         },
         json: () =>
@@ -219,9 +219,9 @@ describe('AgentBlockHandler', () => {
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'application/json';
-              if (name === 'X-Execution-Data') return null;
-              return null;
+              if (name === 'Content-Type') return 'application/json'
+              if (name === 'X-Execution-Data') return null
+              return null
             }
           },
           json: () =>
@@ -657,9 +657,9 @@ describe('AgentBlockHandler', () => {
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'application/json';
-              if (name === 'X-Execution-Data') return null;
-              return null;
+              if (name === 'Content-Type') return 'application/json'
+              if (name === 'X-Execution-Data') return null
+              return null
             }
           },
           json: () =>
@@ -698,9 +698,9 @@ describe('AgentBlockHandler', () => {
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'application/json';
-              if (name === 'X-Execution-Data') return null;
-              return null;
+              if (name === 'Content-Type') return 'application/json'
+              if (name === 'X-Execution-Data') return null
+              return null
             }
           },
           json: () =>
@@ -766,21 +766,21 @@ describe('AgentBlockHandler', () => {
         getReader: vi.fn().mockReturnValue({
           read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         }),
-      };
+      }
       
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'text/event-stream';
-              if (name === 'X-Execution-Data') return null;
-              return null;
+              if (name === 'Content-Type') return 'text/event-stream'
+              if (name === 'X-Execution-Data') return null
+              return null
             }
           },
           body: mockStreamBody,
         })
-      });
+      })
 
       const inputs = {
         model: 'gpt-4o',
@@ -789,18 +789,18 @@ describe('AgentBlockHandler', () => {
         stream: true,
       }
 
-      mockContext.stream = true;
-      mockContext.selectedOutputIds = [mockBlock.id];
+      mockContext.stream = true
+      mockContext.selectedOutputIds = [mockBlock.id]
       
-      const result = await handler.execute(mockBlock, inputs, mockContext);
+      const result = await handler.execute(mockBlock, inputs, mockContext)
       
-      expect(result).toHaveProperty('stream');
-      expect(result).toHaveProperty('execution');
+      expect(result).toHaveProperty('stream')
+      expect(result).toHaveProperty('execution')
       
-      expect((result as StreamingExecution).execution).toHaveProperty('success', true);
-      expect((result as StreamingExecution).execution).toHaveProperty('output');
-      expect((result as StreamingExecution).execution.output).toHaveProperty('response');
-      expect((result as StreamingExecution).execution).toHaveProperty('logs');
+      expect((result as StreamingExecution).execution).toHaveProperty('success', true)
+      expect((result as StreamingExecution).execution).toHaveProperty('output')
+      expect((result as StreamingExecution).execution.output).toHaveProperty('response')
+      expect((result as StreamingExecution).execution).toHaveProperty('logs')
     })
 
     it('should handle streaming responses with execution data in header', async () => {
@@ -808,7 +808,7 @@ describe('AgentBlockHandler', () => {
         getReader: vi.fn().mockReturnValue({
           read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         }),
-      };
+      }
       
       const mockExecutionData = {
         success: true,
@@ -826,21 +826,21 @@ describe('AgentBlockHandler', () => {
           startTime: new Date().toISOString(),
           duration: 100,
         }
-      };
+      }
       
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'text/event-stream';
-              if (name === 'X-Execution-Data') return JSON.stringify(mockExecutionData);
-              return null;
+              if (name === 'Content-Type') return 'text/event-stream'
+              if (name === 'X-Execution-Data') return JSON.stringify(mockExecutionData)
+              return null
             }
           },
           body: mockStreamBody,
         })
-      });
+      })
 
       const inputs = {
         model: 'gpt-4o',
@@ -849,29 +849,29 @@ describe('AgentBlockHandler', () => {
         stream: true,
       }
 
-      mockContext.stream = true;
-      mockContext.selectedOutputIds = [mockBlock.id];
+      mockContext.stream = true
+      mockContext.selectedOutputIds = [mockBlock.id]
       
-      const result = await handler.execute(mockBlock, inputs, mockContext);
+      const result = await handler.execute(mockBlock, inputs, mockContext)
       
-      expect(result).toHaveProperty('stream');
-      expect(result).toHaveProperty('execution');
+      expect(result).toHaveProperty('stream')
+      expect(result).toHaveProperty('execution')
       
-      expect((result as StreamingExecution).execution.success).toBe(true);
-      expect((result as StreamingExecution).execution.output.response.model).toBe('mock-model');
-      const logs = (result as StreamingExecution).execution.logs;
-      expect(logs?.length).toBe(1);
+      expect((result as StreamingExecution).execution.success).toBe(true)
+      expect((result as StreamingExecution).execution.output.response.model).toBe('mock-model')
+      const logs = (result as StreamingExecution).execution.logs
+      expect(logs?.length).toBe(1)
       if (logs && logs.length > 0 && logs[0]) {
-        expect(logs[0].blockType).toBe('agent');
+        expect(logs[0].blockType).toBe('agent')
       }
     })
 
     it('should handle combined stream+execution responses', async () => {
       const mockStreamObj = new ReadableStream({
         start(controller) {
-          controller.close();
+          controller.close()
         }
-      });
+      })
 
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
@@ -898,7 +898,7 @@ describe('AgentBlockHandler', () => {
             }
           })
         })
-      });
+      })
 
       const inputs = {
         model: 'gpt-4o',
@@ -907,17 +907,17 @@ describe('AgentBlockHandler', () => {
         stream: true,
       }
 
-      mockContext.stream = true;
-      mockContext.selectedOutputIds = [mockBlock.id];
+      mockContext.stream = true
+      mockContext.selectedOutputIds = [mockBlock.id]
       
-      const result = await handler.execute(mockBlock, inputs, mockContext);
+      const result = await handler.execute(mockBlock, inputs, mockContext)
       
-      expect(result).toHaveProperty('stream');
-      expect(result).toHaveProperty('execution');
+      expect(result).toHaveProperty('stream')
+      expect(result).toHaveProperty('execution')
       
-      expect((result as StreamingExecution).execution.success).toBe(true);
-      expect((result as StreamingExecution).execution.output.response.content).toBe('Test streaming content');
-      expect((result as StreamingExecution).execution.output.response.model).toBe('gpt-4o');
+      expect((result as StreamingExecution).execution.success).toBe(true)
+      expect((result as StreamingExecution).execution.output.response.content).toBe('Test streaming content')
+      expect((result as StreamingExecution).execution.output.response.model).toBe('gpt-4o')
     })
   })
 })

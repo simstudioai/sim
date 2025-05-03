@@ -78,8 +78,8 @@ export function buildTraceSpans(result: ExecutionResult): {
             index: number
           ) => {
             // Ensure we have valid startTime and endTime
-            let segmentStart: number;
-            let segmentEnd: number;
+            let segmentStart: number
+            let segmentEnd: number
             
             // Handle different time formats - some providers use ISO strings, some use timestamps
             if (typeof segment.startTime === 'string') {
@@ -105,8 +105,8 @@ export function buildTraceSpans(result: ExecutionResult): {
             // For streaming responses, make sure our timing is valid
             if (isNaN(segmentStart) || isNaN(segmentEnd) || segmentEnd < segmentStart) {
               // Use fallback values
-              segmentStart = segmentStartTime + (index * 1000);
-              segmentEnd = segmentStart + (segment.duration || 1000);
+              segmentStart = segmentStartTime + (index * 1000)
+              segmentEnd = segmentStart + (segment.duration || 1000)
             }
             
             const childSpan: TraceSpan = {
@@ -190,18 +190,18 @@ export function buildTraceSpans(result: ExecutionResult): {
       // 3. Streaming response formats with executionData
 
       // Check all possible paths for toolCalls
-      let toolCallsList = null;
+      let toolCallsList = null
 
       if (log.output?.response?.toolCalls?.list) {
         // Standard format with list property
-        toolCallsList = log.output.response.toolCalls.list;
+        toolCallsList = log.output.response.toolCalls.list
       } else if (Array.isArray(log.output?.response?.toolCalls)) {
         // Direct array format
-        toolCallsList = log.output.response.toolCalls;
+        toolCallsList = log.output.response.toolCalls
       } else if (log.output?.executionData?.output?.response?.toolCalls) {
         // Streaming format with executionData
-        const tcObj = log.output.executionData.output.response.toolCalls;
-        toolCallsList = Array.isArray(tcObj) ? tcObj : (tcObj.list || []);
+        const tcObj = log.output.executionData.output.response.toolCalls
+        toolCallsList = Array.isArray(tcObj) ? tcObj : (tcObj.list || [])
       }
 
       if (toolCallsList && toolCallsList.length > 0) {
@@ -214,7 +214,7 @@ export function buildTraceSpans(result: ExecutionResult): {
           input: tc.arguments || tc.input,
           output: tc.result || tc.output,
           error: tc.error,
-        }));
+        }))
       }
     }
 

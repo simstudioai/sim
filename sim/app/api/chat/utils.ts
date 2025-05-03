@@ -418,34 +418,84 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   
   // Handle StreamingExecution format (combined stream + execution data)
   if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
-    // Persist execution logs in the background
-    (async () => {
+    // We need to stream the response to the client while *also* capturing the full
+    // content so that we can persist accurate logs once streaming completes.
+
+    // Duplicate the original stream – one copy goes to the client, the other we read
+    // server-side for log enrichment.
+    const [clientStream, loggingStream] = (result.stream as ReadableStream).tee()
+
+    // Kick off background processing to read the stream and persist enriched logs
+    ;(async () => {
       try {
-        // Build trace spans to enrich the logs (same as below)
-        const { traceSpans, totalDuration } = buildTraceSpans(result.execution)
-        
-        // Create enriched result with trace data
+        const reader = loggingStream.getReader()
+        const decoder = new TextDecoder()
+        let rawData = ''
+
+        // Read the entire stream
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          rawData += decoder.decode(value, { stream: true })
+        }
+
+        // Extract the final content from the SSE payload
+        // The stream is expected to be text/event-stream where each line begins with "data: "
+        let finalContent = ''
+        for (const line of rawData.split('\n')) {
+          const trimmed = line.trim()
+          if (!trimmed.startsWith('data:')) continue
+          const payload = trimmed.slice(5).trim()
+          if (payload === '[DONE]') continue
+          try {
+            const json = JSON.parse(payload)
+            // For OpenAI-style responses
+            if (json.choices && json.choices[0]?.delta?.content) {
+              finalContent += json.choices[0].delta.content
+            } else if (json.content) {
+              // Generic content field fallback
+              finalContent += json.content
+            }
+          } catch {
+            // Ignore lines that are not JSON
+          }
+        }
+
+        // Update execution data with the full content
+        const executionData = result.execution as any
+        if (!executionData.output) executionData.output = {}
+        if (!executionData.output.response) executionData.output.response = {}
+        executionData.output.response.content = finalContent
+
+        // Also update the *specific* agent block that produced the streaming output.
+        const streamingBlockId = executionData.blockId
+        if (streamingBlockId && Array.isArray(executionData.logs)) {
+          const streamingLog = executionData.logs.find(
+            (log: any) => log.blockId === streamingBlockId && log.blockType === 'agent'
+          )
+          if (streamingLog?.output?.response) {
+            streamingLog.output.response.content = finalContent
+          }
+        }
+
+        // Build trace spans and persist
+        const { traceSpans, totalDuration } = buildTraceSpans(executionData)
         const enrichedResult = {
-          ...result.execution,
+          ...executionData,
           traceSpans,
           totalDuration,
         }
-        
-        // Generate a unique execution ID for this chat interaction
+
         const executionId = uuidv4()
-        
-        // Persist the logs with 'chat' trigger type
         await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
-        
         logger.debug(`[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}`)
       } catch (error) {
-        // Don't fail the chat response if logging fails
         logger.error(`[${requestId}] Failed to persist streaming chat execution logs:`, error)
       }
-    })();
-    
-    // Forward just the stream component to the client
-    return result.stream
+    })()
+
+    // Return the client-facing stream
+    return clientStream
   }
   
   // Mark as chat execution in metadata

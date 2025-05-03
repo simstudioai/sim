@@ -61,8 +61,13 @@ export function useWorkflowExecution() {
         
         // Also update any block logs to include the content where appropriate
         if (enrichedResult.logs) {
+          // Get the streaming block ID from metadata if available
+          const streamingBlockId = (result.metadata as any)?.streamingBlockId || null;
+
           for (const log of enrichedResult.logs) {
-            if (log.blockType === 'agent' && log.output?.response) {
+            // Only update the specific agent block that was streamed
+            const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId;
+            if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
               log.output.response.content = streamContent
             }
           }
@@ -223,11 +228,25 @@ export function useWorkflowExecution() {
         // the chat component can persist the logs *after* the stream finishes.
         const executionId = uuidv4()
 
+        // Determine which block is streaming - typically the one that matches a selected output ID
+        let streamingBlockId = null;
+        if (selectedOutputIds && selectedOutputIds.length > 0 && result.execution.logs) {
+          // Find the agent block in the logs that matches one of our selected outputs
+          const streamingBlock = result.execution.logs.find(log => 
+            log.blockType === 'agent' && selectedOutputIds.some(id => id === log.blockId || id.startsWith(`${log.blockId}_`))
+          );
+          if (streamingBlock) {
+            streamingBlockId = streamingBlock.blockId;
+            logger.info(`Identified streaming block: ${streamingBlockId}`);
+          }
+        }
+
         // Attach streaming / source metadata and the newly generated executionId
         result.execution.metadata = {
           ...(result.execution.metadata || {}),
           executionId,
           source: isChatExecution ? 'chat' : 'manual',
+          streamingBlockId, // Add the block ID to the metadata
         } as any
 
         // Mark the execution as streaming so that downstream code can recognise it

@@ -1,7 +1,5 @@
 import { StreamingExecution } from '@/executor/types'
 
-export type { StreamingExecution }
-
 export type ProviderId =
   | 'openai'
   | 'anthropic'
