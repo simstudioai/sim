@@ -17,8 +17,6 @@ import { calculateCost } from '@/providers/utils'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('chat')
-
 interface ChatProps {
   panelWidth: number
   chatMessage: string
@@ -183,7 +181,6 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             // Calculate cost based on token usage if available
             let costData = undefined
             if (executionResult.output?.response?.tokens) {
-              logger.info('Calculating cost for chat response')
               const tokens = executionResult.output.response.tokens
               const model = executionResult.output?.response?.model || 'gpt-4o'
               const cost = calculateCost(
@@ -194,7 +191,6 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
               )
               costData = { ...cost, model } as any
             }
-            logger.info('Cost data:', costData)
             
             // Build trace spans and total duration before persisting
             const { traceSpans, totalDuration } = buildTraceSpans(executionResult as any)

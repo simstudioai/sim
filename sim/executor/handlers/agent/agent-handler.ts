@@ -175,15 +175,6 @@ export class AgentBlockHandler implements BlockHandler {
     // Check if this block has any outgoing connections
     const hasOutgoingConnections = context.edges?.some(edge => edge.source === block.id) ?? false
     
-    // Log detailed information about streaming decision
-    logger.info(`Streaming decision for block ${block.id}:`, {
-      stream: context.stream,
-      isBlockSelectedForOutput,
-      hasOutgoingConnections,
-      selectedOutputIds: context.selectedOutputIds,
-      shouldUseStreaming: context.stream && isBlockSelectedForOutput && !hasOutgoingConnections
-    })
-    
     // Determine if we should use streaming for this block
     const shouldUseStreaming = context.stream && 
                               isBlockSelectedForOutput && 

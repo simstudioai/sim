@@ -393,7 +393,6 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
   )
   
   // Create and execute the workflow - mimicking use-workflow-execution.ts
-  // Enable streaming support by passing context extensions similar to the chat panel implementation
   const executor = new Executor({
     workflow: serializedWorkflow,
     currentBlockStates: processedBlockStates,
