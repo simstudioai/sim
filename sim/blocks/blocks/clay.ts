@@ -5,19 +5,19 @@ import { BlockConfig } from '../types'
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   type: 'clay',
   name: 'Clay',
-  description: 'Populate Clay with data',
+  description: 'Populate Clay workbook with data',
   longDescription:
-    'Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation.',
+    'Populate Clay workbook with data using a JSON or plain text. Enables direct communication and notifications with channel confirmation.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: ClayIcon,
   subBlocks: [
     {
-      id: 'webhookId',
-      title: 'Webhook ID',
+      id: 'webhookURL',
+      title: 'Webhook URL',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter Clay webhook ID',
+      placeholder: 'Enter Clay webhook URL',
     },
     {
       id: 'data',
@@ -31,7 +31,7 @@ Plain Text: Best for populating a table in free-form style.
       `,
     },
     {
-      id: 'apiKey',
+      id: 'authToken',
       title: 'Auth Token',
       type: 'short-input',
       layout: 'full',
@@ -44,8 +44,8 @@ Plain Text: Best for populating a table in free-form style.
     access: ['clay_populate'],
   },
   inputs: {
-    apiKey: { type: 'string', required: false },
-    webhookId: { type: 'string', required: true },
+    authToken: { type: 'string', required: true },
+    webhookURL: { type: 'string', required: true },
     data: { type: 'json', required: true },
   },
   outputs: {
