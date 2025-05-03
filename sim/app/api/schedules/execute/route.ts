@@ -305,13 +305,19 @@ export async function GET(req: NextRequest) {
         )
         const result = await executor.execute(schedule.workflowId)
 
+        // Check if we got a StreamingExecution result (with stream + execution properties)
+        // For scheduled executions, we only care about the ExecutionResult part, not the stream
+        const executionResult = 'stream' in result && 'execution' in result 
+          ? result.execution 
+          : result
+
         logger.info(`[${requestId}] Workflow execution completed: ${schedule.workflowId}`, {
-          success: result.success,
-          executionTime: result.metadata?.duration,
+          success: executionResult.success,
+          executionTime: executionResult.metadata?.duration,
         })
 
         // Update workflow run counts if execution was successful
-        if (result.success) {
+        if (executionResult.success) {
           await updateWorkflowRunCounts(schedule.workflowId)
 
           // Track scheduled execution in user stats
@@ -325,11 +331,11 @@ export async function GET(req: NextRequest) {
         }
 
         // Build trace spans from execution logs
-        const { traceSpans, totalDuration } = buildTraceSpans(result)
+        const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
         // Add trace spans to the execution result
         const enrichedResult = {
-          ...result,
+          ...executionResult,
           traceSpans,
           totalDuration,
         }
@@ -338,7 +344,7 @@ export async function GET(req: NextRequest) {
         await persistExecutionLogs(schedule.workflowId, executionId, enrichedResult, 'schedule')
 
         // Only update next_run_at if execution was successful
-        if (result.success) {
+        if (executionResult.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
           // Calculate the next run time based on the schedule configuration
           const nextRunAt = calculateNextRunTime(schedule, blocks)

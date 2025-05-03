@@ -236,13 +236,19 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     const result = await executor.execute(workflowId)
 
+    // Check if we got a StreamingExecution result (with stream + execution properties)
+    // For API routes, we only care about the ExecutionResult part, not the stream
+    const executionResult = 'stream' in result && 'execution' in result 
+      ? result.execution 
+      : result
+
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
-      success: result.success,
-      executionTime: result.metadata?.duration,
+      success: executionResult.success,
+      executionTime: executionResult.metadata?.duration,
     })
 
     // Update workflow run counts if execution was successful
-    if (result.success) {
+    if (executionResult.success) {
       await updateWorkflowRunCounts(workflowId)
 
       // Track API call in user stats
@@ -256,11 +262,11 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     }
 
     // Build trace spans from execution logs
-    const { traceSpans, totalDuration } = buildTraceSpans(result)
+    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
     // Add trace spans to the execution result
     const enrichedResult = {
-      ...result,
+      ...executionResult,
       traceSpans,
       totalDuration,
     }
@@ -268,7 +274,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     // Log each execution step and the final result
     await persistExecutionLogs(workflowId, executionId, enrichedResult, 'api')
 
-    return result
+    return executionResult
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
     // Log the error
