@@ -33,9 +33,13 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   useEffect(() => {
     const value = getValue(blockId, subBlock.id)
     if (value && typeof value === 'string') {
-      setSelectedFileId(value)
+      if (isJira) {
+        setSelectedIssueId(value)
+      } else {
+        setSelectedFileId(value)
+      }
     }
-  }, [blockId, subBlock.id, getValue])
+  }, [blockId, subBlock.id, getValue, isJira])
 
   // Handle file selection
   const handleFileChange = (fileId: string, info?: any) => {

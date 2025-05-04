@@ -207,16 +207,24 @@ export function JiraIssueSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
+          logger.error('Failed to fetch issue info:', errorData)
           throw new Error(errorData.error || 'Failed to fetch issue info')
         }
 
         const data = await response.json()
         if (data.cloudId) {
+          logger.info('Using cloud ID:', data.cloudId)
           setCloudId(data.cloudId)
         }
+        
         if (data.issue) {
+          logger.info('Successfully fetched issue:', data.issue.name)
           setSelectedIssue(data.issue)
           onIssueInfoChange?.(data.issue)
+        } else {
+          logger.warn('No issue data received in response')
+          setSelectedIssue(null)
+          onIssueInfoChange?.(null)
         }
       } catch (error) {
         logger.error('Error fetching issue info:', error)
@@ -363,6 +371,7 @@ export function JiraIssueSelector({
     }
   }, [fetchCredentials])
 
+
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
@@ -375,7 +384,7 @@ export function JiraIssueSelector({
 
   // Fetch selected issue metadata once credentials are ready or changed
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedIssue && domain && domain.includes('.')) {
+    if (value && selectedCredentialId && domain && domain.includes('.') && (!selectedIssue || selectedIssue.id !== value)) {
       fetchIssueInfo(value)
     }
   }, [value, selectedCredentialId, selectedIssue, domain, fetchIssueInfo])
