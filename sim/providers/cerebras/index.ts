@@ -435,12 +435,17 @@ export const cerebrasProvider: ProviderConfig = {
       // POST-TOOL-STREAMING: stream after tool calls if requested
       if (request.stream && iterationCount > 0) {
         logger.info('Using streaming for final Cerebras response after tool calls')
-        const streamResponse: any = await client.chat.completions.create({
+        
+        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'none',
+          tool_choice: 'auto',  // Always use 'auto' for the streaming response after tool calls
           stream: true,
-        })
+        }
+        
+        const streamResponse: any = await client.chat.completions.create(streamingPayload)
         
         // Create a StreamingExecution response with all collected data
         const streamingResult = {

@@ -6,6 +6,7 @@ import { userStats, workflow, workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
 import { stripCustomToolPrefix } from '../workflows/utils'
 import { getCostMultiplier } from '@/lib/environment'
+import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('ExecutionLogger')
 
@@ -109,6 +110,55 @@ export async function persistExecutionLogs(
           hasToolCalls: !!log.output.toolCalls,
           hasResponse: !!log.output.response,
         })
+        
+        // FIRST PASS - Check if this is a no-tool scenario with tokens data not propagated
+        // In some cases, the token data from the streaming callback doesn't properly get into
+        // the agent block response. This ensures we capture it.
+        if (log.output.response && 
+            (!log.output.response.tokens?.completion || log.output.response.tokens.completion === 0) && 
+            (!log.output.response.toolCalls || !log.output.response.toolCalls.list || log.output.response.toolCalls.list.length === 0)) {
+          
+          // Check if output response has providerTiming - this indicates it's a streaming response
+          if (log.output.response.providerTiming) {
+            logger.debug('Processing streaming response without tool calls for token extraction', {
+              blockId: log.blockId,
+              hasTokens: !!log.output.response.tokens,
+              hasProviderTiming: !!log.output.response.providerTiming
+            });
+            
+            // Only for no-tool streaming cases, extract content length and estimate token count
+            const contentLength = log.output.response.content?.length || 0;
+            if (contentLength > 0) {
+              // Estimate completion tokens based on content length as a fallback
+              const estimatedCompletionTokens = Math.ceil(contentLength / 4);
+              const promptTokens = log.output.response.tokens?.prompt || 8;
+              
+              // Update the tokens object
+              log.output.response.tokens = {
+                prompt: promptTokens,
+                completion: estimatedCompletionTokens,
+                total: promptTokens + estimatedCompletionTokens
+              };
+              
+              // Update cost information using the provider's cost model
+              const model = log.output.response.model || 'gpt-4o';
+              const costInfo = calculateCost(model, promptTokens, estimatedCompletionTokens);
+              log.output.response.cost = {
+                input: costInfo.input,
+                output: costInfo.output,
+                total: costInfo.total,
+                pricing: costInfo.pricing
+              };
+              
+              logger.debug('Updated token information for streaming no-tool response', {
+                blockId: log.blockId,
+                contentLength,
+                estimatedCompletionTokens,
+                tokens: log.output.response.tokens
+              });
+            }
+          }
+        }
 
         // Special case for streaming responses from agent blocks
         // This format has both stream and executionData properties

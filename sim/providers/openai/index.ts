@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
-import { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('OpenAI Provider')
 
@@ -214,20 +214,8 @@ export const openaiProvider: ProviderConfig = {
               }
               
               streamingResult.execution.output.response.tokens = newTokens
-            } else {
-              // Estimate tokens if not provided by the API
-              const promptTokens = payload.messages.reduce(
-                (acc: number, msg: any) => acc + Math.ceil((typeof msg.content === 'string' ? msg.content.length : 20) / 4), 
-                0
-              )
-              const completionTokens = Math.ceil(content.length / 4)
-              
-              streamingResult.execution.output.response.tokens = {
-                prompt: promptTokens,
-                completion: completionTokens,
-                total: promptTokens + completionTokens
-              }
-            }
+            } 
+            // We don't need to estimate tokens here as execution-logger.ts will handle that
           }),
           execution: {
             success: true,
@@ -248,12 +236,8 @@ export const openaiProvider: ProviderConfig = {
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
                   }]
-                },
-                cost: tokenUsage.total ? {
-                  total: (tokenUsage.total || 0) * 0.0001,
-                  input: (tokenUsage.prompt || 0) * 0.0001,
-                  output: (tokenUsage.completion || 0) * 0.0001
-                } : undefined
+                }
+                // Cost will be calculated in execution-logger.ts
               }
             },
             logs: [], // No block logs for direct streaming
@@ -303,6 +287,7 @@ export const openaiProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
+      // Collect token information but don't calculate costs - that will be done in execution-logger.ts
       let tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -492,12 +477,17 @@ export const openaiProvider: ProviderConfig = {
       if (request.stream && iterationCount > 0) {
         logger.info('Using streaming for final response after tool calls')
         
-        const streamResponse = await openai.chat.completions.create({
+        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
+        // This prevents OpenAI API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
           ...payload,
           messages: currentMessages,
+          tool_choice: 'auto',  // Always use 'auto' for the streaming response after tool calls
           stream: true,
           stream_options: { include_usage: true },
-        })
+        }
+        
+        const streamResponse = await openai.chat.completions.create(streamingPayload)
         
         // Create the StreamingExecution object with all collected data
         let streamContent = ''
@@ -543,12 +533,8 @@ export const openaiProvider: ProviderConfig = {
                   firstResponseTime: firstResponseTime,
                   iterations: iterationCount + 1,
                   timeSegments: timeSegments,
-                },
-                cost: currentResponse.usage ? {
-                  total: (currentResponse.usage.total_tokens || 0) * 0.0001,
-                  input: (currentResponse.usage.prompt_tokens || 0) * 0.0001,
-                  output: (currentResponse.usage.completion_tokens || 0) * 0.0001
-                } : undefined
+                }
+                // Cost will be calculated in execution-logger.ts
               }
             },
             logs: [], // No block logs at provider level
@@ -585,6 +571,7 @@ export const openaiProvider: ProviderConfig = {
           iterations: iterationCount + 1,
           timeSegments: timeSegments,
         },
+        // We're not calculating cost here as it will be handled in execution-logger.ts
       }
     } catch (error) {
       // Include timing information even for errors

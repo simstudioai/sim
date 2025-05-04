@@ -249,15 +249,36 @@ export function useWorkflowExecution() {
           streamingBlockId, // Add the block ID to the metadata
         } as any
 
+        // Clean up any response objects with zero tokens in agent blocks to avoid confusion in console
+        if (result.execution.logs && Array.isArray(result.execution.logs)) {
+          result.execution.logs.forEach((log: any) => {
+            if (log.blockType === 'agent' && log.output?.response) {
+              const response = log.output.response;
+              
+              // Check for zero tokens that will be estimated later
+              if (response.tokens && 
+                  (!response.tokens.completion || response.tokens.completion === 0) &&
+                  (!response.toolCalls || !response.toolCalls.list || response.toolCalls.list.length === 0)) {
+                
+                // Remove tokens from console display to avoid confusion
+                // They'll be properly estimated in the execution logger
+                delete response.tokens;
+              }
+            }
+          });
+        }
+
         // Mark the execution as streaming so that downstream code can recognise it
         (result.execution as any).isStreaming = true
 
         // Return both the stream and the execution object so the caller (chat panel)
         // can collect the full content and then persist the logs in one go.
+        // Also include processingPromise if available to ensure token counts are final
         return {
           success: true,
           stream: result.stream,
           execution: result.execution,
+          processingPromise: (result as any).processingPromise
         }
       }
 

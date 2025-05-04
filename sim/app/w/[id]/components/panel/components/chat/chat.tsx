@@ -15,7 +15,6 @@ import { OutputSelect } from './components/output-select/output-select'
 import { BlockLog } from '@/executor/types'
 import { calculateCost } from '@/providers/utils'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { createLogger } from '@/lib/logs/console-logger'
 
 interface ChatProps {
   panelWidth: number
@@ -180,6 +179,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             
             // Calculate cost based on token usage if available
             let costData = undefined
+            
             if (executionResult.output?.response?.tokens) {
               const tokens = executionResult.output.response.tokens
               const model = executionResult.output?.response?.model || 'gpt-4o'

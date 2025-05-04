@@ -458,6 +458,12 @@ export const googleProvider: ProviderConfig = {
                   const streamingPayload = {
                     ...payload,
                     contents: simplifiedMessages,
+                    tool_config: { mode: 'AUTO' }, // Always use AUTO mode for streaming after tools
+                  }
+                  
+                  // Remove any forced tool configuration to prevent issues with streaming
+                  if ('tool_config' in streamingPayload) {
+                    streamingPayload.tool_config = { mode: 'AUTO' };
                   }
                   
                   // Make the streaming request with alt=sse parameter

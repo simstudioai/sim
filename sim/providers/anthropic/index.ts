@@ -612,12 +612,20 @@ ${fieldDescriptions}
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream && iterationCount > 0) {
         logger.info('Using streaming for final Anthropic response after tool calls')
-
-        const streamResponse: any = await anthropic.messages.create({
+        
+        // When streaming after tool calls with forced tools, make sure tool_choice is removed
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
           ...payload,
           messages: currentMessages,
+          // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
           stream: true,
-        })
+        }
+        
+        // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
+        delete streamingPayload.tool_choice
+        
+        const streamResponse: any = await anthropic.messages.create(streamingPayload)
 
         // Create a StreamingExecution response with all collected data
         const streamingResult = {

@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { isProd, getCostMultiplier } from '@/lib/environment'
+import { getCostMultiplier } from '@/lib/environment'
 import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'

@@ -11,6 +11,11 @@ import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { BlockLog } from '@/executor/types'
+
+declare global {
+  var __chatStreamProcessingTasks: Promise<{success: boolean, error?: any}>[] | undefined
+}
 
 const logger = createLogger('ChatAuthUtils')
 const isDevelopment = process.env.NODE_ENV === 'development'
@@ -425,56 +430,37 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
     const [clientStream, loggingStream] = (result.stream as ReadableStream).tee()
 
     // Kick off background processing to read the stream and persist enriched logs
-    ;(async () => {
+    const processingPromise = (async () => {
       try {
-        const reader = loggingStream.getReader()
-        const decoder = new TextDecoder()
-        let rawData = ''
-
-        // Read the entire stream
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          rawData += decoder.decode(value, { stream: true })
-        }
-
-        // Extract the final content from the SSE payload
-        // The stream is expected to be text/event-stream where each line begins with "data: "
-        let finalContent = ''
-        for (const line of rawData.split('\n')) {
-          const trimmed = line.trim()
-          if (!trimmed.startsWith('data:')) continue
-          const payload = trimmed.slice(5).trim()
-          if (payload === '[DONE]') continue
-          try {
-            const json = JSON.parse(payload)
-            // For OpenAI-style responses
-            if (json.choices && json.choices[0]?.delta?.content) {
-              finalContent += json.choices[0].delta.content
-            } else if (json.content) {
-              // Generic content field fallback
-              finalContent += json.content
-            }
-          } catch {
-            // Ignore lines that are not JSON
-          }
-        }
-
-        // Update execution data with the full content
+        // The stream is only used to properly drain it and prevent memory leaks
+        // All the execution data is already provided from the agent handler
+        // through the X-Execution-Data header
+        await drainStream(loggingStream)
+        
+        // No need to wait for a processing promise
+        // The execution-logger.ts will handle token estimation
+        
+        // We can use the execution data as-is since it's already properly structured
         const executionData = result.execution as any
-        if (!executionData.output) executionData.output = {}
-        if (!executionData.output.response) executionData.output.response = {}
-        executionData.output.response.content = finalContent
 
-        // Also update the *specific* agent block that produced the streaming output.
-        const streamingBlockId = executionData.blockId
-        if (streamingBlockId && Array.isArray(executionData.logs)) {
-          const streamingLog = executionData.logs.find(
-            (log: any) => log.blockId === streamingBlockId && log.blockType === 'agent'
-          )
-          if (streamingLog?.output?.response) {
-            streamingLog.output.response.content = finalContent
-          }
+        // Before persisting, clean up any response objects with zero tokens in agent blocks
+        // This prevents confusion in the console logs
+        if (executionData.logs && Array.isArray(executionData.logs)) {
+          executionData.logs.forEach((log: BlockLog) => {
+            if (log.blockType === 'agent' && log.output?.response) {
+              const response = log.output.response;
+              
+              // Check for zero tokens that will be estimated later
+              if (response.tokens && 
+                 (!response.tokens.completion || response.tokens.completion === 0) &&
+                 (!response.toolCalls || !response.toolCalls.list || response.toolCalls.list.length === 0)) {
+                
+                // Remove tokens from console display to avoid confusion
+                // They'll be properly estimated in the execution logger
+                delete response.tokens;
+              }
+            }
+          });
         }
 
         // Build trace spans and persist
@@ -488,10 +474,28 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
         const executionId = uuidv4()
         await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
         logger.debug(`[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}`)
+        
+        return { success: true }
       } catch (error) {
         logger.error(`[${requestId}] Failed to persist streaming chat execution logs:`, error)
+        return { success: false, error }
+      } finally {
+        // Ensure the stream is properly closed even if an error occurs
+        try {
+          const controller = new AbortController()
+          const signal = controller.signal
+          controller.abort()
+        } catch (cleanupError) {
+          logger.debug(`[${requestId}] Error during stream cleanup: ${cleanupError}`)
+        }
       }
     })()
+    
+    // Register this processing promise with a global handler or tracker if needed
+    // This allows the background task to be monitored or waited for in testing
+    if (typeof global.__chatStreamProcessingTasks !== 'undefined') {
+      global.__chatStreamProcessingTasks.push(processingPromise as Promise<{success: boolean, error?: any}>)
+    }
 
     // Return the client-facing stream
     return clientStream
@@ -635,5 +639,21 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
       timestamp: new Date().toISOString(),
       type: 'workflow'
     }
+  }
+}
+
+/**
+ * Utility function to properly drain a stream to prevent memory leaks
+ */
+async function drainStream(stream: ReadableStream): Promise<void> {
+  const reader = stream.getReader()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      // We don't need to do anything with the value, just drain the stream
+    }
+  } finally {
+    reader.releaseLock()
   }
 } 

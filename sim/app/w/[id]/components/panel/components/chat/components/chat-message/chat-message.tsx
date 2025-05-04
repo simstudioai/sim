@@ -1,6 +1,6 @@
-import { useMemo, useEffect } from 'react'
-import { format, formatDistanceToNow } from 'date-fns'
-import { Clock, Terminal, User } from 'lucide-react'
+import { useMemo } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import { Clock } from 'lucide-react'
 import { JSONView } from '../../../console/components/json-view/json-view'
 
 interface ChatMessageProps {

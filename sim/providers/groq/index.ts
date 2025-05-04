@@ -359,11 +359,16 @@ export const groqProvider: ProviderConfig = {
       if (request.stream && iterationCount > 0) {
         logger.info('Using streaming for final Groq response after tool calls')
 
-        const streamResponse = await groq.chat.completions.create({
+        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
           ...payload,
           messages: currentMessages,
+          tool_choice: 'auto',  // Always use 'auto' for the streaming response after tool calls
           stream: true,
-        })
+        }
+
+        const streamResponse = await groq.chat.completions.create(streamingPayload)
 
         // Create a StreamingExecution response with all collected data
         const streamingResult = {
