@@ -6,6 +6,34 @@
  * 
  */
 
+// This file configures the initialization of Sentry on the client.
+// The added config here will be used whenever a users loads a page in their browser.
+// https://docs.sentry.io/platforms/javascript/guides/nextjs/
+
+import * as Sentry from "@sentry/nextjs"
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
+  enabled: process.env.NODE_ENV === 'production',
+  environment: process.env.NODE_ENV || 'development',
+  integrations: [
+    Sentry.replayIntegration(),
+  ],
+  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1,
+  replaysSessionSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
+  replaysOnErrorSampleRate: process.env.NODE_ENV === 'production' ? 1.0 : 0,
+  debug: process.env.NODE_ENV === 'development',
+  beforeSend(event) {
+    if (process.env.NODE_ENV !== 'production') return null  
+    if (event.request && typeof event.request === 'object') {
+      (event.request as any).ip = null
+    }
+    return event
+  },
+})
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
+
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
   let telemetryEnabled = true
