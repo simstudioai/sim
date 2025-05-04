@@ -56,3 +56,6 @@ next-env.d.ts
 # file uploads
 uploads/
 uploads/*
+
+# Sentry Config File
+.env.sentry-build-plugin

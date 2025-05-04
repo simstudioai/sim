@@ -64,6 +64,7 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.6",
     "@react-email/components": "^0.0.34",
+    "@sentry/nextjs": "^9.15.0",
     "@vercel/og": "^0.6.5",
     "@vercel/speed-insights": "^1.2.0",
     "ai": "^4.3.2",

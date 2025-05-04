@@ -13,6 +13,7 @@
 // Set experimental.instrumentationHook = true in next.config.ts to enable this
 
 import { createLogger } from '@/lib/logs/console-logger'
+import * as Sentry from '@sentry/nextjs'
 
 const logger = createLogger('otel-instrumentation')
 
@@ -30,6 +31,16 @@ const DEFAULT_TELEMETRY_CONFIG = {
 }
 
 export async function register() {
+  // Sentry configuration
+  if (process.env.NEXT_RUNTIME === 'nodejs') {
+    await import('./sentry.server.config')
+  }
+
+  if (process.env.NEXT_RUNTIME === 'edge') {
+    await import('./sentry.edge.config')
+  }
+
+  // OpenTelemetry instrumentation
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     try {
       if (process.env.NEXT_TELEMETRY_DISABLED === '1') {
@@ -94,3 +105,5 @@ export async function register() {
     }
   }
 } 
+
+export const onRequestError = Sentry.captureRequestError 
