@@ -5,7 +5,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
+    "dev:classic": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
