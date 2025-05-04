@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   // Always use 'standalone' output to support API routes
   output: 'standalone',
   turbopack: {
-    // This exists mainly to silence the warning since we're using --turbo flag in dev
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
   webpack: (config, { isServer, dev }) => {
     // Skip webpack configuration in development when using Turbopack
