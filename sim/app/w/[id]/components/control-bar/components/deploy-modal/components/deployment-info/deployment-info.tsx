@@ -53,29 +53,33 @@ export function DeploymentInfo({
   const { addNotification } = useNotificationStore()
 
   const handleViewDeployed = async () => {
-    console.log('View Deployed clicked, workflowId:', workflowId)
-
     if (!workflowId) {
-      console.error('No workflow ID provided')
+      addNotification(
+        'error',
+        'Cannot view deployment: Workflow ID is missing',
+        null
+      )
       return
     }
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/deployed`)
-      console.log('Response:', response.status, response.statusText)
       
       if (!response.ok) {
         throw new Error('Failed to fetch deployed workflow')
       }
 
       const data = await response.json()
-      console.log('Deployment data:', data)
       
       if (data && data.deployedState) {
         setDeployedWorkflowState(data.deployedState)
         setIsViewingDeployed(true)
       } else {
-        console.error('No deployedState in response')
+        addNotification(
+          'error',
+          'Failed to view deployment: No deployment state found',
+          workflowId
+        )
       }
     } catch (error) {
       console.error('Error fetching deployed workflow:', error)
