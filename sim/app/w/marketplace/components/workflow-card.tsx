@@ -30,14 +30,6 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   const router = useRouter()
   const { createWorkflow } = useWorkflowRegistry()
 
-  useEffect(() => {
-    console.log('Workflow State Changed:', { //TODO: Remove this
-      id: workflow.id,
-      name: workflow.name,
-      hasWorkflowState: !!workflow.workflowState,
-      isPreviewReady
-    })
-  }, [workflow.workflowState, isPreviewReady, workflow.id, workflow.name])
 
   // When workflow state becomes available, update preview ready state
   useEffect(() => {
@@ -89,20 +81,6 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
     }
   }
 
-  // Add this before the return statement
-  console.log('Rendering WorkflowCard:', { //TODO: Remove this
-    id: workflow.id,
-    name: workflow.name,
-    isPreviewReady,
-    hasWorkflowState: !!workflow.workflowState,
-    hasThumbnail: !!workflow.thumbnail,
-    renderingMode: isPreviewReady && workflow.workflowState 
-      ? 'Interactive Preview'
-      : workflow.thumbnail 
-      ? 'Thumbnail Image' 
-      : 'Fallback Text'
-  })
-
   return (
     <div
       className="block cursor-pointer"
@@ -119,7 +97,6 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
             // Interactive Preview
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-full h-full transform-gpu scale-[0.9]">
-                <p>Rendering interactive preview:</p> {/*TODO: Remove this*/}
                 <WorkflowPreview workflowState={workflow.workflowState} />
               </div>
             </div>
@@ -133,12 +110,10 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
                 backgroundPosition: 'center top',
               }}
             >
-              <p>Rendering thumbnail image</p> {/*TODO: Remove this*/}
             </div>
           ) : (
             // Fallback to text if no preview or thumbnail is available
             <div className="h-full w-full flex items-center justify-center">
-              <p>Rendering fallback text:</p> {/*TODO: Remove this*/} 
               <span className="text-muted-foreground font-medium text-lg">{workflow.name}</span>
             </div>
           )}
