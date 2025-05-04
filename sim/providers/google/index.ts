@@ -371,8 +371,6 @@ export const googleProvider: ProviderConfig = {
                 hasRequiredParams: Object.keys(requiredToolCallParams).length > 0,
                 requiredParamKeys: Object.keys(requiredToolCallParams),
               })
-              
-              logger.info(`[GoogleProvider] Executing tool: ${toolName} with skipProxy=true`);
               const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime

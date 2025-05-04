@@ -300,7 +300,6 @@ export const xAIProvider: ProviderConfig = {
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              logger.info(`[XAIProvider] Executing tool: ${toolName} with skipProxy=true`);
               const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime

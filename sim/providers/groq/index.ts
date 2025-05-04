@@ -255,7 +255,6 @@ export const groqProvider: ProviderConfig = {
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              logger.info(`[GroqProvider] Executing tool: ${toolName} with skipProxy=true`);
               const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime

@@ -16,8 +16,6 @@ export async function executeTool(
   const startTime = new Date()
   const startTimeISO = startTime.toISOString()
 
-  logger.info(`[executeTool] Entry: toolId=${toolId}, skipProxy=${skipProxy}, params:`, Object.keys(params));
-
   try {
     let tool: ToolConfig | undefined
     
@@ -41,7 +39,6 @@ export async function executeTool(
       throw new Error(`Tool not found: ${toolId}`)
     }
 
-    // --- Moved OAuth Token Handling Start ---
     // If we have a credential parameter, fetch the access token
     if (contextParams.credential) {
       logger.info(`[executeTool] Credential found for ${toolId}, fetching access token.`);
@@ -93,7 +90,6 @@ export async function executeTool(
         throw new Error(`Failed to obtain credential for tool ${toolId}: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    // --- Moved OAuth Token Handling End ---
 
     // For any tool with direct execution capability, try it first
     if (tool.directExecution) {
@@ -151,9 +147,7 @@ export async function executeTool(
     }
 
     // For internal routes or when skipProxy is true, call the API directly
-    logger.info(`[executeTool] Checking internal/skipProxy: isInternalRoute=${!!tool.request.isInternalRoute}, skipProxy=${skipProxy}`);
     if (tool.request.isInternalRoute || skipProxy) {
-      logger.info(`[executeTool] Using handleInternalRequest for toolId=${toolId}`);
       const result = await handleInternalRequest(toolId, tool, contextParams)
 
       // Apply post-processing if available and not skipped
@@ -338,7 +332,6 @@ async function handleInternalRequest(
   tool: ToolConfig,
   params: Record<string, any>
 ): Promise<ToolResponse> {
-  logger.info(`[handleInternalRequest] Entry: toolId=${toolId}`);
   // Format the request parameters
   const requestParams = formatRequestParams(tool, params)
 
@@ -547,11 +540,6 @@ async function handleProxyRequest(
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
   }
-
-  // --- REMOVED OAUTH HANDLING START (moved to executeTool) ---
-  // If we have a credential parameter, fetch the access token
-  // if (params.credential) { ... code removed ... }
-  // --- REMOVED OAUTH HANDLING END ---
 
   const proxyUrl = new URL('/api/proxy', baseUrl).toString()
   try {
