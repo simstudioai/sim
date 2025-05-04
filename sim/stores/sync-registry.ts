@@ -5,7 +5,7 @@ import { SyncManager } from './sync'
 import { isLocalStorageMode } from './sync-core'
 import { fetchWorkflowsFromDB, workflowSync } from './workflows/sync'
 
-const logger = createLogger('Sync Registry')
+const logger = createLogger('SyncRegistry')
 
 // Initialize managers lazily
 let initialized = false

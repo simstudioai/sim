@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('ProxyImage')
+const logger = createLogger('ProxyImageAPI')
 
 export async function GET(request: Request) {
   try {

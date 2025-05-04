@@ -14,7 +14,7 @@ import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 
-const logger = createLogger('telemetry')
+const logger = createLogger('Telemetry')
 
 export type TelemetryEvent = {
   name: string

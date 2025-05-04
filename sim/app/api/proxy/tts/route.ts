@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('ProxyTTS')
+const logger = createLogger('ProxyTTSAPI')
 
 export async function POST(request: Request) {
   try {

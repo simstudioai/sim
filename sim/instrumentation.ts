@@ -14,7 +14,7 @@
 
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('otel-instrumentation')
+const logger = createLogger('OtelInstrumentation')
 
 const DEFAULT_TELEMETRY_CONFIG = {
   endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',

@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { GoogleDocsCreateResponse, GoogleDocsToolParams } from './types'
 
-const logger = createLogger('Google Docs Create Tool')
+const logger = createLogger('GoogleDocsCreateTool')
 
 export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateResponse> = {
   id: 'google_docs_create',

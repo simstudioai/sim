@@ -3,7 +3,7 @@ import { ToolConfig } from '../types'
 import { GoogleDriveDownloadResponse } from './types'
 import { GoogleDriveToolParams } from './types'
 
-const logger = createLogger('Google Drive Export Tool')
+const logger = createLogger('GoogleDriveExportTool')
 
 export const exportTool: ToolConfig<
   GoogleDriveToolParams & { mimeType?: string },

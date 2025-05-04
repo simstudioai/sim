@@ -6,7 +6,7 @@ import { useWorkflowStore } from '../workflows/workflow/store'
 import { CopilotMessage, CopilotStore } from './types'
 import { calculateBlockPosition, getNextBlockNumber } from './utils'
 
-const logger = createLogger('Copilot Store')
+const logger = createLogger('CopilotStore')
 
 export const useCopilotStore = create<CopilotStore>()(
   devtools(

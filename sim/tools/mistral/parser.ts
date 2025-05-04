@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { MistralParserInput, MistralParserOutput } from './types'
 
-const logger = createLogger('mistral-parser')
+const logger = createLogger('MistralParserTool')
 
 export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutput> = {
   id: 'mistral_parser',

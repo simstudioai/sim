@@ -6,7 +6,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { Variable, VariablesStore } from './types'
 
-const logger = createLogger('Variables Store')
+const logger = createLogger('VariablesStore')
 const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
 
 // Map to store debounce timers for each workflow

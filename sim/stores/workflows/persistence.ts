@@ -8,7 +8,7 @@ import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
 
-const logger = createLogger('Workflows Persistence')
+const logger = createLogger('WorkflowsPersistence')
 
 /**
  * Save data to localStorage with error handling

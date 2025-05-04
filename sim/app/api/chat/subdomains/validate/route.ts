@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
-const logger = createLogger('SubdomainValidate')
+const logger = createLogger('SubdomainValidateAPI')
 
 export async function GET(request: Request) {
   // Check if the user is authenticated

@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { apiKey } from '@/db/schema'
 
-const logger = createLogger('ApiKeyRoute')
+const logger = createLogger('ApiKeyAPI')
 
 // DELETE /api/user/api-keys/[id] - Delete an API key
 export async function DELETE(
