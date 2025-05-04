@@ -2,9 +2,32 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Anthropic Provider')
+
+/**
+ * Helper to wrap Anthropic streaming (async iterable of SSE events) into a browser-friendly
+ * ReadableStream of raw assistant text chunks. We enqueue only `content_block_delta` events
+ * with `delta.type === 'text_delta'`, since that contains the incremental text tokens.
+ */
+function createReadableStreamFromAnthropicStream(anthropicStream: AsyncIterable<any>): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of anthropicStream) {
+          if (event.type === 'content_block_delta' && event.delta?.text) {
+            controller.enqueue(new TextEncoder().encode(event.delta.text))
+          }
+        }
+        controller.close()
+      } catch (err) {
+        controller.error(err)
+      }
+    },
+  })
+}
 
 export const anthropicProvider: ProviderConfig = {
   id: 'anthropic',
@@ -14,7 +37,7 @@ export const anthropicProvider: ProviderConfig = {
   models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
   defaultModel: 'claude-3-7-sonnet-20250219',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Anthropic')
     }
@@ -231,6 +254,73 @@ ${fieldDescriptions}
       if (toolChoice !== 'auto') {
         payload.tool_choice = toolChoice
       }
+    }
+
+    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
+    // we can directly stream the completion.
+    if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
+      logger.info('Using streaming response for Anthropic request (no tools)')
+
+      // Start execution timer for the entire provider execution
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+      // Create a streaming request
+      const streamResponse: any = await anthropic.messages.create({
+        ...payload,
+        stream: true,
+      })
+
+      // Start collecting token usage
+      let tokenUsage = {
+        prompt: 0,
+        completion: 0,
+        total: 0
+      }
+      
+      // Create a StreamingExecution response with a readable stream
+      const streamingResult = {
+        stream: createReadableStreamFromAnthropicStream(streamResponse),
+        execution: {
+          success: true,
+          output: {
+            response: {
+              content: '', // Will be filled by streaming content in chat component
+              model: request.model,
+              tokens: tokenUsage,
+              toolCalls: undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                timeSegments: [{
+                  type: 'model',
+                  name: 'Streaming response',
+                  startTime: providerStartTime,
+                  endTime: Date.now(),
+                  duration: Date.now() - providerStartTime,
+                }]
+              },
+              // Estimate token cost based on typical Claude pricing
+              cost: {
+                total: 0.0,
+                input: 0.0,
+                output: 0.0
+              }
+            }
+          },
+          logs: [], // No block logs for direct streaming
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: Date.now() - providerStartTime,
+          },
+          isStreaming: true
+        }
+      }
+      
+      // Return the streaming execution object
+      return streamingResult as StreamingExecution
     }
 
     // Start execution timer for the entire provider execution
@@ -518,6 +608,72 @@ ${fieldDescriptions}
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
+
+      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final Anthropic response after tool calls')
+        
+        // When streaming after tool calls with forced tools, make sure tool_choice is removed
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
+          ...payload,
+          messages: currentMessages,
+          // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
+          stream: true,
+        }
+        
+        // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
+        delete streamingPayload.tool_choice
+        
+        const streamResponse: any = await anthropic.messages.create(streamingPayload)
+
+        // Create a StreamingExecution response with all collected data
+        const streamingResult = {
+          stream: createReadableStreamFromAnthropicStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'claude-3-7-sonnet-20250219',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls: toolCalls.length > 0 ? { 
+                  list: toolCalls,
+                  count: toolCalls.length 
+                } : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001,  // Estimate cost based on tokens
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001
+                }
+              }
+            },
+            logs: [], // No block logs at provider level
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        return streamingResult as StreamingExecution
+      }
 
       return {
         content,

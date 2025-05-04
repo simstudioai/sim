@@ -42,7 +42,7 @@ export function useWorkflowExecution() {
   } = useExecutionStore()
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null)
 
-  const persistLogs = async (executionId: string, result: ExecutionResult) => {
+  const persistLogs = async (executionId: string, result: ExecutionResult, streamContent?: string) => {
     try {
       // Build trace spans from execution logs
       const { traceSpans, totalDuration } = buildTraceSpans(result)
@@ -52,6 +52,26 @@ export function useWorkflowExecution() {
         ...result,
         traceSpans,
         totalDuration,
+      }
+
+      // If this was a streaming response and we have the final content, update it
+      if (streamContent && result.output?.response && typeof streamContent === 'string') {
+        // Update the content with the final streaming content
+        enrichedResult.output.response.content = streamContent
+        
+        // Also update any block logs to include the content where appropriate
+        if (enrichedResult.logs) {
+          // Get the streaming block ID from metadata if available
+          const streamingBlockId = (result.metadata as any)?.streamingBlockId || null;
+
+          for (const log of enrichedResult.logs) {
+            // Only update the specific agent block that was streamed
+            const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId;
+            if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
+              log.output.response.content = streamContent
+            }
+          }
+        }
       }
 
       const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
@@ -68,8 +88,11 @@ export function useWorkflowExecution() {
       if (!response.ok) {
         throw new Error('Failed to persist logs')
       }
+      
+      return executionId
     } catch (error) {
       logger.error('Error persisting logs:', { error })
+      return executionId
     }
   }
 
@@ -103,6 +126,15 @@ export function useWorkflowExecution() {
     // or through a chat-specific execution path
     const isChatExecution = activeTab === 'chat' && 
                           (workflowInput && typeof workflowInput === 'object' && 'input' in workflowInput)
+
+    // If this is a chat execution, get the selected outputs
+    let selectedOutputIds: string[] | undefined = undefined
+    if (isChatExecution && activeWorkflowId) {
+      // Get selected outputs from chat store
+      const chatStore = await import('@/stores/panel/chat/store').then(mod => mod.useChatStore)
+      selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
+      logger.info('Chat execution with selected outputs:', selectedOutputIds)
+    }
 
     try {
       // Clear any existing state
@@ -147,18 +179,108 @@ export function useWorkflowExecution() {
       // Create serialized workflow
       const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
-      // Create executor and store in global state
-      const newExecutor = new Executor(
+      // Create executor options with streaming support for chat
+      const executorOptions: any = {
+        // Default executor options
         workflow,
         currentBlockStates,
         envVarValues,
         workflowInput,
-        workflowVariables
-      )
+        workflowVariables,
+      }
+
+      // Add streaming context for chat executions
+      if (isChatExecution && selectedOutputIds && selectedOutputIds.length > 0) {
+        executorOptions.contextExtensions = {
+          stream: true,
+          selectedOutputIds,
+          edges: workflow.connections.map(conn => ({ 
+            source: conn.source, 
+            target: conn.target 
+          }))
+        }
+      }
+
+      // Create executor and store in global state
+      const newExecutor = new Executor(executorOptions)
       setExecutor(newExecutor)
 
       // Execute workflow
       const result = await newExecutor.execute(activeWorkflowId)
+
+      // Streaming results are handled differently - they won't have a standard result
+      if (result instanceof ReadableStream) {
+        logger.info('Received streaming result from executor')
+        
+        // For streaming results, we need to handle them in the component
+        // that initiated the execution (chat panel)
+        return {
+          success: true,
+          stream: result,
+        }
+      }
+      
+      // Handle StreamingExecution format (combined stream + execution result)
+      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+        logger.info('Received combined stream+execution result from executor')
+        
+        // Generate an executionId and store it in the execution metadata so that
+        // the chat component can persist the logs *after* the stream finishes.
+        const executionId = uuidv4()
+
+        // Determine which block is streaming - typically the one that matches a selected output ID
+        let streamingBlockId = null;
+        if (selectedOutputIds && selectedOutputIds.length > 0 && result.execution.logs) {
+          // Find the agent block in the logs that matches one of our selected outputs
+          const streamingBlock = result.execution.logs.find(log => 
+            log.blockType === 'agent' && selectedOutputIds.some(id => id === log.blockId || id.startsWith(`${log.blockId}_`))
+          );
+          if (streamingBlock) {
+            streamingBlockId = streamingBlock.blockId;
+            logger.info(`Identified streaming block: ${streamingBlockId}`);
+          }
+        }
+
+        // Attach streaming / source metadata and the newly generated executionId
+        result.execution.metadata = {
+          ...(result.execution.metadata || {}),
+          executionId,
+          source: isChatExecution ? 'chat' : 'manual',
+          streamingBlockId, // Add the block ID to the metadata
+        } as any
+
+        // Clean up any response objects with zero tokens in agent blocks to avoid confusion in console
+        if (result.execution.logs && Array.isArray(result.execution.logs)) {
+          result.execution.logs.forEach((log: any) => {
+            if (log.blockType === 'agent' && log.output?.response) {
+              const response = log.output.response;
+              
+              // Check for zero tokens that will be estimated later
+              if (response.tokens && 
+                  (!response.tokens.completion || response.tokens.completion === 0) &&
+                  (!response.toolCalls || !response.toolCalls.list || response.toolCalls.list.length === 0)) {
+                
+                // Remove tokens from console display to avoid confusion
+                // They'll be properly estimated in the execution logger
+                delete response.tokens;
+              }
+            }
+          });
+        }
+
+        // Mark the execution as streaming so that downstream code can recognise it
+        (result.execution as any).isStreaming = true
+
+        // Return both the stream and the execution object so the caller (chat panel)
+        // can collect the full content and then persist the logs in one go.
+        // Also include processingPromise if available to ensure token counts are final
+        return {
+          success: true,
+          stream: result.stream,
+          execution: result.execution,
+          processingPromise: (result as any).processingPromise
+        }
+      }
 
       // Add metadata about source being chat if applicable
       if (isChatExecution) {
@@ -166,7 +288,7 @@ export function useWorkflowExecution() {
         (result as any).metadata = {
           ...(result.metadata || {}),
           source: 'chat'
-        };
+        }
       }
 
       // If we're in debug mode, store the execution context for later steps
@@ -204,6 +326,8 @@ export function useWorkflowExecution() {
           logger.error('Error persisting logs:', { error: err })
         })
       }
+
+      return result
     } catch (error: any) {
       logger.error('Workflow Execution Error:', error)
 
@@ -292,6 +416,8 @@ export function useWorkflowExecution() {
       persistLogs(executionId, errorResult).catch((err) => {
         logger.error('Error persisting logs:', { error: err })
       })
+
+      return errorResult
     }
   }, [
     activeWorkflowId,

@@ -22,6 +22,7 @@ import {
   ExecutionContext,
   ExecutionResult,
   NormalizedBlockOutput,
+  StreamingExecution,
 } from './types'
 
 const logger = createLogger('Executor')
@@ -58,31 +59,71 @@ export class Executor {
   private blockHandlers: BlockHandler[]
   private workflowInput: any
   private isDebugging: boolean = false
+  private contextExtensions: any = {}
+  private actualWorkflow: SerializedWorkflow
 
   constructor(
-    private workflow: SerializedWorkflow,
+    private workflowParam: SerializedWorkflow | { 
+      workflow: SerializedWorkflow, 
+      currentBlockStates?: Record<string, BlockOutput>,
+      envVarValues?: Record<string, string>,
+      workflowInput?: any,
+      workflowVariables?: Record<string, any>,
+      contextExtensions?: {
+        stream?: boolean,
+        selectedOutputIds?: string[],
+        edges?: Array<{source: string, target: string}>
+      }
+    },
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
     workflowInput?: any,
     private workflowVariables: Record<string, any> = {}
   ) {
-    this.validateWorkflow()
-
-    if (workflowInput) {
-      this.workflowInput = workflowInput
-      logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2))
+    // Handle new constructor format with options object
+    if (typeof workflowParam === 'object' && 'workflow' in workflowParam) {
+      const options = workflowParam
+      this.actualWorkflow = options.workflow
+      this.initialBlockStates = options.currentBlockStates || {}
+      this.environmentVariables = options.envVarValues || {}
+      this.workflowInput = options.workflowInput || {}
+      this.workflowVariables = options.workflowVariables || {}
+      
+      // Store context extensions for streaming and output selection
+      if (options.contextExtensions) {
+        this.contextExtensions = options.contextExtensions
+        
+        if (this.contextExtensions.stream) {
+          logger.info('Executor initialized with streaming enabled', {
+            hasSelectedOutputIds: Array.isArray(this.contextExtensions.selectedOutputIds),
+            selectedOutputCount: Array.isArray(this.contextExtensions.selectedOutputIds) 
+              ? this.contextExtensions.selectedOutputIds.length 
+              : 0,
+            selectedOutputIds: this.contextExtensions.selectedOutputIds || [],
+          })
+        }
+      }
     } else {
-      this.workflowInput = {}
+      this.actualWorkflow = workflowParam
+      
+      if (workflowInput) {
+        this.workflowInput = workflowInput
+        logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2))
+      } else {
+        this.workflowInput = {}
+      }
     }
 
-    this.loopManager = new LoopManager(workflow.loops || {})
+    this.validateWorkflow()
+
+    this.loopManager = new LoopManager(this.actualWorkflow.loops || {})
     this.resolver = new InputResolver(
-      workflow,
-      environmentVariables,
-      workflowVariables,
+      this.actualWorkflow,
+      this.environmentVariables,
+      this.workflowVariables,
       this.loopManager
     )
-    this.pathTracker = new PathTracker(workflow)
+    this.pathTracker = new PathTracker(this.actualWorkflow)
 
     this.blockHandlers = [
       new AgentBlockHandler(),
@@ -101,9 +142,9 @@ export class Executor {
    * Executes the workflow and returns the result.
    *
    * @param workflowId - Unique identifier for the workflow execution
-   * @returns Execution result containing output, logs, and metadata
+   * @returns Execution result containing output, logs, and metadata, or a stream, or combined execution and stream
    */
-  async execute(workflowId: string): Promise<ExecutionResult> {
+  async execute(workflowId: string): Promise<ExecutionResult | StreamingExecution> {
     const { setIsExecuting, setIsDebugging, setPendingBlocks, reset } = useExecutionStore.getState()
     const startTime = new Date()
     let finalOutput: NormalizedBlockOutput = { response: {} }
@@ -111,8 +152,8 @@ export class Executor {
     // Track workflow execution start
     trackWorkflowTelemetry('workflow_execution_started', {
       workflowId,
-      blockCount: this.workflow.blocks.length,
-      connectionCount: this.workflow.connections.length,
+      blockCount: this.actualWorkflow.blocks.length,
+      connectionCount: this.actualWorkflow.connections.length,
       startTime: startTime.toISOString()
     })
 
@@ -153,7 +194,7 @@ export class Executor {
                 pendingBlocks: nextLayer,
                 isDebugSession: true,
                 context: context, // Include context for resumption
-                workflowConnections: this.workflow.connections.map((conn) => ({
+                workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
                   source: conn.source,
                   target: conn.target,
                 })),
@@ -167,9 +208,162 @@ export class Executor {
             hasMoreLayers = false
           } else {
             const outputs = await this.executeLayer(nextLayer, context)
+            
+            // Check if we got a StreamingExecution response from any block
+            const streamingOutput = outputs.find(output => 
+              typeof output === 'object' && output !== null && 
+              'stream' in output && 'execution' in output
+            )
+            
+            if (streamingOutput) {
+              // This is a combined response with both stream and execution data
+              logger.info('Found combined stream+execution response from block')
+              
+              // Incorporate the execution data from the block into our context
+              const executionData = streamingOutput.execution
+              
+              // Add any logs from the execution data to our context
+              if (executionData.logs && Array.isArray(executionData.logs)) {
+                context.blockLogs.push(...executionData.logs)
+              }
+              
+              // Add proper console entry for the streaming block
+              // This ensures identical formatting between streamed and non-streamed outputs
+              if (executionData.output) {
+                const blockLog = executionData.logs?.find((log: BlockLog) => log.blockId === executionData.blockId)
+                const consoleStore = useConsoleStore.getState()
+                
+                // Create a complete console entry with the full output structure, not the raw streaming object
+                const consoleEntry = {
+                  output: executionData.output, // Use just the output, not the whole streaming structure
+                  durationMs: blockLog?.durationMs || executionData.metadata?.duration || 0,
+                  startedAt: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                  endedAt: blockLog?.endedAt || executionData.metadata?.endTime || new Date().toISOString(),
+                  workflowId: context.workflowId,
+                  timestamp: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                  blockId: executionData.blockId,
+                  blockName: executionData.blockName || blockLog?.blockName || 'Agent Block',
+                  blockType: executionData.blockType || blockLog?.blockType || 'agent'
+                }
+                
+                // Add to console
+                const newEntry = consoleStore.addConsole(consoleEntry)
+                
+                // Save the entryId for potential updates when stream completes
+                const consoleEntryId = newEntry?.id
+                
+                // Set up a stream completion handler to update the console with final content
+                if (consoleEntryId && 'stream' in streamingOutput) {
+                  // Clone the stream so we don't consume the original one
+                  const originalStream = streamingOutput.stream
+                  const [contentStream, returnStream] = originalStream.tee()
+                  
+                  // Replace the original stream with our cloned version that will be returned
+                  streamingOutput.stream = returnStream
+                  
+                  // Create a reader to process the cloned stream for content collection
+                  const reader = contentStream.getReader()
+                  const decoder = new TextDecoder()
+                  let fullContent = '';
+                  
+                  // Process the stream in the background to collect the full content
+                  (async () => {
+                    try {
+                      while (true) {
+                        const { done, value } = await reader.read()
+                        if (done) break
+                        const chunk = decoder.decode(value, { stream: true })
+                        fullContent += chunk
+                      }
+                      // Once stream is complete, update the console entry with the final content
+                      if (fullContent.length > 0 && executionData.output?.response) {
+                        const updatedOutput = {
+                          ...executionData.output,
+                          response: {
+                            ...executionData.output.response,
+                            content: fullContent
+                          }
+                        }
+                        
+                        // Update the console UI with the final content
+                        consoleStore.updateConsole(consoleEntryId, { output: updatedOutput })
+                        
+                        // Update the execution data itself with the final content 
+                        // so that when logs are persisted, they have the complete content
+                        executionData.output.response.content = fullContent
+
+                        // If there's a block log for this execution, update it with the final content
+                        if (executionData.blockId) {
+                          const blockLog = context.blockLogs.find(log => log.blockId === executionData.blockId)
+                          if (blockLog?.output?.response) {
+                            blockLog.output.response.content = fullContent
+                          }
+                        }
+                      }
+                    } catch (e) {
+                      logger.error('Error processing stream for console update:', e)
+                    }
+                  })()
+                }
+              }
+              
+              // Build a complete execution result with our context's logs
+              const execution: ExecutionResult & { isStreaming: boolean } = {
+                success: executionData.success !== false,
+                output: executionData.output || { response: {} },
+                error: executionData.error,
+                logs: context.blockLogs,
+                metadata: {
+                  duration: Date.now() - startTime.getTime(),
+                  startTime: context.metadata.startTime!,
+                  endTime: new Date().toISOString(),
+                  workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
+                    source: conn.source,
+                    target: conn.target,
+                  })),
+                },
+                isStreaming: true,
+              }
+              
+              // Add block metadata to logs if missing
+              if (context.blockLogs.length > 0) {
+                for (const log of context.blockLogs) {
+                  if (!log.output) log.output = { response: {} }
+                  
+                  // For blocks matching the streaming block, ensure we add response and content properly
+                  if (log.blockId === executionData.blockId) {
+                    if (!log.output.response) log.output.response = {}
+                    
+                    // Add the output structure, preferring direct response content if available
+                    if (executionData.output?.response) {
+                      // Copy all properties from executionData response
+                      Object.assign(log.output.response, executionData.output.response)
+                      
+                      // For streaming, we may not have content yet, so we store a placeholder
+                      // that will be updated when the stream completes
+                      if (!log.output.response.content && executionData.output.response.content) {
+                        log.output.response.content = executionData.output.response.content
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Return a properly formed StreamingExecution object
+              return {
+                stream: streamingOutput.stream,
+                execution,
+              }
+            }
 
             if (outputs.length > 0) {
-              finalOutput = outputs[outputs.length - 1]
+              // Filter out StreamingExecution objects (already handled above)
+              const normalizedOutputs = outputs.filter(output => 
+                !(typeof output === 'object' && output !== null && 'stream' in output && 'execution' in output)
+              )
+              if (normalizedOutputs.length > 0) {
+                finalOutput = normalizedOutputs[normalizedOutputs.length - 1] as NormalizedBlockOutput
+              }
             }
 
             // Process loop iterations - this will activate external paths when loops complete
@@ -194,7 +388,7 @@ export class Executor {
       trackWorkflowTelemetry('workflow_execution_completed', {
         workflowId,
         duration,
-        blockCount: this.workflow.blocks.length,
+        blockCount: this.actualWorkflow.blocks.length,
         executedBlockCount: context.executedBlocks.size,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
@@ -208,7 +402,7 @@ export class Executor {
           duration: duration,
           startTime: context.metadata.startTime!,
           endTime: context.metadata.endTime!,
-          workflowConnections: this.workflow.connections.map((conn) => ({
+          workflowConnections: this.actualWorkflow.connections.map((conn: any) => ({
             source: conn.source,
             target: conn.target,
           })),
@@ -278,7 +472,7 @@ export class Executor {
             endTime: context.metadata.endTime!,
             pendingBlocks: [],
             isDebugSession: false,
-            workflowConnections: this.workflow.connections.map((conn) => ({
+            workflowConnections: this.actualWorkflow.connections.map((conn) => ({
               source: conn.source,
               target: conn.target,
             })),
@@ -319,27 +513,27 @@ export class Executor {
    * @throws Error if workflow validation fails
    */
   private validateWorkflow(): void {
-    const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+    const starterBlock = this.actualWorkflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (!starterBlock || !starterBlock.enabled) {
       throw new Error('Workflow must have an enabled starter block')
     }
 
-    const incomingToStarter = this.workflow.connections.filter(
+    const incomingToStarter = this.actualWorkflow.connections.filter(
       (conn) => conn.target === starterBlock.id
     )
     if (incomingToStarter.length > 0) {
       throw new Error('Starter block cannot have incoming connections')
     }
 
-    const outgoingFromStarter = this.workflow.connections.filter(
+    const outgoingFromStarter = this.actualWorkflow.connections.filter(
       (conn) => conn.source === starterBlock.id
     )
     if (outgoingFromStarter.length === 0) {
       throw new Error('Starter block must have at least one outgoing connection')
     }
 
-    const blockIds = new Set(this.workflow.blocks.map((block) => block.id))
-    for (const conn of this.workflow.connections) {
+    const blockIds = new Set(this.actualWorkflow.blocks.map((block) => block.id))
+    for (const conn of this.actualWorkflow.connections) {
       if (!blockIds.has(conn.source)) {
         throw new Error(`Connection references non-existent source block: ${conn.source}`)
       }
@@ -348,7 +542,7 @@ export class Executor {
       }
     }
 
-    for (const [loopId, loop] of Object.entries(this.workflow.loops || {})) {
+    for (const [loopId, loop] of Object.entries(this.actualWorkflow.loops || {})) {
       for (const nodeId of loop.nodes) {
         if (!blockIds.has(nodeId)) {
           throw new Error(`Loop ${loopId} references non-existent block: ${nodeId}`)
@@ -388,7 +582,11 @@ export class Executor {
       completedLoops: new Set(),
       executedBlocks: new Set(),
       activeExecutionPath: new Set(),
-      workflow: this.workflow,
+      workflow: this.actualWorkflow,
+      // Add streaming context from contextExtensions
+      stream: this.contextExtensions.stream || false,
+      selectedOutputIds: this.contextExtensions.selectedOutputIds || [],
+      edges: this.contextExtensions.edges || [],
     }
 
     Object.entries(this.initialBlockStates).forEach(([blockId, output]) => {
@@ -400,14 +598,14 @@ export class Executor {
     })
 
     // Initialize loop iterations
-    if (this.workflow.loops) {
-      for (const loopId of Object.keys(this.workflow.loops)) {
+    if (this.actualWorkflow.loops) {
+      for (const loopId of Object.keys(this.actualWorkflow.loops)) {
         // Start all loops at iteration 0
         context.loopIterations.set(loopId, 0)
       }
     }
 
-    const starterBlock = this.workflow.blocks.find((block) => block.metadata?.id === 'starter')
+    const starterBlock = this.actualWorkflow.blocks.find((block) => block.metadata?.id === 'starter')
     if (starterBlock) {
       // Initialize the starter block with the workflow input
       try {
@@ -428,10 +626,10 @@ export class Executor {
               // This handles both input formats: { input: { field: value } } and { field: value }
               const inputValue = this.workflowInput?.input?.[field.name] !== undefined 
                 ? this.workflowInput.input[field.name]  // Try to get from input.field
-                : this.workflowInput?.[field.name];     // Fallback to direct field access
+                : this.workflowInput?.[field.name]     // Fallback to direct field access
               
               logger.info(`[Executor] Processing input field ${field.name} (${field.type}):`, 
-                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined');
+                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined')
 
               // Convert the value to the appropriate type
               let typedValue = inputValue
@@ -458,15 +656,15 @@ export class Executor {
           }
 
           // Check if we managed to process any fields - if not, use the raw input
-          const hasProcessedFields = Object.keys(structuredInput).length > 0;
+          const hasProcessedFields = Object.keys(structuredInput).length > 0
           
           // If no fields matched the input format, extract the raw input to use instead
           const rawInputData = this.workflowInput?.input !== undefined
             ? this.workflowInput.input  // Use the nested input data
-            : this.workflowInput;       // Fallback to direct input
+            : this.workflowInput       // Fallback to direct input
           
           // Use the structured input if we processed fields, otherwise use raw input
-          const finalInput = hasProcessedFields ? structuredInput : rawInputData;
+          const finalInput = hasProcessedFields ? structuredInput : rawInputData
           
           // Initialize the starter block with structured input
           // Ensure both input and direct fields are available
@@ -477,7 +675,7 @@ export class Executor {
             },
           }
           
-          logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2));
+          logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2))
 
           context.blockStates.set(starterBlock.id, {
             output: starterOutput,
@@ -554,7 +752,7 @@ export class Executor {
       context.executedBlocks.add(starterBlock.id)
 
       // Add all blocks connected to the starter to the active execution path
-      const connectedToStarter = this.workflow.connections
+      const connectedToStarter = this.actualWorkflow.connections
         .filter((conn) => conn.source === starterBlock.id)
         .map((conn) => conn.target)
 
@@ -577,7 +775,7 @@ export class Executor {
     const executedBlocks = context.executedBlocks
     const pendingBlocks = new Set<string>()
 
-    for (const block of this.workflow.blocks) {
+    for (const block of this.actualWorkflow.blocks) {
       if (executedBlocks.has(block.id) || block.enabled === false) {
         continue
       }
@@ -587,12 +785,12 @@ export class Executor {
         continue
       }
 
-      const incomingConnections = this.workflow.connections.filter(
+      const incomingConnections = this.actualWorkflow.connections.filter(
         (conn) => conn.target === block.id
       )
 
       // Find all loops that this block is a part of
-      const containingLoops = Object.values(this.workflow.loops || {}).filter((loop) =>
+      const containingLoops = Object.values(this.actualWorkflow.loops || {}).filter((loop) =>
         loop.nodes.includes(block.id)
       )
 
@@ -605,7 +803,7 @@ export class Executor {
         )
 
         // Check if there's a direct self-connection
-        const hasSelfConnection = this.workflow.connections.some(
+        const hasSelfConnection = this.actualWorkflow.connections.some(
           (conn) => conn.source === block.id && conn.target === block.id
         )
 
@@ -628,7 +826,7 @@ export class Executor {
         // Regular non-loop block handling (unchanged)
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
-          const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
+          const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
           const sourceBlockState = context.blockStates.get(conn.source)
           const hasSourceError =
             sourceBlockState?.output?.error !== undefined ||
@@ -636,7 +834,7 @@ export class Executor {
 
           // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
-            const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
+            const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
             if (sourceBlock?.metadata?.id === 'condition') {
               const conditionId = conn.sourceHandle.replace('condition-', '')
               const selectedCondition = context.decisions.condition.get(conn.source)
@@ -741,7 +939,7 @@ export class Executor {
     blockId: string,
     context: ExecutionContext
   ): Promise<NormalizedBlockOutput> {
-    const block = this.workflow.blocks.find((b) => b.id === blockId)
+    const block = this.actualWorkflow.blocks.find((b) => b.id === blockId)
     if (!block) {
       throw new Error(`Block ${blockId} not found`)
     }
@@ -766,7 +964,7 @@ export class Executor {
 
       // Check if this block needs the starter block's output
       // This is especially relevant for API, function, and conditions that might reference <start.response.input>
-      const starterBlock = this.workflow.blocks.find((b) => b.metadata?.id === 'starter')
+      const starterBlock = this.actualWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
       if (starterBlock) {
         const starterState = context.blockStates.get(starterBlock.id)
         if (!starterState) {
@@ -831,7 +1029,6 @@ export class Executor {
         startedAt: blockLog.startedAt,
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
-        timestamp: blockLog.startedAt,
         blockId: block.id,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
@@ -874,7 +1071,6 @@ export class Executor {
         startedAt: blockLog.startedAt,
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
-        timestamp: blockLog.startedAt,
         blockName: block.metadata?.name || 'Unnamed Block',
         blockType: block.metadata?.id || 'unknown',
       })
@@ -949,13 +1145,13 @@ export class Executor {
    */
   private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
     // Skip for starter blocks which don't have error handles
-    const block = this.workflow.blocks.find((b) => b.id === blockId)
+    const block = this.actualWorkflow.blocks.find((b) => b.id === blockId)
     if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
       return false
     }
 
     // Look for connections from this block's error handle
-    const errorConnections = this.workflow.connections.filter(
+    const errorConnections = this.actualWorkflow.connections.filter(
       (conn) => conn.source === blockId && conn.sourceHandle === 'error'
     )
 

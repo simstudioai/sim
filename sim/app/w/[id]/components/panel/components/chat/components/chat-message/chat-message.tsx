@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { format, formatDistanceToNow } from 'date-fns'
-import { Clock, Terminal, User } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { Clock } from 'lucide-react'
 import { JSONView } from '../../../console/components/json-view/json-view'
 
 interface ChatMessageProps {
@@ -9,6 +9,7 @@ interface ChatMessageProps {
     content: any
     timestamp: string | Date
     type: 'user' | 'workflow'
+    isStreaming?: boolean
   }
   containerWidth: number
 }
@@ -66,7 +67,7 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
       return JSON.stringify(message.content) // Return stringified version for type safety
     }
 
-    return String(message.content)
+    return String(message.content || '')
   }, [message.content, isJsonObject])
 
   return (
@@ -79,6 +80,9 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
         </div>
         <div className="flex items-center gap-2 text-sm">
           {message.type !== 'user' && <span className="text-muted-foreground">Workflow</span>}
+          {message.isStreaming && (
+            <span className="text-primary ml-2 animate-pulse" title="Streaming">•••</span>
+          )}
         </div>
       </div>
 
@@ -89,6 +93,9 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
         ) : (
           <div className="whitespace-pre-wrap text-foreground break-words">
             <WordWrap text={formattedContent} />
+            {message.isStreaming && (
+              <span className="inline-block h-4 w-2 bg-primary ml-1 animate-pulse"></span>
+            )}
           </div>
         )}
       </div>

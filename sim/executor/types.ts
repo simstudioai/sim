@@ -100,6 +100,11 @@ export interface ExecutionContext {
   activeExecutionPath: Set<string> // Set of block IDs in the current execution path
 
   workflow?: SerializedWorkflow // Reference to the workflow being executed
+  
+  // Streaming support and output selection
+  stream?: boolean // Whether to use streaming responses when available
+  selectedOutputIds?: string[] // IDs of blocks selected for streaming output
+  edges?: Array<{source: string, target: string}> // Workflow edge connections
 }
 
 /**
@@ -111,6 +116,15 @@ export interface ExecutionResult {
   error?: string // Error message if execution failed
   logs?: BlockLog[] // Execution logs for all blocks
   metadata?: ExecutionMetadata
+}
+
+/**
+ * Streaming execution result combining a readable stream with execution metadata.
+ * This allows us to stream content to the UI while still capturing all execution logs.
+ */
+export interface StreamingExecution {
+  stream: ReadableStream // The streaming response for the UI to consume
+  execution: ExecutionResult & { isStreaming?: boolean } // The complete execution data for logging purposes
 }
 
 /**
@@ -151,13 +165,13 @@ export interface BlockHandler {
    * @param block - Block to execute
    * @param inputs - Resolved input parameters
    * @param context - Current execution context
-   * @returns Block execution output
+   * @returns Block execution output or StreamingExecution for streaming
    */
   execute(
     block: SerializedBlock,
     inputs: Record<string, any>,
     context: ExecutionContext
-  ): Promise<BlockOutput>
+  ): Promise<BlockOutput | StreamingExecution>
 }
 
 /**

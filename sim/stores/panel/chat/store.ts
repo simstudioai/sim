@@ -16,8 +16,9 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             const newMessage: ChatMessage = {
               ...message,
-              id: crypto.randomUUID(),
-              timestamp: new Date().toISOString(),
+              // Preserve provided id and timestamp if they exist; otherwise generate new ones
+              id: (message as any).id ?? crypto.randomUUID(),
+              timestamp: (message as any).timestamp ?? new Date().toISOString(),
             }
 
             // Keep only the last MAX_MESSAGES
@@ -59,6 +60,38 @@ export const useChatStore = create<ChatStore>()(
 
         getSelectedWorkflowOutput: (workflowId) => {
           return get().selectedWorkflowOutputs[workflowId] || []
+        },
+
+        appendMessageContent: (messageId, content) => {
+          set((state) => {
+            const newMessages = state.messages.map((message) => {
+              if (message.id === messageId) {
+                return {
+                  ...message,
+                  content: typeof message.content === 'string' 
+                    ? message.content + content
+                    : (message.content ? String(message.content) + content : content),
+                }
+              }
+              return message
+            })
+            
+            return { messages: newMessages }
+          })
+        },
+
+        finalizeMessageStream: (messageId) => {
+          set((state) => {
+            const newMessages = state.messages.map((message) => {
+              if (message.id === messageId) {
+                const { isStreaming, ...rest } = message
+                return rest
+              }
+              return message
+            })
+            
+            return { messages: newMessages }
+          })
         },
       }),
       {

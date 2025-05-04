@@ -16,8 +16,9 @@ export interface ConsoleEntry {
 export interface ConsoleStore {
   entries: ConsoleEntry[]
   isOpen: boolean
-  addConsole: (entry: Omit<ConsoleEntry, 'id'>) => void
+  addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => ConsoleEntry
   clearConsole: (workflowId: string | null) => void
   getWorkflowEntries: (workflowId: string) => ConsoleEntry[]
   toggleConsole: () => void
+  updateConsole: (entryId: string, updatedData: Partial<Omit<ConsoleEntry, 'id' | 'timestamp'>>) => void
 }

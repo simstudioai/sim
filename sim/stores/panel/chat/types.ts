@@ -1,10 +1,11 @@
 export interface ChatMessage {
   id: string
-  content: any
-  workflowId: string | null
+  content: string | any
+  workflowId: string
   type: 'user' | 'workflow'
   timestamp: string
   blockId?: string
+  isStreaming?: boolean
 }
 
 export interface OutputConfig {
@@ -20,4 +21,6 @@ export interface ChatStore {
   getWorkflowMessages: (workflowId: string) => ChatMessage[]
   setSelectedWorkflowOutput: (workflowId: string, outputIds: string[]) => void
   getSelectedWorkflowOutput: (workflowId: string) => string[]
+  appendMessageContent: (messageId: string, content: string) => void
+  finalizeMessageStream: (messageId: string) => void
 } 

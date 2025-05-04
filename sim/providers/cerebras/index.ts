@@ -2,8 +2,32 @@ import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('Cerebras Provider')
+
+/**
+ * Helper to convert a Cerebras streaming response (async iterable) into a ReadableStream.
+ * Enqueues only the model's text delta chunks as UTF-8 encoded bytes.
+ */
+function createReadableStreamFromCerebrasStream(cerebrasStream: AsyncIterable<any>): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of cerebrasStream) {
+          // Expecting delta content similar to OpenAI: chunk.choices[0]?.delta?.content
+          const content = chunk.choices?.[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    }
+  })
+}
 
 export const cerebrasProvider: ProviderConfig = {
   id: 'cerebras',
@@ -12,7 +36,7 @@ export const cerebrasProvider: ProviderConfig = {
   version: '1.0.0',
   models: ['cerebras/llama-3.3-70b'],
   defaultModel: 'cerebras/llama-3.3-70b',
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Cerebras')
     }
@@ -104,6 +128,66 @@ export const cerebrasProvider: ProviderConfig = {
           // Handle case where all tools are filtered out
           logger.info(`All tools have usageControl='none', removing tools from request`)
         }
+      }
+
+      // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
+      if (request.stream && (!tools || tools.length === 0)) {
+        logger.info('Using streaming response for Cerebras request (no tools)')
+        const streamResponse: any = await client.chat.completions.create({
+          ...payload,
+          stream: true,
+        })
+        
+        // Start collecting token usage
+        let tokenUsage = {
+          prompt: 0,
+          completion: 0,
+          total: 0
+        }
+        
+        // Create a StreamingExecution response with a readable stream
+        const streamingResult = {
+          stream: createReadableStreamFromCerebrasStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by streaming content in chat component
+                model: request.model || 'cerebras/llama-3.3-70b',
+                tokens: tokenUsage,
+                toolCalls: undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  timeSegments: [{
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  }]
+                },
+                // Estimate token cost
+                cost: {
+                  total: 0.0,
+                  input: 0.0,
+                  output: 0.0
+                }
+              }
+            },
+            logs: [], // No block logs for direct streaming
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
       }
 
       // Make the initial API request
@@ -347,6 +431,70 @@ export const cerebrasProvider: ProviderConfig = {
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
+
+      // POST-TOOL-STREAMING: stream after tool calls if requested
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final Cerebras response after tool calls')
+        
+        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
+          ...payload,
+          messages: currentMessages,
+          tool_choice: 'auto',  // Always use 'auto' for the streaming response after tool calls
+          stream: true,
+        }
+        
+        const streamResponse: any = await client.chat.completions.create(streamingPayload)
+        
+        // Create a StreamingExecution response with all collected data
+        const streamingResult = {
+          stream: createReadableStreamFromCerebrasStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'cerebras/llama-3.3-70b',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls: toolCalls.length > 0 ? { 
+                  list: toolCalls,
+                  count: toolCalls.length 
+                } : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001,
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001
+                }
+              }
+            },
+            logs: [], // No block logs at provider level
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
+      }
 
       return {
         content,

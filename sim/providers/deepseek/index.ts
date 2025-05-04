@@ -2,9 +2,32 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('Deepseek Provider')
+
+/**
+ * Helper function to convert a DeepSeek (OpenAI-compatible) stream to a ReadableStream
+ * of text chunks that can be consumed by the browser.
+ */
+function createReadableStreamFromDeepseekStream(deepseekStream: any): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of deepseekStream) {
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    }
+  })
+}
 
 export const deepseekProvider: ProviderConfig = {
   id: 'deepseek',
@@ -14,7 +37,7 @@ export const deepseekProvider: ProviderConfig = {
   models: ['deepseek-chat'],
   defaultModel: 'deepseek-chat',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Deepseek')
     }
@@ -101,6 +124,67 @@ export const deepseekProvider: ProviderConfig = {
             model: request.model || 'deepseek-v3',
           })
         }
+      }
+
+      // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
+      if (request.stream && (!tools || tools.length === 0)) {
+        logger.info('Using streaming response for DeepSeek request (no tools)')
+        
+        const streamResponse = await deepseek.chat.completions.create({
+          ...payload,
+          stream: true,
+        })
+        
+        // Start collecting token usage
+        let tokenUsage = {
+          prompt: 0,
+          completion: 0,
+          total: 0
+        }
+        
+        // Create a StreamingExecution response with a readable stream
+        const streamingResult = {
+          stream: createReadableStreamFromDeepseekStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by streaming content in chat component
+                model: request.model || 'deepseek-chat',
+                tokens: tokenUsage,
+                toolCalls: undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  timeSegments: [{
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  }]
+                },
+                // Estimate token cost
+                cost: {
+                  total: 0.0,
+                  input: 0.0,
+                  output: 0.0
+                }
+              }
+            },
+            logs: [], // No block logs for direct streaming
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
       }
 
       // Make the initial API request
@@ -349,6 +433,70 @@ export const deepseekProvider: ProviderConfig = {
       const providerEndTime = Date.now()
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
+
+      // POST-TOOL STREAMING: stream final response after tool calls if requested
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final DeepSeek response after tool calls')
+        
+        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
+          ...payload,
+          messages: currentMessages,
+          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          stream: true,
+        }
+        
+        const streamResponse = await deepseek.chat.completions.create(streamingPayload)
+        
+        // Create a StreamingExecution response with all collected data
+        const streamingResult = {
+          stream: createReadableStreamFromDeepseekStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'deepseek-chat',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls: toolCalls.length > 0 ? { 
+                  list: toolCalls,
+                  count: toolCalls.length 
+                } : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001,
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001
+                }
+              }
+            },
+            logs: [], // No block logs at provider level
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
+      }
 
       return {
         content,

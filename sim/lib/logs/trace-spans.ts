@@ -77,48 +77,63 @@ export function buildTraceSpans(result: ExecutionResult): {
             },
             index: number
           ) => {
-            const relativeStart = segment.startTime - segmentStartTime
-
-            // Enhance the segment name to include model information for model segments
-            let enhancedName = segment.name
-            if (segment.type === 'model') {
-              const modelName = log.output.response.model || ''
-
-              if (segment.name === 'Initial response') {
-                enhancedName = `Initial response${modelName ? ` (${modelName})` : ''}`
-              } else if (segment.name.includes('iteration')) {
-                // Extract the iteration number
-                const iterationMatch = segment.name.match(/\(iteration (\d+)\)/)
-                const iterationNum = iterationMatch ? iterationMatch[1] : ''
-
-                enhancedName = `Model response${iterationNum ? ` (iteration ${iterationNum})` : ''}${modelName ? ` (${modelName})` : ''}`
+            // Ensure we have valid startTime and endTime
+            let segmentStart: number
+            let segmentEnd: number
+            
+            // Handle different time formats - some providers use ISO strings, some use timestamps
+            if (typeof segment.startTime === 'string') {
+              try {
+                segmentStart = new Date(segment.startTime).getTime()
+              } catch (e) {
+                segmentStart = segmentStartTime + (index * 1000) // Fallback offset
               }
+            } else {
+              segmentStart = segment.startTime
             }
-
-            const segmentSpan: TraceSpan = {
+            
+            if (typeof segment.endTime === 'string') {
+              try {
+                segmentEnd = new Date(segment.endTime).getTime()
+              } catch (e) {
+                segmentEnd = segmentStart + (segment.duration || 1000) // Fallback duration
+              }
+            } else {
+              segmentEnd = segment.endTime
+            }
+            
+            // For streaming responses, make sure our timing is valid
+            if (isNaN(segmentStart) || isNaN(segmentEnd) || segmentEnd < segmentStart) {
+              // Use fallback values
+              segmentStart = segmentStartTime + (index * 1000)
+              segmentEnd = segmentStart + (segment.duration || 1000)
+            }
+            
+            const childSpan: TraceSpan = {
               id: `${spanId}-segment-${index}`,
-              name: enhancedName,
-              // Make sure we handle model and tool types, and fallback to generic 'span' for anything else
-              type: segment.type === 'model' || segment.type === 'tool' ? segment.type : 'span',
-              duration: segment.duration,
-              startTime: new Date(segment.startTime).toISOString(),
-              endTime: new Date(segment.endTime).toISOString(),
+              name: segment.name || `${segment.type} operation`,
+              startTime: new Date(segmentStart).toISOString(),
+              endTime: new Date(segmentEnd).toISOString(),
+              duration: segment.duration || (segmentEnd - segmentStart),
+              type: segment.type === 'model' ? 'model' : segment.type === 'tool' ? 'tool' : 'processing',
               status: 'success',
-              // Add relative timing display for segments after the first one
-              relativeStartMs: index === 0 ? undefined : relativeStart,
-              // For model segments, add token info if available
-              ...(segment.type === 'model' && {
-                tokens: index === 0 ? log.output.response.tokens?.completion : undefined,
-              }),
+              children: [],
             }
 
-            children.push(segmentSpan)
+            // Add any additional metadata
+            if (segment.type === 'tool' && typeof segment.name === 'string') {
+              // Add as a custom attribute using type assertion
+              (childSpan as any).toolName = segment.name
+            }
+
+            children.push(childSpan)
           }
         )
 
-        // Add all segments as children
-        if (!span.children) span.children = []
-        span.children.push(...children)
+        // Only add children if we have valid spans
+        if (children.length > 0) {
+          span.children = children
+        }
       }
       // If no segments but we have provider timing, create a provider span
       else {
@@ -171,17 +186,59 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
     } else {
       // When not using provider timing at all, add tool calls if they exist
-      if (log.output?.response?.toolCalls?.list) {
-        span.toolCalls = log.output.response.toolCalls.list.map((tc: any) => ({
-          name: stripCustomToolPrefix(tc.name),
-          duration: tc.duration || 0,
-          startTime: tc.startTime || log.startedAt,
-          endTime: tc.endTime || log.endedAt,
-          status: tc.error ? 'error' : 'success',
-          input: tc.arguments || tc.input,
-          output: tc.result || tc.output,
-          error: tc.error,
-        }))
+      // Tool calls handling for different formats:
+      // 1. Standard format in response.toolCalls.list
+      // 2. Direct toolCalls array in response
+      // 3. Streaming response formats with executionData
+
+      // Check all possible paths for toolCalls
+      let toolCallsList = null;
+      
+      // Wrap extraction in try-catch to handle unexpected toolCalls formats 
+      try {
+        if (log.output?.response?.toolCalls?.list) {
+          // Standard format with list property
+          toolCallsList = log.output.response.toolCalls.list;
+        } else if (Array.isArray(log.output?.response?.toolCalls)) {
+          // Direct array format
+          toolCallsList = log.output.response.toolCalls;
+        } else if (log.output?.executionData?.output?.response?.toolCalls) {
+          // Streaming format with executionData
+          const tcObj = log.output.executionData.output.response.toolCalls;
+          toolCallsList = Array.isArray(tcObj) ? tcObj : (tcObj.list || []);
+        }
+        
+        // Validate that toolCallsList is actually an array before processing
+        if (toolCallsList && !Array.isArray(toolCallsList)) {
+          console.warn(`toolCallsList is not an array: ${typeof toolCallsList}`);
+          toolCallsList = [];
+        }
+      } catch (error) {
+        console.error(`Error extracting toolCalls: ${error}`);
+        toolCallsList = [];  // Set to empty array as fallback
+      }
+
+      if (toolCallsList && toolCallsList.length > 0) {
+        span.toolCalls = toolCallsList.map((tc: any) => {
+          // Add null check for each tool call
+          if (!tc) return null;
+          
+          try {
+            return {
+              name: stripCustomToolPrefix(tc.name || 'unnamed-tool'),
+              duration: tc.duration || 0,
+              startTime: tc.startTime || log.startedAt,
+              endTime: tc.endTime || log.endedAt,
+              status: tc.error ? 'error' : 'success',
+              input: tc.arguments || tc.input,
+              output: tc.result || tc.output,
+              error: tc.error,
+            };
+          } catch (tcError) {
+            console.error(`Error processing tool call: ${tcError}`);
+            return null;
+          }
+        }).filter(Boolean); // Remove any null entries from failed processing
       }
     }
 

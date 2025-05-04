@@ -123,13 +123,6 @@ async function forwardToCollector(data: any): Promise<boolean> {
       }]
     }
     
-    // Safe debug log of the payload structure without sensitive data
-    logger.debug('Preparing to send telemetry payload', { 
-      endpoint,
-      hasAttributes: safeAttrs.length > 0,
-      attributeCount: safeAttrs.length
-    })
-    
     // Create explicit AbortController for timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), timeout)

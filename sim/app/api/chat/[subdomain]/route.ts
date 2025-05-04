@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
@@ -95,6 +95,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       // Execute the workflow using our helper function
       const result = await executeWorkflowForChat(deployment.id, message)
+      
+      // If the executor returned a ReadableStream, stream it directly to the client
+      if (result instanceof ReadableStream) {
+        const streamResponse = new NextResponse(result, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        })
+        return addCorsHeaders(streamResponse, request)
+      }
+      
+      // Handle StreamingExecution format
+      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+        const streamResponse = new NextResponse(result.stream as ReadableStream, {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        })
+        return addCorsHeaders(streamResponse, request)
+      }
       
       // Format the result for the client
       // If result.content is an object, preserve it for structured handling

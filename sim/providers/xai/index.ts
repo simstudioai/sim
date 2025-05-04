@@ -2,9 +2,32 @@ import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('XAI Provider')
+
+/**
+ * Helper to wrap XAI (OpenAI-compatible) streaming into a browser-friendly
+ * ReadableStream of raw assistant text chunks.
+ */
+function createReadableStreamFromXAIStream(xaiStream: any): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const chunk of xaiStream) {
+          const content = chunk.choices[0]?.delta?.content || ''
+          if (content) {
+            controller.enqueue(new TextEncoder().encode(content))
+          }
+        }
+        controller.close()
+      } catch (err) {
+        controller.error(err)
+      }
+    },
+  })
+}
 
 export const xAIProvider: ProviderConfig = {
   id: 'xai',
@@ -14,9 +37,171 @@ export const xAIProvider: ProviderConfig = {
   models: ['grok-3-latest', 'grok-3-fast-latest'],
   defaultModel: 'grok-3-latest',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for xAI')
+    }
+
+    // Initialize OpenAI client for xAI
+    const xai = new OpenAI({
+      apiKey: request.apiKey,
+      baseURL: 'https://api.x.ai/v1',
+    })
+    
+    // Prepare messages
+    const allMessages = []
+
+    if (request.systemPrompt) {
+      allMessages.push({
+        role: 'system',
+        content: request.systemPrompt,
+      })
+    }
+
+    if (request.context) {
+      allMessages.push({
+        role: 'user',
+        content: request.context,
+      })
+    }
+
+    if (request.messages) {
+      allMessages.push(...request.messages)
+    }
+
+    // Set up tools
+    const tools = request.tools?.length
+      ? request.tools.map((tool) => ({
+          type: 'function',
+          function: {
+            name: tool.id,
+            description: tool.description,
+            parameters: tool.parameters,
+          },
+        }))
+      : undefined
+
+    // Build the request payload
+    const payload: any = {
+      model: request.model || 'grok-3-latest',
+      messages: allMessages,
+    }
+
+    if (request.temperature !== undefined) payload.temperature = request.temperature
+    if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
+
+    if (request.responseFormat) {
+      payload.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: request.responseFormat.name || 'structured_response',
+          schema: request.responseFormat.schema || request.responseFormat,
+          strict: request.responseFormat.strict !== false,
+        },
+      }
+
+      if (allMessages.length > 0 && allMessages[0].role === 'system') {
+        allMessages[0].content = `${allMessages[0].content}\n\nYou MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`
+      } else {
+        allMessages.unshift({
+          role: 'system',
+          content: `You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`,
+        })
+      }
+    }
+
+    // Handle tools and tool usage control
+    let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
+
+    if (tools?.length) {
+      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
+      const { tools: filteredTools, toolChoice } = preparedTools
+
+      if (filteredTools?.length && toolChoice) {
+        payload.tools = filteredTools
+        payload.tool_choice = toolChoice
+
+        logger.info(`XAI request configuration:`, {
+          toolCount: filteredTools.length,
+          toolChoice:
+            typeof toolChoice === 'string'
+              ? toolChoice
+              : toolChoice.type === 'function'
+                ? `force:${toolChoice.function.name}`
+                : toolChoice.type === 'tool'
+                  ? `force:${toolChoice.name}`
+                  : toolChoice.type === 'any'
+                    ? `force:${toolChoice.any?.name || 'unknown'}`
+                    : 'unknown',
+          model: request.model || 'grok-3-latest',
+        })
+      }
+    }
+
+    // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
+    // we can directly stream the completion.
+    if (request.stream && (!tools || tools.length === 0)) {
+      logger.info('Using streaming response for XAI request (no tools)')
+
+      // Start execution timer for the entire provider execution
+      const providerStartTime = Date.now()
+      const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+      const streamResponse = await xai.chat.completions.create({
+        ...payload,
+        stream: true,
+      })
+
+      // Start collecting token usage
+      let tokenUsage = {
+        prompt: 0,
+        completion: 0,
+        total: 0
+      }
+      
+      // Create a StreamingExecution response with a readable stream
+      const streamingResult = {
+        stream: createReadableStreamFromXAIStream(streamResponse),
+        execution: {
+          success: true,
+          output: {
+            response: {
+              content: '', // Will be filled by streaming content in chat component
+              model: request.model || 'grok-3-latest',
+              tokens: tokenUsage,
+              toolCalls: undefined,
+              providerTiming: {
+                startTime: providerStartTimeISO,
+                endTime: new Date().toISOString(),
+                duration: Date.now() - providerStartTime,
+                timeSegments: [{
+                  type: 'model',
+                  name: 'Streaming response',
+                  startTime: providerStartTime,
+                  endTime: Date.now(),
+                  duration: Date.now() - providerStartTime,
+                }]
+              },
+              // Estimate token cost
+              cost: {
+                total: 0.0,
+                input: 0.0,
+                output: 0.0
+              }
+            }
+          },
+          logs: [], // No block logs for direct streaming
+          metadata: {
+            startTime: providerStartTimeISO,
+            endTime: new Date().toISOString(),
+            duration: Date.now() - providerStartTime,
+          },
+          isStreaming: true
+        }
+      }
+      
+      // Return the streaming execution object
+      return streamingResult as StreamingExecution
     }
 
     // Start execution timer for the entire provider execution
@@ -24,98 +209,6 @@ export const xAIProvider: ProviderConfig = {
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     try {
-      const xai = new OpenAI({
-        apiKey: request.apiKey,
-        baseURL: 'https://api.x.ai/v1',
-      })
-
-      const allMessages = []
-
-      if (request.systemPrompt) {
-        allMessages.push({
-          role: 'system',
-          content: request.systemPrompt,
-        })
-      }
-
-      if (request.context) {
-        allMessages.push({
-          role: 'user',
-          content: request.context,
-        })
-      }
-
-      if (request.messages) {
-        allMessages.push(...request.messages)
-      }
-
-      const tools = request.tools?.length
-        ? request.tools.map((tool) => ({
-            type: 'function',
-            function: {
-              name: tool.id,
-              description: tool.description,
-              parameters: tool.parameters,
-            },
-          }))
-        : undefined
-
-      const payload: any = {
-        model: request.model || 'grok-3-latest',
-        messages: allMessages,
-      }
-
-      if (request.temperature !== undefined) payload.temperature = request.temperature
-      if (request.maxTokens !== undefined) payload.max_tokens = request.maxTokens
-
-      if (request.responseFormat) {
-        payload.response_format = {
-          type: 'json_schema',
-          json_schema: {
-            name: request.responseFormat.name || 'structured_response',
-            schema: request.responseFormat.schema || request.responseFormat,
-            strict: request.responseFormat.strict !== false,
-          },
-        }
-
-        if (allMessages.length > 0 && allMessages[0].role === 'system') {
-          allMessages[0].content = `${allMessages[0].content}\n\nYou MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`
-        } else {
-          allMessages.unshift({
-            role: 'system',
-            content: `You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`,
-          })
-        }
-      }
-
-      // Handle tools and tool usage control
-      let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
-
-      if (tools?.length) {
-        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
-        const { tools: filteredTools, toolChoice } = preparedTools
-
-        if (filteredTools?.length && toolChoice) {
-          payload.tools = filteredTools
-          payload.tool_choice = toolChoice
-
-          logger.info(`XAI request configuration:`, {
-            toolCount: filteredTools.length,
-            toolChoice:
-              typeof toolChoice === 'string'
-                ? toolChoice
-                : toolChoice.type === 'function'
-                  ? `force:${toolChoice.function.name}`
-                  : toolChoice.type === 'tool'
-                    ? `force:${toolChoice.name}`
-                    : toolChoice.type === 'any'
-                      ? `force:${toolChoice.any?.name || 'unknown'}`
-                      : 'unknown',
-            model: request.model || 'grok-3-latest',
-          })
-        }
-      }
-
       // Make the initial API request
       const initialCallTime = Date.now()
 
@@ -326,6 +419,70 @@ export const xAIProvider: ProviderConfig = {
         }
       } catch (error) {
         logger.error('Error in xAI request:', { error })
+      }
+
+      // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
+      if (request.stream && iterationCount > 0) {
+        logger.info('Using streaming for final XAI response after tool calls')
+
+        // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
+        // This prevents the API from trying to force tool usage again in the final streaming response
+        const streamingPayload = {
+          ...payload,
+          messages: currentMessages,
+          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          stream: true,
+        }
+        
+        const streamResponse = await xai.chat.completions.create(streamingPayload)
+
+        // Create a StreamingExecution response with all collected data
+        const streamingResult = {
+          stream: createReadableStreamFromXAIStream(streamResponse),
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '', // Will be filled by the callback
+                model: request.model || 'grok-3-latest',
+                tokens: {
+                  prompt: tokens.prompt,
+                  completion: tokens.completion,
+                  total: tokens.total,
+                },
+                toolCalls: toolCalls.length > 0 ? { 
+                  list: toolCalls,
+                  count: toolCalls.length 
+                } : undefined,
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: Date.now() - providerStartTime,
+                  modelTime: modelTime,
+                  toolsTime: toolsTime,
+                  firstResponseTime: firstResponseTime,
+                  iterations: iterationCount + 1,
+                  timeSegments: timeSegments,
+                },
+                cost: {
+                  total: (tokens.total || 0) * 0.0001,
+                  input: (tokens.prompt || 0) * 0.0001,
+                  output: (tokens.completion || 0) * 0.0001
+                }
+              }
+            },
+            logs: [], // No block logs at provider level
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: Date.now() - providerStartTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        // Return the streaming execution object
+        return streamingResult as StreamingExecution
       }
 
       // Calculate overall timing

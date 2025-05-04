@@ -1,8 +1,89 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('Google Provider')
+
+/**
+ * Creates a ReadableStream from Google's Gemini stream response
+ */
+function createReadableStreamFromGeminiStream(response: Response): ReadableStream<Uint8Array> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    throw new Error('Failed to get reader from response body')
+  }
+  
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        let buffer = ''
+        
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            controller.close()
+            break
+          }
+          
+          const text = new TextDecoder().decode(value)
+          buffer += text
+          
+          try {
+            const lines = buffer.split('\n')
+            buffer = ''
+            
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim()
+              
+              if (i === lines.length - 1 && line !== '') {
+                buffer = line
+                continue
+              }
+              
+              if (!line) continue
+              
+              if (line.startsWith('data: ')) {
+                const jsonStr = line.substring(6)
+                
+                if (jsonStr === '[DONE]') continue
+                
+                try {
+                  const data = JSON.parse(jsonStr)
+                  const candidate = data.candidates?.[0]
+                  if (candidate?.content?.parts) {
+                    const content = extractTextContent(candidate)
+                    if (content) {
+                      controller.enqueue(new TextEncoder().encode(content))
+                    }
+                  }
+                } catch (e) {
+                  logger.error('Error parsing Gemini SSE JSON data', {
+                    error: e instanceof Error ? e.message : String(e),
+                    data: jsonStr
+                  })
+                }
+              }
+            }
+          } catch (e) {
+            logger.error('Error processing Gemini SSE stream', {
+              error: e instanceof Error ? e.message : String(e),
+              chunk: text
+            })
+          }
+        }
+      } catch (e) {
+        logger.error('Error reading Google Gemini stream', {
+          error: e instanceof Error ? e.message : String(e)
+        })
+        controller.error(e)
+      }
+    },
+    async cancel() {
+      await reader.cancel()
+    }
+  })
+}
 
 export const googleProvider: ProviderConfig = {
   id: 'google',
@@ -12,7 +93,7 @@ export const googleProvider: ProviderConfig = {
   models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
   defaultModel: 'gemini-2.5-pro-exp-03-25',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
+  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Google Gemini')
     }
@@ -24,6 +105,7 @@ export const googleProvider: ProviderConfig = {
       hasTools: !!request.tools?.length,
       toolCount: request.tools?.length || 0,
       hasResponseFormat: !!request.responseFormat,
+      streaming: !!request.stream,
     })
     
     // Start execution timer for the entire provider execution
@@ -90,8 +172,13 @@ export const googleProvider: ProviderConfig = {
       // Make the API request
       const initialCallTime = Date.now()
       
+      // For streaming requests, add the alt=sse parameter to the URL
+      const endpoint = request.stream 
+        ? `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse` 
+        : `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`
+      
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
+        endpoint,
         {
           method: 'POST',
           headers: {
@@ -112,6 +199,64 @@ export const googleProvider: ProviderConfig = {
       }
 
       const firstResponseTime = Date.now() - initialCallTime
+      
+      // Handle streaming response
+      if (request.stream) {
+        logger.info('Handling Google Gemini streaming response')
+        
+        // Create a ReadableStream from the Google Gemini stream
+        const stream = createReadableStreamFromGeminiStream(response)
+        
+        // Create an object that combines the stream with execution metadata
+        const streamingExecution: StreamingExecution = {
+          stream,
+          execution: {
+            success: true,
+            output: {
+              response: {
+                content: '',
+                model: request.model,
+                tokens: {
+                  prompt: 0,
+                  completion: 0,
+                  total: 0,
+                },
+                providerTiming: {
+                  startTime: providerStartTimeISO,
+                  endTime: new Date().toISOString(),
+                  duration: firstResponseTime,
+                  modelTime: firstResponseTime,
+                  toolsTime: 0,
+                  firstResponseTime,
+                  iterations: 1,
+                  timeSegments: [{
+                    type: 'model',
+                    name: 'Initial streaming response',
+                    startTime: initialCallTime,
+                    endTime: initialCallTime + firstResponseTime,
+                    duration: firstResponseTime,
+                  }],
+                  cost: {
+                    total: 0.0, // Initial estimate, updated as tokens are processed
+                    input: 0.0,
+                    output: 0.0
+                  }
+                }
+              }
+            },
+            logs: [],
+            metadata: {
+              startTime: providerStartTimeISO,
+              endTime: new Date().toISOString(),
+              duration: firstResponseTime,
+            },
+            isStreaming: true
+          }
+        }
+        
+        return streamingExecution
+      }
+      
       let geminiResponse = await response.json()
       
       // Check structured output format
@@ -307,7 +452,105 @@ export const googleProvider: ProviderConfig = {
               const nextModelStartTime = Date.now()
               
               try {
-                // Make the next request
+                // Check if we should stream the final response after tool calls
+                if (request.stream) {
+                  // Create a payload for the streaming response after tool calls
+                  const streamingPayload = {
+                    ...payload,
+                    contents: simplifiedMessages,
+                    tool_config: { mode: 'AUTO' }, // Always use AUTO mode for streaming after tools
+                  }
+                  
+                  // Remove any forced tool configuration to prevent issues with streaming
+                  if ('tool_config' in streamingPayload) {
+                    streamingPayload.tool_config = { mode: 'AUTO' };
+                  }
+                  
+                  // Make the streaming request with alt=sse parameter
+                  const streamingResponse = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(streamingPayload),
+                    }
+                  )
+                  
+                  if (!streamingResponse.ok) {
+                    const errorBody = await streamingResponse.text()
+                    logger.error('Error in Gemini streaming follow-up request:', { 
+                      status: streamingResponse.status,
+                      statusText: streamingResponse.statusText,
+                      responseBody: errorBody
+                    })
+                    throw new Error(`Gemini API streaming error: ${streamingResponse.status} ${streamingResponse.statusText}`)
+                  }
+                  
+                  // Create a stream from the response
+                  const stream = createReadableStreamFromGeminiStream(streamingResponse)
+                  
+                  // Calculate timing information
+                  const nextModelEndTime = Date.now()
+                  const thisModelTime = nextModelEndTime - nextModelStartTime
+                  modelTime += thisModelTime
+                  
+                  // Add to time segments
+                  timeSegments.push({
+                    type: 'model',
+                    name: 'Final streaming response after tool calls',
+                    startTime: nextModelStartTime,
+                    endTime: nextModelEndTime,
+                    duration: thisModelTime,
+                  })
+                  
+                  // Return a streaming execution with tool call information
+                  const streamingExecution: StreamingExecution = {
+                    stream,
+                    execution: {
+                      success: true,
+                      output: {
+                        response: {
+                          content: '',
+                          model: request.model,
+                          tokens,
+                          toolCalls: toolCalls.length > 0 ? { 
+                            list: toolCalls,
+                            count: toolCalls.length 
+                          } : undefined,
+                          toolResults,
+                          providerTiming: {
+                            startTime: providerStartTimeISO,
+                            endTime: new Date().toISOString(),
+                            duration: Date.now() - providerStartTime,
+                            modelTime,
+                            toolsTime,
+                            firstResponseTime,
+                            iterations: iterationCount + 1,
+                            timeSegments,
+                          },
+                          cost: {
+                            total: (tokens.total || 0) * 0.0001,  // Estimate cost based on tokens
+                            input: (tokens.prompt || 0) * 0.0001,
+                            output: (tokens.completion || 0) * 0.0001
+                          }
+                        }
+                      },
+                      logs: [],
+                      metadata: {
+                        startTime: providerStartTimeISO,
+                        endTime: new Date().toISOString(),
+                        duration: Date.now() - providerStartTime,
+                      },
+                      isStreaming: true
+                    }
+                  }
+                  
+                  return streamingExecution
+                }
+                
+                // Make the next request for non-streaming response
                 const nextResponse = await fetch(
                   `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
                   {

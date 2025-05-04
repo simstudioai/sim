@@ -2,6 +2,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { supportsTemperature } from './model-capabilities'
 import { ProviderRequest, ProviderResponse } from './types'
 import { calculateCost, generateStructuredOutputInstructions, getProvider } from './utils'
+import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('Providers')
 
@@ -18,10 +19,20 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   return sanitizedRequest
 }
 
+// Type guard for StreamingExecution
+function isStreamingExecution(response: any): response is StreamingExecution {
+  return response && typeof response === 'object' && 'stream' in response && 'execution' in response
+}
+
+// Type guard for ReadableStream
+function isReadableStream(response: any): response is ReadableStream {
+  return response instanceof ReadableStream
+}
+
 export async function executeProviderRequest(
   providerId: string,
   request: ProviderRequest
-): Promise<ProviderResponse> {
+): Promise<ProviderResponse | ReadableStream | StreamingExecution> {
   logger.info(`Executing request with provider: ${providerId}`, {
     hasResponseFormat: !!request.responseFormat,
     model: request.model,
@@ -65,6 +76,18 @@ export async function executeProviderRequest(
   // Execute the request using the provider's implementation
   const response = await provider.executeRequest(sanitizedRequest)
 
+  // If we received a StreamingExecution or ReadableStream, just pass it through
+  if (isStreamingExecution(response)) {
+    logger.info(`Provider returned StreamingExecution`)
+    return response
+  }
+  
+  if (isReadableStream(response)) {
+    logger.info(`Provider returned ReadableStream`)
+    return response
+  }
+  
+  // At this point, we know we have a ProviderResponse
   logger.info(`Provider response received`, {
     contentLength: response.content ? response.content.length : 0,
     model: response.model,

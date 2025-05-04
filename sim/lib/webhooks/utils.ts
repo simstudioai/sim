@@ -544,11 +544,17 @@ export async function executeWorkflowFromPayload(
     // This is THE critical line where the workflow actually executes
     const result = await executor.execute(foundWorkflow.id)
     
+    // Check if we got a StreamingExecution result (with stream + execution properties)
+    // For webhook executions, we only care about the ExecutionResult part, not the stream
+    const executionResult = 'stream' in result && 'execution' in result 
+      ? result.execution 
+      : result
+    
     // Add direct detailed logging right after executing
     logger.info(`[${requestId}] EXECUTION_MONITOR: executor.execute() completed with result`, {
       workflowId: foundWorkflow.id,
       executionId: executionId,
-      success: result.success,
+      success: executionResult.success,
       resultType: result ? typeof result : 'undefined',
       timestamp: new Date().toISOString()
     });
@@ -557,7 +563,7 @@ export async function executeWorkflowFromPayload(
     const executionDuration = Date.now() - executionStartTime;
     logger.info(`[${requestId}] TRACE: Workflow execution completed`, {
       workflowId: foundWorkflow.id,
-      success: result.success,
+      success: executionResult.success,
       duration: `${executionDuration}ms`,
       actualDurationMs: executionDuration,
       timestamp: new Date().toISOString()
@@ -565,13 +571,13 @@ export async function executeWorkflowFromPayload(
     
     logger.info(`[${requestId}] Workflow execution finished`, {
       executionId,
-      success: result.success,
-      durationMs: result.metadata?.duration || executionDuration,
+      success: executionResult.success,
+      durationMs: executionResult.metadata?.duration || executionDuration,
       actualDurationMs: executionDuration
     })
 
     // Update counts and stats if successful
-    if (result.success) {
+    if (executionResult.success) {
       await updateWorkflowRunCounts(foundWorkflow.id)
       await db
         .update(userStats)
@@ -589,8 +595,8 @@ export async function executeWorkflowFromPayload(
     }
 
     // Build and enrich result with trace spans
-    const { traceSpans, totalDuration } = buildTraceSpans(result)
-    const enrichedResult = { ...result, traceSpans, totalDuration }
+    const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
+    const enrichedResult = { ...executionResult, traceSpans, totalDuration }
 
     // Persist logs for this execution using the standard 'webhook' trigger type
     await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
