@@ -48,7 +48,7 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
   request: {
     url: (params) => {
-      const query = encodeURIComponent(params.query)
+      const query = params.query
       const expansions = [
         'author_id',
         'referenced_tweets.id',
@@ -83,6 +83,29 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
   transformResponse: async (response) => {
     const data = await response.json()
+
+    // Check if data.data is undefined/null or not an array
+    if (!data.data || !Array.isArray(data.data)) {
+      console.error('X Search API Error:', JSON.stringify(data, null, 2))
+      return {
+        success: false,
+        error: data.error?.detail || data.error?.title || 'No results found or invalid response from X API',
+        output: {
+          tweets: [],
+          includes: {
+            users: [],
+            media: [],
+            polls: [],
+          },
+          meta: data.meta || {
+            resultCount: 0,
+            newestId: null,
+            oldestId: null,
+            nextToken: null,
+          },
+        },
+      }
+    }
 
     const transformTweet = (tweet: any): XTweet => ({
       id: tweet.id,
@@ -140,6 +163,12 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     if (error.title === 'Invalid Request') {
       return 'Invalid search query. Please check your search parameters.'
     }
-    return error.detail || `An error occurred while searching X`
+    if (error.status === 429) {
+      return 'Rate limit exceeded. Please try again later.'
+    }
+    if (error.detail && typeof error.detail === 'string') {
+      return `X API error: ${error.detail}`
+    }
+    return error.detail || error.message || `An error occurred while searching X`
   },
 }
