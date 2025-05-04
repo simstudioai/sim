@@ -59,6 +59,7 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
+    logger.info('Successfully fetched issue:', data.key)
     
     // Transform the Jira issue data into our expected format
     const issueInfo: any = {
