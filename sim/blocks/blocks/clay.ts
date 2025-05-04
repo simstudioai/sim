@@ -36,15 +36,13 @@ Plain Text: Best for populating a table in free-form style.
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your Clay Auth token',
-      password: true,
-      connectionDroppable: false,
     },
   ],
   tools: {
     access: ['clay_populate'],
   },
   inputs: {
-    authToken: { type: 'string', required: true },
+    authToken: { type: 'string', required: false },
     webhookURL: { type: 'string', required: true },
     data: { type: 'json', required: true },
   },
