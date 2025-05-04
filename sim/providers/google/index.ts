@@ -3,7 +3,7 @@ import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { StreamingExecution } from '@/executor/types'
 
-const logger = createLogger('Google Provider')
+const logger = createLogger('GoogleProvider')
 
 /**
  * Creates a ReadableStream from Google's Gemini stream response
@@ -371,8 +371,7 @@ export const googleProvider: ProviderConfig = {
                 hasRequiredParams: Object.keys(requiredToolCallParams).length > 0,
                 requiredParamKeys: Object.keys(requiredToolCallParams),
               })
-              
-              const result = await executeTool(toolName, mergedArgs)
+              const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
               

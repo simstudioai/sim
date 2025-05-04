@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('Sync Core')
+const logger = createLogger('SyncCore')
 
 /**
  * Core sync types and utilities for optimistic state synchronization

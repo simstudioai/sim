@@ -5,7 +5,7 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
-const logger = createLogger('Deepseek Provider')
+const logger = createLogger('DeepseekProvider')
 
 /**
  * Helper function to convert a DeepSeek (OpenAI-compatible) stream to a ReadableStream
@@ -285,7 +285,7 @@ export const deepseekProvider: ProviderConfig = {
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              const result = await executeTool(toolName, mergedArgs)
+              const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

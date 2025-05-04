@@ -7,7 +7,7 @@ import { generateApiKey } from '@/lib/utils'
 import { db } from '@/db'
 import { apiKey } from '@/db/schema'
 
-const logger = createLogger('ApiKeysRoute')
+const logger = createLogger('ApiKeysAPI')
 
 // GET /api/user/api-keys - Get all API keys for the current user
 export async function GET(request: NextRequest) {

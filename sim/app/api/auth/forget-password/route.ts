@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('ForgetPassword')
+const logger = createLogger('ForgetPasswordAPI')
 
 export async function POST(request: NextRequest) {
   try {

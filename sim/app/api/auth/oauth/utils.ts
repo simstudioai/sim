@@ -5,7 +5,7 @@ import { refreshOAuthToken } from '@/lib/oauth'
 import { db } from '@/db'
 import { account, workflow } from '@/db/schema'
 
-const logger = createLogger('OAuthUtils')
+const logger = createLogger('OAuthUtilsAPI')
 
 /**
  * Get the user ID based on either a session or a workflow ID

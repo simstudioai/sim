@@ -16,7 +16,7 @@ import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
 
-const logger = createLogger('Workflow Registry')
+const logger = createLogger('WorkflowRegistry')
 
 // Storage key for active workspace
 const ACTIVE_WORKSPACE_KEY = 'active-workspace-id'

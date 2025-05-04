@@ -15,7 +15,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import * as Sentry from '@sentry/nextjs'
 
-const logger = createLogger('otel-instrumentation')
+const logger = createLogger('OtelInstrumentation')
 
 const DEFAULT_TELEMETRY_CONFIG = {
   endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',

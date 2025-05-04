@@ -5,7 +5,7 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
-const logger = createLogger('Anthropic Provider')
+const logger = createLogger('AnthropicProvider')
 
 /**
  * Helper to wrap Anthropic streaming (async iterable of SSE events) into a browser-friendly
@@ -449,7 +449,7 @@ ${fieldDescriptions}
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              const result = await executeTool(toolName, mergedArgs)
+              const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

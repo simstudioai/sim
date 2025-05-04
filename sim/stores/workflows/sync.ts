@@ -10,7 +10,7 @@ import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
 import { BlockState } from './workflow/types'
 
-const logger = createLogger('Workflows Sync')
+const logger = createLogger('WorkflowsSync')
 
 // Add debounce utility
 let syncDebounceTimer: NodeJS.Timeout | null = null

@@ -4,7 +4,7 @@ import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { StreamingExecution } from '@/executor/types'
 
-const logger = createLogger('Groq Provider')
+const logger = createLogger('GroqProvider')
 
 /**
  * Helper to wrap Groq streaming into a browser-friendly ReadableStream
@@ -255,7 +255,7 @@ export const groqProvider: ProviderConfig = {
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              const result = await executeTool(toolName, mergedArgs)
+              const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

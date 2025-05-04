@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { PromptManagerParams, PromptManagerResponse } from './types'
 
-const logger = createLogger('AutoblocksPromptManager')
+const logger = createLogger('AutoblocksPromptManagerTool')
 
 export const promptManagerTool: ToolConfig<PromptManagerParams, PromptManagerResponse> = {
   id: 'autoblocks_prompt_manager',

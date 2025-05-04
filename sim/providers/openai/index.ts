@@ -5,7 +5,7 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 import { StreamingExecution } from '@/executor/types'
 
-const logger = createLogger('OpenAI Provider')
+const logger = createLogger('OpenAIProvider')
 
 /**
  * Helper function to convert an OpenAI stream to a standard ReadableStream
@@ -351,7 +351,8 @@ export const openaiProvider: ProviderConfig = {
               ...toolArgs,
               ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
             }
-            const result = await executeTool(toolName, mergedArgs)
+            
+            const result = await executeTool(toolName, mergedArgs, true)
             const toolCallEndTime = Date.now()
             const toolCallDuration = toolCallEndTime - toolCallStartTime
 

@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '../../constants'
 import { EnvironmentStore, EnvironmentVariable } from './types'
 
-const logger = createLogger('Environment Store')
+const logger = createLogger('EnvironmentStore')
 
 export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
   variables: {},

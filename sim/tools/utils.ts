@@ -5,7 +5,7 @@ import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { tools } from './registry'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 
-const logger = createLogger('Tools Utils')
+const logger = createLogger('ToolsUtils')
 
 /**
  * Transforms a table from the store format to a key-value object

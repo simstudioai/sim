@@ -2,7 +2,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { BrowserUseRunTaskParams, BrowserUseRunTaskResponse, BrowserUseTaskOutput } from './types'
 
-const logger = createLogger('BrowserUseTools')
+const logger = createLogger('BrowserUseTool')
 
 export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskResponse> = {
   id: 'browser_use_run_task',

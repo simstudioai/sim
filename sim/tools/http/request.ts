@@ -2,7 +2,7 @@ import { HttpMethod, TableRow, ToolConfig } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
 import { RequestParams, RequestResponse } from './types'
 
-const logger = createLogger('HTTP Request Tool')
+const logger = createLogger('HTTPRequestTool')
 
 // Function to get the appropriate referer based on environment
 const getReferer = (): string => {
