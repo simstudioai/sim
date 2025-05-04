@@ -373,29 +373,19 @@ export function JiraIssueSelector({
     }
   }
 
-  // Update selected issue when value changes externally 
+  // Fetch selected issue metadata once credentials are ready or changed
+  useEffect(() => {
+    if (value && selectedCredentialId && !selectedIssue && domain && domain.includes('.')) {
+      fetchIssueInfo(value)
+    }
+  }, [value, selectedCredentialId, selectedIssue, domain, fetchIssueInfo])
+
+  // Keep internal selectedIssueId in sync with the value prop
   useEffect(() => {
     if (value !== selectedIssueId) {
       setSelectedIssueId(value)
-
-      // Only fetch issue info if we have a valid value
-      if (value && value.trim() !== '') {
-        // Find issue info if we have issues loaded
-        if (issues.length > 0) {
-          const issueInfo = issues.find((issue) => issue.id === value) || null
-          setSelectedIssue(issueInfo)
-          onIssueInfoChange?.(issueInfo)
-        } else if (!selectedIssue && selectedCredentialId && domain && domain.includes('.')) {
-          // If we don't have issues loaded yet but have a value, try to fetch the issue info
-          fetchIssueInfo(value)
-        }
-      } else {
-        // If value is empty or undefined, clear the selection without triggering API calls
-        setSelectedIssue(null)
-        onIssueInfoChange?.(null)
-      }
     }
-  }, [value, issues, selectedIssue, selectedCredentialId, domain, onIssueInfoChange, fetchIssueInfo])
+  }, [value])
 
   // Handle issue selection
   const handleSelectIssue = (issue: JiraIssueInfo) => {

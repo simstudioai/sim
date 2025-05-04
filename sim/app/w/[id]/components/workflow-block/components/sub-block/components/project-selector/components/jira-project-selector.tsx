@@ -331,29 +331,19 @@ export function JiraProjectSelector({
     }
   }, [fetchCredentials])
 
-  // Update selected project when value changes externally 
+  // Fetch the selected project metadata once credentials are ready or changed
+  useEffect(() => {
+    if (value && selectedCredentialId && !selectedProject && domain && domain.includes('.')) {
+      fetchProjectInfo(value)
+    }
+  }, [value, selectedCredentialId, selectedProject, domain, fetchProjectInfo])
+
+  // Keep internal selectedProjectId in sync with the value prop
   useEffect(() => {
     if (value !== selectedProjectId) {
       setSelectedProjectId(value)
-
-      // Only fetch project info if we have a valid value
-      if (value && value.trim() !== '') {
-        // Find project info if we have projects loaded
-        if (projects.length > 0) {
-          const projectInfo = projects.find((project) => project.id === value) || null
-          setSelectedProject(projectInfo)
-          onProjectInfoChange?.(projectInfo)
-        } else if (!selectedProject && selectedCredentialId && domain && domain.includes('.')) {
-          // If we don't have projects loaded yet but have a value, try to fetch the project info
-          fetchProjectInfo(value)
-        }
-      } else {
-        // If value is empty or undefined, clear the selection without triggering API calls
-        setSelectedProject(null)
-        onProjectInfoChange?.(null)
-      }
     }
-  }, [value, projects, selectedProject, selectedCredentialId, domain, onProjectInfoChange, fetchProjectInfo])
+  }, [value])
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {

@@ -176,17 +176,20 @@ export function GoogleDrivePicker({
     }
   }, [fetchCredentials])
 
-  // Update selected file when value changes externally
+  // Fetch the selected file metadata once credentials are loaded or changed
+  useEffect(() => {
+    // If we have a file ID selected and credentials are ready but we still don't have the file info, fetch it
+    if (value && selectedCredentialId && !selectedFile) {
+      fetchFileById(value)
+    }
+  }, [value, selectedCredentialId, selectedFile, fetchFileById])
+
+  // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
     if (value !== selectedFileId) {
       setSelectedFileId(value)
-
-      // If we have a value but no file info, try to fetch it
-      if (value && selectedCredentialId && !selectedFile) {
-        fetchFileById(value)
-      }
     }
-  }, [value, selectedCredentialId, selectedFile, fetchFileById])
+  }, [value])
 
   // Fetch the access token for the selected credential
   const fetchAccessToken = async (): Promise<string | null> => {

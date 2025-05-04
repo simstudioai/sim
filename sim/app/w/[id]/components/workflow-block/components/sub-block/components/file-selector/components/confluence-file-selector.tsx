@@ -330,23 +330,19 @@ export function ConfluenceFileSelector({
     }
   }
 
-  // Update selected file when value changes externally
+  // Fetch the selected page metadata once credentials and domain are ready or changed
+  useEffect(() => {
+    if (value && selectedCredentialId && !selectedFile && domain && domain.includes('.')) {
+      fetchPageInfo(value)
+    }
+  }, [value, selectedCredentialId, selectedFile, domain, fetchPageInfo])
+
+  // Keep internal selectedFileId in sync with the value prop
   useEffect(() => {
     if (value !== selectedFileId) {
       setSelectedFileId(value)
-
-      // Find file info if we have files loaded
-      if (files.length > 0) {
-        const fileInfo = files.find((file) => file.id === value) || null
-        setSelectedFile(fileInfo)
-        onFileInfoChange?.(fileInfo)
-      } else if (value && !selectedFile && selectedCredentialId && domain && domain.includes('.')) {
-        // If we don't have files loaded yet but have a value, try to fetch the file info
-        // Only make the API call if we have everything we need and a proper domain
-        fetchPageInfo(value)
-      }
     }
-  }, [value, files, selectedFile, selectedCredentialId, domain, onFileInfoChange, fetchPageInfo])
+  }, [value])
 
   // Handle file selection
   const handleSelectFile = (file: ConfluenceFileInfo) => {

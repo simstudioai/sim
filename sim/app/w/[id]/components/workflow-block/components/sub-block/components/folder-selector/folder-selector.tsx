@@ -214,29 +214,19 @@ export function FolderSelector({
     }
   }, [selectedCredentialId, fetchFolders])
 
-  // Update selected folder when value changes externally
+  // Keep internal selectedFolderId in sync with the value prop
   useEffect(() => {
     if (value !== selectedFolderId) {
       setSelectedFolderId(value)
-
-      // Find folder info if we have folders loaded
-      if (folders.length > 0) {
-        const folderInfo = folders.find((folder) => folder.id === value) || null
-        setSelectedFolder(folderInfo)
-        onFolderInfoChange?.(folderInfo)
-      } else if (value && selectedCredentialId) {
-        // If we have a value but no folders loaded yet, try to fetch the folder by ID
-        fetchFolderById(value)
-      }
     }
-  }, [value, folders, onFolderInfoChange, selectedCredentialId, fetchFolderById])
+  }, [value])
 
-  // Try to fetch the folder by ID when credentials become available
+  // Fetch the selected folder metadata once credentials are ready
   useEffect(() => {
-    if (selectedCredentialId && selectedFolderId && !selectedFolder) {
-      fetchFolderById(selectedFolderId)
+    if (value && selectedCredentialId && !selectedFolder) {
+      fetchFolderById(value)
     }
-  }, [selectedCredentialId, selectedFolderId, selectedFolder, fetchFolderById])
+  }, [value, selectedCredentialId, selectedFolder, fetchFolderById])
 
   // Handle folder selection
   const handleSelectFolder = (folder: FolderInfo) => {
