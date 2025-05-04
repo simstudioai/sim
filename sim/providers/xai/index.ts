@@ -5,7 +5,7 @@ import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '
 import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
-const logger = createLogger('XAI Provider')
+const logger = createLogger('XAIProvider')
 
 /**
  * Helper to wrap XAI (OpenAI-compatible) streaming into a browser-friendly
@@ -300,7 +300,8 @@ export const xAIProvider: ProviderConfig = {
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              const result = await executeTool(toolName, mergedArgs)
+              logger.info(`[XAIProvider] Executing tool: ${toolName} with skipProxy=true`);
+              const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 

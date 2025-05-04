@@ -5,7 +5,7 @@ import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { ModelsObject } from './types'
 
-const logger = createLogger('Ollama Provider')
+const logger = createLogger('OllamaProvider')
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434'
 
 export const ollamaProvider: ProviderConfig = {
@@ -188,7 +188,8 @@ export const ollamaProvider: ProviderConfig = {
                 ...toolArgs,
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
               }
-              const result = await executeTool(toolName, mergedArgs)
+              logger.info(`[OllamaProvider] Executing tool: ${toolName} with skipProxy=true`);
+              const result = await executeTool(toolName, mergedArgs, true)
               const toolCallEndTime = Date.now()
               const toolCallDuration = toolCallEndTime - toolCallStartTime
 
