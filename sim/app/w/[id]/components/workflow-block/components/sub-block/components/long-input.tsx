@@ -17,6 +17,7 @@ interface LongInputProps {
   subBlockId: string
   isConnecting: boolean
   config: SubBlockConfig
+  rows?: number
 }
 
 export function LongInput({
@@ -25,6 +26,7 @@ export function LongInput({
   subBlockId,
   isConnecting,
   config,
+  rows,
 }: LongInputProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -178,7 +180,7 @@ export function LongInput({
             config?.connectionDroppable !== false &&
             'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
         )}
-        rows={4}
+        rows={rows ?? 4}
         placeholder={placeholder ?? ''}
         value={value?.toString() ?? ''}
         onChange={handleChange}
