@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <strong>Sim Studio</strong> is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
+  <strong>Sim Studio</strong> is a lightweight, user-friendly platform for building AI agent workflows.
 </p>
 
 ## Run
