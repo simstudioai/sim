@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { ChevronsUpDown } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { formatDisplayText } from '@/components/ui/formatted-text'
@@ -17,7 +18,13 @@ interface LongInputProps {
   subBlockId: string
   isConnecting: boolean
   config: SubBlockConfig
+  rows?: number
 }
+
+// Constants
+const DEFAULT_ROWS = 4
+const ROW_HEIGHT_PX = 24
+const MIN_HEIGHT_PX = 80
 
 export function LongInput({
   placeholder,
@@ -25,6 +32,7 @@ export function LongInput({
   subBlockId,
   isConnecting,
   config,
+  rows,
 }: LongInputProps) {
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -34,9 +42,31 @@ export function LongInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Calculate initial height based on rows prop with reasonable defaults
+  const getInitialHeight = () => {
+    // Use provided rows or default, then convert to pixels with a minimum
+    const rowCount = rows || DEFAULT_ROWS
+    return Math.max(rowCount * ROW_HEIGHT_PX, MIN_HEIGHT_PX)
+  }
+
+  const [height, setHeight] = useState(getInitialHeight())
+  const isResizing = useRef(false)
 
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
+
+  // Set initial height on first render
+  useLayoutEffect(() => {
+    const initialHeight = getInitialHeight()
+    setHeight(initialHeight)
+
+    if (textareaRef.current && overlayRef.current) {
+      textareaRef.current.style.height = `${initialHeight}px`
+      overlayRef.current.style.height = `${initialHeight}px`
+    }
+  }, [rows])
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -61,6 +91,47 @@ export function LongInput({
       overlayRef.current.scrollTop = e.currentTarget.scrollTop
       overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
     }
+  }
+
+  // Ensure overlay updates when content changes
+  useEffect(() => {
+    if (textareaRef.current && overlayRef.current) {
+      // Ensure scrolling is synchronized
+      overlayRef.current.scrollTop = textareaRef.current.scrollTop
+      overlayRef.current.scrollLeft = textareaRef.current.scrollLeft
+    }
+  }, [value])
+
+  // Handle resize functionality
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault()
+    isResizing.current = true
+
+    const startY = e.clientY
+    const startHeight = height
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!isResizing.current) return
+
+      const deltaY = moveEvent.clientY - startY
+      const newHeight = Math.max(MIN_HEIGHT_PX, startHeight + deltaY)
+
+      setHeight(newHeight)
+
+      if (textareaRef.current && overlayRef.current) {
+        textareaRef.current.style.height = `${newHeight}px`
+        overlayRef.current.style.height = `${newHeight}px`
+      }
+    }
+
+    const handleMouseUp = () => {
+      isResizing.current = false
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
   }
 
   // Drag and Drop handlers
@@ -131,9 +202,7 @@ export function LongInput({
       const { x: viewportX, y: viewportY } = reactFlowInstance.getViewport()
 
       // Calculate zoom factor based on wheel delta
-      // Use a smaller factor for smoother zooming that matches ReactFlow's native behavior
       const delta = e.deltaY > 0 ? 1 : -1
-      // Using 0.98 instead of 0.95 makes the zoom much slower and more gradual
       const zoomFactor = Math.pow(0.96, delta)
 
       // Calculate new zoom level with min/max constraints
@@ -169,16 +238,16 @@ export function LongInput({
   }
 
   return (
-    <div className="relative w-full">
+    <div ref={containerRef} className="relative w-full" style={{ height: `${height}px` }}>
       <Textarea
         ref={textareaRef}
         className={cn(
-          'w-full placeholder:text-muted-foreground/50 allow-scroll text-transparent caret-foreground break-words whitespace-pre-wrap box-border',
+          'w-full min-h-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50 allow-scroll',
           isConnecting &&
             config?.connectionDroppable !== false &&
             'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
         )}
-        rows={4}
+        rows={rows ?? DEFAULT_ROWS}
         placeholder={placeholder ?? ''}
         value={value?.toString() ?? ''}
         onChange={handleChange}
@@ -192,14 +261,33 @@ export function LongInput({
           setShowTags(false)
           setSearchTerm('')
         }}
+        style={{
+          fontFamily: 'inherit',
+          lineHeight: 'inherit',
+          height: `${height}px`,
+        }}
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 py-2 overflow-auto whitespace-pre-wrap break-words text-sm bg-transparent box-border"
-        style={{ width: 'calc(100% - 2px)' }}
+        className="absolute inset-0 pointer-events-none px-3 py-2 overflow-auto whitespace-pre-wrap break-words text-sm bg-transparent"
+        style={{
+          fontFamily: 'inherit',
+          lineHeight: 'inherit',
+          width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : '100%',
+          height: `${height}px`,
+        }}
       >
         {formatDisplayText(value?.toString() ?? '', true)}
       </div>
+
+      {/* Custom resize handle */}
+      <div
+        className="absolute bottom-1 right-1 w-4 h-4 cursor-s-resize flex items-center justify-center bg-background rounded-sm"
+        onMouseDown={startResize}
+      >
+        <ChevronsUpDown className="h-3 w-3 text-muted-foreground/70" />
+      </div>
+
       <EnvVarDropdown
         visible={showEnvVars}
         onSelect={setValue}

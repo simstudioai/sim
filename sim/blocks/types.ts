@@ -126,6 +126,8 @@ export interface SubBlockConfig {
   // Slider-specific properties
   step?: number
   integer?: boolean
+  // Long input specific properties
+  rows?: number
 }
 
 // Main block definition

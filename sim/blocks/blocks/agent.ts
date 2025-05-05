@@ -57,6 +57,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter system prompt...',
+      rows: 5,
     },
     {
       id: 'context',
@@ -64,6 +65,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter context or user message...',
+      rows: 3,
     },
     {
       id: 'model',

@@ -70,6 +70,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             subBlockId={config.id}
             placeholder={config.placeholder}
             isConnecting={isConnecting}
+            rows={config.rows}
             config={config}
           />
         )
