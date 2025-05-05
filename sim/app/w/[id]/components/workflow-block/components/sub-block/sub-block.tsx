@@ -1,3 +1,4 @@
+import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -25,7 +26,6 @@ import { Table } from './components/table'
 import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
 import { WebhookConfig } from './components/webhook/webhook-config'
-import { Info } from 'lucide-react'
 
 interface SubBlockProps {
   blockId: string
@@ -191,7 +191,7 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   const required = isFieldRequired()
 
   return (
-    <div className="space-y-1" onMouseDown={handleMouseDown}>
+    <div className="space-y-[6px] pt-[2px]" onMouseDown={handleMouseDown}>
       {config.type !== 'switch' && (
         <Label className="flex items-center gap-1">
           {config.title}

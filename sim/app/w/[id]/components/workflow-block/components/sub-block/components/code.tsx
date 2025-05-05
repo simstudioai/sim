@@ -10,7 +10,7 @@ import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-drop
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useCodeGeneration } from '@/hooks/use-code-generation'
+import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
 import { CodePromptBar } from '../../../../code-prompt-bar/code-prompt-bar'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 

@@ -1,14 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Code, FileJson, Trash2, Wand2, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,13 +10,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useCodeGeneration } from '@/hooks/use-code-generation'
+import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
 import { CodePromptBar } from '../../../../../../../code-prompt-bar/code-prompt-bar'
 import { CodeEditor } from '../code-editor/code-editor'
 
@@ -436,30 +436,30 @@ export function CustomToolModal({
 
   const handleDelete = async () => {
     if (!toolId || !isEditing) return
-    
+
     try {
       setShowDeleteConfirm(false)
-      
+
       // Call API to delete the tool
       const response = await fetch(`/api/tools/custom?id=${toolId}`, {
         method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || response.statusText || 'Failed to delete tool'
         throw new Error(errorMessage)
       }
-      
+
       // Remove from local store
       removeTool(toolId)
       logger.info(`Deleted tool: ${toolId}`)
-      
+
       // Notify parent component if callback provided
       if (onDelete) {
         onDelete(toolId)
       }
-      
+
       // Close the modal
       handleClose()
     } catch (error) {
@@ -489,7 +489,10 @@ export function CustomToolModal({
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="sm:max-w-[700px] h-[80vh] flex flex-col p-0 gap-0" hideCloseButton>
+        <DialogContent
+          className="sm:max-w-[700px] h-[80vh] flex flex-col p-0 gap-0"
+          hideCloseButton
+        >
           <DialogHeader className="px-6 py-4 border-b">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-lg font-medium">
@@ -786,20 +789,23 @@ export function CustomToolModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete this tool?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the tool
-              and remove it from any workflows that are using it.
+              This action cannot be undone. This will permanently delete the tool and remove it from
+              any workflows that are using it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
