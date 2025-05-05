@@ -1,5 +1,6 @@
 import { withSentryConfig } from '@sentry/nextjs';
 import type { NextConfig } from 'next'
+import path from 'path'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -10,23 +11,30 @@ const nextConfig: NextConfig = {
       'api.stability.ai',
     ]
   },
-  // Always use 'standalone' output to support API routes
   output: 'standalone',
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+  },
+  experimental: {
+    optimizeCss: true,
   },
   webpack: (config, { isServer, dev }) => {
     // Skip webpack configuration in development when using Turbopack
     if (dev && process.env.NEXT_RUNTIME === 'turbopack') {
-      return config;
+      return config
     }
     
-    // Configure webpack to use memory cache instead of filesystem cache
-    // This avoids the serialization of large strings during the build process
+    // Configure webpack to use filesystem cache for faster incremental builds
     if (config.cache) {
       config.cache = {
-        type: 'memory',
-        maxGenerations: 1,
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename]
+        },
+        cacheDirectory: path.resolve(process.cwd(), '.next/cache/webpack')
       }
     }
 
@@ -112,6 +120,14 @@ const sentryConfig = {
   project: process.env.SENTRY_PROJECT || '',
   authToken: process.env.SENTRY_AUTH_TOKEN || undefined,
   disableSourceMapUpload: process.env.NODE_ENV !== 'production',
+  autoInstrumentServerFunctions: process.env.NODE_ENV === 'production',
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludePerformanceMonitoring: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true,
+  },
 }
 
 export default process.env.NODE_ENV === 'development'

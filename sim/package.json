@@ -122,6 +122,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^3.0.8",
+    "critters": "^0.0.23",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.30.4",
     "husky": "^9.1.7",

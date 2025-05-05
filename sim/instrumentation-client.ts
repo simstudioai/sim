@@ -10,19 +10,29 @@
 // The added config here will be used whenever a users loads a page in their browser.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
-import * as Sentry from "@sentry/nextjs"
+import {
+  BrowserClient,
+  getCurrentScope,
+  makeFetchTransport,
+  defaultStackParser,
+  breadcrumbsIntegration,
+  dedupeIntegration,
+  linkedErrorsIntegration,
+  captureRouterTransitionStart,
+} from "@sentry/nextjs"
 
-if (process.env.NODE_ENV === 'production') {
-  Sentry.init({
+// Only in production
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+  const client = new BrowserClient({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
-    enabled: true,
     environment: process.env.NODE_ENV || 'development',
+    transport: makeFetchTransport,
+    stackParser: defaultStackParser,
     integrations: [
-      Sentry.replayIntegration(),
+      breadcrumbsIntegration(),
+      dedupeIntegration(),
+      linkedErrorsIntegration(),
     ],
-    tracesSampleRate: 0.2,
-    replaysSessionSampleRate: 0.1,
-    replaysOnErrorSampleRate: 1.0,
     beforeSend(event) {
       if (event.request && typeof event.request === 'object') {
         (event.request as any).ip = null
@@ -30,10 +40,13 @@ if (process.env.NODE_ENV === 'production') {
       return event
     },
   })
+
+  getCurrentScope().setClient(client)
+  client.init()
 }
 
 export const onRouterTransitionStart = process.env.NODE_ENV === 'production'
-  ? Sentry.captureRouterTransitionStart
+  ? captureRouterTransitionStart
   : () => {}
 
 if (typeof window !== 'undefined') {
