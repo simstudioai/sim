@@ -1,13 +1,21 @@
 'use client'
 
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Children,
+  isValidElement,
+  KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { OTPInputForm } from '@/components/ui/input-otp-form'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import MarkdownRenderer from './components/markdown-renderer/markdown-renderer'
 
 // Define message type
 interface ChatMessage {
@@ -29,40 +37,6 @@ interface ChatConfig {
     headerText?: string
   }
   authType?: 'public' | 'password' | 'email'
-}
-
-// Markdown renderer component with proper styling
-function MarkdownRenderer({ content }: { content: string }) {
-  return (
-    <div
-      className="prose dark:prose-invert max-w-none 
-      text-base leading-normal 
-      text-[#0D0D0D] dark:text-gray-100
-      [&>*]:text-base
-      [&>*]:leading-normal
-      [&>p]:my-[0.35em]
-      [&>p+p]:mt-[0.7em]
-      [&>ul]:my-[0.35em]
-      [&>ol]:my-[0.35em]
-      [&>h1]:text-xl [&>h1]:font-semibold [&>h1]:mb-[0.5em] [&>h1]:mt-[0.7em]
-      [&>h2]:text-lg [&>h2]:font-semibold [&>h2]:mb-[0.4em] [&>h2]:mt-[0.7em]
-      [&>h3]:text-base [&>h3]:font-semibold [&>h3]:mb-[0.3em] [&>h3]:mt-[0.6em]
-      [&>ul>li]:pl-0 [&>ol>li]:pl-0 
-      [&>ol>li]:relative [&>ul>li]:relative
-      [&>ul>li]:pl-5 [&>ol>li]:pl-5
-      [&>ul>li]:mb-[0.2em] [&>ol>li]:mb-[0.2em]
-      [&>ul]:pl-1 [&>ol]:pl-1
-      [&>pre]:bg-gray-100 [&>pre]:dark:bg-gray-800 [&>pre]:p-3 [&>pre]:rounded-md [&>pre]:my-[0.7em]
-      [&>code]:text-[0.9em] [&>code]:bg-gray-100 [&>code]:dark:bg-gray-800 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded-md
-      [&>p>code]:text-[0.9em] [&>p>code]:bg-gray-100 [&>p>code]:dark:bg-gray-800 [&>p>code]:px-1 [&>p>code]:py-0.5 [&>p>code]:rounded-md
-      [&>blockquote]:border-l-4 [&>blockquote]:border-gray-200 [&>blockquote]:pl-4 [&>blockquote]:py-0.5 [&>blockquote]:my-[0.7em] [&>blockquote]:italic [&>blockquote]:text-gray-700 [&>blockquote]:dark:text-gray-300
-      [&>table]:border-collapse [&>table]:w-full [&>table]:my-[0.7em]
-      [&>table>thead>tr>th]:border [&>table>thead>tr>th]:border-gray-300 [&>table>thead>tr>th]:dark:border-gray-700 [&>table>thead>tr>th]:p-2 [&>table>thead>tr>th]:bg-gray-100 [&>table>thead>tr>th]:dark:bg-gray-800
-      [&>table>tbody>tr>td]:border [&>table>tbody>tr>td]:border-gray-300 [&>table>tbody>tr>td]:dark:border-gray-700 [&>table>tbody>tr>td]:p-2"
-    >
-      <ReactMarkdown>{content}</ReactMarkdown>
-    </div>
-  )
 }
 
 // ChatGPT-style message component
@@ -427,6 +401,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           },
         ])
 
+        // Stop showing loading indicator once streaming begins
+        setIsLoading(false)
+
         // Ensure the response body exists and is a ReadableStream
         const reader = response.body?.getReader()
         if (reader) {
@@ -453,7 +430,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         console.log('Message response:', responseData)
 
         // Handle different response formats from API
-        if (responseData.multipleOutputs && responseData.contents && Array.isArray(responseData.contents)) {
+        if (
+          responseData.multipleOutputs &&
+          responseData.contents &&
+          Array.isArray(responseData.contents)
+        ) {
           // For multiple outputs, create separate assistant messages for each
           const assistantMessages = responseData.contents.map((content: any) => {
             // Format the content appropriately
@@ -566,17 +547,65 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
           <div className="space-y-4">
             {authRequired === 'password' ? (
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={handleAuthKeyDown}
-                  placeholder="Enter password"
-                  className="pl-10"
-                  disabled={isAuthenticating}
-                />
+              <div className="w-full max-w-sm mx-auto">
+                <div className="bg-white dark:bg-black/10 rounded-lg shadow-sm p-6 space-y-4 border border-neutral-200 dark:border-neutral-800">
+                  <div className="flex items-center justify-center">
+                    <div className="p-2 rounded-full bg-primary/10 text-primary">
+                      <Lock className="h-5 w-5" />
+                    </div>
+                  </div>
+
+                  <h2 className="text-lg font-medium text-center">Password Required</h2>
+                  <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
+                    Enter the password to access this chat
+                  </p>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      handleAuthenticate()
+                    }}
+                  >
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label htmlFor="password" className="text-sm font-medium sr-only">
+                          Password
+                        </label>
+                        <Input
+                          id="password"
+                          type="password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Enter password"
+                          disabled={isAuthenticating}
+                          className="w-full"
+                        />
+                      </div>
+
+                      {authError && (
+                        <div className="text-sm text-red-600 dark:text-red-500">{authError}</div>
+                      )}
+
+                      <Button
+                        type="submit"
+                        disabled={!password || isAuthenticating}
+                        className="w-full"
+                        style={{
+                          backgroundColor: chatConfig?.customizations?.primaryColor || '#802FFF',
+                        }}
+                      >
+                        {isAuthenticating ? (
+                          <div className="flex items-center justify-center">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Authenticating...
+                          </div>
+                        ) : (
+                          'Continue'
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
               </div>
             ) : (
               <div className="w-full max-w-sm mx-auto">
@@ -704,14 +733,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         @keyframes growShrink {
           0%,
           100% {
-            transform: scale(0.9)
+            transform: scale(0.9);
           }
           50% {
-            transform: scale(1.1)
+            transform: scale(1.1);
           }
         }
         .loading-dot {
-          animation: growShrink 1.5s infinite ease-in-out
+          animation: growShrink 1.5s infinite ease-in-out;
         }
       `}</style>
 
