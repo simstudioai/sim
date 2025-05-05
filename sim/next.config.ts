@@ -12,7 +12,15 @@ const nextConfig: NextConfig = {
   },
   // Always use 'standalone' output to support API routes
   output: 'standalone',
-  webpack: (config, { isServer }) => {
+  turbopack: {
+    resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
+  },
+  webpack: (config, { isServer, dev }) => {
+    // Skip webpack configuration in development when using Turbopack
+    if (dev && process.env.NEXT_RUNTIME === 'turbopack') {
+      return config;
+    }
+    
     // Configure webpack to use memory cache instead of filesystem cache
     // This avoids the serialization of large strings during the build process
     if (config.cache) {
@@ -24,6 +32,11 @@ const nextConfig: NextConfig = {
 
     return config
   },
+  transpilePackages: [
+    'prettier',
+    '@react-email/components',
+    '@react-email/render'
+  ],
   // Only include headers when not building for standalone export
   async headers() {
     return [
@@ -93,12 +106,14 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withSentryConfig(nextConfig, {
-  org: 'sim-studio',
-  project: 'javascript-nextjs',
-  silent: !process.env.CI,
-  widenClientFileUpload: true,
-  tunnelRoute: "/monitoring",
-  disableLogger: true,
-  automaticVercelMonitors: true,
-})
+const sentryConfig = {
+  silent: true,
+  org: process.env.SENTRY_ORG || '',
+  project: process.env.SENTRY_PROJECT || '',
+  authToken: process.env.SENTRY_AUTH_TOKEN || undefined,
+  disableSourceMapUpload: process.env.NODE_ENV !== 'production',
+}
+
+export default process.env.NODE_ENV === 'development'
+  ? nextConfig
+  : withSentryConfig(nextConfig, sentryConfig)

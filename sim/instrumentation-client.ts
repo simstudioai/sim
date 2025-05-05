@@ -12,27 +12,29 @@
 
 import * as Sentry from "@sentry/nextjs"
 
-Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
-  enabled: process.env.NODE_ENV === 'production',
-  environment: process.env.NODE_ENV || 'development',
-  integrations: [
-    Sentry.replayIntegration(),
-  ],
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.2 : 1,
-  replaysSessionSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 0,
-  replaysOnErrorSampleRate: process.env.NODE_ENV === 'production' ? 1.0 : 0,
-  debug: process.env.NODE_ENV === 'development',
-  beforeSend(event) {
-    if (process.env.NODE_ENV !== 'production') return null  
-    if (event.request && typeof event.request === 'object') {
-      (event.request as any).ip = null
-    }
-    return event
-  },
-})
+if (process.env.NODE_ENV === 'production') {
+  Sentry.init({
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
+    enabled: true,
+    environment: process.env.NODE_ENV || 'development',
+    integrations: [
+      Sentry.replayIntegration(),
+    ],
+    tracesSampleRate: 0.2,
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
+    beforeSend(event) {
+      if (event.request && typeof event.request === 'object') {
+        (event.request as any).ip = null
+      }
+      return event
+    },
+  })
+}
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
+export const onRouterTransitionStart = process.env.NODE_ENV === 'production'
+  ? Sentry.captureRouterTransitionStart
+  : () => {}
 
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'

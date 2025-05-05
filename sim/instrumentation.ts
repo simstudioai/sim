@@ -13,7 +13,10 @@
 // Set experimental.instrumentationHook = true in next.config.ts to enable this
 
 import { createLogger } from '@/lib/logs/console-logger'
-import * as Sentry from '@sentry/nextjs'
+
+const Sentry = process.env.NODE_ENV === 'production' 
+  ? require('@sentry/nextjs')
+  : { captureRequestError: () => {} }
 
 const logger = createLogger('OtelInstrumentation')
 
@@ -31,13 +34,14 @@ const DEFAULT_TELEMETRY_CONFIG = {
 }
 
 export async function register() {
-  // Sentry configuration
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
-    await import('./sentry.server.config')
-  }
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.NEXT_RUNTIME === 'nodejs') {
+      await import('./sentry.server.config')
+    }
 
-  if (process.env.NEXT_RUNTIME === 'edge') {
-    await import('./sentry.edge.config')
+    if (process.env.NEXT_RUNTIME === 'edge') {
+      await import('./sentry.edge.config')
+    }
   }
 
   // OpenTelemetry instrumentation
@@ -50,7 +54,8 @@ export async function register() {
 
       let telemetryConfig
       try {
-        telemetryConfig = require('./telemetry.config.js')
+        // Use dynamic import instead of require for ES modules
+        telemetryConfig = (await import('./telemetry.config.js')).default
       } catch (e) {
         telemetryConfig = DEFAULT_TELEMETRY_CONFIG
       }

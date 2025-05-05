@@ -2,7 +2,6 @@ import { AgentIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 import { isHosted } from '@/lib/environment'
 import { useOllamaStore } from '@/stores/ollama/store'
-import { getAllBlocks } from '@/blocks'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { ToolResponse } from '@/tools/types'
@@ -31,9 +30,15 @@ interface AgentResponse extends ToolResponse {
 
 // Helper function to get the tool ID from a block type
 const getToolIdFromBlock = (blockType: string): string | undefined => {
-  const blocks = getAllBlocks()
-  const block = blocks.find((b) => b.type === blockType)
-  return block?.tools?.access?.[0]
+  try {
+    const { getAllBlocks } = require('@/blocks/registry')
+    const blocks = getAllBlocks()
+    const block = blocks.find((b: { type: string; tools?: { access?: string[] } }) => b.type === blockType)
+    return block?.tools?.access?.[0]
+  } catch (error) {
+    logger.error('Error getting tool ID from block', { error })
+    return undefined
+  }
 }
 
 export const AgentBlock: BlockConfig<AgentResponse> = {

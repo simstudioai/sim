@@ -23,7 +23,7 @@
  * - IP addresses or geolocation data
  */
 
-module.exports = {
+const config = {
   /**
    * Endpoint URL where telemetry data is sent
    * Change this if you want to send telemetry to your own collector
@@ -83,4 +83,6 @@ module.exports = {
   serverSide: {
     enabled: true,
   },
-}; 
+};
+
+export default config

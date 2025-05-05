@@ -313,21 +313,19 @@ In addition, you will need to update the registries:
    ```
 
 4. **Register Your Block:**  
-   Import and add your block to the blocks registry (`/sim/blocks/index.ts`) in the appropriate index file so it appears in the workflow builder.
+   Add your block to the blocks registry (`/sim/blocks/registry.ts`):
 
-   ```typescript:/sim/blocks/index.ts
+   ```typescript:/sim/blocks/registry.ts
    import { PineconeBlock } from './blocks/pinecone'
-
-   export const blocks = [
+   
+   // Registry of all available blocks
+   export const registry: Record<string, BlockConfig> = {
      // ... existing blocks
-     PineconeBlock,
-   ]
-
-   export const blocksByType: Record<string, BlockConfig> = {
-     // ... existing blocks by type
      pinecone: PineconeBlock,
    }
    ```
+
+   The block will be automatically available to the application through the registry.
 
 5. **Test Your Block:**  
    Ensure that the block displays correctly in the UI and that its functionality works as expected.
