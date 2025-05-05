@@ -49,6 +49,7 @@ import { BlockConfig } from './types'
 import { Mem0Block } from './blocks/mem0'
 import { S3Block } from './blocks/s3'
 import { TelegramBlock } from './blocks/telegram'
+import { ClayBlock } from './blocks/clay'
 
 // Export blocks for ease of use
 export {
@@ -101,6 +102,7 @@ export {
   StagehandAgentBlock,
   S3Block,
   TelegramBlock,
+  ClayBlock,
 }
 
 // Registry of all block configurations, alphabetically sorted
@@ -154,6 +156,7 @@ const blocks: Record<string, BlockConfig> = {
   x: XBlock,
   youtube: YouTubeBlock,
   telegram: TelegramBlock,
+  clay: ClayBlock,
 }
 
 // Helper functions
