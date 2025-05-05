@@ -116,15 +116,21 @@ export function LongInput({
       const deltaY = moveEvent.clientY - startY
       const newHeight = Math.max(MIN_HEIGHT_PX, startHeight + deltaY)
 
-      setHeight(newHeight)
-
       if (textareaRef.current && overlayRef.current) {
         textareaRef.current.style.height = `${newHeight}px`
         overlayRef.current.style.height = `${newHeight}px`
+        if (containerRef.current) {
+          containerRef.current.style.height = `${newHeight}px`
+        }
       }
     }
 
     const handleMouseUp = () => {
+      if (textareaRef.current) {
+        const finalHeight = parseInt(textareaRef.current.style.height, 10) || height
+        setHeight(finalHeight)
+      }
+      
       isResizing.current = false
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
