@@ -92,7 +92,7 @@ export const metadata: Metadata = {
     siteName: 'Sim Studio',
     images: [
       {
-        url: '/social/facebook.png',
+        url: 'https://simstudio.ai/social/facebook.png',
         width: 1200,
         height: 600,
         alt: 'Sim Studio',
@@ -104,7 +104,7 @@ export const metadata: Metadata = {
     title: 'Sim Studio',
     description:
       'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
-    images: ['/social/twitter.png'],
+    images: ['https://simstudio.ai/social/twitter.png'],
     creator: '@simplicity',
     site: '@simstudio',
   },
@@ -146,10 +146,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="twitter:image:width" content="1200" />
         <meta name="twitter:image:height" content="675" />
         <meta name="twitter:image:alt" content="Sim Studio" />
+        <meta name="twitter:image" content="https://simstudio.ai/social/twitter.png" />
+        <meta name="twitter:url" content="https://simstudio.ai" />
         <meta property="og:image:alt" content="Sim Studio" />
-        <link rel="image_src" href="/social/facebook.png" />
+        <link rel="image_src" href="https://simstudio.ai/social/facebook.png" />
         {/* Instagram image meta */}
-        <meta property="og:image" content="/social/instagram.png" />
+        <meta property="og:image" content="https://simstudio.ai/social/instagram.png" />
         <meta property="og:image:width" content="1080" />
         <meta property="og:image:height" content="1080" />
       </head>
