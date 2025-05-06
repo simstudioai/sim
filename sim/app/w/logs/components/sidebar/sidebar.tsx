@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, X, Code } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -23,6 +23,28 @@ interface LogSidebarProps {
 }
 
 /**
+ * Tries to parse a string as JSON and prettify it
+ */
+const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string } => {
+  try {
+    // First check if the content looks like JSON (starts with { or [)
+    const trimmed = content.trim()
+    if (!(trimmed.startsWith('{') || trimmed.startsWith('[')) || 
+        !(trimmed.endsWith('}') || trimmed.endsWith(']'))) {
+      return { isJson: false, formatted: content }
+    }
+    
+    // Try to parse the JSON
+    const parsed = JSON.parse(trimmed)
+    const prettified = JSON.stringify(parsed, null, 2)
+    return { isJson: true, formatted: prettified }
+  } catch (e) {
+    // If parsing fails, it's not valid JSON
+    return { isJson: false, formatted: content }
+  }
+}
+
+/**
  * Formats JSON content for display, handling multiple JSON objects separated by '--'
  */
 const formatJsonContent = (content: string): React.ReactNode => {
@@ -33,14 +55,15 @@ const formatJsonContent = (content: string): React.ReactNode => {
   if (match) {
     const systemComment = match[1]
     const actualContent = content.substring(match[0].length).trim()
+    const { formatted } = tryPrettifyJson(actualContent)
 
     return (
       <div className="w-full">
         <div className="text-sm font-medium mb-2 text-muted-foreground">{systemComment}</div>
         <div className="bg-secondary/30 p-3 rounded-md relative group">
-          <CopyButton text={actualContent} />
+          <CopyButton text={formatted} className="h-7 w-7 z-10" />
           <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-            {actualContent}
+            {formatted}
           </pre>
         </div>
       </div>
@@ -48,11 +71,13 @@ const formatJsonContent = (content: string): React.ReactNode => {
   }
 
   // If no system comment pattern found, show the whole content
+  const { formatted } = tryPrettifyJson(content)
+
   return (
     <div className="bg-secondary/30 p-3 rounded-md relative group w-full">
-      <CopyButton text={content} />
+      <CopyButton text={formatted} className="h-7 w-7 z-10" />
       <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-        {content}
+        {formatted}
       </pre>
     </div>
   )

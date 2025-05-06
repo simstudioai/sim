@@ -8,7 +8,6 @@ import {
 } from '@/tools/airtable/types'
 import { BlockConfig } from '../types'
 
-// Union type for all possible Airtable responses
 type AirtableResponse =
   | AirtableListResponse
   | AirtableGetResponse
@@ -28,7 +27,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
   bgColor: '#E0E0E0',
   icon: AirtableIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -41,7 +39,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
         { label: 'Update Record', id: 'update' },
       ],
     },
-    // Airtable Credentials
     {
       id: 'credential',
       title: 'Airtable Account',
@@ -52,7 +49,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       requiredScopes: ['data.records:read', 'data.records:write'], // Keep both scopes
       placeholder: 'Select Airtable account',
     },
-    // Base ID
     {
       id: 'baseId',
       title: 'Base ID',
@@ -60,7 +56,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'Enter your base ID (e.g., appXXXXXXXXXXXXXX)',
     },
-    // Table ID
     {
       id: 'tableId',
       title: 'Table ID',
@@ -68,7 +63,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       layout: 'full',
       placeholder: 'Enter table ID (e.g., tblXXXXXXXXXXXXXX)',
     },
-    // Record ID (For Get/Update Single)
     {
       id: 'recordId',
       title: 'Record ID',
@@ -77,7 +71,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       placeholder: 'ID of the record (e.g., recXXXXXXXXXXXXXX)',
       condition: { field: 'operation', value: ['get', 'update'] },
     },
-    // List Operation Fields
     {
       id: 'maxRecords',
       title: 'Max Records',
@@ -94,7 +87,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       placeholder: 'Airtable formula to filter records (optional)',
       condition: { field: 'operation', value: 'list' },
     },
-    // Create / Update Multiple Operation Field: Records (Array)
     {
       id: 'records',
       title: 'Records (JSON Array)',
@@ -103,7 +95,6 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
       placeholder: 'For Create: `[{ "fields": { ... } }]`\n',
       condition: { field: 'operation', value: ['create', 'updateMultiple'] },
     },
-    // Update Single Operation Field: Fields (Object)
     {
       id: 'fields',
       title: 'Fields (JSON Object)',
@@ -181,7 +172,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     baseId: { type: 'string', required: true },
     tableId: { type: 'string', required: true },
     // Conditional inputs
-    recordId: { type: 'string', required: false }, // Required for get/update
+    recordId: { type: 'string', required: true }, // Required for get/update
     maxRecords: { type: 'number', required: false }, // Optional for list
     filterFormula: { type: 'string', required: false }, // Optional for list
     records: { type: 'json', required: false }, // Required for create/updateMultiple

@@ -191,7 +191,7 @@ const ImagePreview = ({
   // Determine the source for the image
   const imageSrc =
     isBase64 && imageData && imageData.length > 0
-      ? `data:image/pngbase64,${imageData}`
+      ? `data:image/png;base64,${imageData}`
       : imageUrl || ''
 
   return (
@@ -363,13 +363,6 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                   <span className="text-muted-foreground">{key}</span>:{' '}
                   {isImageKey ? (
                     <div>
-                      <span className="text-success inline-block mb-2">
-                        {hasValidImage && typeof value === 'string' && value.length > 100 ? (
-                          <TruncatedValue value={JSON.stringify('[base64 image data]')} />
-                        ) : (
-                          '""'
-                        )}
-                      </span>
                       {/* Show image preview within the image field */}
                       <ImagePreview
                         imageUrl={imageUrl}
@@ -478,15 +471,6 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                                 <span className="text-muted-foreground">{outputKey}</span>:{' '}
                                 {isImageSubKey ? (
                                   <div>
-                                    <span className="text-success inline-block mb-2">
-                                      {hasValidImage && outputValue.length > 100 ? (
-                                        <TruncatedValue
-                                          value={JSON.stringify('[base64 image data]')}
-                                        />
-                                      ) : (
-                                        '""'
-                                      )}
-                                    </span>
                                     {/* Show image preview within nested image field */}
                                     <ImagePreview
                                       imageUrl={imageUrl}
@@ -630,9 +614,11 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                   <div key={key} className="break-all">
                     <span className="text-muted-foreground">{key}</span>:{' '}
                     {isImageField ? (
-                      <span className="text-success">
-                        <TruncatedValue value={JSON.stringify('[base64 image data]')} />
-                      </span>
+                      <JSONView
+                        data={value}
+                        level={level + 1}
+                        initiallyExpanded={initiallyExpanded}
+                      />
                     ) : (
                       <JSONView
                         data={value}

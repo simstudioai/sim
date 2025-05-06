@@ -27,8 +27,7 @@ export async function POST(request: Request) {
         text,
         model_id: modelId,
       }),
-      // Set a reasonable timeout
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(60000),
     })
     
     if (!response.ok) {

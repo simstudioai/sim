@@ -81,9 +81,12 @@ export const dalleTool: ToolConfig = {
       try {
         // Fetch the image using the proxy/image endpoint instead of direct fetch
         logger.info('Fetching image from URL via proxy...')
-        const proxyUrl = `/api/proxy/image?url=${encodeURIComponent(imageUrl)}`
+        // Get the base URL from environment or use a fallback
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const proxyUrl = new URL(`/api/proxy/image`, baseUrl)
+        proxyUrl.searchParams.append('url', imageUrl)
 
-        const imageResponse = await fetch(proxyUrl, {
+        const imageResponse = await fetch(proxyUrl.toString(), {
           headers: {
             Accept: 'image/*, */*',
           },
@@ -102,32 +105,10 @@ export const dalleTool: ToolConfig = {
           throw new Error('Empty image received')
         }
 
-        const reader = new FileReader()
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            try {
-              const base64data = reader.result as string
-              if (!base64data) {
-                reject(new Error('No data read from image'))
-                return
-              }
-
-              const base64Content = base64data.split(',')[1] // Remove the data URL prefix
-              resolve(base64Content)
-            } catch (err) {
-              logger.error('Error in FileReader onloadend:', err)
-              reject(err)
-            }
-          }
-          reader.onerror = (err) => {
-            logger.error('FileReader error:', err)
-            reject(new Error('Failed to read image data'))
-          }
-          reader.readAsDataURL(imageBlob)
-        })
-
-        const base64Image = await base64Promise
-
+        const arrayBuffer = await imageBlob.arrayBuffer()
+        const buffer = Buffer.from(arrayBuffer)
+        const base64Image = buffer.toString('base64')
+        
         return {
           success: true,
           output: {
@@ -149,7 +130,7 @@ export const dalleTool: ToolConfig = {
             cache: 'no-store',
             headers: {
               Accept: 'image/*, */*',
-              'User-Agent': 'Mozilla/5.0 (compatible; DalleProxy/1.0)',
+              'User-Agent': 'Mozilla/5.0 (compatible DalleProxy/1.0)',
             },
           })
 
@@ -162,31 +143,15 @@ export const dalleTool: ToolConfig = {
             throw new Error('Empty blob received from direct fetch')
           }
 
-          const reader = new FileReader()
-          const base64Promise = new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => {
-              try {
-                const base64data = reader.result as string
-                if (!base64data) {
-                  reject(new Error('No data read from image'))
-                  return
-                }
-
-                const base64Content = base64data.split(',')[1]
-                logger.info(
-                  'Successfully converted image to base64 via direct fetch, length:',
-                  base64Content.length
-                )
-                resolve(base64Content)
-              } catch (err) {
-                reject(err)
-              }
-            }
-            reader.onerror = reject
-            reader.readAsDataURL(imageBlob)
-          })
-
-          const base64Image = await base64Promise
+          // Server-side safe way to convert blob to base64
+          const arrayBuffer = await imageBlob.arrayBuffer()
+          const buffer = Buffer.from(arrayBuffer)
+          const base64Image = buffer.toString('base64')
+          
+          logger.info(
+            'Successfully converted image to base64 via direct fetch, length:',
+            base64Image.length
+          )
 
           return {
             success: true,
