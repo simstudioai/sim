@@ -20,7 +20,7 @@ interface WaitlistConfirmationEmailProps {
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
-const calendlyLink = 'https://calendly.com/emir-simstudio/15min'
+const typeformLink = 'https://form.typeform.com/to/jqCO12pF'
 
 export const WaitlistConfirmationEmail = ({ email = '' }: WaitlistConfirmationEmailProps) => {
   return (
@@ -62,7 +62,7 @@ export const WaitlistConfirmationEmail = ({ email = '' }: WaitlistConfirmationEm
               <strong>Want to get access sooner?</strong> Tell us about your use case! Schedule a
               15-minute call with our team to discuss how you plan to use Sim Studio.
             </Text>
-            <Link href={calendlyLink} style={{ textDecoration: 'none' }}>
+            <Link href={typeformLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Schedule a Call</Text>
             </Link>
             <Text style={baseStyles.paragraph}>
