@@ -52,6 +52,9 @@ export function DeployedWorkflowModal({
       <DialogContent 
         className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
         style={{ zIndex: 1000 }}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        hideCloseButton={true}
       >
         
         <DeployedWorkflowCard
