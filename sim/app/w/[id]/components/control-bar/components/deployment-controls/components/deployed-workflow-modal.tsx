@@ -56,6 +56,11 @@ export function DeployedWorkflowModal({
         onEscapeKeyDown={(e) => e.preventDefault()}
         hideCloseButton={true}
       >
+        <div className="sr-only">
+          <DialogHeader>
+            <DialogTitle>Deployed Workflow</DialogTitle>
+          </DialogHeader>
+        </div>
         
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
