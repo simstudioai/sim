@@ -1,3 +1,5 @@
+'use client'
+
 import NavWrapper from './components/nav-wrapper'
 import Blogs from './components/sections/blogs'
 import Features from './components/sections/features'
@@ -7,9 +9,13 @@ import Integrations from './components/sections/integrations'
 import Testimonials from './components/sections/testimonials'
 
 export default function Landing() {
+  const handleOpenTypeformLink = () => {
+    window.open('https://form.typeform.com/to/jqCO12pF', '_blank')
+  }
+
   return (
     <main className="bg-[#0C0C0C] relative min-h-screen font-geist-sans">
-      <NavWrapper />
+      <NavWrapper onOpenTypeformLink={handleOpenTypeformLink} />
 
       <Hero />
       <Testimonials />
@@ -18,7 +24,7 @@ export default function Landing() {
       {/* <Blogs /> */}
 
       {/* Footer */}
-      <Footer />
+      <Footer onOpenTypeformLink={handleOpenTypeformLink} />
     </main>
   )
 }

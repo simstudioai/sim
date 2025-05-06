@@ -7,7 +7,11 @@ import { getFormattedGitHubStars } from '../actions/github'
 import GitHubStarsClient from './github-stars-client'
 import NavClient from './nav-client'
 
-export default function NavWrapper() {
+interface NavWrapperProps {
+  onOpenTypeformLink: () => void
+}
+
+export default function NavWrapper({ onOpenTypeformLink }: NavWrapperProps) {
   // Use a client-side component to wrap the navigation
   // This avoids trying to use server-side UA detection
   // which has compatibility challenges
@@ -38,34 +42,40 @@ export default function NavWrapper() {
   }, [])
 
   return (
-    <AnimatePresence mode="wait">
-      {!isLoaded ? (
-        <motion.div
-          key="loading"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.5 }}
-          exit={{ opacity: 0 }}
-          className="absolute top-1 left-0 right-0 z-30 px-4 py-8"
-        >
-          <div className="max-w-7xl mx-auto flex justify-between items-center relative">
-            <div className="flex-1"></div>
-            <div className="flex-1 flex justify-end">
-              <div className="w-[43px] h-[43px]"></div>
+    <>
+      <AnimatePresence mode="wait">
+        {!isLoaded ? (
+          <motion.div
+            key="loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.5 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-1 left-0 right-0 z-30 px-4 py-8"
+          >
+            <div className="max-w-7xl mx-auto flex justify-between items-center relative">
+              <div className="flex-1"></div>
+              <div className="flex-1 flex justify-end">
+                <div className="w-[43px] h-[43px]"></div>
+              </div>
             </div>
-          </div>
-        </motion.div>
-      ) : (
-        <motion.div
-          key="loaded"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <NavClient initialIsMobile={initialIsMobile} currentPath={pathname}>
-            <GitHubStarsClient stars={starCount} />
-          </NavClient>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="loaded"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <NavClient
+              initialIsMobile={initialIsMobile}
+              currentPath={pathname}
+              onContactClick={onOpenTypeformLink}
+            >
+              <GitHubStarsClient stars={starCount} />
+            </NavClient>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }

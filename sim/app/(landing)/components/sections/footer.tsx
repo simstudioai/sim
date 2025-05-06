@@ -8,7 +8,11 @@ import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import useIsMobile from '../hooks/useIsMobile'
 
-function Footer() {
+interface FooterProps {
+  onOpenTypeformLink: () => void
+}
+
+function Footer({ onOpenTypeformLink }: FooterProps) {
   const router = useRouter()
   const { isMobile, mounted } = useIsMobile()
 
@@ -32,13 +36,7 @@ function Footer() {
                   className="bg-[#B5A1D4] text-[#1C1C1C] w-fit hover:bg-[#bdaecb] transition-colors duration-500"
                   size={'lg'}
                   variant={'secondary'}
-                  onClick={() =>
-                    window.open(
-                      'https://calendly.com/emir-simstudio/15min',
-                      '_blank',
-                      'noopener,noreferrer'
-                    )
-                  }
+                  onClick={onOpenTypeformLink}
                 >
                   Get Started
                 </Button>
@@ -199,13 +197,7 @@ function Footer() {
                 className="bg-[#B5A1D4] text-[#1C1C1C] w-fit hover:bg-[#bdaecb] transition-colors duration-500"
                 size={'lg'}
                 variant={'secondary'}
-                onClick={() =>
-                  window.open(
-                    'https://calendly.com/emir-simstudio/15min',
-                    '_blank',
-                    'noopener,noreferrer'
-                  )
-                }
+                onClick={onOpenTypeformLink}
               >
                 Get Started
               </Button>

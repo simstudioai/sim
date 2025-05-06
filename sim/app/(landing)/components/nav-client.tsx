@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -75,8 +76,16 @@ const mobileButtonVariants = {
 // --- End Framer Motion Variants ---
 
 // Component for Navigation Links
-const NavLinks = ({ mobile, currentPath }: { mobile?: boolean; currentPath?: string }) => {
-  const links = [
+const NavLinks = ({
+  mobile,
+  currentPath,
+  onContactClick,
+}: {
+  mobile?: boolean
+  currentPath?: string
+  onContactClick?: () => void
+}) => {
+  const navigationLinks = [
     // { href: "/", label: "Marketplace" },
     ...(currentPath !== '/' ? [{ href: '/', label: 'Home' }] : []),
     { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
@@ -84,22 +93,26 @@ const NavLinks = ({ mobile, currentPath }: { mobile?: boolean; currentPath?: str
     { href: 'https://github.com/simstudioai/sim', label: 'Contributors', external: true },
   ]
 
+  // Common CSS class for navigation items
+  const navItemClass = `text-white/60 hover:text-white/100 text-base ${
+    mobile ? 'p-2.5 text-lg font-medium text-left' : 'p-1.5'
+  } rounded-md transition-colors duration-200 block md:inline-block`
+
   return (
     <>
-      {links.map((link) => {
+      {navigationLinks.map((link) => {
         const linkElement = (
           <motion.div variants={mobile ? mobileNavItemVariants : undefined} key={link.label}>
             <Link
               href={link.href}
-              className={`text-white/60 hover:text-white/100 text-base ${
-                mobile ? 'p-2.5 text-lg font-medium text-left' : 'p-1.5'
-              } rounded-md transition-colors duration-200 block md:inline-block`}
+              className={navItemClass}
               {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             >
               {link.label}
             </Link>
           </motion.div>
         )
+
         // Wrap the motion.div with SheetClose if mobile
         return mobile ? (
           <SheetClose asChild key={link.label}>
@@ -109,6 +122,34 @@ const NavLinks = ({ mobile, currentPath }: { mobile?: boolean; currentPath?: str
           linkElement
         )
       })}
+
+      {/* Enterprise button with the same action as contact */}
+      {onContactClick &&
+        (mobile ? (
+          <SheetClose asChild key="enterprise">
+            <motion.div variants={mobileNavItemVariants}>
+              <Link
+                href="https://form.typeform.com/to/jqCO12pF"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={navItemClass}
+              >
+                Enterprise
+              </Link>
+            </motion.div>
+          </SheetClose>
+        ) : (
+          <motion.div variants={mobile ? mobileNavItemVariants : undefined} key="enterprise">
+            <Link
+              href="https://form.typeform.com/to/jqCO12pF"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={navItemClass}
+            >
+              Enterprise
+            </Link>
+          </motion.div>
+        ))}
     </>
   )
 }
@@ -117,9 +158,15 @@ interface NavClientProps {
   children: React.ReactNode
   initialIsMobile?: boolean
   currentPath?: string
+  onContactClick?: () => void
 }
 
-export default function NavClient({ children, initialIsMobile, currentPath }: NavClientProps) {
+export default function NavClient({
+  children,
+  initialIsMobile,
+  currentPath,
+  onContactClick,
+}: NavClientProps) {
   const [mounted, setMounted] = useState(false)
   const [isMobile, setIsMobile] = useState(initialIsMobile ?? false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
@@ -140,7 +187,9 @@ export default function NavClient({ children, initialIsMobile, currentPath }: Na
     return (
       <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
         <div className="max-w-7xl mx-auto flex justify-between items-center relative">
-          <div className="flex-1"></div>
+          <div className="flex-1">
+            <div className="w-[32px] h-[32px]"></div>
+          </div>
           <div className="flex-1 flex justify-end">
             <div className="w-[43px] h-[43px]"></div>
           </div>
@@ -152,7 +201,15 @@ export default function NavClient({ children, initialIsMobile, currentPath }: Na
   return (
     <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
       <div className="max-w-7xl mx-auto flex justify-between items-center relative">
-        <div className="flex-1">{/* <div className="text-xl text-white">sim studio</div> */}</div>
+        {!isMobile && (
+          <div className="flex-1 flex items-center">
+            <div className="inline-block">
+              <Link href="/" className="inline-flex">
+                <Image src="/sim.svg" alt="Sim Logo" width={42} height={42} />
+              </Link>
+            </div>
+          </div>
+        )}
 
         {!isMobile && (
           <motion.div
@@ -161,12 +218,12 @@ export default function NavClient({ children, initialIsMobile, currentPath }: Na
             initial="hidden"
             animate="visible"
           >
-            <NavLinks currentPath={currentPath} />
+            <NavLinks currentPath={currentPath} onContactClick={onContactClick} />
           </motion.div>
         )}
         {isMobile && <div className="flex-1"></div>}
 
-        <div className="flex-1 flex justify-end">
+        <div className="flex-1 flex justify-end items-center">
           <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
             {!isMobile && (
               <>
@@ -176,18 +233,15 @@ export default function NavClient({ children, initialIsMobile, currentPath }: Na
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, ease: 'easeOut', delay: 0.4 }}
                 >
-                  <Button
-                    onClick={() =>
-                      window.open(
-                        'https://calendly.com/emir-simstudio/15min',
-                        '_blank',
-                        'noopener,noreferrer'
-                      )
-                    }
-                    className="bg-[#701ffc] hover:bg-[#802FFF] h-[43px] font-medium text-base py-2 px-6 text-neutral-100 font-geist-sans transition-colors duration-200"
+                  <Link
+                    href="https://form.typeform.com/to/jqCO12pF"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    Contact
-                  </Button>
+                    <Button className="bg-[#701ffc] hover:bg-[#802FFF] h-[43px] font-medium text-base py-2 px-6 text-neutral-100 font-geist-sans transition-colors duration-200">
+                      Contact
+                    </Button>
+                  </Link>
                 </motion.div>
               </>
             )}
@@ -228,7 +282,11 @@ export default function NavClient({ children, initialIsMobile, currentPath }: Na
                           initial="hidden"
                           animate="visible"
                         >
-                          <NavLinks mobile currentPath={currentPath} />
+                          <NavLinks
+                            mobile
+                            currentPath={currentPath}
+                            onContactClick={onContactClick}
+                          />
                           {children && (
                             <motion.div variants={mobileNavItemVariants}>
                               <SheetClose asChild>{children}</SheetClose>
@@ -236,18 +294,15 @@ export default function NavClient({ children, initialIsMobile, currentPath }: Na
                           )}
                           <motion.div variants={mobileButtonVariants} className="mt-auto pt-6">
                             <SheetClose asChild>
-                              <Button
-                                onClick={() =>
-                                  window.open(
-                                    'https://calendly.com/emir-simstudio/15min',
-                                    '_blank',
-                                    'noopener,noreferrer'
-                                  )
-                                }
-                                className="w-full bg-[#701ffc] hover:bg-[#802FFF] font-medium py-6 text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200"
+                              <Link
+                                href="https://form.typeform.com/to/jqCO12pF"
+                                target="_blank"
+                                rel="noopener noreferrer"
                               >
-                                Contact
-                              </Button>
+                                <Button className="w-full bg-[#701ffc] hover:bg-[#802FFF] font-medium py-6 text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200">
+                                  Contact
+                                </Button>
+                              </Link>
                             </SheetClose>
                           </motion.div>
                         </motion.div>
