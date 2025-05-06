@@ -6,7 +6,7 @@ import { Eye } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { Workflow } from '../marketplace'
-import { WorkflowPreview } from './workflow-preview'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
 
 /**
  * WorkflowCardProps interface - defines the properties for the WorkflowCard component
@@ -29,6 +29,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(!!workflow.workflowState)
   const router = useRouter()
   const { createWorkflow } = useWorkflowRegistry()
+
 
   // When workflow state becomes available, update preview ready state
   useEffect(() => {
@@ -93,7 +94,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
         {/* Workflow preview/thumbnail area */}
         <div className="h-40 relative overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
           {isPreviewReady && workflow.workflowState ? (
-            // Show interactive workflow preview if state is available
+            // Interactive Preview
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-full h-full transform-gpu scale-[0.9]">
                 <WorkflowPreview workflowState={workflow.workflowState} />
@@ -108,7 +109,8 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
                 backgroundSize: 'cover',
                 backgroundPosition: 'center top',
               }}
-            />
+            >
+            </div>
           ) : (
             // Fallback to text if no preview or thumbnail is available
             <div className="h-full w-full flex items-center justify-center">

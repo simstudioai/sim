@@ -17,11 +17,17 @@ export interface NotificationSection {
   content: string
 }
 
+export interface NotificationAction {
+  label: string
+  onClick: () => void
+}
+
 export interface NotificationOptions {
   copyableContent?: string
   isPersistent?: boolean
   sections?: NotificationSection[]
   needsRedeployment?: boolean
+  actions?: NotificationAction[]
 }
 
 export interface NotificationStore {

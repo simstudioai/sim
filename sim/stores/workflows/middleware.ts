@@ -32,6 +32,7 @@ const MAX_HISTORY_LENGTH = 20
 // Types for workflow store with history management capabilities
 export interface WorkflowStoreWithHistory extends WorkflowStore, HistoryActions {
   history: WorkflowHistory
+  revertToDeployedState: (deployedState: WorkflowState) => void
 }
 
 // Higher-order store middleware that adds undo/redo functionality

@@ -22,19 +22,9 @@ export function DeploymentControls({
   needsRedeployment,
   setNeedsRedeployment,
 }: DeploymentControlsProps) {
-  // Store hooks
   const { isDeployed } = useWorkflowStore()
-
-  // Local state
   const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-
-  /**
-   * Open the deployment modal
-   */
-  const handleOpenModal = () => {
-    setIsModalOpen(true)
-  }
 
   return (
     <>
@@ -44,7 +34,7 @@ export function DeploymentControls({
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleOpenModal}
+              onClick={() => setIsModalOpen(true)}
               disabled={isDeploying}
               className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
             >
@@ -56,7 +46,6 @@ export function DeploymentControls({
               <span className="sr-only">Deploy API</span>
             </Button>
 
-            {/* Improved redeploy indicator with animation */}
             {isDeployed && needsRedeployment && (
               <div className="absolute top-0.5 right-0.5 flex items-center justify-center">
                 <div className="relative">
