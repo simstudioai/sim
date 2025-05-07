@@ -50,9 +50,47 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       'Content-Type': 'application/json',
     }),
     body: (params) => {
+      let processedValues: any = params.values || []
+      
+      // Handle case where values might be a string (potentially JSON string)
+      if (typeof processedValues === 'string') {
+        try {
+          // Try to parse it as JSON
+          processedValues = JSON.parse(processedValues)
+        } catch (error) {
+          // If the input contains literal newlines causing JSON parse to fail,
+          // try a more robust approach
+          try {
+            // Replace literal newlines with escaped newlines for JSON parsing
+            const sanitizedInput = (processedValues as string)
+              .replace(/\n/g, '\\n')
+              .replace(/\r/g, '\\r')
+              .replace(/\t/g, '\\t')
+              // Fix any double backslashes that might occur
+              .replace(/\\\\/g, '\\')
+              
+            // Try to parse again with sanitized input
+            processedValues = JSON.parse(sanitizedInput)
+          } catch (secondError) {
+            // If all parsing attempts fail, wrap as a single cell value
+            processedValues = [[processedValues]]
+          }
+        }
+      }
+      
+      // Validate that processedValues is actually an array of arrays
+      if (!Array.isArray(processedValues)) {
+        processedValues = [[String(processedValues)]]
+      } else if (!processedValues.every((item: any) => Array.isArray(item))) {
+        // If it's an array but not all elements are arrays, wrap each element
+        processedValues = (processedValues as any[]).map((row: any) => 
+          Array.isArray(row) ? row : [String(row)]
+        )
+      }
+      
       const body: Record<string, any> = {
         majorDimension: params.majorDimension || 'ROWS',
-        values: params.values || [],
+        values: processedValues,
       }
 
       // Only include range if it's provided
