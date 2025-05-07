@@ -1,6 +1,6 @@
 ---
 title: Clay
-description: Populate Clay with data
+description: Populate Clay workbook with data
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -197,7 +197,8 @@ In Sim Studio, the Clay integration allows your agents to push structured data i
 
 ## Usage Instructions
 
-Populate Clay with data from a JSON file. Enables direct communication and notifications with timestamp tracking and channel confirmation.
+Populate Clay workbook with data using a JSON or plain text. Enables direct communication and notifications with channel confirmation.
+
 
 
 ## Tools
@@ -210,7 +211,7 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `webhookId` | string | Yes | The webhook ID to populate |
+| `webhookURL` | string | Yes | The webhook URL to populate |
 | `data` | json | Yes | The data to populate |
 | `authToken` | string | No | Optional auth token for WebhookURL |
 
@@ -228,7 +229,7 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | No | Auth Token - Enter your Clay Auth token |
+| `authToken` | string | Yes | Auth Token - Enter your Clay Auth token |
 
 
 

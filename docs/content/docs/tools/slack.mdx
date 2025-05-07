@@ -3,9 +3,9 @@ title: Slack
 description: Send a message to Slack
 ---
 
-import { BlockInfoCard } from '@/components/ui/block-info-card'
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="slack"
   color="#611f69"
   icon={true}
@@ -53,9 +53,12 @@ With Slack, you can:
 In Sim Studio, the Slack integration enables your agents to programmatically send messages to any Slack channel or user as part of their workflows. This allows for powerful automation scenarios such as sending notifications, alerts, updates, and reports directly to your team's communication hub. Your agents can deliver timely information, share results from processes they've completed, or alert team members when attention is needed. This integration bridges the gap between your AI workflows and your team's communication, ensuring everyone stays informed without manual intervention. By connecting Sim Studio with Slack, you can create agents that keep your team updated with relevant information at the right time, enhance collaboration by sharing insights automatically, and reduce the need for manual status updates - all while leveraging your existing Slack workspace where your team already communicates.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Send messages to any Slack channel using OAuth authentication. Integrate automated notifications and alerts into your workflow to keep your team informed.
+
+
 
 ## Tools
 
@@ -65,34 +68,39 @@ Send messages to Slack channels or users through the Slack API. Enables direct c
 
 #### Input
 
-| Parameter | Type   | Required | Description                             |
-| --------- | ------ | -------- | --------------------------------------- |
-| `apiKey`  | string | Yes      | Your Slack API token                    |
-| `channel` | string | Yes      | Target Slack channel \(e.g., #general\) |
-| `text`    | string | Yes      | Message text to send                    |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your Slack API token |
+| `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
+| `text` | string | Yes | Message text to send |
 
 #### Output
 
-| Parameter | Type   |
-| --------- | ------ |
-| `ts`      | string |
+| Parameter | Type |
+| --------- | ---- |
+| `ts` | string |
 | `channel` | string |
+
+
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type   | Required | Description                                |
-| --------- | ------ | -------- | ------------------------------------------ |
-| `apiKey`  | string | Yes      | OAuth Token - Enter your Slack OAuth token |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `apiKey` | string | Yes | OAuth Token - Enter your Slack OAuth token |
+
+
 
 ### Outputs
 
-| Output      | Type   | Description             |
-| ----------- | ------ | ----------------------- |
-| `response`  | object | Output from response    |
-| ↳ `ts`      | string | ts of the response      |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `ts` | string | ts of the response |
 | ↳ `channel` | string | channel of the response |
+
 
 ## Notes
 
