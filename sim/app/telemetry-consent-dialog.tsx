@@ -1,18 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle 
+import { useEffect, useRef, useState } from 'react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { useGeneralStore } from '@/stores/settings/general/store'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useGeneralStore } from '@/stores/settings/general/store'
 
 declare global {
   interface Window {
@@ -22,6 +22,10 @@ declare global {
 }
 
 const logger = createLogger('TelemetryConsentDialog')
+
+// LocalStorage key for telemetry preferences
+const TELEMETRY_NOTIFIED_KEY = 'sim_telemetry_notified'
+const TELEMETRY_ENABLED_KEY = 'sim_telemetry_enabled'
 
 const trackEvent = (eventName: string, properties?: Record<string, any>) => {
   if (typeof window !== 'undefined' && window.__SIM_TELEMETRY_ENABLED) {
@@ -38,14 +42,34 @@ const trackEvent = (eventName: string, properties?: Record<string, any>) => {
 export function TelemetryConsentDialog() {
   const [open, setOpen] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
-  const telemetryEnabled = useGeneralStore(state => state.telemetryEnabled)
-  const telemetryNotifiedUser = useGeneralStore(state => state.telemetryNotifiedUser)
-  const setTelemetryEnabled = useGeneralStore(state => state.setTelemetryEnabled)
-  const setTelemetryNotifiedUser = useGeneralStore(state => state.setTelemetryNotifiedUser)
-  const loadSettings = useGeneralStore(state => state.loadSettings)
-  
+  const telemetryEnabled = useGeneralStore((state) => state.telemetryEnabled)
+  const telemetryNotifiedUser = useGeneralStore((state) => state.telemetryNotifiedUser)
+  const setTelemetryEnabled = useGeneralStore((state) => state.setTelemetryEnabled)
+  const setTelemetryNotifiedUser = useGeneralStore((state) => state.setTelemetryNotifiedUser)
+  const loadSettings = useGeneralStore((state) => state.loadSettings)
+
   const hasShownDialogThisSession = useRef(false)
   const isDevelopment = process.env.NODE_ENV === 'development'
+
+  // Check localStorage for saved preferences
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const notified = localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
+      const enabled = localStorage.getItem(TELEMETRY_ENABLED_KEY)
+
+      if (notified) {
+        setTelemetryNotifiedUser(true)
+      }
+
+      if (enabled !== null) {
+        setTelemetryEnabled(enabled === 'true')
+      }
+    } catch (error) {
+      logger.error('Error reading telemetry preferences from localStorage:', error)
+    }
+  }, [setTelemetryNotifiedUser, setTelemetryEnabled])
 
   useEffect(() => {
     let isMounted = true
@@ -62,9 +86,9 @@ export function TelemetryConsentDialog() {
         }
       }
     }
-    
+
     fetchSettings()
-    
+
     return () => {
       isMounted = false
     }
@@ -72,47 +96,85 @@ export function TelemetryConsentDialog() {
 
   useEffect(() => {
     if (!settingsLoaded) return
-    
-    logger.debug('Settings loaded state:', { 
-      telemetryNotifiedUser, 
-      telemetryEnabled, 
+
+    logger.debug('Settings loaded state:', {
+      telemetryNotifiedUser,
+      telemetryEnabled,
       hasShownInSession: hasShownDialogThisSession.current,
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
     })
-    
+
+    const localStorageNotified =
+      typeof window !== 'undefined' && localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
+
     // Only show dialog if:
     // 1. Settings are fully loaded from the database
-    // 2. User has not been notified yet (according to database)
+    // 2. User has not been notified yet (according to database AND localStorage)
     // 3. Telemetry is currently enabled (default)
     // 4. Dialog hasn't been shown in this session already (extra protection)
     // 5. We're in development environment
-    if (settingsLoaded && !telemetryNotifiedUser && telemetryEnabled && !hasShownDialogThisSession.current && isDevelopment) {
+    if (
+      settingsLoaded &&
+      !telemetryNotifiedUser &&
+      !localStorageNotified &&
+      telemetryEnabled &&
+      !hasShownDialogThisSession.current &&
+      isDevelopment
+    ) {
       setOpen(true)
       hasShownDialogThisSession.current = true
     } else if (settingsLoaded && !telemetryNotifiedUser && !isDevelopment) {
+      // Auto-notify in non-development environments
       setTelemetryNotifiedUser(true)
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
+        } catch (error) {
+          logger.error('Error saving telemetry notification to localStorage:', error)
+        }
+      }
     }
   }, [settingsLoaded, telemetryNotifiedUser, telemetryEnabled, setTelemetryNotifiedUser])
 
   const handleAccept = () => {
     trackEvent('telemetry_consent_accepted', {
       source: 'consent_dialog',
-      defaultEnabled: true
+      defaultEnabled: true,
     })
-    
+
     setTelemetryNotifiedUser(true)
     setOpen(false)
+
+    // Save preference to localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
+        localStorage.setItem(TELEMETRY_ENABLED_KEY, 'true')
+      } catch (error) {
+        logger.error('Error saving telemetry preferences to localStorage:', error)
+      }
+    }
   }
 
   const handleDecline = () => {
     trackEvent('telemetry_consent_declined', {
       source: 'consent_dialog',
-      defaultEnabled: false
+      defaultEnabled: false,
     })
-    
+
     setTelemetryEnabled(false)
     setTelemetryNotifiedUser(true)
     setOpen(false)
+
+    // Save preference to localStorage
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
+        localStorage.setItem(TELEMETRY_ENABLED_KEY, 'false')
+      } catch (error) {
+        logger.error('Error saving telemetry preferences to localStorage:', error)
+      }
+    }
   }
 
   return (
@@ -121,14 +183,13 @@ export function TelemetryConsentDialog() {
         <AlertDialogHeader>
           <AlertDialogTitle className="text-2xl font-bold mb-2">Telemetry</AlertDialogTitle>
         </AlertDialogHeader>
-        
+
         <div className="space-y-4 text-base text-muted-foreground">
           <div>
-            To help us improve Sim Studio, we collect anonymous usage
-            data by default. This helps us understand which features are
-            most useful and identify areas for improvement.
+            To help us improve Sim Studio, we collect anonymous usage data by default. This helps us
+            understand which features are most useful and identify areas for improvement.
           </div>
-          
+
           <div className="py-2">
             <div className="font-semibold text-foreground mb-2">We only collect:</div>
             <ul className="list-disc pl-6 space-y-1">
@@ -137,7 +198,7 @@ export function TelemetryConsentDialog() {
               <li>Performance metrics</li>
             </ul>
           </div>
-          
+
           <div className="py-2">
             <div className="font-semibold text-foreground mb-2">We never collect:</div>
             <ul className="list-disc pl-6 space-y-1">
@@ -147,7 +208,7 @@ export function TelemetryConsentDialog() {
               <li>IP addresses or location data</li>
             </ul>
           </div>
-          
+
           <div className="text-sm text-muted-foreground pt-2">
             You can change this setting anytime in{' '}
             <span className="font-medium">Settings → Privacy</span>.
@@ -161,12 +222,10 @@ export function TelemetryConsentDialog() {
             </Button>
           </AlertDialogCancel>
           <AlertDialogAction asChild onClick={handleAccept}>
-            <Button className="flex-1">
-              Continue with telemetry
-            </Button>
+            <Button className="flex-1">Continue with telemetry</Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   )
-} 
+}
