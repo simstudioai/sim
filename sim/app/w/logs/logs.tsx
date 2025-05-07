@@ -33,11 +33,11 @@ const getTriggerBadgeStyles = (trigger: string) => {
     case 'api':
       return 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
     case 'webhook':
-      return 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
+      return 'bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400'
     case 'schedule':
       return 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
     case 'chat':
-      return 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400'
+      return 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400'
     default:
       return 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400'
   }
@@ -226,12 +226,14 @@ export default function Logs() {
             <div className="border-b bg-background z-10 sticky top-0">
               <table className="w-full table-fixed">
                 <colgroup>
-                  <col className="w-[16%]" />
+                  <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[19%]'}`} />
                   <col className="w-[8%] md:w-[7%]" />
                   <col className="w-[12%] md:w-[10%]" />
                   <col className="w-[8%] hidden lg:table-column" />
                   <col className="w-[8%] hidden lg:table-column" />
-                  <col className="w-auto md:w-[53%] lg:w-auto" />
+                  <col
+                    className={`${isSidebarCollapsed ? 'w-auto md:w-[53%] lg:w-auto' : 'w-auto md:w-[50%] lg:w-auto'}`}
+                  />
                   <col className="w-[8%] md:w-[10%]" />
                 </colgroup>
                 <thead>
@@ -288,12 +290,14 @@ export default function Logs() {
               ) : (
                 <table className="w-full table-fixed">
                   <colgroup>
-                    <col className="w-[16%]" />
+                    <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[19%]'}`} />
                     <col className="w-[8%] md:w-[7%]" />
                     <col className="w-[12%] md:w-[10%]" />
                     <col className="w-[8%] hidden lg:table-column" />
                     <col className="w-[8%] hidden lg:table-column" />
-                    <col className="w-auto md:w-[53%] lg:w-auto" />
+                    <col
+                      className={`${isSidebarCollapsed ? 'w-auto md:w-[53%] lg:w-auto' : 'w-auto md:w-[50%] lg:w-auto'}`}
+                    />
                     <col className="w-[8%] md:w-[10%]" />
                   </colgroup>
                   <tbody>
