@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { WebhookModal } from './components/webhook-modal'
 
@@ -412,11 +413,36 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         throw new Error(errorData.error || 'Failed to delete webhook')
       }
 
-      // Clear the webhook ID and actual provider
+      // Reset the startWorkflow field to manual
+      useSubBlockStore.getState().setValue(blockId, 'startWorkflow', 'manual')
+
+      // Remove webhook-specific fields from the block state
+      const store = useSubBlockStore.getState()
+      const workflowValues = store.workflowValues[workflowId] || {}
+      const blockValues = { ...workflowValues[blockId] }
+
+      // Remove webhook-related fields
+      delete blockValues.webhookProvider
+      delete blockValues.providerConfig
+      blockValues.webhookPath = ''
+
+      // Update the store with the cleaned block values
+      store.setValue(blockId, 'startWorkflow', 'manual')
+      useSubBlockStore.setState({
+        workflowValues: {
+          ...workflowValues,
+          [workflowId]: {
+            ...workflowValues,
+            [blockId]: blockValues
+          }
+        }
+      })
+
+      // Clear component state
       setWebhookId(null)
       setActualProvider(null)
 
-      // Set active webhook flag to false after deletion
+      // Set active webhook flag to false
       setWebhookStatus(false)
       handleCloseModal()
 
