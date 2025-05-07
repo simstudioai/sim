@@ -47,12 +47,24 @@ export interface GoogleSheetsUpdateResponse extends ToolResponse {
   }
 }
 
+export interface GoogleSheetsAppendResponse extends ToolResponse {
+  output: {
+    tableRange: string
+    updatedRange: string
+    updatedRows: number
+    updatedColumns: number
+    updatedCells: number
+    metadata: GoogleSheetsMetadata
+  }
+}
+
 export interface GoogleSheetsToolParams {
   accessToken: string
   spreadsheetId: string
   range?: string
   values?: any[][]
   valueInputOption?: 'RAW' | 'USER_ENTERED'
+  insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
   includeValuesInResponse?: boolean
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
   majorDimension?: 'ROWS' | 'COLUMNS'

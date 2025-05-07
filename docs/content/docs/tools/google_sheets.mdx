@@ -48,7 +48,7 @@ In Sim Studio, the Google Sheets integration enables your agents to interact dir
 
 ## Usage Instructions
 
-Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, and update existing cells using OAuth authentication. Supports various input and output formats for flexible data handling.
+Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, update existing cells, and append data to the end of sheets using OAuth authentication. Supports various input and output formats for flexible data handling.
 
 
 
@@ -126,6 +126,28 @@ Update data in a Google Sheets spreadsheet
 | `spreadsheetId` | string |
 | `spreadsheetUrl` | string |
 
+### `google_sheets_append`
+
+Append data to the end of a Google Sheets spreadsheet
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | The access token for the Google Sheets API |
+| `spreadsheetId` | string | Yes | The ID of the spreadsheet to append to |
+| `range` | string | No | The range of cells to append after |
+| `values` | array | Yes | The data to append to the spreadsheet |
+| `valueInputOption` | string | No | The format of the data to append |
+| `insertDataOption` | string | No | How to insert the data \(OVERWRITE or INSERT_ROWS\) |
+| `includeValuesInResponse` | boolean | No | Whether to include the appended values in the response |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | json |
+
 
 
 ## Block Configuration
@@ -149,6 +171,7 @@ Update data in a Google Sheets spreadsheet
 | ↳ `updatedRows` | number | updatedRows of the response |
 | ↳ `updatedColumns` | number | updatedColumns of the response |
 | ↳ `updatedCells` | number | updatedCells of the response |
+| ↳ `tableRange` | string | tableRange of the response |
 
 
 ## Notes

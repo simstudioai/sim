@@ -1,5 +1,6 @@
 import { GoogleSheetsIcon } from '@/components/icons'
 import {
+  GoogleSheetsAppendResponse,
   GoogleSheetsReadResponse,
   GoogleSheetsUpdateResponse,
   GoogleSheetsWriteResponse,
@@ -10,13 +11,14 @@ type GoogleSheetsResponse =
   | GoogleSheetsReadResponse
   | GoogleSheetsWriteResponse
   | GoogleSheetsUpdateResponse
+  | GoogleSheetsAppendResponse
 
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',
   name: 'Google Sheets',
   description: 'Read, write, and update data',
   longDescription:
-    'Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, and update existing cells using OAuth authentication. Supports various input and output formats for flexible data handling.',
+    'Integrate Google Sheets functionality to manage spreadsheet data. Read data from specific ranges, write new data, update existing cells, and append data to the end of sheets using OAuth authentication. Supports various input and output formats for flexible data handling.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleSheetsIcon,
@@ -31,6 +33,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         { label: 'Read Data', id: 'read' },
         { label: 'Write Data', id: 'write' },
         { label: 'Update Data', id: 'update' },
+        { label: 'Append Data', id: 'append' },
       ],
     },
     // Google Sheets Credentials
@@ -113,9 +116,40 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       ],
       condition: { field: 'operation', value: 'update' },
     },
+    // Append-specific Fields
+    {
+      id: 'values',
+      title: 'Values',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]])',
+      condition: { field: 'operation', value: 'append' },
+    },
+    {
+      id: 'valueInputOption',
+      title: 'Value Input Option',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'User Entered (Parse formulas)', id: 'USER_ENTERED' },
+        { label: "Raw (Don't parse formulas)", id: 'RAW' },
+      ],
+      condition: { field: 'operation', value: 'append' },
+    },
+    {
+      id: 'insertDataOption',
+      title: 'Insert Data Option',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Insert Rows (Add new rows)', id: 'INSERT_ROWS' },
+        { label: 'Overwrite (Add to existing data)', id: 'OVERWRITE' },
+      ],
+      condition: { field: 'operation', value: 'append' },
+    },
   ],
   tools: {
-    access: ['google_sheets_read', 'google_sheets_write', 'google_sheets_update'],
+    access: ['google_sheets_read', 'google_sheets_write', 'google_sheets_update', 'google_sheets_append'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -125,6 +159,8 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
             return 'google_sheets_write'
           case 'update':
             return 'google_sheets_update'
+          case 'append':
+            return 'google_sheets_append'
           default:
             throw new Error(`Invalid Google Sheets operation: ${params.operation}`)
         }
@@ -163,6 +199,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
     range: { type: 'string', required: false },
     values: { type: 'string', required: false },
     valueInputOption: { type: 'string', required: false },
+    insertDataOption: { type: 'string', required: false },
   },
   outputs: {
     response: {
@@ -173,6 +210,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
         updatedRows: 'number',
         updatedColumns: 'number',
         updatedCells: 'number',
+        tableRange: 'string',
       },
     },
   },

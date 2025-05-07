@@ -25,7 +25,7 @@ import { pineconeFetchTool, pineconeGenerateEmbeddingsTool, pineconeSearchTextTo
 import { redditHotPostsTool, redditGetPostsTool, redditGetCommentsTool } from './reddit'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
-import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool } from './google_sheets'
+import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool, sheetsAppendTool } from './google_sheets'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
 import { supabaseInsertTool, supabaseQueryTool } from './supabase'
@@ -108,6 +108,7 @@ export const tools: Record<string, ToolConfig> = {
   google_sheets_read: sheetsReadTool,
   google_sheets_write: sheetsWriteTool,
   google_sheets_update: sheetsUpdateTool,
+  google_sheets_append: sheetsAppendTool,
   guesty_reservation: guestyReservationTool,
   guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
