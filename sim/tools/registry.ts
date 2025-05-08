@@ -43,6 +43,7 @@ import { s3GetObjectTool } from './s3'
 import { jiraRetrieveTool, jiraUpdateTool, jiraWriteTool, jiraBulkRetrieveTool } from './jira'
 import { telegramMessageTool } from './telegram'
 import { clayPopulateTool } from './clay'
+import { discordGetMessagesTool, discordGetServerTool, discordGetUserTool, discordSendMessageTool } from './discord'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -131,4 +132,8 @@ export const tools: Record<string, ToolConfig> = {
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,
   clay_populate: clayPopulateTool,
+  discord_send_message: discordSendMessageTool,
+  discord_get_messages: discordGetMessagesTool,
+  discord_get_server: discordGetServerTool,
+  discord_get_user: discordGetUserTool,
 } 

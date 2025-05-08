@@ -56,6 +56,7 @@ import { YouTubeBlock } from './blocks/youtube'
 import { Mem0Block } from './blocks/mem0'
 import { S3Block } from './blocks/s3'
 import { TelegramBlock } from './blocks/telegram'
+import { DiscordBlock } from './blocks/discord'
 
 // Registry of all available blocks, alphabetically sorted
 export const registry: Record<string, BlockConfig> = {
@@ -67,6 +68,7 @@ export const registry: Record<string, BlockConfig> = {
   clay: ClayBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
+  discord: DiscordBlock,
   elevenlabs: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
@@ -100,6 +102,7 @@ export const registry: Record<string, BlockConfig> = {
   starter: StarterBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
+  telegram: TelegramBlock,
   thinking: ThinkingBlock,
   translate: TranslateBlock,
   twilio_sms: TwilioSMSBlock,
@@ -108,7 +111,6 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  telegram: TelegramBlock
 }
 
 // Helper functions to access the registry
