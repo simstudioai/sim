@@ -25,7 +25,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       ],
       value: () => 'discord_send_message',
     },
-    // Discord Credentials - only used for authorization, now optional
     {
       id: 'credential',
       title: 'Discord Account',
@@ -37,7 +36,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Select Discord account',
       condition: { field: 'operation', value: 'discord_get_user' },
     },
-    // Bot Token - required for most operations
     {
       id: 'botToken',
       title: 'Bot Token',
@@ -47,7 +45,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       password: true,
       condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'] },
     },
-    // Server selector - for operations that need a server
     {
       id: 'serverId',
       title: 'Server',
@@ -58,7 +55,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Select Discord server',
       condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'] },
     },
-    // Channel selector - for operations that need a channel
     {
       id: 'channelId',
       title: 'Channel',
@@ -69,7 +65,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Select Discord channel',
       condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages'] },
     },
-    // Get User specific fields
     {
       id: 'userId',
       title: 'User ID',
@@ -78,7 +73,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter Discord user ID',
       condition: { field: 'operation', value: 'discord_get_user' },
     },
-    // Get Messages specific fields
     {
       id: 'limit',
       title: 'Message Limit',
@@ -87,7 +81,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Number of messages (default: 10, max: 100)',
       condition: { field: 'operation', value: 'discord_get_messages' },
     },
-    // Message content field
     {
       id: 'content',
       title: 'Message Content',
@@ -96,7 +89,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter message content...',
       condition: { field: 'operation', value: 'discord_send_message' },
     },
-    // Rich Embed fields
     {
       id: 'embed',
       title: 'Use Rich Embed',
@@ -173,7 +165,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           credential: params.credential,
         }
         
-        // Process params based on operation
         switch (params.operation) {
           case 'discord_send_message':
             return {
