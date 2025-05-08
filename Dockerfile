@@ -24,4 +24,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Run migrations and start the app
-CMD npx drizzle-kit push && npm run start
+CMD npx drizzle-kit push --config=drizzle.config.ts && npm run start
