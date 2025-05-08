@@ -1,0 +1,283 @@
+import { DiscordIcon } from '@/components/icons'
+import { DiscordResponse } from '@/tools/discord/types'
+import { BlockConfig } from '../types'
+
+export const DiscordBlock: BlockConfig<DiscordResponse> = {
+  type: 'discord',
+  name: 'Discord',
+  description: 'Interact with Discord',
+  longDescription: 
+    'Connect to Discord to send messages, manage channels, and interact with servers. Automate notifications, community management, and integrate Discord into your workflows.',
+  category: 'tools',
+  bgColor: '#E0E0E0',
+  icon: DiscordIcon,
+  subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Send Message', id: 'discord_send_message' },
+        { label: 'Get Channel Messages', id: 'discord_get_messages' },
+        { label: 'Get Server Information', id: 'discord_get_server' },
+        { label: 'Get User Information', id: 'discord_get_user' },
+      ],
+      value: () => 'discord_send_message',
+    },
+    // Discord Credentials - only used for authorization, now optional
+    {
+      id: 'credential',
+      title: 'Discord Account',
+      type: 'oauth-input',
+      layout: 'full',
+      provider: 'discord',
+      serviceId: 'discord',
+      requiredScopes: ['identify', 'bot', 'messages.read'],
+      placeholder: 'Select Discord account',
+      condition: { field: 'operation', value: 'discord_get_user' },
+    },
+    // Bot Token - required for most operations
+    {
+      id: 'botToken',
+      title: 'Bot Token',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Discord bot token',
+      password: true,
+      condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'] },
+    },
+    // Server selector - for operations that need a server
+    {
+      id: 'serverId',
+      title: 'Server',
+      type: 'project-selector',
+      layout: 'full',
+      provider: 'discord',
+      serviceId: 'discord',
+      placeholder: 'Select Discord server',
+      condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'] },
+    },
+    // Channel selector - for operations that need a channel
+    {
+      id: 'channelId',
+      title: 'Channel',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'discord',
+      serviceId: 'discord',
+      placeholder: 'Select Discord channel',
+      condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages'] },
+    },
+    // Get User specific fields
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter Discord user ID',
+      condition: { field: 'operation', value: 'discord_get_user' },
+    },
+    // Get Messages specific fields
+    {
+      id: 'limit',
+      title: 'Message Limit',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Number of messages (default: 10, max: 100)',
+      condition: { field: 'operation', value: 'discord_get_messages' },
+    },
+    // Message content field
+    {
+      id: 'content',
+      title: 'Message Content',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter message content...',
+      condition: { field: 'operation', value: 'discord_send_message' },
+    },
+    // Rich Embed fields
+    {
+      id: 'embed',
+      title: 'Use Rich Embed',
+      type: 'switch',
+      layout: 'half',
+      condition: { field: 'operation', value: 'discord_send_message' },
+    },
+    {
+      id: 'embedTitle',
+      title: 'Embed Title',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter embed title',
+      condition: { 
+        field: 'operation', 
+        value: 'discord_send_message',
+        and: {
+          field: 'embed',
+          value: true,
+        },
+      },
+    },
+    {
+      id: 'embedDescription',
+      title: 'Embed Description',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter embed description',
+      condition: { 
+        field: 'operation', 
+        value: 'discord_send_message',
+        and: {
+          field: 'embed',
+          value: true,
+        },
+      },
+    },
+    {
+      id: 'embedColor',
+      title: 'Embed Color',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Enter hex color code (e.g., #FF5733)',
+      condition: { 
+        field: 'operation', 
+        value: 'discord_send_message',
+        and: {
+          field: 'embed',
+          value: true,
+        },
+      },
+    },
+  ],
+  tools: {
+    access: ['discord_send_message', 'discord_get_messages', 'discord_get_server', 'discord_get_user'],
+    config: {
+      tool: (params) => {
+        switch (params.operation) {
+          case 'discord_send_message':
+            return 'discord_send_message'
+          case 'discord_get_messages':
+            return 'discord_get_messages'
+          case 'discord_get_server':
+            return 'discord_get_server'
+          case 'discord_get_user':
+            return 'discord_get_user'
+          default:
+            return 'discord_send_message'
+        }
+      },
+      params: (params) => {
+        const commonParams: Record<string, any> = {
+          botToken: params.botToken,
+          credential: params.credential,
+        }
+        
+        // Process params based on operation
+        switch (params.operation) {
+          case 'discord_send_message':
+            return {
+              ...commonParams,
+              serverId: params.serverId,
+              channelId: params.channelId,
+              content: params.content,
+              embed: params.embed ? {
+                title: params.embedTitle,
+                description: params.embedDescription,
+                color: params.embedColor,
+              } : undefined,
+            }
+          case 'discord_get_messages':
+            return {
+              ...commonParams,
+              serverId: params.serverId,
+              channelId: params.channelId,
+              limit: params.limit ? parseInt(params.limit) : 10,
+            }
+          case 'discord_get_server':
+            return {
+              ...commonParams,
+              serverId: params.serverId,
+            }
+          case 'discord_get_user':
+            return {
+              ...commonParams,
+              userId: params.userId,
+            }
+          default:
+            return commonParams
+        }
+      },
+    },
+  },
+  inputs: {
+    operation: {
+      type: 'string',
+      required: true,
+      description: 'The Discord operation to perform',
+    },
+    credential: {
+      type: 'string',
+      required: false,
+      description: 'Discord OAuth credential (for user operations)',
+    },
+    botToken: {
+      type: 'string',
+      required: false,
+      description: 'Discord bot token for API access',
+    },
+    serverId: {
+      type: 'string',
+      required: false,
+      description: 'The ID of the Discord server (guild)',
+    },
+    channelId: {
+      type: 'string',
+      required: false,
+      description: 'The ID of the Discord channel',
+    },
+    content: {
+      type: 'string',
+      required: false,
+      description: 'The content of the message to send',
+    },
+    embed: {
+      type: 'boolean',
+      required: false,
+      description: 'Whether to use a rich embed',
+    },
+    embedTitle: {
+      type: 'string',
+      required: false,
+      description: 'The title of the embed',
+    },
+    embedDescription: {
+      type: 'string',
+      required: false,
+      description: 'The description of the embed',
+    },
+    embedColor: {
+      type: 'string',
+      required: false,
+      description: 'The color of the embed in hex format',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      description: 'The maximum number of messages to retrieve',
+    },
+    userId: {
+      type: 'string',
+      required: false,
+      description: 'The ID of the Discord user',
+    }
+  },
+  outputs: {
+    response: {
+      type: {
+        message: 'string',
+        data: 'any',
+      },
+    },
+  },
+} 

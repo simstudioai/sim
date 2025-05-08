@@ -13,6 +13,7 @@ import {
   NotionIcon,
   SupabaseIcon,
   xIcon,
+  DiscordIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -28,6 +29,7 @@ export type OAuthProvider =
   | 'airtable'
   | 'notion'
   | 'jira'
+  | 'discord'
   | string
 export type OAuthService =
   | 'google'
@@ -42,7 +44,8 @@ export type OAuthService =
   | 'airtable'
   | 'notion'
   | 'jira'
-
+  | 'discord'
+  
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -236,6 +239,29 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'airtable',
   },
+  discord: {
+    id: 'discord',
+    name: 'Discord',
+    icon: (props) => DiscordIcon(props),
+    services: {
+      discord: {
+        id: 'discord',
+        name: 'Discord',
+        description: 'Read and send messages to Discord channels and interact with servers.',
+        providerId: 'discord',
+        icon: (props) => DiscordIcon(props),
+        baseProviderIcon: (props) => DiscordIcon(props),
+        scopes: [
+          'identify',
+          'bot',
+          'messages.read',
+          'guilds',
+          'guilds.members.read',
+        ],
+      },
+    },
+    defaultService: 'discord',
+  },
   notion: {
     id: 'notion',
     name: 'Notion',
@@ -307,6 +333,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'airtable'
   } else if (provider === 'notion') {
     return 'notion'
+  } else if (provider === 'discord') {
+    return 'discord'
   }
 
   return providerConfig.defaultService
@@ -430,6 +458,12 @@ export async function refreshOAuthToken(
         clientId = process.env.NOTION_CLIENT_ID
         clientSecret = process.env.NOTION_CLIENT_SECRET
         break
+      case 'discord':
+        tokenEndpoint = 'https://discord.com/api/v10/oauth2/token'
+        clientId = process.env.DISCORD_CLIENT_ID
+        clientSecret = process.env.DISCORD_CLIENT_SECRET
+        useBasicAuth = true
+        break
       default:
         throw new Error(`Unsupported provider: ${provider}`)
     }
@@ -467,9 +501,7 @@ export async function refreshOAuthToken(
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
-    } else if (provider === 'x' || provider === 'confluence' || provider === 'jira') {
-      // Handle X and Atlassian services (Confluence, Jira) the same way
-      // Confidential client - use Basic Auth
+    } else if (provider === 'x' || provider === 'confluence' || provider === 'jira' || provider === 'discord') {
       const authString = `${clientId}:${clientSecret}`
       const basicAuth = Buffer.from(authString).toString('base64')
       headers['Authorization'] = `Basic ${basicAuth}`

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
+import { DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -20,14 +21,16 @@ export function ProjectSelectorInput({
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
-  const [projectInfo, setProjectInfo] = useState<JiraProjectInfo | null>(null)
+  const [projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
-
+  const isDiscord = provider === 'discord'
+  
   // For Jira, we need the domain
-  const domain = (getValue(blockId, 'domain') as string) || ''
-  const credentials = (getValue(blockId, 'credential') as string) || ''
+  const domain = !isDiscord ? (getValue(blockId, 'domain') as string || '') : ''
+  const credentials = getValue(blockId, 'credential') as string || ''
+  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string || '') : ''
 
   // Get the current value from the store
   useEffect(() => {
@@ -38,7 +41,7 @@ export function ProjectSelectorInput({
   }, [blockId, subBlock.id, getValue])
 
   // Handle project selection
-  const handleProjectChange = (projectId: string, info?: JiraProjectInfo) => {
+  const handleProjectChange = (projectId: string, info?: JiraProjectInfo | DiscordServerInfo) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
     setValue(blockId, subBlock.id, projectId)
@@ -48,11 +51,30 @@ export function ProjectSelectorInput({
       setValue(blockId, 'summary', '')
       setValue(blockId, 'description', '')
       setValue(blockId, 'issueKey', '')
+    } else if (provider === 'discord') {
+      setValue(blockId, 'channelId', '')
     }
 
     onProjectSelect?.(projectId)
   }
 
+  // Render Discord server selector if provider is discord
+  if (isDiscord) {
+    return (
+      <DiscordServerSelector
+        value={selectedProjectId}
+        onChange={(serverId: string, serverInfo?: DiscordServerInfo) => {
+          handleProjectChange(serverId, serverInfo)
+        }}
+        botToken={botToken}
+        label={subBlock.placeholder || 'Select Discord server'}
+        disabled={disabled || !botToken}
+        showPreview={true}
+      />
+    )
+  }
+
+  // Default to Jira project selector
   return (
     <JiraProjectSelector
       value={selectedProjectId}
@@ -64,7 +86,7 @@ export function ProjectSelectorInput({
       label={subBlock.placeholder || 'Select Jira project'}
       disabled={disabled}
       showPreview={true}
-      onProjectInfoChange={setProjectInfo}
+      onProjectInfoChange={setProjectInfo as (info: JiraProjectInfo | null) => void}
     />
   )
 }
