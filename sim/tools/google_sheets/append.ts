@@ -78,8 +78,40 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
         }
       }
       
-      // Validate that processedValues is actually an array of arrays
-      if (!Array.isArray(processedValues)) {
+      // New logic to handle array of objects
+      if (Array.isArray(processedValues) && processedValues.length > 0 && typeof processedValues[0] === 'object' && !Array.isArray(processedValues[0])) {
+        // It's an array of objects
+        
+        // First, extract all unique keys from all objects to create headers
+        const allKeys = new Set<string>()
+        processedValues.forEach((obj: any) => {
+          if (obj && typeof obj === 'object') {
+            Object.keys(obj).forEach(key => allKeys.add(key))
+          }
+        })
+        const headers = Array.from(allKeys)
+        
+        // Then create rows with object values in the order of headers
+        const rows = processedValues.map((obj: any) => {
+          if (!obj || typeof obj !== 'object') {
+            // Handle non-object items by creating an array with empty values
+            return Array(headers.length).fill('')
+          }
+          return headers.map(key => {
+            const value = obj[key]
+            // Handle nested objects/arrays by converting to JSON string
+            if (value !== null && typeof value === 'object') {
+              return JSON.stringify(value)
+            }
+            return value === undefined ? '' : value
+          })
+        })
+        
+        // Add headers as the first row, then add data rows
+        processedValues = [headers, ...rows]
+      }
+      // Continue with existing logic for other array types
+      else if (!Array.isArray(processedValues)) {
         processedValues = [[String(processedValues)]]
       } else if (!processedValues.every((item: any) => Array.isArray(item))) {
         // If it's an array but not all elements are arrays, wrap each element

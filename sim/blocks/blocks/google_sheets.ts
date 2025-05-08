@@ -82,7 +82,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Values',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]])',
+      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'write' },
     },
     {
@@ -102,7 +102,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Values',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]])',
+      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'update' },
     },
     {
@@ -122,7 +122,7 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
       title: 'Values',
       type: 'long-input',
       layout: 'full',
-      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]])',
+      placeholder: 'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'append' },
     },
     {
