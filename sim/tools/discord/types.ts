@@ -1,4 +1,3 @@
-// Response types for Discord API
 export interface DiscordMessage {
   id: string
   content: string
@@ -40,7 +39,6 @@ export interface DiscordUser {
   verified?: boolean
 }
 
-// Common Discord authorization parameters
 interface DiscordAuthParams {
   botToken?: string
   credential?: string
@@ -71,14 +69,12 @@ export interface DiscordGetUserParams extends Omit<DiscordAuthParams, 'serverId'
   serverId?: string
 }
 
-// Base response type that complies with ToolResponse
 interface BaseDiscordResponse {
   success: boolean
   output: Record<string, any>
   error?: string
 }
 
-// Response types for each Discord tool
 export interface DiscordSendMessageResponse extends BaseDiscordResponse {
   output: {
     message: string
@@ -110,7 +106,6 @@ export interface DiscordGetUserResponse extends BaseDiscordResponse {
   }
 }
 
-// Generic response type for Discord operations
 export type DiscordResponse = 
   | DiscordSendMessageResponse 
   | DiscordGetMessagesResponse 
