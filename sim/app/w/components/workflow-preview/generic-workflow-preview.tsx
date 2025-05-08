@@ -134,7 +134,11 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
       case 'short-input':
         return (
           <div className="h-7 rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground">
-            {config.password ? '**********************' : (config.value || config.placeholder || 'Text input')}
+            {config.password ? '**********************' : 
+              (config.id === 'providerConfig' && config.value && typeof config.value === 'object')
+                ? (Object.keys(config.value).length === 0 ? 'Webhook pending configuration' : 'Webhook configured')
+                : (config.value || config.placeholder || 'Text input')
+            }
           </div>
         )
       case 'long-input':
