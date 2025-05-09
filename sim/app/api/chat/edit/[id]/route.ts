@@ -7,6 +7,7 @@ import { chat } from '@/db/schema'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { z } from 'zod'
 import { encryptSecret } from '@/lib/utils'
+import { getBaseDomain } from '@/lib/urls/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,17 +68,15 @@ export async function GET(
     // Create a new result object without the password
     const { password, ...safeData } = chatInstance[0]
     
-    // Check if we're in development or production
     const isDevelopment = process.env.NODE_ENV === 'development'
+
     const chatUrl = isDevelopment
-      ? `http://${chatInstance[0].subdomain}.localhost:3000`
+      ? `http://${chatInstance[0].subdomain}.${getBaseDomain()}`
       : `https://${chatInstance[0].subdomain}.simstudio.ai`
     
-    // For security, don't return the actual password value
     const result = {
       ...safeData,
       chatUrl,
-      // Include password presence flag but not the actual value
       hasPassword: !!password
     }
     
@@ -228,12 +227,12 @@ export async function PATCH(
         .set(updateData)
         .where(eq(chat.id, chatId))
       
-      // Return success response
       const updatedSubdomain = subdomain || existingChat[0].subdomain
-      // Check if we're in development or production
+      
       const isDevelopment = process.env.NODE_ENV === 'development'
+      
       const chatUrl = isDevelopment
-        ? `http://${updatedSubdomain}.localhost:3000`
+        ? `http://${updatedSubdomain}.${getBaseDomain()}`
         : `https://${updatedSubdomain}.simstudio.ai`
       
       logger.info(`Chat "${chatId}" updated successfully`)

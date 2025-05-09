@@ -1,5 +1,6 @@
 import { ToolConfig } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('DalleTool')
 
@@ -79,10 +80,8 @@ export const dalleTool: ToolConfig = {
       logger.info('Using model:', modelName)
 
       try {
-        // Fetch the image using the proxy/image endpoint instead of direct fetch
         logger.info('Fetching image from URL via proxy...')
-        // Get the base URL from environment or use a fallback
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const baseUrl = getBaseUrl()
         const proxyUrl = new URL(`/api/proxy/image`, baseUrl)
         proxyUrl.searchParams.append('url', imageUrl)
 
@@ -90,7 +89,7 @@ export const dalleTool: ToolConfig = {
           headers: {
             Accept: 'image/*, */*',
           },
-          cache: 'no-store', // Don't use cache
+          cache: 'no-store',
         })
 
         if (!imageResponse.ok) {
