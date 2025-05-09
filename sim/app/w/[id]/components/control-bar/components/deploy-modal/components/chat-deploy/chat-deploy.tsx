@@ -55,9 +55,10 @@ type AuthType = 'public' | 'password' | 'email'
 
 const isDevelopment = process.env.NODE_ENV === 'development'
 
-const getDomainSuffix = () => {
-  return isDevelopment ? `.${getBaseDomain()}` : '.simstudio.ai'
-}
+const getDomainSuffix = (() => {
+  const suffix = isDevelopment ? `.${getBaseDomain()}` : '.simstudio.ai'
+  return () => suffix
+})()
 
 // Define Zod schema for API request validation
 const chatSchema = z.object({
@@ -815,11 +816,20 @@ export function ChatDeploy({
   }
 
   if (deployedChatUrl) {
-    // Extract just the subdomain from the URL
     const url = new URL(deployedChatUrl)
     const hostname = url.hostname
     const isDevelopmentUrl = hostname.includes('localhost')
-    const domainSuffix = isDevelopmentUrl ? `.${getBaseDomain().split(':')[0]}:${url.port}` : '.simstudio.ai'
+    
+    let domainSuffix
+    if (isDevelopmentUrl) {
+      const baseDomain = getBaseDomain()
+      const baseHost = baseDomain.split(':')[0]
+      const port = url.port || (baseDomain.includes(':') ? baseDomain.split(':')[1] : '3000')
+      domainSuffix = `.${baseHost}:${port}`
+    } else {
+      domainSuffix = '.simstudio.ai'
+    }
+    
     const subdomainPart = isDevelopmentUrl
       ? hostname.split('.')[0]
       : hostname.split('.simstudio.ai')[0]

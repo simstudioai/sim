@@ -11,7 +11,11 @@ const getReferer = (): string => {
     return window.location.origin
   }
   
-  return getBaseUrl()
+  try {
+    return getBaseUrl()
+  } catch (error) {
+    return 'http://localhost:3000'
+  }
 }
 
 /**
