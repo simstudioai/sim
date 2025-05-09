@@ -32,6 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { getBaseDomain } from '@/lib/urls/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
 import { OutputConfig } from '@/stores/panel/chat/types'
@@ -53,6 +54,11 @@ interface ChatDeployProps {
 type AuthType = 'public' | 'password' | 'email'
 
 const isDevelopment = process.env.NODE_ENV === 'development'
+
+const getDomainSuffix = (() => {
+  const suffix = isDevelopment ? `.${getBaseDomain()}` : '.simstudio.ai'
+  return () => suffix
+})()
 
 // Define Zod schema for API request validation
 const chatSchema = z.object({
@@ -810,11 +816,20 @@ export function ChatDeploy({
   }
 
   if (deployedChatUrl) {
-    // Extract just the subdomain from the URL
     const url = new URL(deployedChatUrl)
     const hostname = url.hostname
     const isDevelopmentUrl = hostname.includes('localhost')
-    const domainSuffix = isDevelopmentUrl ? '.localhost:3000' : '.simstudio.ai'
+    
+    let domainSuffix
+    if (isDevelopmentUrl) {
+      const baseDomain = getBaseDomain()
+      const baseHost = baseDomain.split(':')[0]
+      const port = url.port || (baseDomain.includes(':') ? baseDomain.split(':')[1] : '3000')
+      domainSuffix = `.${baseHost}:${port}`
+    } else {
+      domainSuffix = '.simstudio.ai'
+    }
+    
     const subdomainPart = isDevelopmentUrl
       ? hostname.split('.')[0]
       : hostname.split('.simstudio.ai')[0]
@@ -911,7 +926,7 @@ export function ChatDeploy({
                     disabled={isDeploying}
                   />
                   <div className="h-10 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
-                    {isDevelopment ? '.localhost:3000' : '.simstudio.ai'}
+                    {getDomainSuffix()}
                   </div>
                   {!isCheckingSubdomain && subdomainAvailable === true && subdomain && (
                     <div className="absolute right-14 flex items-center">

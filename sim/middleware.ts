@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { verifyToken } from './lib/waitlist/token'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseDomain } from '@/lib/urls/utils'
 
 const logger = createLogger('Middleware')
 
@@ -15,7 +16,8 @@ const SUSPICIOUS_UA_PATTERNS = [
   /^\(\)\s*{/,                            // Command execution attempt
   /\b(sqlmap|nikto|gobuster|dirb|nmap)\b/i // Known scanning tools
 ]
-const BASE_DOMAIN = isDevelopment ? 'localhost:3000' : 'simstudio.ai'
+
+const BASE_DOMAIN = getBaseDomain()
 
 export async function middleware(request: NextRequest) {
   // Check for active session

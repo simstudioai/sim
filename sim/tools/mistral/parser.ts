@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { MistralParserInput, MistralParserOutput } from './types'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('MistralParserTool')
 
@@ -97,7 +98,8 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
           // Make sure the file path is an absolute URL
           if (uploadedFilePath.startsWith('/')) {
             // If it's a relative path starting with /, convert to absolute URL
-            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+            const baseUrl = getBaseUrl()
+            if (!baseUrl) throw new Error('Failed to get base URL for file path conversion')
             uploadedFilePath = `${baseUrl}${uploadedFilePath}`
           }
 

@@ -1,23 +1,21 @@
 import { HttpMethod, TableRow, ToolConfig } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
 import { RequestParams, RequestResponse } from './types'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('HTTPRequestTool')
 
 // Function to get the appropriate referer based on environment
 const getReferer = (): string => {
-  // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
     return window.location.origin
   }
   
-  // Use environment variable if available (server-side)
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL
+  try {
+    return getBaseUrl()
+  } catch (error) {
+    return 'http://localhost:3000'
   }
-  
-  // Fallback for development
-  return 'http://localhost:3000/'
 }
 
 /**
