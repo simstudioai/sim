@@ -15,6 +15,7 @@ import {
   Settings,
   Shapes,
   Store,
+  Users,
 } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { HelpModal } from './components/help-modal/help-modal'
+import { InviteModal } from './components/invite-modal/invite-modal'
 import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 import { WorkflowList } from './components/workflow-list/workflow-list'
@@ -46,6 +48,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showInviteMembers, setShowInviteMembers] = useState(false)
   const { isCollapsed, toggleCollapsed } = useSidebarStore()
 
   // Track when active workspace changes to ensure we refresh the UI
@@ -127,6 +130,13 @@ export function Sidebar() {
     } catch (error) {
       console.error('Error creating workflow:', error)
     }
+  }
+
+  // Handle invite member
+  const handleInviteMember = (email: string) => {
+    // This would typically make an API call to invite the member
+    console.log('Inviting member:', email)
+    // API call would go here
   }
 
   return (
@@ -225,6 +235,18 @@ export function Sidebar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
+                  onClick={() => setShowInviteMembers(true)}
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                >
+                  <Users className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Invite Members</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
                   onClick={() => setShowHelp(true)}
                   className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
                 >
@@ -247,23 +269,34 @@ export function Sidebar() {
             </Tooltip>
           </div>
         ) : (
-          <div className="flex justify-between">
-            {/* Help button on left */}
+          <div className="flex flex-col space-y-2">
+            {/* Invite members button */}
             <div
-              onClick={() => setShowHelp(true)}
-              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              onClick={() => setShowInviteMembers(true)}
+              className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
-              <HelpCircle className="h-[18px] w-[18px]" />
-              <span className="sr-only">Help</span>
+              <Users className="h-[18px] w-[18px]" />
+              <span className="ml-2">Invite members</span>
             </div>
 
-            {/* Collapse/Expand button on right */}
-            <div
-              onClick={toggleCollapsed}
-              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
-            >
-              <ChevronLeft className="h-[18px] w-[18px]" />
-              <span className="sr-only">Collapse</span>
+            <div className="flex justify-between">
+              {/* Help button on left */}
+              <div
+                onClick={() => setShowHelp(true)}
+                className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              >
+                <HelpCircle className="h-[18px] w-[18px]" />
+                <span className="sr-only">Help</span>
+              </div>
+
+              {/* Collapse/Expand button on right */}
+              <div
+                onClick={toggleCollapsed}
+                className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              >
+                <ChevronLeft className="h-[18px] w-[18px]" />
+                <span className="sr-only">Collapse</span>
+              </div>
             </div>
           </div>
         )}
@@ -271,6 +304,11 @@ export function Sidebar() {
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
+      <InviteModal
+        open={showInviteMembers}
+        onOpenChange={setShowInviteMembers}
+        onInviteMember={handleInviteMember}
+      />
     </aside>
   )
 }
