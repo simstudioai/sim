@@ -3,6 +3,9 @@ FROM node:20-bullseye
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Set Node.js memory limit
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 # Install necessary packages for development
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \

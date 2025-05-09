@@ -22,10 +22,7 @@
     "cli:build": "npm run build -w packages/simstudio",
     "cli:dev": "npm run build -w packages/simstudio && cd packages/simstudio && node ./dist/index.js",
     "cli:publish": "cd packages/simstudio && npm publish",
-    "cli:start": "cd packages/simstudio && node ./dist/index.js start",
-    "build:standalone": "node scripts/build-standalone.js",
-    "build:cli": "npm run cli:build && npm run build:standalone",
-    "publish:cli": "npm run build:cli && npm run cli:publish"
+    "cli:start": "cd packages/simstudio && node ./dist/index.js start"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

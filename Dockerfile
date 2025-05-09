@@ -3,19 +3,25 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy the entire sim directory
-COPY sim/ ./
+# Set Node.js memory limit
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-# Create the .env file if it doesn't exist
-RUN touch .env
+# Copy package files
+COPY sim/package*.json ./
 
 # Install dependencies
 RUN npm install
 
+# Copy the rest of the application
+COPY sim/ ./
+
 # Generate database schema
 RUN npx drizzle-kit generate
+
+# Build the application
+RUN npm run build
 
 EXPOSE 3000
 
 # Run migrations and start the app
-CMD npx drizzle-kit push && npm run dev
+CMD npx drizzle-kit push --config=drizzle.config.ts && npm run start

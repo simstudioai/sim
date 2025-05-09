@@ -14,99 +14,71 @@
   <strong>Sim Studio</strong> is a lightweight, user-friendly platform for building AI agent workflows.
 </p>
 
-## Run
+## Getting Started
 
-1. Run on our [cloud-hosted version](https://simstudio.ai)
-2. Self-host
+### Run on [Sim Studio Cloud](https://simstudio.ai)
 
-## How to Self-Host
+The fastest way to get started is to use our [cloud-hosted version](https://simstudio.ai) - no setup required!
 
-There are several ways to self-host Sim Studio:
+### Self-host Sim Studio
 
-### Option 1: Docker Environment (Recommended)
+If you prefer to self-host, there are several options available:
+
+### Option 1: Using CLI (Recommended)
+
+The easiest way to self-host:
 
 ```bash
-# Clone your forked repository
-git clone https://github.com/YOUR_USERNAME/sim.git
-cd sim
-
-# Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
-cp sim/.env.example sim/.env
-
-# Start Sim Studio using the provided script
-docker compose up -d --build
-
-or
-
-./start_simstudio_docker.sh
+npx simstudio
+# This will set up and run Sim Studio locally with minimal configuration
 ```
 
-After running these commands:
-
-1. **Access the Application**:
-
-   - Open [http://localhost:3000/w/](http://localhost:3000/w/) in your browser
-   - The `/w/` path is where the main workspace interface is located
-
-2. **Useful Docker Commands**:
-
-   ```bash
-   # View application logs
-   docker compose logs -f simstudio
-
-   # Access PostgreSQL database
-   docker compose exec db psql -U postgres -d simstudio
-
-   # Stop the environment
-   docker compose down
-
-   # Rebuild and restart (after code changes)
-   docker compose up -d --build
-   ```
-
-#### Working with Local Models
-
-To use local models with Sim Studio, follow these steps:
-
-1. **Pull Local Models**
-
-   ```bash
-   # Run the ollama_docker.sh script to pull the required models
-   ./sim/scripts/ollama_docker.sh pull <model_name>
-   ```
-
-2. **Start Sim Studio with Local Models**
-
-   ```bash
-   #Start Sim Studio with local model support
-   ./start_simstudio_docker.sh --local
-
-   # or
-
-   # Start Sim Studio with local model support if you have nvidia GPU
-   docker compose up --profile local-gpu -d --build
-
-   # or
-
-   # Start Sim Studio with local model support if you don't have nvidia GPU
-   docker compose up --profile local-cpu -d --build
-   ```
-
-The application will now be configured to use your local models. You can access it at [http://localhost:3000/w/](http://localhost:3000/w/).
-
-#### Connecting to Existing Ollama Instance
-
-If you already have an Ollama instance running on your host machine, you can connect to it using one of these methods:
+### Option 2: Using Docker Compose
 
 ```bash
-# Method 1: Use host networking (simplest approach)
+# Clone the repository
+git clone https://github.com/simstudioai/sim.git
+cd sim
+
+# Create environment file (update BETTER_AUTH_SECRET and ENCRYPTION_KEY with secure random values)
+cp sim/.env.example sim/.env
+
+# Start with Docker Compose
+docker compose up -d --build
+```
+
+Once running, access the application at [http://localhost:3000/w/](http://localhost:3000/w/)
+
+## Working with Local Models
+
+Sim Studio supports integration with local LLM models:
+
+```bash
+# Pull local models
+./sim/scripts/ollama_docker.sh pull <model_name>
+
+# Start with local model support
+./start_simstudio_docker.sh --local
+
+# For systems with NVIDIA GPU
+docker compose up --profile local-gpu -d --build
+
+# For CPU-only systems
+docker compose up --profile local-cpu -d --build
+```
+
+### Connecting to Existing Ollama Instance
+
+If you already have Ollama running locally:
+
+```bash
+# Using host networking (simplest)
 docker compose up --profile local-cpu -d --build --network=host
 ```
 
-Or modify your docker-compose.yml:
+Or add this to your docker-compose.yml:
 
 ```yaml
-# Method 2: Add host.docker.internal mapping
 services:
   simstudio:
     # ... existing configuration ...
@@ -116,59 +88,46 @@ services:
       - OLLAMA_HOST=http://host.docker.internal:11434
 ```
 
-### Option 2: Dev Containers
+## Development Setup
 
-1. Open VS Code or your favorite VS Code fork (Cursor, Windsurf, etc.)
-2. Install the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-3. Open the project in your editor
-4. Click "Reopen in Container" when prompted
-5. The environment will automatically be set up in the `sim` directory
-6. Run `npm run dev` in the terminal or use the `sim-start` alias
+### Prerequisites
+- Node.js 20+
+- Docker (recommended)
+- PostgreSQL (if not using Docker)
 
-### Option 3: Manual Setup
+### Required Environment Variables
 
-1. **Install Dependencies**
+For local development, create a `.env` file with these minimum variables:
 
+```env
+DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+BETTER_AUTH_SECRET=<generate_a_secure_random_value>
+ENCRYPTION_KEY=<generate_a_secure_random_value>
+```
+
+⚠️ **Note:** Without `RESEND_API_KEY`, verification codes will be logged to the console for local testing.
+
+### Dev Container Option
+1. Open in VS Code with the Remote-Containers extension
+2. Click "Reopen in Container" when prompted
+3. Run `npm run dev` or use the `sim-start` alias
+
+### Manual Setup
 ```bash
-# Clone the repository
-git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim/sim
-
-# Install dependencies
 npm install
-```
-
-2. **Set Up Environment**
-
-```bash
-# Copy .env.example to .env
 cp .env.example .env
-
-# Configure your .env file with the required environment variables:
-# - Database connection (PostgreSQL)
-# - Authentication settings (Better-Auth Secret)
-```
-
-⚠️ **Important Notes:**
-- If `RESEND_API_KEY` is not set, verification codes for login/signup will be logged to the console.
-- You can use these logged codes for testing authentication locally.
-- For production environments, you should set up a proper email provider.
-
-3. **Set Up Database**
-
-```bash
-# Push the database schema
 npx drizzle-kit push
-```
-
-4. **Start Development Server**
-
-```bash
-# Start the development server
 npm run dev
 ```
 
-5. **Open [http://localhost:3000](http://localhost:3000) in your browser**
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Authentication problems**: Check console logs for verification codes if `RESEND_API_KEY` is not set
+- **Database connection errors**: Verify PostgreSQL is running and credentials are correct
+- **Port conflicts**: Check if port 3000 is already in use by another application
 
 ## Tech Stack
 
@@ -187,7 +146,5 @@ We welcome contributions! Please see our [Contributing Guide](.github/CONTRIBUTI
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-##
 
 <p align="center">Made with ❤️ by the Sim Studio Team</p>

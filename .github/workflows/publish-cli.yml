@@ -1,0 +1,93 @@
+name: Publish Sim Studio CLI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/simstudio/**'
+      - '.github/workflows/publish-cli.yml'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: 'packages/simstudio/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: packages/simstudio
+        run: npm ci
+
+      - name: Build package
+        working-directory: packages/simstudio
+        run: npm run build
+
+      - name: Get version
+        working-directory: packages/simstudio
+        id: get_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check version update
+        working-directory: packages/simstudio
+        run: |
+          if ! git diff ${{ github.event.before }} ${{ github.sha }} packages/simstudio/package.json | grep -q '"version":'; then
+            echo "::error::Version not updated in package.json"
+            exit 1
+          fi
+
+      - name: Run tests
+        working-directory: packages/simstudio
+        run: npm test
+
+      - name: Check for changes
+        working-directory: packages/simstudio
+        id: check_changes
+        run: |
+          if git diff --quiet ${{ github.event.before }} ${{ github.sha }} packages/simstudio/; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm
+        if: steps.check_changes.outputs.changes == 'true'
+        working-directory: packages/simstudio
+        run: |
+          if ! npm publish; then
+            echo "::error::Failed to publish package"
+            exit 1
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Git tag
+        if: steps.check_changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git tag -a "v${{ steps.get_version.outputs.version }}" -m "Release v${{ steps.get_version.outputs.version }}"
+          git push origin "v${{ steps.get_version.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.check_changes.outputs.changes == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "v${{ steps.get_version.outputs.version }}"
+          tag_name: "v${{ steps.get_version.outputs.version }}"
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

@@ -1,0 +1,52 @@
+{
+  "name": "simstudio",
+  "version": "0.1.15",
+  "description": "CLI tool for Sim Studio - easily start, build and test agent workflows",
+  "main": "dist/index.js",
+  "bin": {
+    "simstudio": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ./dist/index.js",
+    "dev": "tsc -w",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "conf": "^10.2.0",
+    "dotenv": "^16.4.7",
+    "inquirer": "^8.2.6",
+    "open": "^10.1.0",
+    "tar": "^6.2.1",
+    "update-notifier": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20",
+    "@types/update-notifier": "^6.0.8",
+    "typescript": "^5.7.3"
+  },
+  "keywords": [
+    "sim",
+    "sim-studio",
+    "workflow",
+    "automation",
+    "cli",
+    "agent",
+    "ai",
+    "workflow-automation"
+  ],
+  "author": "Sim Studio Team",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/simstudioai/sim.git"
+  },
+  "bugs": {
+    "url": "https://github.com/simstudioai/sim/issues"
+  },
+  "homepage": "https://github.com/simstudioai/sim#readme"
+}
