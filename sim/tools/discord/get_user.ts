@@ -11,7 +11,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   version: '1.0.0',
   
   oauth: {
-    required: false,
+    required: true,
     provider: 'discord',
   },
   
@@ -34,9 +34,9 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   },
   
   request: {
-    url: (params) => `https://discord.com/api/v10/users/${params.userId}`,
+    url: (params: DiscordGetUserParams) => `https://discord.com/api/v10/users/${params.userId}`,
     method: 'GET',
-    headers: (params) => {
+    headers: (params: DiscordGetUserParams) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
@@ -71,7 +71,17 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
       }
     }
     
-    const data = await response.json()
+    let data
+    try {
+      data = await response.json()
+    } catch (e) {
+      return {
+        success: false,
+        error: 'Failed to parse user data',
+        output: { message: 'Failed to parse user data' }
+      }
+    }
+
     return {
       success: true,
       output: {
@@ -83,6 +93,6 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   
   transformError: (error) => {
     logger.error('Error retrieving Discord user information', { error })
-    return `Error retrieving Discord user information: ${error.message || String(error)}`
+    return `Error retrieving Discord user information: ${error.error || String(error.error)}`
   },
 } 

@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       
       if (channel.type !== 0) {
         logger.warn('Requested channel is not a text channel')
+        return NextResponse.json({ error: 'Channel is not a text channel' }, { status: 400 })
       }
       
       logger.info(`Successfully fetched channel: ${channel.name}`)

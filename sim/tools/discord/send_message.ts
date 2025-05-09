@@ -10,11 +10,6 @@ export const discordSendMessageTool: ToolConfig<DiscordSendMessageParams, Discor
   description: 'Send a message to a Discord channel',
   version: '1.0.0',
   
-  oauth: {
-    required: false,
-    provider: 'discord',
-  },
-  
   params: {
     channelId: {
       type: 'string',
@@ -49,9 +44,9 @@ export const discordSendMessageTool: ToolConfig<DiscordSendMessageParams, Discor
   },
   
   request: {
-    url: (params) => `https://discord.com/api/v10/channels/${params.channelId}/messages`,
+    url: (params: DiscordSendMessageParams) => `https://discord.com/api/v10/channels/${params.channelId}/messages`,
     method: 'POST',
-    headers: (params) => {
+    headers: (params: DiscordSendMessageParams) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
@@ -122,6 +117,6 @@ export const discordSendMessageTool: ToolConfig<DiscordSendMessageParams, Discor
   
   transformError: (error) => {
     logger.error('Error sending Discord message', { error })
-    return `Error sending Discord message: ${error.message || String(error)}`
+    return `Error sending Discord message: ${error.error || String(error.error)}`
   },
 } 

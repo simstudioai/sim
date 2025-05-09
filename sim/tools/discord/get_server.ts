@@ -10,11 +10,6 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   description: 'Retrieve information about a Discord server (guild)',
   version: '1.0.0',
   
-  oauth: {
-    required: false,
-    provider: 'discord',
-  },
-  
   params: {
     serverId: {
       type: 'string',
@@ -39,29 +34,29 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
     headers: (params: DiscordGetServerParams) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-      };
+      }
       
       // If botToken is provided, use it for authorization
       if (params.botToken) {
-        headers['Authorization'] = `Bot ${params.botToken}`;
+        headers['Authorization'] = `Bot ${params.botToken}`
       }
       
-      return headers;
+      return headers
     },
   },
   
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = `Discord API error: ${response.status} ${response.statusText}`;
+      let errorMessage = `Discord API error: ${response.status} ${response.statusText}`
       
       try {
-        const errorText = await response.text();
+        const errorData = await response.json()
         logger.error('Discord API error', { 
           status: response.status, 
-          error: errorText,
-        });
+          error: errorData,
+        })
       } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e });
+        logger.error('Error parsing Discord API response', { status: response.status, error: e })
       }
       
       return {
@@ -70,10 +65,20 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
           message: errorMessage,
         },
         error: errorMessage,
-      };
+      }
     }
     
-    const serverData = await response.json();
+    let serverData
+    try {
+      serverData = await response.json()
+    } catch (e) {
+      logger.error('Error parsing Discord API response', { error: e })
+      return {
+        success: false,
+        error: 'Failed to parse server data',
+        output: { message: 'Failed to parse server data' }
+      }
+    }
     
     return {
       success: true,
@@ -81,11 +86,11 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
         message: 'Successfully retrieved server information',
         data: serverData,
       },
-    };
+    }
   },
   
   transformError: (error: any): string => {
-    logger.error('Error fetching Discord server', { error });
-    return `Error fetching Discord server: ${error instanceof Error ? error.message : String(error)}`;
+    logger.error('Error fetching Discord server', { error })
+    return `Error fetching Discord server: ${error.error || String(error.error)}`
   },
 } 

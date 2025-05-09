@@ -10,11 +10,6 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
   description: 'Retrieve messages from a Discord channel',
   version: '1.0.0',
   
-  oauth: {
-    required: false,
-    provider: 'discord',
-  },
-  
   params: {
     channelId: {
       type: 'string',
@@ -44,7 +39,7 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
   },
   
   request: {
-    url: (params) => {
+    url: (params: DiscordGetMessagesParams) => {
       const limit = Math.min(params.limit || 10, 100)
       return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${limit}`
     },
@@ -84,7 +79,16 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
       }
     }
     
-    const messages = await response.json()
+    let messages
+    try {
+      messages = await response.json()
+    } catch (e) {
+      return {
+        success: false,
+        error: 'Failed to parse messages',
+        output: { message: 'Failed to parse messages' }
+      }
+    }
     return {
       success: true,
       output: {
@@ -99,6 +103,6 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
   
   transformError: (error) => {
     logger.error('Error retrieving Discord messages', { error })
-    return `Error retrieving Discord messages: ${JSON.stringify(error)}`
+    return `Error retrieving Discord messages: ${error.error || String(error.error)}`
   },
 } 

@@ -160,9 +160,14 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         }
       },
       params: (params) => {
-        const commonParams: Record<string, any> = {
-          botToken: params.botToken,
-          credential: params.credential,
+        const commonParams: Record<string, any> = {}
+        
+        if (params.operation === 'discord_get_user') {
+          if (!params.credential) throw new Error('Credential required for user operations')
+          commonParams.credential = params.credential
+        } else {
+          if (!params.botToken) throw new Error('Bot token required for this operation')
+          commonParams.botToken = params.botToken
         }
         
         switch (params.operation) {
@@ -183,7 +188,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               ...commonParams,
               serverId: params.serverId,
               channelId: params.channelId,
-              limit: params.limit ? parseInt(params.limit) : 10,
+              limit: params.limit ? Math.min(Math.max(1, parseInt(params.limit)), 100) : 10,
             }
           case 'discord_get_server':
             return {
@@ -209,22 +214,22 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     },
     credential: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'Discord OAuth credential (for user operations)',
     },
     botToken: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'Discord bot token for API access',
     },
     serverId: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'The ID of the Discord server (guild)',
     },
     channelId: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'The ID of the Discord channel',
     },
     content: {
@@ -259,7 +264,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     },
     userId: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'The ID of the Discord user',
     }
   },
