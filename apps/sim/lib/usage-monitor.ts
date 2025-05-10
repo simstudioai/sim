@@ -83,8 +83,6 @@ async function getTeamSeats(userId: string): Promise<number> {
  */
 export async function checkUsageStatus(userId: string): Promise<UsageData> {
   try {
-    logger.info('Starting usage status check for user', { userId })
-
     // In development, always return permissive limits
     if (!isProd) {
       // Get actual usage from the database for display purposes

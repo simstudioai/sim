@@ -28,6 +28,7 @@ import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { HelpModal } from './components/help-modal/help-modal'
 import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
+import { SidebarControl } from './components/sidebar-control/sidebar-control'
 import { WorkflowList } from './components/workflow-list/workflow-list'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
@@ -46,7 +47,18 @@ export function Sidebar() {
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
-  const { isCollapsed, toggleCollapsed } = useSidebarStore()
+  const {
+    mode,
+    isExpanded,
+    toggleExpanded,
+    setMode,
+    workspaceDropdownOpen,
+    setWorkspaceDropdownOpen,
+    isAnyModalOpen,
+    setAnyModalOpen,
+  } = useSidebarStore()
+  const [isHovered, setIsHovered] = useState(false)
+  const [explicitMouseEnter, setExplicitMouseEnter] = useState(false)
 
   // Track when active workspace changes to ensure we refresh the UI
   useEffect(() => {
@@ -55,6 +67,18 @@ export function Sidebar() {
       // when activeWorkspaceId changes to ensure fresh data
     }
   }, [activeWorkspaceId])
+
+  // Update modal state in the store when settings or help modals open/close
+  useEffect(() => {
+    setAnyModalOpen(showSettings || showHelp)
+  }, [showSettings, showHelp, setAnyModalOpen])
+
+  // Reset explicit mouse enter state when modal state changes
+  useEffect(() => {
+    if (isAnyModalOpen) {
+      setExplicitMouseEnter(false)
+    }
+  }, [isAnyModalOpen])
 
   // Separate regular workflows from temporary marketplace workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
@@ -129,16 +153,49 @@ export function Sidebar() {
     }
   }
 
+  // Calculate sidebar visibility states
+  // When in hover mode, sidebar is collapsed until hovered or workspace dropdown is open
+  // When in expanded/collapsed mode, sidebar follows isExpanded state
+  const isCollapsed =
+    mode === 'collapsed' ||
+    (mode === 'hover' &&
+      ((!isHovered && !workspaceDropdownOpen) || isAnyModalOpen || !explicitMouseEnter))
+  // Only show overlay effect when in hover mode and actually being hovered or dropdown is open
+  const showOverlay =
+    mode === 'hover' &&
+    ((isHovered && !isAnyModalOpen && explicitMouseEnter) || workspaceDropdownOpen)
+
   return (
     <aside
       className={clsx(
-        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-width duration-200',
-        isCollapsed ? 'w-14' : 'w-60'
+        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-all duration-200',
+        isCollapsed ? 'w-14' : 'w-60',
+        showOverlay ? 'shadow-lg' : '',
+        mode === 'hover' ? 'main-content-overlay' : ''
       )}
+      onMouseEnter={() => {
+        if (mode === 'hover' && !isAnyModalOpen) {
+          setIsHovered(true)
+          setExplicitMouseEnter(true)
+        }
+      }}
+      onMouseLeave={() => {
+        if (mode === 'hover') {
+          setIsHovered(false)
+        }
+      }}
+      style={{
+        // When in hover mode and expanded, position above content without pushing it
+        position: showOverlay ? 'fixed' : 'fixed',
+      }}
     >
       {/* Workspace Header - Fixed at top */}
       <div className="flex-shrink-0">
-        <WorkspaceHeader onCreateWorkflow={handleCreateWorkflow} isCollapsed={isCollapsed} />
+        <WorkspaceHeader
+          onCreateWorkflow={handleCreateWorkflow}
+          isCollapsed={isCollapsed}
+          onDropdownOpenChange={setWorkspaceDropdownOpen}
+        />
       </div>
 
       {/* Main navigation - Fixed at top below header */}
@@ -236,34 +293,22 @@ export function Sidebar() {
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <div
-                  onClick={toggleCollapsed}
-                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
-                >
-                  <ChevronRight className="h-[18px] w-[18px]" />
-                </div>
+                <SidebarControl />
               </TooltipTrigger>
-              <TooltipContent side="right">Expand</TooltipContent>
             </Tooltip>
           </div>
         ) : (
           <div className="flex justify-between">
-            {/* Help button on left */}
+            {/* Sidebar control on left */}
+            <SidebarControl />
+
+            {/* Help button on right */}
             <div
               onClick={() => setShowHelp(true)}
-              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              className="flex items-center justify-center rounded-md w-8 h-8 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
               <HelpCircle className="h-[18px] w-[18px]" />
               <span className="sr-only">Help</span>
-            </div>
-
-            {/* Collapse/Expand button on right */}
-            <div
-              onClick={toggleCollapsed}
-              className="flex items-center justify-center rounded-md px-1 py-1 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
-            >
-              <ChevronLeft className="h-[18px] w-[18px]" />
-              <span className="sr-only">Collapse</span>
             </div>
           </div>
         )}

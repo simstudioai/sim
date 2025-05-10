@@ -26,13 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         validation.workflow.deployedState as any
       )
     }
-
-    logger.info(`[${requestId}] Retrieved status for workflow: ${id}`, {
-      isDeployed: validation.workflow.isDeployed,
-      isPublished: validation.workflow.isPublished,
-      needsRedeployment,
-    })
-
+    
     return createSuccessResponse({
       isDeployed: validation.workflow.isDeployed,
       deployedAt: validation.workflow.deployedAt,
