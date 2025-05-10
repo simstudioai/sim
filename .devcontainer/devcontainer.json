@@ -54,8 +54,8 @@
 
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/oven-sh/setup-bun:0": {
-      "version": "latest"
-    }
+    "ghcr.io/prulloac/devcontainer-features/bun:1": {
+       "version": "latest"
+     }
   }
 }
