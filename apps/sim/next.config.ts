@@ -12,9 +12,6 @@ const nextConfig: NextConfig = {
     ],
   },
   output: process.env.NODE_ENV === 'development' ? 'standalone' : undefined,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
@@ -43,15 +40,7 @@ const nextConfig: NextConfig = {
 
     // Avoid aliasing React on the server/edge runtime builds because it bypasses
     // the "react-server" export condition, which Next.js relies on when
-    // bundling React Server Components and API route handlers. Doing so leads
-    // to build-time errors such as:
-    //   "The \"react\" package in this environment is not configured correctly.\n"
-    // These errors surface when the Edge runtime (or any server-side target)
-    // tries to require the "react-server" entry that was stripped away by the
-    // directory alias below. The alias _is_ still valuable for the client
-    // bundle because it prevents multiple React copies when using linked
-    // packages in a monorepo. Therefore we only apply it for the client build.
-
+    // bundling React Server Components and API route handlers. 
     if (!isServer) {
       config.resolve.alias = {
         ...config.resolve.alias,
@@ -63,7 +52,6 @@ const nextConfig: NextConfig = {
     return config
   },
   transpilePackages: ['prettier', '@react-email/components', '@react-email/render'],
-  // Only include headers when not building for standalone export
   async headers() {
     return [
       {
