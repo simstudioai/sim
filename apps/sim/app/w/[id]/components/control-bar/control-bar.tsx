@@ -76,7 +76,6 @@ const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
 export function ControlBar() {
   const router = useRouter()
   const { data: session } = useSession()
-  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
 
   // Store hooks
   const {

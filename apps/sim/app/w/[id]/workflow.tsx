@@ -48,7 +48,10 @@ function WorkflowContent() {
   // State
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
-  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
+  const { mode, isExpanded } = useSidebarStore()
+  // In hover mode, act as if sidebar is always collapsed for layout purposes
+  const isSidebarCollapsed =
+    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   // Hooks
   const params = useParams()
@@ -478,8 +481,8 @@ function WorkflowContent() {
     <div className="flex flex-col h-screen w-full overflow-hidden">
       <div className={`transition-all duration-200 ${isSidebarCollapsed ? 'ml-14' : 'ml-60'}`}>
         <ControlBar />
-        <Toolbar />
       </div>
+      <Toolbar />
       <div
         className={`flex-1 relative w-full h-full transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >

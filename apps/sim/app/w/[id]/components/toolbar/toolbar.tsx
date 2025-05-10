@@ -14,8 +14,13 @@ import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 export function Toolbar() {
   const [activeTab, setActiveTab] = useState<BlockCategory>('blocks')
   const [searchQuery, setSearchQuery] = useState('')
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
+  const { mode, isExpanded } = useSidebarStore()
+  // In hover mode, act as if sidebar is always collapsed for layout purposes
+  const isSidebarCollapsed =
+    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+
+  // State to track if toolbar is open - independent of sidebar state
+  const [isToolbarOpen, setIsToolbarOpen] = useState(true)
 
   const blocks = useMemo(() => {
     const filteredBlocks = !searchQuery.trim() ? getBlocksByCategory(activeTab) : getAllBlocks()
@@ -31,13 +36,14 @@ export function Toolbar() {
     })
   }, [searchQuery, activeTab])
 
-  if (isCollapsed) {
+  // Show toolbar button when it's closed, regardless of sidebar state
+  if (!isToolbarOpen) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            onClick={() => setIsCollapsed(false)}
-            className={`fixed transition-left duration-200 ${isSidebarCollapsed ? 'left-20' : 'left-64'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground hover:text-foreground hover:bg-accent border`}
+            onClick={() => setIsToolbarOpen(true)}
+            className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-20' : 'left-64'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground hover:text-foreground hover:bg-accent border`}
           >
             <PanelRight className="h-5 w-5" />
             <span className="sr-only">Open Toolbar</span>
@@ -50,7 +56,7 @@ export function Toolbar() {
 
   return (
     <div
-      className={`fixed transition-left duration-200 ${isSidebarCollapsed ? 'left-14' : 'left-60'} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
+      className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-14' : 'left-60'} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
     >
       <div className="flex flex-col h-full">
         <div className="px-4 pt-4 pb-1 sticky top-0 bg-background z-20">
@@ -89,7 +95,7 @@ export function Toolbar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                onClick={() => setIsCollapsed(true)}
+                onClick={() => setIsToolbarOpen(false)}
                 className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
               >
                 <PanelLeftClose className="h-5 w-5" />

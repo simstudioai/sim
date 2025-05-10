@@ -62,7 +62,9 @@ export default function Logs() {
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
-  const { isCollapsed: isSidebarCollapsed } = useSidebarStore()
+  const { mode, isExpanded } = useSidebarStore()
+  const isSidebarCollapsed =
+    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   // Group logs by executionId to identify the last log in each group
   const executionGroups = useMemo(() => {

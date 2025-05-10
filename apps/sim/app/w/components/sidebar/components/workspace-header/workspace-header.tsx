@@ -39,6 +39,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface Workspace {
@@ -51,6 +52,7 @@ interface Workspace {
 interface WorkspaceHeaderProps {
   onCreateWorkflow: () => void
   isCollapsed?: boolean
+  onDropdownOpenChange?: (isOpen: boolean) => void
 }
 
 // New WorkspaceModal component
@@ -225,8 +227,16 @@ function WorkspaceEditModal({
   )
 }
 
-export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHeaderProps) {
-  const [isOpen, setIsOpen] = useState(false)
+export function WorkspaceHeader({
+  onCreateWorkflow,
+  isCollapsed,
+  onDropdownOpenChange,
+}: WorkspaceHeaderProps) {
+  // Get sidebar store state to check current mode
+  const { mode, workspaceDropdownOpen, setAnyModalOpen } = useSidebarStore()
+
+  // Keep local isOpen state in sync with the store (for internal component use)
+  const [isOpen, setIsOpen] = useState(workspaceDropdownOpen)
   const { data: sessionData, isPending } = useSession()
   const [plan, setPlan] = useState('Free Plan')
   // Use client-side loading instead of isPending to avoid hydration mismatch
@@ -419,6 +429,32 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
   // Determine URL for workspace links
   const workspaceUrl = activeWorkspace ? `/w/${activeWorkspace.id}` : '/w'
 
+  // Notify parent component when dropdown opens/closes
+  const handleDropdownOpenChange = (open: boolean) => {
+    setIsOpen(open)
+    // Inform the parent component about the dropdown state change
+    if (onDropdownOpenChange) {
+      onDropdownOpenChange(open)
+    }
+  }
+
+  // Special handling for click interactions in hover mode
+  const handleTriggerClick = (e: React.MouseEvent) => {
+    // When in hover mode, explicitly prevent bubbling for the trigger
+    if (mode === 'hover') {
+      e.stopPropagation()
+      e.preventDefault()
+      // Toggle dropdown state
+      handleDropdownOpenChange(!isOpen)
+    }
+  }
+
+  // Handle modal open/close state
+  useEffect(() => {
+    // Update the modal state in the store
+    setAnyModalOpen(isWorkspaceModalOpen || isEditModalOpen || isDeleting)
+  }, [isWorkspaceModalOpen, isEditModalOpen, isDeleting, setAnyModalOpen])
+
   return (
     <div className="py-2 px-2">
       {/* Workspace Modal */}
@@ -436,9 +472,15 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
         workspace={editingWorkspace}
       />
 
-      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+      <DropdownMenu open={isOpen} onOpenChange={handleDropdownOpenChange}>
         <div
           className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
+          onClick={(e) => {
+            // In hover mode, prevent clicks on the container from collapsing the sidebar
+            if (mode === 'hover') {
+              e.stopPropagation()
+            }
+          }}
         >
           {/* Hover background with consistent padding - only when not collapsed */}
           {!isCollapsed && <div className="absolute inset-0 rounded-md group-hover:bg-accent/50" />}
@@ -456,7 +498,10 @@ export function WorkspaceHeader({ onCreateWorkflow, isCollapsed }: WorkspaceHead
           ) : (
             <div className="relative">
               <DropdownMenuTrigger asChild>
-                <div className="flex items-center px-2 py-[6px] relative z-10 w-full">
+                <div
+                  className="flex items-center px-2 py-[6px] relative z-10 w-full"
+                  onClick={handleTriggerClick}
+                >
                   <div className="flex items-center gap-2 overflow-hidden cursor-pointer">
                     <Link
                       href={workspaceUrl}

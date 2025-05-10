@@ -140,6 +140,7 @@
 
 /* Custom Animations */
 @layer utilities {
+
   /* Animation containment to avoid layout shifts */
   .animation-container {
     contain: paint layout style;
@@ -150,9 +151,11 @@
     0% {
       box-shadow: 0 0 0 0 hsl(var(--border));
     }
+
     50% {
       box-shadow: 0 0 0 8px hsl(var(--border));
     }
+
     100% {
       box-shadow: 0 0 0 0 hsl(var(--border));
     }
@@ -195,6 +198,7 @@
     0% {
       transform: translateX(-100%);
     }
+
     100% {
       transform: translateX(100%);
     }
@@ -202,12 +206,11 @@
 
   @keyframes orbit {
     0% {
-      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc(var(--angle) * -1deg));
+      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg));
     }
+
     100% {
-      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px))
-        rotate(calc((var(--angle) * -1deg) - 360deg));
+      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg));
     }
   }
 
@@ -215,14 +218,17 @@
     from {
       transform: translateX(0);
     }
+
     to {
       transform: translateX(calc(-100% - var(--gap)));
     }
   }
+
   @keyframes marquee-vertical {
     from {
       transform: translateY(0);
     }
+
     to {
       transform: translateY(calc(-100% - var(--gap)));
     }
@@ -234,30 +240,27 @@
 
   .streaming-effect::after {
     content: '';
-    @apply pointer-events-none absolute top-0 left-0 h-full w-full;
-    background: linear-gradient(
-      90deg,
-      rgba(128, 128, 128, 0) 0%,
-      rgba(128, 128, 128, 0.1) 50%,
-      rgba(128, 128, 128, 0) 100%
-    );
+    @apply pointer-events-none absolute left-0 top-0 h-full w-full;
+    background: linear-gradient(90deg,
+        rgba(128, 128, 128, 0) 0%,
+        rgba(128, 128, 128, 0.1) 50%,
+        rgba(128, 128, 128, 0) 100%);
     animation: code-shimmer 1.5s infinite;
     z-index: 10;
   }
 
   .dark .streaming-effect::after {
-    background: linear-gradient(
-      90deg,
-      rgba(180, 180, 180, 0) 0%,
-      rgba(180, 180, 180, 0.1) 50%,
-      rgba(180, 180, 180, 0) 100%
-    );
+    background: linear-gradient(90deg,
+        rgba(180, 180, 180, 0) 0%,
+        rgba(180, 180, 180, 0.1) 50%,
+        rgba(180, 180, 180, 0) 100%);
   }
 
   @keyframes fadeIn {
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -270,8 +273,10 @@
 
 /* Dark mode error badge styling */
 .dark .error-badge {
-  background-color: hsl(0, 70%, 20%) !important; /* Darker red background for dark mode */
-  color: hsl(0, 0%, 100%) !important; /* Pure white text for better contrast */
+  background-color: hsl(0, 70%, 20%) !important;
+  /* Darker red background for dark mode */
+  color: hsl(0, 0%, 100%) !important;
+  /* Pure white text for better contrast */
 }
 
 /* Input Overrides */
@@ -293,10 +298,12 @@ input[type='search']::-ms-clear {
 
 /* Code Prompt Bar Placeholder Animation */
 @keyframes placeholder-pulse {
+
   0%,
   100% {
     opacity: 0.5;
   }
+
   50% {
     opacity: 0.8;
   }
@@ -318,4 +325,10 @@ input[type='search']::-ms-clear {
 
 .font-geist-mono {
   font-family: var(--font-geist-mono);
+}
+
+/* Sidebar overlay styles */
+.main-content-overlay {
+  z-index: 40;
+  /* Higher z-index to appear above content */
 }
