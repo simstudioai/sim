@@ -7,7 +7,7 @@ import { ExecutionContext } from '../../types'
 import { EvaluatorBlockHandler } from './evaluator-handler'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
-const mockFetch = global.fetch as Mock
+const mockFetch = global.fetch as unknown as Mock
 
 describe('EvaluatorBlockHandler', () => {
   let handler: EvaluatorBlockHandler

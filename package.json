@@ -7,7 +7,7 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "turbo": "^2.5.3"
   },
-  "packageManager": "npm@11.3.0",
+  "packageManager": "bun@1.2.12",
   "name": "simstudio",
   "version": "0.0.0",
   "private": true,
@@ -27,5 +27,8 @@
   "overrides": {
     "react": "19.1.0",
     "react-dom": "19.1.0"
+  },
+  "dependencies": {
+    "@types/bun": "^1.2.12"
   }
 }

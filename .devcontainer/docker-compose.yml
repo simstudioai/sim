@@ -7,6 +7,7 @@ services:
       dockerfile: .devcontainer/Dockerfile
     volumes:
       - ..:/workspace:cached
+      - bun-cache:/home/bun/.bun/cache:delegated
     command: sleep infinity
     environment:
       - NODE_ENV=development
@@ -14,6 +15,7 @@ services:
       - POSTGRES_URL=postgresql://postgres:postgres@db:5432/simstudio
       - BETTER_AUTH_URL=http://localhost:3000
       - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - BUN_INSTALL_CACHE_DIR=/home/bun/.bun/cache
     depends_on:
       db:
         condition: service_healthy
@@ -41,3 +43,4 @@ services:
 
 volumes:
   postgres-data:
+  bun-cache:

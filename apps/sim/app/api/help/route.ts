@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     const images: { filename: string; content: Buffer; contentType: string }[] = []
 
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith('image_') && value instanceof Blob) {
+      if (key.startsWith('image_') && typeof value === 'object' && value !== null) {
         const file = value as File
         const buffer = Buffer.from(await file.arrayBuffer())
 

@@ -62,7 +62,7 @@ vi.mock('@/blocks/blocks/router')
 vi.mock('@/blocks')
 
 // Mock fetch for server requests
-global.fetch = vi.fn()
+global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
 
 // Mock process.env
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'

@@ -26,7 +26,7 @@ Please describe the tests that you ran to verify your changes. Provide instructi
 - [ ] I have performed a self-review of my own code
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] All tests pass locally and in CI (`npm test`)
+- [ ] All tests pass locally and in CI (`bun run test`)
 - [ ] My changes generate no new warnings
 - [ ] Any dependent changes have been merged and published in downstream modules
 - [ ] I have updated version numbers as needed (if needed)

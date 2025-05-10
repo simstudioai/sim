@@ -33,7 +33,7 @@ This directory contains configuration files for Visual Studio Code Dev Container
    - Run database migrations
    - Configure helpful aliases
 
-5. Start the application with `sim-start` (alias for `npm run dev`)
+5. Start the application with `sim-start` (alias for `bun run dev`)
 
 ### Development Commands
 

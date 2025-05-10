@@ -126,7 +126,7 @@ export class ToolTester<P = any, R = any> {
       headers: options.headers ?? { 'content-type': 'application/json' },
     }
     this.mockFetch = createMockFetch(this.mockResponse, this.mockResponseOptions)
-    global.fetch = this.mockFetch
+    global.fetch = Object.assign(this.mockFetch, { preconnect: vi.fn() }) as typeof fetch
     return this
   }
 
@@ -135,7 +135,7 @@ export class ToolTester<P = any, R = any> {
    */
   setupError(errorMessage: string, status = 400) {
     this.mockFetch = createErrorFetch(errorMessage, status)
-    global.fetch = this.mockFetch
+    global.fetch = Object.assign(this.mockFetch, { preconnect: vi.fn() }) as typeof fetch
 
     // Create an error object that the transformError function can use
     this.error = new Error(errorMessage)
@@ -478,7 +478,7 @@ export function mockOAuthTokenRequest(accessToken = 'mock-access-token') {
     return originalFetch(url, options)
   })
 
-  global.fetch = mockTokenFetch
+  global.fetch = Object.assign(mockTokenFetch, { preconnect: vi.fn() }) as typeof fetch
 
   // Return a cleanup function
   return () => {

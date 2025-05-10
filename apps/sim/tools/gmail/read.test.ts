@@ -112,7 +112,7 @@ describe('Gmail Read Tool', () => {
 
       // Then setup response for the first message
       const originalFetch = global.fetch
-      global.fetch = vi.fn().mockImplementation((url, options) => {
+      global.fetch = Object.assign(vi.fn().mockImplementation((url, options) => {
         // Check if it's a token request
         if (url.toString().includes('/api/auth/oauth/token')) {
           return Promise.resolve({
@@ -149,7 +149,7 @@ describe('Gmail Read Tool', () => {
         }
 
         return originalFetch(url, options)
-      })
+      }), { preconnect: vi.fn() }) as typeof fetch
 
       // Execute with credential instead of access token
       await tester.execute({
@@ -196,7 +196,7 @@ describe('Gmail Read Tool', () => {
       const originalFetch = global.fetch
 
       // First setup response for message list
-      global.fetch = vi
+      global.fetch = Object.assign(vi
         .fn()
         .mockImplementationOnce((url, options) => {
           return Promise.resolve({
@@ -220,7 +220,7 @@ describe('Gmail Read Tool', () => {
               forEach: () => {},
             },
           })
-        })
+        }), { preconnect: vi.fn() }) as typeof fetch
 
       // Execute the tool
       const result = await tester.execute({
