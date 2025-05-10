@@ -94,13 +94,23 @@ You can create multiple conditions that are evaluated in order, with the first m
 Conditions use JavaScript syntax and can reference input values from previous blocks.
 
 <Tabs items={['Score Threshold', 'Text Analysis', 'Multiple Conditions']}>
-  <Tab>```javascript // Check if a score is above a threshold input.score > 75 ```</Tab>
   <Tab>
-    ```javascript // Check if a text contains specific keywords input.text.includes('urgent') ||
-    input.text.includes('emergency') ```
+    ```javascript
+    // Check if a score is above a threshold
+    input.score > 75
+    ```
   </Tab>
   <Tab>
-    ```javascript // Check multiple conditions input.age >= 18 && input.country === 'US' ```
+    ```javascript
+    // Check if a text contains specific keywords
+    input.text.includes('urgent') || input.text.includes('emergency')
+    ```
+  </Tab>
+  <Tab>
+    ```javascript
+    // Check multiple conditions
+    input.age >= 18 && input.country === 'US'
+    ```
   </Tab>
 </Tabs>
 
