@@ -58,3 +58,9 @@ fi
 
 echo "Documentation generation complete!"
 echo "Generated documentation can be found in apps/docs/content/docs/tools/" 
+
+# Run prettier on the generated documentation files
+echo "Formatting generated documentation files with Prettier..."
+cd "$ROOT_DIR"
+npx prettier --write "apps/docs/content/docs/tools/**/*.mdx"
+echo "Formatting complete!" 

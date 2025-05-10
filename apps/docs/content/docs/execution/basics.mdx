@@ -30,24 +30,24 @@ The execution of a workflow follows these key steps:
     connected blocks
   </Step>
 
-  <Step>
-    ### Initialization The execution context is created, which includes: - Environment variables for
-    the workflow - Input values from the starter block - Initial state for all blocks - Execution
-    path tracking - Loop iteration counters
-  </Step>
+<Step>
+  ### Initialization The execution context is created, which includes: - Environment variables for
+  the workflow - Input values from the starter block - Initial state for all blocks - Execution path
+  tracking - Loop iteration counters
+</Step>
 
-  <Step>
-    ### Block Execution Blocks are executed in topological order (based on dependencies): - The
-    system identifies which blocks can be executed next - Inputs for each block are resolved from
-    previous block outputs - Each block is executed by its specialized handler - Outputs are stored
-    in the execution context
-  </Step>
+<Step>
+  ### Block Execution Blocks are executed in topological order (based on dependencies): - The system
+  identifies which blocks can be executed next - Inputs for each block are resolved from previous
+  block outputs - Each block is executed by its specialized handler - Outputs are stored in the
+  execution context
+</Step>
 
-  <Step>
-    ### Path Determination As execution progresses, the system determines which paths to follow: -
-    Router and conditional blocks make decisions about execution paths - Only blocks on active paths
-    are executed - The path tracker maintains the current execution state
-  </Step>
+<Step>
+  ### Path Determination As execution progresses, the system determines which paths to follow: -
+  Router and conditional blocks make decisions about execution paths - Only blocks on active paths
+  are executed - The path tracker maintains the current execution state
+</Step>
 
   <Step>
     ### Result Collection After all blocks have executed: - Final outputs are collected - Execution
@@ -83,28 +83,28 @@ Different block types have different execution behaviors:
     </Card>
   </Tab>
 
-  <Tab>
-    <Card>
-      Processing blocks transform data and generate new outputs.
-      <Files>
-        <File
-          name="Agent Block"
-          icon={<AgentIcon className="h-4 w-4" />}
-          annotation="Interacts with AI models to generate content. Executes prompts against various LLM providers."
-        />
-        <File
-          name="Function Block"
-          icon={<CodeIcon className="h-4 w-4" />}
-          annotation="Executes custom JavaScript/TypeScript code. Runs in a secure sandbox environment with access to connected block outputs."
-        />
-        <File
-          name="Evaluator Block"
-          icon={<ChartBarIcon className="h-4 w-4" />}
-          annotation="Assesses outputs against defined criteria. Uses AI to evaluate content based on custom metrics."
-        />
-      </Files>
-    </Card>
-  </Tab>
+<Tab>
+  <Card>
+    Processing blocks transform data and generate new outputs.
+    <Files>
+      <File
+        name="Agent Block"
+        icon={<AgentIcon className="h-4 w-4" />}
+        annotation="Interacts with AI models to generate content. Executes prompts against various LLM providers."
+      />
+      <File
+        name="Function Block"
+        icon={<CodeIcon className="h-4 w-4" />}
+        annotation="Executes custom JavaScript/TypeScript code. Runs in a secure sandbox environment with access to connected block outputs."
+      />
+      <File
+        name="Evaluator Block"
+        icon={<ChartBarIcon className="h-4 w-4" />}
+        annotation="Assesses outputs against defined criteria. Uses AI to evaluate content based on custom metrics."
+      />
+    </Files>
+  </Card>
+</Tab>
 
   <Tab>
     <Card>

@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
 
     // Avoid aliasing React on the server/edge runtime builds because it bypasses
     // the "react-server" export condition, which Next.js relies on when
-    // bundling React Server Components and API route handlers. 
+    // bundling React Server Components and API route handlers.
     if (!isServer) {
       config.resolve.alias = {
         ...config.resolve.alias,
