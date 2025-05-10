@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
       'api.stability.ai',
     ],
   },
-  output: 'standalone',
+  output: process.env.NODE_ENV === 'development' ? 'standalone' : undefined,
   typescript: {
     ignoreBuildErrors: true,
   },
