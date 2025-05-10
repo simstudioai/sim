@@ -1,0 +1,18 @@
+{
+  "title": "Sim Studio Documentation",
+  "pages": [
+    "---Introduction---",
+    "./introduction/index",
+    "./getting-started/index",
+    "---Create---",
+    "blocks",
+    "tools",
+    "---Connections---",
+    "connections",
+    "---Execution---",
+    "execution",
+    "---Advanced---",
+    "./variables/index"
+  ],
+  "defaultOpen": true
+}

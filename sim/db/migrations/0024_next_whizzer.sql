@@ -1,1 +1,0 @@
-ALTER TABLE "workflow" ADD COLUMN "marketplace_data" json DEFAULT 'null'::json;

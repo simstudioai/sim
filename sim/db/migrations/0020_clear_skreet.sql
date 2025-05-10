@@ -1,1 +1,0 @@
-ALTER TABLE "workflow" ADD COLUMN "is_published" boolean DEFAULT false NOT NULL;

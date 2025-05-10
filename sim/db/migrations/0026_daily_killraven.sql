@@ -1,1 +1,0 @@
-ALTER TABLE "workflow" ADD COLUMN "deployed_state" json;

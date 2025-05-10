@@ -1,0 +1,136 @@
+---
+title: Typeform
+description: Interact with Typeform
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="typeform"
+  color="#262627"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      
+      
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <g transform="translate(1, 4)">
+        <rect x="0" y="0"   rx="2.5" fill="currentColor" />
+        <rect x="8" y="0"   rx="4" fill="currentColor" />
+      </g>
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Typeform](https://www.typeform.com/) is a user-friendly platform for creating conversational forms, surveys, and quizzes with a focus on engaging user experience.
+
+With Typeform, you can:
+
+- **Create interactive forms**: Design beautiful, conversational forms that engage respondents with a unique one-question-at-a-time interface
+- **Customize your experience**: Use conditional logic, hidden fields, and custom themes to create personalized user journeys
+- **Integrate with other tools**: Connect with 1000+ apps through native integrations and APIs
+- **Analyze response data**: Get actionable insights through comprehensive analytics and reporting tools
+
+In Sim Studio, the Typeform integration enables your agents to programmatically interact with your Typeform data as part of their workflows. Agents can retrieve form responses, process submission data, and incorporate user feedback directly into decision-making processes. This integration is particularly valuable for scenarios like lead qualification, customer feedback analysis, and data-driven personalization. By connecting Sim Studio with Typeform, you can create intelligent automation workflows that transform form responses into actionable insights - analyzing sentiment, categorizing feedback, generating summaries, and even triggering follow-up actions based on specific response patterns.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Access and retrieve responses from your Typeform forms. Integrate form submissions data into your workflow for analysis, storage, or processing.
+
+
+
+## Tools
+
+### `typeform_responses`
+
+Retrieve form responses from Typeform
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Typeform form ID |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+| `pageSize` | number | No | Number of responses to retrieve \(default: 25\) |
+| `since` | string | No | Retrieve responses submitted after this date \(ISO 8601 format\) |
+| `until` | string | No | Retrieve responses submitted before this date \(ISO 8601 format\) |
+| `completed` | string | No | Filter by completion status \(true/false\) |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `total_items` | string |
+| `answers` | string |
+| `type` | string |
+| `hidden` | string |
+| `calculated` | string |
+| `variables` | string |
+
+### `typeform_files`
+
+Download files uploaded in Typeform responses
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Typeform form ID |
+| `responseId` | string | Yes | Response ID containing the files |
+| `fieldId` | string | Yes | Unique ID of the file upload field |
+| `filename` | string | Yes | Filename of the uploaded file |
+| `inline` | boolean | No | Whether to request the file with inline Content-Disposition |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `fileUrl` | string |
+
+### `typeform_insights`
+
+Retrieve insights and analytics for Typeform forms
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `formId` | string | Yes | Typeform form ID |
+| `apiKey` | string | Yes | Typeform Personal Access Token |
+
+#### Output
+
+This tool does not produce any outputs.
+
+
+
+## Block Configuration
+
+### Input
+
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
+
+
+
+### Outputs
+
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `total_items` | number | total_items of the response |
+| ↳ `page_count` | number | page_count of the response |
+| ↳ `items` | json | items of the response |
+
+
+## Notes
+
+- Category: `tools`
+- Type: `typeform`

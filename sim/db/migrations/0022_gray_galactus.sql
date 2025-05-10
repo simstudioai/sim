@@ -1,1 +1,0 @@
-ALTER TABLE "workflow" ADD COLUMN "variables" json DEFAULT '{}';

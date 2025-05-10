@@ -1,0 +1,22 @@
+{
+  "devDependencies": {
+    "turbo": "^2.5.3"
+  },
+  "packageManager": "npm@10.1.0",
+  "name": "simstudio",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  }
+}

@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-*/node_modules
+/node_modules
 docs/node_modules
 /packages/**/node_modules
 /.pnp
@@ -74,3 +74,6 @@ uploads/
 collector-config.yaml
 docker-compose.collector.yml
 start-collector.sh
+
+# Turborepo
+.turbo

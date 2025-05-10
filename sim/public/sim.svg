@@ -1,8 +1,0 @@
-<svg width="50" height="50" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="50" height="50" rx="6" fill="#701FFC"/>
-<path d="M34.1455 20.073H16.0364C12.7026 20.073 10 22.7756 10 26.1094V35.1639C10 38.4977 12.7026 41.2003 16.0364 41.2003H34.1455C37.4792 41.2003 40.1818 38.4977 40.1818 35.1639V26.1094C40.1818 22.7756 37.4792 20.073 34.1455 20.073Z" fill="#701FFC" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M25.0924 14.0364C26.7593 14.0364 28.1106 12.6851 28.1106 11.0182C28.1106 9.35129 26.7593 8 25.0924 8C23.4255 8 22.0742 9.35129 22.0742 11.0182C22.0742 12.6851 23.4255 14.0364 25.0924 14.0364Z" fill="#701FFC" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z" fill="#701FFC"/>
-<path d="M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="25" cy="11" r="2" fill="#701FFC"/>
-</svg>

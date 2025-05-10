@@ -1,1 +1,0 @@
-ALTER TABLE "workflow_logs" ALTER COLUMN "trigger" DROP NOT NULL;

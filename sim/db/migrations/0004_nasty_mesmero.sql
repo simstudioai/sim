@@ -1,1 +1,0 @@
-ALTER TABLE "user_settings" ADD COLUMN "is_debug_mode_enabled" boolean DEFAULT false NOT NULL;
