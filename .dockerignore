@@ -2,11 +2,13 @@
 .git
 .github
 node_modules
+.bun
+bun.lockb
 .next
 .vercel
 .husky
 .env
 .env.*
-npm-debug.log
+bun-debug.log
 README.md
 .devcontainer 

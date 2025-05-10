@@ -122,7 +122,7 @@ services:
 3. Open the project in your editor
 4. Click "Reopen in Container" when prompted
 5. The environment will automatically be set up
-6. Run `npm run dev` in the terminal or use the `sim-start` alias
+6. Run `bun run dev` in the terminal or use the `sim-start` alias
 
 ### Option 3: Manual Setup
 
@@ -134,7 +134,7 @@ git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
 # Install dependencies
-npm install
+bun install
 ```
 
 2. **Set Up Environment**
@@ -158,7 +158,7 @@ cp .env.example .env  # or create a new .env file
 ```bash
 # Push the database schema
 cd apps/sim
-npx drizzle-kit push
+bunx drizzle-kit push
 ```
 
 4. **Start Development Server**
@@ -166,7 +166,7 @@ npx drizzle-kit push
 ```bash
 # Start the development server
 cd ../..
-npm run dev
+bun run dev
 ```
 
 5. **Open [http://localhost:3000](http://localhost:3000) in your browser**
@@ -174,6 +174,7 @@ npm run dev
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Runtime**: [Bun](https://bun.sh/)
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
 - **Authentication**: [Better Auth](https://better-auth.com)
 - **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)
