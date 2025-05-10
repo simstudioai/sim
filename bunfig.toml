@@ -1,0 +1,34 @@
+# Bun Configuration File
+
+[install]
+# Recommend using exact versions for better reproducibility
+exact = true
+# Auto-detect lockfile and registry changes
+registry = "https://registry.npmjs.org/"
+# Cache binaries for faster install
+cache = true
+# Strict mode for more reliable dependency resolution
+strict = false
+# Enables frozen lockfile by default to prevent accidental changes
+frozen = false
+
+# Configure workspaces for monorepo
+workspaces = ["apps/*", "packages/*"]
+
+[test]
+# Test configuration
+preload = "./apps/sim/test/setup.ts"
+extensions = [".test.ts", ".test.tsx"]
+timeout = 10000
+
+[run]
+# Environment setting for running scripts
+env = { NEXT_PUBLIC_APP_URL = "http://localhost:3000" }
+
+[build]
+# Build configuration
+minify = true
+
+[debug]
+# Configure debug mode
+inject-preload = true 

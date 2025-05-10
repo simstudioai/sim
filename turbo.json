@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "envMode": "loose",
+  "globalDependencies": ["bun.lockb"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

@@ -10,6 +10,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+      - /app/.bun
       - /app/apps/sim/node_modules
       - /app/apps/sim/.next
       - /app/apps/docs/node_modules
@@ -28,6 +29,7 @@ services:
       - GITHUB_CLIENT_ID=placeholder
       - GITHUB_CLIENT_SECRET=placeholder
       - RESEND_API_KEY=placeholder
+      - BUN_INSTALL_CACHE_DIR=/app/.bun/cache
     depends_on:
       db:
         condition: service_healthy

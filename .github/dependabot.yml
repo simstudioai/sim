@@ -1,7 +1,7 @@
 version: 2
 updates:
-  - package-ecosystem: 'npm'
-    directory: 'apps/sim'
+  - package-ecosystem: 'bun'
+    directory: '/apps/sim'
     schedule:
       interval: 'weekly'
       day: 'monday'
@@ -21,9 +21,9 @@ updates:
         patterns:
           - '*'
 
-  # Documentation site dependencies (/docs)
-  - package-ecosystem: 'npm'
-    directory: 'apps/docs'
+  # Documentation site dependencies (/apps/docs)
+  - package-ecosystem: 'bun'
+    directory: '/apps/docs'
     schedule:
       interval: 'weekly'
       day: 'wednesday'
@@ -42,7 +42,7 @@ updates:
           - '*'
 
   # Root-level dependencies (if any)
-  - package-ecosystem: 'npm'
+  - package-ecosystem: 'bun'
     directory: '/'
     schedule:
       interval: 'weekly'

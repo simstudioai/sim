@@ -15,23 +15,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@main
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './package-lock.json'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Install Turbo globally
-        run: npm install -g turbo
+        run: bun install
 
       - name: Run tests with coverage
         env:
           NODE_OPTIONS: '--no-warnings'
-        run: npx turbo run test
+        run: bunx turbo run test
 
       - name: Build application
         env:
@@ -41,7 +36,7 @@ jobs:
           STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
           RESEND_API_KEY: 'dummy_key_for_ci_only'
           AWS_REGION: 'us-west-2'
-        run: npx turbo run build
+        run: bunx turbo run build
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -59,18 +54,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@main
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './package-lock.json'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Apply migrations
         working-directory: ./apps/sim
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npx drizzle-kit push
+        run: bunx drizzle-kit push
