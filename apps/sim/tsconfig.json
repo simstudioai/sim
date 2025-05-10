@@ -34,6 +34,7 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "jsx": "preserve",
     "plugins": [
       {
@@ -41,6 +42,6 @@
       }
     ]
   },
-  "include": ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../next-env.d.ts"],
+  "include": ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../next-env.d.ts", "telemetry.config.js"],
   "exclude": ["node_modules"]
 }

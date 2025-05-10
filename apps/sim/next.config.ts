@@ -4,9 +4,6 @@ import path from 'path'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
-  devServer: {
-    port: 3000,
-  },
   images: {
     domains: [
       'avatars.githubusercontent.com',
@@ -24,7 +21,6 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: true,
   },
-  // Help Turbopack find packages in monorepo structure
   ...(process.env.NODE_ENV === 'development' && {
     outputFileTracingRoot: path.join(__dirname, '../../')
   }),

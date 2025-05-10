@@ -1,8 +1,9 @@
 {
   "devDependencies": {
+    "@next/env": "^15.3.2",
     "turbo": "^2.5.3"
   },
-  "packageManager": "npm@10.1.0",
+  "packageManager": "npm@11.3.0",
   "name": "simstudio",
   "version": "0.0.0",
   "private": true,
@@ -13,7 +14,8 @@
   ],
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev"
+    "dev": "turbo run dev",
+    "test": "turbo run test"
   },
   "overrides": {
     "react": "19.1.0",

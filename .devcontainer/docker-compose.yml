@@ -19,7 +19,8 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
-    working_dir: /workspace/sim
+      - "3001:3001"
+    working_dir: /workspace
 
   db:
     image: postgres:16

@@ -23,7 +23,7 @@ RUN echo "$USERNAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USERNAME \
 RUN npm install -g npm@latest
 
 # Install global packages
-RUN npm install -g drizzle-kit
+RUN npm install -g drizzle-kit turbo
 
 # Switch back to dialog for any ad-hoc use of apt-get
 ENV DEBIAN_FRONTEND=dialog
@@ -32,3 +32,4 @@ WORKDIR /workspace
 
 # Expose the ports we're interested in
 EXPOSE 3000
+EXPOSE 3001

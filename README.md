@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="sim/public/static/sim.png" alt="Sim Studio Logo" width="500"/>
+  <img src="apps/sim/public/static/sim.png" alt="Sim Studio Logo" width="500"/>
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@ git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
-cp sim/.env.example sim/.env
+cp apps/sim/.env.example apps/sim/.env
 
 # Start Sim Studio using the provided script
 docker compose up -d --build
@@ -72,7 +72,7 @@ To use local models with Sim Studio, follow these steps:
 
    ```bash
    # Run the ollama_docker.sh script to pull the required models
-   ./sim/scripts/ollama_docker.sh pull <model_name>
+   ./apps/sim/scripts/ollama_docker.sh pull <model_name>
    ```
 
 2. **Start Sim Studio with Local Models**
@@ -122,7 +122,7 @@ services:
 2. Install the [Remote - Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 3. Open the project in your editor
 4. Click "Reopen in Container" when prompted
-5. The environment will automatically be set up in the `sim` directory
+5. The environment will automatically be set up
 6. Run `npm run dev` in the terminal or use the `sim-start` alias
 
 ### Option 3: Manual Setup
@@ -132,7 +132,7 @@ services:
 ```bash
 # Clone the repository
 git clone https://github.com/YOUR_USERNAME/sim.git
-cd sim/sim
+cd sim
 
 # Install dependencies
 npm install
@@ -142,7 +142,7 @@ npm install
 
 ```bash
 # Copy .env.example to .env
-cp .env.example .env
+cp apps/sim/.env.example apps/sim/.env
 
 # Configure your .env file with the required environment variables:
 # - Database connection (PostgreSQL)
@@ -158,6 +158,7 @@ cp .env.example .env
 
 ```bash
 # Push the database schema
+cd apps/sim
 npx drizzle-kit push
 ```
 
@@ -165,6 +166,7 @@ npx drizzle-kit push
 
 ```bash
 # Start the development server
+cd ../..
 npm run dev
 ```
 
@@ -179,6 +181,7 @@ npm run dev
 - **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
 - **Flow Editor**: [ReactFlow](https://reactflow.dev/)
 - **Docs**: [Fumadocs](https://fumadocs.vercel.app/)
+- **Monorepo**: [Turborepo](https://turborepo.org/)
 
 ## Contributing
 

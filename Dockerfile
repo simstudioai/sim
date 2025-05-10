@@ -3,19 +3,22 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy the entire sim directory
-COPY sim/ ./
+# Copy the entire monorepo
+COPY . ./
 
 # Create the .env file if it doesn't exist
-RUN touch .env
+RUN touch apps/sim/.env
 
-# Install dependencies
+# Install dependencies for the monorepo
 RUN npm install
 
-# Generate database schema
-RUN npx drizzle-kit generate
+# Install Turbo globally
+RUN npm install -g turbo
+
+# Generate database schema for sim app
+RUN cd apps/sim && npx drizzle-kit generate
 
 EXPOSE 3000
 
 # Run migrations and start the app
-CMD npx drizzle-kit push && npm run dev
+CMD cd apps/sim && npx drizzle-kit push && cd ../.. && npm run dev

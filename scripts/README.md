@@ -11,7 +11,7 @@ This directory contains scripts to automatically generate documentation for all 
 
 The documentation generator:
 
-1. Scans the `sim/blocks/blocks/` directory for all block definition files
+1. Scans the `apps/sim/blocks/blocks/` directory for all block definition files
 2. Extracts metadata from each block including:
    - Name, description, and category
    - Input and output specifications

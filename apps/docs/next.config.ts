@@ -5,9 +5,6 @@ const withMDX = createMDX();
 /** @type {import('next').NextConfig} */
 const config = {
   reactStrictMode: true,
-  devServer: {
-    port: 3001,
-  },
   async redirects() {
     return [
       {

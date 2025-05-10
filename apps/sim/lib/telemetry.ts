@@ -2,7 +2,7 @@
  * Sim Studio Telemetry
  * 
  * This file can be customized in forked repositories:
- * - Set TELEMETRY_ENDPOINT in telemetry.config.js to your collector
+ * - Set TELEMETRY_ENDPOINT in telemetry.config.ts to your collector
  * - Modify allowed event categories as needed
  * - Edit disclosure text to match your privacy policy
  * 

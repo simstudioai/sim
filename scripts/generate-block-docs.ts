@@ -13,9 +13,9 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
 // Paths configuration
-const BLOCKS_PATH = path.join(rootDir, 'sim/blocks/blocks')
-const DOCS_OUTPUT_PATH = path.join(rootDir, 'docs/content/docs/tools')
-const ICONS_PATH = path.join(rootDir, 'sim/components/icons.tsx')
+const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
+const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/tools')
+const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 
 // Make sure the output directory exists
 if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
@@ -683,12 +683,12 @@ async function getToolInfo(toolName: string): Promise<{
     const possibleLocations = []
     
     // Most common pattern: suffix.ts file in the prefix directory
-    possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/${toolSuffix}.ts`))
+    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
     
     // Try underscore version if suffix has multiple parts
     if (toolSuffix.includes('_')) {
       const underscoreSuffix = toolSuffix.replace(/_/g, '_')
-      possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/${underscoreSuffix}.ts`))
+      possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${underscoreSuffix}.ts`))
     }
     
     // Try camelCase version of suffix
@@ -696,10 +696,10 @@ async function getToolInfo(toolName: string): Promise<{
       .split('_')
       .map((part, i) => i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1))
       .join('')
-    possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/${camelCaseSuffix}.ts`))
+    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${camelCaseSuffix}.ts`))
     
     // Also check the index.ts file in the tool directory
-    possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/index.ts`))
+    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/index.ts`))
     
     // Try to find the tool definition file
     let toolFilePath = ''
@@ -715,7 +715,7 @@ async function getToolInfo(toolName: string): Promise<{
     
     // If not found, search in tool-specific directory
     if (!toolFileContent) {
-      const toolsDir = path.join(rootDir, 'sim/tools')
+      const toolsDir = path.join(rootDir, 'apps/tools')
       if (fs.existsSync(path.join(toolsDir, toolPrefix))) {
         const dirPath = path.join(toolsDir, toolPrefix)
         const files = fs.readdirSync(dirPath).filter(file => file.endsWith('.ts'))

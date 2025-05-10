@@ -55,7 +55,7 @@ export async function register() {
       let telemetryConfig
       try {
         // Use dynamic import instead of require for ES modules
-        telemetryConfig = (await import('./telemetry.config.js')).default
+        telemetryConfig = (await import('./telemetry.config.ts')).default
       } catch (e) {
         telemetryConfig = DEFAULT_TELEMETRY_CONFIG
       }

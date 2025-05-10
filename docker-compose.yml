@@ -8,9 +8,12 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./sim:/app
+      - .:/app
       - /app/node_modules
-      - /app/.next
+      - /app/apps/sim/node_modules
+      - /app/apps/sim/.next
+      - /app/apps/docs/node_modules
+      - /app/apps/docs/.next
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio

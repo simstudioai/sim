@@ -46,7 +46,6 @@
     "@opentelemetry/sdk-node": "^0.200.0",
     "@opentelemetry/sdk-trace-web": "^2.0.0",
     "@opentelemetry/semantic-conventions": "^1.32.0",
-    "@opentelemetry/web": "^0.24.0",
     "@radix-ui/react-alert-dialog": "^1.1.5",
     "@radix-ui/react-checkbox": "^1.1.3",
     "@radix-ui/react-collapsible": "^1.1.3",
@@ -142,9 +141,5 @@
     "*.{js,jsx,ts,tsx,json,css,scss,md}": [
       "prettier --write"
     ]
-  },
-  "workspaces": [
-    "packages/@sim/*",
-    "packages/simstudio"
-  ]
+  }
 }
