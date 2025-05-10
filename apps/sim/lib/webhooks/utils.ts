@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
@@ -12,7 +13,6 @@ import { db } from '@/db'
 import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 
 const logger = createLogger('WebhookUtils')
 
@@ -73,13 +73,11 @@ export async function handleWhatsAppVerification(
 /**
  * Handle Slack verification challenges
  */
-export function handleSlackChallenge(
-  body: any
-): NextResponse | null {
+export function handleSlackChallenge(body: any): NextResponse | null {
   if (body.type === 'url_verification' && body.challenge) {
     return NextResponse.json({ challenge: body.challenge })
   }
-  
+
   return null
 }
 
@@ -150,7 +148,6 @@ export async function validateSlackSignature(
   }
 }
 
-
 /**
  * Process WhatsApp message deduplication
  */
@@ -161,17 +158,17 @@ export async function processWhatsAppDeduplication(
   if (messages.length > 0) {
     const message = messages[0]
     const messageId = message.id
-    
+
     if (messageId) {
       const whatsappMsgKey = `whatsapp:msg:${messageId}`
-      
+
       try {
         const isDuplicate = await hasProcessedMessage(whatsappMsgKey)
         if (isDuplicate) {
           logger.info(`[${requestId}] Duplicate WhatsApp message detected: ${messageId}`)
           return new NextResponse('Duplicate message', { status: 200 })
         }
-        
+
         // Mark as processed BEFORE processing
         await markMessageAsProcessed(whatsappMsgKey, 60 * 60 * 24)
       } catch (error) {
@@ -180,7 +177,7 @@ export async function processWhatsAppDeduplication(
       }
     }
   }
-  
+
   return null
 }
 
@@ -195,20 +192,20 @@ export async function processGenericDeduplication(
   try {
     const requestHash = await generateRequestHash(path, body)
     const genericMsgKey = `generic:${requestHash}`
-    
+
     const isDuplicate = await hasProcessedMessage(genericMsgKey)
     if (isDuplicate) {
       logger.info(`[${requestId}] Duplicate request detected with hash: ${requestHash}`)
       return new NextResponse('Duplicate request', { status: 200 })
     }
-    
+
     // Mark as processed
     await markMessageAsProcessed(genericMsgKey, 60 * 60 * 24)
   } catch (error) {
     logger.error(`[${requestId}] Error in generic deduplication`, error)
     // Continue processing
   }
-  
+
   return null
 }
 
@@ -225,7 +222,7 @@ export function formatWebhookInput(
     // WhatsApp input formatting logic
     const data = body?.entry?.[0]?.changes?.[0]?.value
     const messages = data?.messages || []
-    
+
     if (messages.length > 0) {
       const message = messages[0]
       const phoneNumberId = data.metadata?.phone_number_id
@@ -233,7 +230,7 @@ export function formatWebhookInput(
       const messageId = message.id
       const timestamp = message.timestamp
       const text = message.text?.body
-      
+
       return {
         whatsapp: {
           data: {
@@ -243,7 +240,7 @@ export function formatWebhookInput(
             text,
             timestamp,
             raw: message,
-          }
+          },
         },
         webhook: {
           data: {
@@ -253,9 +250,9 @@ export function formatWebhookInput(
             payload: body,
             headers: Object.fromEntries(request.headers.entries()),
             method: request.method,
-          }
+          },
         },
-        workflowId: foundWorkflow.id
+        workflowId: foundWorkflow.id,
       }
     } else {
       return null
@@ -271,9 +268,9 @@ export function formatWebhookInput(
           payload: body,
           headers: Object.fromEntries(request.headers.entries()),
           method: request.method,
-        }
+        },
       },
-      workflowId: foundWorkflow.id
+      workflowId: foundWorkflow.id,
     }
   }
 }
@@ -283,7 +280,7 @@ export function formatWebhookInput(
  */
 export async function executeWorkflowFromPayload(
   foundWorkflow: any,
-  input: any, 
+  input: any,
   executionId: string,
   requestId: string
 ): Promise<void> {
@@ -293,79 +290,81 @@ export async function executeWorkflowFromPayload(
     executionId,
     triggerSource: 'webhook-payload',
   })
-  
+
   // DEBUG: Log specific payload details
   if (input?.airtableChanges) {
     logger.debug(`[${requestId}] TRACE: Execution received Airtable input`, {
       changeCount: input.airtableChanges.length,
       firstTableId: input.airtableChanges[0]?.tableId,
-      timestamp: new Date().toISOString()
-    });
+      timestamp: new Date().toISOString(),
+    })
   }
-  
+
   // Validate and ensure proper input structure
   if (!input) {
-    logger.warn(`[${requestId}] Empty input for workflow execution, creating empty object`);
-    input = {};
+    logger.warn(`[${requestId}] Empty input for workflow execution, creating empty object`)
+    input = {}
   }
-  
+
   // Special handling for Airtable webhook inputs
   if (input.airtableChanges) {
     if (!Array.isArray(input.airtableChanges)) {
-      logger.warn(`[${requestId}] Invalid airtableChanges input type (${typeof input.airtableChanges}), converting to array`);
+      logger.warn(
+        `[${requestId}] Invalid airtableChanges input type (${typeof input.airtableChanges}), converting to array`
+      )
       // Force to array if somehow not an array
-      input.airtableChanges = [input.airtableChanges];
+      input.airtableChanges = [input.airtableChanges]
     }
-    
+
     // Log the structure of the payload for debugging
     logger.info(`[${requestId}] Airtable webhook payload:`, {
       changeCount: input.airtableChanges.length,
       hasAirtableChanges: true,
       sampleTableIds: input.airtableChanges.slice(0, 2).map((c: any) => c.tableId),
-    });
+    })
   }
-  
+
   // Log the full input format to help diagnose data issues
   logger.debug(`[${requestId}] Workflow input format:`, {
     inputKeys: Object.keys(input || {}),
     hasAirtableChanges: input && input.airtableChanges && Array.isArray(input.airtableChanges),
     airtableChangesCount: input?.airtableChanges?.length || 0,
-  });
-  
+  })
+
   // Returns void as errors are handled internally
   try {
     // Get the workflow state
     if (!foundWorkflow.state) {
       logger.error(`[${requestId}] TRACE: Missing workflow state`, {
         workflowId: foundWorkflow.id,
-        hasState: false
-      });
+        hasState: false,
+      })
       throw new Error(`Workflow ${foundWorkflow.id} has no state`)
     }
     const state = foundWorkflow.state as any
     const { blocks, edges, loops } = state
-    
+
     // DEBUG: Log state information
     logger.debug(`[${requestId}] TRACE: Retrieved workflow state`, {
       workflowId: foundWorkflow.id,
       blockCount: Object.keys(blocks || {}).length,
       edgeCount: (edges || []).length,
-      loopCount: (loops || []).length
-    });
+      loopCount: (loops || []).length,
+    })
 
     logger.debug(
       `[${requestId}] Merging subblock states for workflow ${foundWorkflow.id} (Execution: ${executionId})`
     )
-    
-    const mergeStartTime = Date.now();
+
+    const mergeStartTime = Date.now()
     const mergedStates = await mergeSubblockStateAsync(blocks, foundWorkflow.id)
     logger.debug(`[${requestId}] TRACE: State merging complete`, {
       duration: `${Date.now() - mergeStartTime}ms`,
-      mergedBlockCount: Object.keys(mergedStates).length
-    });
+      mergedBlockCount: Object.keys(mergedStates).length,
+    })
 
     // Retrieve and decrypt environment variables
-    const envStartTime = Date.now();
+    const envStartTime = Date.now()
     const [userEnv] = await db
       .select()
       .from(environment)
@@ -390,20 +389,20 @@ export async function executeWorkflowFromPayload(
       )
       const decryptedEntries = await Promise.all(decryptionPromises)
       decryptedEnvVars = Object.fromEntries(decryptedEntries)
-      
+
       // DEBUG: Log env vars retrieval
       logger.debug(`[${requestId}] TRACE: Environment variables decrypted`, {
         duration: `${Date.now() - envStartTime}ms`,
-        envVarCount: Object.keys(decryptedEnvVars).length
-      });
+        envVarCount: Object.keys(decryptedEnvVars).length,
+      })
     } else {
       logger.debug(`[${requestId}] TRACE: No environment variables found for user`, {
-        userId: foundWorkflow.userId
-      });
+        userId: foundWorkflow.userId,
+      })
     }
 
     // Process block states (extract subBlock values, parse responseFormat)
-    const blockStatesStartTime = Date.now();
+    const blockStatesStartTime = Date.now()
     const currentBlockStates = Object.entries(mergedStates).reduce(
       (acc, [id, block]) => {
         acc[id] = Object.entries(block.subBlocks).reduce(
@@ -453,15 +452,15 @@ export async function executeWorkflowFromPayload(
       },
       {} as Record<string, Record<string, any>>
     )
-    
+
     // DEBUG: Log block state processing
     logger.debug(`[${requestId}] TRACE: Block states processed`, {
       duration: `${Date.now() - blockStatesStartTime}ms`,
-      blockCount: Object.keys(processedBlockStates).length
-    });
+      blockCount: Object.keys(processedBlockStates).length,
+    })
 
     // Serialize and get workflow variables
-    const serializeStartTime = Date.now();
+    const serializeStartTime = Date.now()
     const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
     let workflowVariables = {}
     if (foundWorkflow.variables) {
@@ -478,47 +477,52 @@ export async function executeWorkflowFromPayload(
         )
       }
     }
-    
+
     // DEBUG: Log serialization completion
     logger.debug(`[${requestId}] TRACE: Workflow serialized`, {
       duration: `${Date.now() - serializeStartTime}ms`,
-      hasWorkflowVars: Object.keys(workflowVariables).length > 0
-    });
+      hasWorkflowVars: Object.keys(workflowVariables).length > 0,
+    })
 
     logger.debug(`[${requestId}] Starting workflow execution`, {
       executionId,
       blockCount: Object.keys(processedBlockStates).length,
     })
-    
+
     // Log blocks for debugging (if any missing or invalid)
     if (Object.keys(processedBlockStates).length === 0) {
-      logger.error(`[${requestId}] No blocks found in workflow state - this will likely fail`);
+      logger.error(`[${requestId}] No blocks found in workflow state - this will likely fail`)
     } else {
       logger.debug(`[${requestId}] Block IDs for execution:`, {
         blockIds: Object.keys(processedBlockStates).slice(0, 5), // Log just a few block IDs for debugging
-        totalBlocks: Object.keys(processedBlockStates).length
-      });
+        totalBlocks: Object.keys(processedBlockStates).length,
+      })
     }
-    
+
     // Ensure workflow variables exist
     if (!workflowVariables || Object.keys(workflowVariables).length === 0) {
-      logger.debug(`[${requestId}] No workflow variables defined, using empty object`);
-      workflowVariables = {};
+      logger.debug(`[${requestId}] No workflow variables defined, using empty object`)
+      workflowVariables = {}
     }
-    
+
     // Validate input format for Airtable webhooks to prevent common errors
-    if (input?.airtableChanges && (!Array.isArray(input.airtableChanges) || input.airtableChanges.length === 0)) {
-      logger.warn(`[${requestId}] Invalid Airtable input format - airtableChanges should be a non-empty array`);
+    if (
+      input?.airtableChanges &&
+      (!Array.isArray(input.airtableChanges) || input.airtableChanges.length === 0)
+    ) {
+      logger.warn(
+        `[${requestId}] Invalid Airtable input format - airtableChanges should be a non-empty array`
+      )
     }
-    
+
     // DEBUG: Log critical moment before executor creation
     logger.info(`[${requestId}] TRACE: Creating workflow executor`, {
       workflowId: foundWorkflow.id,
       hasSerializedWorkflow: !!serializedWorkflow,
       blockCount: Object.keys(processedBlockStates).length,
-      timestamp: new Date().toISOString()
-    });
-    
+      timestamp: new Date().toISOString(),
+    })
+
     const executor = new Executor(
       serializedWorkflow,
       processedBlockStates,
@@ -526,54 +530,55 @@ export async function executeWorkflowFromPayload(
       input, // Use the provided input (might be single event or batch)
       workflowVariables
     )
-    
+
     // Log workflow execution start time for tracking
-    const executionStartTime = Date.now();
+    const executionStartTime = Date.now()
     logger.info(`[${requestId}] TRACE: Executor instantiated, starting workflow execution now`, {
       workflowId: foundWorkflow.id,
-      timestamp: new Date().toISOString()
-    });
-    
+      timestamp: new Date().toISOString(),
+    })
+
     // Add direct detailed logging right before executing
-    logger.info(`[${requestId}] EXECUTION_MONITOR: About to call executor.execute() - CRITICAL POINT`, {
-      workflowId: foundWorkflow.id, 
-      executionId: executionId,
-      timestamp: new Date().toISOString()
-    });
-    
+    logger.info(
+      `[${requestId}] EXECUTION_MONITOR: About to call executor.execute() - CRITICAL POINT`,
+      {
+        workflowId: foundWorkflow.id,
+        executionId: executionId,
+        timestamp: new Date().toISOString(),
+      }
+    )
+
     // This is THE critical line where the workflow actually executes
     const result = await executor.execute(foundWorkflow.id)
-    
+
     // Check if we got a StreamingExecution result (with stream + execution properties)
     // For webhook executions, we only care about the ExecutionResult part, not the stream
-    const executionResult = 'stream' in result && 'execution' in result 
-      ? result.execution 
-      : result
-    
+    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
+
     // Add direct detailed logging right after executing
     logger.info(`[${requestId}] EXECUTION_MONITOR: executor.execute() completed with result`, {
       workflowId: foundWorkflow.id,
       executionId: executionId,
       success: executionResult.success,
       resultType: result ? typeof result : 'undefined',
-      timestamp: new Date().toISOString()
-    });
-    
+      timestamp: new Date().toISOString(),
+    })
+
     // Log completion and timing
-    const executionDuration = Date.now() - executionStartTime;
+    const executionDuration = Date.now() - executionStartTime
     logger.info(`[${requestId}] TRACE: Workflow execution completed`, {
       workflowId: foundWorkflow.id,
       success: executionResult.success,
       duration: `${executionDuration}ms`,
       actualDurationMs: executionDuration,
-      timestamp: new Date().toISOString()
-    });
-    
+      timestamp: new Date().toISOString(),
+    })
+
     logger.info(`[${requestId}] Workflow execution finished`, {
       executionId,
       success: executionResult.success,
       durationMs: executionResult.metadata?.duration || executionDuration,
-      actualDurationMs: executionDuration
+      actualDurationMs: executionDuration,
     })
 
     // Update counts and stats if successful
@@ -586,12 +591,12 @@ export async function executeWorkflowFromPayload(
           lastActive: new Date(),
         })
         .where(eq(userStats.userId, foundWorkflow.userId))
-        
+
       // DEBUG: Log stats update
       logger.debug(`[${requestId}] TRACE: Workflow stats updated`, {
         workflowId: foundWorkflow.id,
-        userId: foundWorkflow.userId
-      });
+        userId: foundWorkflow.userId,
+      })
     }
 
     // Build and enrich result with trace spans
@@ -600,13 +605,13 @@ export async function executeWorkflowFromPayload(
 
     // Persist logs for this execution using the standard 'webhook' trigger type
     await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
-    
+
     // DEBUG: Final success log
     logger.info(`[${requestId}] TRACE: Execution logs persisted successfully`, {
       workflowId: foundWorkflow.id,
       executionId,
-      timestamp: new Date().toISOString()
-    });
+      timestamp: new Date().toISOString(),
+    })
   } catch (error: any) {
     // DEBUG: Detailed error information
     logger.error(`[${requestId}] TRACE: Error during workflow execution`, {
@@ -615,9 +620,9 @@ export async function executeWorkflowFromPayload(
       errorType: error.constructor.name,
       errorMessage: error.message,
       stack: error.stack,
-      timestamp: new Date().toISOString()
-    });
-    
+      timestamp: new Date().toISOString(),
+    })
+
     logger.error(`[${requestId}] Error executing workflow`, {
       workflowId: foundWorkflow.id,
       executionId,
@@ -653,9 +658,7 @@ export function verifyProviderWebhook(
         let isAuthenticated = false
         // Check for token in Authorization header (Bearer token)
         if (providerConfig.token) {
-          const providedToken = authHeader?.startsWith('Bearer ')
-            ? authHeader.substring(7)
-            : null
+          const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
           if (providedToken === providerConfig.token) {
             isAuthenticated = true
           }
@@ -701,7 +704,7 @@ export function verifyProviderWebhook(
         }
       }
   }
-  
+
   return null
 }
 
@@ -728,8 +731,8 @@ export async function fetchAndProcessAirtablePayloads(
     webhookId: webhookData.id,
     workflowId: workflowData.id,
     hasBaseId: !!localProviderConfig.baseId,
-    hasExternalId: !!localProviderConfig.externalId
-  });
+    hasExternalId: !!localProviderConfig.externalId,
+  })
 
   try {
     // --- Essential IDs & Config from localProviderConfig ---
@@ -754,7 +757,9 @@ export async function fetchAndProcessAirtablePayloads(
 
     // Initialize cursor in provider config if missing
     if (storedCursor === undefined || storedCursor === null) {
-      logger.info(`[${requestId}] No cursor found in providerConfig for webhook ${webhookData.id}, initializing...`)
+      logger.info(
+        `[${requestId}] No cursor found in providerConfig for webhook ${webhookData.id}, initializing...`
+      )
       // Update the local copy
       localProviderConfig.externalWebhookCursor = null
 
@@ -788,10 +793,14 @@ export async function fetchAndProcessAirtablePayloads(
 
     if (storedCursor && typeof storedCursor === 'number') {
       currentCursor = storedCursor
-      logger.debug(`[${requestId}] Using stored cursor: ${currentCursor} for webhook ${webhookData.id}`)
+      logger.debug(
+        `[${requestId}] Using stored cursor: ${currentCursor} for webhook ${webhookData.id}`
+      )
     } else {
       currentCursor = null // Airtable API defaults to 1 if omitted
-      logger.debug(`[${requestId}] No valid stored cursor for webhook ${webhookData.id}, starting from beginning`)
+      logger.debug(
+        `[${requestId}] No valid stored cursor for webhook ${webhookData.id}, starting from beginning`
+      )
     }
 
     // --- Get OAuth Token ---
@@ -849,24 +858,24 @@ export async function fetchAndProcessAirtablePayloads(
 
       logger.debug(`[${requestId}] Fetching Airtable payloads (call ${apiCallCount})`, {
         url: fullUrl,
-        webhookId: webhookData.id
+        webhookId: webhookData.id,
       })
 
       try {
-        const fetchStartTime = Date.now();
+        const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
           method: 'GET',
           headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         })
-        
+
         // DEBUG: Log API response time
         logger.debug(`[${requestId}] TRACE: Airtable API response received`, {
           status: response.status,
           duration: `${Date.now() - fetchStartTime}ms`,
           hasBody: true,
-          apiCall: apiCallCount
-        });
-        
+          apiCall: apiCallCount,
+        })
+
         const responseBody = await response.json()
 
         if (!response.ok || responseBody.error) {
@@ -889,21 +898,23 @@ export async function fetchAndProcessAirtablePayloads(
         }
 
         const receivedPayloads = responseBody.payloads || []
-        logger.debug(`[${requestId}] Received ${receivedPayloads.length} payloads from Airtable (call ${apiCallCount})`)
+        logger.debug(
+          `[${requestId}] Received ${receivedPayloads.length} payloads from Airtable (call ${apiCallCount})`
+        )
 
         // --- Process and Consolidate Changes ---
         if (receivedPayloads.length > 0) {
           payloadsFetched += receivedPayloads.length
-          let changeCount = 0;
+          let changeCount = 0
           for (const payload of receivedPayloads) {
             if (payload.changedTablesById) {
               // DEBUG: Log tables being processed
-              const tableIds = Object.keys(payload.changedTablesById);
+              const tableIds = Object.keys(payload.changedTablesById)
               logger.debug(`[${requestId}] TRACE: Processing changes for tables`, {
                 tables: tableIds,
-                payloadTimestamp: payload.timestamp
-              });
-              
+                payloadTimestamp: payload.timestamp,
+              })
+
               for (const [tableId, tableChangesUntyped] of Object.entries(
                 payload.changedTablesById
               )) {
@@ -911,11 +922,13 @@ export async function fetchAndProcessAirtablePayloads(
 
                 // Handle created records
                 if (tableChanges.createdRecordsById) {
-                  const createdCount = Object.keys(tableChanges.createdRecordsById).length;
-                  changeCount += createdCount;
+                  const createdCount = Object.keys(tableChanges.createdRecordsById).length
+                  changeCount += createdCount
                   // DEBUG: Log created records count
-                  logger.debug(`[${requestId}] TRACE: Processing ${createdCount} created records for table ${tableId}`);
-                  
+                  logger.debug(
+                    `[${requestId}] TRACE: Processing ${createdCount} created records for table ${tableId}`
+                  )
+
                   for (const [recordId, recordDataUntyped] of Object.entries(
                     tableChanges.createdRecordsById
                   )) {
@@ -942,11 +955,13 @@ export async function fetchAndProcessAirtablePayloads(
 
                 // Handle updated records
                 if (tableChanges.changedRecordsById) {
-                  const updatedCount = Object.keys(tableChanges.changedRecordsById).length;
-                  changeCount += updatedCount;
+                  const updatedCount = Object.keys(tableChanges.changedRecordsById).length
+                  changeCount += updatedCount
                   // DEBUG: Log updated records count
-                  logger.debug(`[${requestId}] TRACE: Processing ${updatedCount} updated records for table ${tableId}`);
-                  
+                  logger.debug(
+                    `[${requestId}] TRACE: Processing ${updatedCount} updated records for table ${tableId}`
+                  )
+
                   for (const [recordId, recordDataUntyped] of Object.entries(
                     tableChanges.changedRecordsById
                   )) {
@@ -982,11 +997,14 @@ export async function fetchAndProcessAirtablePayloads(
               }
             }
           }
-          
+
           // DEBUG: Log totals for this batch
-          logger.debug(`[${requestId}] TRACE: Processed ${changeCount} changes in API call ${apiCallCount}`, {
-            currentMapSize: consolidatedChangesMap.size
-          });
+          logger.debug(
+            `[${requestId}] TRACE: Processed ${changeCount} changes in API call ${apiCallCount}`,
+            {
+              currentMapSize: consolidatedChangesMap.size,
+            }
+          )
         }
 
         const nextCursor = responseBody.cursor
@@ -995,7 +1013,7 @@ export async function fetchAndProcessAirtablePayloads(
         if (nextCursor && typeof nextCursor === 'number' && nextCursor !== currentCursor) {
           logger.debug(`[${requestId}] Updating cursor from ${currentCursor} to ${nextCursor}`)
           currentCursor = nextCursor
-          
+
           // Follow exactly the old implementation - use awaited update instead of parallel
           const updatedConfig = { ...localProviderConfig, externalWebhookCursor: currentCursor }
           try {
@@ -1054,42 +1072,45 @@ export async function fetchAndProcessAirtablePayloads(
 
     // Convert map values to array for final processing
     const finalConsolidatedChanges = Array.from(consolidatedChangesMap.values())
-    logger.info(`[${requestId}] Consolidated ${finalConsolidatedChanges.length} Airtable changes across ${apiCallCount} API calls`)
+    logger.info(
+      `[${requestId}] Consolidated ${finalConsolidatedChanges.length} Airtable changes across ${apiCallCount} API calls`
+    )
 
     // --- Execute Workflow if we have changes (simplified - no lock check) ---
     if (finalConsolidatedChanges.length > 0) {
       try {
         // Format the input for the executor using the consolidated changes
         const input = { airtableChanges: finalConsolidatedChanges } // Use the consolidated array
-        
+
         // CRITICAL EXECUTION TRACE POINT
-        logger.info(`[${requestId}] CRITICAL_TRACE: Beginning workflow execution with ${finalConsolidatedChanges.length} Airtable changes`, {
-          workflowId: workflowData.id,
-          recordCount: finalConsolidatedChanges.length,
-          timestamp: new Date().toISOString(),
-          firstRecordId: finalConsolidatedChanges[0]?.recordId || 'none'
-        });
-        
+        logger.info(
+          `[${requestId}] CRITICAL_TRACE: Beginning workflow execution with ${finalConsolidatedChanges.length} Airtable changes`,
+          {
+            workflowId: workflowData.id,
+            recordCount: finalConsolidatedChanges.length,
+            timestamp: new Date().toISOString(),
+            firstRecordId: finalConsolidatedChanges[0]?.recordId || 'none',
+          }
+        )
+
         // Execute using the original requestId as the executionId
         // This is the exact point in the old code where execution happens - we're matching it exactly
-        await executeWorkflowFromPayload(workflowData, input, requestId, requestId);
-        
+        await executeWorkflowFromPayload(workflowData, input, requestId, requestId)
+
         // COMPLETION LOG - This will only appear if execution succeeds
         logger.info(`[${requestId}] CRITICAL_TRACE: Workflow execution completed successfully`, {
           workflowId: workflowData.id,
-          timestamp: new Date().toISOString()
-        });
+          timestamp: new Date().toISOString(),
+        })
       } catch (executionError: any) {
         // Errors logged within executeWorkflowFromPayload
-        logger.error(
-          `[${requestId}] CRITICAL_TRACE: Workflow execution failed with error`, {
-            workflowId: workflowData.id,
-            error: executionError.message,
-            stack: executionError.stack,
-            timestamp: new Date().toISOString()
-          }
-        );
-        
+        logger.error(`[${requestId}] CRITICAL_TRACE: Workflow execution failed with error`, {
+          workflowId: workflowData.id,
+          error: executionError.message,
+          stack: executionError.stack,
+          timestamp: new Date().toISOString(),
+        })
+
         logger.error(
           `[${requestId}] Error during workflow execution triggered by Airtable polling`,
           executionError
@@ -1100,8 +1121,8 @@ export async function fetchAndProcessAirtablePayloads(
       logger.info(`[${requestId}] TRACE: No Airtable changes to process`, {
         workflowId: workflowData.id,
         apiCallCount,
-        webhookId: webhookData.id
-      });
+        webhookId: webhookData.id,
+      })
     }
   } catch (error) {
     // Catch any unexpected errors during the setup/polling logic itself
@@ -1122,14 +1143,14 @@ export async function fetchAndProcessAirtablePayloads(
       'webhook'
     )
   }
-  
+
   // DEBUG: Log function completion
   logger.debug(`[${requestId}] TRACE: fetchAndProcessAirtablePayloads completed`, {
     totalFetched: payloadsFetched,
     totalApiCalls: apiCallCount,
     totalChanges: consolidatedChangesMap.size,
-    timestamp: new Date().toISOString()
-  });
+    timestamp: new Date().toISOString(),
+  })
 }
 
 /**
@@ -1146,15 +1167,15 @@ export async function processWebhook(
   try {
     // --- Handle Airtable differently - it should always use fetchAndProcessAirtablePayloads ---
     if (foundWebhook.provider === 'airtable') {
-      logger.info(`[${requestId}] Routing Airtable webhook through dedicated processor`);
-      
+      logger.info(`[${requestId}] Routing Airtable webhook through dedicated processor`)
+
       // Use the dedicated Airtable payload fetcher and processor
-      await fetchAndProcessAirtablePayloads(foundWebhook, foundWorkflow, requestId);
-      
+      await fetchAndProcessAirtablePayloads(foundWebhook, foundWorkflow, requestId)
+
       // Return standard success response
-      return NextResponse.json({ message: 'Airtable webhook processed' }, { status: 200 });
+      return NextResponse.json({ message: 'Airtable webhook processed' }, { status: 200 })
     }
-    
+
     // --- Provider-specific Auth/Verification (excluding Airtable/WhatsApp/Slack handled earlier) ---
     if (
       foundWebhook.provider &&
@@ -1168,7 +1189,7 @@ export async function processWebhook(
 
     // --- Format Input based on provider (excluding Airtable) ---
     const input = formatWebhookInput(foundWebhook, foundWorkflow, body, request)
-    
+
     if (!input && foundWebhook.provider === 'whatsapp') {
       return new NextResponse('No messages in WhatsApp payload', { status: 200 })
     }

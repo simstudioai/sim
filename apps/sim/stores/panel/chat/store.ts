@@ -44,7 +44,7 @@ export const useChatStore = create<ChatStore>()(
           set((state) => {
             // Create a new copy of the selections state
             const newSelections = { ...state.selectedWorkflowOutputs }
-            
+
             // If empty array, explicitly remove the key to prevent empty arrays from persisting
             if (outputIds.length === 0) {
               // Delete the key entirely instead of setting to empty array
@@ -53,7 +53,7 @@ export const useChatStore = create<ChatStore>()(
               // Ensure no duplicates in the selection by using Set
               newSelections[workflowId] = [...new Set(outputIds)]
             }
-            
+
             return { selectedWorkflowOutputs: newSelections }
           })
         },
@@ -68,14 +68,17 @@ export const useChatStore = create<ChatStore>()(
               if (message.id === messageId) {
                 return {
                   ...message,
-                  content: typeof message.content === 'string' 
-                    ? message.content + content
-                    : (message.content ? String(message.content) + content : content),
+                  content:
+                    typeof message.content === 'string'
+                      ? message.content + content
+                      : message.content
+                        ? String(message.content) + content
+                        : content,
                 }
               }
               return message
             })
-            
+
             return { messages: newMessages }
           })
         },
@@ -89,7 +92,7 @@ export const useChatStore = create<ChatStore>()(
               }
               return message
             })
-            
+
             return { messages: newMessages }
           })
         },
@@ -99,4 +102,4 @@ export const useChatStore = create<ChatStore>()(
       }
     )
   )
-) 
+)

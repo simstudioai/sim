@@ -3,9 +3,9 @@ title: Google Drive
 description: Upload, download, and list files
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="google_drive"
   color="#E0E0E0"
   icon={true}
@@ -58,12 +58,9 @@ With Google Drive, you can:
 In Sim Studio, the Google Drive integration enables your agents to interact directly with your cloud storage programmatically. This allows for powerful automation scenarios such as file management, content organization, and document workflows. Your agents can upload new files to specific folders, download existing files to process their contents, and list folder contents to navigate your storage structure. This integration bridges the gap between your AI workflows and your document management system, enabling seamless file operations without manual intervention. By connecting Sim Studio with Google Drive, you can automate file-based workflows, manage documents intelligently, and incorporate cloud storage operations into your agent's capabilities.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Integrate Google Drive functionality to manage files and folders. Upload new files, download existing ones, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.
-
-
 
 ## Tools
 
@@ -73,27 +70,27 @@ Upload a file to Google Drive
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Drive API |
-| `fileName` | string | Yes | The name of the file to upload |
-| `content` | string | Yes | The content of the file to upload |
-| `mimeType` | string | No | The MIME type of the file to upload |
-| `folderId` | string | No | The ID of the folder to upload the file to |
+| Parameter     | Type   | Required | Description                                |
+| ------------- | ------ | -------- | ------------------------------------------ |
+| `accessToken` | string | Yes      | The access token for the Google Drive API  |
+| `fileName`    | string | Yes      | The name of the file to upload             |
+| `content`     | string | Yes      | The content of the file to upload          |
+| `mimeType`    | string | No       | The MIME type of the file to upload        |
+| `folderId`    | string | No       | The ID of the folder to upload the file to |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `file` | string |
-| `name` | string |
-| `mimeType` | string |
-| `webViewLink` | string |
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `file`           | string |
+| `name`           | string |
+| `mimeType`       | string |
+| `webViewLink`    | string |
 | `webContentLink` | string |
-| `size` | string |
-| `createdTime` | string |
-| `modifiedTime` | string |
-| `parents` | string |
+| `size`           | string |
+| `createdTime`    | string |
+| `modifiedTime`   | string |
+| `parents`        | string |
 
 ### `google_drive_download`
 
@@ -101,24 +98,24 @@ Download a file from Google Drive
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Drive API |
-| `fileId` | string | Yes | The ID of the file to download |
+| Parameter     | Type   | Required | Description                               |
+| ------------- | ------ | -------- | ----------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Drive API |
+| `fileId`      | string | Yes      | The ID of the file to download            |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `name` | string |
-| `mimeType` | string |
-| `webViewLink` | string |
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `metadata`       | string |
+| `name`           | string |
+| `mimeType`       | string |
+| `webViewLink`    | string |
 | `webContentLink` | string |
-| `size` | string |
-| `createdTime` | string |
-| `modifiedTime` | string |
-| `parents` | string |
+| `size`           | string |
+| `createdTime`    | string |
+| `modifiedTime`   | string |
+| `parents`        | string |
 
 ### `google_drive_list`
 
@@ -126,44 +123,39 @@ List files and folders in Google Drive
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | The access token for the Google Drive API |
-| `folderId` | string | No | The ID of the folder to list files from |
-| `query` | string | No | A query to filter the files |
-| `pageSize` | number | No | The number of files to return |
-| `pageToken` | string | No | The page token to use for pagination |
+| Parameter     | Type   | Required | Description                               |
+| ------------- | ------ | -------- | ----------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Drive API |
+| `folderId`    | string | No       | The ID of the folder to list files from   |
+| `query`       | string | No       | A query to filter the files               |
+| `pageSize`    | number | No       | The number of files to return             |
+| `pageToken`   | string | No       | The page token to use for pagination      |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `files` | string |
-| `name` | string |
-| `mimeType` | string |
-| `webViewLink` | string |
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `files`          | string |
+| `name`           | string |
+| `mimeType`       | string |
+| `webViewLink`    | string |
 | `webContentLink` | string |
-| `size` | string |
-| `createdTime` | string |
-| `modifiedTime` | string |
-| `parents` | string |
-
-
+| `size`           | string |
+| `createdTime`    | string |
+| `modifiedTime`   | string |
+| `parents`        | string |
 
 ## Block Configuration
 
 No configuration parameters required.
 
-
-
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `content` | string | content of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `content`  | string | content of the response  |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

@@ -12,11 +12,12 @@ const logger = createLogger('ProxyAPI')
  */
 const getProxyHeaders = (): Record<string, string> => {
   return {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-    'Accept': '*/*',
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    Accept: '*/*',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
   }
 }
 
@@ -46,12 +47,15 @@ const formatResponse = (responseData: any, status = 200) => {
  */
 const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
   const errorMessage = error instanceof Error ? error.message : String(error)
-  
-  return formatResponse({
-    success: false,
-    error: errorMessage,
-    ...additionalData
-  }, status)
+
+  return formatResponse(
+    {
+      success: false,
+      error: errorMessage,
+      ...additionalData,
+    },
+    status
+  )
 }
 
 /**
@@ -59,55 +63,55 @@ const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
  * This allows for GET requests to external APIs
  */
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const targetUrl = url.searchParams.get('url');
-  const requestId = crypto.randomUUID().slice(0, 8);
-  
+  const url = new URL(request.url)
+  const targetUrl = url.searchParams.get('url')
+  const requestId = crypto.randomUUID().slice(0, 8)
+
   if (!targetUrl) {
     return createErrorResponse("Missing 'url' parameter", 400)
   }
-  
+
   // Extract custom headers from the request
-  const customHeaders: Record<string, string> = {};
-  
+  const customHeaders: Record<string, string> = {}
+
   // Process all header.* parameters in the URL
   for (const [key, value] of url.searchParams.entries()) {
     if (key.startsWith('header.')) {
-      const headerName = key.substring(7); // Remove 'header.' prefix
-      customHeaders[headerName] = value;
+      const headerName = key.substring(7) // Remove 'header.' prefix
+      customHeaders[headerName] = value
     }
   }
-  
-  logger.info(`[${requestId}] Proxying GET request to: ${targetUrl}`);
-  logger.debug(`[${requestId}] Custom headers:`, customHeaders);
-  
+
+  logger.info(`[${requestId}] Proxying GET request to: ${targetUrl}`)
+  logger.debug(`[${requestId}] Custom headers:`, customHeaders)
+
   try {
     // Forward the request to the target URL with all specified headers
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
         ...getProxyHeaders(),
-        ...customHeaders
+        ...customHeaders,
       },
-    });
-    
+    })
+
     // Get response data
-    const contentType = response.headers.get('content-type') || '';
-    let data;
-    
+    const contentType = response.headers.get('content-type') || ''
+    let data
+
     if (contentType.includes('application/json')) {
-      data = await response.json();
+      data = await response.json()
     } else {
-      data = await response.text();
+      data = await response.text()
     }
-    
+
     // For error responses, include a more descriptive error message
-    const errorMessage = !response.ok ? 
-      (data && typeof data === 'object' && data.error 
-        ? `${data.error.message || JSON.stringify(data.error)}` 
-        : response.statusText || `HTTP error ${response.status}`) 
-      : undefined;
-    
+    const errorMessage = !response.ok
+      ? data && typeof data === 'object' && data.error
+        ? `${data.error.message || JSON.stringify(data.error)}`
+        : response.statusText || `HTTP error ${response.status}`
+      : undefined
+
     // Return the proxied response
     return formatResponse({
       success: response.ok,
@@ -115,14 +119,14 @@ export async function GET(request: Request) {
       statusText: response.statusText,
       headers: Object.fromEntries(response.headers.entries()),
       data,
-      error: errorMessage
+      error: errorMessage,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Proxy GET request failed`, {
       url: targetUrl,
       error: error instanceof Error ? error.message : String(error),
-    });
-    
+    })
+
     return createErrorResponse(error)
   }
 }

@@ -18,18 +18,17 @@ export async function POST(request: Request) {
     }
 
     // Use provided cloudId or fetch it if not provided
-    const cloudId = providedCloudId || await getConfluenceCloudId(domain, accessToken)
+    const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
     // Build the URL for the Confluence API
     const url = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}?expand=body.storage,body.view,body.atlas_doc_format`
-
 
     // Make the request to Confluence API
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
       },
     })
 
@@ -57,16 +56,16 @@ export async function POST(request: Request) {
       title: data.title,
       body: {
         view: {
-          value: data.body?.storage?.value || 
-                data.body?.view?.value || 
-                data.body?.atlas_doc_format?.value || 
-                data.content || // try alternative fields
-                data.description ||
-                `Content for page ${data.title}` // fallback content
-        }
-      }
+          value:
+            data.body?.storage?.value ||
+            data.body?.view?.value ||
+            data.body?.atlas_doc_format?.value ||
+            data.content || // try alternative fields
+            data.description ||
+            `Content for page ${data.title}`, // fallback content
+        },
+      },
     })
-
   } catch (error) {
     console.error('Error fetching Confluence page:', error)
     return NextResponse.json(
@@ -80,14 +79,14 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
 
-    const { 
-      domain, 
-      accessToken, 
-      pageId, 
+    const {
+      domain,
+      accessToken,
+      pageId,
       cloudId: providedCloudId,
       title,
       body: pageBody,
-      version 
+      version,
     } = body
 
     if (!domain) {
@@ -102,15 +101,15 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
     }
 
-    const cloudId = providedCloudId || await getConfluenceCloudId(domain, accessToken)
+    const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
 
     // First, get the current page to check its version
     const currentPageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}`
     const currentPageResponse = await fetch(currentPageUrl, {
       headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-      }
+        Accept: 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
     })
 
     if (!currentPageResponse.ok) {
@@ -125,22 +124,22 @@ export async function PUT(request: Request) {
       id: pageId,
       version: {
         number: currentVersion + 1,
-        message: version?.message || 'Updated via API'
+        message: version?.message || 'Updated via API',
       },
       title: title,
       body: {
         representation: 'storage',
-        value: pageBody?.value || ''
+        value: pageBody?.value || '',
       },
-      status: 'current'
+      status: 'current',
     }
 
     const response = await fetch(currentPageUrl, {
       method: 'PUT',
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(updateBody),
     })
@@ -150,17 +149,17 @@ export async function PUT(request: Request) {
       console.error('Confluence API error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: JSON.stringify(errorData, null, 2)
+        error: JSON.stringify(errorData, null, 2),
       })
-      const errorMessage = errorData?.message || 
-                         (errorData?.errors && JSON.stringify(errorData.errors)) || 
-                         `Failed to update Confluence page (${response.status})`
+      const errorMessage =
+        errorData?.message ||
+        (errorData?.errors && JSON.stringify(errorData.errors)) ||
+        `Failed to update Confluence page (${response.status})`
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
     const data = await response.json()
     return NextResponse.json(data)
-
   } catch (error) {
     console.error('Error updating Confluence page:', error)
     return NextResponse.json(

@@ -42,6 +42,12 @@
       }
     ]
   },
-  "include": ["**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../next-env.d.ts", "telemetry.config.js"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "../next-env.d.ts",
+    "telemetry.config.js"
+  ],
   "exclude": ["node_modules"]
 }

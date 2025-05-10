@@ -12,8 +12,16 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
   },
   params: {
-    accessToken: { type: 'string', required: true, description: 'The access token for the Google Sheets API' },
-    spreadsheetId: { type: 'string', required: true, description: 'The ID of the spreadsheet to read from' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      description: 'The ID of the spreadsheet to read from',
+    },
     range: { type: 'string', required: false, description: 'The range of cells to read from' },
   },
   request: {

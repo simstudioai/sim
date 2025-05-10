@@ -33,9 +33,7 @@ export function BatchResultsModal({
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Batch Approval Results</DialogTitle>
-          <DialogDescription>
-            Results of the batch approval operation.
-          </DialogDescription>
+          <DialogDescription>Results of the batch approval operation.</DialogDescription>
         </DialogHeader>
         <div className="max-h-[400px] overflow-y-auto">
           {results && results.length > 0 ? (
@@ -43,21 +41,25 @@ export function BatchResultsModal({
               <div className="flex justify-between mb-2">
                 <span>Total: {results.length}</span>
                 <span>
-                  Success: {results.filter(r => r.success).length} / 
-                  Failed: {results.filter(r => !r.success).length}
+                  Success: {results.filter((r) => r.success).length} / Failed:{' '}
+                  {results.filter((r) => !r.success).length}
                 </span>
               </div>
               {results.map((result, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className={`p-2 rounded text-sm ${
-                    result.success 
-                      ? 'bg-green-50 border border-green-200 text-green-800' 
+                    result.success
+                      ? 'bg-green-50 border border-green-200 text-green-800'
                       : 'bg-red-50 border border-red-200 text-red-800'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    {result.success ? <CheckIcon className="h-4 w-4" /> : <XIcon className="h-4 w-4" />}
+                    {result.success ? (
+                      <CheckIcon className="h-4 w-4" />
+                    ) : (
+                      <XIcon className="h-4 w-4" />
+                    )}
                     <span className="font-medium">{result.email}</span>
                   </div>
                   <div className="ml-6 text-xs mt-1">{result.message}</div>
@@ -69,11 +71,9 @@ export function BatchResultsModal({
           )}
         </div>
         <DialogFooter>
-          <Button onClick={onClose}>
-            Close
-          </Button>
+          <Button onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
-} 
+}

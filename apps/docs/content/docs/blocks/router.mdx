@@ -4,19 +4,18 @@ description: Route workflow execution based on specific conditions or logic
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
 The Router block is a powerful component in Sim Studio that intelligently routes workflow execution based on content analysis, user input, or predefined conditions. It acts as a decision-making junction in your workflow, directing the flow to different paths based on various criteria.
 
-
-<ThemeImage 
-  lightSrc="/static/light/router-light.png" 
-  darkSrc="/static/dark/router-dark.png" 
-  alt="Router Block" 
-  width={300} 
-  height={175} 
+<ThemeImage
+  lightSrc="/static/light/router-light.png"
+  darkSrc="/static/dark/router-dark.png"
+  alt="Router Block"
+  width={300}
+  height={175}
 />
 
 ## Overview
@@ -104,6 +103,7 @@ model: OpenAI/gpt-4
 ```
 
 In this example, the Router might be connected to:
+
 - A product support block
 - A billing inquiries block
 - A technical support block

@@ -30,7 +30,7 @@ describe('supportsTemperature', () => {
       'gemini-2.5-flash-preview-04-17',
       'claude-3-5-sonnet-20240620',
       `grok-3-latest`,
-      `grok-3-fast-latest`
+      `grok-3-fast-latest`,
     ]
 
     for (const model of supportedModels) {
@@ -57,7 +57,12 @@ describe('getMaxTemperature', () => {
   })
 
   it('should return 1 for models with temperature range 0-1', () => {
-    const models = ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219', 'grok-3-latest', 'grok-3-fast-latest']
+    const models = [
+      'claude-3-5-sonnet-20240620',
+      'claude-3-7-sonnet-20250219',
+      'grok-3-latest',
+      'grok-3-fast-latest',
+    ]
 
     for (const model of models) {
       expect(getMaxTemperature(model)).toBe(1)

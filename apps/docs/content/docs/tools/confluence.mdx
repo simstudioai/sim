@@ -3,9 +3,9 @@ title: Confluence
 description: Interact with Confluence
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="confluence"
   color="#E0E0E0"
   icon={true}
@@ -40,12 +40,9 @@ With Confluence, you can:
 In Sim Studio, the Confluence integration enables your agents to access and leverage your organization's knowledge base. Agents can retrieve information from Confluence pages, search for specific content, and even update documentation when needed. This allows your workflows to incorporate the collective knowledge stored in your Confluence instance, making it possible to build agents that can reference internal documentation, follow established procedures, and maintain up-to-date information resources as part of their operations.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Connect to Confluence workspaces to retrieve and search documentation. Access page content, metadata, and integrate Confluence documentation into your workflows.
-
-
 
 ## Tools
 
@@ -55,21 +52,21 @@ Retrieve content from Confluence pages using the Confluence API.
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Confluence |
-| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `pageId` | string | Yes | Confluence page ID to retrieve |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+| Parameter     | Type   | Required | Description                                                                                 |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token for Confluence                                                           |
+| `domain`      | string | Yes      | Your Confluence domain \(e.g., yourcompany.atlassian.net\)                                  |
+| `pageId`      | string | Yes      | Confluence page ID to retrieve                                                              |
+| `cloudId`     | string | No       | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `pageId` | string |
+| Parameter | Type   |
+| --------- | ------ |
+| `ts`      | string |
+| `pageId`  | string |
 | `content` | string |
-| `title` | string |
+| `title`   | string |
 
 ### `confluence_update`
 
@@ -77,49 +74,44 @@ Update a Confluence page using the Confluence API.
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Confluence |
-| `domain` | string | Yes | Your Confluence domain \(e.g., yourcompany.atlassian.net\) |
-| `pageId` | string | Yes | Confluence page ID to update |
-| `title` | string | No | New title for the page |
-| `content` | string | No | New content for the page in Confluence storage format |
-| `version` | number | No | Version number of the page \(required for preventing conflicts\) |
-| `cloudId` | string | No | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+| Parameter     | Type   | Required | Description                                                                                 |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token for Confluence                                                           |
+| `domain`      | string | Yes      | Your Confluence domain \(e.g., yourcompany.atlassian.net\)                                  |
+| `pageId`      | string | Yes      | Confluence page ID to update                                                                |
+| `title`       | string | No       | New title for the page                                                                      |
+| `content`     | string | No       | New content for the page in Confluence storage format                                       |
+| `version`     | number | No       | Version number of the page \(required for preventing conflicts\)                            |
+| `cloudId`     | string | No       | Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `pageId` | string |
-| `title` | string |
-| `body` | string |
+| Parameter | Type   |
+| --------- | ------ |
+| `ts`      | string |
+| `pageId`  | string |
+| `title`   | string |
+| `body`    | string |
 | `success` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `ts` | string | ts of the response |
-| ↳ `pageId` | string | pageId of the response |
-| ↳ `content` | string | content of the response |
-| ↳ `title` | string | title of the response |
+| Output      | Type    | Description             |
+| ----------- | ------- | ----------------------- |
+| `response`  | object  | Output from response    |
+| ↳ `ts`      | string  | ts of the response      |
+| ↳ `pageId`  | string  | pageId of the response  |
+| ↳ `content` | string  | content of the response |
+| ↳ `title`   | string  | title of the response   |
 | ↳ `success` | boolean | success of the response |
-
 
 ## Notes
 

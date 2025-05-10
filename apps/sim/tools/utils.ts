@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { TableRow } from './types'
-import { ToolConfig, ToolResponse } from './types'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { tools } from './registry'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { TableRow } from './types'
+import { ToolConfig, ToolResponse } from './types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -181,32 +181,32 @@ export function createParamSchema(customTool: any): Record<string, any> {
   const params: Record<string, any> = {}
 
   if (customTool.schema.function?.parameters?.properties) {
-    const properties = customTool.schema.function.parameters.properties;
-    const required = customTool.schema.function.parameters.required || [];
-    const optionalToolInputs = customTool.schema.function.parameters.optionalToolInputs || [];
-    
+    const properties = customTool.schema.function.parameters.properties
+    const required = customTool.schema.function.parameters.required || []
+    const optionalToolInputs = customTool.schema.function.parameters.optionalToolInputs || []
+
     Object.entries(properties).forEach(([key, config]: [string, any]) => {
-      const isRequired = required.includes(key);
-      const isOptionalInput = optionalToolInputs.includes(key);
-      
+      const isRequired = required.includes(key)
+      const isOptionalInput = optionalToolInputs.includes(key)
+
       // Create the base parameter configuration
       const paramConfig: Record<string, any> = {
         type: config.type || 'string',
         required: isRequired,
         requiredForToolCall: isRequired,
         description: config.description || '',
-      };
-      
+      }
+
       // Only add optionalToolInput if it's true to maintain backward compatibility with tests
       if (isOptionalInput) {
-        paramConfig.optionalToolInput = true;
+        paramConfig.optionalToolInput = true
       }
-      
-      params[key] = paramConfig;
+
+      params[key] = paramConfig
     })
   }
 
-  return params;
+  return params
 }
 
 /**
@@ -214,8 +214,8 @@ export function createParamSchema(customTool: any): Record<string, any> {
  * @param getStore Optional function to get the store (useful for testing)
  */
 export function getClientEnvVars(getStore?: () => any): Record<string, string> {
-  if (!isBrowser()) return {};
-  
+  if (!isBrowser()) return {}
+
   try {
     // Allow injecting the store for testing
     const envStore = getStore ? getStore() : useEnvironmentStore.getState()
@@ -243,8 +243,8 @@ export function getClientEnvVars(getStore?: () => any): Record<string, string> {
  * @param getStore Optional function to get the store (useful for testing)
  */
 export function createCustomToolRequestBody(
-  customTool: any, 
-  isClient: boolean = true, 
+  customTool: any,
+  isClient: boolean = true,
   workflowId?: string,
   getStore?: () => any
 ) {
@@ -275,7 +275,7 @@ export function getTool(toolId: string): ToolConfig | undefined {
     // Only try to use the sync version on the client
     const customToolsStore = useCustomToolsStore.getState()
     const identifier = toolId.replace('custom_', '')
-    
+
     // Try to find the tool directly by ID first
     let customTool = customToolsStore.getTool(identifier)
 
@@ -295,7 +295,10 @@ export function getTool(toolId: string): ToolConfig | undefined {
 }
 
 // Get a tool by its ID asynchronously (supports server-side)
-export async function getToolAsync(toolId: string, workflowId?: string): Promise<ToolConfig | undefined> {
+export async function getToolAsync(
+  toolId: string,
+  workflowId?: string
+): Promise<ToolConfig | undefined> {
   // Check for built-in tools
   const builtInTool = tools[toolId]
   if (builtInTool) return builtInTool
@@ -311,7 +314,7 @@ export async function getToolAsync(toolId: string, workflowId?: string): Promise
 // Helper function to create a tool config from a custom tool
 function createToolConfig(customTool: any, customToolId: string): ToolConfig {
   // Create a parameter schema from the custom tool schema
-  const params = createParamSchema(customTool);
+  const params = createParamSchema(customTool)
 
   // Create a tool config for the custom tool
   return {
@@ -368,7 +371,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
             // Look for the variable in our environment store first, then in params
             const envVar = envVars[varName]
             const varValue = envVar ? envVar.value : mergedParams[varName] || ''
-            
+
             resolvedCode = resolvedCode.replaceAll(match, varValue)
           }
 
@@ -425,44 +428,47 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
 }
 
 // Create a tool config from a custom tool definition
-async function getCustomTool(customToolId: string, workflowId?: string): Promise<ToolConfig | undefined> {
+async function getCustomTool(
+  customToolId: string,
+  workflowId?: string
+): Promise<ToolConfig | undefined> {
   const identifier = customToolId.replace('custom_', '')
-  
+
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
     const url = new URL('/api/tools/custom', baseUrl)
-    
+
     // Add workflowId as a query parameter if available
     if (workflowId) {
       url.searchParams.append('workflowId', workflowId)
     }
-    
+
     const response = await fetch(url.toString())
-    
+
     if (!response.ok) {
       logger.error(`Failed to fetch custom tools: ${response.statusText}`)
       return undefined
     }
-    
+
     const result = await response.json()
 
     if (!result.data || !Array.isArray(result.data)) {
       logger.error(`Invalid response when fetching custom tools: ${JSON.stringify(result)}`)
       return undefined
     }
-    
+
     // Try to find the tool by ID or title
-    const customTool = result.data.find((tool: any) => 
-      tool.id === identifier || tool.title === identifier
+    const customTool = result.data.find(
+      (tool: any) => tool.id === identifier || tool.title === identifier
     )
-    
+
     if (!customTool) {
       logger.error(`Custom tool not found: ${identifier}`)
       return undefined
     }
-    
+
     // Create a parameter schema
-    const params = createParamSchema(customTool);
+    const params = createParamSchema(customTool)
 
     // Create a tool config for the custom tool
     return {

@@ -5,16 +5,16 @@ import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { BlockLog } from '@/executor/types'
+import { calculateCost } from '@/providers/utils'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
-import { BlockLog } from '@/executor/types'
-import { calculateCost } from '@/providers/utils'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
 
 interface ChatProps {
   panelWidth: number
@@ -24,13 +24,13 @@ interface ChatProps {
 
 export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const { activeWorkflowId } = useWorkflowRegistry()
-  const { 
-    messages, 
-    addMessage, 
-    selectedWorkflowOutputs, 
+  const {
+    messages,
+    addMessage,
+    selectedWorkflowOutputs,
     setSelectedWorkflowOutput,
     appendMessageContent,
-    finalizeMessageStream
+    finalizeMessageStream,
   } = useChatStore()
   const { entries } = useConsoleStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -59,21 +59,21 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const selectedOutputs = useMemo(() => {
     if (!activeWorkflowId) return []
     const selected = selectedWorkflowOutputs[activeWorkflowId]
-    
+
     if (!selected || selected.length === 0) {
       const defaultSelection = outputEntries.length > 0 ? [outputEntries[0].id] : []
       return defaultSelection
     }
-    
+
     // Ensure we have no duplicates in the selection
     const dedupedSelection = [...new Set(selected)]
-    
+
     // If deduplication removed items, update the store
     if (dedupedSelection.length !== selected.length) {
       setSelectedWorkflowOutput(activeWorkflowId, dedupedSelection)
       return dedupedSelection
     }
-    
+
     return selected
   }, [selectedWorkflowOutputs, activeWorkflowId, outputEntries, setSelectedWorkflowOutput])
 
@@ -103,40 +103,40 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
     // Execute the workflow to generate a response, passing the chat message as input
     const result = await handleRunWorkflow({ input: sentMessage })
-    
+
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {
       // Generate a unique ID for the message
       const messageId = crypto.randomUUID()
-      
+
       // Create a content buffer to collect initial content
       let initialContent = ''
       let fullContent = '' // Store the complete content for updating logs later
       let hasAddedMessage = false
       let executionResult = (result as any).execution // Store the execution result with type assertion
-      
+
       try {
         // Process the stream
         const reader = result.stream.getReader()
         const decoder = new TextDecoder()
-        
-        console.log("Starting to read from stream")
-        
+
+        console.log('Starting to read from stream')
+
         while (true) {
           try {
             const { done, value } = await reader.read()
             if (done) {
-              console.log("Stream complete")
+              console.log('Stream complete')
               break
             }
-            
+
             // Decode and append chunk
             const chunk = decoder.decode(value, { stream: true }) // Use stream option
-            
+
             if (chunk) {
               initialContent += chunk
               fullContent += chunk
-              
+
               // Only add the message to UI once we have some actual content to show
               if (!hasAddedMessage && initialContent.trim().length > 0) {
                 // Add message with initial content - cast to any to bypass type checking for id
@@ -145,7 +145,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   workflowId: activeWorkflowId,
                   type: 'workflow',
                   isStreaming: true,
-                  id: messageId
+                  id: messageId,
                 } as any)
                 hasAddedMessage = true
               } else if (hasAddedMessage) {
@@ -159,45 +159,46 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             break
           }
         }
-        
+
         // If we never added a message (no content received), add it now
         if (!hasAddedMessage && initialContent.trim().length > 0) {
           addMessage({
             content: initialContent,
             workflowId: activeWorkflowId,
             type: 'workflow',
-            id: messageId
+            id: messageId,
           } as any)
         }
-        
+
         // Update logs with the full streaming content if available
         if (executionResult && fullContent.trim().length > 0) {
           try {
             // Format the final content properly to match what's shown for manual executions
             // Include all the markdown and formatting from the streamed response
             const formattedContent = fullContent
-            
+
             // Calculate cost based on token usage if available
             let costData = undefined
-            
+
             if (executionResult.output?.response?.tokens) {
               const tokens = executionResult.output.response.tokens
               const model = executionResult.output?.response?.model || 'gpt-4o'
               const cost = calculateCost(
-                model, 
-                tokens.prompt || 0, 
-                tokens.completion || 0, 
+                model,
+                tokens.prompt || 0,
+                tokens.completion || 0,
                 false // Don't use cached input for chat responses
               )
               costData = { ...cost, model } as any
             }
-            
+
             // Build trace spans and total duration before persisting
             const { traceSpans, totalDuration } = buildTraceSpans(executionResult as any)
-            
+
             // Create a completed execution ID
-            const completedExecutionId = executionResult.metadata?.executionId || crypto.randomUUID()
-            
+            const completedExecutionId =
+              executionResult.metadata?.executionId || crypto.randomUUID()
+
             // Import the workflow execution hook for direct access to the workflow service
             const workflowExecutionApi = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
               method: 'POST',
@@ -216,19 +217,20 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                       model: executionResult.output?.response?.model,
                       tokens: executionResult.output?.response?.tokens,
                       toolCalls: executionResult.output?.response?.toolCalls,
-                      providerTiming: executionResult.output?.response?.providerTiming, 
+                      providerTiming: executionResult.output?.response?.providerTiming,
                       cost: costData || executionResult.output?.response?.cost,
-                    }
+                    },
                   },
                   cost: costData,
                   // Update the message to include the formatted content
                   logs: (executionResult.logs || []).map((log: BlockLog) => {
                     // Check if this is the streaming block by comparing with the selected output IDs
                     // Selected output IDs typically include the block ID we are streaming from
-                    const isStreamingBlock = selectedOutputs.some(outputId => 
-                      outputId === log.blockId || outputId.startsWith(`${log.blockId}_`)
+                    const isStreamingBlock = selectedOutputs.some(
+                      (outputId) =>
+                        outputId === log.blockId || outputId.startsWith(`${log.blockId}_`)
                     )
-                    
+
                     if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
                       return {
                         ...log,
@@ -239,8 +241,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                             content: formattedContent,
                             providerTiming: log.output.response.providerTiming,
                             cost: costData || log.output.response.cost,
-                          }
-                        }
+                          },
+                        },
                       }
                     }
                     return log
@@ -255,10 +257,10 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   },
                   traceSpans: traceSpans,
                   totalDuration: totalDuration,
-                }
+                },
               }),
             })
-            
+
             if (!workflowExecutionApi.ok) {
               console.error('Failed to log complete streaming execution')
             }
@@ -268,21 +270,21 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         }
       } catch (error) {
         console.error('Error processing stream:', error)
-        
+
         // If there's an error and we haven't added a message yet, add an error message
         if (!hasAddedMessage) {
           addMessage({
-            content: "Error: Failed to process the streaming response.",
+            content: 'Error: Failed to process the streaming response.',
             workflowId: activeWorkflowId,
             type: 'workflow',
-            id: messageId
+            id: messageId,
           } as any)
         } else {
           // Otherwise append the error to the existing message
-          appendMessageContent(messageId, "\n\nError: Failed to process the streaming response.")
+          appendMessageContent(messageId, '\n\nError: Failed to process the streaming response.')
         }
       } finally {
-        console.log("Finalizing stream")
+        console.log('Finalizing stream')
         if (hasAddedMessage) {
           finalizeMessageStream(messageId)
         }
@@ -302,7 +304,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   const handleOutputSelection = (values: string[]) => {
     // Ensure no duplicates in selection
     const dedupedValues = [...new Set(values)]
-    
+
     if (activeWorkflowId) {
       // If array is empty, explicitly set to empty array to ensure complete reset
       if (dedupedValues.length === 0) {
@@ -317,7 +319,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     <div className="flex flex-col h-full">
       {/* Output Source Dropdown */}
       <div className="flex-none border-b px-4 py-2">
-        <OutputSelect 
+        <OutputSelect
           workflowId={activeWorkflowId}
           selectedOutputs={selectedOutputs}
           onOutputSelect={handleOutputSelection}

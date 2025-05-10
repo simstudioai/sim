@@ -13,6 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Logger } from '@/lib/logs/console-logger'
 import {
   Credential,
   getProviderIdFromServiceId,
@@ -21,7 +22,6 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
-import { Logger } from '@/lib/logs/console-logger'
 
 const logger = new Logger('jira_project_selector')
 
@@ -193,7 +193,7 @@ export function JiraProjectSelector({
           domain,
           accessToken,
           projectId,
-          ...(cloudId && { cloudId })
+          ...(cloudId && { cloudId }),
         })
 
         const response = await fetch(`/api/auth/oauth/jira/project?${queryParams.toString()}`)
@@ -205,7 +205,7 @@ export function JiraProjectSelector({
         }
 
         const projectInfo = await response.json()
-        
+
         if (projectInfo.cloudId) {
           setCloudId(projectInfo.cloudId)
         }
@@ -276,7 +276,7 @@ export function JiraProjectSelector({
           domain,
           accessToken,
           ...(searchQuery && { query: searchQuery }),
-          ...(cloudId && { cloudId })
+          ...(cloudId && { cloudId }),
         })
 
         // Use the GET endpoint for project search
@@ -289,7 +289,7 @@ export function JiraProjectSelector({
         }
 
         const data = await response.json()
-        
+
         if (data.cloudId) {
           setCloudId(data.cloudId)
         }
@@ -320,7 +320,14 @@ export function JiraProjectSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, selectedProjectId, onProjectInfoChange, fetchProjectInfo, cloudId]
+    [
+      selectedCredentialId,
+      domain,
+      selectedProjectId,
+      onProjectInfoChange,
+      fetchProjectInfo,
+      cloudId,
+    ]
   )
 
   // Fetch credentials on initial mount
@@ -438,10 +445,7 @@ export function JiraProjectSelector({
             )}
 
             <Command>
-              <CommandInput 
-                placeholder="Search projects..." 
-                onValueChange={handleSearch} 
-              />
+              <CommandInput placeholder="Search projects..." onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (

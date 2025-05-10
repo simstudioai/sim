@@ -3,13 +3,14 @@ title: Connection Data Structure
 description: Understanding the data structure of different block outputs
 ---
 
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
 import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 When you connect blocks, the output data structure from the source block determines what values are available in the destination block. Each block type produces a specific output structure that you can reference in downstream blocks.
 
 <Callout type="info">
-  Understanding these data structures is essential for effectively using connection tags and accessing the right data in your workflows.
+  Understanding these data structures is essential for effectively using connection tags and
+  accessing the right data in your workflows.
 </Callout>
 
 ## Block Output Structures
@@ -44,6 +45,7 @@ Different block types produce different output structures. Here's what you can e
     - **toolCalls**: Array of tool calls made by the agent (if any)
     - **cost**: Array of cost objects for each tool call (if any)
     - **usage**: Token usage statistics for the entire response
+
   </Tab>
   <Tab>
     ```json
@@ -62,6 +64,7 @@ Different block types produce different output structures. Here's what you can e
     - **data**: The response data from the API (can be any type)
     - **status**: HTTP status code of the response
     - **headers**: HTTP headers returned by the API
+
   </Tab>
   <Tab>
     ```json
@@ -77,6 +80,7 @@ Different block types produce different output structures. Here's what you can e
     - **result**: The return value of the function (can be any type)
     - **stdout**: Console output captured during function execution
     - **executionTime**: Time taken to execute the function (in milliseconds)
+
   </Tab>
   <Tab>
     ```json
@@ -100,6 +104,7 @@ Different block types produce different output structures. Here's what you can e
     - **model**: The AI model used for evaluation
     - **tokens**: Token usage statistics
     - **[metricName]**: Score for each metric defined in the evaluator (dynamic fields)
+
   </Tab>
   <Tab>
     ```json
@@ -124,6 +129,7 @@ Different block types produce different output structures. Here's what you can e
       - **blockType**: Type of the next block
       - **blockTitle**: Title of the next block
     - **selectedConditionId**: ID of the selected condition
+
   </Tab>
   <Tab>
     ```json
@@ -152,6 +158,7 @@ Different block types produce different output structures. Here's what you can e
       - **blockId**: ID of the selected destination block
       - **blockType**: Type of the selected block
       - **blockTitle**: Title of the selected block
+
   </Tab>
 </Tabs>
 
@@ -166,7 +173,8 @@ Some blocks may produce custom output structures based on their configuration:
 3. **API Blocks**: The `data` field will contain whatever the API returns, which could be any valid JSON structure.
 
 <Callout type="warning">
-  Always check the actual output structure of your blocks during development to ensure you're referencing the correct fields in your connections.
+  Always check the actual output structure of your blocks during development to ensure you're
+  referencing the correct fields in your connections.
 </Callout>
 
 ## Nested Data Structures
@@ -178,6 +186,7 @@ Many block outputs contain nested data structures. You can access these using do
 ```
 
 For example:
+
 - `<agent1.tokens.total>` - Access the total tokens from an Agent block
 - `<api1.data.results[0].id>` - Access the ID of the first result from an API response
-- `<function1.result.calculations.total>` - Access a nested field in a Function block's result 
+- `<function1.result.calculations.total>` - Access a nested field in a Function block's result

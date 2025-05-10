@@ -3,9 +3,9 @@ title: Embeddings
 description: Generate Open AI embeddings
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="openai"
   color="#10a37f"
   icon={true}
@@ -40,12 +40,9 @@ With OpenAI, you can:
 In Sim Studio, the OpenAI integration enables your agents to leverage these powerful AI capabilities programmatically as part of their workflows. This allows for sophisticated automation scenarios that combine natural language understanding, content generation, and semantic analysis. Your agents can generate vector embeddings from text, which are numerical representations that capture semantic meaning, enabling advanced search, classification, and recommendation systems. Additionally, through the DALL-E integration, agents can create images from text descriptions, opening up possibilities for visual content generation. This integration bridges the gap between your workflow automation and state-of-the-art AI capabilities, enabling your agents to understand context, generate relevant content, and make intelligent decisions based on semantic understanding. By connecting Sim Studio with OpenAI, you can create agents that process information more intelligently, generate creative content, and deliver more personalized experiences to users.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Convert text into numerical vector representations using OpenAI
-
-
 
 ## Tools
 
@@ -55,44 +52,39 @@ Generate embeddings from text using OpenAI
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | OpenAI API key |
-| `input` | string | Yes | Text to generate embeddings for |
-| `model` | string | No | Model to use for embeddings |
-| `encoding_format` | string | No | The format to return the embeddings in |
-| `user` | string | No | A unique identifier for the end-user |
+| Parameter         | Type   | Required | Description                            |
+| ----------------- | ------ | -------- | -------------------------------------- |
+| `apiKey`          | string | Yes      | OpenAI API key                         |
+| `input`           | string | Yes      | Text to generate embeddings for        |
+| `model`           | string | No       | Model to use for embeddings            |
+| `encoding_format` | string | No       | The format to return the embeddings in |
+| `user`            | string | No       | A unique identifier for the end-user   |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `embeddings` | string |
-| `model` | string |
-| `usage` | string |
+| Parameter      | Type   |
+| -------------- | ------ |
+| `embeddings`   | string |
+| `model`        | string |
+| `usage`        | string |
 | `total_tokens` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `input` | string | Yes | Input Text - Enter text to generate embeddings for |
-
-
+| Parameter | Type   | Required | Description                                        |
+| --------- | ------ | -------- | -------------------------------------------------- |
+| `input`   | string | Yes      | Input Text - Enter text to generate embeddings for |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `embeddings` | json | embeddings of the response |
-| ↳ `model` | string | model of the response |
-| ↳ `usage` | json | usage of the response |
-
+| Output         | Type   | Description                |
+| -------------- | ------ | -------------------------- |
+| `response`     | object | Output from response       |
+| ↳ `embeddings` | json   | embeddings of the response |
+| ↳ `model`      | string | model of the response      |
+| ↳ `usage`      | json   | usage of the response      |
 
 ## Notes
 

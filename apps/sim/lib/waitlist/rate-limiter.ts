@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
-import { getRedisClient } from '../redis'
 import { isProd } from '@/lib/environment'
+import { getRedisClient } from '../redis'
 
 // Configuration
 const RATE_LIMIT_WINDOW = 60 // 1 minute window (in seconds)

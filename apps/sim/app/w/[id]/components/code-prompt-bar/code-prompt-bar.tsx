@@ -1,8 +1,8 @@
+import { useEffect, useRef, useState } from 'react'
 import { SendIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { useEffect, useRef, useState } from 'react'
 
 interface CodePromptBarProps {
   isVisible: boolean
@@ -46,11 +46,11 @@ export function CodePromptBar({
     // Handle click outside
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        promptBarRef.current && 
-        !promptBarRef.current.contains(event.target as Node) && 
-        isVisible && 
-        !isStreaming && 
-        !isLoading && 
+        promptBarRef.current &&
+        !promptBarRef.current.contains(event.target as Node) &&
+        isVisible &&
+        !isStreaming &&
+        !isLoading &&
         !isExiting
       ) {
         handleCancel()
@@ -59,7 +59,7 @@ export function CodePromptBar({
 
     // Add event listener
     document.addEventListener('mousedown', handleClickOutside)
-    
+
     // Cleanup event listener
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
@@ -73,7 +73,7 @@ export function CodePromptBar({
     }
   }, [isVisible])
 
-  if ((!isVisible && !isStreaming) && !isExiting) {
+  if (!isVisible && !isStreaming && !isExiting) {
     return null
   }
 

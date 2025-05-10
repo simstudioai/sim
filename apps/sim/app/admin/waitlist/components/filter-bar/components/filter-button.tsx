@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
 import { ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 
 interface FilterButtonProps {
   active: boolean
@@ -21,4 +21,4 @@ export function FilterButton({ active, onClick, icon, label, className }: Filter
       <span>{label}</span>
     </Button>
   )
-} 
+}

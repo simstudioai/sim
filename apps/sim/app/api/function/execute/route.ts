@@ -52,8 +52,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const { code, params = {}, timeout = 5000, envVars = {}, workflowId, isCustomTool = false } = body
-    
+    const {
+      code,
+      params = {},
+      timeout = 5000,
+      envVars = {},
+      workflowId,
+      isCustomTool = false,
+    } = body
+
     // Extract internal parameters that shouldn't be passed to the execution context
     const executionParams = { ...params }
     delete executionParams._context
@@ -96,10 +103,12 @@ export async function POST(req: NextRequest) {
         })
 
         // Wrap code in export default to match Freestyle's expectations
-        const wrappedCode = isCustomTool 
+        const wrappedCode = isCustomTool
           ? `export default async () => { 
               // For custom tools, directly declare parameters as variables
-              ${Object.entries(executionParams).map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`).join('\n              ')}
+              ${Object.entries(executionParams)
+                .map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`)
+                .join('\n              ')}
               ${resolvedCode} 
             }`
           : `export default async () => { ${resolvedCode} }`
@@ -183,10 +192,14 @@ export async function POST(req: NextRequest) {
         const script = new Script(`
           (async () => {
             try {
-              ${isCustomTool 
-                ? `// For custom tools, make parameters directly accessible
-                  ${Object.keys(executionParams).map(key => `const ${key} = params.${key};`).join('\n                  ')}` 
-                : ''}
+              ${
+                isCustomTool
+                  ? `// For custom tools, make parameters directly accessible
+                  ${Object.keys(executionParams)
+                    .map((key) => `const ${key} = params.${key};`)
+                    .join('\n                  ')}`
+                  : ''
+              }
               ${resolvedCode}
             } catch (error) {
               console.error(error);
@@ -234,10 +247,14 @@ export async function POST(req: NextRequest) {
       const script = new Script(`
         (async () => {
           try {
-            ${isCustomTool 
-              ? `// For custom tools, make parameters directly accessible
-                ${Object.keys(executionParams).map(key => `const ${key} = params.${key};`).join('\n                ')}` 
-              : ''}
+            ${
+              isCustomTool
+                ? `// For custom tools, make parameters directly accessible
+                ${Object.keys(executionParams)
+                  .map((key) => `const ${key} = params.${key};`)
+                  .join('\n                ')}`
+                : ''
+            }
             ${resolvedCode}
           } catch (error) {
             console.error(error);

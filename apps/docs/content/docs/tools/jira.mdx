@@ -3,9 +3,9 @@ title: Jira
 description: Interact with Jira
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="jira"
   color="#E0E0E0"
   icon={true}
@@ -40,12 +40,9 @@ Key features of Jira include:
 In Sim Studio, the Jira integration allows your agents to seamlessly interact with your project management workflow. This creates opportunities for automated issue creation, updates, and tracking as part of your AI workflows. The integration enables agents to create, retrieve, and update Jira issues programmatically, facilitating automated project management tasks and ensuring that important information is properly tracked and documented. By connecting Sim Studio with Jira, you can build intelligent agents that maintain project visibility while automating routine project management tasks, enhancing team productivity and ensuring consistent project tracking.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Connect to Jira workspaces to read, write, and update issues. Access content, metadata, and integrate Jira documentation into your workflows.
-
-
 
 ## Tools
 
@@ -55,24 +52,24 @@ Retrieve detailed information about a specific Jira issue
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
-| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | No | Jira project ID to retrieve issues from. If not provided, all issues will be retrieved. |
-| `issueKey` | string | Yes | Jira issue key to retrieve \(e.g., PROJ-123\) |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+| Parameter     | Type   | Required | Description                                                                             |
+| ------------- | ------ | -------- | --------------------------------------------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token for Jira                                                             |
+| `domain`      | string | Yes      | Your Jira domain \(e.g., yourcompany.atlassian.net\)                                    |
+| `projectId`   | string | No       | Jira project ID to retrieve issues from. If not provided, all issues will be retrieved. |
+| `issueKey`    | string | Yes      | Jira issue key to retrieve \(e.g., PROJ-123\)                                           |
+| `cloudId`     | string | No       | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.   |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
-| `issueKey` | string |
-| `summary` | string |
+| Parameter     | Type   |
+| ------------- | ------ |
+| `ts`          | string |
+| `issueKey`    | string |
+| `summary`     | string |
 | `description` | string |
-| `created` | string |
-| `updated` | string |
+| `created`     | string |
+| `updated`     | string |
 
 ### `jira_update`
 
@@ -80,27 +77,27 @@ Update a Jira issue
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
-| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | No | Jira project ID to update issues in. If not provided, all issues will be retrieved. |
-| `issueKey` | string | Yes | Jira issue key to update |
-| `summary` | string | No | New summary for the issue |
-| `description` | string | No | New description for the issue |
-| `status` | string | No | New status for the issue |
-| `priority` | string | No | New priority for the issue |
-| `assignee` | string | No | New assignee for the issue |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+| Parameter     | Type   | Required | Description                                                                           |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token for Jira                                                           |
+| `domain`      | string | Yes      | Your Jira domain \(e.g., yourcompany.atlassian.net\)                                  |
+| `projectId`   | string | No       | Jira project ID to update issues in. If not provided, all issues will be retrieved.   |
+| `issueKey`    | string | Yes      | Jira issue key to update                                                              |
+| `summary`     | string | No       | New summary for the issue                                                             |
+| `description` | string | No       | New description for the issue                                                         |
+| `status`      | string | No       | New status for the issue                                                              |
+| `priority`    | string | No       | New priority for the issue                                                            |
+| `assignee`    | string | No       | New assignee for the issue                                                            |
+| `cloudId`     | string | No       | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `ts`       | string |
 | `issueKey` | string |
-| `summary` | string |
-| `success` | string |
+| `summary`  | string |
+| `success`  | string |
 
 ### `jira_write`
 
@@ -108,27 +105,27 @@ Write a Jira issue
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
-| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | Yes | Project ID for the issue |
-| `summary` | string | Yes | Summary for the issue |
-| `description` | string | No | Description for the issue |
-| `priority` | string | No | Priority for the issue |
-| `assignee` | string | No | Assignee for the issue |
-| `cloudId` | string | No | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
-| `issueType` | string | Yes | Type of issue to create \(e.g., Task, Story, Bug, Sub-task\) |
+| Parameter     | Type   | Required | Description                                                                           |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token for Jira                                                           |
+| `domain`      | string | Yes      | Your Jira domain \(e.g., yourcompany.atlassian.net\)                                  |
+| `projectId`   | string | Yes      | Project ID for the issue                                                              |
+| `summary`     | string | Yes      | Summary for the issue                                                                 |
+| `description` | string | No       | Description for the issue                                                             |
+| `priority`    | string | No       | Priority for the issue                                                                |
+| `assignee`    | string | No       | Assignee for the issue                                                                |
+| `cloudId`     | string | No       | Jira Cloud ID for the instance. If not provided, it will be fetched using the domain. |
+| `issueType`   | string | Yes      | Type of issue to create \(e.g., Task, Story, Bug, Sub-task\)                          |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `ts` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `ts`       | string |
 | `issueKey` | string |
-| `summary` | string |
-| `success` | string |
-| `url` | string |
+| `summary`  | string |
+| `success`  | string |
+| `url`      | string |
 
 ### `jira_bulk_read`
 
@@ -136,45 +133,40 @@ Retrieve multiple Jira issues in bulk
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token for Jira |
-| `domain` | string | Yes | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
-| `projectId` | string | Yes | Jira project ID |
-| `cloudId` | string | No | Jira cloud ID |
+| Parameter     | Type   | Required | Description                                          |
+| ------------- | ------ | -------- | ---------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token for Jira                          |
+| `domain`      | string | Yes      | Your Jira domain \(e.g., yourcompany.atlassian.net\) |
+| `projectId`   | string | Yes      | Jira project ID                                      |
+| `cloudId`     | string | No       | Jira cloud ID                                        |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `issues` | array |
-
-
+| Parameter | Type  |
+| --------- | ----- |
+| `issues`  | array |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `ts` | string | ts of the response |
-| ↳ `issueKey` | string | issueKey of the response |
-| ↳ `summary` | string | summary of the response |
-| ↳ `description` | string | description of the response |
-| ↳ `created` | string | created of the response |
-| ↳ `updated` | string | updated of the response |
-| ↳ `success` | boolean | success of the response |
-| ↳ `url` | string | url of the response |
-
+| Output          | Type    | Description                 |
+| --------------- | ------- | --------------------------- |
+| `response`      | object  | Output from response        |
+| ↳ `ts`          | string  | ts of the response          |
+| ↳ `issueKey`    | string  | issueKey of the response    |
+| ↳ `summary`     | string  | summary of the response     |
+| ↳ `description` | string  | description of the response |
+| ↳ `created`     | string  | created of the response     |
+| ↳ `updated`     | string  | updated of the response     |
+| ↳ `success`     | boolean | success of the response     |
+| ↳ `url`         | string  | url of the response         |
 
 ## Notes
 

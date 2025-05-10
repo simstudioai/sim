@@ -14,7 +14,7 @@ describe('Chat API Route', () => {
   const mockInsert = vi.fn()
   const mockValues = vi.fn()
   const mockReturning = vi.fn()
-  
+
   const mockCreateSuccessResponse = vi.fn()
   const mockCreateErrorResponse = vi.fn()
   const mockEncryptSecret = vi.fn()
@@ -182,7 +182,7 @@ describe('Chat API Route', () => {
       }
 
       mockLimit.mockResolvedValueOnce([{ id: 'existing-chat' }]) // Subdomain exists
-      
+
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
         body: JSON.stringify(validData),
@@ -213,7 +213,7 @@ describe('Chat API Route', () => {
 
       mockLimit.mockResolvedValueOnce([]) // Subdomain is available
       mockLimit.mockResolvedValueOnce([]) // Workflow not found
-      
+
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
         body: JSON.stringify(validData),
@@ -222,7 +222,10 @@ describe('Chat API Route', () => {
       const response = await POST(req)
 
       expect(response.status).toBe(404)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Workflow not found or access denied', 404)
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Workflow not found or access denied',
+        404
+      )
     })
 
     it('should reject if workflow is not deployed', async () => {
@@ -244,7 +247,7 @@ describe('Chat API Route', () => {
 
       mockLimit.mockResolvedValueOnce([]) // Subdomain is available
       mockLimit.mockResolvedValueOnce([{ isDeployed: false }]) // Workflow exists but not deployed
-      
+
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
         body: JSON.stringify(validData),
@@ -253,7 +256,10 @@ describe('Chat API Route', () => {
       const response = await POST(req)
 
       expect(response.status).toBe(400)
-      expect(mockCreateErrorResponse).toHaveBeenCalledWith('Workflow must be deployed before creating a chat', 400)
+      expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+        'Workflow must be deployed before creating a chat',
+        400
+      )
     })
 
     it('should successfully create a chat deployment', async () => {
@@ -268,8 +274,8 @@ describe('Chat API Route', () => {
         ...process,
         env: {
           ...process.env,
-          NODE_ENV: 'development'
-        }
+          NODE_ENV: 'development',
+        },
       })
 
       const validData = {
@@ -285,7 +291,7 @@ describe('Chat API Route', () => {
       mockLimit.mockResolvedValueOnce([]) // Subdomain is available
       mockLimit.mockResolvedValueOnce([{ isDeployed: true }]) // Workflow exists and is deployed
       mockReturning.mockResolvedValue([{ id: 'test-uuid' }])
-      
+
       const req = new NextRequest('http://localhost:3000/api/chat', {
         method: 'POST',
         body: JSON.stringify(validData),
@@ -297,8 +303,8 @@ describe('Chat API Route', () => {
       expect(mockCreateSuccessResponse).toHaveBeenCalledWith({
         id: 'test-uuid',
         chatUrl: 'http://test-chat.localhost:3000',
-        message: 'Chat deployment created successfully'
+        message: 'Chat deployment created successfully',
       })
     })
   })
-}) 
+})

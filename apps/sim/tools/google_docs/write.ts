@@ -12,9 +12,21 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true, description: 'The access token for the Google Docs API' },
-    documentId: { type: 'string', required: true, description: 'The ID of the document to write to' },
-    content: { type: 'string', required: true, description: 'The content to write to the document' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'The access token for the Google Docs API',
+    },
+    documentId: {
+      type: 'string',
+      required: true,
+      description: 'The ID of the document to write to',
+    },
+    content: {
+      type: 'string',
+      required: true,
+      description: 'The content to write to the document',
+    },
   },
   request: {
     url: (params) => {

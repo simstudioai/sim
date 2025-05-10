@@ -1,7 +1,6 @@
 import { ToolConfig } from '../types'
 import { GuestyGuestParams, GuestyGuestResponse } from './types'
 
-
 export const guestyGuestTool: ToolConfig<GuestyGuestParams, GuestyGuestResponse> = {
   id: 'guesty_guest',
   name: 'Guesty Guest',

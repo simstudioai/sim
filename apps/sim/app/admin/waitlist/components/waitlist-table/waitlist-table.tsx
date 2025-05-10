@@ -1,3 +1,14 @@
+import {
+  CheckIcon,
+  CheckSquareIcon,
+  InfoIcon,
+  MailIcon,
+  RotateCcwIcon,
+  SquareIcon,
+  UserCheckIcon,
+  UserXIcon,
+  XIcon,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,17 +20,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  CheckIcon,
-  InfoIcon,
-  MailIcon,
-  RotateCcwIcon,
-  UserCheckIcon,
-  UserXIcon,
-  XIcon,
-  CheckSquareIcon,
-  SquareIcon,
-} from 'lucide-react'
 
 interface WaitlistEntry {
   id: string
@@ -70,10 +70,7 @@ export function WaitlistTable({
         </TableHeader>
         <TableBody>
           {entries.map((entry) => (
-            <TableRow
-              key={entry.id}
-              className="hover:bg-muted/30"
-            >
+            <TableRow key={entry.id} className="hover:bg-muted/30">
               {/* Add selection checkbox */}
               {status !== 'approved' && (
                 <TableCell className="text-center py-2">
@@ -91,7 +88,7 @@ export function WaitlistTable({
                   </Button>
                 </TableCell>
               )}
-              
+
               <TableCell className="font-medium">{entry.email}</TableCell>
               <TableCell>
                 {/* Status badge */}
@@ -167,9 +164,7 @@ export function WaitlistTable({
                             )}
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          Resend approval email with sign-up link
-                        </TooltipContent>
+                        <TooltipContent>Resend approval email with sign-up link</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   )}
@@ -224,4 +219,4 @@ export function WaitlistTable({
       </Table>
     </div>
   )
-} 
+}

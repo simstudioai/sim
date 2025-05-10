@@ -1,9 +1,4 @@
-import {
-  UserIcon,
-  UserCheckIcon, 
-  UserXIcon,
-  CheckIcon
-} from 'lucide-react'
+import { CheckIcon, UserCheckIcon, UserIcon, UserXIcon } from 'lucide-react'
 import { FilterButton } from './components/filter-button'
 
 interface FilterBarProps {
@@ -71,4 +66,4 @@ export function FilterBar({ currentStatus, onStatusChange }: FilterBarProps) {
       />
     </div>
   )
-} 
+}

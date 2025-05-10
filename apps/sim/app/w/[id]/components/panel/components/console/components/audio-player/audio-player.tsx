@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Pause, Play, Download } from 'lucide-react'
+import { Download, Pause, Play } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('AudioPlayer')
@@ -18,7 +18,7 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio(audioUrl)
-      
+
       audioRef.current.addEventListener('ended', () => setIsPlaying(false))
       audioRef.current.addEventListener('pause', () => setIsPlaying(false))
       audioRef.current.addEventListener('play', () => setIsPlaying(true))
@@ -27,7 +27,7 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
       audioRef.current.src = audioUrl
       setProgress(0)
     }
-    
+
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
@@ -48,19 +48,19 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
 
   const togglePlay = () => {
     if (!audioRef.current) return
-    
+
     if (isPlaying) {
       audioRef.current.pause()
     } else {
       audioRef.current.play()
     }
   }
-  
+
   const downloadAudio = async () => {
     try {
       const response = await fetch(audioUrl)
       const blob = await response.blob()
-    
+
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -68,7 +68,7 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      
+
       URL.revokeObjectURL(url)
     } catch (error) {
       logger.error('Error downloading audio:', error)
@@ -77,38 +77,32 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
 
   const seekAudio = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current) return
-    
+
     const container = e.currentTarget
     const rect = container.getBoundingClientRect()
     const x = e.clientX - rect.left
     const percent = x / rect.width
-    
+
     audioRef.current.currentTime = percent * audioRef.current.duration
   }
 
   return (
     <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-background/40 w-full max-w-xs">
-      <button 
+      <button
         className="inline-flex items-center justify-center h-7 w-7 bg-primary/10 hover:bg-primary/20 text-primary rounded-full transition-colors"
         onClick={togglePlay}
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
-        {isPlaying ? 
-          <Pause className="h-3.5 w-3.5" /> : 
-          <Play className="h-3.5 w-3.5 ml-0.5" />
-        }
+        {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
       </button>
-      
-      <div 
+
+      <div
         className="flex-grow h-1.5 bg-muted rounded-full overflow-hidden cursor-pointer"
         onClick={seekAudio}
       >
-        <div 
-          className="h-full bg-primary/40 rounded-full" 
-          style={{ width: `${progress}%` }} 
-        />
+        <div className="h-full bg-primary/40 rounded-full" style={{ width: `${progress}%` }} />
       </div>
-      
+
       <button
         className="inline-flex items-center justify-center h-6 w-6 text-muted-foreground hover:text-foreground transition-colors"
         onClick={downloadAudio}

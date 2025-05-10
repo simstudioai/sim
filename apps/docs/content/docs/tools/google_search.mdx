@@ -3,9 +3,9 @@ title: Google Search
 description: Search the web
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="google_search"
   color="#E0E0E0"
   icon={true}
@@ -43,12 +43,9 @@ With Google Search, you can:
 In Sim Studio, the Google Search integration enables your agents to search the web programmatically and incorporate search results into their workflows. This allows for powerful automation scenarios such as research, fact-checking, data gathering, and information synthesis. Your agents can formulate search queries, retrieve relevant results, and extract information from those results to make decisions or generate insights. This integration bridges the gap between your AI workflows and the vast information available on the web, enabling your agents to access up-to-date information from across the internet. By connecting Sim Studio with Google Search, you can create agents that stay informed with the latest information, verify facts, conduct research, and provide users with relevant web content - all without leaving your workflow.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.
-
-
 
 ## Tools
 
@@ -58,34 +55,30 @@ Search the web with the Custom Search API
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query to execute |
-| `apiKey` | string | Yes | Google API key |
-| `searchEngineId` | string | Yes | Custom Search Engine ID |
-| `num` | string | No | Number of results to return \(default: 10, max: 10\) |
+| Parameter        | Type   | Required | Description                                          |
+| ---------------- | ------ | -------- | ---------------------------------------------------- |
+| `query`          | string | Yes      | The search query to execute                          |
+| `apiKey`         | string | Yes      | Google API key                                       |
+| `searchEngineId` | string | Yes      | Custom Search Engine ID                              |
+| `num`            | string | No       | Number of results to return \(default: 10, max: 10\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `items` | string |
-| `searchInformation` | string |
-| `searchTime` | string |
-| `formattedSearchTime` | string |
+| Parameter               | Type   |
+| ----------------------- | ------ |
+| `items`                 | string |
+| `searchInformation`     | string |
+| `searchTime`            | string |
+| `formattedSearchTime`   | string |
 | `formattedTotalResults` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `query` | string | No | Search Query - Enter your search query |
-
-
+| Parameter | Type   | Required | Description                            |
+| --------- | ------ | -------- | -------------------------------------- |
+| `query`   | string | No       | Search Query - Enter your search query |
 
 ### Outputs
 

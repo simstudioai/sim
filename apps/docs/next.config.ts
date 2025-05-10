@@ -1,6 +1,6 @@
-import { createMDX } from "fumadocs-mdx/next";
+import { createMDX } from 'fumadocs-mdx/next'
 
-const withMDX = createMDX();
+const withMDX = createMDX()
 
 /** @type {import('next').NextConfig} */
 const config = {
@@ -8,12 +8,12 @@ const config = {
   async redirects() {
     return [
       {
-        source: "/",
-        destination: "/introduction",
+        source: '/',
+        destination: '/introduction',
         permanent: true,
       },
-    ];
+    ]
   },
-};
+}
 
-export default withMDX(config);
+export default withMDX(config)

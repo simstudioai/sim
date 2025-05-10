@@ -83,15 +83,17 @@ export function getAllWorkflowsWithValues() {
   const currentState = useWorkflowStore.getState()
 
   // Log for debugging
-  logger.info(`Preparing workflows for sync with active workspace: ${activeWorkspaceId}`);
-  
+  logger.info(`Preparing workflows for sync with active workspace: ${activeWorkspaceId}`)
+
   for (const [id, metadata] of Object.entries(workflows)) {
     // Skip workflows that don't belong to the active workspace
     if (activeWorkspaceId && metadata.workspaceId !== activeWorkspaceId) {
-      logger.debug(`Skipping workflow ${id} - belongs to workspace ${metadata.workspaceId}, not active workspace ${activeWorkspaceId}`);
-      continue;
+      logger.debug(
+        `Skipping workflow ${id} - belongs to workspace ${metadata.workspaceId}, not active workspace ${activeWorkspaceId}`
+      )
+      continue
     }
-    
+
     // Load the specific state for this workflow
     let workflowState: WorkflowState
 
@@ -137,7 +139,9 @@ export function getAllWorkflowsWithValues() {
     }
   }
 
-  logger.info(`Prepared ${Object.keys(result).length} workflows for sync from workspace ${activeWorkspaceId}`);
+  logger.info(
+    `Prepared ${Object.keys(result).length} workflows for sync from workspace ${activeWorkspaceId}`
+  )
   return result
 }
 

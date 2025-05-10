@@ -3,9 +3,9 @@ title: Supabase
 description: Use Supabase database
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="supabase"
   color="#1C1C1C"
   icon={true}
@@ -66,12 +66,9 @@ With Supabase, you can:
 In Sim Studio, the Supabase integration enables your agents to interact with your Supabase projects programmatically. This allows for powerful automation scenarios such as data querying, record creation, user management, and file operations. Your agents can retrieve information from your database, insert new records, update existing data, and leverage Supabase's authentication and storage capabilities as part of their workflows. This integration bridges the gap between your AI workflows and your application's data layer, enabling more sophisticated and data-driven automations. By connecting Sim Studio with Supabase, you can create agents that maintain data consistency across systems, trigger actions based on database changes, perform complex data operations, and build workflows that leverage your application's existing data infrastructure - all without requiring manual intervention or custom code.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Integrate with Supabase to manage your database, authentication, storage, and more. Query data, manage users, and interact with Supabase services directly.
-
-
 
 ## Tools
 
@@ -81,15 +78,15 @@ Query data from a Supabase table
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Supabase client anon key |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| Parameter   | Type   | Required | Description                                             |
+| ----------- | ------ | -------- | ------------------------------------------------------- |
+| `apiKey`    | string | Yes      | Your Supabase client anon key                           |
+| `projectId` | string | Yes      | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `message` | string |
 | `results` | string |
 
@@ -99,38 +96,33 @@ Insert data into a Supabase table
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Supabase client anon key |
-| `projectId` | string | Yes | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
+| Parameter   | Type   | Required | Description                                             |
+| ----------- | ------ | -------- | ------------------------------------------------------- |
+| `apiKey`    | string | Yes      | Your Supabase client anon key                           |
+| `projectId` | string | Yes      | Your Supabase project ID \(e.g., jdrkgepadsdopsntdlom\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `message` | string |
 | `results` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
 | ↳ `message` | string | message of the response |
-| ↳ `results` | json | results of the response |
-
+| ↳ `results` | json   | results of the response |
 
 ## Notes
 

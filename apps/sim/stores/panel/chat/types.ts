@@ -23,4 +23,4 @@ export interface ChatStore {
   getSelectedWorkflowOutput: (workflowId: string) => string[]
   appendMessageContent: (messageId: string, content: string) => void
   finalizeMessageStream: (messageId: string) => void
-} 
+}

@@ -12,7 +12,11 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
     additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
-    accessToken: { type: 'string', required: true, description: 'The access token for the Google Docs API' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'The access token for the Google Docs API',
+    },
     documentId: { type: 'string', required: true, description: 'The ID of the document to read' },
   },
   request: {

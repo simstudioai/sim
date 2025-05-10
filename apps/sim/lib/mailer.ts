@@ -95,7 +95,7 @@ export async function sendBatchEmails({
       logger.info('Batch emails not sent (Resend not configured):', {
         emailCount: emails.length,
       })
-      
+
       // Create mock results for each email
       emails.forEach(() => {
         results.push({
@@ -104,7 +104,7 @@ export async function sendBatchEmails({
           data: { id: 'mock-email-id' },
         })
       })
-      
+
       return {
         success: true,
         message: 'Batch email logging successful (Resend not configured)',
@@ -114,7 +114,7 @@ export async function sendBatchEmails({
     }
 
     // Prepare emails for batch sending
-    const batchEmails = emails.map(email => ({
+    const batchEmails = emails.map((email) => ({
       from: `Sim Studio <${email.from || senderEmail}>`,
       to: email.to,
       subject: email.subject,
@@ -125,26 +125,28 @@ export async function sendBatchEmails({
     // Process in chunks of 50 to be safe
     const BATCH_SIZE = 50
     let allSuccessful = true
-    
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-    
+
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
     let rateDelay = 500
-    
+
     for (let i = 0; i < batchEmails.length; i += BATCH_SIZE) {
       if (i > 0) {
         logger.info(`Rate limit protection: Waiting ${rateDelay}ms before sending next batch`)
         await delay(rateDelay)
       }
-      
+
       const batch = batchEmails.slice(i, i + BATCH_SIZE)
-      
+
       try {
-        logger.info(`Sending batch ${Math.floor(i/BATCH_SIZE) + 1} of ${Math.ceil(batchEmails.length/BATCH_SIZE)} (${batch.length} emails)`)
+        logger.info(
+          `Sending batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(batchEmails.length / BATCH_SIZE)} (${batch.length} emails)`
+        )
         const response = await resend.batch.send(batch)
-        
+
         if (response.error) {
           logger.error('Resend batch API error:', response.error)
-          
+
           // Add failure results for this batch
           batch.forEach(() => {
             results.push({
@@ -152,7 +154,7 @@ export async function sendBatchEmails({
               message: response.error?.message || 'Failed to send batch email',
             })
           })
-          
+
           allSuccessful = false
         } else if (response.data) {
           if (Array.isArray(response.data)) {
@@ -176,31 +178,33 @@ export async function sendBatchEmails({
         }
       } catch (error) {
         logger.error('Error sending batch emails:', error)
-        
+
         // Check if it's a rate limit error
-        if (error instanceof Error && 
-            (error.message.toLowerCase().includes('rate') || 
-             error.message.toLowerCase().includes('too many') ||
-             error.message.toLowerCase().includes('429'))) {
+        if (
+          error instanceof Error &&
+          (error.message.toLowerCase().includes('rate') ||
+            error.message.toLowerCase().includes('too many') ||
+            error.message.toLowerCase().includes('429'))
+        ) {
           logger.warn('Rate limit exceeded, increasing delay and retrying...')
-          
+
           // Wait a bit longer and try again with this batch
           await delay(rateDelay * 5)
-          
+
           try {
-            logger.info(`Retrying batch ${Math.floor(i/BATCH_SIZE) + 1} with longer delay`)
+            logger.info(`Retrying batch ${Math.floor(i / BATCH_SIZE) + 1} with longer delay`)
             const retryResponse = await resend.batch.send(batch)
-            
+
             if (retryResponse.error) {
               logger.error('Retry failed with error:', retryResponse.error)
-              
+
               batch.forEach(() => {
                 results.push({
                   success: false,
                   message: retryResponse.error?.message || 'Failed to send batch email after retry',
                 })
               })
-              
+
               allSuccessful = false
             } else if (retryResponse.data) {
               if (Array.isArray(retryResponse.data)) {
@@ -220,21 +224,24 @@ export async function sendBatchEmails({
                   })
                 })
               }
-              
+
               // Increase the standard delay since we hit a rate limit
               logger.info('Increasing delay between batches after rate limit hit')
               rateDelay = rateDelay * 2
             }
           } catch (retryError) {
             logger.error('Retry also failed:', retryError)
-            
+
             batch.forEach(() => {
               results.push({
                 success: false,
-                message: retryError instanceof Error ? retryError.message : 'Failed to send email even after retry',
+                message:
+                  retryError instanceof Error
+                    ? retryError.message
+                    : 'Failed to send email even after retry',
               })
             })
-            
+
             allSuccessful = false
           }
         } else {
@@ -245,7 +252,7 @@ export async function sendBatchEmails({
               message: error instanceof Error ? error.message : 'Failed to send batch email',
             })
           })
-          
+
           allSuccessful = false
         }
       }
@@ -253,11 +260,11 @@ export async function sendBatchEmails({
 
     return {
       success: allSuccessful,
-      message: allSuccessful 
-        ? 'All batch emails sent successfully' 
+      message: allSuccessful
+        ? 'All batch emails sent successfully'
         : 'Some batch emails failed to send',
       results,
-      data: { count: results.filter(r => r.success).length },
+      data: { count: results.filter((r) => r.success).length },
     }
   } catch (error) {
     logger.error('Error in batch email sending:', error)

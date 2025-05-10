@@ -6,8 +6,7 @@ export const S3Block: BlockConfig<S3Response> = {
   type: 's3',
   name: 'S3',
   description: 'View S3 files',
-  longDescription:
-    'Retrieve and view files from Amazon S3 buckets using presigned URLs.',
+  longDescription: 'Retrieve and view files from Amazon S3 buckets using presigned URLs.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: S3Icon,
@@ -56,25 +55,25 @@ export const S3Block: BlockConfig<S3Response> = {
         try {
           const url = new URL(params.s3Uri)
           const hostname = url.hostname
-          
+
           // Extract bucket name from hostname
           const bucketName = hostname.split('.')[0]
-          
+
           // Extract region from hostname
           const regionMatch = hostname.match(/s3[.-]([^.]+)\.amazonaws\.com/)
           const region = regionMatch ? regionMatch[1] : 'us-east-1'
-          
+
           // Extract object key from pathname (remove leading slash)
           const objectKey = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname
-          
+
           if (!bucketName) {
             throw new Error('Could not extract bucket name from URL')
           }
-          
+
           if (!objectKey) {
             throw new Error('No object key found in URL')
           }
-          
+
           return {
             accessKeyId: params.accessKeyId,
             secretAccessKey: params.secretAccessKey,
@@ -83,7 +82,9 @@ export const S3Block: BlockConfig<S3Response> = {
             objectKey,
           }
         } catch (error) {
-          throw new Error('Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file')
+          throw new Error(
+            'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
+          )
         }
       },
     },
@@ -97,8 +98,8 @@ export const S3Block: BlockConfig<S3Response> = {
     response: {
       type: {
         url: 'string',
-        metadata: 'json'
-      }
-    }
+        metadata: 'json',
+      },
+    },
   },
 }

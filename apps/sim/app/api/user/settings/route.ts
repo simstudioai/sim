@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
+import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { settings } from '@/db/schema'
-import { getSession } from '@/lib/auth'
 
 const logger = createLogger('UserSettingsAPI')
 
@@ -30,31 +30,25 @@ const defaultSettings = {
 
 export async function GET() {
   const requestId = crypto.randomUUID().slice(0, 8)
-  
+
   try {
     const session = await getSession()
-    
+
     // Return default settings for unauthenticated users instead of 401 error
     if (!session?.user?.id) {
       logger.info(`[${requestId}] Returning default settings for unauthenticated user`)
-      return NextResponse.json(
-        { data: defaultSettings },
-        { status: 200 }
-      )
+      return NextResponse.json({ data: defaultSettings }, { status: 200 })
     }
-    
+
     const userId = session.user.id
     const result = await db.select().from(settings).where(eq(settings.userId, userId)).limit(1)
 
     if (!result.length) {
-      return NextResponse.json(
-        { data: defaultSettings },
-        { status: 200 }
-      )
+      return NextResponse.json({ data: defaultSettings }, { status: 200 })
     }
 
     const userSettings = result[0]
-    
+
     return NextResponse.json(
       {
         data: {
@@ -80,13 +74,15 @@ export async function PATCH(request: Request) {
 
   try {
     const session = await getSession()
-    
+
     // Return success for unauthenticated users instead of error
     if (!session?.user?.id) {
-      logger.info(`[${requestId}] Settings update attempted by unauthenticated user - acknowledged without saving`)
+      logger.info(
+        `[${requestId}] Settings update attempted by unauthenticated user - acknowledged without saving`
+      )
       return NextResponse.json({ success: true }, { status: 200 })
     }
-    
+
     const userId = session.user.id
     const body = await request.json()
 
@@ -128,4 +124,4 @@ export async function PATCH(request: Request) {
     // Return success on error instead of error response
     return NextResponse.json({ success: true }, { status: 200 })
   }
-} 
+}

@@ -12,12 +12,28 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
     additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
   },
   params: {
-    accessToken: { type: 'string', required: true, description: 'The access token for the Google Sheets API' },
-    spreadsheetId: { type: 'string', required: true, description: 'The ID of the spreadsheet to update' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      description: 'The ID of the spreadsheet to update',
+    },
     range: { type: 'string', required: false, description: 'The range of cells to update' },
     values: { type: 'array', required: true, description: 'The data to update in the spreadsheet' },
-    valueInputOption: { type: 'string', required: false, description: 'The format of the data to update' },
-    includeValuesInResponse: { type: 'boolean', required: false, description: 'Whether to include the updated values in the response' },
+    valueInputOption: {
+      type: 'string',
+      required: false,
+      description: 'The format of the data to update',
+    },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      description: 'Whether to include the updated values in the response',
+    },
   },
   request: {
     url: (params) => {
@@ -47,25 +63,30 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
       let processedValues: any = params.values || []
 
       // Handle array of objects
-      if (Array.isArray(processedValues) && processedValues.length > 0 && typeof processedValues[0] === 'object' && !Array.isArray(processedValues[0])) {
+      if (
+        Array.isArray(processedValues) &&
+        processedValues.length > 0 &&
+        typeof processedValues[0] === 'object' &&
+        !Array.isArray(processedValues[0])
+      ) {
         // It's an array of objects
-        
+
         // First, extract all unique keys from all objects to create headers
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
           if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach(key => allKeys.add(key))
+            Object.keys(obj).forEach((key) => allKeys.add(key))
           }
         })
         const headers = Array.from(allKeys)
-        
+
         // Then create rows with object values in the order of headers
         const rows = processedValues.map((obj: any) => {
           if (!obj || typeof obj !== 'object') {
             // Handle non-object items by creating an array with empty values
             return Array(headers.length).fill('')
           }
-          return headers.map(key => {
+          return headers.map((key) => {
             const value = obj[key]
             // Handle nested objects/arrays by converting to JSON string
             if (value !== null && typeof value === 'object') {
@@ -74,11 +95,11 @@ export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateRe
             return value === undefined ? '' : value
           })
         })
-        
+
         // Add headers as the first row, then add data rows
         processedValues = [headers, ...rows]
       }
-      
+
       const body: Record<string, any> = {
         majorDimension: params.majorDimension || 'ROWS',
         values: processedValues,

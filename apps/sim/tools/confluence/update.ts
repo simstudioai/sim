@@ -47,7 +47,8 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     cloudId: {
       type: 'string',
       required: false,
-      description: 'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+      description:
+        'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
@@ -58,27 +59,28 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
     method: 'PUT',
     headers: (params: ConfluenceUpdateParams) => {
       return {
-        'Accept': 'application/json',
+        Accept: 'application/json',
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${params.accessToken}`,
+        Authorization: `Bearer ${params.accessToken}`,
       }
     },
     body: (params: ConfluenceUpdateParams) => {
-      
       const body: Record<string, any> = {
         domain: params.domain,
         accessToken: params.accessToken,
         pageId: params.pageId,
         cloudId: params.cloudId,
         title: params.title,
-        body: params.content ? {
-          representation: 'storage',
-          value: params.content
-        } : undefined,
+        body: params.content
+          ? {
+              representation: 'storage',
+              value: params.content,
+            }
+          : undefined,
         version: {
           number: params.version || 1,
-          message: params.version ? 'Updated via Sim Studio' : 'Initial update via Sim Studio'
-        }
+          message: params.version ? 'Updated via Sim Studio' : 'Initial update via Sim Studio',
+        },
       }
       return body
     },
@@ -90,9 +92,12 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
       console.error('Update tool error response:', {
         status: response.status,
         statusText: response.statusText,
-        error: errorData
+        error: errorData,
       })
-      console.error(errorData?.error || `Failed to update Confluence page: ${response.status} ${response.statusText}`)
+      console.error(
+        errorData?.error ||
+          `Failed to update Confluence page: ${response.status} ${response.statusText}`
+      )
     }
 
     const data = await response.json()

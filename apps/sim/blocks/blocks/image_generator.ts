@@ -32,9 +32,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
       title: 'Model',
       type: 'dropdown',
       layout: 'half',
-      options: [
-        { label: 'DALL-E 3', id: 'dall-e-3' },
-      ],
+      options: [{ label: 'DALL-E 3', id: 'dall-e-3' }],
       value: () => 'dall-e-3',
     },
     {

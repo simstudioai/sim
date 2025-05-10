@@ -125,7 +125,9 @@ describe('Subdomain Validation API Route', () => {
       }),
     }))
 
-    const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=Invalid_Subdomain!')
+    const req = new NextRequest(
+      'http://localhost:3000/api/chat/subdomains/validate?subdomain=Invalid_Subdomain!'
+    )
 
     const { GET } = await import('./route')
 
@@ -150,7 +152,9 @@ describe('Subdomain Validation API Route', () => {
 
     mockLimit.mockResolvedValue([])
 
-    const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=available-subdomain')
+    const req = new NextRequest(
+      'http://localhost:3000/api/chat/subdomains/validate?subdomain=available-subdomain'
+    )
 
     const { GET } = await import('./route')
 
@@ -162,7 +166,7 @@ describe('Subdomain Validation API Route', () => {
       subdomain: 'available-subdomain',
     })
   })
-  
+
   it('should return available=false when subdomain is reserved', async () => {
     vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue({
@@ -170,7 +174,9 @@ describe('Subdomain Validation API Route', () => {
       }),
     }))
 
-    const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=telemetry')
+    const req = new NextRequest(
+      'http://localhost:3000/api/chat/subdomains/validate?subdomain=telemetry'
+    )
 
     const { GET } = await import('./route')
 
@@ -195,7 +201,9 @@ describe('Subdomain Validation API Route', () => {
 
     mockLimit.mockResolvedValue([{ id: 'existing-chat-id' }])
 
-    const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=used-subdomain')
+    const req = new NextRequest(
+      'http://localhost:3000/api/chat/subdomains/validate?subdomain=used-subdomain'
+    )
 
     const { GET } = await import('./route')
 
@@ -217,13 +225,18 @@ describe('Subdomain Validation API Route', () => {
 
     mockLimit.mockRejectedValue(new Error('Database error'))
 
-    const req = new NextRequest('http://localhost:3000/api/chat/subdomains/validate?subdomain=error-subdomain')
+    const req = new NextRequest(
+      'http://localhost:3000/api/chat/subdomains/validate?subdomain=error-subdomain'
+    )
 
     const { GET } = await import('./route')
 
     const response = await GET(req)
 
     expect(response.status).toBe(500)
-    expect(mockCreateErrorResponse).toHaveBeenCalledWith('Failed to check subdomain availability', 500)
+    expect(mockCreateErrorResponse).toHaveBeenCalledWith(
+      'Failed to check subdomain availability',
+      500
+    )
   })
 })

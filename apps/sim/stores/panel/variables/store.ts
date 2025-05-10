@@ -16,7 +16,7 @@ const loadedWorkflows = new Set<string>()
 
 // Clear a workspace from the loaded tracking when switching workspaces
 export function clearWorkflowVariablesTracking() {
-  loadedWorkflows.clear();
+  loadedWorkflows.clear()
 }
 
 export const useVariablesStore = create<VariablesStore>()(

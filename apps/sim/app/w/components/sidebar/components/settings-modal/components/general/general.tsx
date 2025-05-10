@@ -1,6 +1,7 @@
-import { useRouter } from 'next/navigation'
-import { Info, AlertTriangle } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { AlertTriangle, Info } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,9 +25,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { resetAllStores } from '@/stores'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { resetAllStores } from '@/stores'
 
 const TOOLTIPS = {
   debugMode: 'Enable visual debugging information during execution.',
@@ -38,20 +38,20 @@ const TOOLTIPS = {
 export function General() {
   const router = useRouter()
   const [retryCount, setRetryCount] = useState(0)
-  
-  const isLoading = useGeneralStore(state => state.isLoading)
-  const error = useGeneralStore(state => state.error)
-  const theme = useGeneralStore(state => state.theme)
-  const isAutoConnectEnabled = useGeneralStore(state => state.isAutoConnectEnabled)
-  const isDebugModeEnabled = useGeneralStore(state => state.isDebugModeEnabled)
-  const isAutoFillEnvVarsEnabled = useGeneralStore(state => state.isAutoFillEnvVarsEnabled)
-  
-  const setTheme = useGeneralStore(state => state.setTheme)
-  const toggleAutoConnect = useGeneralStore(state => state.toggleAutoConnect)
-  const toggleDebugMode = useGeneralStore(state => state.toggleDebugMode)
-  const toggleAutoFillEnvVars = useGeneralStore(state => state.toggleAutoFillEnvVars)
-  const loadSettings = useGeneralStore(state => state.loadSettings)
-  
+
+  const isLoading = useGeneralStore((state) => state.isLoading)
+  const error = useGeneralStore((state) => state.error)
+  const theme = useGeneralStore((state) => state.theme)
+  const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
+  const isDebugModeEnabled = useGeneralStore((state) => state.isDebugModeEnabled)
+  const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
+
+  const setTheme = useGeneralStore((state) => state.setTheme)
+  const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
+  const toggleDebugMode = useGeneralStore((state) => state.toggleDebugMode)
+  const toggleAutoFillEnvVars = useGeneralStore((state) => state.toggleAutoFillEnvVars)
+  const loadSettings = useGeneralStore((state) => state.loadSettings)
+
   useEffect(() => {
     const loadData = async () => {
       await loadSettings(retryCount > 0)
@@ -62,19 +62,19 @@ export function General() {
   const handleThemeChange = (value: 'system' | 'light' | 'dark') => {
     setTheme(value)
   }
-  
+
   const handleDebugModeChange = (checked: boolean) => {
     if (checked !== isDebugModeEnabled) {
       toggleDebugMode()
     }
   }
-  
+
   const handleAutoConnectChange = (checked: boolean) => {
     if (checked !== isAutoConnectEnabled) {
       toggleAutoConnect()
     }
   }
-  
+
   const handleAutoFillEnvVarsChange = (checked: boolean) => {
     if (checked !== isAutoFillEnvVarsEnabled) {
       toggleAutoFillEnvVars()
@@ -87,7 +87,7 @@ export function General() {
   }
 
   const handleRetry = () => {
-    setRetryCount(prev => prev + 1)
+    setRetryCount((prev) => prev + 1)
   }
 
   return (
@@ -97,12 +97,7 @@ export function General() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex justify-between items-center">
             <span>Failed to load settings: {error}</span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRetry}
-              disabled={isLoading}
-            >
+            <Button variant="outline" size="sm" onClick={handleRetry} disabled={isLoading}>
               Retry
             </Button>
           </AlertDescription>
@@ -127,11 +122,7 @@ export function General() {
                     Theme
                   </Label>
                 </div>
-                <Select 
-                  value={theme} 
-                  onValueChange={handleThemeChange}
-                  disabled={isLoading}
-                >
+                <Select value={theme} onValueChange={handleThemeChange} disabled={isLoading}>
                   <SelectTrigger id="theme-select" className="w-[180px]">
                     <SelectValue placeholder="Select theme" />
                   </SelectTrigger>

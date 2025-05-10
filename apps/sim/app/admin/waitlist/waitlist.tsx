@@ -2,23 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  AlertCircleIcon,
-  InfoIcon,
-  RotateCcwIcon,
-} from 'lucide-react'
+import { AlertCircleIcon, InfoIcon, RotateCcwIcon } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Logger } from '@/lib/logs/console-logger'
-import { useWaitlistStore } from './stores/store'
-import { FilterBar } from './components/filter-bar/filter-bar'
-import { SearchBar } from './components/search-bar/search-bar'
-import { WaitlistAlert } from './components/waitlist-alert/waitlist-alert'
-import { Pagination } from './components/pagination/pagination'
 import { BatchActions } from './components/batch-actions/batch-actions'
 import { BatchResultsModal } from './components/batch-results-modal/batch-results-modal'
+import { FilterBar } from './components/filter-bar/filter-bar'
+import { Pagination } from './components/pagination/pagination'
+import { SearchBar } from './components/search-bar/search-bar'
+import { WaitlistAlert } from './components/waitlist-alert/waitlist-alert'
 import { WaitlistTable as WaitlistDataTable } from './components/waitlist-table/waitlist-table'
+import { useWaitlistStore } from './stores/store'
 
 const logger = new Logger('WaitlistTable')
 
@@ -345,19 +341,23 @@ export function WaitlistTable() {
   const [selectedEmails, setSelectedEmails] = useState<Record<string, boolean>>({})
   const [showBatchDialog, setShowBatchDialog] = useState(false)
   const [batchActionLoading, setBatchActionLoading] = useState(false)
-  const [batchResults, setBatchResults] = useState<Array<{ email: string; success: boolean; message: string }> | null>(null)
+  const [batchResults, setBatchResults] = useState<Array<{
+    email: string
+    success: boolean
+    message: string
+  }> | null>(null)
 
   // Helper to check if any emails are selected
   const hasSelectedEmails = Object.values(selectedEmails).some(Boolean)
-  
+
   // Count of selected emails
   const selectedEmailsCount = Object.values(selectedEmails).filter(Boolean).length
 
   // Toggle selection of a single email
   const toggleEmailSelection = (email: string) => {
-    setSelectedEmails(prev => ({
+    setSelectedEmails((prev) => ({
       ...prev,
-      [email]: !prev[email]
+      [email]: !prev[email],
     }))
   }
 
@@ -368,17 +368,17 @@ export function WaitlistTable() {
 
   // Select/deselect all visible emails
   const toggleSelectAll = () => {
-    if (filteredEntries.some(entry => selectedEmails[entry.email])) {
+    if (filteredEntries.some((entry) => selectedEmails[entry.email])) {
       // If any are selected, deselect all
       const newSelection = { ...selectedEmails }
-      filteredEntries.forEach(entry => {
+      filteredEntries.forEach((entry) => {
         newSelection[entry.email] = false
       })
       setSelectedEmails(newSelection)
     } else {
       // Select all visible entries
       const newSelection = { ...selectedEmails }
-      filteredEntries.forEach(entry => {
+      filteredEntries.forEach((entry) => {
         newSelection[entry.email] = true
       })
       setSelectedEmails(newSelection)
@@ -454,20 +454,20 @@ export function WaitlistTable() {
       // Success
       setShowBatchDialog(true)
       setBatchResults(data.results || [])
-      
+
       // Clear selections for successfully approved emails
       if (data.results && Array.isArray(data.results)) {
         const successfulEmails = data.results
           .filter((result: { success: boolean }) => result.success)
           .map((result: { email: string }) => result.email)
-        
+
         if (successfulEmails.length > 0) {
           const newSelection = { ...selectedEmails }
           successfulEmails.forEach((email: string) => {
             newSelection[email] = false
           })
           setSelectedEmails(newSelection)
-          
+
           // Refresh the entries to show updated statuses
           fetchEntries()
         }
@@ -498,22 +498,15 @@ export function WaitlistTable() {
       {/* Top bar with filters, search and refresh */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-2">
         {/* Filter buttons in a single row */}
-        <FilterBar
-          currentStatus={status}
-          onStatusChange={handleStatusChange}
-        />
+        <FilterBar currentStatus={status} onStatusChange={handleStatusChange} />
 
         {/* Search and refresh aligned to the right */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <SearchBar 
-            initialValue={searchTerm}
-            onSearch={setSearchTerm}
-            disabled={loading}
-          />
-          <Button 
+          <SearchBar initialValue={searchTerm} onSearch={setSearchTerm} disabled={loading} />
+          <Button
             size="sm"
-            variant="outline" 
-            onClick={handleRefresh} 
+            variant="outline"
+            onClick={handleRefresh}
             disabled={loading}
             className="flex-shrink-0 h-9 w-9 p-0"
           >
@@ -553,7 +546,7 @@ export function WaitlistTable() {
           onClearSelections={clearSelections}
           onBatchApprove={handleBatchApprove}
           entriesExist={filteredEntries.length > 0}
-          someSelected={filteredEntries.some(entry => selectedEmails[entry.email])}
+          someSelected={filteredEntries.some((entry) => selectedEmails[entry.email])}
         />
       )}
 

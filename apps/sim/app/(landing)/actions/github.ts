@@ -43,4 +43,4 @@ export async function getFormattedGitHubStars(): Promise<string> {
     console.error('Error fetching GitHub stars:', error)
     return formatNumber(1200)
   }
-} 
+}

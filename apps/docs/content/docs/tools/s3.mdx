@@ -3,9 +3,9 @@ title: S3
 description: View S3 files
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="s3"
   color="#E0E0E0"
   icon={true}
@@ -16,8 +16,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 Retrieve and view files from Amazon S3 buckets using presigned URLs.
 
-
-
 ## Tools
 
 ### `s3_get_object`
@@ -26,41 +24,36 @@ Retrieve an object from an AWS S3 bucket
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | Your AWS Access Key ID |
-| `secretAccessKey` | string | Yes | Your AWS Secret Access Key |
-| `s3Uri` | string | Yes | S3 Object URL \(e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file\) |
+| Parameter         | Type   | Required | Description                                                                      |
+| ----------------- | ------ | -------- | -------------------------------------------------------------------------------- |
+| `accessKeyId`     | string | Yes      | Your AWS Access Key ID                                                           |
+| `secretAccessKey` | string | Yes      | Your AWS Secret Access Key                                                       |
+| `s3Uri`           | string | Yes      | S3 Object URL \(e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `size` | string |
-| `name` | string |
+| Parameter      | Type   |
+| -------------- | ------ |
+| `metadata`     | string |
+| `size`         | string |
+| `name`         | string |
 | `lastModified` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `accessKeyId` | string | Yes | Access Key ID - Enter your AWS Access Key ID |
-
-
+| Parameter     | Type   | Required | Description                                  |
+| ------------- | ------ | -------- | -------------------------------------------- |
+| `accessKeyId` | string | Yes      | Access Key ID - Enter your AWS Access Key ID |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `url` | string | url of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `url`      | string | url of the response      |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

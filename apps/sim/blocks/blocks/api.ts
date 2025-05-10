@@ -39,7 +39,8 @@ export const ApiBlock: BlockConfig<RequestResponse> = {
       type: 'table',
       layout: 'full',
       columns: ['Key', 'Value'],
-      description: 'Custom headers (standard headers like User-Agent, Accept, etc. are added automatically)',
+      description:
+        'Custom headers (standard headers like User-Agent, Accept, etc. are added automatically)',
     },
     {
       id: 'body',

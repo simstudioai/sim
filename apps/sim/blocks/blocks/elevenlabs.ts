@@ -1,6 +1,6 @@
 import { ElevenLabsIcon } from '@/components/icons'
-import { BlockConfig } from '../types'
 import { ToolResponse } from '@/tools/types'
+import { BlockConfig } from '../types'
 
 interface ElevenLabsBlockResponse extends ToolResponse {
   output: {
@@ -16,7 +16,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   category: 'tools',
   bgColor: '#181C1E',
   icon: ElevenLabsIcon,
-  
+
   tools: {
     access: ['elevenlabs_tts'],
     config: {
@@ -29,7 +29,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       }),
     },
   },
-  
+
   inputs: {
     text: {
       type: 'string',
@@ -44,11 +44,11 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       required: false,
     },
     apiKey: {
-        type: 'string',
-        required: true,
-      },
+      type: 'string',
+      required: true,
+    },
   },
-  
+
   outputs: {
     response: {
       type: {
@@ -56,7 +56,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       },
     },
   },
-  
+
   subBlocks: [
     {
       id: 'text',
@@ -73,13 +73,13 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
       placeholder: 'Enter the voice ID',
     },
     {
-        id: 'apiKey',
-        title: 'API Key',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Enter your ElevenLabs API key',
-        password: true,
-      },
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your ElevenLabs API key',
+      password: true,
+    },
     {
       id: 'modelId',
       title: 'Model ID (Optional)',
@@ -90,7 +90,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
         'eleven_multilingual_v2',
         'eleven_turbo_v2',
         'eleven_turbo_v2_5',
-        'eleven_flash_v2_5'
+        'eleven_flash_v2_5',
       ],
     },
   ],

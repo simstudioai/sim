@@ -142,7 +142,7 @@ export function FileUpload({
 
       // Try to get pre-signed URLs first for direct upload
       let useDirectUpload = false
-      
+
       // Upload each file separately
       for (const file of validFiles) {
         try {
@@ -160,11 +160,11 @@ export function FileUpload({
           })
 
           const presignedData = await presignedResponse.json()
-          
+
           if (presignedResponse.ok && presignedData.directUploadSupported) {
             // Use direct upload method
             useDirectUpload = true
-            
+
             // Upload directly to S3 using the pre-signed URL
             const uploadResponse = await fetch(presignedData.presignedUrl, {
               method: 'PUT',
@@ -175,16 +175,17 @@ export function FileUpload({
             })
 
             if (!uploadResponse.ok) {
-              throw new Error(`Direct upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`)
+              throw new Error(
+                `Direct upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
+              )
             }
 
             // Use the file info returned from the presigned URL endpoint
             uploadedFiles.push(presignedData.fileInfo)
-            
           } else {
             // Fallback to traditional upload through API route
             useDirectUpload = false
-            
+
             // Create FormData for upload
             const formData = new FormData()
             formData.append('file', file)

@@ -119,7 +119,7 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
 
       if (!response.ok) {
         let errorMessage = `Error ${response.status}: ${response.statusText}`
-        
+
         // Try to parse the error message from the response body
         try {
           const errorData = await response.json()
@@ -129,7 +129,7 @@ export const useWaitlistStore = create<WaitlistState>((set, get) => ({
         } catch (parseError) {
           console.error('Failed to parse error response:', parseError)
         }
-        
+
         throw new Error(errorMessage)
       }
 

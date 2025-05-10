@@ -3,9 +3,9 @@ title: Clay
 description: Populate Clay workbook with data
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="clay"
   color="#E0E0E0"
   icon={true}
@@ -194,12 +194,9 @@ With Clay, you can:
 In Sim Studio, the Clay integration allows your agents to push structured data into Clay tables via webhooks. This makes it easy to collect, enrich, and manage dynamic outputs such as leads, research summaries, or action items—all in a collaborative, spreadsheet-like interface. Your agents can populate rows in real time, enabling asynchronous workflows where AI-generated insights are captured, reviewed, and used by your team. Whether you're automating research, enriching CRM data, or tracking operational outcomes, Clay becomes a living data layer that interacts intelligently with your agents. By connecting Sim Studio with Clay, you gain a powerful way to operationalize agent results, loop over datasets with precision, and maintain a clean, auditable record of AI-driven work.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Populate Clay workbook with data using a JSON or plain text. Enables direct communication and notifications with channel confirmation.
-
-
 
 ## Tools
 
@@ -209,37 +206,32 @@ Populate Clay with data from a JSON file. Enables direct communication and notif
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `webhookURL` | string | Yes | The webhook URL to populate |
-| `data` | json | Yes | The data to populate |
-| `authToken` | string | No | Optional auth token for WebhookURL |
+| Parameter    | Type   | Required | Description                        |
+| ------------ | ------ | -------- | ---------------------------------- |
+| `webhookURL` | string | Yes      | The webhook URL to populate        |
+| `data`       | json   | Yes      | The data to populate               |
+| `authToken`  | string | No       | Optional auth token for WebhookURL |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-
-
+| Parameter | Type   |
+| --------- | ------ |
+| `data`    | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `authToken` | string | Yes | Auth Token - Enter your Clay Auth token |
-
-
+| Parameter   | Type   | Required | Description                             |
+| ----------- | ------ | -------- | --------------------------------------- |
+| `authToken` | string | Yes      | Auth Token - Enter your Clay Auth token |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
+| Output     | Type   | Description          |
+| ---------- | ------ | -------------------- |
 | `response` | object | Output from response |
-| ↳ `data` | any | data of the response |
-
+| ↳ `data`   | any    | data of the response |
 
 ## Notes
 

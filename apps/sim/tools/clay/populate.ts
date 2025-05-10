@@ -43,7 +43,7 @@ export const clayPopulateTool: ToolConfig<ClayPopulateParams, ClayPopulateRespon
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type')
     let data
-    
+
     if (contentType?.includes('application/json')) {
       data = await response.json()
       if (!data.ok) {

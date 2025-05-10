@@ -31,11 +31,11 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
 import { getBaseDomain } from '@/lib/urls/utils'
+import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
 import { OutputConfig } from '@/stores/panel/chat/types'
+import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
 
 const logger = createLogger('ChatDeploy')
 
@@ -196,7 +196,9 @@ export function ChatDeploy({
       const subdomainChanged = subdomain !== originalValues.subdomain
       const titleChanged = title !== originalValues.title
       const descriptionChanged = description !== originalValues.description
-      const outputBlockChanged = selectedOutputBlocks.some((blockId) => !originalValues.selectedOutputIds.includes(blockId))
+      const outputBlockChanged = selectedOutputBlocks.some(
+        (blockId) => !originalValues.selectedOutputIds.includes(blockId)
+      )
       const welcomeMessageChanged =
         welcomeMessage !==
         (existingChat.customizations?.welcomeMessage || 'Hi there! How can I help you today?')
@@ -268,8 +270,10 @@ export function ChatDeploy({
               description: chatDetail.description || '',
               authType: chatDetail.authType || 'public',
               emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
-              selectedOutputIds: Array.isArray(chatDetail.outputConfigs) 
-                ? chatDetail.outputConfigs.map((config: OutputConfig) => `${config.blockId}_${config.path}`) 
+              selectedOutputIds: Array.isArray(chatDetail.outputConfigs)
+                ? chatDetail.outputConfigs.map(
+                    (config: OutputConfig) => `${config.blockId}_${config.path}`
+                  )
                 : [],
             })
 
@@ -282,10 +286,10 @@ export function ChatDeploy({
 
             // Inside the fetchExistingChat function - update how we load output configs
             if (chatDetail.outputConfigs) {
-              const configs = Array.isArray(chatDetail.outputConfigs) ? chatDetail.outputConfigs as OutputConfig[] : []
-              const combinedOutputIds = configs.map(config => 
-                `${config.blockId}_${config.path}`
-              )
+              const configs = Array.isArray(chatDetail.outputConfigs)
+                ? (chatDetail.outputConfigs as OutputConfig[])
+                : []
+              const combinedOutputIds = configs.map((config) => `${config.blockId}_${config.path}`)
               setSelectedOutputBlocks(combinedOutputIds)
             }
 
@@ -605,13 +609,13 @@ export function ChatDeploy({
       // Add output block configuration if selected
       if (selectedOutputBlocks && selectedOutputBlocks.length > 0) {
         const outputConfigs = selectedOutputBlocks
-          .map(outputId => {
+          .map((outputId) => {
             const firstUnderscoreIndex = outputId.indexOf('_')
             // Only process IDs that have the correct blockId_path format
             if (firstUnderscoreIndex !== -1) {
               const blockId = outputId.substring(0, firstUnderscoreIndex)
               const path = outputId.substring(firstUnderscoreIndex + 1)
-              
+
               // Additional validation to ensure both parts are non-empty
               if (blockId && path) {
                 return { blockId, path } as OutputConfig
@@ -619,18 +623,20 @@ export function ChatDeploy({
               logger.warn(`Invalid output format: ${outputId}, missing blockId or path`)
               return null
             }
-            logger.warn(`Invalid output ID format: ${outputId}, missing required format blockId_path`)
+            logger.warn(
+              `Invalid output ID format: ${outputId}, missing required format blockId_path`
+            )
             return null
           })
           .filter(Boolean) as OutputConfig[] // Remove any null values
-        
+
         // Only include output configurations if we have valid ones
         if (outputConfigs.length > 0) {
           payload.outputConfigs = outputConfigs
-          
+
           logger.info('Added output configuration to payload:', {
             outputConfigsCount: outputConfigs.length,
-            outputConfigs: outputConfigs
+            outputConfigs: outputConfigs,
           })
         } else {
           logger.warn('No valid output configurations found in selection')
@@ -730,11 +736,11 @@ export function ChatDeploy({
       if (chatUrl) {
         logger.info(`Chat ${existingChat ? 'updated' : 'deployed'} successfully:`, chatUrl)
         setDeployedChatUrl(chatUrl)
-        
+
         if (onDeploymentComplete) {
           onDeploymentComplete()
         }
-        
+
         if (onChatExistsChange) {
           onChatExistsChange(true)
         }
@@ -819,7 +825,7 @@ export function ChatDeploy({
     const url = new URL(deployedChatUrl)
     const hostname = url.hostname
     const isDevelopmentUrl = hostname.includes('localhost')
-    
+
     let domainSuffix
     if (isDevelopmentUrl) {
       const baseDomain = getBaseDomain()
@@ -829,7 +835,7 @@ export function ChatDeploy({
     } else {
       domainSuffix = '.simstudio.ai'
     }
-    
+
     const subdomainPart = isDevelopmentUrl
       ? hostname.split('.')[0]
       : hostname.split('.simstudio.ai')[0]
@@ -854,7 +860,17 @@ export function ChatDeploy({
               {domainSuffix}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Your chat is now live at <a href={deployedChatUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">this URL</a></p>
+          <p className="text-xs text-muted-foreground">
+            Your chat is now live at{' '}
+            <a
+              href={deployedChatUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              this URL
+            </a>
+          </p>
         </div>
       </div>
     )

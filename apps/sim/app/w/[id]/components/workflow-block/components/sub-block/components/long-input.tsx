@@ -130,7 +130,7 @@ export function LongInput({
         const finalHeight = parseInt(textareaRef.current.style.height, 10) || height
         setHeight(finalHeight)
       }
-      
+
       isResizing.current = false
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)

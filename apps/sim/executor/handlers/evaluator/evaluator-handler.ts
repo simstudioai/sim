@@ -104,7 +104,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     try {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
       const url = new URL('/api/providers', baseUrl)
-      
+
       // Make sure we force JSON output in the request
       const providerRequest = {
         provider: providerId,
@@ -114,14 +114,15 @@ export class EvaluatorBlockHandler implements BlockHandler {
         context: JSON.stringify([
           {
             role: 'user',
-            content: 'Please evaluate the content provided in the system prompt. Return ONLY a valid JSON with metric scores.',
+            content:
+              'Please evaluate the content provided in the system prompt. Return ONLY a valid JSON with metric scores.',
           },
         ]),
         temperature: inputs.temperature || 0,
         apiKey: inputs.apiKey,
         workflowId: context.workflowId,
       }
-      
+
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {

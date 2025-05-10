@@ -50,7 +50,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
   try {
     // Set loading state in registry
     useWorkflowRegistry.getState().setLoading(true)
-    
+
     // Set flag to prevent sync back to DB during loading
     isLoadingFromDB = true
     loadingFromDBToken = 'loading'
@@ -77,18 +77,18 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         logger.warn('User not authenticated for workflow fetch')
         return
       }
-      
+
       // Handle case when workspace not found
       if (response.status === 404) {
         const responseData = await response.json()
         if (responseData.code === 'WORKSPACE_NOT_FOUND' && activeWorkspaceId) {
           logger.warn(`Workspace ${activeWorkspaceId} not found, it may have been deleted`)
-          
+
           // Fetch user's available workspaces to switch to a valid one
           const workspacesResponse = await fetch('/api/workspaces', { method: 'GET' })
           if (workspacesResponse.ok) {
             const { workspaces } = await workspacesResponse.json()
-            
+
             if (workspaces && workspaces.length > 0) {
               // Switch to the first available workspace
               const firstWorkspace = workspaces[0]
@@ -107,7 +107,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     const { data } = await response.json()
 
     if (!data || !Array.isArray(data) || data.length === 0) {
-      logger.info(`No workflows found in database for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : 'user'}`)
+      logger.info(
+        `No workflows found in database for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : 'user'}`
+      )
       // Clear any existing workflows to ensure a clean state
       useWorkflowRegistry.setState({ workflows: {} })
       return
@@ -135,8 +137,10 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
       // Ensure this workflow belongs to the current workspace
       if (activeWorkspaceId && workspaceId !== activeWorkspaceId) {
-        logger.warn(`Skipping workflow ${id} as it belongs to workspace ${workspaceId}, not the active workspace ${activeWorkspaceId}`)
-        return;
+        logger.warn(
+          `Skipping workflow ${id} as it belongs to workspace ${workspaceId}, not the active workspace ${activeWorkspaceId}`
+        )
+        return
       }
 
       // 1. Update registry store with workflow metadata
@@ -208,7 +212,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       }))
     })
 
-    logger.info(`Loaded ${Object.keys(registryWorkflows).length} workflows for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : 'user'}`)
+    logger.info(
+      `Loaded ${Object.keys(registryWorkflows).length} workflows for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : 'user'}`
+    )
 
     // 8. Update registry store with all workflows
     useWorkflowRegistry.setState({ workflows: registryWorkflows })
@@ -217,12 +223,10 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
     if (!activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
-      
+
       // Load the first workflow as active
-      const workflowState = JSON.parse(
-        localStorage.getItem(`workflow-${firstWorkflowId}`) || '{}'
-      )
-      
+      const workflowState = JSON.parse(localStorage.getItem(`workflow-${firstWorkflowId}`) || '{}')
+
       if (Object.keys(workflowState).length > 0) {
         useWorkflowStore.setState(workflowState)
         useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
@@ -236,7 +240,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     setTimeout(() => {
       isLoadingFromDB = false
       loadingFromDBToken = null
-      
+
       // Set loading state to false
       useWorkflowRegistry.getState().setLoading(false)
 
@@ -290,7 +294,7 @@ const workflowSyncConfig = {
 
     // Get all workflows with values
     const allWorkflowsData = getAllWorkflowsWithValues()
-    
+
     // Get the active workspace ID
     const activeWorkspaceId = useWorkflowRegistry.getState().activeWorkspaceId
 
@@ -308,7 +312,7 @@ const workflowSyncConfig = {
       logger.info('Skipping workflow sync - no workflows to sync')
       return { skipSync: true }
     }
-    
+
     // Filter out any workflows associated with workspaces other than the active one
     // This prevents foreign key constraint errors when a workspace has been deleted
     const workflowsData: Record<string, any> = {}
@@ -319,15 +323,17 @@ const workflowSyncConfig = {
       if (workflow.workspaceId === activeWorkspaceId || !workflow.workspaceId) {
         // For workflows without workspace ID, assign the active workspace ID
         if (!workflow.workspaceId) {
-          workflow.workspaceId = activeWorkspaceId;
-          logger.info(`Assigning workspace ${activeWorkspaceId} to orphaned workflow ${id}`);
+          workflow.workspaceId = activeWorkspaceId
+          logger.info(`Assigning workspace ${activeWorkspaceId} to orphaned workflow ${id}`)
         }
-        workflowsData[id] = workflow;
+        workflowsData[id] = workflow
       } else {
-        logger.warn(`Skipping sync for workflow ${id} - associated with non-active workspace ${workflow.workspaceId}`);
+        logger.warn(
+          `Skipping sync for workflow ${id} - associated with non-active workspace ${workflow.workspaceId}`
+        )
       }
     })
-    
+
     // Skip sync if after filtering there are no workflows to sync
     if (Object.keys(workflowsData).length === 0) {
       logger.info('Skipping workflow sync - no workflows for active workspace to sync')

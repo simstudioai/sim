@@ -35,13 +35,13 @@ function trackWorkflowTelemetry(eventName: string, data: Record<string, any>) {
     // Add timestamp and sanitize the data to avoid circular references
     const safeData = {
       ...data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }
-    
+
     // Track the event through the global telemetry function
     window.__SIM_TRACK_EVENT(eventName, {
       category: 'workflow',
-      ...safeData
+      ...safeData,
     })
   }
 }
@@ -63,18 +63,20 @@ export class Executor {
   private actualWorkflow: SerializedWorkflow
 
   constructor(
-    private workflowParam: SerializedWorkflow | { 
-      workflow: SerializedWorkflow, 
-      currentBlockStates?: Record<string, BlockOutput>,
-      envVarValues?: Record<string, string>,
-      workflowInput?: any,
-      workflowVariables?: Record<string, any>,
-      contextExtensions?: {
-        stream?: boolean,
-        selectedOutputIds?: string[],
-        edges?: Array<{source: string, target: string}>
-      }
-    },
+    private workflowParam:
+      | SerializedWorkflow
+      | {
+          workflow: SerializedWorkflow
+          currentBlockStates?: Record<string, BlockOutput>
+          envVarValues?: Record<string, string>
+          workflowInput?: any
+          workflowVariables?: Record<string, any>
+          contextExtensions?: {
+            stream?: boolean
+            selectedOutputIds?: string[]
+            edges?: Array<{ source: string; target: string }>
+          }
+        },
     private initialBlockStates: Record<string, BlockOutput> = {},
     private environmentVariables: Record<string, string> = {},
     workflowInput?: any,
@@ -88,16 +90,16 @@ export class Executor {
       this.environmentVariables = options.envVarValues || {}
       this.workflowInput = options.workflowInput || {}
       this.workflowVariables = options.workflowVariables || {}
-      
+
       // Store context extensions for streaming and output selection
       if (options.contextExtensions) {
         this.contextExtensions = options.contextExtensions
-        
+
         if (this.contextExtensions.stream) {
           logger.info('Executor initialized with streaming enabled', {
             hasSelectedOutputIds: Array.isArray(this.contextExtensions.selectedOutputIds),
-            selectedOutputCount: Array.isArray(this.contextExtensions.selectedOutputIds) 
-              ? this.contextExtensions.selectedOutputIds.length 
+            selectedOutputCount: Array.isArray(this.contextExtensions.selectedOutputIds)
+              ? this.contextExtensions.selectedOutputIds.length
               : 0,
             selectedOutputIds: this.contextExtensions.selectedOutputIds || [],
           })
@@ -105,7 +107,7 @@ export class Executor {
       }
     } else {
       this.actualWorkflow = workflowParam
-      
+
       if (workflowInput) {
         this.workflowInput = workflowInput
         logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2))
@@ -154,7 +156,7 @@ export class Executor {
       workflowId,
       blockCount: this.actualWorkflow.blocks.length,
       connectionCount: this.actualWorkflow.connections.length,
-      startTime: startTime.toISOString()
+      startTime: startTime.toISOString(),
     })
 
     this.validateWorkflow()
@@ -208,66 +210,80 @@ export class Executor {
             hasMoreLayers = false
           } else {
             const outputs = await this.executeLayer(nextLayer, context)
-            
+
             // Check if we got a StreamingExecution response from any block
-            const streamingOutput = outputs.find(output => 
-              typeof output === 'object' && output !== null && 
-              'stream' in output && 'execution' in output
+            const streamingOutput = outputs.find(
+              (output) =>
+                typeof output === 'object' &&
+                output !== null &&
+                'stream' in output &&
+                'execution' in output
             )
-            
+
             if (streamingOutput) {
               // This is a combined response with both stream and execution data
               logger.info('Found combined stream+execution response from block')
-              
+
               // Incorporate the execution data from the block into our context
               const executionData = streamingOutput.execution
-              
+
               // Add any logs from the execution data to our context
               if (executionData.logs && Array.isArray(executionData.logs)) {
                 context.blockLogs.push(...executionData.logs)
               }
-              
+
               // Add proper console entry for the streaming block
               // This ensures identical formatting between streamed and non-streamed outputs
               if (executionData.output) {
-                const blockLog = executionData.logs?.find((log: BlockLog) => log.blockId === executionData.blockId)
+                const blockLog = executionData.logs?.find(
+                  (log: BlockLog) => log.blockId === executionData.blockId
+                )
                 const consoleStore = useConsoleStore.getState()
-                
+
                 // Create a complete console entry with the full output structure, not the raw streaming object
                 const consoleEntry = {
                   output: executionData.output, // Use just the output, not the whole streaming structure
                   durationMs: blockLog?.durationMs || executionData.metadata?.duration || 0,
-                  startedAt: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
-                  endedAt: blockLog?.endedAt || executionData.metadata?.endTime || new Date().toISOString(),
+                  startedAt:
+                    blockLog?.startedAt ||
+                    executionData.metadata?.startTime ||
+                    new Date().toISOString(),
+                  endedAt:
+                    blockLog?.endedAt ||
+                    executionData.metadata?.endTime ||
+                    new Date().toISOString(),
                   workflowId: context.workflowId,
-                  timestamp: blockLog?.startedAt || executionData.metadata?.startTime || new Date().toISOString(),
+                  timestamp:
+                    blockLog?.startedAt ||
+                    executionData.metadata?.startTime ||
+                    new Date().toISOString(),
                   blockId: executionData.blockId,
                   blockName: executionData.blockName || blockLog?.blockName || 'Agent Block',
-                  blockType: executionData.blockType || blockLog?.blockType || 'agent'
+                  blockType: executionData.blockType || blockLog?.blockType || 'agent',
                 }
-                
+
                 // Add to console
                 const newEntry = consoleStore.addConsole(consoleEntry)
-                
+
                 // Save the entryId for potential updates when stream completes
                 const consoleEntryId = newEntry?.id
-                
+
                 // Set up a stream completion handler to update the console with final content
                 if (consoleEntryId && 'stream' in streamingOutput) {
                   // Clone the stream so we don't consume the original one
                   const originalStream = streamingOutput.stream
                   const [contentStream, returnStream] = originalStream.tee()
-                  
+
                   // Replace the original stream with our cloned version that will be returned
                   streamingOutput.stream = returnStream
-                  
+
                   // Create a reader to process the cloned stream for content collection
                   const reader = contentStream.getReader()
                   const decoder = new TextDecoder()
-                  let fullContent = '';
-                  
+                  let fullContent = ''
+
                   // Process the stream in the background to collect the full content
-                  (async () => {
+                  ;(async () => {
                     try {
                       while (true) {
                         const { done, value } = await reader.read()
@@ -281,20 +297,22 @@ export class Executor {
                           ...executionData.output,
                           response: {
                             ...executionData.output.response,
-                            content: fullContent
-                          }
+                            content: fullContent,
+                          },
                         }
-                        
+
                         // Update the console UI with the final content
                         consoleStore.updateConsole(consoleEntryId, { output: updatedOutput })
-                        
-                        // Update the execution data itself with the final content 
+
+                        // Update the execution data itself with the final content
                         // so that when logs are persisted, they have the complete content
                         executionData.output.response.content = fullContent
 
                         // If there's a block log for this execution, update it with the final content
                         if (executionData.blockId) {
-                          const blockLog = context.blockLogs.find(log => log.blockId === executionData.blockId)
+                          const blockLog = context.blockLogs.find(
+                            (log) => log.blockId === executionData.blockId
+                          )
                           if (blockLog?.output?.response) {
                             blockLog.output.response.content = fullContent
                           }
@@ -306,7 +324,7 @@ export class Executor {
                   })()
                 }
               }
-              
+
               // Build a complete execution result with our context's logs
               const execution: ExecutionResult & { isStreaming: boolean } = {
                 success: executionData.success !== false,
@@ -324,21 +342,21 @@ export class Executor {
                 },
                 isStreaming: true,
               }
-              
+
               // Add block metadata to logs if missing
               if (context.blockLogs.length > 0) {
                 for (const log of context.blockLogs) {
                   if (!log.output) log.output = { response: {} }
-                  
+
                   // For blocks matching the streaming block, ensure we add response and content properly
                   if (log.blockId === executionData.blockId) {
                     if (!log.output.response) log.output.response = {}
-                    
+
                     // Add the output structure, preferring direct response content if available
                     if (executionData.output?.response) {
                       // Copy all properties from executionData response
                       Object.assign(log.output.response, executionData.output.response)
-                      
+
                       // For streaming, we may not have content yet, so we store a placeholder
                       // that will be updated when the stream completes
                       if (!log.output.response.content && executionData.output.response.content) {
@@ -348,7 +366,7 @@ export class Executor {
                   }
                 }
               }
-              
+
               // Return a properly formed StreamingExecution object
               return {
                 stream: streamingOutput.stream,
@@ -358,11 +376,19 @@ export class Executor {
 
             if (outputs.length > 0) {
               // Filter out StreamingExecution objects (already handled above)
-              const normalizedOutputs = outputs.filter(output => 
-                !(typeof output === 'object' && output !== null && 'stream' in output && 'execution' in output)
+              const normalizedOutputs = outputs.filter(
+                (output) =>
+                  !(
+                    typeof output === 'object' &&
+                    output !== null &&
+                    'stream' in output &&
+                    'execution' in output
+                  )
               )
               if (normalizedOutputs.length > 0) {
-                finalOutput = normalizedOutputs[normalizedOutputs.length - 1] as NormalizedBlockOutput
+                finalOutput = normalizedOutputs[
+                  normalizedOutputs.length - 1
+                ] as NormalizedBlockOutput
               }
             }
 
@@ -392,7 +418,7 @@ export class Executor {
         executedBlockCount: context.executedBlocks.size,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
-        success: true
+        success: true,
       })
 
       return {
@@ -418,7 +444,7 @@ export class Executor {
         duration: new Date().getTime() - startTime.getTime(),
         error: this.extractErrorMessage(error),
         executedBlockCount: context.executedBlocks.size,
-        blockLogs: context.blockLogs.length
+        blockLogs: context.blockLogs.length,
       })
 
       return {
@@ -513,7 +539,9 @@ export class Executor {
    * @throws Error if workflow validation fails
    */
   private validateWorkflow(): void {
-    const starterBlock = this.actualWorkflow.blocks.find((block) => block.metadata?.id === 'starter')
+    const starterBlock = this.actualWorkflow.blocks.find(
+      (block) => block.metadata?.id === 'starter'
+    )
     if (!starterBlock || !starterBlock.enabled) {
       throw new Error('Workflow must have an enabled starter block')
     }
@@ -605,7 +633,9 @@ export class Executor {
       }
     }
 
-    const starterBlock = this.actualWorkflow.blocks.find((block) => block.metadata?.id === 'starter')
+    const starterBlock = this.actualWorkflow.blocks.find(
+      (block) => block.metadata?.id === 'starter'
+    )
     if (starterBlock) {
       // Initialize the starter block with the workflow input
       try {
@@ -984,7 +1014,7 @@ export class Executor {
         blockType: block.metadata?.id || 'unknown',
         blockName: block.metadata?.name || 'Unnamed Block',
         inputSize: Object.keys(inputs).length,
-        startTime: new Date().toISOString()
+        startTime: new Date().toISOString(),
       })
 
       // Find the appropriate handler
@@ -1040,7 +1070,7 @@ export class Executor {
         blockType: block.metadata?.id || 'unknown',
         blockName: block.metadata?.name || 'Unnamed Block',
         durationMs: Math.round(executionTime),
-        success: true
+        success: true,
       })
 
       return output
@@ -1128,7 +1158,7 @@ export class Executor {
         blockName: block.metadata?.name || 'Unnamed Block',
         durationMs: blockLog.durationMs,
         errorType: error.name || 'Error',
-        errorMessage: this.extractErrorMessage(error)
+        errorMessage: this.extractErrorMessage(error),
       })
 
       throw new Error(errorMessage)

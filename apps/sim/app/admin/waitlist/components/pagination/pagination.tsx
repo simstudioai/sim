@@ -1,10 +1,10 @@
-import { Button } from '@/components/ui/button'
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface PaginationProps {
   page: number
@@ -28,7 +28,7 @@ export function Pagination({
   onLastPage,
 }: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
-  
+
   return (
     <div className="flex items-center justify-center gap-1.5 my-3 pb-1">
       <div className="flex items-center gap-1">
@@ -84,4 +84,4 @@ export function Pagination({
       </div>
     </div>
   )
-} 
+}

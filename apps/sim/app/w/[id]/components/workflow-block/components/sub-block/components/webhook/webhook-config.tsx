@@ -7,13 +7,13 @@ import {
   GithubIcon,
   SlackIcon,
   StripeIcon,
-  WhatsAppIcon,
   TelegramIcon,
+  WhatsAppIcon,
 } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { WebhookModal } from './components/webhook-modal'
 
@@ -433,9 +433,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           ...workflowValues,
           [workflowId]: {
             ...workflowValues,
-            [blockId]: blockValues
-          }
-        }
+            [blockId]: blockValues,
+          },
+        },
       })
 
       // Clear component state

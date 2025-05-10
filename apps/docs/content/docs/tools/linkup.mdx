@@ -3,9 +3,9 @@ title: Linkup
 description: Search the web with Linkup
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="linkup"
   color="#EAEADC"
   icon={true}
@@ -33,12 +33,9 @@ Linkup enhances your AI agents by providing them with the ability to search the 
 To implement Linkup in your agent, simply add the tool to your agent's configuration. Your agent will then be able to search the web whenever they need to answer questions requiring current information.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Linkup Search allows you to search and retrieve up-to-date information from the web with source attribution.
-
-
 
 ## Tools
 
@@ -48,40 +45,35 @@ Search the web for information using Linkup
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `q` | string | Yes | The search query |
-| `apiKey` | string | Yes | Enter your Linkup API key |
-| `depth` | string | Yes | Search depth \(has to either be  |
-| `outputType` | string | Yes | Type of output to return \(has to either be  |
+| Parameter    | Type   | Required | Description                                 |
+| ------------ | ------ | -------- | ------------------------------------------- |
+| `q`          | string | Yes      | The search query                            |
+| `apiKey`     | string | Yes      | Enter your Linkup API key                   |
+| `depth`      | string | Yes      | Search depth \(has to either be             |
+| `outputType` | string | Yes      | Type of output to return \(has to either be |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `answer` | string |
+| Parameter | Type   |
+| --------- | ------ |
+| `answer`  | string |
 | `sources` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `q` | string | Yes | Search Query - Enter your search query |
-
-
+| Parameter | Type   | Required | Description                            |
+| --------- | ------ | -------- | -------------------------------------- |
+| `q`       | string | Yes      | Search Query - Enter your search query |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `answer` | string | answer of the response |
-| ↳ `sources` | json | sources of the response |
-
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
+| ↳ `answer`  | string | answer of the response  |
+| ↳ `sources` | json   | sources of the response |
 
 ## Notes
 

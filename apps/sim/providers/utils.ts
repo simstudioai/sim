@@ -1,6 +1,7 @@
+import { getCostMultiplier } from '@/lib/environment'
+import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { getCostMultiplier } from '@/lib/environment'
 import { anthropicProvider } from './anthropic'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
@@ -11,7 +12,6 @@ import { openaiProvider } from './openai'
 import { getModelPricing } from './pricing'
 import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
-import { isHosted } from '@/lib/environment'
 
 const logger = createLogger('ProviderUtils')
 
@@ -40,7 +40,7 @@ export const providers: Record<
   },
   google: {
     ...googleProvider,
-    models: ['gemini-2.5-pro-exp-03-25','gemini-2.5-flash-preview-04-17'],
+    models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
     modelPatterns: [/^gemini/],
   },
   deepseek: {
@@ -361,7 +361,7 @@ export async function transformBlockTool(
 
   // Get the tool config - check if it's a custom tool that needs async fetching
   let toolConfig: any
-  
+
   if (toolId.startsWith('custom_') && getToolAsync) {
     // Use the async version for custom tools
     toolConfig = await getToolAsync(toolId)
@@ -369,7 +369,7 @@ export async function transformBlockTool(
     // Use the synchronous version for built-in tools
     toolConfig = getTool(toolId)
   }
-  
+
   if (!toolConfig) {
     logger.warn(`Tool config not found for ID: ${toolId}`)
     return null
@@ -428,7 +428,7 @@ export function calculateCost(
 
   const outputCost = completionTokens * (pricing.output / 1_000_000)
   const totalCost = inputCost + outputCost
-  
+
   const costMultiplier = getCostMultiplier()
 
   return {

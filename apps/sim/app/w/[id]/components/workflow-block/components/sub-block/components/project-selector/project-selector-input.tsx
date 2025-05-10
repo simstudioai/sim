@@ -12,11 +12,11 @@ interface ProjectSelectorInputProps {
   onProjectSelect?: (projectId: string) => void
 }
 
-export function ProjectSelectorInput({ 
-  blockId, 
-  subBlock, 
+export function ProjectSelectorInput({
+  blockId,
+  subBlock,
   disabled = false,
-  onProjectSelect 
+  onProjectSelect,
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
@@ -24,10 +24,10 @@ export function ProjectSelectorInput({
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
-  
+
   // For Jira, we need the domain
-  const domain = getValue(blockId, 'domain') as string || ''
-  const credentials = getValue(blockId, 'credential') as string || ''
+  const domain = (getValue(blockId, 'domain') as string) || ''
+  const credentials = (getValue(blockId, 'credential') as string) || ''
 
   // Get the current value from the store
   useEffect(() => {
@@ -42,14 +42,14 @@ export function ProjectSelectorInput({
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
     setValue(blockId, subBlock.id, projectId)
-    
+
     // Clear the issue-related fields when a new project is selected
     if (provider === 'jira') {
       setValue(blockId, 'summary', '')
       setValue(blockId, 'description', '')
       setValue(blockId, 'issueKey', '')
     }
-    
+
     onProjectSelect?.(projectId)
   }
 

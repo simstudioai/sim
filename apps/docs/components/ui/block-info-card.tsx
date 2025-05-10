@@ -3,22 +3,22 @@
 import * as React from 'react'
 
 interface BlockInfoCardProps {
-  type: string;
-  color: string;
-  icon?: boolean;
-  iconSvg?: string;
+  type: string
+  color: string
+  icon?: boolean
+  iconSvg?: string
 }
 
-export function BlockInfoCard({ 
-  type, 
-  color, 
+export function BlockInfoCard({
+  type,
+  color,
   icon = false,
-  iconSvg
+  iconSvg,
 }: BlockInfoCardProps): React.ReactNode {
   return (
     <div className="mb-6 rounded-lg overflow-hidden border border-border">
       <div className="flex items-center justify-center p-6">
-        <div 
+        <div
           className="h-20 w-20 rounded-lg flex items-center justify-center"
           style={{ backgroundColor: color }}
         >
@@ -41,4 +41,4 @@ export function BlockInfoCard({
       )}
     </div>
   )
-} 
+}

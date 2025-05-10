@@ -1,7 +1,6 @@
 import { ToolConfig } from '../types'
 import { TypeformFilesParams, TypeformFilesResponse } from './types'
 
-
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
   id: 'typeform_files',
   name: 'Typeform Files',

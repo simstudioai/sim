@@ -4,18 +4,18 @@ description: Assess content quality using customizable evaluation metrics
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { ThemeImage } from '@/components/ui/theme-image'
 
 The Evaluator block allows you to assess the quality of content using customizable evaluation metrics. This is particularly useful for evaluating AI-generated text, ensuring outputs meet specific criteria, and building quality-control mechanisms into your workflows.
 
-<ThemeImage 
-  lightSrc="/static/light/evaluator-light.png" 
-  darkSrc="/static/dark/evaluator-dark.png" 
-  alt="Evaluator Block" 
-  width={300} 
-  height={175} 
+<ThemeImage
+  lightSrc="/static/light/evaluator-light.png"
+  darkSrc="/static/dark/evaluator-dark.png"
+  alt="Evaluator Block"
+  width={300}
+  height={175}
 />
 
 ## Overview
@@ -102,7 +102,7 @@ Here's an example of how an Evaluator block might be configured for assessing cu
 metrics:
   - name: Empathy
     description: How well does the response acknowledge and address the customer's emotional state?
-    range: 
+    range:
       min: 1
       max: 5
   - name: Solution
@@ -125,4 +125,4 @@ model: Anthropic/claude-3-opus
 - **Choose appropriate ranges**: Select scoring ranges that provide enough granularity without being overly complex
 - **Connect with Agent blocks**: Use Evaluator blocks to assess Agent block outputs and create feedback loops
 - **Use consistent metrics**: For comparative analysis, maintain consistent metrics across similar evaluations
-- **Combine multiple metrics**: Use several metrics to get a comprehensive evaluation 
+- **Combine multiple metrics**: Use several metrics to get a comprehensive evaluation

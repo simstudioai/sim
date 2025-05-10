@@ -14,21 +14,21 @@ vi.mock('@/lib/environment', () => ({
   isProd: vi.fn().mockReturnValue(false),
   isDev: vi.fn().mockReturnValue(true),
   isTest: vi.fn().mockReturnValue(false),
-  getCostMultiplier: vi.fn().mockReturnValue(1)
+  getCostMultiplier: vi.fn().mockReturnValue(1),
 }))
 
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
   transformBlockTool: vi.fn(),
-  getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} })
+  getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} }),
 }))
 
 vi.mock('@/blocks', () => ({
-  getAllBlocks: vi.fn().mockReturnValue([])
+  getAllBlocks: vi.fn().mockReturnValue([]),
 }))
 
 vi.mock('@/tools', () => ({
-  executeTool: vi.fn()
+  executeTool: vi.fn(),
 }))
 
 global.fetch = vi.fn()
@@ -96,7 +96,7 @@ describe('AgentBlockHandler', () => {
             if (name === 'Content-Type') return 'application/json'
             if (name === 'X-Execution-Data') return null
             return null
-          }
+          },
         },
         json: () =>
           Promise.resolve({
@@ -222,7 +222,7 @@ describe('AgentBlockHandler', () => {
               if (name === 'Content-Type') return 'application/json'
               if (name === 'X-Execution-Data') return null
               return null
-            }
+            },
           },
           json: () =>
             Promise.resolve({
@@ -660,7 +660,7 @@ describe('AgentBlockHandler', () => {
               if (name === 'Content-Type') return 'application/json'
               if (name === 'X-Execution-Data') return null
               return null
-            }
+            },
           },
           json: () =>
             Promise.resolve({
@@ -701,7 +701,7 @@ describe('AgentBlockHandler', () => {
               if (name === 'Content-Type') return 'application/json'
               if (name === 'X-Execution-Data') return null
               return null
-            }
+            },
           },
           json: () =>
             Promise.resolve({
@@ -767,7 +767,7 @@ describe('AgentBlockHandler', () => {
           read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         }),
       }
-      
+
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
           ok: true,
@@ -776,7 +776,7 @@ describe('AgentBlockHandler', () => {
               if (name === 'Content-Type') return 'text/event-stream'
               if (name === 'X-Execution-Data') return null
               return null
-            }
+            },
           },
           body: mockStreamBody,
         })
@@ -791,12 +791,12 @@ describe('AgentBlockHandler', () => {
 
       mockContext.stream = true
       mockContext.selectedOutputIds = [mockBlock.id]
-      
+
       const result = await handler.execute(mockBlock, inputs, mockContext)
-      
+
       expect(result).toHaveProperty('stream')
       expect(result).toHaveProperty('execution')
-      
+
       expect((result as StreamingExecution).execution).toHaveProperty('success', true)
       expect((result as StreamingExecution).execution).toHaveProperty('output')
       expect((result as StreamingExecution).execution.output).toHaveProperty('response')
@@ -809,7 +809,7 @@ describe('AgentBlockHandler', () => {
           read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
         }),
       }
-      
+
       const mockExecutionData = {
         success: true,
         output: {
@@ -817,17 +817,24 @@ describe('AgentBlockHandler', () => {
             content: '',
             model: 'mock-model',
             tokens: { prompt: 10, completion: 20, total: 30 },
-          }
+          },
         },
         logs: [
-          { blockId: 'some-id', blockType: 'agent', startedAt: new Date().toISOString(), endedAt: new Date().toISOString(), durationMs: 100, success: true }
+          {
+            blockId: 'some-id',
+            blockType: 'agent',
+            startedAt: new Date().toISOString(),
+            endedAt: new Date().toISOString(),
+            durationMs: 100,
+            success: true,
+          },
         ],
         metadata: {
           startTime: new Date().toISOString(),
           duration: 100,
-        }
+        },
       }
-      
+
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
           ok: true,
@@ -836,7 +843,7 @@ describe('AgentBlockHandler', () => {
               if (name === 'Content-Type') return 'text/event-stream'
               if (name === 'X-Execution-Data') return JSON.stringify(mockExecutionData)
               return null
-            }
+            },
           },
           body: mockStreamBody,
         })
@@ -851,12 +858,12 @@ describe('AgentBlockHandler', () => {
 
       mockContext.stream = true
       mockContext.selectedOutputIds = [mockBlock.id]
-      
+
       const result = await handler.execute(mockBlock, inputs, mockContext)
-      
+
       expect(result).toHaveProperty('stream')
       expect(result).toHaveProperty('execution')
-      
+
       expect((result as StreamingExecution).execution.success).toBe(true)
       expect((result as StreamingExecution).execution.output.response.model).toBe('mock-model')
       const logs = (result as StreamingExecution).execution.logs
@@ -870,33 +877,34 @@ describe('AgentBlockHandler', () => {
       const mockStreamObj = new ReadableStream({
         start(controller) {
           controller.close()
-        }
+        },
       })
 
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
           ok: true,
           headers: {
-            get: (name: string) => name === 'Content-Type' ? 'application/json' : null
+            get: (name: string) => (name === 'Content-Type' ? 'application/json' : null),
           },
-          json: () => Promise.resolve({
-            stream: {}, // Serialized stream placeholder
-            execution: {
-              success: true,
-              output: {
-                response: {
-                  content: 'Test streaming content',
-                  model: 'gpt-4o',
-                  tokens: { prompt: 10, completion: 5, total: 15 },
-                }
+          json: () =>
+            Promise.resolve({
+              stream: {}, // Serialized stream placeholder
+              execution: {
+                success: true,
+                output: {
+                  response: {
+                    content: 'Test streaming content',
+                    model: 'gpt-4o',
+                    tokens: { prompt: 10, completion: 5, total: 15 },
+                  },
+                },
+                logs: [],
+                metadata: {
+                  startTime: new Date().toISOString(),
+                  duration: 150,
+                },
               },
-              logs: [],
-              metadata: {
-                startTime: new Date().toISOString(),
-                duration: 150
-              }
-            }
-          })
+            }),
         })
       })
 
@@ -909,14 +917,16 @@ describe('AgentBlockHandler', () => {
 
       mockContext.stream = true
       mockContext.selectedOutputIds = [mockBlock.id]
-      
+
       const result = await handler.execute(mockBlock, inputs, mockContext)
-      
+
       expect(result).toHaveProperty('stream')
       expect(result).toHaveProperty('execution')
-      
+
       expect((result as StreamingExecution).execution.success).toBe(true)
-      expect((result as StreamingExecution).execution.output.response.content).toBe('Test streaming content')
+      expect((result as StreamingExecution).execution.output.response.content).toBe(
+        'Test streaming content'
+      )
       expect((result as StreamingExecution).execution.output.response.model).toBe('gpt-4o')
     })
   })

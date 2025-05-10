@@ -81,7 +81,9 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
         <div className="flex items-center gap-2 text-sm">
           {message.type !== 'user' && <span className="text-muted-foreground">Workflow</span>}
           {message.isStreaming && (
-            <span className="text-primary ml-2 animate-pulse" title="Streaming">•••</span>
+            <span className="text-primary ml-2 animate-pulse" title="Streaming">
+              •••
+            </span>
           )}
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Logger } from '@/lib/logs/console-logger'
 import {
   Credential,
   getProviderIdFromServiceId,
@@ -21,7 +22,6 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
-import { Logger } from '@/lib/logs/console-logger'
 
 const logger = new Logger('jira_issue_selector')
 
@@ -85,10 +85,11 @@ export function JiraIssueSelector({
 
     // Set a new timeout
     searchTimeoutRef.current = setTimeout(() => {
-      if (value.length >= 1) {  // Changed from > 2 to >= 1 to be more responsive
-        fetchIssues(value)   
+      if (value.length >= 1) {
+        // Changed from > 2 to >= 1 to be more responsive
+        fetchIssues(value)
       } else {
-        setIssues([])  // Clear issues if search is empty
+        setIssues([]) // Clear issues if search is empty
       }
     }, 500) // 500ms debounce
   }
@@ -154,7 +155,6 @@ export function JiraIssueSelector({
   // Fetch issue info when we have a selected issue ID
   const fetchIssueInfo = useCallback(
     async (issueId: string) => {
-
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
       if (!trimmedDomain.includes('.')) {
@@ -201,7 +201,7 @@ export function JiraIssueSelector({
             domain,
             accessToken,
             issueId,
-            cloudId
+            cloudId,
           }),
         })
 
@@ -216,7 +216,7 @@ export function JiraIssueSelector({
           logger.info('Using cloud ID:', data.cloudId)
           setCloudId(data.cloudId)
         }
-        
+
         if (data.issue) {
           logger.info('Successfully fetched issue:', data.issue.name)
           setSelectedIssue(data.issue)
@@ -240,7 +240,7 @@ export function JiraIssueSelector({
   )
 
   // Fetch issues from Jira
-  const fetchIssues = useCallback(   
+  const fetchIssues = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId || !domain) return
 
@@ -298,7 +298,7 @@ export function JiraIssueSelector({
           ...(searchQuery && { query: searchQuery }),
           ...(cloudId && { cloudId }),
         })
-        
+
         const response = await fetch(`/api/auth/oauth/jira/issues?${queryParams.toString()}`, {
           method: 'GET',
           headers: {
@@ -313,14 +313,14 @@ export function JiraIssueSelector({
         }
 
         const data = await response.json()
-        
+
         if (data.cloudId) {
           setCloudId(data.cloudId)
         }
-        
+
         // Process the issue picker results
         let foundIssues: JiraIssueInfo[] = []
-        
+
         // Handle the sections returned by the issue picker API
         if (data.sections) {
           // Combine issues from all sections
@@ -337,12 +337,12 @@ export function JiraIssueSelector({
             }
           })
         }
-        
+
         logger.info(`Received ${foundIssues.length} issues from API`)
         setIssues(foundIssues)
 
         // If we have a selected issue ID, find the issue info
-        if (selectedIssueId) { 
+        if (selectedIssueId) {
           const issueInfo = foundIssues.find((issue: JiraIssueInfo) => issue.id === selectedIssueId)
           if (issueInfo) {
             setSelectedIssue(issueInfo)
@@ -360,7 +360,15 @@ export function JiraIssueSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, domain, selectedIssueId, onIssueInfoChange, fetchIssueInfo, cloudId, projectId]
+    [
+      selectedCredentialId,
+      domain,
+      selectedIssueId,
+      onIssueInfoChange,
+      fetchIssueInfo,
+      cloudId,
+      projectId,
+    ]
   )
 
   // Fetch credentials on initial mount
@@ -370,7 +378,6 @@ export function JiraIssueSelector({
       initialFetchRef.current = true
     }
   }, [fetchCredentials])
-
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
@@ -384,7 +391,13 @@ export function JiraIssueSelector({
 
   // Fetch selected issue metadata once credentials are ready or changed
   useEffect(() => {
-    if (value && selectedCredentialId && domain && domain.includes('.') && (!selectedIssue || selectedIssue.id !== value)) {
+    if (
+      value &&
+      selectedCredentialId &&
+      domain &&
+      domain.includes('.') &&
+      (!selectedIssue || selectedIssue.id !== value)
+    ) {
       fetchIssueInfo(value)
     }
   }, [value, selectedCredentialId, selectedIssue, domain, fetchIssueInfo])
@@ -447,7 +460,7 @@ export function JiraIssueSelector({
                   <JiraIcon className="h-4 w-4" />
                   <span className="font-normal truncate">{selectedIssue.name}</span>
                 </div>
-              ) : ( 
+              ) : (
                 <div className="flex items-center gap-2">
                   <JiraIcon className="h-4 w-4" />
                   <span className="text-muted-foreground">{label}</span>
@@ -596,7 +609,7 @@ export function JiraIssueSelector({
                     </span>
                   )}
                 </div>
-                {selectedIssue.webViewLink ? (  
+                {selectedIssue.webViewLink ? (
                   <a
                     href={selectedIssue.webViewLink}
                     target="_blank"

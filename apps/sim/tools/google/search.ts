@@ -29,24 +29,24 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
       type: 'string', // Treated as string for compatibility with tool interfaces
       required: false,
       description: 'Number of results to return (default: 10, max: 10)',
-    }
+    },
   },
 
   request: {
     url: (params: GoogleSearchParams) => {
       const baseUrl = 'https://www.googleapis.com/customsearch/v1'
       const searchParams = new URLSearchParams()
-      
+
       // Add required parameters
       searchParams.append('key', params.apiKey)
       searchParams.append('q', params.query)
       searchParams.append('cx', params.searchEngineId)
-      
+
       // Add optional parameter
       if (params.num) {
         searchParams.append('num', params.num.toString())
       }
-      
+
       return `${baseUrl}?${searchParams.toString()}`
     },
     method: 'GET',
@@ -62,7 +62,7 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
     }
 
     const data = await response.json()
-    
+
     return {
       success: true,
       output: {
@@ -78,8 +78,8 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
   },
 
   transformError: (error) => {
-    return error instanceof Error 
-      ? error.message 
+    return error instanceof Error
+      ? error.message
       : 'An error occurred while performing the Google search'
   },
-} 
+}

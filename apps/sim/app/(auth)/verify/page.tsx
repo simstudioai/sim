@@ -1,6 +1,6 @@
 import { isProd } from '@/lib/environment'
-import { VerifyContent } from './verify-content'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { VerifyContent } from './verify-content'
 
 export default function VerifyPage() {
   const baseUrl = getBaseUrl()

@@ -45,7 +45,7 @@ interface WorkflowPreviewProps {
   height?: string | number
   width?: string | number
   isPannable?: boolean
-  defaultPosition?: { x: number, y: number }
+  defaultPosition?: { x: number; y: number }
   defaultZoom?: number
 }
 
@@ -134,11 +134,13 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
       case 'short-input':
         return (
           <div className="h-7 rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground">
-            {config.password ? '**********************' : 
-              (config.id === 'providerConfig' && config.value && typeof config.value === 'object')
-                ? (Object.keys(config.value).length === 0 ? 'Webhook pending configuration' : 'Webhook configured')
-                : (config.value || config.placeholder || 'Text input')
-            }
+            {config.password
+              ? '**********************'
+              : config.id === 'providerConfig' && config.value && typeof config.value === 'object'
+                ? Object.keys(config.value).length === 0
+                  ? 'Webhook pending configuration'
+                  : 'Webhook configured'
+                : config.value || config.placeholder || 'Text input'}
           </div>
         )
       case 'long-input':
@@ -232,9 +234,7 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
       case 'file-selector':
         return (
           <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span>
-              {config.value ? 'File selected' : config.placeholder || 'Select file'}
-            </span>
+            <span>{config.value ? 'File selected' : config.placeholder || 'Select file'}</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -254,9 +254,7 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
       case 'folder-selector':
         return (
           <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span>
-              {config.value ? 'Folder selected' : config.placeholder || 'Select folder'}
-            </span>
+            <span>{config.value ? 'Folder selected' : config.placeholder || 'Select folder'}</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -306,7 +304,7 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
           <div className="h-12 rounded-md border border-input bg-background p-2 text-xs font-mono text-muted-foreground">
             Eval expression
           </div>
-        )  
+        )
       case 'date-input':
         return (
           <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
@@ -423,16 +421,20 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
 
   return (
     <div className="relative">
-      <Card className={cn(
-        'shadow-md select-none relative',
-        'transition-ring transition-block-bg',
-        blockState?.isWide ? 'w-[400px]' : 'w-[260px]'
-      )}>
+      <Card
+        className={cn(
+          'shadow-md select-none relative',
+          'transition-ring transition-block-bg',
+          blockState?.isWide ? 'w-[400px]' : 'w-[260px]'
+        )}
+      >
         {/* Block Header */}
         <div className="flex items-center justify-between p-2 border-b">
           <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-6 h-6 rounded"
-              style={{ backgroundColor: config.bgColor }}>
+            <div
+              className="flex items-center justify-center w-6 h-6 rounded"
+              style={{ backgroundColor: config.bgColor }}
+            >
               <config.icon className="w-4 h-4 text-white" />
             </div>
             <span className="font-medium text-sm truncate max-w-[180px]" title={name}>
@@ -448,8 +450,10 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
               subBlockRows.map((row, rowIndex) => (
                 <div key={`row-${rowIndex}`} className="flex gap-2">
                   {row.map((subBlock, blockIndex) => (
-                    <div key={`${id}-${rowIndex}-${blockIndex}`}
-                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}>
+                    <div
+                      key={`${id}-${rowIndex}-${blockIndex}`}
+                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
+                    >
                       <PreviewSubBlock config={subBlock} />
                     </div>
                   ))}

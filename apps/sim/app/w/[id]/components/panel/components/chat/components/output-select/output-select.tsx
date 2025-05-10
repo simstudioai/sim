@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
-import { Button } from '@/components/ui/button'
 
 interface OutputSelectProps {
   workflowId: string | null
@@ -78,18 +78,18 @@ export function OutputSelect({
   }, [blocks, workflowId])
 
   // Get selected outputs display text
-  const selectedOutputsDisplayText = useMemo(() => {    
+  const selectedOutputsDisplayText = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) {
       return placeholder
     }
-    
+
     // Ensure all selected outputs exist in the workflowOutputs array
-    const validOutputs = selectedOutputs.filter(id => workflowOutputs.some(o => o.id === id))
-    
+    const validOutputs = selectedOutputs.filter((id) => workflowOutputs.some((o) => o.id === id))
+
     if (validOutputs.length === 0) {
       return placeholder
     }
-    
+
     if (validOutputs.length === 1) {
       const output = workflowOutputs.find((o) => o.id === validOutputs[0])
       if (output) {
@@ -97,17 +97,17 @@ export function OutputSelect({
       }
       return placeholder
     }
-    
+
     return `${validOutputs.length} outputs selected`
   }, [selectedOutputs, workflowOutputs, placeholder])
 
   // Get first selected output info for display icon
   const selectedOutputInfo = useMemo(() => {
     if (!selectedOutputs || selectedOutputs.length === 0) return null
-    
-    const validOutputs = selectedOutputs.filter(id => workflowOutputs.some(o => o.id === id))
+
+    const validOutputs = selectedOutputs.filter((id) => workflowOutputs.some((o) => o.id === id))
     if (validOutputs.length === 0) return null
-    
+
     const output = workflowOutputs.find((o) => o.id === validOutputs[0])
     if (!output) return null
 
@@ -216,13 +216,13 @@ export function OutputSelect({
   const handleOutputSelection = (value: string) => {
     let newSelectedOutputs: string[]
     const index = selectedOutputs.indexOf(value)
-    
+
     if (index === -1) {
       newSelectedOutputs = [...new Set([...selectedOutputs, value])]
     } else {
       newSelectedOutputs = selectedOutputs.filter((id) => id !== value)
     }
-    
+
     onOutputSelect(newSelectedOutputs)
   }
 
@@ -311,7 +311,7 @@ export function OutputSelect({
               </div>
             ))}
           </div>
-          
+
           {/* Done button to close dropdown */}
           <div className="border-t p-2">
             <Button
@@ -327,4 +327,4 @@ export function OutputSelect({
       )}
     </div>
   )
-} 
+}

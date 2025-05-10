@@ -3,9 +3,9 @@ title: Gmail
 description: Send Gmail
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="gmail"
   color="#E0E0E0"
   icon={true}
@@ -48,12 +48,9 @@ With Gmail, you can:
 In Sim Studio, the Gmail integration enables your agents to send, read, and search emails programmatically. This allows for powerful automation scenarios such as sending notifications, processing incoming messages, extracting information from emails, and managing communication workflows. Your agents can compose and send personalized emails, search for specific messages using Gmail's query syntax, and extract content from emails to use in other parts of your workflow. Coming soon, agents will also be able to listen for new emails in real-time, enabling responsive workflows that can trigger actions based on incoming messages. This integration bridges the gap between your AI workflows and email communications, enabling seamless interaction with one of the world's most widely used communication platforms.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Integrate Gmail functionality to send email messages within your workflow. Automate email communications and process email content using OAuth authentication.
-
-
 
 ## Tools
 
@@ -63,18 +60,18 @@ Send emails using Gmail
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
-| `to` | string | Yes | Recipient email address |
-| `subject` | string | Yes | Email subject |
-| `body` | string | Yes | Email body content |
+| Parameter     | Type   | Required | Description                |
+| ------------- | ------ | -------- | -------------------------- |
+| `accessToken` | string | Yes      | Access token for Gmail API |
+| `to`          | string | Yes      | Recipient email address    |
+| `subject`     | string | Yes      | Email subject              |
+| `body`        | string | Yes      | Email body content         |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `content`  | string |
 | `metadata` | string |
 | `threadId` | string |
 | `labelIds` | string |
@@ -85,19 +82,19 @@ Read emails from Gmail
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
-| `messageId` | string | No | ID of the message to read |
-| `folder` | string | No | Folder/label to read emails from |
-| `unreadOnly` | boolean | No | Only retrieve unread messages |
-| `maxResults` | number | No | Maximum number of messages to retrieve \(default: 1, max: 10\) |
+| Parameter     | Type    | Required | Description                                                    |
+| ------------- | ------- | -------- | -------------------------------------------------------------- |
+| `accessToken` | string  | Yes      | Access token for Gmail API                                     |
+| `messageId`   | string  | No       | ID of the message to read                                      |
+| `folder`      | string  | No       | Folder/label to read emails from                               |
+| `unreadOnly`  | boolean | No       | Only retrieve unread messages                                  |
+| `maxResults`  | number  | No       | Maximum number of messages to retrieve \(default: 1, max: 10\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `content`  | string |
 | `metadata` | string |
 
 ### `gmail_search`
@@ -106,34 +103,29 @@ Search emails in Gmail
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | Access token for Gmail API |
-| `query` | string | Yes | Search query for emails |
-| `maxResults` | number | No | Maximum number of results to return |
+| Parameter     | Type   | Required | Description                         |
+| ------------- | ------ | -------- | ----------------------------------- |
+| `accessToken` | string | Yes      | Access token for Gmail API          |
+| `query`       | string | Yes      | Search query for emails             |
+| `maxResults`  | number | No       | Maximum number of results to return |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `content` | string |
-
-
 
 ## Block Configuration
 
 No configuration parameters required.
 
-
-
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `content` | string | content of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `content`  | string | content of the response  |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

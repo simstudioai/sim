@@ -15,12 +15,12 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useNotificationStore } from '@/stores/notifications/store'
 import { ApiEndpoint } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-endpoint/api-endpoint'
 import { ApiKey } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
 import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
 import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
-import { useNotificationStore } from '@/stores/notifications/store'
 
 interface DeploymentInfoProps {
   isLoading: boolean
@@ -54,32 +54,24 @@ export function DeploymentInfo({
 
   const handleViewDeployed = async () => {
     if (!workflowId) {
-      addNotification(
-        'error',
-        'Cannot view deployment: Workflow ID is missing',
-        null
-      )
+      addNotification('error', 'Cannot view deployment: Workflow ID is missing', null)
       return
     }
 
     try {
       const response = await fetch(`/api/workflows/${workflowId}/deployed`)
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch deployed workflow')
       }
 
       const data = await response.json()
-      
+
       if (data && data.deployedState) {
         setDeployedWorkflowState(data.deployedState)
         setIsViewingDeployed(true)
       } else {
-        addNotification(
-          'error',
-          'Failed to view deployment: No deployment state found',
-          workflowId
-        )
+        addNotification('error', 'Failed to view deployment: No deployment state found', workflowId)
       }
     } catch (error) {
       console.error('Error fetching deployed workflow:', error)
@@ -137,11 +129,7 @@ export function DeploymentInfo({
           <DeployStatus needsRedeployment={deploymentInfo.needsRedeployment} />
 
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleViewDeployed}
-            >
+            <Button variant="outline" size="sm" onClick={handleViewDeployed}>
               View Deployment
             </Button>
             {deploymentInfo.needsRedeployment && (
@@ -161,8 +149,8 @@ export function DeploymentInfo({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Undeploy API</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to undeploy this workflow? This will remove the API endpoint
-                    and make it unavailable to external users.
+                    Are you sure you want to undeploy this workflow? This will remove the API
+                    endpoint and make it unavailable to external users.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

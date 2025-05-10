@@ -13,6 +13,7 @@ import {
   getScheduleTimeValues,
   getSubBlockValue,
 } from '@/lib/schedules/utils'
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -21,7 +22,6 @@ import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 
 // Add dynamic export to prevent caching
 export const dynamic = 'force-dynamic'
@@ -110,28 +110,34 @@ export async function GET(req: NextRequest) {
           runningExecutions.delete(schedule.workflowId)
           continue
         }
-        
+
         // Check if the user has exceeded their usage limits
         const usageCheck = await checkServerSideUsageLimits(workflowRecord.userId)
         if (usageCheck.isExceeded) {
-          logger.warn(`[${requestId}] User ${workflowRecord.userId} has exceeded usage limits. Skipping scheduled execution.`, {
-            currentUsage: usageCheck.currentUsage,
-            limit: usageCheck.limit,
-            workflowId: schedule.workflowId
-          })
-          
+          logger.warn(
+            `[${requestId}] User ${workflowRecord.userId} has exceeded usage limits. Skipping scheduled execution.`,
+            {
+              currentUsage: usageCheck.currentUsage,
+              limit: usageCheck.limit,
+              workflowId: schedule.workflowId,
+            }
+          )
+
           // Log an execution error for the user to see why their schedule was skipped
           await persistExecutionError(
-            schedule.workflowId, 
-            executionId, 
-            new Error(usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'),
+            schedule.workflowId,
+            executionId,
+            new Error(
+              usageCheck.message ||
+                'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'
+            ),
             'schedule'
           )
-          
+
           // Update the next run time to avoid constant retries
           const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
           const nextRetryAt = new Date(now.getTime() + retryDelay)
-          
+
           await db
             .update(workflowSchedule)
             .set({
@@ -139,7 +145,7 @@ export async function GET(req: NextRequest) {
               nextRunAt: nextRetryAt,
             })
             .where(eq(workflowSchedule.id, schedule.id))
-            
+
           runningExecutions.delete(schedule.workflowId)
           continue
         }
@@ -235,8 +241,8 @@ export async function GET(req: NextRequest) {
           workflowId: schedule.workflowId,
           // Add _context with workflowId to ensure OAuth token resolution works properly
           _context: {
-            workflowId: schedule.workflowId
-          }
+            workflowId: schedule.workflowId,
+          },
         }
 
         // Process the block states to ensure response formats are properly parsed
@@ -307,9 +313,8 @@ export async function GET(req: NextRequest) {
 
         // Check if we got a StreamingExecution result (with stream + execution properties)
         // For scheduled executions, we only care about the ExecutionResult part, not the stream
-        const executionResult = 'stream' in result && 'execution' in result 
-          ? result.execution 
-          : result
+        const executionResult =
+          'stream' in result && 'execution' in result ? result.execution : result
 
         logger.info(`[${requestId}] Workflow execution completed: ${schedule.workflowId}`, {
           success: executionResult.success,

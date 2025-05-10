@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -15,7 +16,6 @@ import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
-import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 
 const logger = createLogger('WorkflowExecuteAPI')
 
@@ -31,7 +31,7 @@ const runningExecutions = new Set<string>()
 // Custom error class for usage limit exceeded
 class UsageLimitError extends Error {
   statusCode: number
-  
+
   constructor(message: string) {
     super(message)
     this.name = 'UsageLimitError'
@@ -54,9 +54,11 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   if (usageCheck.isExceeded) {
     logger.warn(`[${requestId}] User ${workflow.userId} has exceeded usage limits`, {
       currentUsage: usageCheck.currentUsage,
-      limit: usageCheck.limit
+      limit: usageCheck.limit,
     })
-    throw new UsageLimitError(usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.')
+    throw new UsageLimitError(
+      usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+    )
   }
 
   // Log input to help debug
@@ -238,9 +240,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     // Check if we got a StreamingExecution result (with stream + execution properties)
     // For API routes, we only care about the ExecutionResult part, not the stream
-    const executionResult = 'stream' in result && 'execution' in result 
-      ? result.execution 
-      : result
+    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
       success: executionResult.success,
@@ -301,16 +301,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
-    
+
     // Check if this is a usage limit error
     if (error instanceof UsageLimitError) {
-      return createErrorResponse(
-        error.message,
-        error.statusCode,
-        'USAGE_LIMIT_EXCEEDED'
-      )
+      return createErrorResponse(error.message, error.statusCode, 'USAGE_LIMIT_EXCEEDED')
     }
-    
+
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,
@@ -358,16 +354,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return createSuccessResponse(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error executing workflow: ${id}`, error)
-    
+
     // Check if this is a usage limit error
     if (error instanceof UsageLimitError) {
-      return createErrorResponse(
-        error.message,
-        error.statusCode,
-        'USAGE_LIMIT_EXCEEDED'
-      )
+      return createErrorResponse(error.message, error.statusCode, 'USAGE_LIMIT_EXCEEDED')
     }
-    
+
     return createErrorResponse(
       error.message || 'Failed to execute workflow',
       500,

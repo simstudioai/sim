@@ -3,9 +3,9 @@ title: Guesty
 description: Interact with Guesty property management system
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="guesty"
   color="#0051F8"
   icon={true}
@@ -39,12 +39,9 @@ With Guesty, property managers can:
 In Sim Studio, the Guesty integration enables your agents to interact directly with your property management system programmatically. This allows for powerful automation scenarios such as reservation management, guest communication, and operational workflows. Your agents can retrieve detailed reservation information by ID, including guest details, booking dates, and property information. They can also search for guests by phone number to access their profiles and booking history. This integration bridges the gap between your AI workflows and your property management operations, enabling seamless handling of hospitality tasks without manual intervention. By connecting Sim Studio with Guesty, you can automate guest communications, streamline check-in processes, manage reservation details, and enhance the overall guest experience through intelligent automation.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Access Guesty property management data including reservations and guest information. Retrieve reservation details by ID or search for guests by phone number.
-
-
 
 ## Tools
 
@@ -54,19 +51,19 @@ Fetch reservation details from Guesty by reservation ID
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Guesty API token |
-| `reservationId` | string | Yes | The ID of the reservation to fetch |
+| Parameter       | Type   | Required | Description                        |
+| --------------- | ------ | -------- | ---------------------------------- |
+| `apiKey`        | string | Yes      | Your Guesty API token              |
+| `reservationId` | string | Yes      | The ID of the reservation to fetch |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `id` | string |
-| `guest` | string |
-| `email` | string |
-| `phone` | string |
+| Parameter | Type   |
+| --------- | ------ |
+| `id`      | string |
+| `guest`   | string |
+| `email`   | string |
+| `phone`   | string |
 
 ### `guesty_guest`
 
@@ -74,49 +71,44 @@ Search for guests in Guesty by phone number
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Guesty API token |
-| `phoneNumber` | string | Yes | The phone number to search for |
+| Parameter     | Type   | Required | Description                    |
+| ------------- | ------ | -------- | ------------------------------ |
+| `apiKey`      | string | Yes      | Your Guesty API token          |
+| `phoneNumber` | string | Yes      | The phone number to search for |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `guests` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `guests`   | string |
 | `fullName` | string |
-| `email` | string |
-| `phone` | string |
-| `address` | string |
-| `city` | string |
-| `country` | string |
-
-
+| `email`    | string |
+| `phone`    | string |
+| `address`  | string |
+| `city`     | string |
+| `country`  | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `action` | string | Yes | Action |
-
-
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| `action`  | string | Yes      | Action      |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `id` | string | id of the response |
-| ↳ `guest` | json | guest of the response |
-| ↳ `checkIn` | string | checkIn of the response |
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `id`       | string | id of the response       |
+| ↳ `guest`    | json   | guest of the response    |
+| ↳ `checkIn`  | string | checkIn of the response  |
 | ↳ `checkOut` | string | checkOut of the response |
-| ↳ `status` | string | status of the response |
-| ↳ `listing` | json | listing of the response |
-| ↳ `money` | json | money of the response |
-| ↳ `guests` | json | guests of the response |
-
+| ↳ `status`   | string | status of the response   |
+| ↳ `listing`  | json   | listing of the response  |
+| ↳ `money`    | json   | money of the response    |
+| ↳ `guests`   | json   | guests of the response   |
 
 ## Notes
 

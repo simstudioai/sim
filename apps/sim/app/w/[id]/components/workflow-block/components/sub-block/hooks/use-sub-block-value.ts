@@ -121,7 +121,10 @@ function storeApiKeyValue(
   }
 
   // For provider-based blocks, store the API key under the provider name
-  if ((blockType === 'agent' || blockType === 'router' || blockType === 'evaluator') && modelValue) {
+  if (
+    (blockType === 'agent' || blockType === 'router' || blockType === 'evaluator') &&
+    modelValue
+  ) {
     const provider = getProviderFromModel(modelValue)
     if (provider && provider !== 'ollama') {
       subBlockStore.setToolParam(provider, 'apiKey', String(newValue))
@@ -181,7 +184,8 @@ export function useSubBlockValue<T = any>(
   )
 
   // Determine if this is a provider-based block type
-  const isProviderBasedBlock = blockType === 'agent' || blockType === 'router' || blockType === 'evaluator'
+  const isProviderBasedBlock =
+    blockType === 'agent' || blockType === 'router' || blockType === 'evaluator'
 
   // Compute the modelValue based on block type
   const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null
@@ -238,7 +242,16 @@ export function useSubBlockValue<T = any>(
       // Normal handling for non-provider blocks
       handleStandardBlockApiKey(blockId, subBlockId, blockType, storeValue)
     }
-  }, [blockId, subBlockId, blockType, storeValue, isApiKey, isAutoFillEnvVarsEnabled, modelValue, isProviderBasedBlock])
+  }, [
+    blockId,
+    subBlockId,
+    blockType,
+    storeValue,
+    isApiKey,
+    isAutoFillEnvVarsEnabled,
+    modelValue,
+    isProviderBasedBlock,
+  ])
 
   // Monitor for model changes in provider-based blocks
   useEffect(() => {
@@ -273,7 +286,16 @@ export function useSubBlockValue<T = any>(
         }
       }
     }
-  }, [blockId, subBlockId, blockType, isApiKey, modelValue, isAutoFillEnvVarsEnabled, storeValue, isProviderBasedBlock])
+  }, [
+    blockId,
+    subBlockId,
+    blockType,
+    isApiKey,
+    modelValue,
+    isAutoFillEnvVarsEnabled,
+    storeValue,
+    isProviderBasedBlock,
+  ])
 
   // Update the ref if the store value changes
   // This ensures we're always working with the latest value

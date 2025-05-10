@@ -5,38 +5,38 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  S3Client,
-  PutObjectCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
-  DeleteObjectCommand
+  PutObjectCommand,
+  S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import {
-  uploadToS3,
-  getPresignedUrl,
-  downloadFromS3,
   deleteFromS3,
+  downloadFromS3,
+  FileInfo,
+  getPresignedUrl,
   s3Client,
-  FileInfo
+  uploadToS3,
 } from './s3-client'
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-s3', () => {
   const mockSend = vi.fn()
   const mockS3Client = vi.fn().mockImplementation(() => ({
-    send: mockSend
+    send: mockSend,
   }))
 
   return {
     S3Client: mockS3Client,
     PutObjectCommand: vi.fn(),
     GetObjectCommand: vi.fn(),
-    DeleteObjectCommand: vi.fn()
+    DeleteObjectCommand: vi.fn(),
   }
 })
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url')
+  getSignedUrl: vi.fn().mockResolvedValue('https://example.com/presigned-url'),
 }))
 
 // Mock date for predictable timestamps
@@ -44,7 +44,7 @@ vi.mock('./setup', () => ({
   S3_CONFIG: {
     bucket: 'test-bucket',
     region: 'test-region',
-  }
+  },
 }))
 
 // Mock logger
@@ -53,8 +53,8 @@ vi.mock('@/lib/logs/console-logger', () => ({
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
-    debug: vi.fn()
-  })
+    debug: vi.fn(),
+  }),
 }))
 
 describe('S3 Client', () => {
@@ -79,7 +79,7 @@ describe('S3 Client', () => {
     it('should upload a file to S3 and return file info', async () => {
       // Mock S3 client send method to return an appropriate type
       vi.mocked(s3Client.send).mockResolvedValueOnce({
-        $metadata: { httpStatusCode: 200 }
+        $metadata: { httpStatusCode: 200 },
       } as any)
 
       const testFile = Buffer.from('test file content')
@@ -97,8 +97,8 @@ describe('S3 Client', () => {
         ContentType: contentType,
         Metadata: {
           originalName: fileName,
-          uploadedAt: expect.any(String)
-        }
+          uploadedAt: expect.any(String),
+        },
       })
 
       expect(s3Client.send).toHaveBeenCalledTimes(1)
@@ -109,13 +109,13 @@ describe('S3 Client', () => {
         key: expect.stringContaining('test-file.txt'),
         name: fileName,
         size: fileSize,
-        type: contentType
+        type: contentType,
       })
     })
 
     it('should handle spaces in filenames', async () => {
       vi.mocked(s3Client.send).mockResolvedValueOnce({
-        $metadata: { httpStatusCode: 200 }
+        $metadata: { httpStatusCode: 200 },
       } as any)
 
       const testFile = Buffer.from('test file content')
@@ -131,7 +131,7 @@ describe('S3 Client', () => {
 
     it('should use provided size if available', async () => {
       vi.mocked(s3Client.send).mockResolvedValueOnce({
-        $metadata: { httpStatusCode: 200 }
+        $metadata: { httpStatusCode: 200 },
       } as any)
 
       const testFile = Buffer.from('test file content')
@@ -165,14 +165,10 @@ describe('S3 Client', () => {
 
       expect(GetObjectCommand).toHaveBeenCalledWith({
         Bucket: 'test-bucket',
-        Key: key
+        Key: key,
       })
 
-      expect(getSignedUrl).toHaveBeenCalledWith(
-        s3Client,
-        expect.any(Object),
-        { expiresIn }
-      )
+      expect(getSignedUrl).toHaveBeenCalledWith(s3Client, expect.any(Object), { expiresIn })
 
       expect(url).toBe('https://example.com/presigned-url')
     })
@@ -212,12 +208,12 @@ describe('S3 Client', () => {
             callback()
           }
           return mockStream
-        })
+        }),
       }
 
       vi.mocked(s3Client.send).mockResolvedValueOnce({
         Body: mockStream,
-        $metadata: { httpStatusCode: 200 }
+        $metadata: { httpStatusCode: 200 },
       } as any)
 
       const key = 'test-file.txt'
@@ -225,12 +221,14 @@ describe('S3 Client', () => {
 
       expect(GetObjectCommand).toHaveBeenCalledWith({
         Bucket: 'test-bucket',
-        Key: key
+        Key: key,
       })
 
       expect(s3Client.send).toHaveBeenCalledTimes(1)
       expect(result).toBeInstanceOf(Buffer)
-      expect(Buffer.concat([Buffer.from('chunk1'), Buffer.from('chunk2')]).toString()).toEqual(result.toString())
+      expect(Buffer.concat([Buffer.from('chunk1'), Buffer.from('chunk2')]).toString()).toEqual(
+        result.toString()
+      )
     })
 
     it('should handle stream errors', async () => {
@@ -240,12 +238,12 @@ describe('S3 Client', () => {
             callback(new Error('Stream error'))
           }
           return mockStream
-        })
+        }),
       }
 
       vi.mocked(s3Client.send).mockResolvedValueOnce({
         Body: mockStream,
-        $metadata: { httpStatusCode: 200 }
+        $metadata: { httpStatusCode: 200 },
       } as any)
 
       const key = 'test-file.txt'
@@ -264,7 +262,7 @@ describe('S3 Client', () => {
   describe('deleteFromS3', () => {
     it('should delete a file from S3', async () => {
       vi.mocked(s3Client.send).mockResolvedValueOnce({
-        $metadata: { httpStatusCode: 200 }
+        $metadata: { httpStatusCode: 200 },
       } as any)
 
       const key = 'test-file.txt'
@@ -272,7 +270,7 @@ describe('S3 Client', () => {
 
       expect(DeleteObjectCommand).toHaveBeenCalledWith({
         Bucket: 'test-bucket',
-        Key: key
+        Key: key,
       })
 
       expect(s3Client.send).toHaveBeenCalledTimes(1)
@@ -298,4 +296,4 @@ describe('S3 Client', () => {
       // So instead of checking constructor call, check that mocked client exists
     })
   })
-}) 
+})

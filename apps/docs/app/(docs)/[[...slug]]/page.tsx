@@ -1,18 +1,11 @@
 import { notFound } from 'next/navigation'
-import {
-  DocsBody,
-  DocsDescription,
-  DocsPage,
-  DocsTitle,
-} from 'fumadocs-ui/page'
-import { source } from '@/lib/source'
+import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
 import mdxComponents from '@/components/mdx-components'
+import { source } from '@/lib/source'
 
 export const dynamic = 'force-static'
 
-export default async function Page(props: {
-  params: Promise<{ slug?: string[] }>
-}) {
+export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params
   const page = source.getPage(params.slug)
   if (!page) notFound()
@@ -53,9 +46,7 @@ export async function generateStaticParams() {
   return source.generateParams()
 }
 
-export async function generateMetadata(props: {
-  params: Promise<{ slug?: string[] }>
-}) {
+export async function generateMetadata(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params
   const page = source.getPage(params.slug)
   if (!page) notFound()

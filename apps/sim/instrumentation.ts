@@ -1,22 +1,21 @@
 /**
  * Sim Studio Telemetry - Server-side Instrumentation
- * 
+ *
  * This file can be customized in forked repositories:
  * - Set TELEMETRY_ENDPOINT env var to your collector
  * - Modify exporter configuration as needed
- * 
+ *
  * Please maintain ethical telemetry practices if modified.
  */
-
 // This file enables OpenTelemetry instrumentation for Next.js
 // See: https://nextjs.org/docs/app/building-your-application/optimizing/open-telemetry
 // Set experimental.instrumentationHook = true in next.config.ts to enable this
-
 import { createLogger } from '@/lib/logs/console-logger'
 
-const Sentry = process.env.NODE_ENV === 'production' 
-  ? require('@sentry/nextjs')
-  : { captureRequestError: () => {} }
+const Sentry =
+  process.env.NODE_ENV === 'production'
+    ? require('@sentry/nextjs')
+    : { captureRequestError: () => {} }
 
 const logger = createLogger('OtelInstrumentation')
 
@@ -70,45 +69,54 @@ export async function register() {
       const { SemanticResourceAttributes } = await import('@opentelemetry/semantic-conventions')
       const { BatchSpanProcessor } = await import('@opentelemetry/sdk-trace-node')
       const { OTLPTraceExporter } = await import('@opentelemetry/exporter-trace-otlp-http')
-      
+
       const exporter = new OTLPTraceExporter({
         url: telemetryConfig.endpoint,
       })
-      
+
       const spanProcessor = new BatchSpanProcessor(exporter, {
-        maxQueueSize: telemetryConfig.batchSettings?.maxQueueSize || DEFAULT_TELEMETRY_CONFIG.batchSettings.maxQueueSize,
-        maxExportBatchSize: telemetryConfig.batchSettings?.maxExportBatchSize || DEFAULT_TELEMETRY_CONFIG.batchSettings.maxExportBatchSize,
-        scheduledDelayMillis: telemetryConfig.batchSettings?.scheduledDelayMillis || DEFAULT_TELEMETRY_CONFIG.batchSettings.scheduledDelayMillis,
-        exportTimeoutMillis: telemetryConfig.batchSettings?.exportTimeoutMillis || DEFAULT_TELEMETRY_CONFIG.batchSettings.exportTimeoutMillis,
+        maxQueueSize:
+          telemetryConfig.batchSettings?.maxQueueSize ||
+          DEFAULT_TELEMETRY_CONFIG.batchSettings.maxQueueSize,
+        maxExportBatchSize:
+          telemetryConfig.batchSettings?.maxExportBatchSize ||
+          DEFAULT_TELEMETRY_CONFIG.batchSettings.maxExportBatchSize,
+        scheduledDelayMillis:
+          telemetryConfig.batchSettings?.scheduledDelayMillis ||
+          DEFAULT_TELEMETRY_CONFIG.batchSettings.scheduledDelayMillis,
+        exportTimeoutMillis:
+          telemetryConfig.batchSettings?.exportTimeoutMillis ||
+          DEFAULT_TELEMETRY_CONFIG.batchSettings.exportTimeoutMillis,
       })
-      
+
       const configResource = resourceFromAttributes({
         [SemanticResourceAttributes.SERVICE_NAME]: telemetryConfig.serviceName,
         [SemanticResourceAttributes.SERVICE_VERSION]: telemetryConfig.serviceVersion,
         [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV,
       })
-      
+
       const sdk = new NodeSDK({
         resource: configResource,
         spanProcessors: [spanProcessor],
       })
-      
+
       sdk.start()
-      
+
       const shutdownHandler = async () => {
-        await sdk.shutdown()
+        await sdk
+          .shutdown()
           .then(() => logger.info('OpenTelemetry SDK shut down successfully'))
-          .catch(err => logger.error('Error shutting down OpenTelemetry SDK', err))
+          .catch((err) => logger.error('Error shutting down OpenTelemetry SDK', err))
       }
-      
+
       process.on('SIGTERM', shutdownHandler)
       process.on('SIGINT', shutdownHandler)
-      
+
       logger.info('OpenTelemetry instrumentation initialized for server-side telemetry')
     } catch (error) {
       logger.error('Failed to initialize OpenTelemetry instrumentation', error)
     }
   }
-} 
+}
 
-export const onRequestError = Sentry.captureRequestError 
+export const onRequestError = Sentry.captureRequestError

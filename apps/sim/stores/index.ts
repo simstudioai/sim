@@ -43,7 +43,7 @@ async function initializeApplication(): Promise<void> {
   try {
     // Load environment variables directly from DB
     await useEnvironmentStore.getState().loadEnvironmentVariables()
-    
+
     // Load custom tools from server
     await useCustomToolsStore.getState().loadCustomTools()
 

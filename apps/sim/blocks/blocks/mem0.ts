@@ -1,6 +1,6 @@
 import { Mem0Icon } from '@/components/icons'
-import { BlockConfig } from '../types'
 import { Mem0Response } from '@/tools/mem0/types'
+import { BlockConfig } from '../types'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
   type: 'mem0',
@@ -112,11 +112,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
     },
   ],
   tools: {
-    access: [
-      'mem0_add_memories',
-      'mem0_search_memories',
-      'mem0_get_memories',
-    ],
+    access: ['mem0_add_memories', 'mem0_search_memories', 'mem0_get_memories'],
     config: {
       tool: (params: Record<string, any>) => {
         const operation = params.operation || 'add'
@@ -134,35 +130,34 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       params: (params: Record<string, any>) => {
         // Create detailed error information for any missing required fields
         const errors: string[] = []
-        
+
         // Validate required API key for all operations
         if (!params.apiKey) {
-          errors.push("API Key is required")
+          errors.push('API Key is required')
         }
-        
+
         // For search operation, validate required fields
         if (params.operation === 'search') {
           if (!params.query || params.query.trim() === '') {
-            errors.push("Search Query is required")
+            errors.push('Search Query is required')
           }
-          
+
           if (!params.userId) {
-            errors.push("User ID is required")
+            errors.push('User ID is required')
           }
         }
-        
+
         // For add operation, validate required fields
         if (params.operation === 'add') {
           if (!params.messages) {
-            errors.push("Messages are required for add operation")
+            errors.push('Messages are required for add operation')
           } else {
             try {
-              const messagesArray = typeof params.messages === 'string' 
-                ? JSON.parse(params.messages) 
-                : params.messages
-              
+              const messagesArray =
+                typeof params.messages === 'string' ? JSON.parse(params.messages) : params.messages
+
               if (!Array.isArray(messagesArray) || messagesArray.length === 0) {
-                errors.push("Messages must be a non-empty array")
+                errors.push('Messages must be a non-empty array')
               } else {
                 for (const msg of messagesArray) {
                   if (!msg.role || !msg.content) {
@@ -172,44 +167,45 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                 }
               }
             } catch (e: any) {
-              errors.push("Messages must be valid JSON")
+              errors.push('Messages must be valid JSON')
             }
           }
-          
+
           if (!params.userId) {
-            errors.push("User ID is required")
+            errors.push('User ID is required')
           }
         }
-        
+
         // Throw error if any required fields are missing
         if (errors.length > 0) {
           throw new Error(`Mem0 Block Error: ${errors.join(', ')}`)
         }
-        
+
         const result: Record<string, any> = {
           apiKey: params.apiKey,
         }
 
         // Add any identifiers that are present
         if (params.userId) result.userId = params.userId
-        
+
         // Add version if specified
         if (params.version) result.version = params.version
 
         if (params.limit) result.limit = params.limit
 
         const operation = params.operation || 'add'
-        
+
         // Process operation-specific parameters
         switch (operation) {
           case 'add':
             if (params.messages) {
               try {
                 // Ensure messages are properly formatted
-                const messagesArray = typeof params.messages === 'string' 
-                  ? JSON.parse(params.messages) 
-                  : params.messages
-                
+                const messagesArray =
+                  typeof params.messages === 'string'
+                    ? JSON.parse(params.messages)
+                    : params.messages
+
                 // Validate message structure
                 if (Array.isArray(messagesArray) && messagesArray.length > 0) {
                   let validMessages = true
@@ -224,7 +220,9 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                   } else {
                     // Consistent with other error handling - collect in errors array
                     errors.push('Invalid message format - each message must have role and content')
-                    throw new Error(`Mem0 Block Error: Invalid message format - each message must have role and content`)
+                    throw new Error(
+                      `Mem0 Block Error: Invalid message format - each message must have role and content`
+                    )
                   }
                 } else {
                   // Consistent with other error handling
@@ -242,7 +240,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
           case 'search':
             if (params.query) {
               result.query = params.query
-              
+
               // Check if we have at least one identifier for search
               if (!params.userId) {
                 errors.push('Search requires a User ID')
@@ -252,7 +250,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
               errors.push('Search requires a query parameter')
               throw new Error(`Mem0 Block Error: Search requires a query parameter`)
             }
-            
+
             // Include limit if specified
             if (params.limit) {
               result.limit = Number(params.limit)
@@ -262,18 +260,18 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
             if (params.memoryId) {
               result.memoryId = params.memoryId
             }
-            
+
             // Add date range filtering for v2 get memories
             if (params.startDate) {
               result.startDate = params.startDate
             }
-            
+
             if (params.endDate) {
               result.endDate = params.endDate
             }
             break
         }
-        
+
         return result
       },
     },
@@ -299,4 +297,4 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
       },
     },
   },
-} 
+}

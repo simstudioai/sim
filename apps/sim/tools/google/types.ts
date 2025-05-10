@@ -1,4 +1,4 @@
-import { ToolResponse } from "../types"
+import { ToolResponse } from '../types'
 
 export interface GoogleSearchParams {
   query: string
@@ -6,7 +6,7 @@ export interface GoogleSearchParams {
   searchEngineId: string
   num?: number | string
 }
-  
+
 export interface GoogleSearchResponse extends ToolResponse {
   output: {
     items: Array<{

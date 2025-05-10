@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { ConsoleEntry, ConsoleStore } from './types'
 import { useChatStore } from '../chat/store'
+import { ConsoleEntry, ConsoleStore } from './types'
 
 // MAX across all workflows
 const MAX_ENTRIES = 50
@@ -48,17 +48,17 @@ const redactApiKeys = (obj: any): any => {
  */
 const getValueByPath = (obj: any, path: string): any => {
   if (!obj || !path) return undefined
-  
+
   const pathParts = path.split('.')
   let current = obj
-  
+
   for (const part of pathParts) {
     if (current === null || current === undefined || typeof current !== 'object') {
       return undefined
     }
     current = current[part]
   }
-  
+
   return current
 }
 
@@ -74,23 +74,38 @@ export const useConsoleStore = create<ConsoleStore>()(
             // Determine early if this entry represents a streaming output
             const isStreamingOutput =
               (typeof ReadableStream !== 'undefined' && entry.output instanceof ReadableStream) ||
-              (typeof entry.output === 'object' && entry.output && entry.output.isStreaming === true) ||
-              (typeof entry.output === 'object' && entry.output && 'executionData' in entry.output &&
-               typeof entry.output.executionData === 'object' && entry.output.executionData?.isStreaming === true) ||
+              (typeof entry.output === 'object' &&
+                entry.output &&
+                entry.output.isStreaming === true) ||
+              (typeof entry.output === 'object' &&
+                entry.output &&
+                'executionData' in entry.output &&
+                typeof entry.output.executionData === 'object' &&
+                entry.output.executionData?.isStreaming === true) ||
               (typeof entry.output === 'object' && entry.output && 'stream' in entry.output) ||
-              (typeof entry.output === 'object' && entry.output && 
-               'stream' in entry.output && 'execution' in entry.output)
+              (typeof entry.output === 'object' &&
+                entry.output &&
+                'stream' in entry.output &&
+                'execution' in entry.output)
 
             // Skip adding raw streaming objects that have both stream and executionData
-            if (typeof entry.output === 'object' && entry.output && 
-                'stream' in entry.output && 'executionData' in entry.output) {
+            if (
+              typeof entry.output === 'object' &&
+              entry.output &&
+              'stream' in entry.output &&
+              'executionData' in entry.output
+            ) {
               // Don't add this entry - it will be processed by our explicit formatting code in executor/index.ts
               return { entries: state.entries }
             }
 
             // Also skip raw StreamingExecution objects (with stream and execution properties)
-            if (typeof entry.output === 'object' && entry.output && 
-                'stream' in entry.output && 'execution' in entry.output) {
+            if (
+              typeof entry.output === 'object' &&
+              entry.output &&
+              'stream' in entry.output &&
+              'execution' in entry.output
+            ) {
               // Don't add this entry to prevent duplicate console entries for streaming responses
               return { entries: state.entries }
             }
@@ -99,22 +114,23 @@ export const useConsoleStore = create<ConsoleStore>()(
             const redactedEntry = { ...entry }
 
             // If output is a stream, we skip redaction (it's not an object we want to recurse into)
-            if (!isStreamingOutput && redactedEntry.output && typeof redactedEntry.output === 'object') {
+            if (
+              !isStreamingOutput &&
+              redactedEntry.output &&
+              typeof redactedEntry.output === 'object'
+            ) {
               redactedEntry.output = redactApiKeys(redactedEntry.output)
             }
 
             // Create the new entry with ID and timestamp
-            const newEntry = { 
-              ...redactedEntry, 
-              id: crypto.randomUUID(), 
-              timestamp: new Date().toISOString() 
+            const newEntry = {
+              ...redactedEntry,
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
             }
 
             // Keep only the last MAX_ENTRIES
-            const newEntries = [
-              newEntry,
-              ...state.entries,
-            ].slice(0, MAX_ENTRIES)
+            const newEntries = [newEntry, ...state.entries].slice(0, MAX_ENTRIES)
 
             // If the block produced a streaming output, skip automatic chat message creation
             if (isStreamingOutput) {
@@ -125,7 +141,7 @@ export const useConsoleStore = create<ConsoleStore>()(
             if (entry.workflowId && entry.blockName) {
               const chatStore = useChatStore.getState()
               const selectedOutputIds = chatStore.getSelectedWorkflowOutput(entry.workflowId)
-              
+
               if (selectedOutputIds && selectedOutputIds.length > 0) {
                 // Process each selected output that matches this block
                 for (const selectedOutputId of selectedOutputIds) {
@@ -135,18 +151,18 @@ export const useConsoleStore = create<ConsoleStore>()(
                   const selectedBlockId = idParts[0]
                   // Reconstruct the path by removing the blockId part
                   const selectedPath = idParts.slice(1).join('.')
-                  
+
                   // If this block matches the selected output for this workflow
                   if (selectedBlockId && entry.blockId === selectedBlockId) {
                     // Extract the specific value from the output using the path
                     let specificValue: any = undefined
-                    
+
                     if (selectedPath) {
-                      specificValue = getValueByPath(entry.output, selectedPath)                    
+                      specificValue = getValueByPath(entry.output, selectedPath)
                     } else {
                       specificValue = entry.output
                     }
-                    
+
                     // Format the value appropriately for display
                     let formattedValue: string
                     // For streaming responses, use empty string and set isStreaming flag
@@ -155,18 +171,18 @@ export const useConsoleStore = create<ConsoleStore>()(
                       // This prevents the "Output value not found" message for streams
                       continue
                     } else if (specificValue === undefined) {
-                      formattedValue = "Output value not found"
+                      formattedValue = 'Output value not found'
                     } else if (typeof specificValue === 'object') {
                       formattedValue = JSON.stringify(specificValue, null, 2)
                     } else {
                       formattedValue = String(specificValue)
                     }
-                    
+
                     // Skip empty content messages (important for preventing empty entries)
                     if (!formattedValue || formattedValue.trim() === '') {
                       continue
                     }
-                    
+
                     // Add the specific value to chat, not the whole output
                     chatStore.addMessage({
                       content: formattedValue,
@@ -182,7 +198,7 @@ export const useConsoleStore = create<ConsoleStore>()(
 
             return { entries: newEntries }
           })
-          
+
           // Return the created entry by finding it in the updated store
           return get().entries[0]
         },
@@ -203,9 +219,12 @@ export const useConsoleStore = create<ConsoleStore>()(
           set((state) => ({ isOpen: !state.isOpen }))
         },
 
-        updateConsole: (entryId: string, updatedData: Partial<Omit<ConsoleEntry, 'id' | 'timestamp'>>) => {
+        updateConsole: (
+          entryId: string,
+          updatedData: Partial<Omit<ConsoleEntry, 'id' | 'timestamp'>>
+        ) => {
           set((state) => {
-            const updatedEntries = state.entries.map(entry => {
+            const updatedEntries = state.entries.map((entry) => {
               if (entry.id === entryId) {
                 return {
                   ...entry,

@@ -3,9 +3,9 @@ title: Tavily
 description: Search and extract information
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="tavily"
   color="#0066FF"
   icon={true}
@@ -55,12 +55,9 @@ With Tavily, you can:
 In Sim Studio, the Tavily integration enables your agents to search the web and extract information as part of their workflows. This allows for sophisticated automation scenarios that require up-to-date information from the internet. Your agents can formulate search queries, retrieve relevant results, and extract content from specific web pages to inform their decision-making processes. This integration bridges the gap between your workflow automation and the vast knowledge available on the web, enabling your agents to access real-time information without manual intervention. By connecting Sim Studio with Tavily, you can create agents that stay current with the latest information, provide more accurate responses, and deliver more value to users.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Access Tavily
-
-
 
 ## Tools
 
@@ -70,20 +67,20 @@ Perform AI-powered web searches using Tavily
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query to execute |
-| `max_results` | number | No | Maximum number of results \(1-20\) |
-| `apiKey` | string | Yes | Tavily API Key |
+| Parameter     | Type   | Required | Description                        |
+| ------------- | ------ | -------- | ---------------------------------- |
+| `query`       | string | Yes      | The search query to execute        |
+| `max_results` | number | No       | Maximum number of results \(1-20\) |
+| `apiKey`      | string | Yes      | Tavily API Key                     |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `query` | string |
-| `results` | string |
-| `url` | string |
-| `snippet` | string |
+| Parameter     | Type   |
+| ------------- | ------ |
+| `query`       | string |
+| `results`     | string |
+| `url`         | string |
+| `snippet`     | string |
 | `raw_content` | string |
 
 ### `tavily_extract`
@@ -92,43 +89,38 @@ Extract raw content from multiple web pages simultaneously using Tavily
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `urls` | string | Yes | URL or array of URLs to extract content from |
-| `apiKey` | string | Yes | Tavily API Key |
-| `extract_depth` | string | No | The depth of extraction \(basic=1 credit/5 URLs, advanced=2 credits/5 URLs\) |
+| Parameter       | Type   | Required | Description                                                                  |
+| --------------- | ------ | -------- | ---------------------------------------------------------------------------- |
+| `urls`          | string | Yes      | URL or array of URLs to extract content from                                 |
+| `apiKey`        | string | Yes      | Tavily API Key                                                               |
+| `extract_depth` | string | No       | The depth of extraction \(basic=1 credit/5 URLs, advanced=2 credits/5 URLs\) |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `results`        | string |
 | `failed_results` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `results` | json | results of the response |
-| ↳ `answer` | any | answer of the response |
-| ↳ `query` | string | query of the response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
+| ↳ `results` | json   | results of the response |
+| ↳ `answer`  | any    | answer of the response  |
+| ↳ `query`   | string | query of the response   |
 | ↳ `content` | string | content of the response |
-| ↳ `title` | string | title of the response |
-| ↳ `url` | string | url of the response |
-
+| ↳ `title`   | string | title of the response   |
+| ↳ `url`     | string | url of the response     |
 
 ## Notes
 

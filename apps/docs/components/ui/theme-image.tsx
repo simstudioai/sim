@@ -1,8 +1,8 @@
 'use client'
 
-import { useTheme } from 'next-themes'
-import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
+import { useTheme } from 'next-themes'
 
 interface ThemeImageProps {
   lightSrc: string
@@ -13,13 +13,13 @@ interface ThemeImageProps {
   className?: string
 }
 
-export function ThemeImage({ 
-  lightSrc, 
-  darkSrc, 
-  alt, 
-  width = 600, 
+export function ThemeImage({
+  lightSrc,
+  darkSrc,
+  alt,
+  width = 600,
   height = 400,
-  className = 'rounded-lg border border-border my-6'
+  className = 'rounded-lg border border-border my-6',
 }: ThemeImageProps) {
   const { resolvedTheme } = useTheme()
   const [imageSrc, setImageSrc] = useState(lightSrc)
@@ -42,13 +42,7 @@ export function ThemeImage({
 
   return (
     <div className="flex justify-center">
-      <Image 
-        src={imageSrc} 
-        alt={alt} 
-        width={width} 
-        height={height}
-        className={className}
-      />
+      <Image src={imageSrc} alt={alt} width={width} height={height} className={className} />
     </div>
   )
-} 
+}

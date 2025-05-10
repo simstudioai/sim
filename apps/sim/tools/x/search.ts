@@ -89,7 +89,10 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
       console.error('X Search API Error:', JSON.stringify(data, null, 2))
       return {
         success: false,
-        error: data.error?.detail || data.error?.title || 'No results found or invalid response from X API',
+        error:
+          data.error?.detail ||
+          data.error?.title ||
+          'No results found or invalid response from X API',
         output: {
           tweets: [],
           includes: {

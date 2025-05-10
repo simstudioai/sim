@@ -2,18 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
 import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
-import { 
-  handleWhatsAppVerification,
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
+import {
+  fetchAndProcessAirtablePayloads,
   handleSlackChallenge,
-  processWhatsAppDeduplication,
+  handleWhatsAppVerification,
   processGenericDeduplication,
   processWebhook,
-  fetchAndProcessAirtablePayloads
+  processWhatsAppDeduplication,
 } from '@/lib/webhooks/utils'
-import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
+import { db } from '@/db'
+import { webhook, workflow } from '@/db/schema'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -26,7 +26,7 @@ const activeProcessingTasks = new Map<string, Promise<any>>()
 
 /**
  * Webhook Verification Handler (GET)
- * 
+ *
  * Handles verification requests from webhook providers and confirms endpoint exists.
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ path: string }> }) {
@@ -41,7 +41,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const token = url.searchParams.get('hub.verify_token')
     const challenge = url.searchParams.get('hub.challenge')
 
-    const whatsAppResponse = await handleWhatsAppVerification(requestId, path, mode, token, challenge)
+    const whatsAppResponse = await handleWhatsAppVerification(
+      requestId,
+      path,
+      mode,
+      token,
+      challenge
+    )
     if (whatsAppResponse) {
       return whatsAppResponse
     }
@@ -72,7 +78,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 /**
  * Webhook Payload Handler (POST)
- * 
+ *
  * Processes incoming webhook payloads from all supported providers.
  * Fast acknowledgment with async processing for most providers except Airtable.
  */
@@ -83,13 +89,13 @@ export async function POST(
   const requestId = crypto.randomUUID().slice(0, 8)
   let foundWorkflow: any = null
   let foundWebhook: any = null
-  
+
   // --- PHASE 1: Request validation and parsing ---
   let rawBody: string | null = null
   try {
     const requestClone = request.clone()
     rawBody = await requestClone.text()
-    
+
     if (!rawBody || rawBody.length === 0) {
       logger.warn(`[${requestId}] Rejecting request with empty body`)
       return new NextResponse('Empty request body', { status: 400 })
@@ -100,12 +106,12 @@ export async function POST(
     })
     return new NextResponse('Failed to read request body', { status: 400 })
   }
-  
+
   // Parse the body as JSON
   let body: any
   try {
     body = JSON.parse(rawBody)
-    
+
     if (Object.keys(body).length === 0) {
       logger.warn(`[${requestId}] Rejecting empty JSON object`)
       return new NextResponse('Empty JSON payload', { status: 400 })
@@ -116,43 +122,43 @@ export async function POST(
     })
     return new NextResponse('Invalid JSON payload', { status: 400 })
   }
-  
+
   // --- PHASE 2: Early Slack deduplication handling ---
   const messageId = body?.event_id
-  
+
   if (body?.type === 'event_callback') {
-    const dedupeKey = messageId ? 
-      `slack:msg:${messageId}` : 
-      `slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
-    
+    const dedupeKey = messageId
+      ? `slack:msg:${messageId}`
+      : `slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
+
     try {
       const isDuplicate = await hasProcessedMessage(dedupeKey)
       if (isDuplicate) {
         logger.info(`[${requestId}] Duplicate Slack message detected: ${dedupeKey}`)
         return new NextResponse('Duplicate message', { status: 200 })
       }
-      
+
       await markMessageAsProcessed(dedupeKey, 60 * 60 * 24) // 24 hour TTL
     } catch (error) {
       logger.error(`[${requestId}] Error in Slack deduplication`, error)
       // Continue processing - better to risk a duplicate than fail
     }
   }
-  
+
   // --- PHASE 3: Distributed lock acquisition ---
   let hasExecutionLock = false
   let executionLockKey: string
-  
+
   if (body?.type === 'event_callback') {
     // For Slack events, use message-specific lock key
-    executionLockKey = messageId ? 
-      `execution:lock:slack:${messageId}` : 
-      `execution:lock:slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
+    executionLockKey = messageId
+      ? `execution:lock:slack:${messageId}`
+      : `execution:lock:slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
   } else {
     // Default fallback for other providers
     executionLockKey = `execution:lock:${requestId}:${crypto.randomUUID()}`
   }
-  
+
   try {
     hasExecutionLock = await acquireLock(executionLockKey, requestId, 30) // 30 second TTL
   } catch (lockError) {
@@ -163,7 +169,7 @@ export async function POST(
   // --- PHASE 4: Webhook identification ---
   const path = (await params).path
   logger.info(`[${requestId}] Processing webhook request for path: ${path}`)
-  
+
   // Find webhook and associated workflow
   const webhooks = await db
     .select({
@@ -182,30 +188,31 @@ export async function POST(
 
   foundWebhook = webhooks[0].webhook
   foundWorkflow = webhooks[0].workflow
-  
+
   // Detect provider type
   const isAirtableWebhook = foundWebhook.provider === 'airtable'
-  
+
   // Handle Slack challenge verification (must be done before timeout)
-  const slackChallengeResponse = body?.type === 'url_verification' ? handleSlackChallenge(body) : null
+  const slackChallengeResponse =
+    body?.type === 'url_verification' ? handleSlackChallenge(body) : null
   if (slackChallengeResponse) {
     logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
     return slackChallengeResponse
   }
-  
+
   // Skip processing if another instance is already handling this request
   if (!hasExecutionLock) {
     logger.info(`[${requestId}] Skipping execution as lock was not acquired`)
     return new NextResponse('Request is being processed by another instance', { status: 200 })
   }
-  
+
   // --- PHASE 5: Provider-specific processing ---
-  
+
   // For Airtable: Process synchronously without timeouts
   if (isAirtableWebhook) {
     try {
       logger.info(`[${requestId}] Airtable webhook ping received for webhook: ${foundWebhook.id}`)
-      
+
       // Handle Airtable deduplication
       const notificationId = body.notificationId || null
       if (notificationId) {
@@ -225,7 +232,9 @@ export async function POST(
             .limit(1)
 
           if (alreadyProcessed.length > 0) {
-            logger.info(`[${requestId}] Duplicate Airtable notification detected: ${notificationId}`)
+            logger.info(
+              `[${requestId}] Duplicate Airtable notification detected: ${notificationId}`
+            )
             return new NextResponse('Notification already processed', { status: 200 })
           }
 
@@ -233,7 +242,7 @@ export async function POST(
           const providerConfig = foundWebhook.providerConfig || {}
           const processedNotifications = providerConfig.processedNotifications || []
           processedNotifications.push(processedKey)
-          
+
           // Keep only the last 100 notifications to prevent unlimited growth
           const limitedNotifications = processedNotifications.slice(-100)
 
@@ -250,7 +259,7 @@ export async function POST(
             .where(eq(webhook.id, foundWebhook.id))
         } catch (error) {
           logger.warn(`[${requestId}] Airtable deduplication check failed, continuing`, {
-            error: error instanceof Error ? error.message : String(error)
+            error: error instanceof Error ? error.message : String(error),
           })
         }
       }
@@ -262,7 +271,7 @@ export async function POST(
         return new NextResponse('Airtable ping processed successfully', { status: 200 })
       } catch (error: any) {
         logger.error(`[${requestId}] Error during Airtable processing`, {
-          error: error.message
+          error: error.message,
         })
         return new NextResponse(`Error processing Airtable webhook: ${error.message}`, {
           status: 500,
@@ -273,9 +282,9 @@ export async function POST(
       return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
     }
   }
-  
+
   // --- For all other webhook types: Use async processing with timeout ---
-  
+
   // Create timeout promise for fast initial response (2.5 seconds)
   const timeoutDuration = 25000
   const timeoutPromise = new Promise<NextResponse>((resolve) => {
@@ -284,7 +293,7 @@ export async function POST(
       resolve(new NextResponse('Request received', { status: 200 }))
     }, timeoutDuration)
   })
-  
+
   // Create the processing promise for asynchronous execution
   const processingPromise = (async () => {
     try {
@@ -292,7 +301,7 @@ export async function POST(
       if (foundWebhook.provider === 'whatsapp') {
         const data = body?.entry?.[0]?.changes?.[0]?.value
         const messages = data?.messages || []
-        
+
         const whatsappDuplicateResponse = await processWhatsAppDeduplication(requestId, messages)
         if (whatsappDuplicateResponse) {
           return whatsappDuplicateResponse
@@ -303,37 +312,52 @@ export async function POST(
           return genericDuplicateResponse
         }
       }
-      
+
       // Check if the user has exceeded their usage limits
       const usageCheck = await checkServerSideUsageLimits(foundWorkflow.userId)
       if (usageCheck.isExceeded) {
-        logger.warn(`[${requestId}] User ${foundWorkflow.userId} has exceeded usage limits. Skipping webhook execution.`, {
-          currentUsage: usageCheck.currentUsage,
-          limit: usageCheck.limit,
-          workflowId: foundWorkflow.id
-        })
-        
+        logger.warn(
+          `[${requestId}] User ${foundWorkflow.userId} has exceeded usage limits. Skipping webhook execution.`,
+          {
+            currentUsage: usageCheck.currentUsage,
+            limit: usageCheck.limit,
+            workflowId: foundWorkflow.id,
+          }
+        )
+
         // Return a successful response to avoid webhook retries, but don't execute the workflow
-        return new NextResponse(JSON.stringify({
-          status: 'error',
-          message: usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue using webhooks.'
-        }), { 
-          status: 200,  // Use 200 to prevent webhook provider retries
-          headers: { 'Content-Type': 'application/json' }
-        })
+        return new NextResponse(
+          JSON.stringify({
+            status: 'error',
+            message:
+              usageCheck.message ||
+              'Usage limit exceeded. Please upgrade your plan to continue using webhooks.',
+          }),
+          {
+            status: 200, // Use 200 to prevent webhook provider retries
+            headers: { 'Content-Type': 'application/json' },
+          }
+        )
       }
-      
+
       // Execute workflow for the webhook event
       logger.info(`[${requestId}] Executing workflow for ${foundWebhook.provider} webhook`)
-      
+
       const executionId = uuidv4()
-      return await processWebhook(foundWebhook, foundWorkflow, body, request, executionId, requestId)
+      return await processWebhook(
+        foundWebhook,
+        foundWorkflow,
+        body,
+        request,
+        executionId,
+        requestId
+      )
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing webhook:`, error)
       return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
     }
   })()
-  
+
   // Race processing against timeout to ensure fast response
   return Promise.race([timeoutPromise, processingPromise])
 }

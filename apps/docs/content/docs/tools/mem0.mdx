@@ -3,9 +3,9 @@ title: Mem0
 description: Agent memory management
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="mem0"
   color="#181C1E"
   icon={true}
@@ -29,12 +29,9 @@ With Mem0, you can:
 In Sim Studio, the Mem0 integration enables your agents to maintain persistent memory across workflow executions. This allows for more natural, context-aware interactions where agents can recall past conversations, remember user preferences, and build upon previous interactions. By connecting Sim Studio with Mem0, you can create agents that feel more human-like in their ability to remember and learn from past experiences. The integration supports adding new memories, searching existing memories semantically, and retrieving specific memory records. This memory management capability is essential for building sophisticated agents that can maintain context over time, personalize interactions based on user history, and continuously improve their performance through accumulated knowledge.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Add, search, retrieve, and delete memories using Mem0. Store conversation history, user preferences, and context across workflow executions for enhanced AI agent capabilities.
-
-
 
 ## Tools
 
@@ -44,16 +41,16 @@ Add memories to Mem0 for persistent storage and retrieval
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Mem0 API key |
-| `userId` | string | Yes | User ID associated with the memory |
-| `messages` | json | Yes | Array of message objects with role and content |
+| Parameter  | Type   | Required | Description                                    |
+| ---------- | ------ | -------- | ---------------------------------------------- |
+| `apiKey`   | string | Yes      | Your Mem0 API key                              |
+| `userId`   | string | Yes      | User ID associated with the memory             |
+| `messages` | json   | Yes      | Array of message objects with role and content |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter  | Type   |
+| ---------- | ------ |
 | `memories` | string |
 
 ### `mem0_search_memories`
@@ -62,19 +59,19 @@ Search for memories in Mem0 using semantic search
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Mem0 API key |
-| `userId` | string | Yes | User ID to search memories for |
-| `query` | string | Yes | Search query to find relevant memories |
-| `limit` | number | No | Maximum number of results to return |
+| Parameter | Type   | Required | Description                            |
+| --------- | ------ | -------- | -------------------------------------- |
+| `apiKey`  | string | Yes      | Your Mem0 API key                      |
+| `userId`  | string | Yes      | User ID to search memories for         |
+| `query`   | string | Yes      | Search query to find relevant memories |
+| `limit`   | number | No       | Maximum number of results to return    |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter       | Type   |
+| --------------- | ------ |
 | `searchResults` | string |
-| `ids` | string |
+| `ids`           | string |
 
 ### `mem0_get_memories`
 
@@ -82,42 +79,37 @@ Retrieve memories from Mem0 by ID or filter criteria
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Mem0 API key |
-| `userId` | string | Yes | User ID to retrieve memories for |
-| `memoryId` | string | No | Specific memory ID to retrieve |
-| `startDate` | string | No | Start date for filtering by created_at \(format: YYYY-MM-DD\) |
-| `endDate` | string | No | End date for filtering by created_at \(format: YYYY-MM-DD\) |
-| `limit` | number | No | Maximum number of results to return |
+| Parameter   | Type   | Required | Description                                                   |
+| ----------- | ------ | -------- | ------------------------------------------------------------- |
+| `apiKey`    | string | Yes      | Your Mem0 API key                                             |
+| `userId`    | string | Yes      | User ID to retrieve memories for                              |
+| `memoryId`  | string | No       | Specific memory ID to retrieve                                |
+| `startDate` | string | No       | Start date for filtering by created_at \(format: YYYY-MM-DD\) |
+| `endDate`   | string | No       | End date for filtering by created_at \(format: YYYY-MM-DD\)   |
+| `limit`     | number | No       | Maximum number of results to return                           |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-
-
+| Parameter | Type   |
+| --------- | ------ |
+| `data`    | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `ids` | any | ids of the response |
-| ↳ `memories` | any | memories of the response |
-| ↳ `searchResults` | any | searchResults of the response |
-
+| Output            | Type   | Description                   |
+| ----------------- | ------ | ----------------------------- |
+| `response`        | object | Output from response          |
+| ↳ `ids`           | any    | ids of the response           |
+| ↳ `memories`      | any    | memories of the response      |
+| ↳ `searchResults` | any    | searchResults of the response |
 
 ## Notes
 

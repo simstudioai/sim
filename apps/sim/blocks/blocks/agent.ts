@@ -1,6 +1,6 @@
 import { AgentIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console-logger'
 import { isHosted } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
@@ -33,7 +33,9 @@ const getToolIdFromBlock = (blockType: string): string | undefined => {
   try {
     const { getAllBlocks } = require('@/blocks/registry')
     const blocks = getAllBlocks()
-    const block = blocks.find((b: { type: string; tools?: { access?: string[] } }) => b.type === blockType)
+    const block = blocks.find(
+      (b: { type: string; tools?: { access?: string[] } }) => b.type === blockType
+    )
     return block?.tools?.access?.[0]
   } catch (error) {
     logger.error('Error getting tool ID from block', { error })
@@ -118,12 +120,15 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
             value: [
               // OpenAI models
               'gpt-4o',
-              'o1', 'o1-mini', 'o1-preview', 
-              'o3', 'o3-preview',
+              'o1',
+              'o1-mini',
+              'o1-preview',
+              'o3',
+              'o3-preview',
               'o4-mini',
               // Claude models
-              'claude-3-5-sonnet-20240620', 
-              'claude-3-7-sonnet-20250219'
+              'claude-3-5-sonnet-20240620',
+              'claude-3-7-sonnet-20250219',
             ],
             not: true, // Show for all models EXCEPT those listed
           }

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
-import { Input } from '@/components/ui/input'
 import { SearchIcon } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 
 interface SearchBarProps {
   initialValue: string
@@ -13,7 +13,7 @@ export function SearchBar({
   initialValue = '',
   onSearch,
   disabled = false,
-  placeholder = 'Search by email...'
+  placeholder = 'Search by email...',
 }: SearchBarProps) {
   const [searchInputValue, setSearchInputValue] = useState(initialValue)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -46,4 +46,4 @@ export function SearchBar({
       />
     </div>
   )
-} 
+}

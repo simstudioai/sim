@@ -496,8 +496,8 @@ export function DeployModal({
   }
 
   const handleChatDeploymentComplete = () => {
-    setChatSubmitting(false);
-  };
+    setChatSubmitting(false)
+  }
 
   // Render deployed chat view
   const renderDeployedChatView = () => {

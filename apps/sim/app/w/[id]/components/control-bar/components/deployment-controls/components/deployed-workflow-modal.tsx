@@ -1,5 +1,18 @@
 'use client'
 
+import { useState } from 'react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -7,13 +20,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { DeployedWorkflowCard } from './deployed-workflow-card'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useState } from 'react'
-import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { DeployedWorkflowCard } from './deployed-workflow-card'
 
 interface DeployedWorkflowModalProps {
   isOpen: boolean
@@ -49,7 +59,7 @@ export function DeployedWorkflowModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
+      <DialogContent
         className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
         style={{ zIndex: 1000 }}
         onInteractOutside={(e) => e.preventDefault()}
@@ -61,7 +71,7 @@ export function DeployedWorkflowModal({
             <DialogTitle>Deployed Workflow</DialogTitle>
           </DialogHeader>
         </div>
-        
+
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
           deployedWorkflowState={deployedWorkflowState}
@@ -70,25 +80,20 @@ export function DeployedWorkflowModal({
         <div className="flex justify-between mt-6">
           <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive">
-                Revert to Deployed
-              </Button>
+              <Button variant="destructive">Revert to Deployed</Button>
             </AlertDialogTrigger>
-            <AlertDialogContent
-              style={{ zIndex: 1001 }}
-              className="sm:max-w-[425px]"
-            >
+            <AlertDialogContent style={{ zIndex: 1001 }} className="sm:max-w-[425px]">
               <AlertDialogHeader>
                 <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will replace your current workflow with the deployed version. 
-                  Any unsaved changes will be lost. This action cannot be undone.
+                  This will replace your current workflow with the deployed version. Any unsaved
+                  changes will be lost. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleRevert} 
+                <AlertDialogAction
+                  onClick={handleRevert}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   Revert
@@ -104,4 +109,4 @@ export function DeployedWorkflowModal({
       </DialogContent>
     </Dialog>
   )
-} 
+}

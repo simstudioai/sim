@@ -4,8 +4,8 @@ description: Building blocks for your agentic workflows
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { BlockTypes } from '@/components/ui/block-types'
 
 Blocks are the fundamental building components of Sim Studio workflows. Each block has a specific purpose and can be connected to other blocks to create sophisticated workflows.
@@ -26,13 +26,16 @@ Blocks can be connected to form a directed graph representing your workflow. Eac
 
 <Steps>
   <Step>
-    <strong>Outputs to Inputs</strong>: A block's outputs can be connected to another block's inputs.
+    <strong>Outputs to Inputs</strong>: A block's outputs can be connected to another block's
+    inputs.
   </Step>
   <Step>
-    <strong>Multiple Connections</strong>: A block can have multiple incoming and outgoing connections.
+    <strong>Multiple Connections</strong>: A block can have multiple incoming and outgoing
+    connections.
   </Step>
   <Step>
-    <strong>Conditional Flows</strong>: Some blocks (like Router and Condition) can have multiple output paths based on conditions.
+    <strong>Conditional Flows</strong>: Some blocks (like Router and Condition) can have multiple
+    output paths based on conditions.
   </Step>
 </Steps>
 
@@ -48,4 +51,4 @@ Each block type has its own configuration options allowing you to customize its 
 - **Retry policies**: Configure how the block handles failures
 - **Error handling behavior**: Define how errors are managed and reported
 
-See the specific documentation for each block type to learn about its configuration options. 
+See the specific documentation for each block type to learn about its configuration options.

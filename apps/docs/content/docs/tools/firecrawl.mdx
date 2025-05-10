@@ -3,9 +3,9 @@ title: Firecrawl
 description: Scrape website content
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="firecrawl"
   color="#181C1E"
   icon={true}
@@ -48,12 +48,9 @@ With Firecrawl in Sim Studio, you can:
 The Firecrawl integration allows your agents to access and process web content programmatically without leaving the Sim Studio environment. This enables scenarios like research, content aggregation, data extraction, and information analysis from across the web. Your agents can gather information from websites, extract structured data, and use that information to make decisions or generate insights - all without having to navigate the complexities of raw HTML parsing or browser automation. Simply configure the Firecrawl block with your API key, provide the target URL, and your agents can immediately begin working with web content in a clean, structured format.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Extract content from any website with advanced web scraping capabilities and content filtering. Retrieve clean, structured data from web pages with options to focus on main content.
-
-
 
 ## Tools
 
@@ -63,41 +60,36 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Firecrawl API key |
-| `url` | string | Yes | The URL to scrape content from |
-| `scrapeOptions` | json | No | Options for content scraping |
+| Parameter       | Type   | Required | Description                    |
+| --------------- | ------ | -------- | ------------------------------ |
+| `apiKey`        | string | Yes      | Firecrawl API key              |
+| `url`           | string | Yes      | The URL to scrape content from |
+| `scrapeOptions` | json   | No       | Options for content scraping   |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter  | Type   |
+| ---------- | ------ |
 | `markdown` | string |
-| `html` | string |
+| `html`     | string |
 | `metadata` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | Yes | API Key - Enter your Firecrawl API key |
-
-
+| Parameter | Type   | Required | Description                            |
+| --------- | ------ | -------- | -------------------------------------- |
+| `apiKey`  | string | Yes      | API Key - Enter your Firecrawl API key |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
 | ↳ `markdown` | string | markdown of the response |
-| ↳ `html` | any | html of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| ↳ `html`     | any    | html of the response     |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

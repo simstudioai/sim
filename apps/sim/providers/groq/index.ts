@@ -1,8 +1,8 @@
 import { Groq } from 'groq-sdk'
 import { createLogger } from '@/lib/logs/console-logger'
+import { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('GroqProvider')
 
@@ -39,7 +39,9 @@ export const groqProvider: ProviderConfig = {
   ],
   defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
+  executeRequest: async (
+    request: ProviderRequest
+  ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Groq')
     }
@@ -85,7 +87,10 @@ export const groqProvider: ProviderConfig = {
 
     // Build the request payload
     const payload: any = {
-      model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace('groq/', ''),
+      model: (request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct').replace(
+        'groq/',
+        ''
+      ),
       messages: allMessages,
     }
 
@@ -132,7 +137,7 @@ export const groqProvider: ProviderConfig = {
       // Start execution timer for the entire provider execution
       const providerStartTime = Date.now()
       const providerStartTimeISO = new Date(providerStartTime).toISOString()
-      
+
       const streamResponse = await groq.chat.completions.create({
         ...payload,
         stream: true,
@@ -142,9 +147,9 @@ export const groqProvider: ProviderConfig = {
       let tokenUsage = {
         prompt: 0,
         completion: 0,
-        total: 0
+        total: 0,
       }
-      
+
       // Create a StreamingExecution response with a readable stream
       const streamingResult = {
         stream: createReadableStreamFromGroqStream(streamResponse),
@@ -160,20 +165,22 @@ export const groqProvider: ProviderConfig = {
                 startTime: providerStartTimeISO,
                 endTime: new Date().toISOString(),
                 duration: Date.now() - providerStartTime,
-                timeSegments: [{
-                  type: 'model',
-                  name: 'Streaming response',
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                }]
+                timeSegments: [
+                  {
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  },
+                ],
               },
               cost: {
                 total: 0.0,
                 input: 0.0,
-                output: 0.0
-              }
-            }
+                output: 0.0,
+              },
+            },
           },
           logs: [], // No block logs for direct streaming
           metadata: {
@@ -181,10 +188,10 @@ export const groqProvider: ProviderConfig = {
             endTime: new Date().toISOString(),
             duration: Date.now() - providerStartTime,
           },
-          isStreaming: true
-        }
+          isStreaming: true,
+        },
       }
-      
+
       // Return the streaming execution object
       return streamingResult as StreamingExecution
     }
@@ -364,7 +371,7 @@ export const groqProvider: ProviderConfig = {
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto',  // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
           stream: true,
         }
 
@@ -384,10 +391,13 @@ export const groqProvider: ProviderConfig = {
                   completion: tokens.completion,
                   total: tokens.total,
                 },
-                toolCalls: toolCalls.length > 0 ? { 
-                  list: toolCalls,
-                  count: toolCalls.length 
-                } : undefined,
+                toolCalls:
+                  toolCalls.length > 0
+                    ? {
+                        list: toolCalls,
+                        count: toolCalls.length,
+                      }
+                    : undefined,
                 providerTiming: {
                   startTime: providerStartTimeISO,
                   endTime: new Date().toISOString(),
@@ -401,9 +411,9 @@ export const groqProvider: ProviderConfig = {
                 cost: {
                   total: (tokens.total || 0) * 0.0001,
                   input: (tokens.prompt || 0) * 0.0001,
-                  output: (tokens.completion || 0) * 0.0001
-                }
-              }
+                  output: (tokens.completion || 0) * 0.0001,
+                },
+              },
             },
             logs: [], // No block logs at provider level
             metadata: {
@@ -411,10 +421,10 @@ export const groqProvider: ProviderConfig = {
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
-            isStreaming: true
-          }
+            isStreaming: true,
+          },
         }
-        
+
         // Return the streaming execution object
         return streamingResult as StreamingExecution
       }

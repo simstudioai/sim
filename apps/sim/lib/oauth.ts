@@ -9,10 +9,10 @@ import {
   GoogleDriveIcon,
   GoogleIcon,
   GoogleSheetsIcon,
+  JiraIcon,
   NotionIcon,
   SupabaseIcon,
   xIcon,
-  JiraIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -42,7 +42,7 @@ export type OAuthService =
   | 'airtable'
   | 'notion'
   | 'jira'
-  
+
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -188,12 +188,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'confluence',
         icon: (props) => ConfluenceIcon(props),
         baseProviderIcon: (props) => ConfluenceIcon(props),
-        scopes: [
-          'read:page:confluence',
-          'write:page:confluence',
-          'read:me',
-          'offline_access',
-        ],
+        scopes: ['read:page:confluence', 'write:page:confluence', 'read:me', 'offline_access'],
       },
     },
     defaultService: 'confluence',
@@ -210,7 +205,8 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'jira',
         icon: (props) => JiraIcon(props),
         baseProviderIcon: (props) => JiraIcon(props),
-        scopes: [ 'read:jira-user',
+        scopes: [
+          'read:jira-user',
           'read:jira-work',
           'write:jira-work',
           'read:project:jira',

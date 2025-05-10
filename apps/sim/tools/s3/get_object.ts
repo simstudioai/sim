@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
 import crypto from 'crypto'
+import { ToolConfig } from '../types'
 
 // Function to encode S3 path components
 function encodeS3PathComponent(pathComponent: string): string {
@@ -7,11 +7,19 @@ function encodeS3PathComponent(pathComponent: string): string {
 }
 
 // Function to calculate AWS signature key
-function getSignatureKey(key: string, dateStamp: string, regionName: string, serviceName: string): Buffer {
+function getSignatureKey(
+  key: string,
+  dateStamp: string,
+  regionName: string,
+  serviceName: string
+): Buffer {
   if (!key || typeof key !== 'string') {
     throw new Error('Invalid key provided to getSignatureKey')
   }
-  const kDate = crypto.createHmac('sha256', 'AWS4' + key).update(dateStamp).digest()
+  const kDate = crypto
+    .createHmac('sha256', 'AWS4' + key)
+    .update(dateStamp)
+    .digest()
   const kRegion = crypto.createHmac('sha256', kDate).update(regionName).digest()
   const kService = crypto.createHmac('sha256', kRegion).update(serviceName).digest()
   const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest()
@@ -33,7 +41,9 @@ function parseS3Uri(s3Uri: string): { bucketName: string; region: string; object
 
     return { bucketName, region, objectKey }
   } catch (error) {
-    throw new Error('Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file')
+    throw new Error(
+      'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
+    )
   }
 }
 
@@ -43,10 +53,10 @@ function generatePresignedUrl(params: any, expiresIn: number = 3600): string {
   const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '')
   const dateStamp = amzDate.slice(0, 8)
   const encodedPath = encodeS3PathComponent(params.objectKey)
-  
+
   // Set expiration time
   const expires = Math.floor(Date.now() / 1000) + expiresIn
-  
+
   // Create the canonical request
   const method = 'GET'
   const canonicalUri = `/${encodedPath}`
@@ -54,26 +64,36 @@ function generatePresignedUrl(params: any, expiresIn: number = 3600): string {
   const canonicalHeaders = 'host:' + params.bucketName + '.s3.' + params.region + '.amazonaws.com\n'
   const signedHeaders = 'host'
   const payloadHash = 'UNSIGNED-PAYLOAD'
-  
-  const canonicalRequest = method + '\n' + 
-                          canonicalUri + '\n' + 
-                          canonicalQueryString + '\n' + 
-                          canonicalHeaders + '\n' + 
-                          signedHeaders + '\n' + 
-                          payloadHash
-  
+
+  const canonicalRequest =
+    method +
+    '\n' +
+    canonicalUri +
+    '\n' +
+    canonicalQueryString +
+    '\n' +
+    canonicalHeaders +
+    '\n' +
+    signedHeaders +
+    '\n' +
+    payloadHash
+
   // Create string to sign
   const algorithm = 'AWS4-HMAC-SHA256'
   const credentialScope = dateStamp + '/' + params.region + '/s3/aws4_request'
-  const stringToSign = algorithm + '\n' + 
-                      amzDate + '\n' + 
-                      credentialScope + '\n' + 
-                      crypto.createHash('sha256').update(canonicalRequest).digest('hex')
-  
+  const stringToSign =
+    algorithm +
+    '\n' +
+    amzDate +
+    '\n' +
+    credentialScope +
+    '\n' +
+    crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+
   // Calculate signature
   const signingKey = getSignatureKey(params.secretAccessKey, dateStamp, params.region, 's3')
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex')
-  
+
   // Create signed URL
   return `https://${params.bucketName}.s3.${params.region}.amazonaws.com/${encodedPath}?${canonicalQueryString}&X-Amz-Signature=${signature}`
 }
@@ -99,20 +119,22 @@ export const s3GetObjectTool: ToolConfig = {
       type: 'string',
       required: true,
       description: 'S3 Object URL (e.g., https://bucket-name.s3.region.amazonaws.com/path/to/file)',
-    }
+    },
   },
   request: {
     url: (params) => {
       try {
         const { bucketName, region, objectKey } = parseS3Uri(params.s3Uri)
-        
+
         params.bucketName = bucketName
         params.region = region
         params.objectKey = objectKey
 
         return `https://${bucketName}.s3.${region}.amazonaws.com/${encodeS3PathComponent(objectKey)}`
       } catch (error) {
-        throw new Error('Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file')
+        throw new Error(
+          'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
+        )
       }
     },
     method: 'HEAD',
@@ -130,51 +152,68 @@ export const s3GetObjectTool: ToolConfig = {
         const date = new Date()
         const amzDate = date.toISOString().replace(/[:-]|\.\d{3}/g, '')
         const dateStamp = amzDate.slice(0, 8)
-        
+
         const method = 'HEAD'
         const encodedPath = encodeS3PathComponent(params.objectKey)
         const canonicalUri = `/${encodedPath}`
         const canonicalQueryString = ''
         const payloadHash = crypto.createHash('sha256').update('').digest('hex')
         const host = `${params.bucketName}.s3.${params.region}.amazonaws.com`
-        const canonicalHeaders = 
-          `host:${host}\n` +
-          `x-amz-content-sha256:${payloadHash}\n` +
-          `x-amz-date:${amzDate}\n`
+        const canonicalHeaders =
+          `host:${host}\n` + `x-amz-content-sha256:${payloadHash}\n` + `x-amz-date:${amzDate}\n`
         const signedHeaders = 'host;x-amz-content-sha256;x-amz-date'
-        const canonicalRequest = method + '\n' + 
-                               canonicalUri + '\n' + 
-                               canonicalQueryString + '\n' + 
-                               canonicalHeaders + '\n' + 
-                               signedHeaders + '\n' + 
-                               payloadHash
-        
+        const canonicalRequest =
+          method +
+          '\n' +
+          canonicalUri +
+          '\n' +
+          canonicalQueryString +
+          '\n' +
+          canonicalHeaders +
+          '\n' +
+          signedHeaders +
+          '\n' +
+          payloadHash
+
         const algorithm = 'AWS4-HMAC-SHA256'
         const credentialScope = dateStamp + '/' + params.region + '/s3/aws4_request'
-        const stringToSign = algorithm + '\n' + 
-                            amzDate + '\n' + 
-                            credentialScope + '\n' + 
-                            crypto.createHash('sha256').update(canonicalRequest).digest('hex')
-        
+        const stringToSign =
+          algorithm +
+          '\n' +
+          amzDate +
+          '\n' +
+          credentialScope +
+          '\n' +
+          crypto.createHash('sha256').update(canonicalRequest).digest('hex')
+
         const signingKey = getSignatureKey(params.secretAccessKey, dateStamp, params.region, 's3')
         const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex')
-        
-        const authorizationHeader = algorithm + ' ' +
-          'Credential=' + params.accessKeyId + '/' + credentialScope + ', ' +
-          'SignedHeaders=' + signedHeaders + ', ' +
-          'Signature=' + signature
-        
+
+        const authorizationHeader =
+          algorithm +
+          ' ' +
+          'Credential=' +
+          params.accessKeyId +
+          '/' +
+          credentialScope +
+          ', ' +
+          'SignedHeaders=' +
+          signedHeaders +
+          ', ' +
+          'Signature=' +
+          signature
+
         return {
-          'Host': host,
+          Host: host,
           'X-Amz-Content-Sha256': payloadHash,
           'X-Amz-Date': amzDate,
-          'Authorization': authorizationHeader
+          Authorization: authorizationHeader,
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         throw new Error('Failed to generate request headers: ' + errorMessage)
       }
-    }
+    },
   },
   transformResponse: async (response: Response, params) => {
     try {
@@ -207,9 +246,9 @@ export const s3GetObjectTool: ToolConfig = {
             fileType: contentType,
             size: contentLength,
             name: fileName,
-            lastModified: lastModified
-          }
-        }
+            lastModified: lastModified,
+          },
+        },
       }
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -221,10 +260,10 @@ export const s3GetObjectTool: ToolConfig = {
             fileType: 'error',
             size: 0,
             name: params.objectKey?.split('/').pop() || 'unknown',
-            error: errorMessage
-          }
-        }
+            error: errorMessage,
+          },
+        },
       }
     }
-  }
+  },
 }

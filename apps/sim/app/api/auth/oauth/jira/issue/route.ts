@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getJiraCloudId } from '@/tools/jira/utils'
 import { Logger } from '@/lib/logs/console-logger'
+import { getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = new Logger('jira_issue')
 
@@ -24,29 +24,29 @@ export async function POST(request: Request) {
     }
 
     // Use provided cloudId or fetch it if not provided
-    const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
     logger.info('Using cloud ID:', cloudId)
 
     // Build the URL using cloudId for Jira API
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueId}`
-    
+
     logger.info('Fetching Jira issue from:', url)
 
     // Make the request to Jira API
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
     })
 
     if (!response.ok) {
       logger.error('Jira API error:', {
         status: response.status,
-        statusText: response.statusText
+        statusText: response.statusText,
       })
-      
+
       let errorMessage
       try {
         const errorData = await response.json()
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
     const data = await response.json()
     logger.info('Successfully fetched issue:', data.key)
-    
+
     // Transform the Jira issue data into our expected format
     const issueInfo: any = {
       id: data.key,
@@ -77,23 +77,22 @@ export async function POST(request: Request) {
       reporter: data.fields.reporter?.displayName,
       project: {
         key: data.fields.project?.key,
-        name: data.fields.project?.name
-      }
+        name: data.fields.project?.name,
+      },
     }
 
     return NextResponse.json({
       issue: issueInfo,
-      cloudId // Return the cloudId so it can be cached
+      cloudId, // Return the cloudId so it can be cached
     })
-
   } catch (error) {
     logger.error('Error processing request:', error)
     // Add more context to the error response
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to retrieve Jira issue',
         details: (error as Error).message,
-        stack: (error as Error).stack
+        stack: (error as Error).stack,
       },
       { status: 500 }
     )

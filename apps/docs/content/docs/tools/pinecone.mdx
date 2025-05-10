@@ -3,9 +3,9 @@ title: Pinecone
 description: Use Pinecone vector database
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="pinecone"
   color="#0D1117"
   icon={true}
@@ -42,12 +42,9 @@ With Pinecone, you can:
 In Sim Studio, the Pinecone integration enables your agents to leverage vector search capabilities programmatically as part of their workflows. This allows for sophisticated automation scenarios that combine natural language processing with semantic search and retrieval. Your agents can generate embeddings from text, store these vectors in Pinecone indexes, and perform similarity searches to find the most relevant information. This integration bridges the gap between your AI workflows and vector search infrastructure, enabling more intelligent information retrieval based on semantic meaning rather than exact keyword matching. By connecting Sim Studio with Pinecone, you can create agents that understand context, retrieve relevant information from large datasets, and deliver more accurate and personalized responses to users - all without requiring complex infrastructure management or specialized knowledge of vector databases.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Store, search, and retrieve vector embeddings using Pinecone
-
-
 
 ## Tools
 
@@ -57,20 +54,20 @@ Generate embeddings from text using Pinecone
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
-| `model` | string | Yes | Model to use for generating embeddings |
-| `inputs` | array | Yes | Array of text inputs to generate embeddings for |
+| Parameter | Type   | Required | Description                                     |
+| --------- | ------ | -------- | ----------------------------------------------- |
+| `apiKey`  | string | Yes      | Pinecone API key                                |
+| `model`   | string | Yes      | Model to use for generating embeddings          |
+| `inputs`  | array  | Yes      | Array of text inputs to generate embeddings for |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `model` | string |
+| Parameter     | Type   |
+| ------------- | ------ |
+| `data`        | string |
+| `model`       | string |
 | `vector_type` | string |
-| `usage` | string |
+| `usage`       | string |
 
 ### `pinecone_upsert_text`
 
@@ -78,17 +75,17 @@ Insert or update text records in a Pinecone index
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `namespace` | string | Yes | Namespace to upsert records into |
-| `records` | array | Yes | Record or array of records to upsert, each containing _id, text, and optional metadata |
+| Parameter   | Type   | Required | Description                                                                             |
+| ----------- | ------ | -------- | --------------------------------------------------------------------------------------- |
+| `apiKey`    | string | Yes      | Pinecone API key                                                                        |
+| `indexHost` | string | Yes      | Full Pinecone index host URL                                                            |
+| `namespace` | string | Yes      | Namespace to upsert records into                                                        |
+| `records`   | array  | Yes      | Record or array of records to upsert, each containing \_id, text, and optional metadata |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter    | Type   |
+| ------------ | ------ |
 | `statusText` | string |
 
 ### `pinecone_search_text`
@@ -97,23 +94,23 @@ Search for similar text in a Pinecone index
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `namespace` | string | No | Namespace to search in |
-| `searchQuery` | string | Yes | Text to search for |
-| `topK` | string | No | Number of results to return |
-| `fields` | array | No | Fields to return in the results |
-| `filter` | object | No | Filter to apply to the search |
-| `rerank` | object | No | Reranking parameters |
+| Parameter     | Type   | Required | Description                     |
+| ------------- | ------ | -------- | ------------------------------- |
+| `apiKey`      | string | Yes      | Pinecone API key                |
+| `indexHost`   | string | Yes      | Full Pinecone index host URL    |
+| `namespace`   | string | No       | Namespace to search in          |
+| `searchQuery` | string | Yes      | Text to search for              |
+| `topK`        | string | No       | Number of results to return     |
+| `fields`      | array  | No       | Fields to return in the results |
+| `filter`      | object | No       | Filter to apply to the search   |
+| `rerank`      | object | No       | Reranking parameters            |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `matches` | string |
-| `score` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `matches`  | string |
+| `score`    | string |
 | `metadata` | string |
 
 ### `pinecone_search_vector`
@@ -122,24 +119,24 @@ Search for similar vectors in a Pinecone index
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `namespace` | string | No | Namespace to search in |
-| `vector` | array | Yes | Vector to search for |
-| `topK` | number | No | Number of results to return |
-| `filter` | object | No | Filter to apply to the search |
-| `includeValues` | boolean | No | Include vector values in response |
-| `includeMetadata` | boolean | No | Include metadata in response |
+| Parameter         | Type    | Required | Description                       |
+| ----------------- | ------- | -------- | --------------------------------- |
+| `apiKey`          | string  | Yes      | Pinecone API key                  |
+| `indexHost`       | string  | Yes      | Full Pinecone index host URL      |
+| `namespace`       | string  | No       | Namespace to search in            |
+| `vector`          | array   | Yes      | Vector to search for              |
+| `topK`            | number  | No       | Number of results to return       |
+| `filter`          | object  | No       | Filter to apply to the search     |
+| `includeValues`   | boolean | No       | Include vector values in response |
+| `includeMetadata` | boolean | No       | Include metadata in response      |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `matches` | string |
-| `score` | string |
-| `values` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `matches`  | string |
+| `score`    | string |
+| `values`   | string |
 | `metadata` | string |
 
 ### `pinecone_fetch`
@@ -148,46 +145,41 @@ Fetch vectors by ID from a Pinecone index
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Pinecone API key |
-| `indexHost` | string | Yes | Full Pinecone index host URL |
-| `ids` | array | Yes | Array of vector IDs to fetch |
-| `namespace` | string | No | Namespace to fetch vectors from |
+| Parameter   | Type   | Required | Description                     |
+| ----------- | ------ | -------- | ------------------------------- |
+| `apiKey`    | string | Yes      | Pinecone API key                |
+| `indexHost` | string | Yes      | Full Pinecone index host URL    |
+| `ids`       | array  | Yes      | Array of vector IDs to fetch    |
+| `namespace` | string | No       | Namespace to fetch vectors from |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `matches` | string |
-| `values` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `matches`  | string |
+| `values`   | string |
 | `metadata` | string |
-| `score` | string |
-
-
+| `score`    | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `matches` | any | matches of the response |
-| ↳ `upsertedCount` | any | upsertedCount of the response |
-| ↳ `data` | any | data of the response |
-| ↳ `model` | any | model of the response |
-| ↳ `vector_type` | any | vector_type of the response |
-| ↳ `usage` | any | usage of the response |
-
+| Output            | Type   | Description                   |
+| ----------------- | ------ | ----------------------------- |
+| `response`        | object | Output from response          |
+| ↳ `matches`       | any    | matches of the response       |
+| ↳ `upsertedCount` | any    | upsertedCount of the response |
+| ↳ `data`          | any    | data of the response          |
+| ↳ `model`         | any    | model of the response         |
+| ↳ `vector_type`   | any    | vector_type of the response   |
+| ↳ `usage`         | any    | usage of the response         |
 
 ## Notes
 

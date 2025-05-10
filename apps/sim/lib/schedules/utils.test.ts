@@ -5,12 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   BlockState,
   calculateNextRunTime,
+  createDateWithTimezone,
   generateCronExpression,
   getScheduleTimeValues,
   getSubBlockValue,
   parseCronToHumanReadable,
   parseTimeString,
-  createDateWithTimezone,
 } from './utils'
 
 describe('Schedule Utilities', () => {
@@ -455,7 +455,7 @@ describe('Schedule Utilities', () => {
         '14:00', // 2:00 PM
         'UTC'
       )
-      expect(date.toISOString()).toBe('2025-04-21T14:00:00.000Z');
+      expect(date.toISOString()).toBe('2025-04-21T14:00:00.000Z')
     })
 
     it('should correctly handle America/Los_Angeles (UTC-7 during DST)', () => {
@@ -466,7 +466,7 @@ describe('Schedule Utilities', () => {
         'America/Los_Angeles'
       )
       // 2:00 PM PDT should be 21:00 UTC (14 + 7)
-      expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z');
+      expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z')
     })
 
     it('should correctly handle America/Los_Angeles (UTC-8 outside DST)', () => {
@@ -477,7 +477,7 @@ describe('Schedule Utilities', () => {
         'America/Los_Angeles'
       )
       // 2:00 PM PST should be 22:00 UTC (14 + 8)
-      expect(date.toISOString()).toBe('2025-01-10T22:00:00.000Z');
+      expect(date.toISOString()).toBe('2025-01-10T22:00:00.000Z')
     })
 
     it('should correctly handle America/New_York (UTC-4 during DST)', () => {
@@ -488,7 +488,7 @@ describe('Schedule Utilities', () => {
         'America/New_York'
       )
       // 10:30 AM EDT should be 14:30 UTC (10.5 + 4)
-      expect(date.toISOString()).toBe('2025-06-15T14:30:00.000Z');
+      expect(date.toISOString()).toBe('2025-06-15T14:30:00.000Z')
     })
 
     it('should correctly handle America/New_York (UTC-5 outside DST)', () => {
@@ -499,7 +499,7 @@ describe('Schedule Utilities', () => {
         'America/New_York'
       )
       // 10:30 AM EST should be 15:30 UTC (10.5 + 5)
-      expect(date.toISOString()).toBe('2025-12-20T15:30:00.000Z');
+      expect(date.toISOString()).toBe('2025-12-20T15:30:00.000Z')
     })
 
     it('should correctly handle Europe/London (UTC+1 during DST)', () => {
@@ -510,7 +510,7 @@ describe('Schedule Utilities', () => {
         'Europe/London'
       )
       // 9:15 AM BST should be 08:15 UTC (9.25 - 1)
-      expect(date.toISOString()).toBe('2025-08-05T08:15:00.000Z');
+      expect(date.toISOString()).toBe('2025-08-05T08:15:00.000Z')
     })
 
     it('should correctly handle Europe/London (UTC+0 outside DST)', () => {
@@ -521,7 +521,7 @@ describe('Schedule Utilities', () => {
         'Europe/London'
       )
       // 9:15 AM GMT should be 09:15 UTC (9.25 - 0)
-      expect(date.toISOString()).toBe('2025-02-10T09:15:00.000Z');
+      expect(date.toISOString()).toBe('2025-02-10T09:15:00.000Z')
     })
 
     it('should correctly handle Asia/Tokyo (UTC+9)', () => {
@@ -532,18 +532,14 @@ describe('Schedule Utilities', () => {
         'Asia/Tokyo'
       )
       // 5:00 PM JST should be 08:00 UTC (17 - 9)
-      expect(date.toISOString()).toBe('2025-07-01T08:00:00.000Z');
+      expect(date.toISOString()).toBe('2025-07-01T08:00:00.000Z')
     })
 
     it('should handle date object input', () => {
       // Using a Date object that represents midnight UTC on the target day
-      const dateInput = new Date(Date.UTC(2025, 3, 21)); // April 21, 2025
-      const date = createDateWithTimezone(
-        dateInput,
-        '14:00',
-        'America/Los_Angeles'
-      )
-      expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z');
+      const dateInput = new Date(Date.UTC(2025, 3, 21)) // April 21, 2025
+      const date = createDateWithTimezone(dateInput, '14:00', 'America/Los_Angeles')
+      expect(date.toISOString()).toBe('2025-04-21T21:00:00.000Z')
     })
 
     it('should handle time crossing midnight due to timezone offset', () => {
@@ -555,7 +551,7 @@ describe('Schedule Utilities', () => {
         'Australia/Sydney'
       )
       // 1:00 AM AEDT on Oct 15th should be 14:00 UTC on Oct 14th (1 - 11 = -10 -> previous day 14:00)
-      expect(date.toISOString()).toBe('2025-10-14T14:00:00.000Z');
+      expect(date.toISOString()).toBe('2025-10-14T14:00:00.000Z')
     })
   })
 })

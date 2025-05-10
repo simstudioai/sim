@@ -130,7 +130,7 @@ export function convertScheduleOptionsToCron(
  */
 export function getTimezoneAbbreviation(timezone: string, date: Date = new Date()): string {
   if (timezone === 'UTC') return 'UTC'
-  
+
   // Common timezone mappings
   const timezoneMap: Record<string, { standard: string; daylight: string }> = {
     'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
@@ -143,45 +143,45 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     'Australia/Sydney': { standard: 'AEST', daylight: 'AEDT' },
     'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
   }
-  
+
   // If we have a mapping for this timezone
   if (timezone in timezoneMap) {
     // January 1 is guaranteed to be standard time in northern hemisphere
     // July 1 is guaranteed to be daylight time in northern hemisphere (if observed)
     const januaryDate = new Date(date.getFullYear(), 0, 1)
     const julyDate = new Date(date.getFullYear(), 6, 1)
-    
+
     // Get offset in January (standard time)
     const januaryFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      timeZoneName: 'short'
+      timeZoneName: 'short',
     })
-    
+
     // Get offset in July (likely daylight time)
     const julyFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      timeZoneName: 'short'
+      timeZoneName: 'short',
     })
-    
+
     // If offsets are different, timezone observes DST
     const isDSTObserved = januaryFormatter.format(januaryDate) !== julyFormatter.format(julyDate)
-    
+
     // If DST is observed, check if current date is in DST by comparing its offset
     // with January's offset (standard time)
     if (isDSTObserved) {
       const currentFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
-        timeZoneName: 'short'
+        timeZoneName: 'short',
       })
-      
+
       const isDST = currentFormatter.format(date) !== januaryFormatter.format(januaryDate)
       return isDST ? timezoneMap[timezone].daylight : timezoneMap[timezone].standard
     }
-    
+
     // If DST is not observed, always use standard
     return timezoneMap[timezone].standard
   }
-  
+
   // For unknown timezones, use full IANA name
   return timezone
 }
@@ -202,13 +202,13 @@ export function formatDateTime(date: Date, timezone?: string): string {
     hour12: true,
     timeZone: timezone || undefined,
   })
-  
+
   // If timezone is provided, add a friendly timezone abbreviation
   if (timezone) {
     const tzAbbr = getTimezoneAbbreviation(timezone, date)
     return `${formattedDate} ${tzAbbr}`
   }
-  
+
   return formattedDate
 }
 

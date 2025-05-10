@@ -3,7 +3,6 @@ import { readFile } from 'fs/promises'
 import { createLogger } from '@/lib/logs/console-logger'
 import { downloadFromS3, getPresignedUrl } from '@/lib/uploads/s3-client'
 import { USE_S3_STORAGE } from '@/lib/uploads/setup'
-
 import '@/lib/uploads/setup.server'
 import {
   createErrorResponse,

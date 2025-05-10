@@ -51,7 +51,7 @@ describe('EvaluatorBlockHandler', () => {
 
     // Default mock implementations
     mockGetProviderFromModel.mockReturnValue('openai')
-    
+
     // Set up fetch mock to return a successful response
     mockFetch.mockImplementation(() => {
       return Promise.resolve({
@@ -99,14 +99,14 @@ describe('EvaluatorBlockHandler', () => {
 
     expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.any(String), 
+      expect.any(String),
       expect.objectContaining({
         method: 'POST',
         headers: expect.any(Object),
         body: expect.any(String),
       })
     )
-    
+
     // Verify the request body contains the expected data
     const fetchCallArgs = mockFetch.mock.calls[0]
     const requestBody = JSON.parse(fetchCallArgs[1].body)
@@ -123,11 +123,11 @@ describe('EvaluatorBlockHandler', () => {
           },
           required: ['score1', 'score2'],
           additionalProperties: false,
-        }
+        },
       }),
       temperature: 0.1,
     })
-    
+
     expect(result).toEqual(expectedOutput)
   })
 
@@ -137,7 +137,7 @@ describe('EvaluatorBlockHandler', () => {
       content: JSON.stringify(contentObj),
       metrics: [{ name: 'clarity', description: 'Clarity score', range: { min: 1, max: 5 } }],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -169,7 +169,7 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'completeness', description: 'Data completeness', range: { min: 0, max: 1 } },
       ],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -198,7 +198,7 @@ describe('EvaluatorBlockHandler', () => {
       content: 'Test content',
       metrics: [{ name: 'quality', description: 'Quality score', range: { min: 1, max: 10 } }],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -223,7 +223,7 @@ describe('EvaluatorBlockHandler', () => {
       content: 'Test content',
       metrics: [{ name: 'score', description: 'Score', range: { min: 0, max: 5 } }],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -251,7 +251,7 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'fluency', description: 'Flu', range: { min: 0, max: 1 } },
       ],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -276,7 +276,7 @@ describe('EvaluatorBlockHandler', () => {
       content: 'Test',
       metrics: [{ name: 'CamelCaseScore', description: 'Desc', range: { min: 0, max: 10 } }],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -304,7 +304,7 @@ describe('EvaluatorBlockHandler', () => {
         { name: 'missingScore', description: 'Desc2', range: { min: 0, max: 5 } },
       ],
     }
-    
+
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({
         ok: true,
@@ -324,10 +324,10 @@ describe('EvaluatorBlockHandler', () => {
     expect((result as any).response.presentscore).toBe(4)
     expect((result as any).response.missingscore).toBe(0)
   })
-  
+
   it('should handle server error responses', async () => {
     const inputs = { content: 'Test error handling.' }
-    
+
     // Override fetch mock to return an error
     mockFetch.mockImplementationOnce(() => {
       return Promise.resolve({

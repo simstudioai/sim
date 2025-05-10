@@ -3,9 +3,9 @@ title: Translate
 description: Translate text to any language
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="translate"
   color="#FF4B4B"
   icon={true}
@@ -43,14 +43,11 @@ With Translate, you can:
 - **Translate videos**: Translate videos between languages
 - **Translate speech**: Translate speech between languages
 - **Translate text**: Translate text between languages
-{/* MANUAL-CONTENT-END */}
-
+  {/* MANUAL-CONTENT-END */}
 
 ## Usage Instructions
 
 Convert text between languages while preserving meaning, nuance, and formatting. Utilize powerful language models to produce natural, fluent translations with appropriate cultural adaptations.
-
-
 
 ## Tools
 
@@ -67,7 +64,6 @@ This tool does not produce any outputs.
 
 ### `anthropic_chat`
 
-
 ### `google_chat`
 
 #### Input
@@ -79,27 +75,22 @@ This tool does not produce any outputs.
 
 This tool does not produce any outputs.
 
-
-
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `context` | string | Yes | Text to Translate - Enter the text you want to translate |
-
-
+| Parameter | Type   | Required | Description                                              |
+| --------- | ------ | -------- | -------------------------------------------------------- |
+| `context` | string | Yes      | Text to Translate - Enter the text you want to translate |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
 | ↳ `content` | string | content of the response |
-| ↳ `model` | string | model of the response |
-| ↳ `tokens` | any | tokens of the response |
-
+| ↳ `model`   | string | model of the response   |
+| ↳ `tokens`  | any    | tokens of the response  |
 
 ## Notes
 

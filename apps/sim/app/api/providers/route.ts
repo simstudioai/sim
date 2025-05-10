@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { StreamingExecution } from '@/executor/types'
 import { executeProviderRequest } from '@/providers'
 import { getApiKey } from '@/providers/utils'
-import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -54,7 +54,12 @@ export async function POST(request: NextRequest) {
     })
 
     // Check if the response is a StreamingExecution
-    if (response && typeof response === 'object' && 'stream' in response && 'execution' in response) {
+    if (
+      response &&
+      typeof response === 'object' &&
+      'stream' in response &&
+      'execution' in response
+    ) {
       const streamingExec = response as StreamingExecution
       logger.info('Received StreamingExecution from provider')
 
@@ -72,14 +77,14 @@ export async function POST(request: NextRequest) {
           output: {
             response: {
               // Sanitize content to remove non-ASCII characters that would cause ByteString errors
-              content: executionData.output?.response?.content 
+              content: executionData.output?.response?.content
                 ? String(executionData.output.response.content).replace(/[\u0080-\uFFFF]/g, '')
                 : '',
               model: executionData.output?.response?.model,
               tokens: executionData.output?.response?.tokens || {
                 prompt: 0,
                 completion: 0,
-                total: 0
+                total: 0,
               },
               // Sanitize any potential Unicode characters in tool calls
               toolCalls: executionData.output?.response?.toolCalls
@@ -87,14 +92,14 @@ export async function POST(request: NextRequest) {
                 : undefined,
               providerTiming: executionData.output?.response?.providerTiming,
               cost: executionData.output?.response?.cost,
-            }
+            },
           },
           error: executionData.error,
           logs: [], // Strip logs from header to avoid encoding issues
           metadata: {
             startTime: executionData.metadata?.startTime,
             endTime: executionData.metadata?.endTime,
-            duration: executionData.metadata?.duration
+            duration: executionData.metadata?.duration,
           },
           isStreaming: true, // Always mark streaming execution data as streaming
           blockId: executionData.logs?.[0]?.blockId,
@@ -106,21 +111,21 @@ export async function POST(request: NextRequest) {
         logger.error('Failed to serialize execution data:', error)
         executionDataHeader = JSON.stringify({
           success: executionData.success,
-          error: 'Failed to serialize full execution data'
+          error: 'Failed to serialize full execution data',
         })
       }
-      
+
       // Return the stream with execution data in a header
       return new Response(stream, {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'X-Execution-Data': executionDataHeader
+          Connection: 'keep-alive',
+          'X-Execution-Data': executionDataHeader,
         },
       })
     }
-    
+
     // Check if the response is a ReadableStream for streaming
     if (response instanceof ReadableStream) {
       logger.info('Streaming response from provider')
@@ -128,7 +133,7 @@ export async function POST(request: NextRequest) {
         headers: {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
+          Connection: 'keep-alive',
         },
       })
     }
@@ -152,15 +157,15 @@ function sanitizeToolCalls(toolCalls: any) {
   if (toolCalls && typeof toolCalls === 'object' && Array.isArray(toolCalls.list)) {
     return {
       ...toolCalls,
-      list: toolCalls.list.map(sanitizeToolCall)
+      list: toolCalls.list.map(sanitizeToolCall),
     }
   }
-  
+
   // If it's an array, sanitize each item
   if (Array.isArray(toolCalls)) {
     return toolCalls.map(sanitizeToolCall)
   }
-  
+
   return toolCalls
 }
 
@@ -169,38 +174,38 @@ function sanitizeToolCalls(toolCalls: any) {
  */
 function sanitizeToolCall(toolCall: any) {
   if (!toolCall || typeof toolCall !== 'object') return toolCall
-  
+
   // Create a sanitized copy
   const sanitized = { ...toolCall }
-  
+
   // Sanitize any string fields that might contain Unicode
   if (typeof sanitized.name === 'string') {
     sanitized.name = sanitized.name.replace(/[\u0080-\uFFFF]/g, '')
   }
-  
+
   // Sanitize input/arguments
   if (sanitized.input && typeof sanitized.input === 'object') {
     sanitized.input = sanitizeObject(sanitized.input)
   }
-  
+
   if (sanitized.arguments && typeof sanitized.arguments === 'object') {
     sanitized.arguments = sanitizeObject(sanitized.arguments)
   }
-  
+
   // Sanitize output/result
   if (sanitized.output && typeof sanitized.output === 'object') {
     sanitized.output = sanitizeObject(sanitized.output)
   }
-  
+
   if (sanitized.result && typeof sanitized.result === 'object') {
     sanitized.result = sanitizeObject(sanitized.result)
   }
-  
+
   // Sanitize error message
   if (typeof sanitized.error === 'string') {
     sanitized.error = sanitized.error.replace(/[\u0080-\uFFFF]/g, '')
   }
-  
+
   return sanitized
 }
 
@@ -209,12 +214,12 @@ function sanitizeToolCall(toolCall: any) {
  */
 function sanitizeObject(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj
-  
+
   // Handle arrays
   if (Array.isArray(obj)) {
-    return obj.map(item => sanitizeObject(item))
+    return obj.map((item) => sanitizeObject(item))
   }
-  
+
   // Handle objects
   const result: any = {}
   for (const [key, value] of Object.entries(obj)) {
@@ -226,6 +231,6 @@ function sanitizeObject(obj: any): any {
       result[key] = value
     }
   }
-  
+
   return result
 }

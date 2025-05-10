@@ -26,7 +26,5 @@ export const isHosted = process.env.NEXT_PUBLIC_APP_URL === 'https://www.simstud
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {
-  return isProd 
-    ? parseFloat(process.env.COST_MULTIPLIER!) || 1 
-    : 1
-} 
+  return isProd ? parseFloat(process.env.COST_MULTIPLIER!) || 1 : 1
+}

@@ -40,7 +40,7 @@ export class RouterBlockHandler implements BlockHandler {
     try {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
       const url = new URL('/api/providers', baseUrl)
-      
+
       // Create the provider request with proper message formatting
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
@@ -53,7 +53,7 @@ export class RouterBlockHandler implements BlockHandler {
         apiKey: routerConfig.apiKey,
         workflowId: context.workflowId,
       }
-      
+
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
@@ -77,13 +77,14 @@ export class RouterBlockHandler implements BlockHandler {
       }
 
       const result = await response.json()
-      
+
       const chosenBlockId = result.content.trim().toLowerCase()
       const chosenBlock = targetBlocks?.find((b) => b.id === chosenBlockId)
 
       if (!chosenBlock) {
-        logger.error(`Invalid routing decision. Response content: "${result.content}", available blocks:`, 
-          targetBlocks?.map(b => ({ id: b.id, title: b.title })) || []
+        logger.error(
+          `Invalid routing decision. Response content: "${result.content}", available blocks:`,
+          targetBlocks?.map((b) => ({ id: b.id, title: b.title })) || []
         )
         throw new Error(`Invalid routing decision: ${chosenBlockId}`)
       }
@@ -128,21 +129,20 @@ export class RouterBlockHandler implements BlockHandler {
         if (!targetBlock) {
           throw new Error(`Target block ${conn.target} not found`)
         }
-        
+
         // Extract system prompt for agent blocks
         let systemPrompt = ''
         if (targetBlock.metadata?.id === 'agent') {
           // Try to get system prompt from different possible locations
-          systemPrompt = targetBlock.config?.params?.systemPrompt || 
-                        targetBlock.inputs?.systemPrompt || 
-                        ''
-          
+          systemPrompt =
+            targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''
+
           // If system prompt is still not found, check if we can extract it from inputs
           if (!systemPrompt && targetBlock.inputs) {
             systemPrompt = targetBlock.inputs.systemPrompt || ''
           }
         }
-        
+
         return {
           id: targetBlock.id,
           type: targetBlock.metadata?.id,
@@ -150,7 +150,7 @@ export class RouterBlockHandler implements BlockHandler {
           description: targetBlock.metadata?.description,
           subBlocks: {
             ...targetBlock.config.params,
-            systemPrompt: systemPrompt
+            systemPrompt: systemPrompt,
           },
           currentState: context.blockStates.get(targetBlock.id)?.output,
         }

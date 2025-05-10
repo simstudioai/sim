@@ -1,5 +1,5 @@
-import { ensureUploadsDirectory, USE_S3_STORAGE } from './setup'
 import { createLogger } from '@/lib/logs/console-logger'
+import { ensureUploadsDirectory, USE_S3_STORAGE } from './setup'
 
 const logger = createLogger('UploadsSetup')
 
@@ -7,7 +7,7 @@ const logger = createLogger('UploadsSetup')
 if (typeof process !== 'undefined') {
   // Log storage mode
   logger.info(`Storage mode: ${USE_S3_STORAGE ? 'S3' : 'Local'}`)
-  
+
   if (USE_S3_STORAGE) {
     // Verify AWS credentials
     if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
@@ -28,4 +28,4 @@ if (typeof process !== 'undefined') {
   }
 }
 
-export default ensureUploadsDirectory 
+export default ensureUploadsDirectory

@@ -18,7 +18,7 @@ export const user = pgTable('user', {
   image: text('image'),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
-  stripeCustomerId: text('stripe_customer_id')
+  stripeCustomerId: text('stripe_customer_id'),
 })
 
 export const session = pgTable('session', {
@@ -32,7 +32,9 @@ export const session = pgTable('session', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
-  activeOrganizationId: text('active_organization_id').references(() => organization.id, { onDelete: 'set null' }),
+  activeOrganizationId: text('active_organization_id').references(() => organization.id, {
+    onDelete: 'set null',
+  }),
 })
 
 export const account = pgTable('account', {
@@ -67,8 +69,7 @@ export const workflow = pgTable('workflow', {
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
-  workspaceId: text('workspace_id')
-    .references(() => workspace.id, { onDelete: 'cascade' }),
+  workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   state: json('state').notNull(),
@@ -128,20 +129,20 @@ export const settings = pgTable('settings', {
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' })
     .unique(), // One settings record per user
-  
+
   // General settings
   theme: text('theme').notNull().default('system'),
   debugMode: boolean('debug_mode').notNull().default(false),
   autoConnect: boolean('auto_connect').notNull().default(true),
   autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true),
-  
+
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
   telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),
-  
+
   // Keep general for future flexible settings
   general: json('general').notNull().default('{}'),
-  
+
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
@@ -240,7 +241,7 @@ export const customTools = pgTable('custom_tools', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-export const subscription = pgTable("subscription", {
+export const subscription = pgTable('subscription', {
   id: text('id').primaryKey(),
   plan: text('plan').notNull(),
   referenceId: text('reference_id').notNull(),
@@ -252,43 +253,45 @@ export const subscription = pgTable("subscription", {
   cancelAtPeriodEnd: boolean('cancel_at_period_end'),
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),
-  trialEnd: timestamp('trial_end')
+  trialEnd: timestamp('trial_end'),
 })
 
-export const chat = pgTable('chat', {
-  id: text('id').primaryKey(),
-  workflowId: text('workflow_id')
-    .notNull()
-    .references(() => workflow.id, { onDelete: 'cascade' }),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  subdomain: text('subdomain').notNull(),
-  title: text('title').notNull(),
-  description: text('description'),
-  isActive: boolean('is_active').notNull().default(true),
-  customizations: json('customizations').default('{}'), // For UI customization options
-  
-  // Authentication options
-  authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
-  password: text('password'), // Stored hashed, populated when authType is 'password'
-  allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email'
-  
-  // Output configuration
-  outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
-  
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-},
-(table) => {
-  return {
-    // Ensure subdomains are unique
-    subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
+export const chat = pgTable(
+  'chat',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    subdomain: text('subdomain').notNull(),
+    title: text('title').notNull(),
+    description: text('description'),
+    isActive: boolean('is_active').notNull().default(true),
+    customizations: json('customizations').default('{}'), // For UI customization options
+
+    // Authentication options
+    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
+    password: text('password'), // Stored hashed, populated when authType is 'password'
+    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains when authType is 'email'
+
+    // Output configuration
+    outputConfigs: json('output_configs').default('[]'), // Array of {blockId, path} objects
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => {
+    return {
+      // Ensure subdomains are unique
+      subdomainIdx: uniqueIndex('subdomain_idx').on(table.subdomain),
+    }
   }
-}
 )
 
-export const organization = pgTable("organization", {
+export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
@@ -298,23 +301,31 @@ export const organization = pgTable("organization", {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
-export const member = pgTable("member", {
+export const member = pgTable('member', {
   id: text('id').primaryKey(),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organization.id, { onDelete: 'cascade' }),
   role: text('role').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull()
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
-export const invitation = pgTable("invitation", {
+export const invitation = pgTable('invitation', {
   id: text('id').primaryKey(),
   email: text('email').notNull(),
-  inviterId: text('inviter_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  organizationId: text('organization_id').notNull().references(() => organization.id, { onDelete: 'cascade' }),
+  inviterId: text('inviter_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  organizationId: text('organization_id')
+    .notNull()
+    .references(() => organization.id, { onDelete: 'cascade' }),
   role: text('role').notNull(),
   status: text('status').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull()
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
 export const workspace = pgTable('workspace', {

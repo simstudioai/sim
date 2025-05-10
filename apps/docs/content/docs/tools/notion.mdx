@@ -3,9 +3,9 @@ title: Notion
 description: Manage Notion pages
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="notion"
   color="#181C1E"
   icon={true}
@@ -32,12 +32,9 @@ With Notion, you can:
 In Sim Studio, the Notion integration enables your agents to interact directly with your Notion workspace programmatically. This allows for powerful automation scenarios such as knowledge management, content creation, and information retrieval. Your agents can read existing Notion pages to extract information, write to pages to update content, and create new pages from scratch. This integration bridges the gap between your AI workflows and your knowledge base, enabling seamless documentation and information management. By connecting Sim Studio with Notion, you can automate documentation processes, maintain up-to-date information repositories, generate reports, and organize information intelligently - all through your intelligent agents.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Integrate with Notion to read content from pages, write new content, and create new pages.
-
-
 
 ## Tools
 
@@ -47,20 +44,20 @@ Read content from a Notion page
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `pageId` | string | Yes | The ID of the Notion page to read |
-| `accessToken` | string | Yes | Notion OAuth access token |
+| Parameter     | Type   | Required | Description                       |
+| ------------- | ------ | -------- | --------------------------------- |
+| `pageId`      | string | Yes      | The ID of the Notion page to read |
+| `accessToken` | string | Yes      | Notion OAuth access token         |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `metadata` | string |
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `content`        | string |
+| `metadata`       | string |
 | `lastEditedTime` | string |
-| `createdTime` | string |
-| `url` | string |
+| `createdTime`    | string |
+| `url`            | string |
 
 ### `notion_write`
 
@@ -68,16 +65,16 @@ Append content to a Notion page
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `pageId` | string | Yes | The ID of the Notion page to append content to |
-| `content` | string | Yes | The content to append to the page |
-| `accessToken` | string | Yes | Notion OAuth access token |
+| Parameter     | Type   | Required | Description                                    |
+| ------------- | ------ | -------- | ---------------------------------------------- |
+| `pageId`      | string | Yes      | The ID of the Notion page to append content to |
+| `content`     | string | Yes      | The content to append to the page              |
+| `accessToken` | string | Yes      | Notion OAuth access token                      |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `content` | string |
 
 ### `notion_create_page`
@@ -86,41 +83,36 @@ Create a new page in Notion
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `parentType` | string | Yes | Type of parent:  |
-| `parentId` | string | Yes | ID of the parent page or database |
-| `title` | string | No | Title of the page \(required for parent pages, not for databases\) |
-| `properties` | json | No | JSON object of properties for database pages |
-| `content` | string | No | Optional content to add to the page upon creation |
-| `accessToken` | string | Yes | Notion OAuth access token |
+| Parameter     | Type   | Required | Description                                                        |
+| ------------- | ------ | -------- | ------------------------------------------------------------------ |
+| `parentType`  | string | Yes      | Type of parent:                                                    |
+| `parentId`    | string | Yes      | ID of the parent page or database                                  |
+| `title`       | string | No       | Title of the page \(required for parent pages, not for databases\) |
+| `properties`  | json   | No       | JSON object of properties for database pages                       |
+| `content`     | string | No       | Optional content to add to the page upon creation                  |
+| `accessToken` | string | Yes      | Notion OAuth access token                                          |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `content` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `content` | string | content of the response |
-| ↳ `metadata` | any | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `content`  | string | content of the response  |
+| ↳ `metadata` | any    | metadata of the response |
 
 ## Notes
 

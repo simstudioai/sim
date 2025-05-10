@@ -322,11 +322,14 @@ async function createTelegramWebhookSubscription(
     const { botToken, triggerPhrase } = providerConfig || {}
 
     if (!botToken || !triggerPhrase) {
-      logger.warn(`[${requestId}] Missing botToken or triggerPhrase for Telegram webhook creation.`, {
-        webhookId: webhookData.id,
-      })
+      logger.warn(
+        `[${requestId}] Missing botToken or triggerPhrase for Telegram webhook creation.`,
+        {
+          webhookId: webhookData.id,
+        }
+      )
       return // Cannot proceed without botToken and triggerPhrase
-    } 
+    }
 
     const requestOrigin = new URL(request.url).origin
     // Ensure origin does not point to localhost for external API calls
@@ -358,9 +361,11 @@ async function createTelegramWebhookSubscription(
 
     const responseBody = await telegramResponse.json()
     if (!telegramResponse.ok || !responseBody.ok) {
-      const errorMessage = responseBody.description || `Failed to create Telegram webhook. Status: ${telegramResponse.status}`
+      const errorMessage =
+        responseBody.description ||
+        `Failed to create Telegram webhook. Status: ${telegramResponse.status}`
       logger.error(`[${requestId}] ${errorMessage}`, {
-        response: responseBody
+        response: responseBody,
       })
       throw new Error(errorMessage)
     }

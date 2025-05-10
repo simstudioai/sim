@@ -12,13 +12,33 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
   },
   params: {
-    accessToken: { type: 'string', required: true, description: 'The access token for the Google Sheets API' },
-    spreadsheetId: { type: 'string', required: true, description: 'The ID of the spreadsheet to append to' },
+    accessToken: {
+      type: 'string',
+      required: true,
+      description: 'The access token for the Google Sheets API',
+    },
+    spreadsheetId: {
+      type: 'string',
+      required: true,
+      description: 'The ID of the spreadsheet to append to',
+    },
     range: { type: 'string', required: false, description: 'The range of cells to append after' },
     values: { type: 'array', required: true, description: 'The data to append to the spreadsheet' },
-    valueInputOption: { type: 'string', required: false, description: 'The format of the data to append' },
-    insertDataOption: { type: 'string', required: false, description: 'How to insert the data (OVERWRITE or INSERT_ROWS)' },
-    includeValuesInResponse: { type: 'boolean', required: false, description: 'Whether to include the appended values in the response' },
+    valueInputOption: {
+      type: 'string',
+      required: false,
+      description: 'The format of the data to append',
+    },
+    insertDataOption: {
+      type: 'string',
+      required: false,
+      description: 'How to insert the data (OVERWRITE or INSERT_ROWS)',
+    },
+    includeValuesInResponse: {
+      type: 'boolean',
+      required: false,
+      description: 'Whether to include the appended values in the response',
+    },
   },
   request: {
     url: (params) => {
@@ -51,7 +71,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     }),
     body: (params) => {
       let processedValues: any = params.values || []
-      
+
       // Handle case where values might be a string (potentially JSON string)
       if (typeof processedValues === 'string') {
         try {
@@ -68,7 +88,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
               .replace(/\t/g, '\\t')
               // Fix any double backslashes that might occur
               .replace(/\\\\/g, '\\')
-              
+
             // Try to parse again with sanitized input
             processedValues = JSON.parse(sanitizedInput)
           } catch (secondError) {
@@ -77,27 +97,32 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
           }
         }
       }
-      
+
       // New logic to handle array of objects
-      if (Array.isArray(processedValues) && processedValues.length > 0 && typeof processedValues[0] === 'object' && !Array.isArray(processedValues[0])) {
+      if (
+        Array.isArray(processedValues) &&
+        processedValues.length > 0 &&
+        typeof processedValues[0] === 'object' &&
+        !Array.isArray(processedValues[0])
+      ) {
         // It's an array of objects
-        
+
         // First, extract all unique keys from all objects to create headers
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
           if (obj && typeof obj === 'object') {
-            Object.keys(obj).forEach(key => allKeys.add(key))
+            Object.keys(obj).forEach((key) => allKeys.add(key))
           }
         })
         const headers = Array.from(allKeys)
-        
+
         // Then create rows with object values in the order of headers
         const rows = processedValues.map((obj: any) => {
           if (!obj || typeof obj !== 'object') {
             // Handle non-object items by creating an array with empty values
             return Array(headers.length).fill('')
           }
-          return headers.map(key => {
+          return headers.map((key) => {
             const value = obj[key]
             // Handle nested objects/arrays by converting to JSON string
             if (value !== null && typeof value === 'object') {
@@ -106,7 +131,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
             return value === undefined ? '' : value
           })
         })
-        
+
         // Add headers as the first row, then add data rows
         processedValues = [headers, ...rows]
       }
@@ -115,11 +140,11 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
         processedValues = [[String(processedValues)]]
       } else if (!processedValues.every((item: any) => Array.isArray(item))) {
         // If it's an array but not all elements are arrays, wrap each element
-        processedValues = (processedValues as any[]).map((row: any) => 
+        processedValues = (processedValues as any[]).map((row: any) =>
           Array.isArray(row) ? row : [String(row)]
         )
       }
-      
+
       const body: Record<string, any> = {
         majorDimension: params.majorDimension || 'ROWS',
         values: processedValues,
@@ -188,4 +213,4 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
     // Default fallback message
     return 'An error occurred while appending to Google Sheets'
   },
-} 
+}

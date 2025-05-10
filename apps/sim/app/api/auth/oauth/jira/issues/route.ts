@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getJiraCloudId } from '@/tools/jira/utils'
 import { Logger } from '@/lib/logs/console-logger'
+import { getJiraCloudId } from '@/tools/jira/utils'
 
 const logger = new Logger('jira_issues')
 
@@ -22,29 +22,29 @@ export async function POST(request: Request) {
     }
 
     // Use provided cloudId or fetch it if not provided
-    const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
 
     // Build the URL using cloudId for Jira API
     const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/bulkfetch`
-    
+
     // Prepare the request body for bulk fetch
     const requestBody = {
-      expand: ["names"],
-      fields: ["summary", "status", "assignee", "updated", "project"],
+      expand: ['names'],
+      fields: ['summary', 'status', 'assignee', 'updated', 'project'],
       fieldsByKeys: false,
       issueIdsOrKeys: issueKeys,
-      properties: []
+      properties: [],
     }
 
     // Make the request to Jira API with OAuth Bearer token
     const requestConfig = {
-      method: 'POST', 
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
     }
 
     const response = await fetch(url, requestConfig)
@@ -72,7 +72,6 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
- 
 
     if (data.issues && data.issues.length > 0) {
       data.issues.slice(0, 3).forEach((issue: any) => {
@@ -81,15 +80,17 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      issues: data.issues ? data.issues.map((issue: any) => ({
-        id: issue.key,
-        name: issue.fields.summary,
-        mimeType: 'jira/issue',
-        url: `https://${domain}/browse/${issue.key}`,
-        modifiedTime: issue.fields.updated,
-        webViewLink: `https://${domain}/browse/${issue.key}`,
-      })) : [],
-      cloudId // Return the cloudId so it can be cached
+      issues: data.issues
+        ? data.issues.map((issue: any) => ({
+            id: issue.key,
+            name: issue.fields.summary,
+            mimeType: 'jira/issue',
+            url: `https://${domain}/browse/${issue.key}`,
+            modifiedTime: issue.fields.updated,
+            webViewLink: `https://${domain}/browse/${issue.key}`,
+          }))
+        : [],
+      cloudId, // Return the cloudId so it can be cached
     })
   } catch (error) {
     logger.error('Error fetching Jira issues:', error)
@@ -107,7 +108,7 @@ export async function GET(request: Request) {
     const accessToken = url.searchParams.get('accessToken')
     const providedCloudId = url.searchParams.get('cloudId')
     let query = url.searchParams.get('query') || ''
-    
+
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
     }
@@ -117,12 +118,12 @@ export async function GET(request: Request) {
     }
 
     // Use provided cloudId or fetch it if not provided
-    const cloudId = providedCloudId || await getJiraCloudId(domain, accessToken)
+    const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
     logger.info('Using cloud ID:', cloudId)
 
     // Build query parameters
     const params = new URLSearchParams()
-    
+
     // Only add query if it exists
     if (query) {
       params.append('query', query)
@@ -136,9 +137,9 @@ export async function GET(request: Request) {
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json'
-      }
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
     })
 
     logger.info('Response status:', response.status, response.statusText)
@@ -157,11 +158,10 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json()
-    
 
     return NextResponse.json({
       ...data,
-      cloudId // Return the cloudId so it can be cached
+      cloudId, // Return the cloudId so it can be cached
     })
   } catch (error) {
     logger.error('Error fetching Jira issue suggestions:', error)

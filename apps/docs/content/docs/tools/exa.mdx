@@ -3,9 +3,9 @@ title: Exa
 description: Search with Exa AI
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="exa"
   color="#1F40ED"
   icon={true}
@@ -39,12 +39,9 @@ With Exa, you can:
 In Sim Studio, the Exa integration allows your agents to search the web for information, retrieve content from specific URLs, and find similar resources - all programmatically through API calls. This enables your agents to access real-time information from the internet, enhancing their ability to provide accurate, current, and relevant responses. The integration is particularly valuable for research tasks, information gathering, content discovery, and answering questions that require up-to-date information from across the web.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Search the web, retrieve content, find similar links, and answer questions using Exa
-
-
 
 ## Tools
 
@@ -54,27 +51,27 @@ Search the web using Exa AI. Returns relevant search results with titles, URLs, 
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The search query to execute |
-| `numResults` | number | No | Number of results to return \(default: 10, max: 25\) |
-| `useAutoprompt` | boolean | No | Whether to use autoprompt to improve the query \(default: false\) |
-| `type` | string | No | Search type: neural, keyword, auto or magic \(default: auto\) |
-| `apiKey` | string | Yes | Exa AI API Key |
+| Parameter       | Type    | Required | Description                                                       |
+| --------------- | ------- | -------- | ----------------------------------------------------------------- |
+| `query`         | string  | Yes      | The search query to execute                                       |
+| `numResults`    | number  | No       | Number of results to return \(default: 10, max: 25\)              |
+| `useAutoprompt` | boolean | No       | Whether to use autoprompt to improve the query \(default: false\) |
+| `type`          | string  | No       | Search type: neural, keyword, auto or magic \(default: auto\)     |
+| `apiKey`        | string  | Yes      | Exa AI API Key                                                    |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `results` | string |
-| `url` | string |
+| Parameter       | Type   |
+| --------------- | ------ |
+| `results`       | string |
+| `url`           | string |
 | `publishedDate` | string |
-| `author` | string |
-| `summary` | string |
-| `favicon` | string |
-| `image` | string |
-| `text` | string |
-| `score` | string |
+| `author`        | string |
+| `summary`       | string |
+| `favicon`       | string |
+| `image`         | string |
+| `text`          | string |
+| `score`         | string |
 
 ### `exa_get_contents`
 
@@ -82,20 +79,20 @@ Retrieve the contents of webpages using Exa AI. Returns the title, text content,
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `urls` | string | Yes | Comma-separated list of URLs to retrieve content from |
-| `text` | boolean | No | If true, returns full page text with default settings. If false, disables text return. |
-| `summaryQuery` | string | No | Query to guide the summary generation |
-| `apiKey` | string | Yes | Exa AI API Key |
+| Parameter      | Type    | Required | Description                                                                            |
+| -------------- | ------- | -------- | -------------------------------------------------------------------------------------- |
+| `urls`         | string  | Yes      | Comma-separated list of URLs to retrieve content from                                  |
+| `text`         | boolean | No       | If true, returns full page text with default settings. If false, disables text return. |
+| `summaryQuery` | string  | No       | Query to guide the summary generation                                                  |
+| `apiKey`       | string  | Yes      | Exa AI API Key                                                                         |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `results` | string |
-| `title` | string |
-| `text` | string |
+| `title`   | string |
+| `text`    | string |
 | `summary` | string |
 
 ### `exa_find_similar_links`
@@ -104,21 +101,21 @@ Find webpages similar to a given URL using Exa AI. Returns a list of similar lin
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The URL to find similar links for |
-| `numResults` | number | No | Number of similar links to return \(default: 10, max: 25\) |
-| `text` | boolean | No | Whether to include the full text of the similar pages |
-| `apiKey` | string | Yes | Exa AI API Key |
+| Parameter    | Type    | Required | Description                                                |
+| ------------ | ------- | -------- | ---------------------------------------------------------- |
+| `url`        | string  | Yes      | The URL to find similar links for                          |
+| `numResults` | number  | No       | Number of similar links to return \(default: 10, max: 25\) |
+| `text`       | boolean | No       | Whether to include the full text of the similar pages      |
+| `apiKey`     | string  | Yes      | Exa AI API Key                                             |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter      | Type   |
+| -------------- | ------ |
 | `similarLinks` | string |
-| `url` | string |
-| `text` | string |
-| `score` | string |
+| `url`          | string |
+| `text`         | string |
+| `score`        | string |
 
 ### `exa_answer`
 
@@ -126,44 +123,39 @@ Get an AI-generated answer to a question with citations from the web using Exa A
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | The question to answer |
-| `text` | boolean | No | Whether to include the full text of the answer |
-| `apiKey` | string | Yes | Exa AI API Key |
+| Parameter | Type    | Required | Description                                    |
+| --------- | ------- | -------- | ---------------------------------------------- |
+| `query`   | string  | Yes      | The question to answer                         |
+| `text`    | boolean | No       | Whether to include the full text of the answer |
+| `apiKey`  | string  | Yes      | Exa AI API Key                                 |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `query` | string |
-| `answer` | string |
+| Parameter   | Type   |
+| ----------- | ------ |
+| `query`     | string |
+| `answer`    | string |
 | `citations` | string |
-| `url` | string |
-| `text` | string |
-
-
+| `url`       | string |
+| `text`      | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `results` | json | results of the response |
-| ↳ `similarLinks` | json | similarLinks of the response |
-| ↳ `answer` | string | answer of the response |
-| ↳ `citations` | json | citations of the response |
-
+| Output           | Type   | Description                  |
+| ---------------- | ------ | ---------------------------- |
+| `response`       | object | Output from response         |
+| ↳ `results`      | json   | results of the response      |
+| ↳ `similarLinks` | json   | similarLinks of the response |
+| ↳ `answer`       | string | answer of the response       |
+| ↳ `citations`    | json   | citations of the response    |
 
 ## Notes
 

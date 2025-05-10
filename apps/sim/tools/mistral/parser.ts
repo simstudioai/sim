@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { ToolConfig } from '../types'
 import { MistralParserInput, MistralParserOutput } from './types'
-import { getBaseUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('MistralParserTool')
 

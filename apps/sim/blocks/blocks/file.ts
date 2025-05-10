@@ -1,6 +1,6 @@
 import { DocumentIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console-logger'
 import { isProd } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
 import { FileParserOutput } from '@/tools/file/types'
 import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 

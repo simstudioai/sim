@@ -3,9 +3,9 @@ title: Stagehand Agent
 description: Autonomous web browsing agent
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="stagehand_agent"
   color="#FFC83C"
   icon={true}
@@ -192,12 +192,9 @@ With Stagehand, you can:
 In Sim Studio, the Stagehand integration enables your agents to seamlessly interact with web-based systems as part of their workflows. This allows for sophisticated automation scenarios that bridge the gap between your AI agents and the vast information and functionality available on the web. Your agents can search for information, interact with web applications, extract data from websites, and incorporate these capabilities into their decision-making processes. By connecting Sim Studio with Stagehand, you can create agents that extend beyond API-based integrations to navigate the web just as a human would - filling forms, clicking buttons, reading content, and extracting valuable information to complete their tasks more effectively.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Use Stagehand to create an autonomous web browsing agent that can navigate across websites, perform tasks, and return structured data.
-
-
 
 ## Tools
 
@@ -207,43 +204,38 @@ Run an autonomous web agent to complete tasks and extract structured data
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `task` | string | Yes | The task to complete or goal to achieve on the website |
-| `startUrl` | string | Yes | URL of the webpage to start the agent on |
-| `outputSchema` | json | No | Optional JSON schema defining the structure of data the agent should return |
-| `variables` | json | No | Optional variables to substitute in the task \(format: \{key: value\}\). Reference in task using %key% |
-| `apiKey` | string | Yes | OpenAI API key for agent execution \(required by Stagehand\) |
+| Parameter      | Type   | Required | Description                                                                                            |
+| -------------- | ------ | -------- | ------------------------------------------------------------------------------------------------------ |
+| `task`         | string | Yes      | The task to complete or goal to achieve on the website                                                 |
+| `startUrl`     | string | Yes      | URL of the webpage to start the agent on                                                               |
+| `outputSchema` | json   | No       | Optional JSON schema defining the structure of data the agent should return                            |
+| `variables`    | json   | No       | Optional variables to substitute in the task \(format: \{key: value\}\). Reference in task using %key% |
+| `apiKey`       | string | Yes      | OpenAI API key for agent execution \(required by Stagehand\)                                           |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter     | Type   |
+| ------------- | ------ |
 | `agentResult` | string |
-| `completed` | string |
-| `message` | string |
-| `actions` | string |
-
-
+| `completed`   | string |
+| `message`     | string |
+| `actions`     | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `startUrl` | string | Yes | Starting URL - Enter the starting URL for the agent |
-
-
+| Parameter  | Type   | Required | Description                                         |
+| ---------- | ------ | -------- | --------------------------------------------------- |
+| `startUrl` | string | Yes      | Starting URL - Enter the starting URL for the agent |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `agentResult` | json | agentResult of the response |
-| ↳ `structuredOutput` | any | structuredOutput of the response |
-
+| Output               | Type   | Description                      |
+| -------------------- | ------ | -------------------------------- |
+| `response`           | object | Output from response             |
+| ↳ `agentResult`      | json   | agentResult of the response      |
+| ↳ `structuredOutput` | any    | structuredOutput of the response |
 
 ## Notes
 

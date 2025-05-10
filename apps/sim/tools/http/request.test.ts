@@ -114,10 +114,10 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev'
-          }
+            origin: 'https://app.simstudio.dev',
+          },
         },
-        writable: true
+        writable: true,
       })
 
       // Setup mock response
@@ -126,7 +126,7 @@ describe('HTTP Request Tool', () => {
       // Execute with real request to check Referer header
       await tester.execute({
         url: 'https://api.example.com',
-        method: 'GET'
+        method: 'GET',
       })
 
       // Verify the Referer header was set
@@ -144,20 +144,20 @@ describe('HTTP Request Tool', () => {
       // Execute with real request to check Host header
       await tester.execute({
         url: 'https://api.example.com/endpoint',
-        method: 'GET'
+        method: 'GET',
       })
 
       // Verify the Host header was set
       const fetchCall = (global.fetch as any).mock.calls[0]
       expect(fetchCall[1].headers.Host).toBe('api.example.com')
-      
+
       // Test user-provided Host takes precedence
       await tester.execute({
         url: 'https://api.example.com/endpoint',
         method: 'GET',
-        headers: [{ cells: { Key: 'Host', Value: 'custom-host.com' } }]
+        headers: [{ cells: { Key: 'Host', Value: 'custom-host.com' } }],
       })
-      
+
       // Verify the user's Host was used
       const userHeaderCall = (global.fetch as any).mock.calls[1]
       expect(userHeaderCall[1].headers.Host).toBe('custom-host.com')
@@ -174,10 +174,10 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev'
-          }
+            origin: 'https://app.simstudio.dev',
+          },
         },
-        writable: true
+        writable: true,
       })
 
       // Execute the tool with method explicitly set to GET
@@ -369,10 +369,10 @@ describe('HTTP Request Tool', () => {
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev'
-          }
+            origin: 'https://app.simstudio.dev',
+          },
         },
-        writable: true
+        writable: true,
       })
 
       // Execute the tool
@@ -411,8 +411,8 @@ describe('HTTP Request Tool', () => {
         method: 'GET',
         headers: [
           { cells: { Key: 'User-Agent', Value: 'Custom Agent' } },
-          { cells: { Key: 'Accept', Value: 'application/json' } }
-        ]
+          { cells: { Key: 'Accept', Value: 'application/json' } },
+        ],
       })
 
       // Get the headers from the fetch call
@@ -422,7 +422,7 @@ describe('HTTP Request Tool', () => {
       // Verify overridden headers
       expect(headers['User-Agent']).toBe('Custom Agent')
       expect(headers['Accept']).toBe('application/json')
-      
+
       // Verify other default headers still exist
       expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
       expect(headers['Cache-Control']).toBe('no-cache')
@@ -432,23 +432,23 @@ describe('HTTP Request Tool', () => {
   describe('Proxy Functionality', () => {
     test('should not use proxy in test environment', () => {
       // This test verifies that the shouldUseProxy function has been disabled for tests
-      
+
       // Create a browser-like environment
       const originalWindow = global.window
       Object.defineProperty(global, 'window', {
         value: {
           location: {
-            origin: 'https://app.simstudio.dev'
-          }
+            origin: 'https://app.simstudio.dev',
+          },
         },
-        writable: true
+        writable: true,
       })
-      
+
       // Check that external URLs are not proxied during tests
       const url = tester.getRequestUrl({ url: 'https://api.example.com/data' })
       expect(url).toBe('https://api.example.com/data')
       expect(url).not.toContain('/api/proxy')
-      
+
       // Reset window
       global.window = originalWindow
     })

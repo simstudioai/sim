@@ -3,9 +3,9 @@ title: GitHub
 description: Interact with GitHub
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="github"
   color="#181C1E"
   icon={true}
@@ -38,12 +38,9 @@ With GitHub, you can:
 In Sim Studio, the GitHub integration enables your agents to interact directly with GitHub repositories and workflows. This allows for powerful automation scenarios such as code review assistance, pull request management, issue tracking, and repository exploration. Your agents can fetch repository data, analyze code changes, post comments on pull requests, and perform other GitHub operations programmatically. This integration bridges the gap between your AI workflows and your development processes, enabling seamless collaboration between your agents and your development team.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Access GitHub repositories, pull requests, and comments through the GitHub API. Automate code reviews, PR management, and repository interactions within your workflow.
-
-
 
 ## Tools
 
@@ -53,32 +50,32 @@ Fetch PR details including diff and files changed
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner |
-| `repo` | string | Yes | Repository name |
-| `pullNumber` | number | Yes | Pull request number |
-| `apiKey` | string | Yes | GitHub API token |
+| Parameter    | Type   | Required | Description         |
+| ------------ | ------ | -------- | ------------------- |
+| `owner`      | string | Yes      | Repository owner    |
+| `repo`       | string | Yes      | Repository name     |
+| `pullNumber` | number | Yes      | Pull request number |
+| `apiKey`     | string | Yes      | GitHub API token    |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `title` | string |
-| `state` | string |
-| `html_url` | string |
-| `diff_url` | string |
+| Parameter    | Type   |
+| ------------ | ------ |
+| `metadata`   | string |
+| `title`      | string |
+| `state`      | string |
+| `html_url`   | string |
+| `diff_url`   | string |
 | `created_at` | string |
 | `updated_at` | string |
-| `files` | string |
-| `additions` | string |
-| `deletions` | string |
-| `changes` | string |
-| `patch` | string |
-| `blob_url` | string |
-| `raw_url` | string |
-| `status` | string |
+| `files`      | string |
+| `additions`  | string |
+| `deletions`  | string |
+| `changes`    | string |
+| `patch`      | string |
+| `blob_url`   | string |
+| `raw_url`    | string |
+| `status`     | string |
 
 ### `github_comment`
 
@@ -86,32 +83,32 @@ Create comments on GitHub PRs
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner |
-| `repo` | string | Yes | Repository name |
-| `pullNumber` | number | Yes | Pull request number |
-| `body` | string | Yes | Comment content |
-| `path` | string | No | File path for review comment |
-| `position` | number | No | Line number for review comment |
-| `apiKey` | string | Yes | GitHub API token |
-| `commentType` | string | No | Type of comment \(pr_comment or file_comment\) |
-| `line` | number | No | Line number for review comment |
-| `side` | string | No | Side of the diff \(LEFT or RIGHT\) |
-| `commitId` | string | No | The SHA of the commit to comment on |
+| Parameter     | Type   | Required | Description                                    |
+| ------------- | ------ | -------- | ---------------------------------------------- |
+| `owner`       | string | Yes      | Repository owner                               |
+| `repo`        | string | Yes      | Repository name                                |
+| `pullNumber`  | number | Yes      | Pull request number                            |
+| `body`        | string | Yes      | Comment content                                |
+| `path`        | string | No       | File path for review comment                   |
+| `position`    | number | No       | Line number for review comment                 |
+| `apiKey`      | string | Yes      | GitHub API token                               |
+| `commentType` | string | No       | Type of comment \(pr_comment or file_comment\) |
+| `line`        | number | No       | Line number for review comment                 |
+| `side`        | string | No       | Side of the diff \(LEFT or RIGHT\)             |
+| `commitId`    | string | No       | The SHA of the commit to comment on            |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `html_url` | string |
+| Parameter    | Type   |
+| ------------ | ------ |
+| `metadata`   | string |
+| `html_url`   | string |
 | `created_at` | string |
 | `updated_at` | string |
-| `path` | string |
-| `line` | string |
-| `side` | string |
-| `commit_id` | string |
+| `path`       | string |
+| `line`       | string |
+| `side`       | string |
+| `commit_id`  | string |
 
 ### `github_repo_info`
 
@@ -119,22 +116,22 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner \(user or organization\) |
-| `repo` | string | Yes | Repository name |
-| `apiKey` | string | Yes | GitHub Personal Access Token |
+| Parameter | Type   | Required | Description                               |
+| --------- | ------ | -------- | ----------------------------------------- |
+| `owner`   | string | Yes      | Repository owner \(user or organization\) |
+| `repo`    | string | Yes      | Repository name                           |
+| `apiKey`  | string | Yes      | GitHub Personal Access Token              |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
+| Parameter     | Type   |
+| ------------- | ------ |
+| `metadata`    | string |
 | `description` | string |
-| `stars` | string |
-| `forks` | string |
-| `openIssues` | string |
-| `language` | string |
+| `stars`       | string |
+| `forks`       | string |
+| `openIssues`  | string |
+| `language`    | string |
 
 ### `github_latest_commit`
 
@@ -142,44 +139,39 @@ Retrieve the latest commit from a GitHub repository
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `owner` | string | Yes | Repository owner \(user or organization\) |
-| `repo` | string | Yes | Repository name |
-| `branch` | string | No | Branch name \(defaults to the repository |
-| `apiKey` | string | Yes | GitHub API token |
+| Parameter | Type   | Required | Description                               |
+| --------- | ------ | -------- | ----------------------------------------- |
+| `owner`   | string | Yes      | Repository owner \(user or organization\) |
+| `repo`    | string | Yes      | Repository name                           |
+| `branch`  | string | No       | Branch name \(defaults to the repository  |
+| `apiKey`  | string | Yes      | GitHub API token                          |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `metadata` | string |
-| `html_url` | string |
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `metadata`       | string |
+| `html_url`       | string |
 | `commit_message` | string |
-| `author` | string |
-| `login` | string |
-| `avatar_url` | string |
-
-
+| `author`         | string |
+| `login`          | string |
+| `avatar_url`     | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `content` | string | content of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `content`  | string | content of the response  |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

@@ -1,14 +1,14 @@
-import { ToolResponse } from "../types"
+import { ToolResponse } from '../types'
 
 export interface SlackMessageParams {
-    apiKey: string
+  apiKey: string
+  channel: string
+  text: string
+}
+
+export interface SlackMessageResponse extends ToolResponse {
+  output: {
+    ts: string
     channel: string
-    text: string
   }
-  
-  export interface SlackMessageResponse extends ToolResponse {
-    output: {
-      ts: string
-      channel: string
-    }
-  }
+}

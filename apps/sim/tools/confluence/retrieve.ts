@@ -36,7 +36,8 @@ export const confluenceRetrieveTool: ToolConfig<
     cloudId: {
       type: 'string',
       required: false,
-      description: 'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+      description:
+        'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
@@ -48,8 +49,8 @@ export const confluenceRetrieveTool: ToolConfig<
     method: 'POST',
     headers: (params: ConfluenceRetrieveParams) => {
       return {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${params.accessToken}`,
+        Accept: 'application/json',
+        Authorization: `Bearer ${params.accessToken}`,
       }
     },
     body: (params: ConfluenceRetrieveParams) => {
@@ -65,7 +66,10 @@ export const confluenceRetrieveTool: ToolConfig<
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      throw new Error(errorData?.error || `Failed to retrieve Confluence page: ${response.status} ${response.statusText}`)
+      throw new Error(
+        errorData?.error ||
+          `Failed to retrieve Confluence page: ${response.status} ${response.statusText}`
+      )
     }
 
     const data = await response.json()
@@ -84,12 +88,13 @@ function transformPageData(data: any) {
   }
 
   // Get content from wherever we can find it
-  const content = data.body?.view?.value || 
-                 data.body?.storage?.value || 
-                 data.body?.atlas_doc_format?.value ||
-                 data.content ||
-                 data.description ||
-                 `Content for page ${data.title}`
+  const content =
+    data.body?.view?.value ||
+    data.body?.storage?.value ||
+    data.body?.atlas_doc_format?.value ||
+    data.content ||
+    data.description ||
+    `Content for page ${data.title}`
 
   const cleanContent = content
     .replace(/<[^>]*>/g, '')

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X, Code } from 'lucide-react'
+import { ChevronDown, ChevronUp, Code, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -29,11 +29,13 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
   try {
     // First check if the content looks like JSON (starts with { or [)
     const trimmed = content.trim()
-    if (!(trimmed.startsWith('{') || trimmed.startsWith('[')) || 
-        !(trimmed.endsWith('}') || trimmed.endsWith(']'))) {
+    if (
+      !(trimmed.startsWith('{') || trimmed.startsWith('[')) ||
+      !(trimmed.endsWith('}') || trimmed.endsWith(']'))
+    ) {
       return { isJson: false, formatted: content }
     }
-    
+
     // Try to parse the JSON
     const parsed = JSON.parse(trimmed)
     const prettified = JSON.stringify(parsed, null, 2)

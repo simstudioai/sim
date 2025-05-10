@@ -104,7 +104,7 @@ describe('Custom Tools API Routes', () => {
             insert: mockInsert,
             update: mockUpdate,
             delete: mockDelete,
-          });
+          })
         }),
       },
     }))
@@ -210,7 +210,7 @@ describe('Custom Tools API Routes', () => {
 
       // Call the handler
       const response = await GET(req)
-      
+
       // Verify getUserId was called with correct parameters
       const getUserId = (await import('@/app/api/auth/oauth/utils')).getUserId
       expect(getUserId).toHaveBeenCalledWith(expect.any(String), 'workflow-123')
@@ -453,4 +453,4 @@ describe('Custom Tools API Routes', () => {
       expect(data).toHaveProperty('error', 'Unauthorized')
     })
   })
-}) 
+})

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const result = await db
       .select({
         deployedState: workflow.deployedState,
-        isDeployed: workflow.isDeployed
+        isDeployed: workflow.isDeployed,
       })
       .from(workflow)
       .where(eq(workflow.id, id))
@@ -46,16 +46,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       logger.info(`[${requestId}] No deployed state available for workflow: ${id}`)
       return createSuccessResponse({
         deployedState: null,
-        isDeployed: false
+        isDeployed: false,
       })
     }
 
     logger.info(`[${requestId}] Successfully retrieved DEPLOYED state: ${id}`)
     return createSuccessResponse({
       deployedState: workflowData.deployedState,
-      isDeployed: true
+      isDeployed: true,
     })
-
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployed state: ${id}`, error)
     return createErrorResponse(error.message || 'Failed to fetch deployed state', 500)

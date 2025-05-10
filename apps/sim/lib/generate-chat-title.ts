@@ -14,18 +14,19 @@ export async function generateChatTitle(message: string): Promise<string | null>
 
   try {
     const openai = new OpenAI({ apiKey })
-    
+
     const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [
         {
           role: 'system',
-          content: 'Generate a very short title (3-5 words max) for a chat that starts with this message. The title should be concise and descriptive.'
+          content:
+            'Generate a very short title (3-5 words max) for a chat that starts with this message. The title should be concise and descriptive.',
         },
         {
           role: 'user',
-          content: message
-        }
+          content: message,
+        },
       ],
       max_tokens: 20,
       temperature: 0.7,
@@ -37,4 +38,4 @@ export async function generateChatTitle(message: string): Promise<string | null>
     console.error('Error generating chat title:', error)
     return null
   }
-} 
+}

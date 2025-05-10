@@ -1,4 +1,9 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { S3_CONFIG } from './setup'
 
@@ -7,19 +12,19 @@ export const s3Client = new S3Client({
   region: S3_CONFIG.region || '',
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || ''
-  }
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
 })
 
 /**
  * File information structure
  */
 export interface FileInfo {
-  path: string      // Path to access the file
-  key: string       // S3 key or local filename
-  name: string      // Original filename
-  size: number      // File size in bytes
-  type: string      // MIME type
+  path: string // Path to access the file
+  key: string // S3 key or local filename
+  name: string // Original filename
+  size: number // File size in bytes
+  type: string // MIME type
 }
 
 /**
@@ -31,8 +36,8 @@ export interface FileInfo {
  * @returns Object with file information
  */
 export async function uploadToS3(
-  file: Buffer, 
-  fileName: string, 
+  file: Buffer,
+  fileName: string,
   contentType: string,
   size?: number
 ): Promise<FileInfo> {
@@ -40,29 +45,31 @@ export async function uploadToS3(
   // Use a simple timestamp without directory structure
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
   const uniqueKey = `${Date.now()}-${safeFileName}`
-  
+
   // Upload the file to S3
-  await s3Client.send(new PutObjectCommand({
-    Bucket: S3_CONFIG.bucket,
-    Key: uniqueKey,
-    Body: file,
-    ContentType: contentType,
-    // Add some useful metadata
-    Metadata: {
-      originalName: fileName,
-      uploadedAt: new Date().toISOString()
-    }
-  }))
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: S3_CONFIG.bucket,
+      Key: uniqueKey,
+      Body: file,
+      ContentType: contentType,
+      // Add some useful metadata
+      Metadata: {
+        originalName: fileName,
+        uploadedAt: new Date().toISOString(),
+      },
+    })
+  )
 
   // Create a path for API to serve the file
   const servePath = `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
-  
+
   return {
     path: servePath,
     key: uniqueKey,
     name: fileName,
     size: size ?? file.length,
-    type: contentType
+    type: contentType,
   }
 }
 
@@ -75,9 +82,9 @@ export async function uploadToS3(
 export async function getPresignedUrl(key: string, expiresIn = 3600) {
   const command = new GetObjectCommand({
     Bucket: S3_CONFIG.bucket,
-    Key: key
+    Key: key,
   })
-  
+
   return getSignedUrl(s3Client, command, { expiresIn })
 }
 
@@ -89,12 +96,12 @@ export async function getPresignedUrl(key: string, expiresIn = 3600) {
 export async function downloadFromS3(key: string) {
   const command = new GetObjectCommand({
     Bucket: S3_CONFIG.bucket,
-    Key: key
+    Key: key,
   })
-  
+
   const response = await s3Client.send(command)
   const stream = response.Body as any
-  
+
   // Convert stream to buffer
   return new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = []
@@ -109,8 +116,10 @@ export async function downloadFromS3(key: string) {
  * @param key S3 object key
  */
 export async function deleteFromS3(key: string) {
-  await s3Client.send(new DeleteObjectCommand({
-    Bucket: S3_CONFIG.bucket,
-    Key: key
-  }))
-} 
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: S3_CONFIG.bucket,
+      Key: key,
+    })
+  )
+}

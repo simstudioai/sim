@@ -11,7 +11,7 @@ describe('Chat Subdomain API Route', () => {
     id: 'response-id',
     content: 'Test response',
     timestamp: new Date().toISOString(),
-    type: 'workflow'
+    type: 'workflow',
   }
 
   // Mock functions
@@ -32,18 +32,16 @@ describe('Chat Subdomain API Route', () => {
       description: 'Test chat description',
       customizations: {
         welcomeMessage: 'Welcome to the test chat',
-        primaryColor: '#000000'
+        primaryColor: '#000000',
       },
-      outputConfigs: [
-        { blockId: 'block-1', path: 'output' }
-      ]
-    }
+      outputConfigs: [{ blockId: 'block-1', path: 'output' }],
+    },
   ]
 
   const mockWorkflowResult = [
     {
-      isDeployed: true
-    }
+      isDeployed: true,
+    },
   ]
 
   beforeEach(() => {
@@ -72,25 +70,24 @@ describe('Chat Subdomain API Route', () => {
     vi.doMock('@/db', () => {
       const mockLimitChat = vi.fn().mockReturnValue(mockChatResult)
       const mockWhereChat = vi.fn().mockReturnValue({ limit: mockLimitChat })
-      
+
       const mockLimitWorkflow = vi.fn().mockReturnValue(mockWorkflowResult)
       const mockWhereWorkflow = vi.fn().mockReturnValue({ limit: mockLimitWorkflow })
-      
-      const mockFrom = vi.fn()
-        .mockImplementation((table) => {
-          // Check which table is being queried
-          if (table === 'workflow') {
-            return { where: mockWhereWorkflow }
-          }
-          return { where: mockWhereChat }
-        })
-      
+
+      const mockFrom = vi.fn().mockImplementation((table) => {
+        // Check which table is being queried
+        if (table === 'workflow') {
+          return { where: mockWhereWorkflow }
+        }
+        return { where: mockWhereChat }
+      })
+
       const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
 
-      return { 
+      return {
         db: {
-          select: mockSelect
-        } 
+          select: mockSelect,
+        },
       }
     })
 
@@ -100,17 +97,14 @@ describe('Chat Subdomain API Route', () => {
         return new Response(
           JSON.stringify({
             error: code || 'Error',
-            message
+            message,
           }),
           { status }
         )
       }),
       createSuccessResponse: vi.fn().mockImplementation((data) => {
-        return new Response(
-          JSON.stringify(data),
-          { status: 200 }
-        )
-      })
+        return new Response(JSON.stringify(data), { status: 200 })
+      }),
     }))
   })
 
@@ -123,12 +117,12 @@ describe('Chat Subdomain API Route', () => {
       const req = createMockRequest('GET')
       const params = Promise.resolve({ subdomain: 'test-chat' })
 
-        const { GET } = await import('./route')
+      const { GET } = await import('./route')
 
       const response = await GET(req, { params })
 
       expect(response.status).toBe(200)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('id', 'chat-id')
       expect(data).toHaveProperty('title', 'Test Chat')
@@ -144,10 +138,10 @@ describe('Chat Subdomain API Route', () => {
         const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
         const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
 
-        return { 
+        return {
           db: {
-            select: mockSelect
-          } 
+            select: mockSelect,
+          },
         }
       })
 
@@ -159,7 +153,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await GET(req, { params })
 
       expect(response.status).toBe(404)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Chat not found')
@@ -172,16 +166,16 @@ describe('Chat Subdomain API Route', () => {
             id: 'chat-id',
             isActive: false,
             authType: 'public',
-          }
+          },
         ])
         const mockWhere = vi.fn().mockReturnValue({ limit: mockLimit })
         const mockFrom = vi.fn().mockReturnValue({ where: mockWhere })
         const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
 
-        return { 
+        return {
           db: {
-            select: mockSelect
-          } 
+            select: mockSelect,
+          },
         }
       })
 
@@ -193,7 +187,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await GET(req, { params })
 
       expect(response.status).toBe(403)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'This chat is currently unavailable')
@@ -201,9 +195,9 @@ describe('Chat Subdomain API Route', () => {
 
     it('should return 401 when authentication is required', async () => {
       const originalValidateChatAuth = mockValidateChatAuth.getMockImplementation()
-      mockValidateChatAuth.mockImplementationOnce(async () => ({ 
-        authorized: false, 
-        error: 'auth_required_password' 
+      mockValidateChatAuth.mockImplementationOnce(async () => ({
+        authorized: false,
+        error: 'auth_required_password',
       }))
 
       const req = createMockRequest('GET')
@@ -214,7 +208,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await GET(req, { params })
 
       expect(response.status).toBe(401)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'auth_required_password')
@@ -226,8 +220,6 @@ describe('Chat Subdomain API Route', () => {
   })
 
   describe('POST endpoint', () => {
-
-
     it('should handle authentication requests without messages', async () => {
       const req = createMockRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ subdomain: 'password-protected-chat' })
@@ -237,10 +229,10 @@ describe('Chat Subdomain API Route', () => {
       const response = await POST(req, { params })
 
       expect(response.status).toBe(200)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('authenticated', true)
-      
+
       expect(mockSetChatAuthCookie).toHaveBeenCalled()
     })
 
@@ -253,7 +245,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await POST(req, { params })
 
       expect(response.status).toBe(400)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'No message provided')
@@ -261,9 +253,9 @@ describe('Chat Subdomain API Route', () => {
 
     it('should return 401 for unauthorized access', async () => {
       const originalValidateChatAuth = mockValidateChatAuth.getMockImplementation()
-      mockValidateChatAuth.mockImplementationOnce(async () => ({ 
-        authorized: false, 
-        error: 'Authentication required' 
+      mockValidateChatAuth.mockImplementationOnce(async () => ({
+        authorized: false,
+        error: 'Authentication required',
       }))
 
       const req = createMockRequest('POST', { message: 'Hello' })
@@ -274,7 +266,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await POST(req, { params })
 
       expect(response.status).toBe(401)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Authentication required')
@@ -292,29 +284,30 @@ describe('Chat Subdomain API Route', () => {
             workflowId: 'unavailable-workflow',
             isActive: true,
             authType: 'public',
-          }
+          },
         ])
         const mockWhereChat = vi.fn().mockReturnValue({ limit: mockLimitChat })
 
         // Second call returns non-deployed workflow
         const mockLimitWorkflow = vi.fn().mockReturnValue([
           {
-            isDeployed: false
-          }
+            isDeployed: false,
+          },
         ])
         const mockWhereWorkflow = vi.fn().mockReturnValue({ limit: mockLimitWorkflow })
 
         // Mock from function to return different where implementations
-        const mockFrom = vi.fn()
-          .mockImplementationOnce(() => ({ where: mockWhereChat }))     // First call (chat)
-          .mockImplementationOnce(() => ({ where: mockWhereWorkflow }))    // Second call (workflow)
+        const mockFrom = vi
+          .fn()
+          .mockImplementationOnce(() => ({ where: mockWhereChat })) // First call (chat)
+          .mockImplementationOnce(() => ({ where: mockWhereWorkflow })) // Second call (workflow)
 
         const mockSelect = vi.fn().mockReturnValue({ from: mockFrom })
 
-        return { 
+        return {
           db: {
-            select: mockSelect
-          } 
+            select: mockSelect,
+          },
         }
       })
 
@@ -326,7 +319,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await POST(req, { params })
 
       expect(response.status).toBe(503)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Chat workflow is not available')
@@ -346,7 +339,7 @@ describe('Chat Subdomain API Route', () => {
       const response = await POST(req, { params })
 
       expect(response.status).toBe(503)
-      
+
       const data = await response.json()
       expect(data).toHaveProperty('error')
       expect(data).toHaveProperty('message', 'Chat workflow is not available')
@@ -356,4 +349,4 @@ describe('Chat Subdomain API Route', () => {
       }
     })
   })
-}) 
+})

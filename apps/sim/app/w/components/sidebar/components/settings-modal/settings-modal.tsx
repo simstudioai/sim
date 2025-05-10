@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
 import { client, useSubscription } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { Account } from './components/account/account'
 import { ApiKeys } from './components/api-keys/api-keys'
@@ -13,10 +14,9 @@ import { Credentials } from './components/credentials/credentials'
 import { EnvironmentVariables } from './components/environment/environment'
 import { General } from './components/general/general'
 import { Privacy } from './components/privacy/privacy'
-import { Subscription } from './components/subscription/subscription'
 import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
+import { Subscription } from './components/subscription/subscription'
 import { TeamManagement } from './components/team-management/team-management'
-import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('SettingsModal')
 
@@ -25,7 +25,15 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void
 }
 
-type SettingsSection = 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team' | 'privacy'
+type SettingsSection =
+  | 'general'
+  | 'environment'
+  | 'account'
+  | 'credentials'
+  | 'apikeys'
+  | 'subscription'
+  | 'team'
+  | 'privacy'
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
@@ -34,47 +42,47 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [subscriptionData, setSubscriptionData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const loadSettings = useGeneralStore(state => state.loadSettings)
+  const loadSettings = useGeneralStore((state) => state.loadSettings)
   const subscription = useMemo(() => useSubscription(), [])
   const hasLoadedInitialData = useRef(false)
 
   useEffect(() => {
     async function loadAllSettings() {
       if (!open) return
-      
+
       if (hasLoadedInitialData.current) return
-      
+
       setIsLoading(true)
-      
+
       try {
         await loadSettings()
-        
+
         const proStatusResponse = await fetch('/api/user/subscription')
-        
+
         if (proStatusResponse.ok) {
           const subData = await proStatusResponse.json()
           setIsPro(subData.isPro)
           setIsTeam(subData.isTeam)
-          
+
           if (!subData.isTeam && activeSection === 'team') {
             setActiveSection('general')
           }
         }
-        
+
         const usageResponse = await fetch('/api/user/usage')
         if (usageResponse.ok) {
           const usageData = await usageResponse.json()
           setUsageData(usageData)
         }
-        
+
         try {
           const result = await subscription.list()
-          
+
           if (result.data && result.data.length > 0) {
             const activeSubscription = result.data.find(
-              sub => sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'pro')
+              (sub) => sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'pro')
             )
-            
+
             if (activeSubscription) {
               setSubscriptionData(activeSubscription)
             }
@@ -82,7 +90,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         } catch (error) {
           logger.error('Error fetching subscription information', error)
         }
-        
+
         hasLoadedInitialData.current = true
       } catch (error) {
         logger.error('Error loading settings data:', error)
@@ -90,7 +98,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         setIsLoading(false)
       }
     }
-    
+
     if (open) {
       loadAllSettings()
     } else {
@@ -134,9 +142,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         <div className="flex flex-1 min-h-0">
           {/* Navigation Sidebar */}
           <div className="w-[200px] border-r">
-            <SettingsNavigation 
-              activeSection={activeSection} 
-              onSectionChange={setActiveSection} 
+            <SettingsNavigation
+              activeSection={activeSection}
+              onSectionChange={setActiveSection}
               isTeam={isTeam}
             />
           </div>
@@ -160,7 +168,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             </div>
             {isSubscriptionEnabled && (
               <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
-                <Subscription 
+                <Subscription
                   onOpenChange={onOpenChange}
                   cachedIsPro={isPro}
                   cachedIsTeam={isTeam}

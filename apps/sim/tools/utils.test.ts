@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ToolConfig, ToolResponse } from './types'
-import { 
-  executeRequest, 
-  formatRequestParams, 
-  transformTable, 
-  validateToolRequest,
+import {
+  createCustomToolRequestBody,
   createParamSchema,
+  executeRequest,
+  formatRequestParams,
   getClientEnvVars,
-  createCustomToolRequestBody
+  transformTable,
+  validateToolRequest,
 } from './utils'
 
 // Mock logger
@@ -25,14 +25,14 @@ vi.mock('@/stores/settings/environment/store', () => {
   const mockStore = {
     getAllVariables: vi.fn().mockReturnValue({
       API_KEY: { value: 'mock-api-key' },
-      BASE_URL: { value: 'https://example.com' }
-    })
+      BASE_URL: { value: 'https://example.com' },
+    }),
   }
-  
+
   return {
     useEnvironmentStore: {
-      getState: vi.fn().mockImplementation(() => mockStore)
-    }
+      getState: vi.fn().mockImplementation(() => mockStore),
+    },
   }
 })
 
@@ -46,7 +46,7 @@ beforeEach(() => {
 afterEach(() => {
   // Reset window to original value
   global.window = originalWindow
-  
+
   // Clear mock call history
   vi.clearAllMocks()
 })
@@ -511,12 +511,12 @@ describe('createParamSchema', () => {
             type: 'object',
             properties: {
               required1: { type: 'string', description: 'Required param' },
-              optional1: { type: 'number', description: 'Optional param' }
+              optional1: { type: 'number', description: 'Optional param' },
             },
-            required: ['required1']
-          }
-        }
-      }
+            required: ['required1'],
+          },
+        },
+      },
     }
 
     const result = createParamSchema(customTool)
@@ -526,34 +526,34 @@ describe('createParamSchema', () => {
         type: 'string',
         required: true,
         requiredForToolCall: true,
-        description: 'Required param'
+        description: 'Required param',
       },
       optional1: {
         type: 'number',
         required: false,
         requiredForToolCall: false,
-        description: 'Optional param'
-      }
+        description: 'Optional param',
+      },
     })
   })
 
   it('should handle empty or missing schema gracefully', () => {
-    const emptyTool = { 
+    const emptyTool = {
       id: 'empty-tool',
       title: 'Empty Tool',
-      schema: {}
+      schema: {},
     }
 
     const result = createParamSchema(emptyTool)
-    
+
     expect(result).toEqual({})
-    
-    const missingPropsTool = { 
+
+    const missingPropsTool = {
       id: 'missing-props',
       title: 'Missing Props',
-      schema: { function: { parameters: {} } }
+      schema: { function: { parameters: {} } },
     }
-    
+
     const result2 = createParamSchema(missingPropsTool)
     expect(result2).toEqual({})
   })
@@ -565,24 +565,24 @@ describe('getClientEnvVars', () => {
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
         API_KEY: { value: 'mock-api-key' },
-        BASE_URL: { value: 'https://example.com' }
-      })
+        BASE_URL: { value: 'https://example.com' },
+      }),
     })
-    
+
     const result = getClientEnvVars(mockStoreGetter)
-    
+
     expect(result).toEqual({
       API_KEY: 'mock-api-key',
-      BASE_URL: 'https://example.com'
+      BASE_URL: 'https://example.com',
     })
   })
-  
+
   it('should return empty object in server environment', () => {
     // Remove window to simulate server environment
     global.window = undefined as any
-    
+
     const result = getClientEnvVars()
-    
+
     expect(result).toEqual({})
   })
 })
@@ -593,56 +593,56 @@ describe('createCustomToolRequestBody', () => {
       code: 'return a + b',
       schema: {
         function: {
-          parameters: { type: 'object', properties: {} }
-        }
-      }
+          parameters: { type: 'object', properties: {} },
+        },
+      },
     }
-    
+
     // Create a mock store for testing
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
         API_KEY: { value: 'mock-api-key' },
-        BASE_URL: { value: 'https://example.com' }
-      })
+        BASE_URL: { value: 'https://example.com' },
+      }),
     })
-    
+
     const bodyFn = createCustomToolRequestBody(customTool, true, undefined, mockStoreGetter)
     const result = bodyFn({ a: 5, b: 3 })
-    
+
     expect(result).toEqual({
       code: 'return a + b',
       params: { a: 5, b: 3 },
       schema: { type: 'object', properties: {} },
       envVars: {
         API_KEY: 'mock-api-key',
-        BASE_URL: 'https://example.com'
+        BASE_URL: 'https://example.com',
       },
       workflowId: undefined,
-      isCustomTool: true
+      isCustomTool: true,
     })
   })
-  
+
   it('should create request body function for server-side execution', () => {
     const customTool = {
       code: 'return a + b',
       schema: {
         function: {
-          parameters: { type: 'object', properties: {} }
-        }
-      }
+          parameters: { type: 'object', properties: {} },
+        },
+      },
     }
-    
+
     const workflowId = 'test-workflow-123'
     const bodyFn = createCustomToolRequestBody(customTool, false, workflowId)
     const result = bodyFn({ a: 5, b: 3 })
-    
+
     expect(result).toEqual({
       code: 'return a + b',
       params: { a: 5, b: 3 },
       schema: { type: 'object', properties: {} },
       envVars: {},
       workflowId: 'test-workflow-123',
-      isCustomTool: true
+      isCustomTool: true,
     })
   })
 })

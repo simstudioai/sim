@@ -119,21 +119,21 @@ export async function POST(req: NextRequest) {
     try {
       // Get schedule type from starter block
       const scheduleType = getSubBlockValue(starterBlock, 'scheduleType') || 'daily'
-      
+
       // Get schedule values
       const scheduleValues = getScheduleTimeValues(starterBlock)
-      
+
       // Get the schedule start date
       const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
-      
+
       // Get the schedule time
       const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-      
+
       logger.debug(`[${requestId}] Schedule configuration:`, {
         type: scheduleType,
         timezone,
         startDate: scheduleStartAt || 'not specified',
-        time: scheduleTime || 'not specified'
+        time: scheduleTime || 'not specified',
       })
 
       // Get cron expression based on schedule type

@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
+import { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('DeepseekProvider')
@@ -25,7 +25,7 @@ function createReadableStreamFromDeepseekStream(deepseekStream: any): ReadableSt
       } catch (error) {
         controller.error(error)
       }
-    }
+    },
   })
 }
 
@@ -37,7 +37,9 @@ export const deepseekProvider: ProviderConfig = {
   models: ['deepseek-chat'],
   defaultModel: 'deepseek-chat',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
+  executeRequest: async (
+    request: ProviderRequest
+  ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Deepseek')
     }
@@ -129,19 +131,19 @@ export const deepseekProvider: ProviderConfig = {
       // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
       if (request.stream && (!tools || tools.length === 0)) {
         logger.info('Using streaming response for DeepSeek request (no tools)')
-        
+
         const streamResponse = await deepseek.chat.completions.create({
           ...payload,
           stream: true,
         })
-        
+
         // Start collecting token usage
         let tokenUsage = {
           prompt: 0,
           completion: 0,
-          total: 0
+          total: 0,
         }
-        
+
         // Create a StreamingExecution response with a readable stream
         const streamingResult = {
           stream: createReadableStreamFromDeepseekStream(streamResponse),
@@ -157,21 +159,23 @@ export const deepseekProvider: ProviderConfig = {
                   startTime: providerStartTimeISO,
                   endTime: new Date().toISOString(),
                   duration: Date.now() - providerStartTime,
-                  timeSegments: [{
-                    type: 'model',
-                    name: 'Streaming response',
-                    startTime: providerStartTime,
-                    endTime: Date.now(),
-                    duration: Date.now() - providerStartTime,
-                  }]
+                  timeSegments: [
+                    {
+                      type: 'model',
+                      name: 'Streaming response',
+                      startTime: providerStartTime,
+                      endTime: Date.now(),
+                      duration: Date.now() - providerStartTime,
+                    },
+                  ],
                 },
                 // Estimate token cost
                 cost: {
                   total: 0.0,
                   input: 0.0,
-                  output: 0.0
-                }
-              }
+                  output: 0.0,
+                },
+              },
             },
             logs: [], // No block logs for direct streaming
             metadata: {
@@ -179,10 +183,10 @@ export const deepseekProvider: ProviderConfig = {
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
-            isStreaming: true
-          }
+            isStreaming: true,
+          },
         }
-        
+
         // Return the streaming execution object
         return streamingResult as StreamingExecution
       }
@@ -437,7 +441,7 @@ export const deepseekProvider: ProviderConfig = {
       // POST-TOOL STREAMING: stream final response after tool calls if requested
       if (request.stream && iterationCount > 0) {
         logger.info('Using streaming for final DeepSeek response after tool calls')
-        
+
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
@@ -446,9 +450,9 @@ export const deepseekProvider: ProviderConfig = {
           tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
           stream: true,
         }
-        
+
         const streamResponse = await deepseek.chat.completions.create(streamingPayload)
-        
+
         // Create a StreamingExecution response with all collected data
         const streamingResult = {
           stream: createReadableStreamFromDeepseekStream(streamResponse),
@@ -463,10 +467,13 @@ export const deepseekProvider: ProviderConfig = {
                   completion: tokens.completion,
                   total: tokens.total,
                 },
-                toolCalls: toolCalls.length > 0 ? { 
-                  list: toolCalls,
-                  count: toolCalls.length 
-                } : undefined,
+                toolCalls:
+                  toolCalls.length > 0
+                    ? {
+                        list: toolCalls,
+                        count: toolCalls.length,
+                      }
+                    : undefined,
                 providerTiming: {
                   startTime: providerStartTimeISO,
                   endTime: new Date().toISOString(),
@@ -480,9 +487,9 @@ export const deepseekProvider: ProviderConfig = {
                 cost: {
                   total: (tokens.total || 0) * 0.0001,
                   input: (tokens.prompt || 0) * 0.0001,
-                  output: (tokens.completion || 0) * 0.0001
-                }
-              }
+                  output: (tokens.completion || 0) * 0.0001,
+                },
+              },
             },
             logs: [], // No block logs at provider level
             metadata: {
@@ -490,10 +497,10 @@ export const deepseekProvider: ProviderConfig = {
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
-            isStreaming: true
-          }
+            isStreaming: true,
+          },
         }
-        
+
         // Return the streaming execution object
         return streamingResult as StreamingExecution
       }

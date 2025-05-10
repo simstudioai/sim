@@ -3,9 +3,9 @@ title: Jina
 description: Convert website content into text
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="jina"
   color="#333333"
   icon={true}
@@ -60,12 +60,9 @@ With the Jina AI integration in Sim Studio, you can:
 This integration is particularly valuable for building agents that need to gather and process information from the web, conduct research, or analyze online content as part of their workflow.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Transform web content into clean, readable text using Jina AI
-
-
 
 ## Tools
 
@@ -75,33 +72,28 @@ Extract and process web content into clean, LLM-friendly text using Jina AI Read
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `url` | string | Yes | The URL to read and convert to markdown |
+| Parameter | Type   | Required | Description                             |
+| --------- | ------ | -------- | --------------------------------------- |
+| `url`     | string | Yes      | The URL to read and convert to markdown |
 
 #### Output
 
 This tool does not produce any outputs.
 
-
-
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `url` | string | Yes | URL - Enter URL to extract content from |
-
-
+| Parameter | Type   | Required | Description                             |
+| --------- | ------ | -------- | --------------------------------------- |
+| `url`     | string | Yes      | URL - Enter URL to extract content from |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
 | ↳ `content` | string | content of the response |
-
 
 ## Notes
 

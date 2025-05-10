@@ -1,6 +1,6 @@
-import { ToolConfig } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { ToolConfig } from '../types'
 
 const logger = createLogger('DalleTool')
 
@@ -107,7 +107,7 @@ export const dalleTool: ToolConfig = {
         const arrayBuffer = await imageBlob.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
         const base64Image = buffer.toString('base64')
-        
+
         return {
           success: true,
           output: {
@@ -146,7 +146,7 @@ export const dalleTool: ToolConfig = {
           const arrayBuffer = await imageBlob.arrayBuffer()
           const buffer = Buffer.from(arrayBuffer)
           const base64Image = buffer.toString('base64')
-          
+
           logger.info(
             'Successfully converted image to base64 via direct fetch, length:',
             base64Image.length

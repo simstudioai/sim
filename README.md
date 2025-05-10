@@ -31,7 +31,7 @@ git clone https://github.com/YOUR_USERNAME/sim.git
 cd sim
 
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
-cp apps/sim/.env.example apps/sim/.env
+cp .env.example .env
 
 # Start Sim Studio using the provided script
 docker compose up -d --build
@@ -111,7 +111,7 @@ services:
   simstudio:
     # ... existing configuration ...
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
 ```
@@ -141,8 +141,7 @@ npm install
 2. **Set Up Environment**
 
 ```bash
-# Copy .env.example to .env
-cp apps/sim/.env.example apps/sim/.env
+cp .env.example .env  # or create a new .env file
 
 # Configure your .env file with the required environment variables:
 # - Database connection (PostgreSQL)
@@ -150,6 +149,7 @@ cp apps/sim/.env.example apps/sim/.env
 ```
 
 ⚠️ **Important Notes:**
+
 - If `RESEND_API_KEY` is not set, verification codes for login/signup will be logged to the console.
 - You can use these logged codes for testing authentication locally.
 - For production environments, you should set up a proper email provider.

@@ -4,21 +4,13 @@ description: Creating iterative processes with loops in Sim Studio
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 Loops are a powerful feature in Sim Studio that allow you to create iterative processes, implement feedback mechanisms, and build more sophisticated workflows.
 
 <div>
-  <video 
-    autoPlay 
-    loop 
-    muted 
-    playsInline
-    className="w-full"
-    src="/loops.mp4"
-  >
-  </video>
+  <video autoPlay loop muted playsInline className="w-full" src="/loops.mp4"></video>
 </div>
 
 ## What Are Loops?
@@ -31,7 +23,8 @@ Loops in Sim Studio allow a group of blocks to execute repeatedly, with each ite
 - **Conditional Processing**: Continue execution until specific criteria are met
 
 <Callout type="info">
-  Loops are particularly powerful for AI workflows, allowing you to implement techniques like chain-of-thought reasoning, recursive refinement, and multi-step problem solving.
+  Loops are particularly powerful for AI workflows, allowing you to implement techniques like
+  chain-of-thought reasoning, recursive refinement, and multi-step problem solving.
 </Callout>
 
 ## Creating Loops
@@ -49,7 +42,8 @@ To create a loop in your workflow:
     <strong>Configure Loop Settings</strong>: Set iteration limits and conditions
   </Step>
   <Step>
-    <strong>Create Feedback Connections</strong>: Connect outputs from later blocks back to earlier blocks
+    <strong>Create Feedback Connections</strong>: Connect outputs from later blocks back to earlier
+    blocks
   </Step>
 </Steps>
 
@@ -63,7 +57,8 @@ When configuring a loop, you can set several important parameters:
 - **Minimum Iterations**: The minimum number of times the loop must execute before checking conditions
 
 <Callout type="warning">
-  Always set a reasonable maximum iteration limit to prevent infinite loops. The default limit of 5 iterations is a good starting point for most workflows.
+  Always set a reasonable maximum iteration limit to prevent infinite loops. The default limit of 5
+  iterations is a good starting point for most workflows.
 </Callout>
 
 ### Loop Conditions
@@ -146,12 +141,13 @@ Loops enable powerful workflow patterns:
 
 ### Iterative Refinement
 
-<div className="p-4 border rounded-md mb-4">
+<div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Example: Content Refinement</h4>
-  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-    Create a loop where an Agent block generates content, an Evaluator block assesses it, and a Function block decides whether to continue refining.
+  <div className="mb-2 text-sm text-gray-600 dark:text-gray-400">
+    Create a loop where an Agent block generates content, an Evaluator block assesses it, and a
+    Function block decides whether to continue refining.
   </div>
-  <ol className="text-sm list-decimal pl-5">
+  <ol className="list-decimal pl-5 text-sm">
     <li>Agent generates initial content</li>
     <li>Evaluator scores the content</li>
     <li>Function analyzes score and provides feedback</li>
@@ -162,12 +158,12 @@ Loops enable powerful workflow patterns:
 
 ### Batch Processing
 
-<div className="p-4 border rounded-md mb-4">
+<div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Example: Data Processing Pipeline</h4>
-  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+  <div className="mb-2 text-sm text-gray-600 dark:text-gray-400">
     Process a collection of items one at a time through a series of blocks.
   </div>
-  <ol className="text-sm list-decimal pl-5">
+  <ol className="list-decimal pl-5 text-sm">
     <li>Function block extracts the next item from a collection</li>
     <li>Processing blocks operate on the single item</li>
     <li>Results are accumulated in a Memory block</li>
@@ -177,12 +173,12 @@ Loops enable powerful workflow patterns:
 
 ### Recursive Problem Solving
 
-<div className="p-4 border rounded-md mb-4">
+<div className="mb-4 rounded-md border p-4">
   <h4 className="font-medium">Example: Multi-step Reasoning</h4>
-  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+  <div className="mb-2 text-sm text-gray-600 dark:text-gray-400">
     Implement a recursive approach to complex problem solving.
   </div>
-  <ol className="text-sm list-decimal pl-5">
+  <ol className="list-decimal pl-5 text-sm">
     <li>Agent analyzes the current problem state</li>
     <li>Function block implements a step in the solution</li>
     <li>Condition block checks if the problem is solved</li>
@@ -201,7 +197,8 @@ To use loops effectively in your workflows:
 - **Test Thoroughly**: Verify that loops terminate as expected in all scenarios
 
 <Callout type="warning">
-  Loops with many blocks or complex operations can impact performance. Consider optimizing individual blocks if your loops need many iterations.
+  Loops with many blocks or complex operations can impact performance. Consider optimizing
+  individual blocks if your loops need many iterations.
 </Callout>
 
 ## Loop Debugging
@@ -214,4 +211,4 @@ When debugging loops in your workflows:
 - **Use Console Logging**: Add console.log statements in Function blocks to track loop progress
 - **Monitor Memory Usage**: Watch for growing data structures that might cause performance issues
 
-By mastering loops, you can create much more sophisticated and powerful workflows in Sim Studio. 
+By mastering loops, you can create much more sophisticated and powerful workflows in Sim Studio.

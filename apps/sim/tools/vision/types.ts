@@ -1,16 +1,16 @@
-import { ToolResponse } from "../types"
+import { ToolResponse } from '../types'
 
 export interface VisionParams {
-    apiKey: string
-    imageUrl: string
+  apiKey: string
+  imageUrl: string
+  model?: string
+  prompt?: string
+}
+
+export interface VisionResponse extends ToolResponse {
+  output: {
+    content: string
     model?: string
-    prompt?: string
+    tokens?: number
   }
-  
-  export interface VisionResponse extends ToolResponse {
-    output: {
-      content: string
-      model?: string
-      tokens?: number
-    }
-  }
+}

@@ -68,35 +68,34 @@ export async function GET(request: Request) {
         .select({ id: workspace.id })
         .from(workspace)
         .where(eq(workspace.id, workspaceId))
-        .then(rows => rows.length > 0)
-        
+        .then((rows) => rows.length > 0)
+
       if (!workspaceExists) {
-        logger.warn(`[${requestId}] Attempt to fetch workflows for non-existent workspace: ${workspaceId}`)
-        return NextResponse.json({ error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' }, { status: 404 })
+        logger.warn(
+          `[${requestId}] Attempt to fetch workflows for non-existent workspace: ${workspaceId}`
+        )
+        return NextResponse.json(
+          { error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' },
+          { status: 404 }
+        )
       }
-      
+
       // Migrate any orphaned workflows to this workspace
       await migrateOrphanedWorkflows(userId, workspaceId)
     }
-    
+
     // Fetch workflows for the user
     let workflows
-    
+
     if (workspaceId) {
       // Filter by user ID and workspace ID
       workflows = await db
         .select()
         .from(workflow)
-        .where(and(
-          eq(workflow.userId, userId),
-          eq(workflow.workspaceId, workspaceId)
-        ))
+        .where(and(eq(workflow.userId, userId), eq(workflow.workspaceId, workspaceId)))
     } else {
       // Filter by user ID only, including workflows without workspace IDs
-      workflows = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.userId, userId))
+      workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
     }
 
     // Return the workflows
@@ -114,24 +113,23 @@ async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
     const orphanedWorkflows = await db
       .select({ id: workflow.id })
       .from(workflow)
-      .where(and(
-        eq(workflow.userId, userId),
-        isNull(workflow.workspaceId)
-      ))
-      
+      .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
+
     if (orphanedWorkflows.length === 0) {
       return // No orphaned workflows to migrate
     }
-    
-    logger.info(`Migrating ${orphanedWorkflows.length} orphaned workflows to workspace ${workspaceId}`)
-    
+
+    logger.info(
+      `Migrating ${orphanedWorkflows.length} orphaned workflows to workspace ${workspaceId}`
+    )
+
     // Update each workflow to associate it with the provided workspace
     for (const { id } of orphanedWorkflows) {
       await db
         .update(workflow)
         .set({
           workspaceId: workspaceId,
-          updatedAt: new Date()
+          updatedAt: new Date(),
         })
         .where(eq(workflow.id, id))
     }
@@ -159,21 +157,18 @@ export async function POST(req: NextRequest) {
       // CRITICAL SAFEGUARD: Prevent wiping out existing workflows
       // If client is sending empty workflows object, first check if user has existing workflows
       if (Object.keys(clientWorkflows).length === 0) {
-        let existingWorkflows;
-        
+        let existingWorkflows
+
         if (workspaceId) {
           existingWorkflows = await db
             .select()
             .from(workflow)
-            .where(and(
-              eq(workflow.userId, session.user.id),
-              eq(workflow.workspaceId, workspaceId)
-            ));
+            .where(and(eq(workflow.userId, session.user.id), eq(workflow.workspaceId, workspaceId)))
         } else {
           existingWorkflows = await db
             .select()
             .from(workflow)
-            .where(eq(workflow.userId, session.user.id));
+            .where(eq(workflow.userId, session.user.id))
         }
 
         // If user has existing workflows, but client sends empty, reject the sync
@@ -197,34 +192,33 @@ export async function POST(req: NextRequest) {
           .select({ id: workspace.id })
           .from(workspace)
           .where(eq(workspace.id, workspaceId))
-          .then(rows => rows.length > 0)
-          
+          .then((rows) => rows.length > 0)
+
         if (!workspaceExists) {
-          logger.warn(`[${requestId}] Attempt to sync workflows to non-existent workspace: ${workspaceId}`)
-          return NextResponse.json({ 
-            error: 'Workspace not found', 
-            code: 'WORKSPACE_NOT_FOUND' 
-          }, { status: 404 })
+          logger.warn(
+            `[${requestId}] Attempt to sync workflows to non-existent workspace: ${workspaceId}`
+          )
+          return NextResponse.json(
+            {
+              error: 'Workspace not found',
+              code: 'WORKSPACE_NOT_FOUND',
+            },
+            { status: 404 }
+          )
         }
       }
 
       // Get all workflows for the user from the database
       // If workspaceId is provided, only get workflows for that workspace
-      let dbWorkflows;
-      
+      let dbWorkflows
+
       if (workspaceId) {
         dbWorkflows = await db
           .select()
           .from(workflow)
-          .where(and(
-            eq(workflow.userId, session.user.id),
-            eq(workflow.workspaceId, workspaceId)
-          ))
+          .where(and(eq(workflow.userId, session.user.id), eq(workflow.workspaceId, workspaceId)))
       } else {
-        dbWorkflows = await db
-          .select()
-          .from(workflow)
-          .where(eq(workflow.userId, session.user.id))
+        dbWorkflows = await db.select().from(workflow).where(eq(workflow.userId, session.user.id))
       }
 
       const now = new Date()
@@ -244,9 +238,9 @@ export async function POST(req: NextRequest) {
         if (clientWorkflow.state.isPublished && !clientWorkflow.marketplaceData) {
           clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: 'owner' }
         }
-        
+
         // Ensure the workflow has the correct workspaceId
-        const effectiveWorkspaceId = clientWorkflow.workspaceId || workspaceId;
+        const effectiveWorkspaceId = clientWorkflow.workspaceId || workspaceId
 
         if (!dbWorkflow) {
           // New workflow - create
@@ -299,8 +293,10 @@ export async function POST(req: NextRequest) {
       // Handle deletions - workflows in DB but not in client
       // Only delete workflows for the current workspace!
       for (const dbWorkflow of dbWorkflows) {
-        if (!processedIds.has(dbWorkflow.id) && 
-            (!workspaceId || dbWorkflow.workspaceId === workspaceId)) {
+        if (
+          !processedIds.has(dbWorkflow.id) &&
+          (!workspaceId || dbWorkflow.workspaceId === workspaceId)
+        ) {
           operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
         }
       }

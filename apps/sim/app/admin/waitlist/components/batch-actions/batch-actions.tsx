@@ -1,5 +1,5 @@
-import { Button } from '@/components/ui/button'
 import { CheckSquareIcon, SquareIcon, UserCheckIcon, XIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface BatchActionsProps {
   hasSelectedEmails: boolean
@@ -22,13 +22,13 @@ export function BatchActions({
   entriesExist,
   someSelected,
 }: BatchActionsProps) {
-  if (!entriesExist) return null;
-  
+  if (!entriesExist) return null
+
   return (
     <div className="flex flex-wrap items-center gap-2 mb-2">
       <Button
         size="sm"
-        variant={hasSelectedEmails ? "default" : "outline"}
+        variant={hasSelectedEmails ? 'default' : 'outline'}
         onClick={onToggleSelectAll}
         disabled={loading || !entriesExist}
         className="whitespace-nowrap h-8 px-2.5 text-xs"
@@ -38,9 +38,9 @@ export function BatchActions({
         ) : (
           <SquareIcon className="h-3.5 w-3.5 mr-1.5" />
         )}
-        {someSelected ? "Deselect All" : "Select All"}
+        {someSelected ? 'Deselect All' : 'Select All'}
       </Button>
-      
+
       {hasSelectedEmails && (
         <>
           <Button
@@ -52,7 +52,7 @@ export function BatchActions({
             <XIcon className="h-3.5 w-3.5 mr-1.5" />
             Clear Selection
           </Button>
-          
+
           <Button
             size="sm"
             variant="default"
@@ -61,10 +61,10 @@ export function BatchActions({
             className="whitespace-nowrap h-8 px-2.5 text-xs"
           >
             <UserCheckIcon className="h-3.5 w-3.5 mr-1.5" />
-            {loading ? "Processing..." : `Approve Selected (${selectedCount})`}
+            {loading ? 'Processing...' : `Approve Selected (${selectedCount})`}
           </Button>
         </>
       )}
     </div>
   )
-} 
+}

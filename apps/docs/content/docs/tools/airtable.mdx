@@ -3,9 +3,9 @@ title: Airtable
 description: Read, create, and update Airtable
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="airtable"
   color="#E0E0E0"
   icon={true}
@@ -54,12 +54,9 @@ With Airtable, you can:
 In Sim Studio, the Airtable integration enables your agents to interact with your Airtable bases programmatically. This allows for seamless data operations like retrieving information, creating new records, and updating existing data - all within your agent workflows. Use Airtable as a dynamic data source or destination for your agents, enabling them to access and manipulate structured information as part of their decision-making and task execution processes.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
-Integrate Airtable functionality to manage table records. List, get, create, 
-
-
+Integrate Airtable functionality to manage table records. List, get, create,
 
 ## Tools
 
@@ -69,20 +66,20 @@ Read records from an Airtable table
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID of the table |
-| `maxRecords` | number | No | Maximum number of records to return |
-| `filterFormula` | string | No | Formula to filter records \(e.g.,  |
+| Parameter       | Type   | Required | Description                         |
+| --------------- | ------ | -------- | ----------------------------------- |
+| `accessToken`   | string | Yes      | OAuth access token                  |
+| `baseId`        | string | Yes      | ID of the Airtable base             |
+| `tableId`       | string | Yes      | ID of the table                     |
+| `maxRecords`    | number | No       | Maximum number of records to return |
+| `filterFormula` | string | No       | Formula to filter records \(e.g.,   |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `records` | string |
-| `metadata` | string |
+| Parameter      | Type   |
+| -------------- | ------ |
+| `records`      | string |
+| `metadata`     | string |
 | `totalRecords` | string |
 
 ### `airtable_get_record`
@@ -91,18 +88,18 @@ Retrieve a single record from an Airtable table by its ID
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
-| `recordId` | string | Yes | ID of the record to retrieve |
+| Parameter     | Type   | Required | Description                  |
+| ------------- | ------ | -------- | ---------------------------- |
+| `accessToken` | string | Yes      | OAuth access token           |
+| `baseId`      | string | Yes      | ID of the Airtable base      |
+| `tableId`     | string | Yes      | ID or name of the table      |
+| `recordId`    | string | Yes      | ID of the record to retrieve |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `record` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `record`   | string |
 | `metadata` | string |
 
 ### `airtable_create_records`
@@ -111,17 +108,17 @@ Write new records to an Airtable table
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
+| Parameter     | Type   | Required | Description             |
+| ------------- | ------ | -------- | ----------------------- |
+| `accessToken` | string | Yes      | OAuth access token      |
+| `baseId`      | string | Yes      | ID of the Airtable base |
+| `tableId`     | string | Yes      | ID or name of the table |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `records` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `records`  | string |
 | `metadata` | string |
 
 ### `airtable_update_record`
@@ -130,20 +127,20 @@ Update an existing record in an Airtable table by ID
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
-| `recordId` | string | Yes | ID of the record to update |
-| `fields` | json | Yes | An object containing the field names and their new values |
+| Parameter     | Type   | Required | Description                                               |
+| ------------- | ------ | -------- | --------------------------------------------------------- |
+| `accessToken` | string | Yes      | OAuth access token                                        |
+| `baseId`      | string | Yes      | ID of the Airtable base                                   |
+| `tableId`     | string | Yes      | ID or name of the table                                   |
+| `recordId`    | string | Yes      | ID of the record to update                                |
+| `fields`      | json   | Yes      | An object containing the field names and their new values |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `record` | string |
-| `metadata` | string |
+| Parameter       | Type   |
+| --------------- | ------ |
+| `record`        | string |
+| `metadata`      | string |
 | `updatedFields` | string |
 
 ### `airtable_update_multiple_records`
@@ -152,41 +149,36 @@ Update multiple existing records in an Airtable table
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `accessToken` | string | Yes | OAuth access token |
-| `baseId` | string | Yes | ID of the Airtable base |
-| `tableId` | string | Yes | ID or name of the table |
+| Parameter     | Type   | Required | Description             |
+| ------------- | ------ | -------- | ----------------------- |
+| `accessToken` | string | Yes      | OAuth access token      |
+| `baseId`      | string | Yes      | ID of the Airtable base |
+| `tableId`     | string | Yes      | ID or name of the table |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `records` | string |
-| `metadata` | string |
+| Parameter          | Type   |
+| ------------------ | ------ |
+| `records`          | string |
+| `metadata`         | string |
 | `updatedRecordIds` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `records` | json | records of the response |
-| ↳ `record` | json | record of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `records`  | json   | records of the response  |
+| ↳ `record`   | json   | record of the response   |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

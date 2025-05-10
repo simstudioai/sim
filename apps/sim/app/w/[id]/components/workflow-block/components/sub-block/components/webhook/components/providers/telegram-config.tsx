@@ -11,7 +11,7 @@ interface TelegramConfigProps {
   triggerPhrase: string
   setTriggerPhrase: (value: string) => void
   isLoadingToken: boolean
-  testResult: any 
+  testResult: any
   copied: string | null
   copyToClipboard: (text: string, type: string) => void
   testWebhook?: () => void // Optional test function
@@ -32,7 +32,6 @@ export function TelegramConfig({
   webhookId,
   webhookUrl,
 }: TelegramConfigProps) {
-
   return (
     <div className="space-y-4">
       <ConfigSection title="Telegram Configuration">
@@ -48,7 +47,7 @@ export function TelegramConfig({
               id="telegram-bot-token"
               value={botToken}
               onChange={(e) => {
-                setBotToken(e.target.value);
+                setBotToken(e.target.value)
               }}
               placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
               type="password"
@@ -69,7 +68,7 @@ export function TelegramConfig({
               id="telegram-trigger-phrase"
               value={triggerPhrase}
               onChange={(e) => {
-                setTriggerPhrase(e.target.value);
+                setTriggerPhrase(e.target.value)
               }}
               placeholder="/start_workflow"
               required
@@ -89,20 +88,21 @@ export function TelegramConfig({
       <InstructionsSection>
         <ol className="list-decimal list-inside space-y-2">
           <li>
-            Message "/newbot" to {' '}
+            Message "/newbot" to{' '}
             <a
               href="https://t.me/BotFather"
               target="_blank"
               rel="noopener noreferrer"
               className="link text-primary underline hover:text-primary/80 transition-colors"
               onClick={(e) => {
-                e.stopPropagation();
-                window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer');
-                e.preventDefault();
+                e.stopPropagation()
+                window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer')
+                e.preventDefault()
               }}
             >
               @BotFather
-            </a>{' '} in Telegram to create a bot and copy its token.
+            </a>{' '}
+            in Telegram to create a bot and copy its token.
           </li>
           <li>Enter your Bot Token and a trigger phrase above.</li>
           <li>Ensure your webhook URL uses HTTPS with a valid SSL certificate.</li>

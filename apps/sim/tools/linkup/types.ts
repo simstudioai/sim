@@ -1,4 +1,4 @@
-import { ToolResponse } from "../types"
+import { ToolResponse } from '../types'
 
 export interface LinkupSource {
   name: string
@@ -16,8 +16,8 @@ export interface LinkupSearchParams {
 export interface LinkupSearchResponse {
   answer: string
   sources: LinkupSource[]
-} 
+}
 
 export interface LinkupSearchToolResponse extends ToolResponse {
-    output: LinkupSearchResponse
-  }
+  output: LinkupSearchResponse
+}

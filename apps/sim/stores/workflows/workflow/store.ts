@@ -677,12 +677,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           loops: deployedState.loops,
           isDeployed: true,
           needsRedeployment: false,
-          hasActiveWebhook: false // Reset webhook status
+          hasActiveWebhook: false, // Reset webhook status
         }
-        
+
         // Update the main workflow state
         set(newState)
-        
+
         // Get the active workflow ID
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (!activeWorkflowId) return
@@ -690,7 +690,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Initialize subblock store with values from deployed state
         const subBlockStore = useSubBlockStore.getState()
         const values: Record<string, Record<string, any>> = {}
-        
+
         // Extract subblock values from deployed blocks
         Object.entries(deployedState.blocks).forEach(([blockId, block]) => {
           values[blockId] = {}
@@ -703,16 +703,18 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         useSubBlockStore.setState({
           workflowValues: {
             ...subBlockStore.workflowValues,
-            [activeWorkflowId]: values
-          }
+            [activeWorkflowId]: values,
+          },
         })
 
         // Check if there's an active webhook in the deployed state
-        const starterBlock = Object.values(deployedState.blocks).find(block => block.type === 'starter')
+        const starterBlock = Object.values(deployedState.blocks).find(
+          (block) => block.type === 'starter'
+        )
         if (starterBlock && starterBlock.subBlocks?.startWorkflow?.value === 'webhook') {
           set({ hasActiveWebhook: true })
         }
-        
+
         pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
         workflowSync.sync()

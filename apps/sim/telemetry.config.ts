@@ -1,21 +1,21 @@
 /**
  * Sim Studio Telemetry Configuration
- * 
+ *
  * PRIVACY NOTICE:
  * - Telemetry is enabled by default to help us improve the product
  * - You can disable telemetry via:
  *   1. Settings UI > Privacy tab > Toggle off "Allow anonymous telemetry"
  *   2. Setting NEXT_TELEMETRY_DISABLED=1 environment variable
- * 
+ *
  * This file allows you to configure telemetry collection for your
  * Sim Studio instance. If you've forked the repository, you can modify
  * this file to send telemetry to your own collector.
- * 
+ *
  * We only collect anonymous usage data to improve the product:
  * - Feature usage statistics
  * - Error rates
  * - Performance metrics
- * 
+ *
  * We NEVER collect:
  * - Personal information
  * - Workflow content or outputs
@@ -59,14 +59,7 @@ const config = {
    * Categories of events that can be collected
    * This is used for validation when events are sent
    */
-  allowedCategories: [
-    'page_view',
-    'feature_usage',
-    'performance',
-    'error',
-    'workflow',
-    'consent',
-  ],
+  allowedCategories: ['page_view', 'feature_usage', 'performance', 'error', 'workflow', 'consent'],
 
   /**
    * Client-side instrumentation settings

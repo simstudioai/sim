@@ -1,5 +1,5 @@
-import { formatDateTime } from '@/lib/utils'
 import { createLogger } from '@/lib/logs/console-logger'
+import { formatDateTime } from '@/lib/utils'
 
 const logger = createLogger('ScheduleUtils')
 
@@ -64,7 +64,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 } {
   // Extract schedule time (common field that can override others)
   const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
-  
+
   // Extract schedule start date
   const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
 
@@ -134,7 +134,9 @@ export function createDateWithTimezone(
 
     // 2. Create a tentative UTC Date object using the target date and time components
     // This assumes, for a moment, that the target H:M were meant for UTC.
-    const tentativeUTCDate = new Date(Date.UTC(year, monthIndex, day, targetHours, targetMinutes, 0))
+    const tentativeUTCDate = new Date(
+      Date.UTC(year, monthIndex, day, targetHours, targetMinutes, 0)
+    )
 
     // 3. If the target timezone is UTC, we're done.
     if (timezone === 'UTC') {
@@ -155,7 +157,8 @@ export function createDateWithTimezone(
     })
 
     const parts = formatter.formatToParts(tentativeUTCDate)
-    const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)?.value
+    const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((p) => p.type === type)?.value
 
     const formattedYear = parseInt(getPart('year') || '0', 10)
     const formattedMonth = parseInt(getPart('month') || '0', 10) // 1-based
@@ -179,14 +182,7 @@ export function createDateWithTimezone(
     // that resulted from the tentative UTC date. This difference represents the offset
     // needed to adjust the UTC time.
     // Create the intended local time as a UTC timestamp for comparison purposes.
-    const intendedLocalTimeAsUTC = Date.UTC(
-        year,
-        monthIndex,
-        day,
-        targetHours,
-        targetMinutes,
-        0
-    )
+    const intendedLocalTimeAsUTC = Date.UTC(year, monthIndex, day, targetHours, targetMinutes, 0)
 
     // The offset needed for UTC time is the difference between the intended local time
     // and the actual local time (when both are represented as UTC timestamps).
@@ -197,20 +193,21 @@ export function createDateWithTimezone(
     const finalDate = new Date(finalUTCTimeMilliseconds)
 
     return finalDate
-
   } catch (e) {
-    logger.error("Error creating date with timezone:", e, { dateInput, timeStr, timezone })
+    logger.error('Error creating date with timezone:', e, { dateInput, timeStr, timezone })
     // Fallback to a simple UTC interpretation on error
     try {
-        const baseDate = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput)
-        const [hours, minutes] = parseTimeString(timeStr)
-        const year = baseDate.getUTCFullYear()
-        const monthIndex = baseDate.getUTCMonth()
-        const day = baseDate.getUTCDate()
-        return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0))
+      const baseDate = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput)
+      const [hours, minutes] = parseTimeString(timeStr)
+      const year = baseDate.getUTCFullYear()
+      const monthIndex = baseDate.getUTCMonth()
+      const day = baseDate.getUTCDate()
+      return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0))
     } catch (fallbackError) {
-        logger.error("Error during fallback date creation:", fallbackError)
-        throw new Error(`Failed to create date with timezone (${timezone}): ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`)
+      logger.error('Error during fallback date creation:', fallbackError)
+      throw new Error(
+        `Failed to create date with timezone (${timezone}): ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
+      )
     }
   }
 }
@@ -245,7 +242,10 @@ export function generateCronExpression(
     }
 
     case 'custom': {
-      const cronExpression = getSubBlockValue(scheduleValues as unknown as BlockState, 'cronExpression')
+      const cronExpression = getSubBlockValue(
+        scheduleValues as unknown as BlockState,
+        'cronExpression'
+      )
       if (!cronExpression) {
         throw new Error('No cron expression provided for custom schedule')
       }
@@ -271,29 +271,31 @@ export function calculateNextRunTime(
 ): Date {
   // Get timezone (default to UTC)
   const timezone = scheduleValues.timezone || 'UTC'
-  
+
   // Get the current time
   let baseDate = new Date()
-  
+
   // If we have both a start date and time, use them together with timezone awareness
   if (scheduleValues.scheduleStartAt && scheduleValues.scheduleTime) {
     try {
-      logger.info(`Creating date with: startAt=${scheduleValues.scheduleStartAt}, time=${scheduleValues.scheduleTime}, timezone=${timezone}`)
-      
+      logger.info(
+        `Creating date with: startAt=${scheduleValues.scheduleStartAt}, time=${scheduleValues.scheduleTime}, timezone=${timezone}`
+      )
+
       const combinedDate = createDateWithTimezone(
         scheduleValues.scheduleStartAt,
         scheduleValues.scheduleTime,
         timezone
       )
-      
+
       logger.info(`Combined date result: ${combinedDate.toISOString()}`)
-      
+
       // If the combined date is in the future, use it as our next run time
       if (combinedDate > baseDate) {
         return combinedDate
       }
     } catch (e) {
-      logger.error("Error combining scheduled date and time:", e)
+      logger.error('Error combining scheduled date and time:', e)
     }
   }
   // If only scheduleStartAt is set (without scheduleTime), parse it directly
@@ -301,13 +303,13 @@ export function calculateNextRunTime(
     try {
       // Check if the date string already includes time information
       const startAtStr = scheduleValues.scheduleStartAt
-      const hasTimeComponent = startAtStr.includes('T') && 
-                               (startAtStr.includes(':') || startAtStr.includes('.'))
-      
+      const hasTimeComponent =
+        startAtStr.includes('T') && (startAtStr.includes(':') || startAtStr.includes('.'))
+
       if (hasTimeComponent) {
         // If the string already has time info, parse it directly but with timezone awareness
         const startDate = new Date(startAtStr)
-        
+
         // If it's a UTC ISO string (ends with Z), use it directly
         if (startAtStr.endsWith('Z') && timezone === 'UTC') {
           if (startDate > baseDate) {
@@ -317,15 +319,15 @@ export function calculateNextRunTime(
           // For non-UTC dates or when timezone isn't UTC, we need to interpret it in the specified timezone
           // Extract time from the date string (crude but effective for ISO format)
           const timeMatch = startAtStr.match(/T(\d{2}:\d{2})/)
-          const timeStr = timeMatch ? timeMatch[1] : "00:00"
-          
+          const timeStr = timeMatch ? timeMatch[1] : '00:00'
+
           // Use our timezone-aware function with the extracted time
           const tzAwareDate = createDateWithTimezone(
             startAtStr.split('T')[0], // Just the date part
-            timeStr,                  // Time extracted from string
+            timeStr, // Time extracted from string
             timezone
           )
-          
+
           if (tzAwareDate > baseDate) {
             return tzAwareDate
           }
@@ -334,24 +336,24 @@ export function calculateNextRunTime(
         // If no time component in the string, use midnight in the specified timezone
         const startDate = createDateWithTimezone(
           scheduleValues.scheduleStartAt,
-          "00:00", // Use midnight in the specified timezone
+          '00:00', // Use midnight in the specified timezone
           timezone
         )
-        
+
         if (startDate > baseDate) {
           return startDate
         }
       }
     } catch (e) {
-      logger.error("Error parsing scheduleStartAt:", e)
+      logger.error('Error parsing scheduleStartAt:', e)
     }
   }
-  
+
   // If we have a scheduleTime (but no future scheduleStartAt), use it for today
   const scheduleTimeOverride = scheduleValues.scheduleTime
     ? parseTimeString(scheduleValues.scheduleTime)
     : null
-  
+
   // Create next run date based on the current date
   const nextRun = new Date(baseDate)
 
@@ -394,7 +396,7 @@ export function calculateNextRunTime(
       if (nextRun <= now) {
         nextRun.setMinutes(nextRun.getMinutes() + minutesInterval)
       }
-      
+
       return nextRun
     }
 
@@ -409,7 +411,7 @@ export function calculateNextRunTime(
       if (nextRun <= new Date()) {
         nextRun.setHours(nextRun.getHours() + 1)
       }
-      
+
       return nextRun
     }
 
@@ -423,7 +425,7 @@ export function calculateNextRunTime(
       if (nextRun <= new Date()) {
         nextRun.setDate(nextRun.getDate() + 1)
       }
-      
+
       return nextRun
     }
 
@@ -437,7 +439,7 @@ export function calculateNextRunTime(
       while (nextRun.getDay() !== scheduleValues.weeklyDay || nextRun <= new Date()) {
         nextRun.setDate(nextRun.getDate() + 1)
       }
-      
+
       return nextRun
     }
 
@@ -453,7 +455,7 @@ export function calculateNextRunTime(
       if (nextRun <= new Date()) {
         nextRun.setMonth(nextRun.getMonth() + 1)
       }
-      
+
       return nextRun
     }
 

@@ -3,9 +3,9 @@ title: Stagehand Extract
 description: Extract data from websites
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="stagehand"
   color="#FFC83C"
   icon={true}
@@ -188,12 +188,9 @@ With Stagehand, you can:
 In Sim Studio, the Stagehand integration enables your agents to extract structured data from webpages using Browserbase and OpenAI. This allows for powerful automation scenarios such as data extraction, data analysis, and data integration. Your agents can extract structured data from webpages, save the extracted data to a database, and automate workflows to extract data from webpages. This integration bridges the gap between your AI workflows and your data management system, enabling seamless data extraction and integration. By connecting Sim Studio with Stagehand, you can automate data extraction processes, maintain up-to-date information repositories, generate reports, and organize information intelligently - all through your intelligent agents.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Use Stagehand to extract structured data from webpages using Browserbase and OpenAI.
-
-
 
 ## Tools
 
@@ -203,38 +200,33 @@ Extract structured data from a webpage using Stagehand
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `instruction` | string | Yes | Instructions for extraction |
-| `schema` | json | Yes | JSON schema defining the structure of the data to extract |
-| `apiKey` | string | Yes | OpenAI API key for extraction \(required by Stagehand\) |
-| `url` | string | Yes | URL of the webpage to extract data from |
+| Parameter     | Type   | Required | Description                                               |
+| ------------- | ------ | -------- | --------------------------------------------------------- |
+| `instruction` | string | Yes      | Instructions for extraction                               |
+| `schema`      | json   | Yes      | JSON schema defining the structure of the data to extract |
+| `apiKey`      | string | Yes      | OpenAI API key for extraction \(required by Stagehand\)   |
+| `url`         | string | Yes      | URL of the webpage to extract data from                   |
 
 #### Output
 
 | Parameter | Type |
 | --------- | ---- |
-| `data` | json |
-
-
+| `data`    | json |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `url` | string | Yes | URL - Enter the URL of the website to extract data from |
-
-
+| Parameter | Type   | Required | Description                                             |
+| --------- | ------ | -------- | ------------------------------------------------------- |
+| `url`     | string | Yes      | URL - Enter the URL of the website to extract data from |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
+| Output     | Type   | Description          |
+| ---------- | ------ | -------------------- |
 | `response` | object | Output from response |
-| ↳ `data` | json | data of the response |
-
+| ↳ `data`   | json   | data of the response |
 
 ## Notes
 

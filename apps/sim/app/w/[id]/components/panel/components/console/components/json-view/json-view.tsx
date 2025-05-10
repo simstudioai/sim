@@ -59,12 +59,7 @@ const isImageData = (obj: any): boolean => {
 
 // Helper function to check if an object contains an audio URL
 const isAudioData = (obj: any): boolean => {
-  return (
-    obj && 
-    typeof obj === 'object' && 
-    'audioUrl' in obj && 
-    typeof obj.audioUrl === 'string'
-  )
+  return obj && typeof obj === 'object' && 'audioUrl' in obj && typeof obj.audioUrl === 'string'
 }
 
 // Helper function to check if a string is likely a base64 image
@@ -261,7 +256,7 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
   // Check if current object contains image URL
   const hasImageUrl = isImageData(data)
-  
+
   // Check if current object contains audio URL
   const hasAudioUrl = isAudioData(data)
 
@@ -565,7 +560,7 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
       {/* Direct image render for objects with image URLs */}
       {!isCollapsed && hasImageUrl && <ImagePreview imageUrl={data.url} />}
-      
+
       {/* Direct audio render for objects with audio URLs */}
       {!isCollapsed && hasAudioUrl && <AudioPlayer audioUrl={data.audioUrl} />}
 

@@ -6,18 +6,18 @@ export function getBaseUrl(): string {
   if (typeof window !== 'undefined') {
     return window.location.origin
   }
-  
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
   if (baseUrl) {
     if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
       return baseUrl
     }
-    
+
     const isProd = process.env.NODE_ENV === 'production'
     const protocol = isProd ? 'https://' : 'http://'
     return `${protocol}${baseUrl}`
   }
-  
+
   return 'http://localhost:3000'
 }
 
@@ -33,4 +33,4 @@ export function getBaseDomain(): string {
     const isProd = process.env.NODE_ENV === 'production'
     return isProd ? 'simstudio.ai' : 'localhost:3000'
   }
-} 
+}

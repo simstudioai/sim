@@ -1,19 +1,12 @@
-import { 
-  registry,
+import {
   getAllBlocks,
+  getAllBlockTypes,
   getBlock,
   getBlocksByCategory,
-  getAllBlockTypes,
-  isValidBlockType
+  isValidBlockType,
+  registry,
 } from './registry'
 
-export {
-  registry, 
-  getBlock,
-  getBlocksByCategory,
-  getAllBlockTypes,
-  isValidBlockType,
-  getAllBlocks
-}
+export { registry, getBlock, getBlocksByCategory, getAllBlockTypes, isValidBlockType, getAllBlocks }
 
 export type { BlockConfig } from './types'

@@ -3,9 +3,9 @@ title: Vision
 description: Analyze images with vision models
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="vision"
   color="#4D5FFF"
   icon={true}
@@ -44,12 +44,9 @@ With Vision, you can:
 In Sim Studio, the Vision integration enables your agents to analyze images with vision models as part of their workflows. This allows for powerful automation scenarios that require analyzing images with vision models. Your agents can analyze images with vision models, extract text from images, identify objects in images, describe images in detail, and generate images from text. This integration bridges the gap between your AI workflows and your image analysis needs, enabling more sophisticated and image-centric automations. By connecting Sim Studio with Vision, you can create agents that stay current with the latest information, provide more accurate responses, and deliver more value to users - all without requiring manual intervention or custom code.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Process visual content with customizable prompts to extract insights and information from images.
-
-
 
 ## Tools
 
@@ -59,42 +56,37 @@ Process and analyze images using advanced vision models. Capable of understandin
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | API key for the selected model provider |
-| `imageUrl` | string | Yes | Publicly accessible image URL |
-| `model` | string | No | Vision model to use \(gpt-4o, claude-3-opus-20240229, etc\) |
-| `prompt` | string | No | Custom prompt for image analysis |
+| Parameter  | Type   | Required | Description                                                 |
+| ---------- | ------ | -------- | ----------------------------------------------------------- |
+| `apiKey`   | string | Yes      | API key for the selected model provider                     |
+| `imageUrl` | string | Yes      | Publicly accessible image URL                               |
+| `model`    | string | No       | Vision model to use \(gpt-4o, claude-3-opus-20240229, etc\) |
+| `prompt`   | string | No       | Custom prompt for image analysis                            |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `content` | string |
-| `model` | string |
-| `tokens` | string |
-
-
+| `model`   | string |
+| `tokens`  | string |
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | Yes |  |
-
-
+| Parameter | Type   | Required | Description |
+| --------- | ------ | -------- | ----------- |
+| `apiKey`  | string | Yes      |             |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
 | ↳ `content` | string | content of the response |
-| ↳ `model` | any | model of the response |
-| ↳ `tokens` | any | tokens of the response |
-
+| ↳ `model`   | any    | model of the response   |
+| ↳ `tokens`  | any    | tokens of the response  |
 
 ## Notes
 

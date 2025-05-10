@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
 import { BlockOutput } from '@/blocks/types'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 import { ExecutionContext } from '../../types'
 import { GenericBlockHandler } from './generic-handler'
-import { ToolConfig } from '@/tools/types'
 
 const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
@@ -54,13 +54,13 @@ describe('GenericBlockHandler', () => {
         url: 'https://example.com/api',
         method: 'POST',
         headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (params) => params
-      }
+        body: (params) => params,
+      },
     }
 
     // Reset mocks using vi
     vi.clearAllMocks()
-    
+
     // Set up mockGetTool to return mockTool
     mockGetTool.mockImplementation((toolId) => {
       if (toolId === 'some_custom_tool') {
@@ -98,7 +98,7 @@ describe('GenericBlockHandler', () => {
 
   it('should throw error if the associated tool is not found', async () => {
     const inputs = { param1: 'value' }
-    
+
     // Override mock to return undefined for this test
     mockGetTool.mockImplementation(() => undefined)
 

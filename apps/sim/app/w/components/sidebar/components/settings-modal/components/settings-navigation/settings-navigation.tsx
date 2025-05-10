@@ -1,17 +1,42 @@
-import { Key, KeyRound, KeySquare, Settings, UserCircle, CreditCard, Users, Shield } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import {
+  CreditCard,
+  Key,
+  KeyRound,
+  KeySquare,
+  Settings,
+  Shield,
+  UserCircle,
+  Users,
+} from 'lucide-react'
 import { isDev } from '@/lib/environment'
+import { cn } from '@/lib/utils'
 
 interface SettingsNavigationProps {
   activeSection: string
   onSectionChange: (
-    section: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team' | 'privacy'
+    section:
+      | 'general'
+      | 'environment'
+      | 'account'
+      | 'credentials'
+      | 'apikeys'
+      | 'subscription'
+      | 'team'
+      | 'privacy'
   ) => void
   isTeam?: boolean
 }
 
 type NavigationItem = {
-  id: 'general' | 'environment' | 'account' | 'credentials' | 'apikeys' | 'subscription' | 'team' | 'privacy'
+  id:
+    | 'general'
+    | 'environment'
+    | 'account'
+    | 'credentials'
+    | 'apikeys'
+    | 'subscription'
+    | 'team'
+    | 'privacy'
   label: string
   icon: React.ComponentType<{ className?: string }>
   hideInDev?: boolean
@@ -64,18 +89,22 @@ const allNavigationItems: NavigationItem[] = [
   },
 ]
 
-export function SettingsNavigation({ activeSection, onSectionChange, isTeam = false }: SettingsNavigationProps) {
-  const navigationItems = allNavigationItems.filter(item => {
+export function SettingsNavigation({
+  activeSection,
+  onSectionChange,
+  isTeam = false,
+}: SettingsNavigationProps) {
+  const navigationItems = allNavigationItems.filter((item) => {
     // Hide items based on development environment
     if (item.hideInDev && isDev) {
       return false
     }
-    
+
     // Hide team tab if user doesn't have team subscription
     if (item.requiresTeam && !isTeam) {
       return false
     }
-    
+
     return true
   })
 

@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console-logger'
+import { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('AnthropicProvider')
@@ -12,7 +12,9 @@ const logger = createLogger('AnthropicProvider')
  * ReadableStream of raw assistant text chunks. We enqueue only `content_block_delta` events
  * with `delta.type === 'text_delta'`, since that contains the incremental text tokens.
  */
-function createReadableStreamFromAnthropicStream(anthropicStream: AsyncIterable<any>): ReadableStream {
+function createReadableStreamFromAnthropicStream(
+  anthropicStream: AsyncIterable<any>
+): ReadableStream {
   return new ReadableStream({
     async start(controller) {
       try {
@@ -37,7 +39,9 @@ export const anthropicProvider: ProviderConfig = {
   models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
   defaultModel: 'claude-3-7-sonnet-20250219',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
+  executeRequest: async (
+    request: ProviderRequest
+  ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for Anthropic')
     }
@@ -275,9 +279,9 @@ ${fieldDescriptions}
       let tokenUsage = {
         prompt: 0,
         completion: 0,
-        total: 0
+        total: 0,
       }
-      
+
       // Create a StreamingExecution response with a readable stream
       const streamingResult = {
         stream: createReadableStreamFromAnthropicStream(streamResponse),
@@ -293,21 +297,23 @@ ${fieldDescriptions}
                 startTime: providerStartTimeISO,
                 endTime: new Date().toISOString(),
                 duration: Date.now() - providerStartTime,
-                timeSegments: [{
-                  type: 'model',
-                  name: 'Streaming response',
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                }]
+                timeSegments: [
+                  {
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  },
+                ],
               },
               // Estimate token cost based on typical Claude pricing
               cost: {
                 total: 0.0,
                 input: 0.0,
-                output: 0.0
-              }
-            }
+                output: 0.0,
+              },
+            },
           },
           logs: [], // No block logs for direct streaming
           metadata: {
@@ -315,10 +321,10 @@ ${fieldDescriptions}
             endTime: new Date().toISOString(),
             duration: Date.now() - providerStartTime,
           },
-          isStreaming: true
-        }
+          isStreaming: true,
+        },
       }
-      
+
       // Return the streaming execution object
       return streamingResult as StreamingExecution
     }
@@ -612,7 +618,7 @@ ${fieldDescriptions}
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream && iterationCount > 0) {
         logger.info('Using streaming for final Anthropic response after tool calls')
-        
+
         // When streaming after tool calls with forced tools, make sure tool_choice is removed
         // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
@@ -621,10 +627,10 @@ ${fieldDescriptions}
           // For Anthropic, omit tool_choice entirely rather than setting it to 'none'
           stream: true,
         }
-        
+
         // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
         delete streamingPayload.tool_choice
-        
+
         const streamResponse: any = await anthropic.messages.create(streamingPayload)
 
         // Create a StreamingExecution response with all collected data
@@ -641,10 +647,13 @@ ${fieldDescriptions}
                   completion: tokens.completion,
                   total: tokens.total,
                 },
-                toolCalls: toolCalls.length > 0 ? { 
-                  list: toolCalls,
-                  count: toolCalls.length 
-                } : undefined,
+                toolCalls:
+                  toolCalls.length > 0
+                    ? {
+                        list: toolCalls,
+                        count: toolCalls.length,
+                      }
+                    : undefined,
                 providerTiming: {
                   startTime: providerStartTimeISO,
                   endTime: new Date().toISOString(),
@@ -656,11 +665,11 @@ ${fieldDescriptions}
                   timeSegments: timeSegments,
                 },
                 cost: {
-                  total: (tokens.total || 0) * 0.0001,  // Estimate cost based on tokens
+                  total: (tokens.total || 0) * 0.0001, // Estimate cost based on tokens
                   input: (tokens.prompt || 0) * 0.0001,
-                  output: (tokens.completion || 0) * 0.0001
-                }
-              }
+                  output: (tokens.completion || 0) * 0.0001,
+                },
+              },
             },
             logs: [], // No block logs at provider level
             metadata: {
@@ -668,10 +677,10 @@ ${fieldDescriptions}
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
-            isStreaming: true
-          }
+            isStreaming: true,
+          },
         }
-        
+
         return streamingResult as StreamingExecution
       }
 

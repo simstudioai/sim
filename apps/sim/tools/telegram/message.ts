@@ -28,7 +28,8 @@ export const telegramMessageTool: ToolConfig<TelegramMessageParams, TelegramMess
   },
 
   request: {
-    url: (params: TelegramMessageParams) => `https://api.telegram.org/bot${params.botToken}/sendMessage`,
+    url: (params: TelegramMessageParams) =>
+      `https://api.telegram.org/bot${params.botToken}/sendMessage`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

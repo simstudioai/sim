@@ -10,10 +10,10 @@ export default function AdminPage() {
             Manage Sim Studio platform settings and users.
           </p>
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <a 
-            href="/admin/waitlist" 
+          <a
+            href="/admin/waitlist"
             className="border border-gray-200 dark:border-gray-800 rounded-md p-4 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
           >
             <h2 className="text-lg font-medium">Waitlist Management</h2>

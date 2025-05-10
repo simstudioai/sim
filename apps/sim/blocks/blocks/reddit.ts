@@ -1,8 +1,14 @@
 import { RedditIcon } from '@/components/icons'
-import { RedditHotPostsResponse, RedditPostsResponse, RedditCommentsResponse } from '@/tools/reddit/types'
+import {
+  RedditCommentsResponse,
+  RedditHotPostsResponse,
+  RedditPostsResponse,
+} from '@/tools/reddit/types'
 import { BlockConfig } from '../types'
 
-export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse> = {
+export const RedditBlock: BlockConfig<
+  RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse
+> = {
   type: 'reddit',
   name: 'Reddit',
   description: 'Access Reddit data and content',
@@ -20,10 +26,10 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
       layout: 'full',
       options: [
         { label: 'Get Posts', id: 'get_posts' },
-        { label: 'Get Comments', id: 'get_comments' }
+        { label: 'Get Comments', id: 'get_comments' },
       ],
     },
-    
+
     // Common fields - appear for all actions
     {
       id: 'subreddit',
@@ -33,10 +39,10 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
         field: 'action',
-        value: ['get_posts', 'get_comments']
-      }
+        value: ['get_posts', 'get_comments'],
+      },
     },
-    
+
     // Get Posts specific fields
     {
       id: 'sort',
@@ -47,12 +53,12 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
         { label: 'Hot', id: 'hot' },
         { label: 'New', id: 'new' },
         { label: 'Top', id: 'top' },
-        { label: 'Rising', id: 'rising' }
+        { label: 'Rising', id: 'rising' },
       ],
       condition: {
         field: 'action',
-        value: 'get_posts'
-      }
+        value: 'get_posts',
+      },
     },
     {
       id: 'time',
@@ -64,16 +70,16 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
         { label: 'Week', id: 'week' },
         { label: 'Month', id: 'month' },
         { label: 'Year', id: 'year' },
-        { label: 'All Time', id: 'all' }
+        { label: 'All Time', id: 'all' },
       ],
       condition: {
         field: 'action',
         value: 'get_posts',
         and: {
           field: 'sort',
-          value: 'top'
-        }
-      }
+          value: 'top',
+        },
+      },
     },
     {
       id: 'limit',
@@ -83,10 +89,10 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
       placeholder: '10',
       condition: {
         field: 'action',
-        value: 'get_posts'
-      }
+        value: 'get_posts',
+      },
     },
-    
+
     // Get Comments specific fields
     {
       id: 'postId',
@@ -96,8 +102,8 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
       placeholder: 'Enter post ID',
       condition: {
         field: 'action',
-        value: 'get_comments'
-      }
+        value: 'get_comments',
+      },
     },
     {
       id: 'commentSort',
@@ -111,12 +117,12 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
         { label: 'Controversial', id: 'controversial' },
         { label: 'Old', id: 'old' },
         { label: 'Random', id: 'random' },
-        { label: 'Q&A', id: 'qa' }
+        { label: 'Q&A', id: 'qa' },
       ],
       condition: {
         field: 'action',
-        value: 'get_comments'
-      }
+        value: 'get_comments',
+      },
     },
     {
       id: 'commentLimit',
@@ -126,42 +132,42 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
       placeholder: '50',
       condition: {
         field: 'action',
-        value: 'get_comments'
-      }
-    }
+        value: 'get_comments',
+      },
+    },
   ],
   tools: {
     access: ['reddit_hot_posts', 'reddit_get_posts', 'reddit_get_comments'],
     config: {
       tool: (inputs) => {
         const action = inputs.action || 'get_posts'
-        
+
         if (action === 'get_comments') {
           return 'reddit_get_comments'
         }
-        
-        return 'reddit_get_posts' 
+
+        return 'reddit_get_posts'
       },
       params: (inputs) => {
         const action = inputs.action || 'get_posts'
-        
+
         if (action === 'get_comments') {
           return {
             postId: inputs.postId,
             subreddit: inputs.subreddit,
             sort: inputs.commentSort,
-            limit: inputs.commentLimit ? parseInt(inputs.commentLimit) : undefined
+            limit: inputs.commentLimit ? parseInt(inputs.commentLimit) : undefined,
           }
         }
-        
+
         return {
           subreddit: inputs.subreddit,
           sort: inputs.sort,
           limit: inputs.limit ? parseInt(inputs.limit) : undefined,
-          time: inputs.sort === 'top' ? inputs.time : undefined
+          time: inputs.sort === 'top' ? inputs.time : undefined,
         }
-      }
-    }
+      },
+    },
   },
   inputs: {
     action: {
@@ -182,7 +188,8 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
     time: {
       type: 'string',
       required: false,
-      description: 'Time filter for "top" sorted posts: "hour", "day", "week", "month", "year", or "all" (default: "day")',
+      description:
+        'Time filter for "top" sorted posts: "hour", "day", "week", "month", "year", or "all" (default: "day")',
     },
     limit: {
       type: 'number',
@@ -197,13 +204,14 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
     commentSort: {
       type: 'string',
       required: false,
-      description: 'Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" (default: "confidence")',
+      description:
+        'Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" (default: "confidence")',
     },
     commentLimit: {
       type: 'number',
       required: false,
       description: 'Maximum number of comments to return (default: 50, max: 100)',
-    }
+    },
   },
   outputs: {
     response: {
@@ -211,7 +219,7 @@ export const RedditBlock: BlockConfig<RedditHotPostsResponse | RedditPostsRespon
         subreddit: 'string',
         posts: 'json',
         post: 'json',
-        comments: 'json'
+        comments: 'json',
       },
     },
   },

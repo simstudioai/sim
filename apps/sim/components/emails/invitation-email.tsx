@@ -65,15 +65,16 @@ export const InvitationEmail = ({
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
-              <strong>{inviterName}</strong> has invited you to join <strong>{organizationName}</strong> on Sim Studio. 
-              Sim Studio is a powerful, user-friendly platform for building, testing, and optimizing agentic workflows.
+              <strong>{inviterName}</strong> has invited you to join{' '}
+              <strong>{organizationName}</strong> on Sim Studio. Sim Studio is a powerful,
+              user-friendly platform for building, testing, and optimizing agentic workflows.
             </Text>
             <Link href={inviteLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
             <Text style={baseStyles.paragraph}>
-              This invitation will expire in 48 hours. If you believe this invitation was sent in error, 
-              please ignore this email.
+              This invitation will expire in 48 hours. If you believe this invitation was sent in
+              error, please ignore this email.
             </Text>
             <Text style={baseStyles.paragraph}>
               Best regards,
@@ -88,8 +89,8 @@ export const InvitationEmail = ({
                 color: '#666666',
               }}
             >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with an invitation 
-              to join {organizationName} on Sim Studio.
+              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with
+              an invitation to join {organizationName} on Sim Studio.
             </Text>
           </Section>
         </Container>
@@ -100,4 +101,4 @@ export const InvitationEmail = ({
   )
 }
 
-export default InvitationEmail 
+export default InvitationEmail

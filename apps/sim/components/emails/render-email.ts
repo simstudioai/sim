@@ -1,9 +1,9 @@
 import { renderAsync } from '@react-email/components'
+import { InvitationEmail } from './invitation-email'
 import { OTPVerificationEmail } from './otp-verification-email'
 import { ResetPasswordEmail } from './reset-password-email'
 import { WaitlistApprovalEmail } from './waitlist-approval-email'
 import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
-import { InvitationEmail } from './invitation-email'
 
 /**
  * Renders the OTP verification email to HTML
@@ -35,13 +35,15 @@ export async function renderInvitationEmail(
   inviteLink: string,
   invitedEmail: string
 ): Promise<string> {
-  return await renderAsync(InvitationEmail({ 
-    inviterName, 
-    organizationName, 
-    inviteLink, 
-    invitedEmail, 
-    updatedDate: new Date() 
-  }))
+  return await renderAsync(
+    InvitationEmail({
+      inviterName,
+      organizationName,
+      inviteLink,
+      invitedEmail,
+      updatedDate: new Date(),
+    })
+  )
 }
 
 /**

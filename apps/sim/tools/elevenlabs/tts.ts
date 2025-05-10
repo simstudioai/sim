@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
+import { ToolConfig } from '../types'
 import { ElevenLabsTtsParams } from './types'
 import { ElevenLabsTtsResponse } from './types'
 
@@ -10,7 +10,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   name: 'ElevenLabs TTS',
   description: 'Convert TTS using ElevenLabs voices',
   version: '1.0.0',
-  
+
   params: {
     apiKey: {
       type: 'string',
@@ -35,7 +35,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       description: 'The ID of the model to use (defaults to eleven_monolingual_v1)',
     },
   },
-  
+
   request: {
     url: '/api/proxy/tts',
     method: 'POST',
@@ -50,16 +50,16 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
     }),
     isInternalRoute: true,
   },
-  
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`)
     }
-    
+
     // Create a blob URL that can be used in an audio player
     const audioBlob = await response.blob()
     const audioUrl = URL.createObjectURL(audioBlob)
-    
+
     return {
       success: true,
       output: {
@@ -67,7 +67,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
       },
     }
   },
-  
+
   transformError: (error) => {
     logger.error('ElevenLabs TTS error:', error)
     return `Error generating speech: ${error instanceof Error ? error.message : String(error)}`

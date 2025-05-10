@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { getToolAsync, getTool } from './utils'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
+import { getTool, getToolAsync } from './utils'
 import { formatRequestParams, validateToolRequest } from './utils'
 
 const logger = createLogger('Tools')
@@ -18,7 +18,7 @@ export async function executeTool(
 
   try {
     let tool: ToolConfig | undefined
-    
+
     // If it's a custom tool, use the async version with workflowId
     if (toolId.startsWith('custom_')) {
       const workflowId = params._context?.workflowId
@@ -27,7 +27,7 @@ export async function executeTool(
       // For built-in tools, use the synchronous version
       tool = getTool(toolId)
     }
-    
+
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
 
@@ -41,7 +41,7 @@ export async function executeTool(
 
     // If we have a credential parameter, fetch the access token
     if (contextParams.credential) {
-      logger.info(`[executeTool] Credential found for ${toolId}, fetching access token.`);
+      logger.info(`[executeTool] Credential found for ${toolId}, fetching access token.`)
       try {
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL
         if (!baseUrl) {
@@ -60,7 +60,9 @@ export async function executeTool(
           const workflowId = contextParams.workflowId || contextParams._context?.workflowId
           if (workflowId) {
             tokenPayload.workflowId = workflowId
-            logger.info(`[executeTool] Added workflowId ${workflowId} to token payload for ${toolId}`);
+            logger.info(
+              `[executeTool] Added workflowId ${workflowId} to token payload for ${toolId}`
+            )
           }
         }
 
@@ -79,7 +81,7 @@ export async function executeTool(
 
         const data = await response.json()
         contextParams.accessToken = data.accessToken
-        logger.info(`[executeTool] Successfully fetched access token for ${toolId}`);
+        logger.info(`[executeTool] Successfully fetched access token for ${toolId}`)
 
         // Clean up params we don't need to pass to the actual tool
         delete contextParams.credential
@@ -87,7 +89,9 @@ export async function executeTool(
       } catch (error) {
         logger.error('[executeTool] Error fetching access token:', { error })
         // Re-throw the error to fail the tool execution if token fetching fails
-        throw new Error(`Failed to obtain credential for tool ${toolId}: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(
+          `Failed to obtain credential for tool ${toolId}: ${error instanceof Error ? error.message : String(error)}`
+        )
       }
     }
 
@@ -200,7 +204,7 @@ export async function executeTool(
     }
 
     // For external APIs, use the proxy
-    logger.info(`[executeTool] Using handleProxyRequest for toolId=${toolId}`);
+    logger.info(`[executeTool] Using handleProxyRequest for toolId=${toolId}`)
     const result = await handleProxyRequest(toolId, contextParams)
 
     // Apply post-processing if available and not skipped
@@ -361,12 +365,12 @@ async function handleInternalRequest(
       method: requestParams.method,
       headers: new Headers(requestParams.headers),
       body: requestParams.body,
-    };
+    }
 
     const response = await fetch(fullUrl, requestOptions)
 
     if (!response.ok) {
-      let errorData;
+      let errorData
       try {
         errorData = await response.json()
         logger.error(`Error response data: ${JSON.stringify(errorData)}`)
@@ -408,7 +412,9 @@ async function handleInternalRequest(
       throw new Error(`Failed to parse response from ${toolId}: ${jsonError}`)
     }
   } catch (error: any) {
-    logger.error(`Error executing internal tool ${toolId}:`, { error: error.stack || error.message || error })
+    logger.error(`Error executing internal tool ${toolId}:`, {
+      error: error.stack || error.message || error,
+    })
 
     // Use the tool's error transformer if available
     if (tool.transformError) {
@@ -506,7 +512,7 @@ function validateClientSideParams(
     if (internalParamSet.has(paramName)) {
       continue
     }
-    
+
     const paramSchema = schema.properties[paramName]
     if (!paramSchema) {
       throw new Error(`Unknown parameter: ${paramName}`)
@@ -535,7 +541,7 @@ async function handleProxyRequest(
   toolId: string,
   params: Record<string, any>
 ): Promise<ToolResponse> {
-  logger.info(`[handleProxyRequest] Entry: toolId=${toolId}`);
+  logger.info(`[handleProxyRequest] Entry: toolId=${toolId}`)
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')

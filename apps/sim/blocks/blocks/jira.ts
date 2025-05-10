@@ -1,8 +1,17 @@
 import { JiraIcon } from '@/components/icons'
+import {
+  JiraRetrieveResponse,
+  JiraRetrieveResponseBulk,
+  JiraUpdateResponse,
+  JiraWriteResponse,
+} from '@/tools/jira/types'
 import { BlockConfig } from '../types'
-import { JiraRetrieveResponse, JiraUpdateResponse, JiraWriteResponse, JiraRetrieveResponseBulk } from '@/tools/jira/types'
 
-type JiraResponse = JiraRetrieveResponse | JiraUpdateResponse | JiraWriteResponse | JiraRetrieveResponseBulk
+type JiraResponse =
+  | JiraRetrieveResponse
+  | JiraUpdateResponse
+  | JiraWriteResponse
+  | JiraRetrieveResponseBulk
 
 export const JiraBlock: BlockConfig<JiraResponse> = {
   type: 'jira',
@@ -112,19 +121,19 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
           accessToken: params.credential,
           domain: params.domain,
         }
-        
+
         // Define allowed parameters for each operation
         switch (params.operation) {
           case 'write': {
             // For write operations, only include write-specific fields
             const writeParams = {
               projectId: params.projectId,
-              summary: params.summary || '', 
+              summary: params.summary || '',
               description: params.description || '',
               issueType: params.issueType || 'Task',
               parent: params.parentIssue ? { key: params.parentIssue } : undefined,
             }
-            
+
             return {
               ...baseParams,
               ...writeParams,
@@ -138,7 +147,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
               summary: params.summary || '',
               description: params.description || '',
             }
-            
+
             return {
               ...baseParams,
               ...updateParams,
@@ -186,7 +195,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
         created: 'string',
         updated: 'string',
         success: 'boolean',
-        url: 'string'
+        url: 'string',
       },
     },
   },

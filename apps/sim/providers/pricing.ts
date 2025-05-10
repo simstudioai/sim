@@ -20,7 +20,7 @@ const modelPricing: ModelPricingMap = {
     output: 60,
     updatedAt: '2025-04-16',
   },
-  'o3': {
+  o3: {
     input: 10,
     cachedInput: 2.5,
     output: 40,

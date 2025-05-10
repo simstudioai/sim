@@ -2,10 +2,10 @@ import '../../__test-utils__/mock-dependencies'
 import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 import { ExecutionContext } from '../../types'
 import { ApiBlockHandler } from './api-handler'
-import { ToolConfig } from '@/tools/types'
 
 const mockGetTool = vi.mocked(getTool)
 const mockExecuteTool = executeTool as Mock
@@ -55,8 +55,8 @@ describe('ApiBlockHandler', () => {
         url: 'https://example.com/api',
         method: 'POST',
         headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (params) => params
-      }
+        body: (params) => params,
+      },
     }
 
     // Reset mocks using vi

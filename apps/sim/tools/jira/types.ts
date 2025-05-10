@@ -35,7 +35,6 @@ export interface JiraRetrieveResponseBulk extends ToolResponse {
   }[]
 }
 
-
 export interface JiraUpdateParams {
   accessToken: string
   domain: string

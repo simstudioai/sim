@@ -17,12 +17,12 @@ import { GenericConfig } from './providers/generic-config'
 import { GithubConfig } from './providers/github-config'
 import { SlackConfig } from './providers/slack-config'
 import { StripeConfig } from './providers/stripe-config'
+import { TelegramConfig } from './providers/telegram-config'
 import { WhatsAppConfig } from './providers/whatsapp-config'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
 import { WebhookUrlField } from './ui/webhook-url'
-import { TelegramConfig } from './providers/telegram-config'
 
 const logger = createLogger('WebhookModal')
 
@@ -536,7 +536,8 @@ export function WebhookModal({
           if (errorMessage.includes('SSL')) {
             setTestResult({
               success: false,
-              message: 'Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.',
+              message:
+                'Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.',
             })
           } else {
             setTestResult({

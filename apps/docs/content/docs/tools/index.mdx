@@ -4,8 +4,8 @@ description: Powerful tools to enhance your agentic workflows
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
-import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
 Tools are powerful components in Sim Studio that allow your workflows to interact with external services, process data, and perform specialized tasks. They extend the capabilities of your agents and workflows by providing access to various APIs and services.
 
@@ -19,10 +19,14 @@ There are two primary ways to use tools in your Sim Studio workflows:
 
 <Steps>
   <Step>
-    <strong>As Standalone Blocks</strong>: Tools can be added as individual blocks on the canvas when you need deterministic, direct access to their functionality. This gives you precise control over when and how the tool is called.
+    <strong>As Standalone Blocks</strong>: Tools can be added as individual blocks on the canvas
+    when you need deterministic, direct access to their functionality. This gives you precise
+    control over when and how the tool is called.
   </Step>
   <Step>
-    <strong>As Agent Tools</strong>: Tools can be added to Agent blocks by clicking "Add tools" and configuring the required parameters. This allows agents to dynamically choose which tools to use based on the context and requirements of the task.
+    <strong>As Agent Tools</strong>: Tools can be added to Agent blocks by clicking "Add tools" and
+    configuring the required parameters. This allows agents to dynamically choose which tools to use
+    based on the context and requirements of the task.
   </Step>
 </Steps>
 
@@ -57,4 +61,4 @@ Tools typically return structured data that can be processed by subsequent block
 - Metadata about the operation
 - Status information
 
-Refer to each tool's specific documentation to understand its exact output format. 
+Refer to each tool's specific documentation to understand its exact output format.

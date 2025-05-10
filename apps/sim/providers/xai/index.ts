@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
+import { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { StreamingExecution } from '@/executor/types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('XAIProvider')
@@ -37,7 +37,9 @@ export const xAIProvider: ProviderConfig = {
   models: ['grok-3-latest', 'grok-3-fast-latest'],
   defaultModel: 'grok-3-latest',
 
-  executeRequest: async (request: ProviderRequest): Promise<ProviderResponse | StreamingExecution> => {
+  executeRequest: async (
+    request: ProviderRequest
+  ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
       throw new Error('API key is required for xAI')
     }
@@ -47,7 +49,7 @@ export const xAIProvider: ProviderConfig = {
       apiKey: request.apiKey,
       baseURL: 'https://api.x.ai/v1',
     })
-    
+
     // Prepare messages
     const allMessages = []
 
@@ -156,9 +158,9 @@ export const xAIProvider: ProviderConfig = {
       let tokenUsage = {
         prompt: 0,
         completion: 0,
-        total: 0
+        total: 0,
       }
-      
+
       // Create a StreamingExecution response with a readable stream
       const streamingResult = {
         stream: createReadableStreamFromXAIStream(streamResponse),
@@ -174,21 +176,23 @@ export const xAIProvider: ProviderConfig = {
                 startTime: providerStartTimeISO,
                 endTime: new Date().toISOString(),
                 duration: Date.now() - providerStartTime,
-                timeSegments: [{
-                  type: 'model',
-                  name: 'Streaming response',
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                }]
+                timeSegments: [
+                  {
+                    type: 'model',
+                    name: 'Streaming response',
+                    startTime: providerStartTime,
+                    endTime: Date.now(),
+                    duration: Date.now() - providerStartTime,
+                  },
+                ],
               },
               // Estimate token cost
               cost: {
                 total: 0.0,
                 input: 0.0,
-                output: 0.0
-              }
-            }
+                output: 0.0,
+              },
+            },
           },
           logs: [], // No block logs for direct streaming
           metadata: {
@@ -196,10 +200,10 @@ export const xAIProvider: ProviderConfig = {
             endTime: new Date().toISOString(),
             duration: Date.now() - providerStartTime,
           },
-          isStreaming: true
-        }
+          isStreaming: true,
+        },
       }
-      
+
       // Return the streaming execution object
       return streamingResult as StreamingExecution
     }
@@ -433,7 +437,7 @@ export const xAIProvider: ProviderConfig = {
           tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
           stream: true,
         }
-        
+
         const streamResponse = await xai.chat.completions.create(streamingPayload)
 
         // Create a StreamingExecution response with all collected data
@@ -450,10 +454,13 @@ export const xAIProvider: ProviderConfig = {
                   completion: tokens.completion,
                   total: tokens.total,
                 },
-                toolCalls: toolCalls.length > 0 ? { 
-                  list: toolCalls,
-                  count: toolCalls.length 
-                } : undefined,
+                toolCalls:
+                  toolCalls.length > 0
+                    ? {
+                        list: toolCalls,
+                        count: toolCalls.length,
+                      }
+                    : undefined,
                 providerTiming: {
                   startTime: providerStartTimeISO,
                   endTime: new Date().toISOString(),
@@ -467,9 +474,9 @@ export const xAIProvider: ProviderConfig = {
                 cost: {
                   total: (tokens.total || 0) * 0.0001,
                   input: (tokens.prompt || 0) * 0.0001,
-                  output: (tokens.completion || 0) * 0.0001
-                }
-              }
+                  output: (tokens.completion || 0) * 0.0001,
+                },
+              },
             },
             logs: [], // No block logs at provider level
             metadata: {
@@ -477,10 +484,10 @@ export const xAIProvider: ProviderConfig = {
               endTime: new Date().toISOString(),
               duration: Date.now() - providerStartTime,
             },
-            isStreaming: true
-          }
+            isStreaming: true,
+          },
         }
-        
+
         // Return the streaming execution object
         return streamingResult as StreamingExecution
       }

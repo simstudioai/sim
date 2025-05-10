@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Command, CornerDownLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useSession } from '@/lib/auth-client'
 import { GridPattern } from '../grid-pattern'
 import HeroWorkflowProvider from '../hero-workflow'
-import { useSession } from '@/lib/auth-client'
 
 function Hero() {
   const router = useRouter()
@@ -24,7 +24,7 @@ function Hero() {
     if (typeof window !== 'undefined') {
       document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
     }
-    
+
     // If user has an active session, go directly to workflows
     if (isAuthenticated) {
       router.push('/w')
@@ -59,7 +59,7 @@ function Hero() {
     const timer = setTimeout(() => {
       setIsTransitioning(false)
     }, 800) // Slightly longer than animation-delay to ensure smooth appearance
-    
+
     return () => clearTimeout(timer)
   }, [])
 

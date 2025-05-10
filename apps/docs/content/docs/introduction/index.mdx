@@ -4,7 +4,7 @@ description: The UI for agents
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Files, Folder, File } from 'fumadocs-ui/components/files'
+import { File, Files, Folder } from 'fumadocs-ui/components/files'
 import { Features } from '@/components/ui/features'
 
 Sim Studio is a powerful platform for building, testing, and optimizing agentic workflows. It provides developers with intuitive tools to design sophisticated agent-based applications through a visual interface. Whether you're prototyping a simple AI assistant or building complex multi-agent systems, Sim Studio offers the flexibility and performance needed for modern AI applications.
@@ -29,16 +29,12 @@ Existing frameworks abstract away provider-specific features, forcing developers
 
 Sim Studio stays <span className="text-highlight">close to provider definitions</span>, directly exposing the parameters that matter:
 
-<ul className="list-disc pl-6 space-y-2 highlight-markers">
+<ul className="highlight-markers list-disc space-y-2 pl-6">
   <li>System prompts and instructions with native formatting</li>
-  <li>
-    Tool definitions and access patterns that match provider implementations
-  </li>
+  <li>Tool definitions and access patterns that match provider implementations</li>
   <li>Temperature and sampling parameters with their full range of options</li>
   <li>Structured output formatting that aligns with provider capabilities</li>
-  <li>
-    Model selection and configuration with provider-specific optimizations
-  </li>
+  <li>Model selection and configuration with provider-specific optimizations</li>
 </ul>
 
 This approach gives you full control over agent behavior without unnecessary complexity. You leverage each provider's full capabilities without sacrificing the convenience of a unified platform.
@@ -67,14 +63,9 @@ Existing solutions provide limited visibility into agent performance, making it 
 
 Sim Studio provides <span className="text-highlight">full visibility into agent performance</span> with integrated observability:
 
-<ul className="list-disc pl-6 space-y-2 highlight-markers">
-  <li>
-    Detailed execution logs capturing every interaction between agents and
-    models
-  </li>
-  <li>
-    Latency tracing with span visualization to identify performance bottlenecks
-  </li>
+<ul className="highlight-markers list-disc space-y-2 pl-6">
+  <li>Detailed execution logs capturing every interaction between agents and models</li>
+  <li>Latency tracing with span visualization to identify performance bottlenecks</li>
   <li>Cost tracking and optimization to prevent budget overruns</li>
   <li>Error analysis and debugging tools for complex workflows</li>
   <li>Performance comparisons across different model configurations</li>

@@ -1,6 +1,6 @@
 import { GoogleIcon } from '@/components/icons'
-import { BlockConfig } from '../types'
 import { ToolResponse } from '@/tools/types'
+import { BlockConfig } from '../types'
 
 interface GoogleSearchResponse extends ToolResponse {
   output: {
@@ -24,7 +24,8 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   type: 'google_search',
   name: 'Google Search',
   description: 'Search the web',
-  longDescription: 'Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
+  longDescription:
+    'Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleIcon,
@@ -61,7 +62,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       layout: 'half',
       placeholder: '10',
       description: 'Number of search results to return (max: 10)',
-    }
+    },
   ],
 
   tools: {
@@ -97,7 +98,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       type: 'string',
       required: false,
       description: 'Number of results to return (default: 10, max: 10)',
-    }
+    },
   },
 
   outputs: {
@@ -108,4 +109,4 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
       } as any,
     },
   },
-} 
+}

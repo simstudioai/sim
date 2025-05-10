@@ -1,3 +1,3 @@
 import { searchTool } from './search'
 
-export const linkupSearchTool = searchTool 
+export const linkupSearchTool = searchTool

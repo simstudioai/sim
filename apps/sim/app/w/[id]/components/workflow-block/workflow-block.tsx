@@ -420,12 +420,14 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
                       {scheduleInfo.nextRunAt && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          Next run: {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
+                          Next run:{' '}
+                          {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
                         </p>
                       )}
                       {scheduleInfo.lastRanAt && (
                         <p className="text-xs text-muted-foreground">
-                          Last run: {formatDateTime(new Date(scheduleInfo.lastRanAt), scheduleInfo.timezone)}
+                          Last run:{' '}
+                          {formatDateTime(new Date(scheduleInfo.lastRanAt), scheduleInfo.timezone)}
                         </p>
                       )}
                     </>

@@ -166,7 +166,7 @@ export async function DELETE(
     if (foundWebhook.provider === 'telegram') {
       try {
         const { botToken } = foundWebhook.providerConfig as { botToken: string }
-        
+
         if (!botToken) {
           logger.warn(`[${requestId}] Missing botToken for Telegram webhook deletion.`, {
             webhookId: id,
@@ -182,14 +182,16 @@ export async function DELETE(
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-          }
+          },
         })
 
         const responseBody = await telegramResponse.json()
         if (!telegramResponse.ok || !responseBody.ok) {
-          const errorMessage = responseBody.description || `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
+          const errorMessage =
+            responseBody.description ||
+            `Failed to delete Telegram webhook. Status: ${telegramResponse.status}`
           logger.error(`[${requestId}] ${errorMessage}`, {
-            response: responseBody
+            response: responseBody,
           })
           return NextResponse.json(
             { error: 'Failed to delete webhook from Telegram', details: errorMessage },
@@ -205,9 +207,9 @@ export async function DELETE(
           stack: error.stack,
         })
         return NextResponse.json(
-          { 
+          {
             error: 'Failed to delete webhook from Telegram',
-            details: error.message 
+            details: error.message,
           },
           { status: 500 }
         )
@@ -222,7 +224,7 @@ export async function DELETE(
   } catch (error: any) {
     logger.error(`[${requestId}] Error deleting webhook`, {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { StreamingExecution } from '@/executor/types'
 import { supportsTemperature } from './model-capabilities'
 import { ProviderRequest, ProviderResponse } from './types'
 import { calculateCost, generateStructuredOutputInstructions, getProvider } from './utils'
-import { StreamingExecution } from '@/executor/types'
 
 const logger = createLogger('Providers')
 
@@ -81,12 +81,12 @@ export async function executeProviderRequest(
     logger.info(`Provider returned StreamingExecution`)
     return response
   }
-  
+
   if (isReadableStream(response)) {
     logger.info(`Provider returned ReadableStream`)
     return response
   }
-  
+
   // At this point, we know we have a ProviderResponse
   logger.info(`Provider response received`, {
     contentLength: response.content ? response.content.length : 0,

@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import { Eye } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { Workflow } from '../marketplace'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
+import { Workflow } from '../marketplace'
 
 /**
  * WorkflowCardProps interface - defines the properties for the WorkflowCard component
@@ -29,7 +29,6 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(!!workflow.workflowState)
   const router = useRouter()
   const { createWorkflow } = useWorkflowRegistry()
-
 
   // When workflow state becomes available, update preview ready state
   useEffect(() => {
@@ -109,8 +108,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
                 backgroundSize: 'cover',
                 backgroundPosition: 'center top',
               }}
-            >
-            </div>
+            ></div>
           ) : (
             // Fallback to text if no preview or thumbnail is available
             <div className="h-full w-full flex items-center justify-center">

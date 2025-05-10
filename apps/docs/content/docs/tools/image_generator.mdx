@@ -3,9 +3,9 @@ title: Image Generator
 description: Generate images
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
-<BlockInfoCard 
+<BlockInfoCard
   type="image_generator"
   color="#4D5FFF"
   icon={true}
@@ -43,12 +43,9 @@ With DALL-E, you can:
 In Sim Studio, the DALL-E integration enables your agents to generate images programmatically as part of their workflows. This allows for powerful automation scenarios such as content creation, visual design, and creative ideation. Your agents can formulate detailed prompts, generate corresponding images, and incorporate these visuals into their outputs or downstream processes. This integration bridges the gap between natural language processing and visual content creation, enabling your agents to communicate not just through text but also through compelling imagery. By connecting Sim Studio with DALL-E, you can create agents that produce visual content on demand, illustrate concepts, generate design assets, and enhance user experiences with rich visual elements - all without requiring human intervention in the creative process.
 {/* MANUAL-CONTENT-END */}
 
-
 ## Usage Instructions
 
 Create high-quality images using DALL-E. Configure resolution, quality, style, and other parameters to get exactly the image you need.
-
-
 
 ## Tools
 
@@ -58,45 +55,40 @@ Generate images using OpenAI
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `prompt` | string | Yes | A text description of the desired image\(s\) |
-| `model` | string | Yes | The DALL-E model to use \(dall-e-2 or dall-e-3\) |
-| `size` | string | No | The size of the generated images \(1024x1024, 1024x1792, or 1792x1024\) |
-| `quality` | string | No | The quality of the image \(standard or hd\) |
-| `style` | string | No | The style of the image \(vivid or natural\) |
-| `n` | number | No | The number of images to generate \(1-10\) |
-| `apiKey` | string | Yes | Your OpenAI API key |
+| Parameter | Type   | Required | Description                                                             |
+| --------- | ------ | -------- | ----------------------------------------------------------------------- |
+| `prompt`  | string | Yes      | A text description of the desired image\(s\)                            |
+| `model`   | string | Yes      | The DALL-E model to use \(dall-e-2 or dall-e-3\)                        |
+| `size`    | string | No       | The size of the generated images \(1024x1024, 1024x1792, or 1792x1024\) |
+| `quality` | string | No       | The quality of the image \(standard or hd\)                             |
+| `style`   | string | No       | The style of the image \(vivid or natural\)                             |
+| `n`       | number | No       | The number of images to generate \(1-10\)                               |
+| `apiKey`  | string | Yes      | Your OpenAI API key                                                     |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
-| `content` | string |
-| `image` | string |
+| Parameter  | Type   |
+| ---------- | ------ |
+| `content`  | string |
+| `image`    | string |
 | `metadata` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `provider` | string | Yes | Provider |
-
-
+| Parameter  | Type   | Required | Description |
+| ---------- | ------ | -------- | ----------- |
+| `provider` | string | Yes      | Provider    |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
-| ↳ `content` | string | content of the response |
-| ↳ `image` | string | image of the response |
-| ↳ `metadata` | json | metadata of the response |
-
+| Output       | Type   | Description              |
+| ------------ | ------ | ------------------------ |
+| `response`   | object | Output from response     |
+| ↳ `content`  | string | content of the response  |
+| ↳ `image`    | string | image of the response    |
+| ↳ `metadata` | json   | metadata of the response |
 
 ## Notes
 

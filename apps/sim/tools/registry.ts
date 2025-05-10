@@ -1,48 +1,69 @@
-import { airtableCreateRecordsTool, airtableGetRecordTool, airtableListRecordsTool, airtableUpdateRecordTool } from './airtable'
+import {
+  airtableCreateRecordsTool,
+  airtableGetRecordTool,
+  airtableListRecordsTool,
+  airtableUpdateRecordTool,
+} from './airtable'
 import { autoblocksPromptManagerTool } from './autoblocks'
 import { browserUseRunTaskTool } from './browser_use'
+import { clayPopulateTool } from './clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
-import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
-import { driveDownloadTool, driveListTool, driveUploadTool } from './google_drive'
+import { elevenLabsTtsTool } from './elevenlabs'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
 import { scrapeTool } from './firecrawl'
 import { functionExecuteTool } from './function'
-import { githubCommentTool, githubLatestCommitTool, githubPrTool, githubRepoInfoTool } from './github'
+import {
+  githubCommentTool,
+  githubLatestCommitTool,
+  githubPrTool,
+  githubRepoInfoTool,
+} from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
-import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { searchTool as googleSearchTool } from './google'
+import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
+import { driveDownloadTool, driveListTool, driveUploadTool } from './google_drive'
+import {
+  sheetsAppendTool,
+  sheetsReadTool,
+  sheetsUpdateTool,
+  sheetsWriteTool,
+} from './google_sheets'
+import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina'
+import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import { linkupSearchTool } from './linkup'
-import { mem0AddMemoriesTool, mem0SearchMemoriesTool, mem0GetMemoriesTool } from './mem0'
+import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool, embeddingsTool as openAIEmbeddings } from './openai'
 import { perplexityChatTool } from './perplexity'
-import { pineconeFetchTool, pineconeGenerateEmbeddingsTool, pineconeSearchTextTool, pineconeSearchVectorTool, pineconeUpsertTextTool } from './pinecone'
-import { redditHotPostsTool, redditGetPostsTool, redditGetCommentsTool } from './reddit'
+import {
+  pineconeFetchTool,
+  pineconeGenerateEmbeddingsTool,
+  pineconeSearchTextTool,
+  pineconeSearchVectorTool,
+  pineconeUpsertTextTool,
+} from './pinecone'
+import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
+import { s3GetObjectTool } from './s3'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
-import { sheetsReadTool, sheetsUpdateTool, sheetsWriteTool, sheetsAppendTool } from './google_sheets'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
 import { supabaseInsertTool, supabaseQueryTool } from './supabase'
 import { tavilyExtractTool, tavilySearchTool } from './tavily'
+import { telegramMessageTool } from './telegram'
 import { thinkingTool } from './thinking'
 import { sendSMSTool } from './twilio'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
+import { ToolConfig } from './types'
 import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
-import { elevenLabsTtsTool } from './elevenlabs'
-import { ToolConfig } from './types'
-import { s3GetObjectTool } from './s3'
-import { jiraRetrieveTool, jiraUpdateTool, jiraWriteTool, jiraBulkRetrieveTool } from './jira'
-import { telegramMessageTool } from './telegram'
-import { clayPopulateTool } from './clay'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -131,4 +152,4 @@ export const tools: Record<string, ToolConfig> = {
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,
   clay_populate: clayPopulateTool,
-} 
+}

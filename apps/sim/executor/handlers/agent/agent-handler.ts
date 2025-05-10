@@ -4,7 +4,7 @@ import { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import { getToolAsync, getTool } from '@/tools/utils'
+import { getTool, getToolAsync } from '@/tools/utils'
 import { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
 
 const logger = createLogger('AgentBlockHandler')
@@ -150,38 +150,41 @@ export class AgentBlockHandler implements BlockHandler {
           )
         ).filter((t: any): t is NonNullable<typeof t> => t !== null)
       : []
-      
+
     // Check if streaming is requested and this block is selected for streaming
-    const isBlockSelectedForOutput = context.selectedOutputIds?.some(outputId => {
-      // First check for direct match (if the entire outputId is the blockId)
-      if (outputId === block.id) {
-        logger.info(`Direct match found for block ${block.id} in selected outputs`)
-        return true
-      }
-      
-      // Then try parsing the blockId from the blockId_path format
-      const firstUnderscoreIndex = outputId.indexOf('_')
-      if (firstUnderscoreIndex !== -1) {
-        const blockId = outputId.substring(0, firstUnderscoreIndex)
-        const isMatch = blockId === block.id
-        if (isMatch) {
-          logger.info(`Path match found for block ${block.id} in selected outputs (from ${outputId})`)
+    const isBlockSelectedForOutput =
+      context.selectedOutputIds?.some((outputId) => {
+        // First check for direct match (if the entire outputId is the blockId)
+        if (outputId === block.id) {
+          logger.info(`Direct match found for block ${block.id} in selected outputs`)
+          return true
         }
-        return isMatch
-      }
-      return false
-    }) ?? false
-    
+
+        // Then try parsing the blockId from the blockId_path format
+        const firstUnderscoreIndex = outputId.indexOf('_')
+        if (firstUnderscoreIndex !== -1) {
+          const blockId = outputId.substring(0, firstUnderscoreIndex)
+          const isMatch = blockId === block.id
+          if (isMatch) {
+            logger.info(
+              `Path match found for block ${block.id} in selected outputs (from ${outputId})`
+            )
+          }
+          return isMatch
+        }
+        return false
+      }) ?? false
+
     // Check if this block has any outgoing connections
-    const hasOutgoingConnections = context.edges?.some(edge => edge.source === block.id) ?? false
-    
+    const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
+
     // Determine if we should use streaming for this block
-    const shouldUseStreaming = context.stream && 
-                              isBlockSelectedForOutput && 
-                              !hasOutgoingConnections
-    
+    const shouldUseStreaming = context.stream && isBlockSelectedForOutput && !hasOutgoingConnections
+
     if (shouldUseStreaming) {
-      logger.info(`Block ${block.id} will use streaming response (selected for output with no outgoing connections)`)
+      logger.info(
+        `Block ${block.id} will use streaming response (selected for output with no outgoing connections)`
+      )
     }
 
     // Debug request before sending to provider
@@ -245,19 +248,19 @@ export class AgentBlockHandler implements BlockHandler {
       const contentType = response.headers.get('Content-Type')
       if (contentType?.includes('text/event-stream')) {
         logger.info(`Received streaming response for block ${block.id}`)
-        
+
         // Ensure we have a valid body stream
         if (!response.body) {
           throw new Error(`No response body in streaming response for block ${block.id}`)
         }
-        
+
         // Check if we have execution data in the header
         const executionDataHeader = response.headers.get('X-Execution-Data')
         if (executionDataHeader) {
           try {
             // Parse the execution data from the header
             const executionData = JSON.parse(executionDataHeader)
-            
+
             // Add block-specific data to the execution logs if needed
             if (executionData && executionData.logs) {
               for (const log of executionData.logs) {
@@ -266,7 +269,7 @@ export class AgentBlockHandler implements BlockHandler {
                 if (!log.blockType && block.metadata?.id) log.blockType = block.metadata.id
               }
             }
-            
+
             // Add block metadata to the execution data if missing
             if (executionData.output?.response) {
               // Ensure model and block info is set
@@ -279,15 +282,15 @@ export class AgentBlockHandler implements BlockHandler {
               if (!executionData.blockId) {
                 executionData.blockId = block.id
               }
-              
+
               // Add explicit streaming flag to make it easier to identify streaming executions
               executionData.isStreaming = true
             }
-            
+
             // Return both the stream and the execution data as separate properties
             const streamingExecution: StreamingExecution = {
               stream: response.body,
-              execution: executionData
+              execution: executionData,
             }
             return streamingExecution
           } catch (error) {
@@ -295,7 +298,7 @@ export class AgentBlockHandler implements BlockHandler {
             // Continue with just the stream if there's an error
           }
         }
-        
+
         // No execution data in header, just return the stream
         // Create a minimal StreamingExecution with empty execution data
         const minimalExecution: StreamingExecution = {
@@ -306,34 +309,38 @@ export class AgentBlockHandler implements BlockHandler {
             logs: [],
             metadata: {
               duration: 0,
-              startTime: new Date().toISOString()
-            }
-          }
+              startTime: new Date().toISOString(),
+            },
+          },
         }
         return minimalExecution
       }
-      
+
       // Check if we have a combined response with both stream and execution data
       const result = await response.json()
-      
+
       if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
         logger.info(`Received combined streaming response for block ${block.id}`)
-        
+
         // Get the stream as a ReadableStream (need to convert from serialized format)
         const stream = new ReadableStream({
           start(controller) {
             // Since stream was serialized as JSON, we need to reconstruct it
             // For now, we'll just use a placeholder message
             const encoder = new TextEncoder()
-            controller.enqueue(encoder.encode('Stream data cannot be serialized as JSON. You will need to return a proper stream.'))
+            controller.enqueue(
+              encoder.encode(
+                'Stream data cannot be serialized as JSON. You will need to return a proper stream.'
+              )
+            )
             controller.close()
-          }
+          },
         })
-        
+
         // Return both in a format the executor can handle
         const streamingExecution: StreamingExecution = {
           stream,
-          execution: result.execution
+          execution: result.execution,
         }
         return streamingExecution
       }

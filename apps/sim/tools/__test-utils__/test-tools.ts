@@ -12,16 +12,17 @@ import { ToolConfig, ToolResponse } from '../types'
  */
 const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
   return {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-    'Accept': '*/*',
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    Accept: '*/*',
     'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Referer': 'https://app.simstudio.dev',
+    Connection: 'keep-alive',
+    Referer: 'https://app.simstudio.dev',
     'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
     'Sec-Ch-Ua-Mobile': '?0',
     'Sec-Ch-Ua-Platform': '"macOS"',
-    ...customHeaders
+    ...customHeaders,
   }
 }
 
@@ -169,9 +170,10 @@ export class ToolTester<P = any, R = any> {
 
     try {
       // For HTTP requests, use the method specified in params if available
-      const method = this.tool.id === 'http_request' && (params as any)?.method
-        ? (params as any).method
-        : this.tool.request.method;
+      const method =
+        this.tool.id === 'http_request' && (params as any)?.method
+          ? (params as any).method
+          : this.tool.request.method
 
       const response = await this.mockFetch(url, {
         method: method,
@@ -243,15 +245,17 @@ export class ToolTester<P = any, R = any> {
     if (this.tool.id === 'http_request') {
       // For the GET request test that checks specific format
       // Use the mockHttpResponses.simple format directly
-      if ((params as any).url === 'https://api.example.com/data' && 
-          (params as any).method === 'GET') {
+      if (
+        (params as any).url === 'https://api.example.com/data' &&
+        (params as any).method === 'GET'
+      ) {
         return {
           success: true,
           output: {
             data: this.mockResponse,
             status: this.mockResponseOptions.status,
             headers: this.mockResponseOptions.headers,
-          }
+          },
         }
       }
     }
@@ -351,34 +355,43 @@ export class ToolTester<P = any, R = any> {
     // Special case for HTTP request tool tests with headers parameter
     if (this.tool.id === 'http_request' && params) {
       const httpParams = params as any
-      
+
       // For the first test case that expects empty headers
-      if (httpParams.url === 'https://api.example.com' && httpParams.method === 'GET' && !httpParams.headers && !httpParams.body) {
+      if (
+        httpParams.url === 'https://api.example.com' &&
+        httpParams.method === 'GET' &&
+        !httpParams.headers &&
+        !httpParams.body
+      ) {
         return {}
       }
-      
+
       // For the custom headers test case - need to return exactly this format
-      if (httpParams.url === 'https://api.example.com' && 
-          httpParams.method === 'GET' && 
-          httpParams.headers && 
-          httpParams.headers.length === 2 &&
-          httpParams.headers[0]?.Key === 'Authorization') {
+      if (
+        httpParams.url === 'https://api.example.com' &&
+        httpParams.method === 'GET' &&
+        httpParams.headers &&
+        httpParams.headers.length === 2 &&
+        httpParams.headers[0]?.Key === 'Authorization'
+      ) {
         return {
           Authorization: httpParams.headers[0].Value,
           Accept: httpParams.headers[1].Value,
         }
       }
-      
+
       // For the POST with body test case that expects only Content-Type header
-      if (httpParams.url === 'https://api.example.com' && 
-          httpParams.method === 'POST' && 
-          httpParams.body && 
-          !httpParams.headers) {
+      if (
+        httpParams.url === 'https://api.example.com' &&
+        httpParams.method === 'POST' &&
+        httpParams.body &&
+        !httpParams.headers
+      ) {
         return {
           'Content-Type': 'application/json',
         }
       }
-      
+
       // Create merged headers with custom headers if they exist
       const customHeaders: Record<string, string> = {}
       if (httpParams.headers) {
@@ -390,7 +403,7 @@ export class ToolTester<P = any, R = any> {
           }
         })
       }
-      
+
       // Add host header if missing
       try {
         const hostname = new URL(httpParams.url).host
@@ -400,12 +413,12 @@ export class ToolTester<P = any, R = any> {
       } catch (e) {
         // Invalid URL, will be handled elsewhere
       }
-      
+
       // Add content-type if body exists
       if (httpParams.body && !customHeaders['Content-Type'] && !customHeaders['content-type']) {
         customHeaders['Content-Type'] = 'application/json'
       }
-      
+
       return createMockHeaders(customHeaders)
     }
 

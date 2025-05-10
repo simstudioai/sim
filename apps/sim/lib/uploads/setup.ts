@@ -39,4 +39,4 @@ export async function ensureUploadsDirectory() {
     logger.error('Failed to create uploads directory:', error)
     return false
   }
-} 
+}

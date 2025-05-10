@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createLogger } from '@/lib/logs/console-logger'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console-logger'
 import { s3Client } from '@/lib/uploads/s3-client'
 import { S3_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '../utils'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = createLogger('PresignedUploadAPI')
 
@@ -27,10 +27,13 @@ export async function POST(request: NextRequest) {
 
     // Only proceed if S3 storage is enabled
     if (!USE_S3_STORAGE) {
-      return NextResponse.json({ 
-        error: 'Direct uploads are only available when S3 storage is enabled',
-        directUploadSupported: false 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: 'Direct uploads are only available when S3 storage is enabled',
+          directUploadSupported: false,
+        },
+        { status: 400 }
+      )
     }
 
     // Create a unique key for the file
@@ -44,8 +47,8 @@ export async function POST(request: NextRequest) {
       ContentType: contentType,
       Metadata: {
         originalName: fileName,
-        uploadedAt: new Date().toISOString()
-      }
+        uploadedAt: new Date().toISOString(),
+      },
     })
 
     // Generate the presigned URL
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // Create a path for API to serve the file
     const servePath = `/api/files/serve/s3/${encodeURIComponent(uniqueKey)}`
-    
+
     logger.info(`Generated presigned URL for ${fileName} (${uniqueKey})`)
 
     return NextResponse.json({
@@ -63,17 +66,19 @@ export async function POST(request: NextRequest) {
         key: uniqueKey,
         name: fileName,
         size: fileSize,
-        type: contentType
+        type: contentType,
       },
-      directUploadSupported: true
+      directUploadSupported: true,
     })
   } catch (error) {
     logger.error('Error generating presigned URL:', error)
-    return createErrorResponse(error instanceof Error ? error : new Error('Failed to generate presigned URL'))
+    return createErrorResponse(
+      error instanceof Error ? error : new Error('Failed to generate presigned URL')
+    )
   }
 }
 
 // Handle preflight requests
 export async function OPTIONS() {
   return createOptionsResponse()
-} 
+}
