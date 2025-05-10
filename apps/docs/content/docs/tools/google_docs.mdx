@@ -1,0 +1,125 @@
+---
+title: Google Docs
+description: Read, write, and create documents
+---
+
+import { BlockInfoCard } from '@/components/ui/block-info-card'
+
+<BlockInfoCard
+  type="google_docs"
+  color="#E0E0E0"
+  icon={true}
+  iconSvg={`<svg className="block-icon"
+      
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 48 48"
+      
+      
+    >
+      <path
+        fill="#2196f3"
+        d="M37,45H11c-1.657,0-3-1.343-3-3V6c0-1.657,1.343-3,3-3h19l10,10v29C40,43.657,38.657,45,37,45z"
+      />
+      <path fill="#bbdefb" d="M40 13L30 13 30 3z" />
+      <path fill="#1565c0" d="M30 13L40 23 40 13z" />
+      <path fill="#e3f2fd" d="M15 23H33V25H15zM15 27H33V29H15zM15 31H33V33H15zM15 35H25V37H15z" />
+    </svg>`}
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Google Docs](https://docs.google.com) is a powerful cloud-based document creation and editing service that allows users to create, edit, and collaborate on documents in real-time. As part of Google's productivity suite, Google Docs offers a versatile platform for text documents with robust formatting, commenting, and sharing capabilities.
+
+With Google Docs, you can:
+
+- **Create and edit documents**: Develop text documents with comprehensive formatting options
+- **Collaborate in real-time**: Work simultaneously with multiple users on the same document
+- **Track changes**: View revision history and restore previous versions
+- **Comment and suggest**: Provide feedback and propose edits without changing the original content
+- **Access anywhere**: Use Google Docs across devices with automatic cloud synchronization
+- **Work offline**: Continue working without internet connection with changes syncing when back online
+- **Integrate with other services**: Connect with Google Drive, Sheets, Slides, and third-party applications
+
+In Sim Studio, the Google Docs integration enables your agents to interact directly with document content programmatically. This allows for powerful automation scenarios such as document creation, content extraction, collaborative editing, and document management. Your agents can read existing documents to extract information, write to documents to update content, and create new documents from scratch. This integration bridges the gap between your AI workflows and document management, enabling seamless interaction with one of the world's most widely used document platforms. By connecting Sim Studio with Google Docs, you can automate document workflows, generate reports, extract insights from documents, and maintain documentation - all through your intelligent agents.
+{/* MANUAL-CONTENT-END */}
+
+## Usage Instructions
+
+Integrate Google Docs functionality to manage documents. Read content from existing documents, write to documents, and create new documents using OAuth authentication. Supports text content manipulation for document creation and editing.
+
+## Tools
+
+### `google_docs_read`
+
+Read content from a Google Docs document
+
+#### Input
+
+| Parameter     | Type   | Required | Description                              |
+| ------------- | ------ | -------- | ---------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Docs API |
+| `documentId`  | string | Yes      | The ID of the document to read           |
+
+#### Output
+
+| Parameter | Type   |
+| --------- | ------ |
+| `content` | string |
+
+### `google_docs_write`
+
+Write or update content in a Google Docs document
+
+#### Input
+
+| Parameter     | Type   | Required | Description                              |
+| ------------- | ------ | -------- | ---------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Docs API |
+| `documentId`  | string | Yes      | The ID of the document to write to       |
+| `content`     | string | Yes      | The content to write to the document     |
+
+#### Output
+
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `updatedContent` | string |
+
+### `google_docs_create`
+
+Create a new Google Docs document
+
+#### Input
+
+| Parameter     | Type   | Required | Description                                    |
+| ------------- | ------ | -------- | ---------------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Docs API       |
+| `title`       | string | Yes      | The title of the document to create            |
+| `content`     | string | No       | The content of the document to create          |
+| `folderId`    | string | No       | The ID of the folder to create the document in |
+
+#### Output
+
+| Parameter  | Type   |
+| ---------- | ------ |
+| `metadata` | string |
+
+## Block Configuration
+
+### Input
+
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
+
+### Outputs
+
+| Output             | Type    | Description                    |
+| ------------------ | ------- | ------------------------------ |
+| `response`         | object  | Output from response           |
+| ↳ `content`        | string  | content of the response        |
+| ↳ `metadata`       | json    | metadata of the response       |
+| ↳ `updatedContent` | boolean | updatedContent of the response |
+
+## Notes
+
+- Category: `tools`
+- Type: `google_docs`

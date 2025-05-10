@@ -1,0 +1,76 @@
+---
+title: Connection Basics
+description: Learn how connections work in Sim Studio
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+
+## How Connections Work
+
+Connections are the pathways that allow data to flow between blocks in your workflow. When you connect two blocks in Sim Studio, you're establishing a data flow relationship that defines how information passes from one block to another.
+
+<Callout type="info">
+  Each connection represents a directed relationship where data flows from a source block's output
+  to a destination block's input.
+</Callout>
+
+### Creating Connections
+
+<Steps>
+  <Step>
+    <strong>Select Source Block</strong>: Click on the output port of the block you want to connect
+    from
+  </Step>
+  <Step>
+    <strong>Draw Connection</strong>: Drag to the input port of the destination block
+  </Step>
+  <Step>
+    <strong>Confirm Connection</strong>: Release to create the connection
+  </Step>
+  <Step>
+    <strong>Configure (Optional)</strong>: Some connections may require additional configuration
+  </Step>
+</Steps>
+
+### Connection Flow
+
+The flow of data through connections follows these principles:
+
+1. **Directional Flow**: Data always flows from outputs to inputs
+2. **Execution Order**: Blocks execute in order based on their connections
+3. **Data Transformation**: Data may be transformed as it passes between blocks
+4. **Conditional Paths**: Some blocks (like Router and Condition) can direct flow to different paths
+
+### Connection Visualization
+
+Connections are visually represented in the workflow editor:
+
+- **Solid Lines**: Active connections that will pass data
+- **Animated Flow**: During execution, data flow is visualized along connections
+- **Color Coding**: Different connection types may have different colors
+- **Connection Tags**: Visual indicators showing what data is available
+
+### Managing Connections
+
+You can manage your connections in several ways:
+
+- **Delete**: Click on a connection and press Delete or use the context menu
+- **Reroute**: Drag a connection to change its path
+- **Inspect**: Click on a connection to see details about the data being passed
+- **Disable**: Temporarily disable a connection without deleting it
+
+<Callout type="warning">
+  Deleting a connection will immediately stop data flow between the blocks. Make sure this is
+  intended before removing connections.
+</Callout>
+
+## Connection Compatibility
+
+Not all blocks can be connected to each other. Compatibility depends on:
+
+1. **Data Type Compatibility**: The output type must be compatible with the input type
+2. **Block Restrictions**: Some blocks may have restrictions on what they can connect to
+3. **Workflow Logic**: Connections must make logical sense in the context of your workflow
+
+The editor will indicate when connections are invalid or incompatible.

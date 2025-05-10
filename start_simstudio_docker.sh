@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-SIM_DIR=$SCRIPT_DIR/sim
+SIM_DIR=$SCRIPT_DIR/apps/sim
 
 # Function to display help
 show_help() {
@@ -64,7 +64,7 @@ sleep 5
 
 # Apply migrations automatically
 echo "Applying database migrations..."
-docker compose exec simstudio npm run db:push
+docker compose exec simstudio bash -c "cd apps/sim && npm run db:push"
 
 echo "Sim Studio is now running at http://localhost:3000"
 echo "To view logs, run: docker compose logs -f simstudio" 

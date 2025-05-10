@@ -1,98 +1,98 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/sim"
+  - package-ecosystem: 'npm'
+    directory: '/sim'
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
     # Disable version updates
     open-pull-requests-limit: 0
     labels:
-      - "dependencies"
-      - "security"
+      - 'dependencies'
+      - 'security'
     commit-message:
-      prefix: "fix(deps)"
-      prefix-development: "chore(deps)"
-      include: "scope"
+      prefix: 'fix(deps)'
+      prefix-development: 'chore(deps)'
+      include: 'scope'
     groups:
       dependencies:
         applies-to: security-updates
         patterns:
-          - "*"
-    
+          - '*'
+
   # Documentation site dependencies (/docs)
-  - package-ecosystem: "npm"
-    directory: "/docs"
+  - package-ecosystem: 'npm'
+    directory: '/docs'
     schedule:
-      interval: "weekly"
-      day: "wednesday"
+      interval: 'weekly'
+      day: 'wednesday'
     # Disable version updates
     open-pull-requests-limit: 0
     labels:
-      - "dependencies"
-      - "security"
+      - 'dependencies'
+      - 'security'
     commit-message:
-      prefix: "docs(deps)"
-      include: "scope"
+      prefix: 'docs(deps)'
+      include: 'scope'
     groups:
       docs-dependencies:
         applies-to: security-updates
         patterns:
-          - "*"
-    
+          - '*'
+
   # Root-level dependencies (if any)
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "weekly"
-      day: "friday"
+      interval: 'weekly'
+      day: 'friday'
     # Disable version updates
     open-pull-requests-limit: 0
     labels:
-      - "dependencies"
-      - "security"
+      - 'dependencies'
+      - 'security'
     commit-message:
-      prefix: "chore(deps)"
-      include: "scope"
+      prefix: 'chore(deps)'
+      include: 'scope'
     groups:
       root-dependencies:
         applies-to: security-updates
         patterns:
-          - "*"
-    
+          - '*'
+
   # GitHub Actions workflows
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: 'github-actions'
+    directory: '/'
     schedule:
-      interval: "monthly"
+      interval: 'monthly'
     # Disable version updates
     open-pull-requests-limit: 0
     labels:
-      - "dependencies"
-      - "security"
+      - 'dependencies'
+      - 'security'
     commit-message:
-      prefix: "ci(deps)"
+      prefix: 'ci(deps)'
     groups:
       actions:
         applies-to: security-updates
         patterns:
-          - "*"
-    
+          - '*'
+
   # Docker containers (if applicable)
-  - package-ecosystem: "docker"
-    directory: "/"
+  - package-ecosystem: 'docker'
+    directory: '/'
     schedule:
-      interval: "monthly"
+      interval: 'monthly'
     # Disable version updates
     open-pull-requests-limit: 0
     labels:
-      - "dependencies"
-      - "security"
+      - 'dependencies'
+      - 'security'
     commit-message:
-      prefix: "docker(deps)"
+      prefix: 'docker(deps)'
     groups:
       docker:
         applies-to: security-updates
         patterns:
-          - "*"
+          - '*'

@@ -1,0 +1,321 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Z-index fixes for workflow components */
+.workflow-container .react-flow__edges {
+  z-index: 0 !important;
+}
+
+.workflow-container .react-flow__node {
+  z-index: 20 !important;
+}
+
+.workflow-container .react-flow__handle {
+  z-index: 30 !important;
+}
+
+.workflow-container .react-flow__edge [data-testid='workflow-edge'] {
+  z-index: 0 !important;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    /* Scrollbar Custom Properties */
+    --scrollbar-track: 0 0% 85%;
+    --scrollbar-thumb: 0 0% 65%;
+    --scrollbar-thumb-hover: 0 0% 55%;
+    --scrollbar-size: 8px;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Dark Mode Scrollbar Custom Properties */
+    --scrollbar-track: 217.2 32.6% 17.5%;
+    --scrollbar-thumb: 217.2 32.6% 30%;
+    --scrollbar-thumb-hover: 217.2 32.6% 40%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    overscroll-behavior-x: none;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+    min-height: 100vh;
+    /* Prevent layout shifts when scrollbar appears/disappears */
+    scrollbar-gutter: stable;
+    /* Improve animation performance */
+    text-rendering: optimizeSpeed;
+  }
+
+  /* Global Scrollbar Styling */
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: hsl(var(--scrollbar-track));
+    border-radius: var(--radius);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--scrollbar-thumb));
+    border-radius: var(--radius);
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--scrollbar-thumb-hover));
+  }
+
+  /* For Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+  }
+}
+
+/* Custom Animations */
+@layer utilities {
+  /* Animation containment to avoid layout shifts */
+  .animation-container {
+    contain: paint layout style;
+    will-change: opacity, transform;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--border));
+    }
+    50% {
+      box-shadow: 0 0 0 8px hsl(var(--border));
+    }
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--border));
+    }
+  }
+
+  .animate-pulse-ring {
+    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .transition-ring {
+    transition-property: box-shadow, transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+
+  /* Custom Scrollbar Utility Classes */
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  .animate-orbit {
+    animation: orbit calc(var(--duration, 2) * 1s) linear infinite;
+  }
+
+  .animate-marquee {
+    animation: marquee var(--duration) infinite linear;
+  }
+
+  .animate-marquee-vertical {
+    animation: marquee-vertical var(--duration) linear infinite;
+  }
+
+  /* Code Editor Streaming Effect */
+  @keyframes code-shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes orbit {
+    0% {
+      transform: rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px))
+        rotate(calc(var(--angle) * -1deg));
+    }
+    100% {
+      transform: rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px))
+        rotate(calc((var(--angle) * -1deg) - 360deg));
+    }
+  }
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+  @keyframes marquee-vertical {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(calc(-100% - var(--gap)));
+    }
+  }
+
+  .streaming-effect {
+    @apply relative overflow-hidden;
+  }
+
+  .streaming-effect::after {
+    content: '';
+    @apply pointer-events-none absolute top-0 left-0 h-full w-full;
+    background: linear-gradient(
+      90deg,
+      rgba(128, 128, 128, 0) 0%,
+      rgba(128, 128, 128, 0.1) 50%,
+      rgba(128, 128, 128, 0) 100%
+    );
+    animation: code-shimmer 1.5s infinite;
+    z-index: 10;
+  }
+
+  .dark .streaming-effect::after {
+    background: linear-gradient(
+      90deg,
+      rgba(180, 180, 180, 0) 0%,
+      rgba(180, 180, 180, 0.1) 50%,
+      rgba(180, 180, 180, 0) 100%
+    );
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-in-out forwards;
+  }
+}
+
+/* Dark mode error badge styling */
+.dark .error-badge {
+  background-color: hsl(0, 70%, 20%) !important; /* Darker red background for dark mode */
+  color: hsl(0, 0%, 100%) !important; /* Pure white text for better contrast */
+}
+
+/* Input Overrides */
+/* Chrome, Safari, Edge, Opera */
+input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Firefox */
+input[type='search']::-moz-search-cancel-button {
+  display: none;
+}
+
+/* Microsoft Edge */
+input[type='search']::-ms-clear {
+  display: none;
+}
+
+/* Code Prompt Bar Placeholder Animation */
+@keyframes placeholder-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.loading-placeholder::placeholder {
+  animation: placeholder-pulse 1.5s ease-in-out infinite;
+}
+
+/* Dark mode error badge styling */
+.dark .bg-red-500 {
+  @apply bg-red-700;
+}
+
+/* Font Variables */
+.font-geist-sans {
+  font-family: var(--font-geist-sans);
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono);
+}

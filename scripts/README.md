@@ -11,7 +11,7 @@ This directory contains scripts to automatically generate documentation for all 
 
 The documentation generator:
 
-1. Scans the `sim/blocks/blocks/` directory for all block definition files
+1. Scans the `apps/sim/blocks/blocks/` directory for all block definition files
 2. Extracts metadata from each block including:
    - Name, description, and category
    - Input and output specifications
@@ -37,6 +37,7 @@ If you encounter TypeScript errors when running the documentation generator, run
 ```
 
 This will:
+
 1. Install TypeScript, ts-node, and necessary type definitions
 2. Create a proper tsconfig.json for the scripts directory
 3. Configure the scripts directory to use ES modules
@@ -53,7 +54,7 @@ The documentation generator runs automatically as part of the CI/CD pipeline whe
 
 ## Adding Support for New Block Properties
 
-If you add new properties to block definitions that should be included in the documentation, update the `generateMarkdownForBlock` function in `scripts/generate-block-docs.ts`. 
+If you add new properties to block definitions that should be included in the documentation, update the `generateMarkdownForBlock` function in `scripts/generate-block-docs.ts`.
 
 ## Preserving Manual Content
 
@@ -70,9 +71,9 @@ The documentation generator now supports preserving manually added content when 
 To add custom content to any tool's documentation, insert MDX comment blocks with section markers:
 
 ```markdown
-{/* MANUAL-CONTENT-START:sectionName */}
+{/_ MANUAL-CONTENT-START:sectionName _/}
 Your custom content here (Markdown formatting supported)
-{/* MANUAL-CONTENT-END */}
+{/_ MANUAL-CONTENT-END _/}
 ```
 
 Replace `sectionName` with one of the supported section names:
@@ -87,8 +88,9 @@ Replace `sectionName` with one of the supported section names:
 
 To add custom examples to a tool doc:
 
-```markdown
-{/* MANUAL-CONTENT-START:usage */}
+````markdown
+{/_ MANUAL-CONTENT-START:usage _/}
+
 ## Examples
 
 ### Basic Usage
@@ -99,11 +101,14 @@ To add custom examples to a tool doc:
   "anotherParameter": "anotherValue"
 }
 ```
+````
 
 ### Advanced Configuration
 
 Here's how to use this tool for a specific use case...
-{/* MANUAL-CONTENT-END */}
+{/_ MANUAL-CONTENT-END _/}
+
 ```
 
-When the documentation is regenerated, your manual content will be preserved in the appropriate section automatically. The script will not add any placeholders or markers to files by default. 
+When the documentation is regenerated, your manual content will be preserved in the appropriate section automatically. The script will not add any placeholders or markers to files by default.
+```

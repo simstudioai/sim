@@ -6,11 +6,14 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - '3000:3000'
     volumes:
-      - ./sim:/app
+      - .:/app
       - /app/node_modules
-      - /app/.next
+      - /app/apps/sim/node_modules
+      - /app/apps/sim/.next
+      - /app/apps/docs/node_modules
+      - /app/apps/docs/.next
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
@@ -33,7 +36,7 @@ services:
     image: postgres:16
     restart: always
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -41,26 +44,26 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
       interval: 5s
       timeout: 5s
       retries: 5
 
   local-llm-gpu:
-    profiles: 
+    profiles:
       - local-gpu # This profile requires both 'local' and 'gpu'
     image: ollama/ollama:latest
     pull_policy: always
     volumes:
       - ${HOME}/.ollama:/root/.ollama
     ports:
-      - "11434:11434"
+      - '11434:11434'
     environment:
       - NVIDIA_DRIVER_CAPABILITIES=all
       - OLLAMA_LOAD_TIMEOUT=-1
       - OLLAMA_KEEP_ALIVE=-1
       - OLLAMA_DEBUG=1
-    command: "serve"
+    command: 'serve'
     deploy:
       resources:
         reservations:
@@ -69,7 +72,7 @@ services:
               count: all
               capabilities: [gpu]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:11434/']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -82,14 +85,14 @@ services:
     volumes:
       - ${HOME}/.ollama:/root/.ollama
     ports:
-      - "11434:11434"
+      - '11434:11434'
     environment:
       - OLLAMA_LOAD_TIMEOUT=-1
       - OLLAMA_KEEP_ALIVE=-1
       - OLLAMA_DEBUG=1
-    command: "serve"
+    command: 'serve'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:11434/']
       interval: 10s
       timeout: 5s
       retries: 5

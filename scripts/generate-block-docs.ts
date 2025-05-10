@@ -1,11 +1,10 @@
 #!/usr/bin/env ts-node
-
+import { glob } from 'glob'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { glob } from 'glob'
 
-console.log("Starting documentation generator...")
+console.log('Starting documentation generator...')
 
 // Define directory paths
 const __filename = fileURLToPath(import.meta.url)
@@ -13,9 +12,9 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
 
 // Paths configuration
-const BLOCKS_PATH = path.join(rootDir, 'sim/blocks/blocks')
-const DOCS_OUTPUT_PATH = path.join(rootDir, 'docs/content/docs/tools')
-const ICONS_PATH = path.join(rootDir, 'sim/components/icons.tsx')
+const BLOCKS_PATH = path.join(rootDir, 'apps/sim/blocks/blocks')
+const DOCS_OUTPUT_PATH = path.join(rootDir, 'apps/docs/content/docs/tools')
+const ICONS_PATH = path.join(rootDir, 'apps/sim/components/icons.tsx')
 
 // Make sure the output directory exists
 if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
@@ -65,17 +64,19 @@ function extractIcons(): Record<string, string> {
   try {
     const iconsContent = fs.readFileSync(ICONS_PATH, 'utf-8')
     const icons: Record<string, string> = {}
-    
+
     // Match both function declaration and arrow function export patterns
-    const functionDeclarationRegex = /export\s+function\s+(\w+Icon)\s*\([^)]*\)\s*{[\s\S]*?return\s*\(\s*<svg[\s\S]*?<\/svg>\s*\)/g
-    const arrowFunctionRegex = /export\s+const\s+(\w+Icon)\s*=\s*\([^)]*\)\s*=>\s*(\(?\s*<svg[\s\S]*?<\/svg>\s*\)?)/g
-    
+    const functionDeclarationRegex =
+      /export\s+function\s+(\w+Icon)\s*\([^)]*\)\s*{[\s\S]*?return\s*\(\s*<svg[\s\S]*?<\/svg>\s*\)/g
+    const arrowFunctionRegex =
+      /export\s+const\s+(\w+Icon)\s*=\s*\([^)]*\)\s*=>\s*(\(?\s*<svg[\s\S]*?<\/svg>\s*\)?)/g
+
     // Extract function declaration style icons
     const functionMatches = Array.from(iconsContent.matchAll(functionDeclarationRegex))
     for (const match of functionMatches) {
       const iconName = match[1]
       const svgMatch = match[0].match(/<svg[\s\S]*?<\/svg>/)
-      
+
       if (iconName && svgMatch) {
         // Clean the SVG to remove {...props} and standardize size
         let svgContent = svgMatch[0]
@@ -89,14 +90,14 @@ function extractIcons(): Record<string, string> {
         icons[iconName] = svgContent
       }
     }
-    
+
     // Extract arrow function style icons
     const arrowMatches = Array.from(iconsContent.matchAll(arrowFunctionRegex))
     for (const match of arrowMatches) {
       const iconName = match[1]
       const svgContent = match[2]
       const svgMatch = svgContent.match(/<svg[\s\S]*?<\/svg>/)
-      
+
       if (iconName && svgMatch) {
         // Clean the SVG to remove {...props} and standardize size
         let cleanedSvg = svgMatch[0]
@@ -123,7 +124,7 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
     // Match the block name and type from imports and export statement
     const typeMatch = fileContent.match(/type\s+(\w+)Response\s*=/)
     const exportMatch = fileContent.match(/export\s+const\s+(\w+)Block\s*:/)
-    
+
     if (!exportMatch) {
       console.warn('No block export found in file')
       return null
@@ -131,7 +132,7 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
 
     const blockName = exportMatch[1]
     const blockType = findBlockType(fileContent, blockName)
-    
+
     // Extract individual properties with more robust regex
     const name = extractStringProperty(fileContent, 'name') || `${blockName} Block`
     const description = extractStringProperty(fileContent, 'description') || ''
@@ -139,19 +140,19 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
     const category = extractStringProperty(fileContent, 'category') || 'misc'
     const bgColor = extractStringProperty(fileContent, 'bgColor') || '#F5F5F5'
     const iconName = extractIconName(fileContent) || ''
-    
+
     // Extract subBlocks array
     const subBlocks = extractSubBlocks(fileContent)
-    
+
     // Extract inputs object
     const inputs = extractInputs(fileContent)
-    
+
     // Extract outputs object with better handling
     const outputs = extractOutputs(fileContent)
-    
+
     // Extract tools access array
     const toolsAccess = extractToolsAccess(fileContent)
-    
+
     return {
       type: blockType || blockName.toLowerCase(),
       name,
@@ -164,8 +165,8 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
       inputs,
       outputs,
       tools: {
-        access: toolsAccess
-      }
+        access: toolsAccess,
+      },
     }
   } catch (error) {
     console.error('Error extracting block configuration:', error)
@@ -178,7 +179,7 @@ function findBlockType(content: string, blockName: string): string {
   // Try to find explicitly defined type
   const typeMatch = content.match(/type\s*:\s*['"]([^'"]+)['"]/)
   if (typeMatch) return typeMatch[1]
-  
+
   // Convert CamelCase to snake_case as fallback
   return blockName
     .replace(/([A-Z])/g, '_$1')
@@ -190,7 +191,7 @@ function findBlockType(content: string, blockName: string): string {
 function extractStringProperty(content: string, propName: string): string | null {
   const simpleMatch = content.match(new RegExp(`${propName}\\s*:\\s*['"]([^'"]+)['"]`, 'm'))
   if (simpleMatch) return simpleMatch[1]
-  
+
   // Try to match multi-line string with template literals
   const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 'm'))
   return templateMatch ? templateMatch[1] : null
@@ -206,48 +207,48 @@ function extractIconName(content: string): string | null {
 function extractSubBlocks(content: string): any[] {
   const subBlocksMatch = content.match(/subBlocks\s*:\s*\[([\s\S]*?)\s*\],/)
   if (!subBlocksMatch) return []
-  
+
   const subBlocksContent = subBlocksMatch[1]
   const blocks: any[] = []
-  
+
   // Find all block objects
   const blockMatches = subBlocksContent.match(/{\s*id\s*:[^}]*}/g)
   if (!blockMatches) return []
-  
-  blockMatches.forEach(blockText => {
+
+  blockMatches.forEach((blockText) => {
     const id = extractStringProperty(blockText, 'id')
     const title = extractStringProperty(blockText, 'title')
     const placeholder = extractStringProperty(blockText, 'placeholder')
     const type = extractStringProperty(blockText, 'type')
     const layout = extractStringProperty(blockText, 'layout')
-    
+
     // Extract options array if present
     const optionsMatch = blockText.match(/options\s*:\s*\[([\s\S]*?)\]/)
     let options: Array<{ label: string | null; id: string | null }> = []
-    
+
     if (optionsMatch) {
       const optionsText = optionsMatch[1]
       const optionMatches = optionsText.match(/{\s*label\s*:[^}]*}/g)
-      
+
       if (optionMatches) {
-        options = optionMatches.map(optText => {
+        options = optionMatches.map((optText) => {
           const label = extractStringProperty(optText, 'label')
           const optId = extractStringProperty(optText, 'id')
           return { label, id: optId }
         })
       }
     }
-    
+
     blocks.push({
       id,
       title,
       placeholder,
       type,
       layout,
-      options: options.length > 0 ? options : undefined
+      options: options.length > 0 ? options : undefined,
     })
   })
-  
+
   return blocks
 }
 
@@ -255,46 +256,46 @@ function extractSubBlocks(content: string): any[] {
 function extractInputs(content: string): Record<string, any> {
   const inputsMatch = content.match(/inputs\s*:\s*{([\s\S]*?)},/)
   if (!inputsMatch) return {}
-  
+
   const inputsContent = inputsMatch[1]
   const inputs: Record<string, any> = {}
-  
+
   // Find all input property definitions
   const propMatches = inputsContent.match(/(\w+)\s*:\s*{[^}]*}/g)
   if (!propMatches) {
     // Try an alternative approach for the whole inputs section
     const inputLines = inputsContent.split('\n')
-    inputLines.forEach(line => {
+    inputLines.forEach((line) => {
       const propMatch = line.match(/\s*(\w+)\s*:\s*{/)
       if (propMatch) {
         const propName = propMatch[1]
         const typeMatch = line.match(/type\s*:\s*['"]([^'"]+)['"]/)
         const requiredMatch = line.match(/required\s*:\s*(true|false)/)
-        
+
         inputs[propName] = {
           type: typeMatch ? typeMatch[1] : 'string',
-          required: requiredMatch ? requiredMatch[1] === 'true' : false
-      }
+          required: requiredMatch ? requiredMatch[1] === 'true' : false,
+        }
       }
     })
-    
+
     return inputs
   }
-  
-  propMatches.forEach(propText => {
+
+  propMatches.forEach((propText) => {
     const propMatch = propText.match(/(\w+)\s*:/)
     if (!propMatch) return
-    
+
     const propName = propMatch[1]
     const typeMatch = propText.match(/type\s*:\s*['"]?([^'"}, ]+)['"]?/)
     const requiredMatch = propText.match(/required\s*:\s*(true|false)/)
-    
+
     inputs[propName] = {
       type: typeMatch ? typeMatch[1] : 'any',
-      required: requiredMatch ? requiredMatch[1] === 'true' : false
+      required: requiredMatch ? requiredMatch[1] === 'true' : false,
     }
   })
-  
+
   return inputs
 }
 
@@ -302,56 +303,58 @@ function extractInputs(content: string): Record<string, any> {
 function extractOutputs(content: string): Record<string, any> {
   // Look for the outputs section with a more resilient regex
   const outputsMatch = content.match(/outputs\s*:\s*{([^}]*)}(?:\s*,|\s*})/s)
-  
+
   if (outputsMatch) {
     const outputsContent = outputsMatch[1].trim()
     const outputs: Record<string, any> = {}
-    
+
     // Try to extract fields from the outputs object
     const fieldMatches = outputsContent.match(/(\w+)\s*:\s*{([^}]+)}/g)
-    
+
     if (fieldMatches && fieldMatches.length > 0) {
-      fieldMatches.forEach(fieldMatch => {
+      fieldMatches.forEach((fieldMatch) => {
         const fieldNameMatch = fieldMatch.match(/(\w+)\s*:/)
         if (fieldNameMatch) {
           const fieldName = fieldNameMatch[1]
-          
+
           // Check if there's a type with a nested structure
           const typeMatch = fieldMatch.match(/type\s*:\s*{([^}]+)}/)
           if (typeMatch) {
             // Handle nested type object
             const typeContent = typeMatch[1]
             const properties: Record<string, any> = {}
-            
+
             // Extract property types from the type object - handle cases with comments
             // const propertyMatches = typeContent.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/g)
-            const propertyMatches = typeContent.match(/(\w+)\s*:\s*['"]([^'"]+)['"](?:\s*,)?(?:\s*\/\/[^\n]*)?/g)
+            const propertyMatches = typeContent.match(
+              /(\w+)\s*:\s*['"]([^'"]+)['"](?:\s*,)?(?:\s*\/\/[^\n]*)?/g
+            )
             if (propertyMatches) {
-              propertyMatches.forEach(propMatch => {
+              propertyMatches.forEach((propMatch) => {
                 // Extract the property name and type, ignoring any trailing comments
                 const propParts = propMatch.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/)
                 if (propParts) {
                   const propName = propParts[1]
                   const propType = propParts[2]
-                  
+
                   // Look for an inline comment that might contain a description
                   const commentMatch = propMatch.match(/\/\/\s*(.+)$/)
-                  const description = commentMatch 
+                  const description = commentMatch
                     ? commentMatch[1].trim()
                     : `${propName} of the ${fieldName}`
-                  
+
                   properties[propName] = {
                     type: propType,
-                    description: description
+                    description: description,
                   }
                 }
               })
             }
-            
+
             // Add the field with properties
             outputs[fieldName] = {
               properties,
-              description: `${fieldName} from the block execution`
+              description: `${fieldName} from the block execution`,
             }
           } else {
             // Try to extract a simple type definition
@@ -359,14 +362,14 @@ function extractOutputs(content: string): Record<string, any> {
             if (simpleTypeMatch) {
               outputs[fieldName] = {
                 type: simpleTypeMatch[1],
-                description: `${fieldName} output from the block`
+                description: `${fieldName} output from the block`,
               }
             }
           }
         }
       })
     }
-    
+
     // If we parsed anything, return it
     if (Object.keys(outputs).length > 0) {
       return outputs
@@ -375,23 +378,22 @@ function extractOutputs(content: string): Record<string, any> {
 
   // Fallback to the original method for backward compatibility
   const outputsSection = content.match(/outputs\s*:\s*{([^}]*response[^}]*)}(?:\s*,|\s*})/s)
-  
+
   if (outputsSection) {
-    
     // Find the response type definition
     const responseTypeMatch = content.match(/response\s*:\s*{\s*type\s*:\s*{([^}]*)}/s)
-    
+
     if (responseTypeMatch) {
       const typeContent = responseTypeMatch[1]
-      
+
       // Extract all field: 'type' pairs regardless of comments or formatting
       const fieldMatches = typeContent.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/g)
-      
+
       if (fieldMatches && fieldMatches.length > 0) {
         const typeFields: Record<string, string> = {}
-        
+
         // Process each field match
-        fieldMatches.forEach(match => {
+        fieldMatches.forEach((match) => {
           const fieldParts = match.match(/(\w+)\s*:\s*['"]([^'"]+)['"]/)
           if (fieldParts) {
             const fieldName = fieldParts[1]
@@ -399,13 +401,13 @@ function extractOutputs(content: string): Record<string, any> {
             typeFields[fieldName] = fieldType
           }
         })
-        
+
         // If we have any fields, return them in the expected structure
         if (Object.keys(typeFields).length > 0) {
           const result = {
             response: {
-              type: typeFields
-            }
+              type: typeFields,
+            },
           }
           return result
         }
@@ -420,118 +422,127 @@ function extractOutputs(content: string): Record<string, any> {
 function extractToolsAccess(content: string): string[] {
   const accessMatch = content.match(/access\s*:\s*\[\s*((?:['"][^'"]+['"](?:\s*,\s*)?)+)\s*\]/)
   if (!accessMatch) return []
-  
+
   const accessContent = accessMatch[1]
   const tools: string[] = []
-  
+
   const toolMatches = accessContent.match(/['"]([^'"]+)['"]/g)
   if (toolMatches) {
-    toolMatches.forEach(toolText => {
+    toolMatches.forEach((toolText) => {
       const match = toolText.match(/['"]([^'"]+)['"]/)
-              if (match) {
+      if (match) {
         tools.push(match[1])
       }
     })
   }
-  
+
   return tools
 }
 
 // Function to extract tool information from file content
-function extractToolInfo(toolName: string, fileContent: string, filePath: string = ''): {
+function extractToolInfo(
+  toolName: string,
+  fileContent: string,
+  filePath: string = ''
+): {
   description: string
-  params: Array<{name: string; type: string; required: boolean; description: string}>
+  params: Array<{ name: string; type: string; required: boolean; description: string }>
   outputs: Record<string, any>
 } | null {
   try {
     // Extract tool config section - Simplified regex to match any *Tool export pattern
-    const toolConfigRegex = new RegExp(`export const \\w+Tool\\s*[=<][^{]*{[\\s\\S]*?params\\s*:\\s*{([\\s\\S]*?)}`, 'im')
+    const toolConfigRegex = new RegExp(
+      `export const \\w+Tool\\s*[=<][^{]*{[\\s\\S]*?params\\s*:\\s*{([\\s\\S]*?)}`,
+      'im'
+    )
     const toolConfigMatch = fileContent.match(toolConfigRegex)
-    
+
     // Extract description
     const descriptionRegex = /description\s*:\s*['"]([^'"]+)['"].*/
     const descriptionMatch = fileContent.match(descriptionRegex)
     const description = descriptionMatch ? descriptionMatch[1] : 'No description available'
-    
+
     // Parse parameters
-    const params: Array<{name: string; type: string; required: boolean; description: string}> = []
-    
+    const params: Array<{ name: string; type: string; required: boolean; description: string }> = []
+
     if (toolConfigMatch) {
       const paramsContent = toolConfigMatch[1]
-      
+
       // More robust approach to extract parameters
       // Extract each parameter block completely
       const paramBlocksRegex = /(\w+)\s*:\s*{([^}]+)}/g
-      let paramMatch;
-      
+      let paramMatch
+
       while ((paramMatch = paramBlocksRegex.exec(paramsContent)) !== null) {
-        const paramName = paramMatch[1];
-        const paramBlock = paramMatch[2];
-        
+        const paramName = paramMatch[1]
+        const paramBlock = paramMatch[2]
+
         // Skip the accessToken parameter as it's handled automatically by the OAuth flow
         // Also skip any params parameter which isn't a real input
         if (paramName === 'accessToken' || paramName === 'params' || paramName === 'tools') {
-          continue;
+          continue
         }
-        
+
         // Extract param details with more robust patterns
-        const typeMatch = paramBlock.match(/type\s*:\s*['"]([^'"]+)['"]/);
-        const requiredMatch = paramBlock.match(/required\s*:\s*(true|false)/);
-        
+        const typeMatch = paramBlock.match(/type\s*:\s*['"]([^'"]+)['"]/)
+        const requiredMatch = paramBlock.match(/required\s*:\s*(true|false)/)
+
         // More careful extraction of description with handling for multiline descriptions
-        let descriptionMatch = paramBlock.match(/description\s*:\s*['"]([^'"]+)['"]/);
+        let descriptionMatch = paramBlock.match(/description\s*:\s*['"]([^'"]+)['"]/)
         if (!descriptionMatch) {
           // Try for template literals if the description uses backticks
-          descriptionMatch = paramBlock.match(/description\s*:\s*`([^`]+)`/);
+          descriptionMatch = paramBlock.match(/description\s*:\s*`([^`]+)`/)
         }
-        
+
         params.push({
           name: paramName,
           type: typeMatch ? typeMatch[1] : 'string',
           required: requiredMatch ? requiredMatch[1] === 'true' : false,
-          description: descriptionMatch ? descriptionMatch[1] : 'No description'
-        });
+          description: descriptionMatch ? descriptionMatch[1] : 'No description',
+        })
       }
     }
-    
+
     // If no params were found with the first method, try a more direct regex approach
     if (params.length === 0) {
-      const paramRegex = /(\w+)\s*:\s*{(?:[^{}]|{[^{}]*})*type\s*:\s*['"]([^'"]+)['"](?:[^{}]|{[^{}]*})*required\s*:\s*(true|false)(?:[^{}]|{[^{}]*})*description\s*:\s*['"]([^'"]+)['"](?:[^{}]|{[^{}]*})*}/g
+      const paramRegex =
+        /(\w+)\s*:\s*{(?:[^{}]|{[^{}]*})*type\s*:\s*['"]([^'"]+)['"](?:[^{}]|{[^{}]*})*required\s*:\s*(true|false)(?:[^{}]|{[^{}]*})*description\s*:\s*['"]([^'"]+)['"](?:[^{}]|{[^{}]*})*}/g
       let match
-      
+
       while ((match = paramRegex.exec(fileContent)) !== null) {
         // Skip the accessToken parameter and any params parameter
         if (match[1] === 'params' || match[1] === 'tools') continue
-        
+
         params.push({
           name: match[1],
           type: match[2],
           required: match[3] === 'true',
-          description: match[4] || 'No description'
+          description: match[4] || 'No description',
         })
       }
     }
-    
+
     // Extract output structure from transformResponse
     let outputs: Record<string, any> = {}
     const outputRegex = /transformResponse[\s\S]*?return\s*{[\s\S]*?output\s*:\s*{([^}]*)/
     const outputMatch = fileContent.match(outputRegex)
-    
+
     if (outputMatch) {
       const outputContent = outputMatch[1]
       // Try to parse the output structure based on the content
       outputs = parseOutputStructure(toolName, outputContent, fileContent)
     }
-    
+
     // If we couldn't extract outputs from transformResponse, try an alternative approach
     if (Object.keys(outputs).length === 0) {
       // Look for output in successful response in transformResponse
-      const successOutputRegex = /success\s*:\s*true,\s*output\s*:\s*(\{[^}]*\}|\w+(\.\w+)+\s*\|\|\s*\{[^}]*\}|\w+(\.\w+)+\.map\s*\()/
+      const successOutputRegex =
+        /success\s*:\s*true,\s*output\s*:\s*(\{[^}]*\}|\w+(\.\w+)+\s*\|\|\s*\{[^}]*\}|\w+(\.\w+)+\.map\s*\()/
       const successOutputMatch = fileContent.match(successOutputRegex)
-      
+
       if (successOutputMatch) {
         const outputExpression = successOutputMatch[1].trim()
-        
+
         // Handle case where output is something like "data.data || {}"
         if (outputExpression.includes('||')) {
           outputs.data = 'json'
@@ -556,7 +567,7 @@ function extractToolInfo(toolName: string, fileContent: string, filePath: string
         else if (outputExpression.startsWith('{')) {
           const fieldMatches = outputExpression.match(/(\w+)\s*:/g)
           if (fieldMatches) {
-            fieldMatches.forEach(match => {
+            fieldMatches.forEach((match) => {
               const fieldName = match.trim().replace(':', '')
               outputs[fieldName] = 'Dynamic output field'
             })
@@ -571,37 +582,42 @@ function extractToolInfo(toolName: string, fileContent: string, filePath: string
         }
       }
     }
-    
+
     // Try to extract TypeScript interface for outputs as a fallback
     if (Object.keys(outputs).length === 0) {
-      const interfaceRegex = new RegExp(`interface\\s+${toolName.replace(/_/g, '')}Response\\s*{[\\s\\S]*?output\\s*:\\s*{([\\s\\S]*?)}[\\s\\S]*?}`)
+      const interfaceRegex = new RegExp(
+        `interface\\s+${toolName.replace(/_/g, '')}Response\\s*{[\\s\\S]*?output\\s*:\\s*{([\\s\\S]*?)}[\\s\\S]*?}`
+      )
       const interfaceMatch = fileContent.match(interfaceRegex)
-      
+
       if (interfaceMatch) {
         const interfaceContent = interfaceMatch[1]
         outputs = parseOutputStructure(toolName, interfaceContent, fileContent)
       }
     }
-    
+
     // Look for TypeScript types in a types.ts file if available
     if (Object.keys(outputs).length === 0 && filePath) {
       const toolDir = path.dirname(filePath)
       const typesPath = path.join(toolDir, 'types.ts')
       if (fs.existsSync(typesPath)) {
         const typesContent = fs.readFileSync(typesPath, 'utf-8')
-        const responseTypeRegex = new RegExp(`interface\\s+${toolName.replace(/_/g, '')}Response\\s*extends\\s+\\w+\\s*{\\s*output\\s*:\\s*{([\\s\\S]*?)}\\s*}`, 'i')
+        const responseTypeRegex = new RegExp(
+          `interface\\s+${toolName.replace(/_/g, '')}Response\\s*extends\\s+\\w+\\s*{\\s*output\\s*:\\s*{([\\s\\S]*?)}\\s*}`,
+          'i'
+        )
         const responseTypeMatch = typesContent.match(responseTypeRegex)
-        
+
         if (responseTypeMatch) {
           outputs = parseOutputStructure(toolName, responseTypeMatch[1], typesContent)
         }
       }
     }
-    
+
     return {
       description,
       params,
-      outputs
+      outputs,
     }
   } catch (error) {
     console.error(`Error extracting info for tool ${toolName}:`, error)
@@ -610,20 +626,24 @@ function extractToolInfo(toolName: string, fileContent: string, filePath: string
 }
 
 // Update the parseOutputStructure function to better handle nested objects
-function parseOutputStructure(toolName: string, outputContent: string, fileContent: string): Record<string, any> {
+function parseOutputStructure(
+  toolName: string,
+  outputContent: string,
+  fileContent: string
+): Record<string, any> {
   const outputs: Record<string, any> = {}
-  
+
   // Try to extract field declarations with their types
   const fieldRegex = /(\w+)\s*:([^,}]+)/g
   let fieldMatch
-  
+
   while ((fieldMatch = fieldRegex.exec(outputContent)) !== null) {
     const fieldName = fieldMatch[1].trim()
     const fieldType = fieldMatch[2].trim().replace(/['"\[\]]/g, '')
-    
+
     // Determine a good description based on field name
     let description = 'Dynamic output field'
-    
+
     if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
       description = `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} from the operation`
     } else if (fieldName === 'ids') {
@@ -633,10 +653,10 @@ function parseOutputStructure(toolName: string, outputContent: string, fileConte
     } else if (fieldName === 'citations') {
       description = 'References used to generate the answer'
     }
-    
+
     outputs[fieldName] = description
   }
-  
+
   // Try to identify common patterns based on tool types
   if (Object.keys(outputs).length === 0) {
     if (toolName.includes('_search')) {
@@ -652,20 +672,20 @@ function parseOutputStructure(toolName: string, outputContent: string, fileConte
       // Try to extract field names from the output content with a simpler regex
       const simpleFieldsRegex = /(\w+)\s*:/g
       let simpleFieldMatch
-      
+
       while ((simpleFieldMatch = simpleFieldsRegex.exec(outputContent)) !== null) {
         outputs[simpleFieldMatch[1]] = 'Dynamic output field'
       }
     }
   }
-  
+
   return outputs
 }
 
 // Find and extract information about a tool
 async function getToolInfo(toolName: string): Promise<{
   description: string
-  params: Array<{name: string; type: string; required: boolean; description: string}>
+  params: Array<{ name: string; type: string; required: boolean; description: string }>
   outputs: Record<string, any>
 } | null> {
   try {
@@ -674,37 +694,45 @@ async function getToolInfo(toolName: string): Promise<{
     let toolSuffix = toolName.split('_').slice(1).join('_')
 
     // Handle special cases for tools that have multiple parts
-    if (toolPrefix === 'google' && (toolName.startsWith('google_docs_') || toolName.startsWith('google_sheets_') || toolName.startsWith('google_drive_')) || toolName.startsWith('browser_use')) {
+    if (
+      (toolPrefix === 'google' &&
+        (toolName.startsWith('google_docs_') ||
+          toolName.startsWith('google_sheets_') ||
+          toolName.startsWith('google_drive_'))) ||
+      toolName.startsWith('browser_use')
+    ) {
       toolPrefix = toolName.split('_').slice(0, 2).join('_')
       toolSuffix = toolName.split('_').slice(2).join('_')
     }
-    
+
     // Simplify the file search strategy
     const possibleLocations = []
-    
+
     // Most common pattern: suffix.ts file in the prefix directory
-    possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/${toolSuffix}.ts`))
-    
+    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`))
+
     // Try underscore version if suffix has multiple parts
     if (toolSuffix.includes('_')) {
       const underscoreSuffix = toolSuffix.replace(/_/g, '_')
-      possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/${underscoreSuffix}.ts`))
+      possibleLocations.push(
+        path.join(rootDir, `apps/sim/tools/${toolPrefix}/${underscoreSuffix}.ts`)
+      )
     }
-    
+
     // Try camelCase version of suffix
     const camelCaseSuffix = toolSuffix
       .split('_')
-      .map((part, i) => i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1))
+      .map((part, i) => (i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
       .join('')
-    possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/${camelCaseSuffix}.ts`))
-    
+    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/${camelCaseSuffix}.ts`))
+
     // Also check the index.ts file in the tool directory
-    possibleLocations.push(path.join(rootDir, `sim/tools/${toolPrefix}/index.ts`))
-    
+    possibleLocations.push(path.join(rootDir, `apps/sim/tools/${toolPrefix}/index.ts`))
+
     // Try to find the tool definition file
     let toolFilePath = ''
     let toolFileContent = ''
-    
+
     for (const location of possibleLocations) {
       if (fs.existsSync(location)) {
         toolFilePath = location
@@ -712,18 +740,18 @@ async function getToolInfo(toolName: string): Promise<{
         break
       }
     }
-    
+
     // If not found, search in tool-specific directory
     if (!toolFileContent) {
-      const toolsDir = path.join(rootDir, 'sim/tools')
+      const toolsDir = path.join(rootDir, 'apps/tools')
       if (fs.existsSync(path.join(toolsDir, toolPrefix))) {
         const dirPath = path.join(toolsDir, toolPrefix)
-        const files = fs.readdirSync(dirPath).filter(file => file.endsWith('.ts'))
-        
+        const files = fs.readdirSync(dirPath).filter((file) => file.endsWith('.ts'))
+
         for (const file of files) {
           const filePath = path.join(dirPath, file)
           const content = fs.readFileSync(filePath, 'utf-8')
-          
+
           // Check if this file contains the tool id
           if (content.includes(`id: '${toolName}'`) || content.includes(`id: "${toolName}"`)) {
             toolFilePath = filePath
@@ -733,12 +761,12 @@ async function getToolInfo(toolName: string): Promise<{
         }
       }
     }
-    
+
     if (!toolFileContent) {
       console.warn(`Could not find definition for tool: ${toolName}`)
       return null
     }
-    
+
     // Extract tool information from the file
     return extractToolInfo(toolName, toolFileContent, toolFilePath)
   } catch (error) {
@@ -751,8 +779,9 @@ async function getToolInfo(toolName: string): Promise<{
 function extractManualContent(existingContent: string): Record<string, string> {
   const manualSections: Record<string, string> = {}
   // Improved regex to better handle MDX comments
-  const manualContentRegex = /\{\/\*\s*MANUAL-CONTENT-START:(\w+)\s*\*\/\}([\s\S]*?)\{\/\*\s*MANUAL-CONTENT-END\s*\*\/\}/g
-  
+  const manualContentRegex =
+    /\{\/\*\s*MANUAL-CONTENT-START:(\w+)\s*\*\/\}([\s\S]*?)\{\/\*\s*MANUAL-CONTENT-END\s*\*\/\}/g
+
   let match
   while ((match = manualContentRegex.exec(existingContent)) !== null) {
     const sectionName = match[1]
@@ -760,70 +789,77 @@ function extractManualContent(existingContent: string): Record<string, string> {
     manualSections[sectionName] = content
     console.log(`Found manual content for section: ${sectionName}`)
   }
-  
+
   return manualSections
 }
 
 // Function to merge generated markdown with manual content
-function mergeWithManualContent(generatedMarkdown: string, existingContent: string | null, manualSections: Record<string, string>): string {
+function mergeWithManualContent(
+  generatedMarkdown: string,
+  existingContent: string | null,
+  manualSections: Record<string, string>
+): string {
   if (!existingContent || Object.keys(manualSections).length === 0) {
     return generatedMarkdown
   }
-  
-  console.log("Merging manual content with generated markdown")
-  
+
+  console.log('Merging manual content with generated markdown')
+
   // Log what we found for debugging
   console.log(`Found ${Object.keys(manualSections).length} manual sections`)
-  Object.keys(manualSections).forEach(section => {
+  Object.keys(manualSections).forEach((section) => {
     console.log(`  - ${section}: ${manualSections[section].substring(0, 20)}...`)
   })
-  
+
   // Replace placeholders in generated markdown with manual content
   let mergedContent = generatedMarkdown
-  
+
   // Add manual content for each section we found
   Object.entries(manualSections).forEach(([sectionName, content]) => {
     // Define insertion points for different section types with improved patterns
     const insertionPoints: Record<string, { regex: RegExp }> = {
-      'intro': { 
-        regex: /<BlockInfoCard[\s\S]*?<\/svg>`}\s*\/>/
+      intro: {
+        regex: /<BlockInfoCard[\s\S]*?<\/svg>`}\s*\/>/,
       },
-      'usage': { 
-        regex: /## Usage Instructions/
+      usage: {
+        regex: /## Usage Instructions/,
       },
-      'configuration': { 
-        regex: /## Configuration/
+      configuration: {
+        regex: /## Configuration/,
       },
-      'outputs': { 
-        regex: /## Outputs/
+      outputs: {
+        regex: /## Outputs/,
       },
-      'notes': { 
-        regex: /## Notes/
-      }
+      notes: {
+        regex: /## Notes/,
+      },
     }
 
     // Find the appropriate insertion point
     const insertionPoint = insertionPoints[sectionName]
-    
+
     if (insertionPoint) {
       // Use regex to find the insertion point
       const match = mergedContent.match(insertionPoint.regex)
-      
+
       if (match && match.index !== undefined) {
         // Insert after the matched content
         const insertPosition = match.index + match[0].length
         console.log(`Inserting ${sectionName} content after position ${insertPosition}`)
-        mergedContent = mergedContent.slice(0, insertPosition) + 
+        mergedContent =
+          mergedContent.slice(0, insertPosition) +
           `\n\n{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}\n` +
           mergedContent.slice(insertPosition)
       } else {
-        console.log(`Could not find insertion point for ${sectionName}, regex pattern: ${insertionPoint.regex}`)
+        console.log(
+          `Could not find insertion point for ${sectionName}, regex pattern: ${insertionPoint.regex}`
+        )
       }
     } else {
       console.log(`No insertion point defined for section ${sectionName}`)
     }
   })
-  
+
   return mergedContent
 }
 
@@ -835,39 +871,43 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
     if (blockFileName.endsWith('.test')) {
       return // Skip test files
     }
-    
+
     // Read the file content
     const fileContent = fs.readFileSync(blockPath, 'utf-8')
-    
+
     // Extract block configuration from the file content
     const blockConfig = extractBlockConfig(fileContent)
-    
+
     if (!blockConfig || !blockConfig.type) {
       console.warn(`Skipping ${blockFileName} - not a valid block config`)
       return
     }
-    
+
     // Skip blocks with category 'blocks', only process blocks with category 'tools', and skip specific blocks
-    if (blockConfig.category === 'blocks' || blockConfig.type === 'evaluator' || blockConfig.type === 'number') {
+    if (
+      blockConfig.category === 'blocks' ||
+      blockConfig.type === 'evaluator' ||
+      blockConfig.type === 'number'
+    ) {
       return
     }
-    
+
     // Output file path
     const outputFilePath = path.join(DOCS_OUTPUT_PATH, `${blockConfig.type}.mdx`)
-    
+
     // IMPORTANT: Check if file already exists and read its content FIRST
     let existingContent: string | null = null
     if (fs.existsSync(outputFilePath)) {
       existingContent = fs.readFileSync(outputFilePath, 'utf-8')
       console.log(`Existing file found for ${blockConfig.type}.mdx, checking for manual content...`)
     }
-    
+
     // Extract manual content from existing file before generating new content
     const manualSections = existingContent ? extractManualContent(existingContent) : {}
-    
+
     // Create the markdown content - now async
     const markdown = await generateMarkdownForBlock(blockConfig, icons)
-    
+
     // Merge with manual content if we found any
     let finalContent = markdown
     if (Object.keys(manualSections).length > 0) {
@@ -876,18 +916,20 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
     } else {
       console.log(`No manual content found in ${blockConfig.type}.mdx`)
     }
-    
+
     // Write the markdown file
     fs.writeFileSync(outputFilePath, finalContent)
     console.log(`Generated documentation for ${blockConfig.type}`)
-
   } catch (error) {
     console.error(`Error processing ${blockPath}:`, error)
   }
 }
 
 // Update generateMarkdownForBlock to remove placeholders
-async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<string, string>): Promise<string> {
+async function generateMarkdownForBlock(
+  blockConfig: BlockConfig,
+  icons: Record<string, string>
+): Promise<string> {
   const {
     type,
     name,
@@ -899,7 +941,7 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<
     subBlocks = [],
     inputs = {},
     outputs = {},
-    tools = { access: [], config: {} }
+    tools = { access: [], config: {} },
   } = blockConfig
 
   // Get SVG icon if available
@@ -907,120 +949,123 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<
 
   // Create inputs table content with better descriptions
   let inputsTable = ''
-  
+
   if (Object.keys(inputs).length > 0) {
-    inputsTable = Object.entries(inputs).map(([key, config]) => {
-      const inputConfig = config as InputConfig
-      const subBlock = subBlocks.find(sb => sb.id === key)
-      
-      let description = subBlock?.title || ''
-      if (subBlock?.placeholder) {
-        description += description ? ` - ${subBlock.placeholder}` : subBlock.placeholder
-      }
-      
-      if (subBlock?.options) {
-        let optionsList = ''
-        if (Array.isArray(subBlock.options) && subBlock.options.length > 0) {
-          if (typeof subBlock.options[0] === 'string') {
-            // String array options
-            optionsList = subBlock.options
-              .filter(opt => typeof opt === 'string')
-              .map(opt => `\`${opt}\``)
-              .join(', ')
-          } else {
-            // Object array options with id/label
-            optionsList = subBlock.options
-              .filter(opt => typeof opt === 'object' && opt !== null && 'id' in opt)
-              .map(opt => {
-                const option = opt as any
-                return `\`${option.id}\` (${option.label || option.id})`
-              })
-              .join(', ')
-          }
+    inputsTable = Object.entries(inputs)
+      .map(([key, config]) => {
+        const inputConfig = config as InputConfig
+        const subBlock = subBlocks.find((sb) => sb.id === key)
+
+        let description = subBlock?.title || ''
+        if (subBlock?.placeholder) {
+          description += description ? ` - ${subBlock.placeholder}` : subBlock.placeholder
         }
-        description += optionsList ? `: ${optionsList}` : ''
-      }
-      
-      // Escape special characters in descriptions
-      const escapedDescription = description
-        .replace(/\|/g, '\\|')  // Escape pipe characters
-        .replace(/\{/g, '\\{')  // Escape curly braces
-        .replace(/\}/g, '\\}')  // Escape curly braces
-        .replace(/\(/g, '\\(')  // Escape opening parentheses
-        .replace(/\)/g, '\\)')  // Escape closing parentheses
-        .replace(/\[/g, '\\[')  // Escape opening brackets
-        .replace(/\]/g, '\\]')  // Escape closing brackets
-        .replace(/</g, '&lt;')  // Convert less than to HTML entity
-        .replace(/>/g, '&gt;')  // Convert greater than to HTML entity
-      
-      return `| \`${key}\` | ${inputConfig.type || 'string'} | ${inputConfig.required ? 'Yes' : 'No'} | ${escapedDescription} |`
-    }).join('\n')
+
+        if (subBlock?.options) {
+          let optionsList = ''
+          if (Array.isArray(subBlock.options) && subBlock.options.length > 0) {
+            if (typeof subBlock.options[0] === 'string') {
+              // String array options
+              optionsList = subBlock.options
+                .filter((opt) => typeof opt === 'string')
+                .map((opt) => `\`${opt}\``)
+                .join(', ')
+            } else {
+              // Object array options with id/label
+              optionsList = subBlock.options
+                .filter((opt) => typeof opt === 'object' && opt !== null && 'id' in opt)
+                .map((opt) => {
+                  const option = opt as any
+                  return `\`${option.id}\` (${option.label || option.id})`
+                })
+                .join(', ')
+            }
+          }
+          description += optionsList ? `: ${optionsList}` : ''
+        }
+
+        // Escape special characters in descriptions
+        const escapedDescription = description
+          .replace(/\|/g, '\\|') // Escape pipe characters
+          .replace(/\{/g, '\\{') // Escape curly braces
+          .replace(/\}/g, '\\}') // Escape curly braces
+          .replace(/\(/g, '\\(') // Escape opening parentheses
+          .replace(/\)/g, '\\)') // Escape closing parentheses
+          .replace(/\[/g, '\\[') // Escape opening brackets
+          .replace(/\]/g, '\\]') // Escape closing brackets
+          .replace(/</g, '&lt;') // Convert less than to HTML entity
+          .replace(/>/g, '&gt;') // Convert greater than to HTML entity
+
+        return `| \`${key}\` | ${inputConfig.type || 'string'} | ${inputConfig.required ? 'Yes' : 'No'} | ${escapedDescription} |`
+      })
+      .join('\n')
   } else if (subBlocks.length > 0) {
     // If we have subBlocks but no inputs mapping, try to create the table from subBlocks
-    inputsTable = subBlocks.map(subBlock => {
-      const id = subBlock.id || ''
-      const title = subBlock.title || ''
-      const type = subBlock.type || 'string'
-      const required = !!subBlock.condition ? 'No' : 'Yes'
-      
-      let description = title
-      if (subBlock.placeholder) {
-        description += title ? ` - ${subBlock.placeholder}` : subBlock.placeholder
-      }
-      
-      if (subBlock.options) {
-        let optionsList = ''
-        if (Array.isArray(subBlock.options) && subBlock.options.length > 0) {
-          if (typeof subBlock.options[0] === 'string') {
-            // String array options
-            optionsList = subBlock.options
-              .filter(opt => typeof opt === 'string')
-              .map(opt => `\`${opt}\``)
-              .join(', ')
-          } else {
-            // Object array options with id/label
-            optionsList = subBlock.options
-              .filter(opt => typeof opt === 'object' && opt !== null && 'id' in opt)
-              .map(opt => {
-                const option = opt as any
-                return `\`${option.id}\` (${option.label || option.id})`
-              })
-              .join(', ')
-          }
+    inputsTable = subBlocks
+      .map((subBlock) => {
+        const id = subBlock.id || ''
+        const title = subBlock.title || ''
+        const type = subBlock.type || 'string'
+        const required = !!subBlock.condition ? 'No' : 'Yes'
+
+        let description = title
+        if (subBlock.placeholder) {
+          description += title ? ` - ${subBlock.placeholder}` : subBlock.placeholder
         }
-        description += optionsList ? `: ${optionsList}` : ''
-      }
-      
-      // Escape special characters in descriptions
-      const escapedDescription = description
-        .replace(/\|/g, '\\|')  // Escape pipe characters
-        .replace(/\{/g, '\\{')  // Escape curly braces
-        .replace(/\}/g, '\\}')  // Escape curly braces
-        .replace(/\(/g, '\\(')  // Escape opening parentheses
-        .replace(/\)/g, '\\)')  // Escape closing parentheses
-        .replace(/\[/g, '\\[')  // Escape opening brackets
-        .replace(/\]/g, '\\]')  // Escape closing brackets
-        .replace(/</g, '&lt;')  // Convert less than to HTML entity
-        .replace(/>/g, '&gt;')  // Convert greater than to HTML entity
-      
-      return `| \`${id}\` | ${type} | ${required} | ${escapedDescription} |`
-    }).join('\n')
+
+        if (subBlock.options) {
+          let optionsList = ''
+          if (Array.isArray(subBlock.options) && subBlock.options.length > 0) {
+            if (typeof subBlock.options[0] === 'string') {
+              // String array options
+              optionsList = subBlock.options
+                .filter((opt) => typeof opt === 'string')
+                .map((opt) => `\`${opt}\``)
+                .join(', ')
+            } else {
+              // Object array options with id/label
+              optionsList = subBlock.options
+                .filter((opt) => typeof opt === 'object' && opt !== null && 'id' in opt)
+                .map((opt) => {
+                  const option = opt as any
+                  return `\`${option.id}\` (${option.label || option.id})`
+                })
+                .join(', ')
+            }
+          }
+          description += optionsList ? `: ${optionsList}` : ''
+        }
+
+        // Escape special characters in descriptions
+        const escapedDescription = description
+          .replace(/\|/g, '\\|') // Escape pipe characters
+          .replace(/\{/g, '\\{') // Escape curly braces
+          .replace(/\}/g, '\\}') // Escape curly braces
+          .replace(/\(/g, '\\(') // Escape opening parentheses
+          .replace(/\)/g, '\\)') // Escape closing parentheses
+          .replace(/\[/g, '\\[') // Escape opening brackets
+          .replace(/\]/g, '\\]') // Escape closing brackets
+          .replace(/</g, '&lt;') // Convert less than to HTML entity
+          .replace(/>/g, '&gt;') // Convert greater than to HTML entity
+
+        return `| \`${id}\` | ${type} | ${required} | ${escapedDescription} |`
+      })
+      .join('\n')
   }
 
   // Create detailed options section for dropdowns
-  const dropdownBlocks = subBlocks.filter(sb => 
-    (sb.type === 'dropdown' || sb.options) && 
-    Array.isArray(sb.options) && 
-    sb.options.length > 0
+  const dropdownBlocks = subBlocks.filter(
+    (sb) =>
+      (sb.type === 'dropdown' || sb.options) && Array.isArray(sb.options) && sb.options.length > 0
   )
-  
+
   let optionsSection = ''
   if (dropdownBlocks.length > 0) {
     optionsSection = `## Available Options\n\n`
-    
-    dropdownBlocks.forEach(sb => {
+
+    dropdownBlocks.forEach((sb) => {
       optionsSection += `### ${sb.title || sb.id} (${sb.id ? `\`${sb.id}\`` : ''})\n\n`
-      
+
       if (Array.isArray(sb.options)) {
         // Check the first item to determine the array type
         if (sb.options.length > 0) {
@@ -1042,78 +1087,79 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<
           }
         }
       }
-      
+
       optionsSection += '\n'
     })
   }
 
   // Generate the outputs section
   let outputsSection = ''
-  
+
   if (outputs && Object.keys(outputs).length > 0) {
     outputsSection = `## Outputs\n\n`
-    
+
     // Create the base outputs table
-    outputsSection += `| Output | Type | Description |\n`;
-    outputsSection += `| ------ | ---- | ----------- |\n`;
-    
+    outputsSection += `| Output | Type | Description |\n`
+    outputsSection += `| ------ | ---- | ----------- |\n`
+
     // Process each output field
     for (const outputKey in outputs) {
-      const output = outputs[outputKey];
-      
+      const output = outputs[outputKey]
+
       // Escape special characters in the description that could break markdown tables
-      const escapedDescription = output.description ? 
-        output.description
-          .replace(/\|/g, '\\|')  // Escape pipe characters
-          .replace(/\{/g, '\\{')  // Escape curly braces
-          .replace(/\}/g, '\\}')  // Escape curly braces
-          .replace(/\(/g, '\\(')  // Escape opening parentheses
-          .replace(/\)/g, '\\)')  // Escape closing parentheses
-          .replace(/\[/g, '\\[')  // Escape opening brackets
-          .replace(/\]/g, '\\]')  // Escape closing brackets
-          .replace(/</g, '&lt;')  // Convert less than to HTML entity
-          .replace(/>/g, '&gt;')  // Convert greater than to HTML entity
-        : `Output from ${outputKey}`;
-      
+      const escapedDescription = output.description
+        ? output.description
+            .replace(/\|/g, '\\|') // Escape pipe characters
+            .replace(/\{/g, '\\{') // Escape curly braces
+            .replace(/\}/g, '\\}') // Escape curly braces
+            .replace(/\(/g, '\\(') // Escape opening parentheses
+            .replace(/\)/g, '\\)') // Escape closing parentheses
+            .replace(/\[/g, '\\[') // Escape opening brackets
+            .replace(/\]/g, '\\]') // Escape closing brackets
+            .replace(/</g, '&lt;') // Convert less than to HTML entity
+            .replace(/>/g, '&gt;') // Convert greater than to HTML entity
+        : `Output from ${outputKey}`
+
       if (typeof output.type === 'string') {
         // Simple output with explicit type
-        outputsSection += `| \`${outputKey}\` | ${output.type} | ${escapedDescription} |\n`;
+        outputsSection += `| \`${outputKey}\` | ${output.type} | ${escapedDescription} |\n`
       } else if (output.type && typeof output.type === 'object') {
         // For cases where output.type is an object containing field types
-        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`;
-        
+        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`
+
         // Add properties directly to the main table with indentation
         for (const propName in output.type) {
-          const propType = output.type[propName];
+          const propType = output.type[propName]
           // Get description from comments if available
-          const commentMatch = propName && output.type[propName]._comment 
-            ? output.type[propName]._comment
-            : `${propName} of the ${outputKey}`;
-          
-          outputsSection += `| ↳ \`${propName}\` | ${propType} | ${commentMatch} |\n`;
+          const commentMatch =
+            propName && output.type[propName]._comment
+              ? output.type[propName]._comment
+              : `${propName} of the ${outputKey}`
+
+          outputsSection += `| ↳ \`${propName}\` | ${propType} | ${commentMatch} |\n`
         }
       } else if (output.properties) {
         // Complex output with properties
-        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`;
-        
+        outputsSection += `| \`${outputKey}\` | object | ${escapedDescription} |\n`
+
         // Add properties directly to the main table with indentation
         for (const propName in output.properties) {
-          const prop = output.properties[propName];
+          const prop = output.properties[propName]
           // Escape special characters in the description
-          const escapedPropertyDescription = prop.description ? 
-            prop.description
-              .replace(/\|/g, '\\|')  // Escape pipe characters
-              .replace(/\{/g, '\\{')  // Escape curly braces
-              .replace(/\}/g, '\\}')  // Escape curly braces
-              .replace(/\(/g, '\\(')  // Escape opening parentheses
-              .replace(/\)/g, '\\)')  // Escape closing parentheses
-              .replace(/\[/g, '\\[')  // Escape opening brackets
-              .replace(/\]/g, '\\]')  // Escape closing brackets
-              .replace(/</g, '&lt;')  // Convert less than to HTML entity
-              .replace(/>/g, '&gt;')  // Convert greater than to HTML entity
-            : `The ${propName} of the ${outputKey}`;
-          
-          outputsSection += `| ↳ \`${propName}\` | ${prop.type} | ${escapedPropertyDescription} |\n`;
+          const escapedPropertyDescription = prop.description
+            ? prop.description
+                .replace(/\|/g, '\\|') // Escape pipe characters
+                .replace(/\{/g, '\\{') // Escape curly braces
+                .replace(/\}/g, '\\}') // Escape curly braces
+                .replace(/\(/g, '\\(') // Escape opening parentheses
+                .replace(/\)/g, '\\)') // Escape closing parentheses
+                .replace(/\[/g, '\\[') // Escape opening brackets
+                .replace(/\]/g, '\\]') // Escape closing brackets
+                .replace(/</g, '&lt;') // Convert less than to HTML entity
+                .replace(/>/g, '&gt;') // Convert greater than to HTML entity
+            : `The ${propName} of the ${outputKey}`
+
+          outputsSection += `| ↳ \`${propName}\` | ${prop.type} | ${escapedPropertyDescription} |\n`
         }
       }
     }
@@ -1125,56 +1171,56 @@ async function generateMarkdownForBlock(blockConfig: BlockConfig, icons: Record<
   let toolsSection = ''
   if (tools.access?.length) {
     toolsSection = `## Tools\n\n`
-    
+
     // For each tool, try to find its definition and extract parameter information
     for (const tool of tools.access) {
       toolsSection += `### \`${tool}\`\n\n`
-      
+
       // Get dynamic tool information
       const toolInfo = await getToolInfo(tool)
-      
+
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {
           toolsSection += `${toolInfo.description}\n\n`
         }
-        
+
         // Add Input Parameters section for the tool
         toolsSection += `#### Input\n\n`
         toolsSection += `| Parameter | Type | Required | Description |\n`
         toolsSection += `| --------- | ---- | -------- | ----------- |\n`
-        
+
         if (toolInfo.params.length > 0) {
           // Use dynamically extracted parameters
           for (const param of toolInfo.params) {
             // Escape special characters in the description that could break markdown tables
-            const escapedDescription = param.description ? 
-              param.description
-                .replace(/\|/g, '\\|')  // Escape pipe characters
-                .replace(/\{/g, '\\{')  // Escape curly braces
-                .replace(/\}/g, '\\}')  // Escape curly braces
-                .replace(/\(/g, '\\(')  // Escape opening parentheses
-                .replace(/\)/g, '\\)')  // Escape closing parentheses
-                .replace(/\[/g, '\\[')  // Escape opening brackets
-                .replace(/\]/g, '\\]')  // Escape closing brackets
-                .replace(/</g, '&lt;')  // Convert less than to HTML entity
-                .replace(/>/g, '&gt;')  // Convert greater than to HTML entity
-              : 'No description';
-            
+            const escapedDescription = param.description
+              ? param.description
+                  .replace(/\|/g, '\\|') // Escape pipe characters
+                  .replace(/\{/g, '\\{') // Escape curly braces
+                  .replace(/\}/g, '\\}') // Escape curly braces
+                  .replace(/\(/g, '\\(') // Escape opening parentheses
+                  .replace(/\)/g, '\\)') // Escape closing parentheses
+                  .replace(/\[/g, '\\[') // Escape opening brackets
+                  .replace(/\]/g, '\\]') // Escape closing brackets
+                  .replace(/</g, '&lt;') // Convert less than to HTML entity
+                  .replace(/>/g, '&gt;') // Convert greater than to HTML entity
+              : 'No description'
+
             toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${escapedDescription} |\n`
           }
         }
-        
+
         // Add Output Parameters section for the tool
         toolsSection += `\n#### Output\n\n`
-        
+
         if (Object.keys(toolInfo.outputs).length > 0) {
           // Use dynamically extracted outputs in table format
           toolsSection += generateMarkdownTable(toolInfo.outputs)
         } else {
-          toolsSection += "This tool does not produce any outputs.\n"
+          toolsSection += 'This tool does not produce any outputs.\n'
         }
       }
-      
+
       toolsSection += `\n`
     }
   }
@@ -1206,10 +1252,14 @@ ${toolsSection}
 
 ## Block Configuration
 
-${subBlocks.length > 0 ? '### Input\n\n' + 
-'| Parameter | Type | Required | Description | \n' +
-'| --------- | ---- | -------- | ----------- | \n' +
-inputsTable : 'No configuration parameters required.'}
+${
+  subBlocks.length > 0
+    ? '### Input\n\n' +
+      '| Parameter | Type | Required | Description | \n' +
+      '| --------- | ---- | -------- | ----------- | \n' +
+      inputsTable
+    : 'No configuration parameters required.'
+}
 
 ${optionsSection}
 
@@ -1229,18 +1279,18 @@ async function generateAllBlockDocs() {
   try {
     // Extract icons first
     const icons = extractIcons()
-    
+
     // Get all block files
     const blockFiles = await glob(`${BLOCKS_PATH}/*.ts`)
-    
+
     // Generate docs for each block
     for (const blockFile of blockFiles) {
       await generateBlockDoc(blockFile, icons)
     }
-    
+
     // Update the meta.json file
     updateMetaJson()
-    
+
     return true
   } catch (error) {
     console.error('Error generating documentation:', error)
@@ -1251,44 +1301,45 @@ async function generateAllBlockDocs() {
 // Function to update the meta.json file with all blocks
 function updateMetaJson() {
   const metaJsonPath = path.join(DOCS_OUTPUT_PATH, 'meta.json')
-  
+
   // Get all MDX files in the tools directory
-  const blockFiles = fs.readdirSync(DOCS_OUTPUT_PATH)
+  const blockFiles = fs
+    .readdirSync(DOCS_OUTPUT_PATH)
     .filter((file: string) => file.endsWith('.mdx'))
     .map((file: string) => path.basename(file, '.mdx'))
-  
+
   // Create meta.json structure
   // Keep "index" as the first item if it exists
   const items = [
     ...(blockFiles.includes('index') ? ['index'] : []),
-    ...blockFiles.filter((file: string) => file !== 'index').sort()
+    ...blockFiles.filter((file: string) => file !== 'index').sort(),
   ]
-  
+
   const metaJson = {
-    items
+    items,
   }
-  
+
   // Write the meta.json file
   fs.writeFileSync(metaJsonPath, JSON.stringify(metaJson, null, 2))
 }
 
 // Run the script
-generateAllBlockDocs().then((success) => {
-  if (success) {
-    console.log('Documentation generation completed successfully')
-    process.exit(0)
-  } else {
-    console.error('Documentation generation failed')
+generateAllBlockDocs()
+  .then((success) => {
+    if (success) {
+      console.log('Documentation generation completed successfully')
+      process.exit(0)
+    } else {
+      console.error('Documentation generation failed')
+      process.exit(1)
+    }
+  })
+  .catch((error) => {
+    console.error('Fatal error:', error)
     process.exit(1)
-  }
-}).catch(error => {
-  console.error('Fatal error:', error)
-  process.exit(1)
-}) 
+  })
 
-function generateMarkdownTable(
-  outputs: Record<string, string>,
-): string {
+function generateMarkdownTable(outputs: Record<string, string>): string {
   let table = ''
   table += `| Parameter | Type |\n`
   table += `| --------- | ---- |\n`
@@ -1300,9 +1351,9 @@ function generateMarkdownTable(
     if (value.toLowerCase().includes('json')) inferredType = 'json'
     if (value.toLowerCase().includes('number')) inferredType = 'number'
     if (value.toLowerCase().includes('boolean')) inferredType = 'boolean'
-    
+
     table += `| \`${key}\` | ${inferredType} |\n`
   }
 
   return table
-} 
+}

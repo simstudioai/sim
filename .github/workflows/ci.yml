@@ -10,51 +10,45 @@ jobs:
   test:
     name: Test and Build
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: './sim/package-lock.json'
-          
+          cache-dependency-path: './package-lock.json'
+
       - name: Install dependencies
-        working-directory: ./sim
         run: npm ci
-        
-      - name: Fix Rollup module issue
-        working-directory: ./sim
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install
-        
+
+      - name: Install Turbo globally
+        run: npm install -g turbo
+
       - name: Run tests with coverage
-        working-directory: ./sim
         env:
-          NODE_OPTIONS: "--no-warnings"
-        run: npm run test:coverage
-        
+          NODE_OPTIONS: '--no-warnings'
+        run: npx turbo run test
+
       - name: Build application
-        working-directory: ./sim
         env:
-          NODE_OPTIONS: "--no-warnings"
-          NEXT_PUBLIC_APP_URL: "https://www.simstudio.ai"
-          STRIPE_SECRET_KEY: "dummy_key_for_ci_only"
-          STRIPE_WEBHOOK_SECRET: "dummy_secret_for_ci_only"
-          RESEND_API_KEY: "dummy_key_for_ci_only"
-          AWS_REGION: "us-west-2"
-        run: npm run build
-        
+          NODE_OPTIONS: '--no-warnings'
+          NEXT_PUBLIC_APP_URL: 'https://www.simstudio.ai'
+          STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
+          STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
+          RESEND_API_KEY: 'dummy_key_for_ci_only'
+          AWS_REGION: 'us-west-2'
+        run: npx turbo run build
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          directory: ./sim/coverage
+          directory: ./apps/sim/coverage
           fail_ci_if_error: false
-          verbose: true 
+          verbose: true
 
   migrations:
     name: Apply Database Migrations
@@ -64,20 +58,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: './sim/package-lock.json'
-          
+          cache-dependency-path: './package-lock.json'
+
       - name: Install dependencies
-        working-directory: ./sim
         run: npm ci
-        
+
       - name: Apply migrations
-        working-directory: ./sim
+        working-directory: ./apps/sim
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npx drizzle-kit push 
+        run: npx drizzle-kit push

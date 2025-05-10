@@ -1,0 +1,109 @@
+---
+title: Connection Tags
+description: Using connection tags to reference data between blocks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Connection tags are visual representations of the data available from connected blocks. They provide an easy way to reference outputs from previous blocks in your workflow.
+
+<div>
+  <video autoPlay loop muted playsInline className="w-full" src="/connections.mp4"></video>
+</div>
+
+### What Are Connection Tags?
+
+Connection tags are interactive elements that appear when blocks are connected. They represent the data that can flow from one block to another and allow you to:
+
+- Visualize available data from source blocks
+- Reference specific data fields in destination blocks
+- Create dynamic data flows between blocks
+
+<Callout type="info">
+  Connection tags make it easy to see what data is available from previous blocks and use it in your
+  current block without having to remember complex data structures.
+</Callout>
+
+## Using Connection Tags
+
+There are two primary ways to use connection tags in your workflows:
+
+<div className="my-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Drag and Drop</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Click on a connection tag and drag it into input fields of destination blocks. A dropdown will
+      appear showing available values.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Hover over a connection tag to see available data</li>
+      <li>Click and drag the tag to an input field</li>
+      <li>Select the specific data field from the dropdown</li>
+      <li>The reference is inserted automatically</li>
+    </ol>
+  </div>
+
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <h3 className="mb-2 text-lg font-medium">Angle Bracket Syntax</h3>
+    <div className="text-sm text-gray-600 dark:text-gray-400">
+      Type <code>&lt;&gt;</code> in input fields to see a dropdown of available connection values
+      from previous blocks.
+    </div>
+    <ol className="mt-2 list-decimal pl-5 text-sm text-gray-600 dark:text-gray-400">
+      <li>Click in any input field where you want to use connected data</li>
+      <li>
+        Type <code>&lt;&gt;</code> to trigger the connection dropdown
+      </li>
+      <li>Browse and select the data you want to reference</li>
+      <li>Continue typing or select from the dropdown to complete the reference</li>
+    </ol>
+  </div>
+</div>
+
+## Tag Syntax
+
+Connection tags use a simple syntax to reference data:
+
+```
+<blockId.path.to.data>
+```
+
+Where:
+
+- `blockId` is the identifier of the source block
+- `path.to.data` is the path to the specific data field
+
+For example:
+
+- `<agent1.content>` - References the content field from a block with ID "agent1"
+- `<api2.data.users[0].name>` - References the name of the first user in the users array from the data field of a block with ID "api2"
+
+## Dynamic Tag References
+
+Connection tags are evaluated at runtime, which means:
+
+1. They always reference the most current data
+2. They can be used in expressions and combined with static text
+3. They can be nested within other data structures
+
+### Examples
+
+```javascript
+// Reference in text
+"The user's name is <userBlock.name>"
+
+// Reference in JSON
+{
+  "userName": "<userBlock.name>",
+  "orderTotal": <apiBlock.data.total>
+}
+
+// Reference in code
+const greeting = "Hello, <userBlock.name>!";
+const total = <apiBlock.data.total> * 1.1; // Add 10% tax
+```
+
+<Callout type="warning">
+  When using connection tags in numeric contexts, make sure the referenced data is actually a number
+  to avoid type conversion issues.
+</Callout>
