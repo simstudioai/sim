@@ -31,14 +31,14 @@ vi.mock('@/tools', () => ({
   executeTool: vi.fn(),
 }))
 
-global.fetch = vi.fn()
+global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
 
 const mockGetAllBlocks = getAllBlocks as Mock
 const mockExecuteTool = executeTool as Mock
 const mockIsHosted = isHosted as unknown as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
-const mockFetch = global.fetch as Mock
+const mockFetch = global.fetch as unknown as Mock
 
 describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler

@@ -112,44 +112,47 @@ describe('Gmail Read Tool', () => {
 
       // Then setup response for the first message
       const originalFetch = global.fetch
-      global.fetch = vi.fn().mockImplementation((url, options) => {
-        // Check if it's a token request
-        if (url.toString().includes('/api/auth/oauth/token')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve({ accessToken: 'gmail-access-token-123' }),
-          })
-        }
+      global.fetch = Object.assign(
+        vi.fn().mockImplementation((url, options) => {
+          // Check if it's a token request
+          if (url.toString().includes('/api/auth/oauth/token')) {
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve({ accessToken: 'gmail-access-token-123' }),
+            })
+          }
 
-        // For message list endpoint
-        if (url.toString().includes('users/me/messages') && !url.toString().includes('msg1')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(mockGmailResponses.messageList),
-            headers: {
-              get: () => 'application/json',
-              forEach: () => {},
-            },
-          })
-        }
+          // For message list endpoint
+          if (url.toString().includes('users/me/messages') && !url.toString().includes('msg1')) {
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(mockGmailResponses.messageList),
+              headers: {
+                get: () => 'application/json',
+                forEach: () => {},
+              },
+            })
+          }
 
-        // For specific message endpoint
-        if (url.toString().includes('msg1')) {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(mockGmailResponses.singleMessage),
-            headers: {
-              get: () => 'application/json',
-              forEach: () => {},
-            },
-          })
-        }
+          // For specific message endpoint
+          if (url.toString().includes('msg1')) {
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(mockGmailResponses.singleMessage),
+              headers: {
+                get: () => 'application/json',
+                forEach: () => {},
+              },
+            })
+          }
 
-        return originalFetch(url, options)
-      })
+          return originalFetch(url, options)
+        }),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
 
       // Execute with credential instead of access token
       await tester.execute({
@@ -196,31 +199,34 @@ describe('Gmail Read Tool', () => {
       const originalFetch = global.fetch
 
       // First setup response for message list
-      global.fetch = vi
-        .fn()
-        .mockImplementationOnce((url, options) => {
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(mockGmailResponses.messageList),
-            headers: {
-              get: () => 'application/json',
-              forEach: () => {},
-            },
+      global.fetch = Object.assign(
+        vi
+          .fn()
+          .mockImplementationOnce((url, options) => {
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(mockGmailResponses.messageList),
+              headers: {
+                get: () => 'application/json',
+                forEach: () => {},
+              },
+            })
           })
-        })
-        .mockImplementationOnce((url, options) => {
-          // For the second request (first message)
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(mockGmailResponses.singleMessage),
-            headers: {
-              get: () => 'application/json',
-              forEach: () => {},
-            },
-          })
-        })
+          .mockImplementationOnce((url, options) => {
+            // For the second request (first message)
+            return Promise.resolve({
+              ok: true,
+              status: 200,
+              json: () => Promise.resolve(mockGmailResponses.singleMessage),
+              headers: {
+                get: () => 'application/json',
+                forEach: () => {},
+              },
+            })
+          }),
+        { preconnect: vi.fn() }
+      ) as typeof fetch
 
       // Execute the tool
       const result = await tester.execute({

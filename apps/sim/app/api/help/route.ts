@@ -66,15 +66,18 @@ export async function POST(req: NextRequest) {
     const images: { filename: string; content: Buffer; contentType: string }[] = []
 
     for (const [key, value] of formData.entries()) {
-      if (key.startsWith('image_') && value instanceof Blob) {
-        const file = value as File
-        const buffer = Buffer.from(await file.arrayBuffer())
+      if (key.startsWith('image_') && typeof value !== 'string') {
+        if (value && 'arrayBuffer' in value) {
+          const blob = value as unknown as Blob
+          const buffer = Buffer.from(await blob.arrayBuffer())
+          const filename = 'name' in value ? (value as any).name : `image_${key.split('_')[1]}`
 
-        images.push({
-          filename: file.name,
-          content: buffer,
-          contentType: file.type,
-        })
+          images.push({
+            filename,
+            content: buffer,
+            contentType: 'type' in value ? (value as any).type : 'application/octet-stream',
+          })
+        }
       }
     }
 

@@ -7,6 +7,11 @@
 import { Mock, vi } from 'vitest'
 import { ToolConfig, ToolResponse } from '../types'
 
+// Define a type that combines Mock with fetch properties
+type MockFetch = Mock & {
+  preconnect: Mock
+}
+
 /**
  * Create standard mock headers for HTTP testing
  */
@@ -35,7 +40,7 @@ export function createMockFetch(
 ) {
   const { ok = true, status = 200, headers = { 'Content-Type': 'application/json' } } = options
 
-  return vi.fn().mockResolvedValue({
+  const mockFn = vi.fn().mockResolvedValue({
     ok,
     status,
     headers: {
@@ -51,6 +56,11 @@ export function createMockFetch(
         typeof responseData === 'string' ? responseData : JSON.stringify(responseData)
       ),
   })
+
+  // Add preconnect property to satisfy TypeScript
+  ;(mockFn as any).preconnect = vi.fn()
+
+  return mockFn as MockFetch
 }
 
 /**
@@ -65,10 +75,12 @@ export function createErrorFetch(errorMessage: string, status = 400) {
   // This better mimics different kinds of errors that can happen
   if (status < 0) {
     // Network error that causes the fetch to reject
-    return vi.fn().mockRejectedValue(error)
+    const mockFn = vi.fn().mockRejectedValue(error)
+    ;(mockFn as any).preconnect = vi.fn()
+    return mockFn as MockFetch
   } else {
     // HTTP error with status code
-    return vi.fn().mockResolvedValue({
+    const mockFn = vi.fn().mockResolvedValue({
       ok: false,
       status,
       statusText: errorMessage,
@@ -87,6 +99,8 @@ export function createErrorFetch(errorMessage: string, status = 400) {
         })
       ),
     })
+    ;(mockFn as any).preconnect = vi.fn()
+    return mockFn as MockFetch
   }
 }
 
@@ -95,7 +109,7 @@ export function createErrorFetch(errorMessage: string, status = 400) {
  */
 export class ToolTester<P = any, R = any> {
   tool: ToolConfig<P, R>
-  private mockFetch: Mock
+  private mockFetch: MockFetch
   private originalFetch: typeof fetch
   private mockResponse: any
   private mockResponseOptions: { ok: boolean; status: number; headers: Record<string, string> }
@@ -126,7 +140,7 @@ export class ToolTester<P = any, R = any> {
       headers: options.headers ?? { 'content-type': 'application/json' },
     }
     this.mockFetch = createMockFetch(this.mockResponse, this.mockResponseOptions)
-    global.fetch = this.mockFetch
+    global.fetch = this.mockFetch as unknown as typeof fetch
     return this
   }
 
@@ -135,7 +149,7 @@ export class ToolTester<P = any, R = any> {
    */
   setupError(errorMessage: string, status = 400) {
     this.mockFetch = createErrorFetch(errorMessage, status)
-    global.fetch = this.mockFetch
+    global.fetch = this.mockFetch as unknown as typeof fetch
 
     // Create an error object that the transformError function can use
     this.error = new Error(errorMessage)
@@ -467,7 +481,8 @@ export function mockEnvironmentVariables(variables: Record<string, string>) {
 export function mockOAuthTokenRequest(accessToken = 'mock-access-token') {
   // Mock the fetch call to /api/auth/oauth/token
   const originalFetch = global.fetch
-  const mockTokenFetch = vi.fn().mockImplementation((url, options) => {
+
+  const mockFn = vi.fn().mockImplementation((url, options) => {
     if (url.toString().includes('/api/auth/oauth/token')) {
       return Promise.resolve({
         ok: true,
@@ -478,7 +493,12 @@ export function mockOAuthTokenRequest(accessToken = 'mock-access-token') {
     return originalFetch(url, options)
   })
 
-  global.fetch = mockTokenFetch
+  // Add preconnect property
+  ;(mockFn as any).preconnect = vi.fn()
+
+  const mockTokenFetch = mockFn as MockFetch
+
+  global.fetch = mockTokenFetch as unknown as typeof fetch
 
   // Return a cleanup function
   return () => {
