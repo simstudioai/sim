@@ -55,13 +55,12 @@ Send a message to a Discord channel
 
 #### Input
 
-| Parameter    | Type   | Required | Description                                                              |
-| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
-| `channelId`  | string | Yes      | The Discord channel ID to send the message to                            |
-| `content`    | string | No       | The text content of the message                                          |
-| `serverId`   | string | Yes      | The Discord server ID \(guild ID\)                                       |
-| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
+| Parameter   | Type   | Required | Description                                   |
+| ----------- | ------ | -------- | --------------------------------------------- |
+| `botToken`  | string | Yes      | The bot token for authentication              |
+| `channelId` | string | Yes      | The Discord channel ID to send the message to |
+| `content`   | string | No       | The text content of the message               |
+| `serverId`  | string | Yes      | The Discord server ID \(guild ID\)            |
 
 #### Output
 
@@ -75,13 +74,12 @@ Retrieve messages from a Discord channel
 
 #### Input
 
-| Parameter    | Type   | Required | Description                                                              |
-| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
-| `channelId`  | string | Yes      | The Discord channel ID to retrieve messages from                         |
-| `limit`      | number | No       | Maximum number of messages to retrieve \(default: 10, max: 100\)         |
-| `serverId`   | string | Yes      | The Discord server ID \(guild ID\)                                       |
-| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
+| Parameter   | Type   | Required | Description                                                      |
+| ----------- | ------ | -------- | ---------------------------------------------------------------- |
+| `botToken`  | string | Yes      | The bot token for authentication                                 |
+| `channelId` | string | Yes      | The Discord channel ID to retrieve messages from                 |
+| `limit`     | number | No       | Maximum number of messages to retrieve \(default: 10, max: 100\) |
+| `serverId`  | string | Yes      | The Discord server ID \(guild ID\)                               |
 
 #### Output
 
@@ -95,11 +93,10 @@ Retrieve information about a Discord server (guild)
 
 #### Input
 
-| Parameter    | Type   | Required | Description                                                              |
-| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
-| `serverId`   | string | Yes      | The Discord server ID \(guild ID\)                                       |
-| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
+| Parameter  | Type   | Required | Description                        |
+| ---------- | ------ | -------- | ---------------------------------- |
+| `botToken` | string | Yes      | The bot token for authentication   |
+| `serverId` | string | Yes      | The Discord server ID \(guild ID\) |
 
 #### Output
 
@@ -113,11 +110,10 @@ Retrieve information about a Discord user
 
 #### Input
 
-| Parameter    | Type   | Required | Description                                                              |
-| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
-| `userId`     | string | Yes      | The Discord user ID                                                      |
-| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
+| Parameter  | Type   | Required | Description                          |
+| ---------- | ------ | -------- | ------------------------------------ |
+| `botToken` | string | Yes      | Discord bot token for authentication |
+| `userId`   | string | Yes      | The Discord user ID                  |
 
 #### Output
 
