@@ -652,6 +652,23 @@ export function verifyProviderWebhook(
       break // No specific auth here
     case 'stripe':
       break // Stripe verification would go here
+    case 'gmail':
+      if (providerConfig.secret) {
+        const secretHeader = request.headers.get('X-Webhook-Secret')
+        if (!secretHeader || secretHeader.length !== providerConfig.secret.length) {
+          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
+          return new NextResponse('Unauthorized', { status: 401 })
+        }
+        let result = 0
+        for (let i = 0; i < secretHeader.length; i++) {
+          result |= secretHeader.charCodeAt(i) ^ providerConfig.secret.charCodeAt(i)
+        }
+        if (result !== 0) {
+          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
+          return new NextResponse('Unauthorized', { status: 401 })
+        }
+      }
+      break
     case 'generic':
       // Generic auth logic: requireAuth, token, secretHeaderName, allowedIps
       if (providerConfig.requireAuth) {
@@ -1272,4 +1289,68 @@ export interface AirtableChange {
   changeType: 'created' | 'updated'
   changedFields: Record<string, any> // { fieldId: newValue }
   previousFields?: Record<string, any> // { fieldId: previousValue } (optional)
+}
+
+/**
+ * Configure Gmail polling for a webhook
+ */
+export async function configureGmailPolling(
+  userId: string,
+  webhookData: any,
+  requestId: string
+): Promise<boolean> {
+  const logger = createLogger('GmailWebhookSetup')
+  logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
+
+  try {
+    const accessToken = await getOAuthToken(userId, 'google-email')
+    if (!accessToken) {
+      logger.error(`[${requestId}] Failed to retrieve Gmail access token for user ${userId}`)
+      return false
+    }
+
+    const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
+
+    const maxEmailsPerPoll =
+      typeof providerConfig.maxEmailsPerPoll === 'string'
+        ? parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
+        : providerConfig.maxEmailsPerPoll || 25
+
+    const pollingInterval =
+      typeof providerConfig.pollingInterval === 'string'
+        ? parseInt(providerConfig.pollingInterval, 10) || 5
+        : providerConfig.pollingInterval || 5
+
+    const now = new Date()
+
+    await db
+      .update(webhook)
+      .set({
+        providerConfig: {
+          ...providerConfig,
+          userId, // Store user ID for OAuth access during polling
+          maxEmailsPerPoll,
+          pollingInterval,
+          markAsRead: providerConfig.markAsRead || false,
+          labelIds: providerConfig.labelIds || ['INBOX'],
+          labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
+          lastCheckedTimestamp: now.toISOString(),
+          setupCompleted: true,
+        },
+        updatedAt: now,
+      })
+      .where(eq(webhook.id, webhookData.id))
+
+    logger.info(
+      `[${requestId}] Successfully configured Gmail polling for webhook ${webhookData.id}`
+    )
+    return true
+  } catch (error: any) {
+    logger.error(`[${requestId}] Failed to configure Gmail polling`, {
+      webhookId: webhookData.id,
+      error: error.message,
+      stack: error.stack,
+    })
+    return false
+  }
 }

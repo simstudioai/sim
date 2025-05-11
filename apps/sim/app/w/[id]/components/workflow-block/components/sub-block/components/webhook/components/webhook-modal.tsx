@@ -9,16 +9,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
-import { AirtableConfig } from './providers/airtable-config'
-import { DiscordConfig } from './providers/discord-config'
-import { GenericConfig } from './providers/generic-config'
-import { GithubConfig } from './providers/github-config'
-import { SlackConfig } from './providers/slack-config'
-import { StripeConfig } from './providers/stripe-config'
-import { TelegramConfig } from './providers/telegram-config'
-import { WhatsAppConfig } from './providers/whatsapp-config'
+import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
+import { AirtableConfig } from './providers/airtable'
+import { DiscordConfig } from './providers/discord'
+import { GenericConfig } from './providers/generic'
+import { GithubConfig } from './providers/github'
+import { GmailConfig } from './providers/gmail'
+import { SlackConfig } from './providers/slack'
+import { StripeConfig } from './providers/stripe'
+import { TelegramConfig } from './providers/telegram'
+import { WhatsAppConfig } from './providers/whatsapp'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
@@ -87,8 +87,11 @@ export function WebhookModal({
   const [airtableTableId, setAirtableTableId] = useState('')
   const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
 
-  // Original values to track changes
+  // State for storing initial values to detect changes
   const [originalValues, setOriginalValues] = useState({
+    webhookProvider,
+    webhookPath,
+    slackSigningSecret: '',
     whatsappVerificationToken: '',
     githubContentType: 'application/json',
     generalToken: '',
@@ -97,14 +100,20 @@ export function WebhookModal({
     allowedIps: '',
     discordWebhookName: '',
     discordAvatarUrl: '',
-    slackSigningSecret: '',
     airtableWebhookSecret: '',
     airtableBaseId: '',
     airtableTableId: '',
     airtableIncludeCellValues: false,
     telegramBotToken: '',
     telegramTriggerPhrase: '',
+    selectedLabels: ['INBOX'] as string[],
+    labelFilterBehavior: 'INCLUDE',
+    markAsRead: false,
   })
+
+  const [selectedLabels, setSelectedLabels] = useState<string[]>(['INBOX'])
+  const [labelFilterBehavior, setLabelFilterBehavior] = useState<'INCLUDE' | 'EXCLUDE'>('INCLUDE')
+  const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
   // Get the current provider configuration
   const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
@@ -229,6 +238,23 @@ export function WebhookModal({
                   telegramBotToken: botToken,
                   telegramTriggerPhrase: triggerPhrase,
                 }))
+              } else if (webhookProvider === 'gmail') {
+                const labelIds = config.labelIds || []
+                const labelFilterBehavior = config.labelFilterBehavior || 'INCLUDE'
+
+                setSelectedLabels(labelIds)
+                setLabelFilterBehavior(labelFilterBehavior)
+
+                setOriginalValues((prev) => ({
+                  ...prev,
+                  selectedLabels: labelIds,
+                  labelFilterBehavior,
+                }))
+
+                if (config.markAsRead !== undefined) {
+                  setMarkAsRead(config.markAsRead)
+                  setOriginalValues((prev) => ({ ...prev, markAsRead: config.markAsRead }))
+                }
               }
             }
           }
@@ -269,7 +295,12 @@ export function WebhookModal({
           airtableIncludeCellValues !== originalValues.airtableIncludeCellValues)) ||
       (webhookProvider === 'telegram' &&
         (telegramBotToken !== originalValues.telegramBotToken ||
-          telegramTriggerPhrase !== originalValues.telegramTriggerPhrase))
+          telegramTriggerPhrase !== originalValues.telegramTriggerPhrase)) ||
+      (webhookProvider === 'gmail' &&
+        (!selectedLabels.every((label) => originalValues.selectedLabels.includes(label)) ||
+          !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||
+          labelFilterBehavior !== originalValues.labelFilterBehavior ||
+          markAsRead !== originalValues.markAsRead))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -290,6 +321,9 @@ export function WebhookModal({
     airtableIncludeCellValues,
     telegramBotToken,
     telegramTriggerPhrase,
+    selectedLabels,
+    labelFilterBehavior,
+    markAsRead,
   ])
 
   // Validate required fields for current provider
@@ -314,6 +348,9 @@ export function WebhookModal({
       case 'telegram':
         isValid = telegramBotToken.trim() !== '' && telegramTriggerPhrase.trim() !== ''
         break
+      case 'gmail':
+        isValid = selectedLabels.length > 0
+        break
     }
     setIsCurrentConfigValid(isValid)
   }, [
@@ -324,6 +361,7 @@ export function WebhookModal({
     whatsappVerificationToken,
     telegramBotToken,
     telegramTriggerPhrase,
+    selectedLabels,
   ])
 
   // Use the provided path or generate a UUID-based path
@@ -356,6 +394,13 @@ export function WebhookModal({
         }
       case 'stripe':
         return {}
+      case 'gmail':
+        return {
+          labelIds: selectedLabels,
+          labelFilterBehavior,
+          markAsRead,
+          maxEmailsPerPoll: 25,
+        }
       case 'generic':
         // Parse the allowed IPs into an array
         const parsedIps = allowedIps
@@ -418,6 +463,8 @@ export function WebhookModal({
 
         if (saveSuccessful) {
           setOriginalValues({
+            webhookProvider,
+            webhookPath,
             whatsappVerificationToken,
             githubContentType,
             generalToken,
@@ -433,6 +480,9 @@ export function WebhookModal({
             airtableIncludeCellValues,
             telegramBotToken,
             telegramTriggerPhrase,
+            selectedLabels,
+            labelFilterBehavior,
+            markAsRead,
           })
           setHasUnsavedChanges(false)
           setTestResult({
@@ -591,6 +641,17 @@ export function WebhookModal({
             copied={copied}
             copyToClipboard={copyToClipboard}
             testWebhook={testWebhook}
+          />
+        )
+      case 'gmail':
+        return (
+          <GmailConfig
+            selectedLabels={selectedLabels}
+            setSelectedLabels={setSelectedLabels}
+            labelFilterBehavior={labelFilterBehavior}
+            setLabelFilterBehavior={setLabelFilterBehavior}
+            markAsRead={markAsRead}
+            setMarkAsRead={setMarkAsRead}
           />
         )
       case 'discord':

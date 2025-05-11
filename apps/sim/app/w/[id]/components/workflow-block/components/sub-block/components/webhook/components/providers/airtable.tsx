@@ -1,8 +1,11 @@
 import React from 'react'
+import { Info } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
@@ -92,13 +95,32 @@ export function AirtableConfig({
         </ConfigField>
 
         <div className="flex items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-background">
-          <div className="space-y-0.5 pr-4">
+          <div className="flex items-center gap-2">
             <Label htmlFor="include-cell-values" className="font-normal">
               Include Full Record Data
             </Label>
-            <p className="text-xs text-muted-foreground">
-              Enable to receive the complete record data in the payload, not just changes.
-            </p>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 p-1 h-6 w-6"
+                  aria-label="Learn more about including full record data"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="right"
+                align="center"
+                className="max-w-[300px] p-3 z-[100]"
+                role="tooltip"
+              >
+                <p className="text-sm">
+                  Enable to receive the complete record data in the payload, not just changes.
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
           {isLoadingToken ? (
             <Skeleton className="h-5 w-9" />

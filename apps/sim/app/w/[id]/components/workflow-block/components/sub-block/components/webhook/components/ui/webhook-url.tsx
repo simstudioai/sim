@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { CheckCheck, Copy } from 'lucide-react'
+import { CheckCheck, Copy, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 interface WebhookUrlFieldProps {
@@ -20,9 +20,31 @@ export function WebhookUrlField({
 }: WebhookUrlFieldProps) {
   return (
     <div className="space-y-1 mb-4">
-      <Label htmlFor="webhook-url" className="text-sm font-medium">
-        Webhook URL
-      </Label>
+      <div className="flex items-center gap-2">
+        <Label htmlFor="webhook-url" className="text-sm font-medium">
+          Webhook URL
+        </Label>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-gray-500 p-1 h-6 w-6"
+              aria-label="Learn more about webhook URL"
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="right"
+            align="center"
+            className="max-w-[300px] p-3 z-[100]"
+            role="tooltip"
+          >
+            <p className="text-sm">URL that will receive webhook requests</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
       <div className="flex">
         <Input
           id="webhook-url"
@@ -50,9 +72,6 @@ export function WebhookUrlField({
           )}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground mt-1">
-        This is the URL that will receive webhook requests
-      </p>
     </div>
   )
 }

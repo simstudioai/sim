@@ -11,7 +11,7 @@ import { RouterBlockHandler } from './router-handler'
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const MockPathTracker = PathTracker as MockedClass<typeof PathTracker>
-const mockFetch = global.fetch as Mock
+const mockFetch = global.fetch as unknown as Mock
 
 describe('RouterBlockHandler', () => {
   let handler: RouterBlockHandler

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Check, Copy, Eye, EyeOff } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 interface WebhookConfigFieldProps {
@@ -46,9 +47,33 @@ export function WebhookConfigField({
 
   return (
     <div className={cn('space-y-1 mb-4', className)}>
-      <Label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </Label>
+      <div className="flex items-center gap-2">
+        <Label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </Label>
+        {description && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-500 p-1 h-6 w-6"
+                aria-label={`Learn more about ${label}`}
+              >
+                <Info className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent
+              side="right"
+              align="center"
+              className="max-w-[300px] p-3 z-[100]"
+              role="tooltip"
+            >
+              <p className="text-sm">{description}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
       <div className="flex">
         <div className={cn('flex-1 relative')}>
           <Input
@@ -99,7 +124,6 @@ export function WebhookConfigField({
           )}
         </Button>
       </div>
-      {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
     </div>
   )
 }

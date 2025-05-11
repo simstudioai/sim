@@ -1,1 +1,1 @@
-cd sim && npx lint-staged 
+cd apps/sim && npx lint-staged 

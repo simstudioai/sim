@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { CheckCircle2, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import {
   AirtableIcon,
   DiscordIcon,
   GithubIcon,
+  GmailIcon,
   SlackIcon,
   StripeIcon,
   TelegramIcon,
@@ -15,6 +16,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { CredentialSelector } from '../credential-selector/credential-selector'
 import { WebhookModal } from './components/webhook-modal'
 
 const logger = createLogger('WebhookConfig')
@@ -64,6 +66,10 @@ export interface SlackConfig {
   signingSecret: string
 }
 
+export interface GmailConfig {
+  credentialId: string
+}
+
 // Define Airtable-specific configuration type
 export interface AirtableWebhookConfig {
   baseId: string
@@ -87,6 +93,7 @@ export type ProviderConfig =
   | SlackConfig
   | AirtableWebhookConfig
   | TelegramConfig
+  | GmailConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -115,6 +122,38 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         placeholder: 'application/json',
         defaultValue: 'application/json',
         description: 'The content type for GitHub webhook payloads.',
+      },
+    },
+  },
+  gmail: {
+    id: 'gmail',
+    name: 'Gmail',
+    icon: (props) => <GmailIcon {...props} />,
+    configFields: {
+      labelFilterBehavior: {
+        type: 'select',
+        label: 'Label Filter Behavior',
+        options: ['INCLUDE', 'EXCLUDE'],
+        defaultValue: 'INCLUDE',
+        description: 'Whether to include or exclude the selected labels.',
+      },
+      markAsRead: {
+        type: 'boolean',
+        label: 'Mark As Read',
+        defaultValue: false,
+        description: 'Mark emails as read after processing.',
+      },
+      maxEmailsPerPoll: {
+        type: 'string',
+        label: 'Max Emails Per Poll',
+        defaultValue: '10',
+        description: 'Maximum number of emails to process in each check.',
+      },
+      pollingInterval: {
+        type: 'string',
+        label: 'Polling Interval (minutes)',
+        defaultValue: '5',
+        description: 'How often to check for new emails.',
       },
     },
   },
@@ -256,6 +295,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const params = useParams()
   const workflowId = params.id as string
   const [isLoading, setIsLoading] = useState(false)
+  const [gmailCredentialId, setGmailCredentialId] = useState<string>('')
 
   // Get workflow store function to update webhook status
   const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
@@ -352,8 +392,16 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         setWebhookPath(path)
       }
 
+      let finalConfig = config
+      if (webhookProvider === 'gmail' && gmailCredentialId) {
+        finalConfig = {
+          ...config,
+          credentialId: gmailCredentialId,
+        }
+      }
+
       // Set the provider config in the block state
-      setProviderConfig(config)
+      setProviderConfig(finalConfig)
 
       // Save the webhook to the database
       const response = await fetch('/api/webhooks', {
@@ -365,7 +413,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           workflowId,
           path,
           provider: webhookProvider || 'generic',
-          providerConfig: config,
+          providerConfig: finalConfig,
         }),
       })
 
@@ -471,6 +519,62 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
   // Check if the webhook is connected for the selected provider
   const isWebhookConnected = webhookId && webhookProvider === actualProvider
+
+  const handleCredentialChange = (credentialId: string) => {
+    setGmailCredentialId(credentialId)
+  }
+
+  // For Gmail, we need to show the credential selector
+  if (webhookProvider === 'gmail' && !isWebhookConnected) {
+    return (
+      <div className="w-full">
+        {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
+
+        <div className="mb-3">
+          <CredentialSelector
+            value={gmailCredentialId}
+            onChange={handleCredentialChange}
+            provider="google-email"
+            requiredScopes={[
+              'https://www.googleapis.com/auth/gmail.modify',
+              'https://www.googleapis.com/auth/gmail.labels',
+            ]}
+            label="Select Gmail account"
+            disabled={isConnecting || isSaving || isDeleting}
+          />
+        </div>
+
+        {gmailCredentialId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-10 text-sm font-normal bg-background flex items-center"
+            onClick={handleOpenModal}
+            disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId}
+          >
+            {isLoading ? (
+              <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            ) : (
+              <ExternalLink className="h-4 w-4 mr-2" />
+            )}
+            Configure Webhook
+          </Button>
+        )}
+
+        {isModalOpen && (
+          <WebhookModal
+            isOpen={isModalOpen}
+            onClose={handleCloseModal}
+            webhookPath={webhookPath || ''}
+            webhookProvider={webhookProvider || 'generic'}
+            onSave={handleSaveWebhook}
+            onDelete={handleDeleteWebhook}
+            webhookId={webhookId || undefined}
+          />
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="w-full">

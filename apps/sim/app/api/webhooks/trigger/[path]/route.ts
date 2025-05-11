@@ -191,6 +191,7 @@ export async function POST(
 
   // Detect provider type
   const isAirtableWebhook = foundWebhook.provider === 'airtable'
+  const isGmailWebhook = foundWebhook.provider === 'gmail'
 
   // Handle Slack challenge verification (must be done before timeout)
   const slackChallengeResponse =
@@ -279,6 +280,49 @@ export async function POST(
       }
     } catch (error: any) {
       logger.error(`[${requestId}] Error in Airtable processing`, error)
+      return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
+    }
+  }
+
+  // For Gmail: Process with specific email handling
+  if (isGmailWebhook) {
+    try {
+      logger.info(`[${requestId}] Gmail webhook request received for webhook: ${foundWebhook.id}`)
+
+      const webhookSecret = foundWebhook.secret
+      if (webhookSecret) {
+        const secretHeader = request.headers.get('X-Webhook-Secret')
+        if (secretHeader !== webhookSecret) {
+          logger.warn(`[${requestId}] Invalid webhook secret`)
+          return new NextResponse('Unauthorized', { status: 401 })
+        }
+      }
+
+      if (body.email) {
+        logger.info(`[${requestId}] Processing Gmail email`, {
+          emailId: body.email.id,
+          subject:
+            body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value ||
+            'No subject',
+        })
+
+        const executionId = uuidv4()
+        logger.info(`[${requestId}] Executing workflow ${foundWorkflow.id} for Gmail email`)
+
+        return await processWebhook(
+          foundWebhook,
+          foundWorkflow,
+          body,
+          request,
+          executionId,
+          requestId
+        )
+      } else {
+        logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
+        return new NextResponse('Invalid payload format', { status: 400 })
+      }
+    } catch (error: any) {
+      logger.error(`[${requestId}] Error processing Gmail webhook`, error)
       return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
     }
   }

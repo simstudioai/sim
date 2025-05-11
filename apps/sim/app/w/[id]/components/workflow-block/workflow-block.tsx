@@ -291,7 +291,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const showScheduleIndicator = isStarterBlock && hasActiveSchedule
   const showWebhookIndicator = isStarterBlock && hasActiveWebhook
 
-  // Helper function to get provider name - only create once
   const getProviderName = (providerId: string): string => {
     const providers: Record<string, string> = {
       whatsapp: 'WhatsApp',
@@ -301,6 +300,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       generic: 'General',
       slack: 'Slack',
       airtable: 'Airtable',
+      gmail: 'Gmail',
     }
     return providers[providerId] || 'Webhook'
   }

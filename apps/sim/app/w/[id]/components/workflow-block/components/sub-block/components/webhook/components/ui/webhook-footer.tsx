@@ -18,6 +18,7 @@ interface WebhookDialogFooterProps {
 
 export function WebhookDialogFooter({
   webhookId,
+  webhookProvider,
   isSaving,
   isDeleting,
   isLoadingToken,
@@ -45,12 +46,12 @@ export function WebhookDialogFooter({
             ) : (
               <Trash2 className="h-4 w-4 mr-2" />
             )}
-            {isDeleting ? 'Deleting...' : 'Delete Webhook'}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         )}
       </div>
       <div className="flex gap-2">
-        {webhookId && (
+        {webhookId && webhookProvider !== 'gmail' && (
           <Button
             type="button"
             variant="outline"

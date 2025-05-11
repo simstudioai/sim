@@ -8,6 +8,14 @@ import { refreshAccessTokenIfNeeded } from '../../utils'
 
 const logger = createLogger('GmailLabelsAPI')
 
+interface GmailLabel {
+  id: string
+  name: string
+  type: 'system' | 'user'
+  messagesTotal?: number
+  messagesUnread?: number
+}
+
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
@@ -57,7 +65,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch labels from Gmail API
-    logger.info(`[${requestId}] Fetching labels from Gmail API`)
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -80,12 +87,13 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-
-    // Log the number of labels received
-    logger.info(`[${requestId}] Received ${data.labels?.length || 0} labels from Gmail API`)
+    if (!Array.isArray(data.labels)) {
+      logger.error(`[${requestId}] Unexpected labels response structure:`, data)
+      return NextResponse.json({ error: 'Invalid labels response' }, { status: 500 })
+    }
 
     // Transform the labels to a more usable format
-    const labels = data.labels.map((label: any) => {
+    const labels = data.labels.map((label: GmailLabel) => {
       // Format the label name with proper capitalization
       let formattedName = label.name
 
@@ -106,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     // Filter labels if a query is provided
     const filteredLabels = query
-      ? labels.filter((label: any) =>
+      ? labels.filter((label: GmailLabel) =>
           label.name.toLowerCase().includes((query as string).toLowerCase())
         )
       : labels
