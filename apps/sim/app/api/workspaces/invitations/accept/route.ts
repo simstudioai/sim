@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   
   if (!token) {
     // Redirect to a page explaining the error
-    return NextResponse.redirect(new URL('/invitation-error?reason=missing-token', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+    return NextResponse.redirect(new URL('/invite/invite-error?reason=missing-token', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
   }
   
   const session = await getSession()
@@ -30,22 +30,22 @@ export async function GET(req: NextRequest) {
       .then(rows => rows[0])
     
     if (!invitation) {
-      return NextResponse.redirect(new URL('/invitation-error?reason=invalid-token', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+      return NextResponse.redirect(new URL('/invite/invite-error?reason=invalid-token', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
     // Check if invitation has expired
     if (new Date() > new Date(invitation.expiresAt)) {
-      return NextResponse.redirect(new URL('/invitation-error?reason=expired', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+      return NextResponse.redirect(new URL('/invite/invite-error?reason=expired', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
     // Check if invitation is already accepted
     if (invitation.status !== 'pending') {
-      return NextResponse.redirect(new URL('/invitation-error?reason=already-processed', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+      return NextResponse.redirect(new URL('/invite/invite-error?reason=already-processed', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
     // Check if invitation email matches the logged-in user
     if (invitation.email.toLowerCase() !== session.user.email.toLowerCase()) {
-      return NextResponse.redirect(new URL('/invitation-error?reason=email-mismatch', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+      return NextResponse.redirect(new URL('/invite/invite-error?reason=email-mismatch', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
     // Get the workspace details
@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
       .then(rows => rows[0])
     
     if (!workspaceDetails) {
-      return NextResponse.redirect(new URL('/invitation-error?reason=workspace-not-found', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+      return NextResponse.redirect(new URL('/invite/invite-error?reason=workspace-not-found', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
     // Check if user is already a member
@@ -109,6 +109,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL(`/w/${invitation.workspaceId}`, process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
   } catch (error) {
     console.error('Error accepting invitation:', error)
-    return NextResponse.redirect(new URL('/invitation-error?reason=server-error', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+    return NextResponse.redirect(new URL('/invite/invite-error?reason=server-error', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
   }
 } 
