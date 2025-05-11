@@ -33,6 +33,22 @@ export const InvitationEmail = ({
   invitedEmail = '',
   updatedDate = new Date(),
 }: InvitationEmailProps) => {
+  // Extract invitation ID or token from inviteLink if present
+  let enhancedLink = inviteLink
+
+  // Check if link contains an ID (old format) and append token parameter if needed
+  if (inviteLink && !inviteLink.includes('token=')) {
+    try {
+      const url = new URL(inviteLink)
+      const invitationId = url.pathname.split('/').pop()
+      if (invitationId) {
+        enhancedLink = `${baseUrl}/invite/${invitationId}?token=${invitationId}`
+      }
+    } catch (e) {
+      console.error('Error parsing invite link:', e)
+    }
+  }
+
   return (
     <Html>
       <Head />
@@ -69,7 +85,7 @@ export const InvitationEmail = ({
               <strong>{organizationName}</strong> on Sim Studio. Sim Studio is a powerful,
               user-friendly platform for building, testing, and optimizing agentic workflows.
             </Text>
-            <Link href={inviteLink} style={{ textDecoration: 'none' }}>
+            <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
             <Text style={baseStyles.paragraph}>

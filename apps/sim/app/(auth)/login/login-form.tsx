@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,11 +35,16 @@ export default function LoginPage({
   isProduction: boolean
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
+
+  // Extract callbackUrl from the URL for both form and OAuth providers
+  const callbackUrl = searchParams?.get('callbackUrl') || '/w'
+  const isInviteFlow = searchParams?.get('invite_flow') === 'true'
 
   // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
@@ -62,11 +67,12 @@ export default function LoginPage({
     const email = formData.get('email') as string
 
     try {
+      // Use the extracted callbackUrl instead of hardcoded value
       const result = await client.signIn.email(
         {
           email,
           password,
-          callbackURL: '/w',
+          callbackURL: callbackUrl,
         },
         {
           onError: (ctx) => {
@@ -214,14 +220,18 @@ export default function LoginPage({
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardDescription>
+              {isInviteFlow
+                ? 'Sign in to continue to the invitation'
+                : 'Enter your credentials to access your account'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-6">
               <SocialLoginButtons
                 githubAvailable={githubAvailable}
                 googleAvailable={googleAvailable}
-                callbackURL="/w"
+                callbackURL={callbackUrl}
                 isProduction={isProduction}
               />
               <div className="relative">
@@ -289,7 +299,10 @@ export default function LoginPage({
           <CardFooter>
             <p className="text-sm text-gray-500 text-center w-full">
               Don't have an account?{' '}
-              <Link href="/signup" className="text-primary hover:underline">
+              <Link
+                href={`/signup${searchParams ? `?${searchParams.toString()}` : ''}`}
+                className="text-primary hover:underline"
+              >
                 Sign up
               </Link>
             </p>

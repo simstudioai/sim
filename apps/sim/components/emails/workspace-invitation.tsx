@@ -28,6 +28,22 @@ export const WorkspaceInvitationEmail = ({
   inviterName = 'Someone',
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) => {
+  // Extract token from the link to ensure we're using the correct format
+  let enhancedLink = invitationLink
+
+  try {
+    // If the link is pointing to the API endpoint directly, update it to use the client route
+    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
+      const url = new URL(invitationLink)
+      const token = url.searchParams.get('token')
+      if (token) {
+        enhancedLink = `${baseUrl}/invite/${token}?token=${token}`
+      }
+    }
+  } catch (e) {
+    console.error('Error enhancing invitation link:', e)
+  }
+
   return (
     <Html>
       <Head />
@@ -68,7 +84,7 @@ export const WorkspaceInvitationEmail = ({
               Sim Studio is a powerful platform for building, testing, and optimizing AI workflows.
               Join this workspace to collaborate with your team.
             </Text>
-            <Link href={invitationLink} style={{ textDecoration: 'none' }}>
+            <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
             <Text style={baseStyles.paragraph}>

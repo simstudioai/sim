@@ -355,6 +355,13 @@ export function WorkspaceHeader({
   }
 
   const handleUpdateWorkspace = async (id: string, name: string) => {
+    // Check if user has permission to update the workspace
+    const workspace = workspaces.find((w) => w.id === id)
+    if (!workspace || workspace.role !== 'owner') {
+      console.error('Permission denied: Only workspace owners can update workspaces')
+      return
+    }
+
     setIsWorkspacesLoading(true)
 
     try {
@@ -389,6 +396,13 @@ export function WorkspaceHeader({
   }
 
   const handleDeleteWorkspace = async (id: string) => {
+    // Check if user has permission to delete the workspace
+    const workspace = workspaces.find((w) => w.id === id)
+    if (!workspace || workspace.role !== 'owner') {
+      console.error('Permission denied: Only workspace owners can delete workspaces')
+      return
+    }
+
     setIsDeleting(true)
 
     try {
@@ -422,6 +436,11 @@ export function WorkspaceHeader({
 
   const openEditModal = (workspace: Workspace, e: React.MouseEvent) => {
     e.stopPropagation()
+    // Check if user has permission to edit the workspace
+    if (workspace.role !== 'owner') {
+      console.error('Permission denied: Only workspace owners can edit workspaces')
+      return
+    }
     setEditingWorkspace(workspace)
     setIsEditModalOpen(true)
   }
@@ -600,55 +619,57 @@ export function WorkspaceHeader({
                     onClick={() => switchWorkspace(workspace)}
                   >
                     <span className="truncate pr-16">{workspace.name}</span>
-                    <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 p-0 text-muted-foreground"
-                        onClick={(e) => openEditModal(workspace, e)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
+                    {workspace.role === 'owner' && (
+                      <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 p-0 text-muted-foreground"
+                          onClick={(e) => openEditModal(workspace, e)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span className="sr-only">Edit</span>
+                        </Button>
 
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 p-0 text-muted-foreground"
-                            onClick={(e) => e.stopPropagation()}
-                            disabled={isDeleting || workspaces.length <= 1}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            <span className="sr-only">Delete</span>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete "{workspace.name}"? This action cannot
-                              be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
-                              Cancel
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteWorkspace(workspace.id)
-                              }}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 p-0 text-muted-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                              disabled={isDeleting || workspaces.length <= 1}
                             >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Workspace</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete "{workspace.name}"? This action
+                                cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+                                Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDeleteWorkspace(workspace.id)
+                                }}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
                   </DropdownMenuItem>
                 ))}
               </div>
