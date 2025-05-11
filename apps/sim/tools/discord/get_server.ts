@@ -1,6 +1,6 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { DiscordGetServerParams, DiscordGetServerResponse } from './types'
-import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('DiscordGetServer')
 
@@ -9,7 +9,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   name: 'Discord Get Server',
   description: 'Retrieve information about a Discord server (guild)',
   version: '1.0.0',
-  
+
   params: {
     serverId: {
       type: 'string',
@@ -27,38 +27,39 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
       description: 'Discord OAuth credential ID (required if botToken not provided)',
     },
   },
-  
+
   request: {
-    url: (params: DiscordGetServerParams) => `https://discord.com/api/v10/guilds/${params.serverId}`,
+    url: (params: DiscordGetServerParams) =>
+      `https://discord.com/api/v10/guilds/${params.serverId}`,
     method: 'GET',
     headers: (params: DiscordGetServerParams) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
-      
+
       // If botToken is provided, use it for authorization
       if (params.botToken) {
         headers['Authorization'] = `Bot ${params.botToken}`
       }
-      
+
       return headers
     },
   },
-  
+
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       let errorMessage = `Discord API error: ${response.status} ${response.statusText}`
-      
+
       try {
         const errorData = await response.json()
-        logger.error('Discord API error', { 
-          status: response.status, 
+        logger.error('Discord API error', {
+          status: response.status,
           error: errorData,
         })
       } catch (e) {
         logger.error('Error parsing Discord API response', { status: response.status, error: e })
       }
-      
+
       return {
         success: false,
         output: {
@@ -67,7 +68,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
         error: errorMessage,
       }
     }
-    
+
     let serverData
     try {
       serverData = await response.json()
@@ -76,10 +77,10 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
       return {
         success: false,
         error: 'Failed to parse server data',
-        output: { message: 'Failed to parse server data' }
+        output: { message: 'Failed to parse server data' },
       }
     }
-    
+
     return {
       success: true,
       output: {
@@ -88,9 +89,9 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
       },
     }
   },
-  
+
   transformError: (error: any): string => {
     logger.error('Error fetching Discord server', { error })
     return `Error fetching Discord server: ${error.error || String(error.error)}`
   },
-} 
+}

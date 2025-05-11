@@ -7,6 +7,7 @@ import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/conflue
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord-channel-selector'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -84,50 +85,89 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   // Render Discord channel selector
   if (isDiscord) {
     return (
-      <DiscordChannelSelector
-        value={selectedChannelId}
-        onChange={handleChannelChange}
-        botToken={botToken}
-        serverId={serverId}
-        label={subBlock.placeholder || 'Select Discord channel'}
-        disabled={disabled || !botToken || !serverId}
-        showPreview={true}
-      />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <DiscordChannelSelector
+                value={selectedChannelId}
+                onChange={handleChannelChange}
+                botToken={botToken}
+                serverId={serverId}
+                label={subBlock.placeholder || 'Select Discord channel'}
+                disabled={disabled || !botToken || !serverId}
+                showPreview={true}
+              />
+            </div>
+          </TooltipTrigger>
+          {(!botToken || !serverId) && (
+            <TooltipContent side="top">
+              <p>{!botToken ? 'Please enter a Bot Token first' : 'Please select a Server first'}</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
   // Render the appropriate picker based on provider
   if (isConfluence) {
     return (
-      <ConfluenceFileSelector
-        value={selectedFileId}
-        onChange={handleFileChange}
-        domain={domain}
-        provider="confluence"
-        requiredScopes={subBlock.requiredScopes || []}
-        serviceId={subBlock.serviceId}
-        label={subBlock.placeholder || 'Select Confluence page'}
-        disabled={disabled}
-        showPreview={true}
-        onFileInfoChange={setFileInfo as (info: ConfluenceFileInfo | null) => void}
-      />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <ConfluenceFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                domain={domain}
+                provider="confluence"
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Confluence page'}
+                disabled={disabled || !domain}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: ConfluenceFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!domain && (
+            <TooltipContent side="top">
+              <p>Please enter a Confluence domain first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
   if (isJira) {
     return (
-      <JiraIssueSelector
-        value={selectedIssueId}
-        onChange={handleIssueChange}
-        domain={domain}
-        provider="jira"
-        requiredScopes={subBlock.requiredScopes || []}
-        serviceId={subBlock.serviceId}
-        label={subBlock.placeholder || 'Select Jira issue'}
-        disabled={false}
-        showPreview={true}
-        onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
-      />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <JiraIssueSelector
+                value={selectedIssueId}
+                onChange={handleIssueChange}
+                domain={domain}
+                provider="jira"
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Jira issue'}
+                disabled={disabled || !domain}
+                showPreview={true}
+                onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!domain && (
+            <TooltipContent side="top">
+              <p>Please enter a Jira domain first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 

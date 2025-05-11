@@ -1,15 +1,18 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { DiscordGetMessagesParams, DiscordGetMessagesResponse } from './types'
-import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('DiscordGetMessages')
 
-export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, DiscordGetMessagesResponse> = {
+export const discordGetMessagesTool: ToolConfig<
+  DiscordGetMessagesParams,
+  DiscordGetMessagesResponse
+> = {
   id: 'discord_get_messages',
   name: 'Discord Get Messages',
   description: 'Retrieve messages from a Discord channel',
   version: '1.0.0',
-  
+
   params: {
     channelId: {
       type: 'string',
@@ -37,7 +40,7 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
       description: 'Discord OAuth credential ID (required if botToken not provided)',
     },
   },
-  
+
   request: {
     url: (params: DiscordGetMessagesParams) => {
       const limit = Math.min(params.limit || 10, 100)
@@ -48,20 +51,20 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       }
-      
+
       // If botToken is provided, use it for authorization
       if (params.botToken) {
         headers['Authorization'] = `Bot ${params.botToken}`
       }
-      
+
       return headers
     },
   },
-  
+
   transformResponse: async (response) => {
     if (!response.ok) {
       let errorMessage = `Failed to get Discord messages: ${response.status} ${response.statusText}`
-      
+
       try {
         const errorData = await response.json()
         errorMessage = `Failed to get Discord messages: ${errorData.message || response.statusText}`
@@ -69,7 +72,7 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
       } catch (e) {
         logger.error('Error parsing Discord API response', { status: response.status, error: e })
       }
-      
+
       return {
         success: false,
         output: {
@@ -78,7 +81,7 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
         error: errorMessage,
       }
     }
-    
+
     let messages
     try {
       messages = await response.json()
@@ -86,7 +89,7 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
       return {
         success: false,
         error: 'Failed to parse messages',
-        output: { message: 'Failed to parse messages' }
+        output: { message: 'Failed to parse messages' },
       }
     }
     return {
@@ -100,9 +103,9 @@ export const discordGetMessagesTool: ToolConfig<DiscordGetMessagesParams, Discor
       },
     }
   },
-  
+
   transformError: (error) => {
     logger.error('Error retrieving Discord messages', { error })
     return `Error retrieving Discord messages: ${error.error || String(error.error)}`
   },
-} 
+}

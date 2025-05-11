@@ -5,6 +5,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 import { DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -29,7 +30,6 @@ export function ProjectSelectorInput({
   
   // For Jira, we need the domain
   const domain = !isDiscord ? (getValue(blockId, 'domain') as string || '') : ''
-  const credentials = getValue(blockId, 'credential') as string || ''
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string || '') : ''
 
   // Get the current value from the store
@@ -61,32 +61,58 @@ export function ProjectSelectorInput({
   // Render Discord server selector if provider is discord
   if (isDiscord) {
     return (
-      <DiscordServerSelector
-        value={selectedProjectId}
-        onChange={(serverId: string, serverInfo?: DiscordServerInfo) => {
-          handleProjectChange(serverId, serverInfo)
-        }}
-        botToken={botToken}
-        label={subBlock.placeholder || 'Select Discord server'}
-        disabled={disabled || !botToken}
-        showPreview={true}
-      />
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <DiscordServerSelector
+                value={selectedProjectId}
+                onChange={(serverId: string, serverInfo?: DiscordServerInfo) => {
+                  handleProjectChange(serverId, serverInfo)
+                }}
+                botToken={botToken}
+                label={subBlock.placeholder || 'Select Discord server'}
+                disabled={disabled || !botToken}
+                showPreview={true}
+              />
+            </div>
+          </TooltipTrigger>
+          {!botToken && (
+            <TooltipContent side="top">
+              <p>Please enter a Bot Token first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
   // Default to Jira project selector
   return (
-    <JiraProjectSelector
-      value={selectedProjectId}
-      onChange={handleProjectChange}
-      domain={domain}
-      provider="jira"
-      requiredScopes={subBlock.requiredScopes || []}
-      serviceId={subBlock.serviceId}
-      label={subBlock.placeholder || 'Select Jira project'}
-      disabled={disabled}
-      showPreview={true}
-      onProjectInfoChange={setProjectInfo as (info: JiraProjectInfo | null) => void}
-    />
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-full">
+            <JiraProjectSelector
+              value={selectedProjectId}
+              onChange={handleProjectChange}
+              domain={domain}
+              provider="jira"
+              requiredScopes={subBlock.requiredScopes || []}
+              serviceId={subBlock.serviceId}
+              label={subBlock.placeholder || 'Select Jira project'}
+              disabled={disabled}
+              showPreview={true}
+              onProjectInfoChange={(info: JiraProjectInfo | null) => setProjectInfo(info)}
+            />
+          </div>
+        </TooltipTrigger>
+        {!domain && (
+          <TooltipContent side="top">
+            <p>Please enter a Jira domain first</p>
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
   )
 }
