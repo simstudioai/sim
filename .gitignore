@@ -8,7 +8,7 @@
 
 # bun specific
 .bun
-bun.lockb
+bun.lock
 bun-debug.log*
 
 # testing
