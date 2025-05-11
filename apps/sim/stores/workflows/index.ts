@@ -82,9 +82,6 @@ export function getAllWorkflowsWithValues() {
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
 
-  // Log for debugging
-  logger.info(`Preparing workflows for sync with active workspace: ${activeWorkspaceId}`)
-
   for (const [id, metadata] of Object.entries(workflows)) {
     // Skip workflows that don't belong to the active workspace
     if (activeWorkspaceId && metadata.workspaceId !== activeWorkspaceId) {
@@ -138,10 +135,7 @@ export function getAllWorkflowsWithValues() {
       },
     }
   }
-
-  logger.info(
-    `Prepared ${Object.keys(result).length} workflows for sync from workspace ${activeWorkspaceId}`
-  )
+  
   return result
 }
 

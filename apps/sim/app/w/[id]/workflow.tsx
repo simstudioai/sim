@@ -270,7 +270,6 @@ function WorkflowContent() {
 
       // Wait for any active DB loading to complete before switching workflows
       if (isActivelyLoadingFromDB()) {
-        logger.info('Waiting for DB loading to complete before switching workflow')
         const checkInterval = setInterval(() => {
           if (!isActivelyLoadingFromDB()) {
             clearInterval(checkInterval)
