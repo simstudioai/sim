@@ -49,7 +49,10 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getKeyboardShortcutText, useKeyboardShortcuts } from '../../hooks/use-keyboard-shortcuts'
+import {
+  getKeyboardShortcutText,
+  useKeyboardShortcuts,
+} from '../../../hooks/use-keyboard-shortcuts'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -579,11 +582,6 @@ export function ControlBar() {
         addNotification('info', 'Workflow run cancelled', activeWorkflowId)
       } else if (workflowError) {
         addNotification('error', 'Failed to complete all workflow runs', activeWorkflowId)
-      } else {
-        // Success notification for batch runs
-        if (runCount > 1) {
-          addNotification('console', `Completed ${completedRuns} workflow runs`, activeWorkflowId)
-        }
       }
     }
   }
@@ -1040,7 +1038,7 @@ export function ControlBar() {
                         : `Run (${runCount})`}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
             {usageExceeded ? (
               <div className="text-center">
                 <p className="font-medium text-destructive">Usage Limit Exceeded</p>
@@ -1056,9 +1054,6 @@ export function ControlBar() {
                   : runCount === 1
                     ? 'Run Workflow'
                     : `Run Workflow ${runCount} times`}
-                <span className="text-xs text-muted-foreground ml-1">
-                  {getKeyboardShortcutText('Enter', true)}
-                </span>
               </>
             )}
           </TooltipContent>

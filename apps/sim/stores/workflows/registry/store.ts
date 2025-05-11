@@ -322,8 +322,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: parsedState.lastSaved || Date.now(),
           })
-
-          logger.info(`Switched to workflow ${id}`)
         } else {
           // If no saved state, initialize with empty state
           useWorkflowStore.setState({

@@ -20,6 +20,8 @@ interface NavItemProps {
   active?: boolean
   onClick?: () => void
   isCollapsed?: boolean
+  shortcutCommand?: string
+  shortcutCommandPosition?: 'inline' | 'below'
 }
 
 export function NavSection({
@@ -30,7 +32,7 @@ export function NavSection({
 }: NavSectionProps) {
   if (isLoading) {
     return (
-      <nav className="space-y-[1px]">
+      <nav className="space-y-1">
         {Array(itemCount)
           .fill(0)
           .map((_, i) => (
@@ -40,10 +42,19 @@ export function NavSection({
     )
   }
 
-  return <nav className="space-y-[1px]">{children}</nav>
+  return <nav className="space-y-1">{children}</nav>
 }
 
-function NavItem({ icon, label, href, active, onClick, isCollapsed }: NavItemProps) {
+function NavItem({
+  icon,
+  label,
+  href,
+  active,
+  onClick,
+  isCollapsed,
+  shortcutCommand,
+  shortcutCommandPosition = 'inline',
+}: NavItemProps) {
   const className = clsx(
     'flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium',
     active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
@@ -71,7 +82,13 @@ function NavItem({ icon, label, href, active, onClick, isCollapsed }: NavItemPro
               {content}
             </Link>
           </TooltipTrigger>
-          <TooltipContent side="right">{label}</TooltipContent>
+          <TooltipContent
+            side="right"
+            command={shortcutCommand}
+            commandPosition={shortcutCommandPosition}
+          >
+            {label}
+          </TooltipContent>
         </Tooltip>
       )
     }
@@ -83,7 +100,13 @@ function NavItem({ icon, label, href, active, onClick, isCollapsed }: NavItemPro
             {content}
           </button>
         </TooltipTrigger>
-        <TooltipContent side="right">{label}</TooltipContent>
+        <TooltipContent
+          side="right"
+          command={shortcutCommand}
+          commandPosition={shortcutCommandPosition}
+        >
+          {label}
+        </TooltipContent>
       </Tooltip>
     )
   }

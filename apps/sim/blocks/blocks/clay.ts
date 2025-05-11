@@ -5,7 +5,7 @@ import { BlockConfig } from '../types'
 export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
   type: 'clay',
   name: 'Clay',
-  description: 'Populate Clay workbook with data',
+  description: 'Populate Clay workbook',
   longDescription:
     'Populate Clay workbook with data using a JSON or plain text. Enables direct communication and notifications with channel confirmation.',
   docsLink: 'https://docs.simstudio.ai/tools/clay',

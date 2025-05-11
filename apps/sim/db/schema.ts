@@ -359,3 +359,20 @@ export const workspaceMember = pgTable(
     }
   }
 )
+
+export const workspaceInvitation = pgTable('workspace_invitation', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspace.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  inviterId: text('inviter_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('member'),
+  status: text('status').notNull().default('pending'),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

@@ -349,9 +349,6 @@ const workflowSyncConfig = {
   method: 'POST' as const,
   syncOnInterval: true,
   syncOnExit: true,
-  onSyncSuccess: async () => {
-    logger.info('Workflows synced to DB successfully')
-  },
 }
 
 // Create the sync manager
