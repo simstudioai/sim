@@ -18,7 +18,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Logger } from '@/lib/logs/console-logger'
 import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
 import { ConfigSection } from '../ui/config-section'
-import { TestResultDisplay } from '../ui/test-result'
 
 const logger = new Logger('GmailConfig')
 
@@ -90,20 +89,8 @@ interface GmailConfigProps {
   setSelectedLabels: (labels: string[]) => void
   labelFilterBehavior: string
   setLabelFilterBehavior: (behavior: string) => void
-  isLoadingToken: boolean
-  testResult: {
-    success: boolean
-    message?: string
-    test?: any
-  } | null
-  copied: string | null
-  copyToClipboard: (text: string, type: string) => void
-  testWebhook: () => Promise<void>
-  webhookUrl: string
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
-  singleEmailMode?: boolean
-  setSingleEmailMode?: (singleMode: boolean) => void
 }
 
 export function GmailConfig({
@@ -111,11 +98,6 @@ export function GmailConfig({
   setSelectedLabels,
   labelFilterBehavior,
   setLabelFilterBehavior,
-  isLoadingToken,
-  testResult,
-  copied,
-  copyToClipboard,
-  webhookUrl,
   markAsRead = false,
   setMarkAsRead = () => {},
 }: GmailConfigProps) {
@@ -294,13 +276,6 @@ export function GmailConfig({
           </div>
         </div>
       </ConfigSection>
-
-      <TestResultDisplay
-        testResult={testResult}
-        copied={copied}
-        copyToClipboard={copyToClipboard}
-        showCurlCommand={false}
-      />
 
       <Notice
         variant="default"

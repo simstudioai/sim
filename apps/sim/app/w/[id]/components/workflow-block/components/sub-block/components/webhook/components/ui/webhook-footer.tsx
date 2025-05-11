@@ -18,6 +18,7 @@ interface WebhookDialogFooterProps {
 
 export function WebhookDialogFooter({
   webhookId,
+  webhookProvider,
   isSaving,
   isDeleting,
   isLoadingToken,
@@ -50,7 +51,7 @@ export function WebhookDialogFooter({
         )}
       </div>
       <div className="flex gap-2">
-        {webhookId && (
+        {webhookId && webhookProvider !== 'gmail' && (
           <Button
             type="button"
             variant="outline"

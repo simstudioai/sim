@@ -1336,7 +1336,6 @@ export async function configureGmailPolling(
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
           lastCheckedTimestamp: now.toISOString(),
           setupCompleted: true,
-          singleEmailMode: false, // Always set to false to process all emails individually
         },
         updatedAt: now,
       })

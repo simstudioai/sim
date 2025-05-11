@@ -9,16 +9,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
-import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook-config'
-import { AirtableConfig } from './providers/airtable-config'
-import { DiscordConfig } from './providers/discord-config'
-import { GenericConfig } from './providers/generic-config'
-import { GithubConfig } from './providers/github-config'
-import { GmailConfig } from './providers/gmail-config'
-import { SlackConfig } from './providers/slack-config'
-import { StripeConfig } from './providers/stripe-config'
-import { TelegramConfig } from './providers/telegram-config'
-import { WhatsAppConfig } from './providers/whatsapp-config'
+import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
+import { AirtableConfig } from './providers/airtable'
+import { DiscordConfig } from './providers/discord'
+import { GenericConfig } from './providers/generic'
+import { GithubConfig } from './providers/github'
+import { GmailConfig } from './providers/gmail'
+import { SlackConfig } from './providers/slack'
+import { StripeConfig } from './providers/stripe'
+import { TelegramConfig } from './providers/telegram'
+import { WhatsAppConfig } from './providers/whatsapp'
 import { DeleteConfirmDialog } from './ui/confirmation'
 import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
@@ -400,7 +400,6 @@ export function WebhookModal({
           labelFilterBehavior,
           markAsRead,
           maxEmailsPerPoll: 25,
-          singleEmailMode: false,
         }
       case 'generic':
         // Parse the allowed IPs into an array
@@ -651,16 +650,8 @@ export function WebhookModal({
             setSelectedLabels={setSelectedLabels}
             labelFilterBehavior={labelFilterBehavior}
             setLabelFilterBehavior={setLabelFilterBehavior}
-            isLoadingToken={isLoadingToken}
-            testResult={testResult}
-            copied={copied}
-            copyToClipboard={copyToClipboard}
-            testWebhook={testWebhook}
-            webhookUrl={webhookUrl}
             markAsRead={markAsRead}
             setMarkAsRead={setMarkAsRead}
-            singleEmailMode={false}
-            setSingleEmailMode={() => {}}
           />
         )
       case 'discord':

@@ -15,8 +15,8 @@ import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { CredentialSelector } from '../../components/credential-selector/credential-selector'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { CredentialSelector } from '../credential-selector/credential-selector'
 import { WebhookModal } from './components/webhook-modal'
 
 const logger = createLogger('WebhookConfig')
