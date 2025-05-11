@@ -10,7 +10,6 @@ const logger = new Logger('GmailPollingService')
 interface GmailWebhookConfig {
   labelIds: string[]
   labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
-  processIncomingEmails: boolean
   markAsRead: boolean
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
@@ -62,12 +61,8 @@ export async function pollGmailWebhooks() {
           // Get webhook configuration
           const config = webhookData.providerConfig as unknown as GmailWebhookConfig
 
-          if (!config || !config.processIncomingEmails) {
-            logger.info(
-              `[${requestId}] Webhook ${webhookId} is not configured to process incoming emails`
-            )
-            return { success: false, webhookId, error: 'Not configured to process emails' }
-          }
+          // Always process emails for active webhooks
+          // We've removed the processIncomingEmails check since active webhooks will always process emails
 
           // Remove the polling interval check since we're controlling execution frequency via CRON
           // We always want to check for new emails every time this function is called

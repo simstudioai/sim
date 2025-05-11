@@ -149,7 +149,7 @@ export function SlackConfig({
       >
         Your workflow will receive a payload similar to this when a subscribed event occurs:
         <div className="mt-2 text-sm font-mono break-normal whitespace-normal overflow-wrap-anywhere">
-          <JSONView data={JSON.parse(exampleEvent)} initiallyExpanded={true} />
+          <JSONView data={JSON.parse(exampleEvent)} />
         </div>
       </Notice>
     </div>

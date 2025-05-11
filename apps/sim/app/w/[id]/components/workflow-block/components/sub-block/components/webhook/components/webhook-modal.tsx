@@ -108,14 +108,12 @@ export function WebhookModal({
     telegramTriggerPhrase: '',
     selectedLabels: ['INBOX'] as string[],
     labelFilterBehavior: 'INCLUDE',
-    processIncomingEmails: true,
     markAsRead: false,
   })
 
   // Gmail config state
   const [selectedLabels, setSelectedLabels] = useState<string[]>(['INBOX'])
   const [labelFilterBehavior, setLabelFilterBehavior] = useState<string>('INCLUDE')
-  const [processIncomingEmails, setProcessIncomingEmails] = useState<boolean>(true)
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
   // Get the current provider configuration
@@ -244,17 +242,14 @@ export function WebhookModal({
               } else if (webhookProvider === 'gmail') {
                 const labelIds = config.labelIds || []
                 const labelFilterBehavior = config.labelFilterBehavior || 'INCLUDE'
-                const processIncomingEmails = config.processIncomingEmails !== false
 
                 setSelectedLabels(labelIds)
                 setLabelFilterBehavior(labelFilterBehavior)
-                setProcessIncomingEmails(processIncomingEmails)
 
                 setOriginalValues((prev) => ({
                   ...prev,
                   selectedLabels: labelIds,
                   labelFilterBehavior,
-                  processIncomingEmails,
                 }))
 
                 // Set additional Gmail config options if they exist
@@ -306,7 +301,6 @@ export function WebhookModal({
       (webhookProvider === 'gmail' &&
         (selectedLabels.length !== originalValues.selectedLabels.length ||
           labelFilterBehavior !== originalValues.labelFilterBehavior ||
-          processIncomingEmails !== originalValues.processIncomingEmails ||
           markAsRead !== originalValues.markAsRead))
 
     setHasUnsavedChanges(hasChanges)
@@ -330,7 +324,6 @@ export function WebhookModal({
     telegramTriggerPhrase,
     selectedLabels,
     labelFilterBehavior,
-    processIncomingEmails,
     markAsRead,
   ])
 
@@ -405,7 +398,6 @@ export function WebhookModal({
         return {
           labelIds: selectedLabels,
           labelFilterBehavior,
-          processIncomingEmails,
           markAsRead,
           maxEmailsPerPoll: 25,
           singleEmailMode: false,
@@ -491,7 +483,6 @@ export function WebhookModal({
             telegramTriggerPhrase,
             selectedLabels,
             labelFilterBehavior,
-            processIncomingEmails,
             markAsRead,
           })
           setHasUnsavedChanges(false)
@@ -660,8 +651,6 @@ export function WebhookModal({
             setSelectedLabels={setSelectedLabels}
             labelFilterBehavior={labelFilterBehavior}
             setLabelFilterBehavior={setLabelFilterBehavior}
-            processIncomingEmails={processIncomingEmails}
-            setProcessIncomingEmails={setProcessIncomingEmails}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}

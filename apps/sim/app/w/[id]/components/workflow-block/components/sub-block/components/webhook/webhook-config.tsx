@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { CheckCircle2, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import {
   AirtableIcon,
   DiscordIcon,
@@ -15,9 +15,9 @@ import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { CredentialSelector } from '../../components/credential-selector/credential-selector'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { WebhookModal } from './components/webhook-modal'
-import { CredentialSelector } from '../../components/credential-selector/credential-selector'
 
 const logger = createLogger('WebhookConfig')
 
@@ -66,6 +66,10 @@ export interface SlackConfig {
   signingSecret: string
 }
 
+export interface GmailConfig {
+  credentialId: string
+}
+
 // Define Airtable-specific configuration type
 export interface AirtableWebhookConfig {
   baseId: string
@@ -89,6 +93,7 @@ export type ProviderConfig =
   | SlackConfig
   | AirtableWebhookConfig
   | TelegramConfig
+  | GmailConfig
   | Record<string, never>
 
 // Define available webhook providers
@@ -131,12 +136,6 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         options: ['INCLUDE', 'EXCLUDE'],
         defaultValue: 'INCLUDE',
         description: 'Whether to include or exclude the selected labels.',
-      },
-      processIncomingEmails: {
-        type: 'boolean',
-        label: 'Process Incoming Emails',
-        defaultValue: true,
-        description: 'Automatically process incoming emails when they arrive.',
       },
       markAsRead: {
         type: 'boolean',
@@ -393,12 +392,12 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         setWebhookPath(path)
       }
 
-      let finalConfig = config;
+      let finalConfig = config
       if (webhookProvider === 'gmail' && gmailCredentialId) {
         finalConfig = {
           ...config,
           credentialId: gmailCredentialId,
-        };
+        }
       }
 
       // Set the provider config in the block state
@@ -523,26 +522,29 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
   // Handle credential selection for Gmail
   const handleCredentialChange = (credentialId: string) => {
-    setGmailCredentialId(credentialId);
-  };
+    setGmailCredentialId(credentialId)
+  }
 
   // For Gmail, we need to show the credential selector
   if (webhookProvider === 'gmail' && !isWebhookConnected) {
     return (
       <div className="w-full">
         {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
-        
+
         <div className="mb-3">
           <CredentialSelector
             value={gmailCredentialId}
             onChange={handleCredentialChange}
             provider="google-email"
-            requiredScopes={['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/gmail.labels']}
+            requiredScopes={[
+              'https://www.googleapis.com/auth/gmail.modify',
+              'https://www.googleapis.com/auth/gmail.labels',
+            ]}
             label="Select Gmail account"
             disabled={isConnecting || isSaving || isDeleting}
           />
         </div>
-        
+
         {gmailCredentialId && (
           <Button
             variant="outline"
@@ -559,7 +561,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
             Configure Webhook
           </Button>
         )}
-        
+
         {isModalOpen && (
           <WebhookModal
             isOpen={isModalOpen}
@@ -572,7 +574,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           />
         )}
       </div>
-    );
+    )
   }
 
   return (

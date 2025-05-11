@@ -192,7 +192,7 @@ export async function POST(
   // Detect provider type
   const isAirtableWebhook = foundWebhook.provider === 'airtable'
   const isGmailWebhook = foundWebhook.provider === 'gmail'
-  
+
   // Handle Slack challenge verification (must be done before timeout)
   const slackChallengeResponse =
     body?.type === 'url_verification' ? handleSlackChallenge(body) : null
@@ -287,29 +287,28 @@ export async function POST(
   // For Gmail: Process with specific email handling
   if (isGmailWebhook) {
     try {
-      logger.info(`[${requestId}] Gmail webhook request received for webhook: ${foundWebhook.id}`);
-      
-      // Check for secret header if it exists
-      const webhookSecret = (foundWebhook as any).secret;
+      logger.info(`[${requestId}] Gmail webhook request received for webhook: ${foundWebhook.id}`)
+
+      const webhookSecret = (foundWebhook as any).secret
       if (webhookSecret) {
-        const secretHeader = request.headers.get('X-Webhook-Secret');
+        const secretHeader = request.headers.get('X-Webhook-Secret')
         if (secretHeader !== webhookSecret) {
-          logger.warn(`[${requestId}] Invalid webhook secret`);
-          return new NextResponse('Unauthorized', { status: 401 });
+          logger.warn(`[${requestId}] Invalid webhook secret`)
+          return new NextResponse('Unauthorized', { status: 401 })
         }
       }
-      
-      // Process Gmail email payload
+
       if (body.email) {
         logger.info(`[${requestId}] Processing Gmail email`, {
           emailId: body.email.id,
-          subject: body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value || 'No subject'
-        });
-        
-        // Execute the workflow with this webhook as trigger
-        const executionId = crypto.randomUUID();
-        logger.info(`[${requestId}] Executing workflow ${foundWorkflow.id} for Gmail email`);
-        
+          subject:
+            body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value ||
+            'No subject',
+        })
+
+        const executionId = crypto.randomUUID()
+        logger.info(`[${requestId}] Executing workflow ${foundWorkflow.id} for Gmail email`)
+
         return await processWebhook(
           foundWebhook,
           foundWorkflow,
@@ -317,55 +316,17 @@ export async function POST(
           request,
           executionId,
           requestId
-        );
-      } 
-      // Handle legacy Pub/Sub format for backward compatibility
-      else if (body.message && body.subscription) {
-        logger.info(`[${requestId}] Processing legacy Gmail notification (Pub/Sub format)`);
-        
-        // Gmail notifications via Pub/Sub contain a message with data field
-        // The data is base64-encoded JSON
-        try {
-          if (body.message.data) {
-            const decodedData = Buffer.from(body.message.data, 'base64').toString('utf-8');
-            const gmailNotification = JSON.parse(decodedData);
-            
-            // Add metadata to the webhook input
-            body.emailDetails = {
-              historyId: gmailNotification.historyId,
-              emailId: gmailNotification.emailId || null,
-            };
-            
-            logger.debug(`[${requestId}] Gmail notification parsed`, { 
-              historyId: gmailNotification.historyId
-            });
-          }
-        } catch (error) {
-          logger.error(`[${requestId}] Failed to parse Gmail notification data`, error);
-        }
-        
-        // Execute the workflow with this webhook as trigger
-        const executionId = crypto.randomUUID();
-        logger.info(`[${requestId}] Executing workflow ${foundWorkflow.id} for Gmail notification`);
-        
-        return await processWebhook(
-          foundWebhook,
-          foundWorkflow,
-          body,
-          request,
-          executionId,
-          requestId
-        );
+        )
       } else {
-        logger.warn(`[${requestId}] Invalid Gmail webhook payload format`);
-        return new NextResponse('Invalid payload format', { status: 400 });
+        logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
+        return new NextResponse('Invalid payload format', { status: 400 })
       }
     } catch (error: any) {
-      logger.error(`[${requestId}] Error processing Gmail webhook`, error);
-      return new NextResponse(`Internal server error: ${error.message}`, { status: 500 });
+      logger.error(`[${requestId}] Error processing Gmail webhook`, error)
+      return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
     }
   }
-  
+
   // --- For all other webhook types: Use async processing with timeout ---
 
   // Create timeout promise for fast initial response (2.5 seconds)
