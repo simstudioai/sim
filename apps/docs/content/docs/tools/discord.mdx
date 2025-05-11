@@ -3,7 +3,7 @@ title: Discord
 description: Interact with Discord
 ---
 
-import { BlockInfoCard } from "@/components/ui/block-info-card"
+import { BlockInfoCard } from '@/components/ui/block-info-card'
 
 <BlockInfoCard 
   type="discord"
@@ -41,14 +41,11 @@ Discord components in Sim Studio use efficient lazy loading, only fetching data 
 3. Create a bot and copy your bot token
 4. Under "Privileged Gateway Intents", enable the **Message Content Intent** to read message content
 5. Invite your bot to your servers with appropriate permissions
-{/* MANUAL-CONTENT-END */}
-
+   {/* MANUAL-CONTENT-END */}
 
 ## Usage Instructions
 
 Connect to Discord to send messages, manage channels, and interact with servers. Automate notifications, community management, and integrate Discord into your workflows.
-
-
 
 ## Tools
 
@@ -58,19 +55,18 @@ Send a message to a Discord channel
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `channelId` | string | Yes | The Discord channel ID to send the message to |
-| `content` | string | No | The text content of the message |
-| `embed` | object | No | Optional rich embed for the message |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `botToken` | string | No | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No | Discord OAuth credential ID \(required if botToken not provided\) |
+| Parameter    | Type   | Required | Description                                                              |
+| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
+| `channelId`  | string | Yes      | The Discord channel ID to send the message to                            |
+| `content`    | string | No       | The text content of the message                                          |
+| `serverId`   | string | Yes      | The Discord server ID \(guild ID\)                                       |
+| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
+| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `message` | string |
 
 ### `discord_get_messages`
@@ -79,18 +75,18 @@ Retrieve messages from a Discord channel
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `channelId` | string | Yes | The Discord channel ID to retrieve messages from |
-| `limit` | number | No | Maximum number of messages to retrieve \(default: 10, max: 100\) |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `botToken` | string | No | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No | Discord OAuth credential ID \(required if botToken not provided\) |
+| Parameter    | Type   | Required | Description                                                              |
+| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
+| `channelId`  | string | Yes      | The Discord channel ID to retrieve messages from                         |
+| `limit`      | number | No       | Maximum number of messages to retrieve \(default: 10, max: 100\)         |
+| `serverId`   | string | Yes      | The Discord server ID \(guild ID\)                                       |
+| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
+| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `message` | string |
 
 ### `discord_get_server`
@@ -99,16 +95,16 @@ Retrieve information about a Discord server (guild)
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `serverId` | string | Yes | The Discord server ID \(guild ID\) |
-| `botToken` | string | No | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No | Discord OAuth credential ID \(required if botToken not provided\) |
+| Parameter    | Type   | Required | Description                                                              |
+| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
+| `serverId`   | string | Yes      | The Discord server ID \(guild ID\)                                       |
+| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
+| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `message` | string |
 
 ### `discord_get_user`
@@ -117,38 +113,33 @@ Retrieve information about a Discord user
 
 #### Input
 
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `userId` | string | Yes | The Discord user ID |
-| `botToken` | string | No | The bot token for authentication \(required if credential not provided\) |
-| `credential` | string | No | Discord OAuth credential ID \(required if botToken not provided\) |
+| Parameter    | Type   | Required | Description                                                              |
+| ------------ | ------ | -------- | ------------------------------------------------------------------------ |
+| `userId`     | string | Yes      | The Discord user ID                                                      |
+| `botToken`   | string | No       | The bot token for authentication \(required if credential not provided\) |
+| `credential` | string | No       | Discord OAuth credential ID \(required if botToken not provided\)        |
 
 #### Output
 
-| Parameter | Type |
-| --------- | ---- |
+| Parameter | Type   |
+| --------- | ------ |
 | `message` | string |
-
-
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type | Required | Description | 
-| --------- | ---- | -------- | ----------- | 
-| `operation` | string | No | Operation |
-
-
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | No       | Operation   |
 
 ### Outputs
 
-| Output | Type | Description |
-| ------ | ---- | ----------- |
-| `response` | object | Output from response |
+| Output      | Type   | Description             |
+| ----------- | ------ | ----------------------- |
+| `response`  | object | Output from response    |
 | ↳ `message` | string | message of the response |
-| ↳ `data` | any | data of the response |
-
+| ↳ `data`    | any    | data of the response    |
 
 ## Notes
 
