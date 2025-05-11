@@ -17,6 +17,12 @@ export interface DiscordMessage {
   mention_everyone: boolean
 }
 
+export interface DiscordAPIError {
+  code: number
+  message: string
+  errors?: Record<string, any>
+}
+
 export interface DiscordGuild {
   id: string
   name: string
@@ -40,8 +46,7 @@ export interface DiscordUser {
 }
 
 interface DiscordAuthParams {
-  botToken?: string
-  credential?: string
+  botToken: string
   serverId: string
 }
 
@@ -66,7 +71,6 @@ export interface DiscordGetServerParams extends Omit<DiscordAuthParams, 'serverI
 
 export interface DiscordGetUserParams extends Omit<DiscordAuthParams, 'serverId'> {
   userId: string
-  serverId?: string
 }
 
 interface BaseDiscordResponse {

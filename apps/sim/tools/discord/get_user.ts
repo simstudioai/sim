@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
-import { DiscordGetUserParams, DiscordGetUserResponse } from './types'
+import { DiscordAPIError, DiscordGetUserParams, DiscordGetUserResponse, DiscordUser } from './types'
 
 const logger = createLogger('DiscordGetUser')
 
@@ -10,26 +10,18 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   description: 'Retrieve information about a Discord user',
   version: '1.0.0',
 
-  oauth: {
-    required: true,
-    provider: 'discord',
-  },
-
   params: {
+    botToken: {
+      type: 'string',
+      required: true,
+      requiredForToolCall: true,
+      description: 'Discord bot token for authentication',
+    },
     userId: {
       type: 'string',
       required: true,
+      optionalToolInput: true,
       description: 'The Discord user ID',
-    },
-    botToken: {
-      type: 'string',
-      required: false,
-      description: 'The bot token for authentication (required if credential not provided)',
-    },
-    credential: {
-      type: 'string',
-      required: false,
-      description: 'Discord OAuth credential ID (required if botToken not provided)',
     },
   },
 
@@ -41,7 +33,6 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
         'Content-Type': 'application/json',
       }
 
-      // If botToken is provided, use it for authorization
       if (params.botToken) {
         headers['Authorization'] = `Bot ${params.botToken}`
       }
@@ -55,7 +46,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
       let errorMessage = `Failed to get Discord user: ${response.status} ${response.statusText}`
 
       try {
-        const errorData = await response.json()
+        const errorData = (await response.json()) as DiscordAPIError
         errorMessage = `Failed to get Discord user: ${errorData.message || response.statusText}`
         logger.error('Discord API error', { status: response.status, error: errorData })
       } catch (e) {
@@ -71,7 +62,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
       }
     }
 
-    let data
+    let data: DiscordUser
     try {
       data = await response.json()
     } catch (e) {

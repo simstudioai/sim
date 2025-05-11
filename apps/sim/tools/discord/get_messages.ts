@@ -1,6 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
-import { DiscordGetMessagesParams, DiscordGetMessagesResponse } from './types'
+import {
+  DiscordAPIError,
+  DiscordGetMessagesParams,
+  DiscordGetMessagesResponse,
+  DiscordMessage,
+} from './types'
 
 const logger = createLogger('DiscordGetMessages')
 
@@ -14,9 +19,16 @@ export const discordGetMessagesTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    botToken: {
+      type: 'string',
+      required: true,
+      requiredForToolCall: true,
+      description: 'The bot token for authentication',
+    },
     channelId: {
       type: 'string',
       required: true,
+      optionalToolInput: true,
       description: 'The Discord channel ID to retrieve messages from',
     },
     limit: {
@@ -27,17 +39,8 @@ export const discordGetMessagesTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
+      optionalToolInput: true,
       description: 'The Discord server ID (guild ID)',
-    },
-    botToken: {
-      type: 'string',
-      required: false,
-      description: 'The bot token for authentication (required if credential not provided)',
-    },
-    credential: {
-      type: 'string',
-      required: false,
-      description: 'Discord OAuth credential ID (required if botToken not provided)',
     },
   },
 
@@ -52,7 +55,6 @@ export const discordGetMessagesTool: ToolConfig<
         'Content-Type': 'application/json',
       }
 
-      // If botToken is provided, use it for authorization
       if (params.botToken) {
         headers['Authorization'] = `Bot ${params.botToken}`
       }
@@ -66,7 +68,7 @@ export const discordGetMessagesTool: ToolConfig<
       let errorMessage = `Failed to get Discord messages: ${response.status} ${response.statusText}`
 
       try {
-        const errorData = await response.json()
+        const errorData = (await response.json()) as DiscordAPIError
         errorMessage = `Failed to get Discord messages: ${errorData.message || response.statusText}`
         logger.error('Discord API error', { status: response.status, error: errorData })
       } catch (e) {
@@ -82,7 +84,7 @@ export const discordGetMessagesTool: ToolConfig<
       }
     }
 
-    let messages
+    let messages: DiscordMessage[]
     try {
       messages = await response.json()
     } catch (e) {

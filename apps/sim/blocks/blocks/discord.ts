@@ -26,27 +26,12 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       value: () => 'discord_send_message',
     },
     {
-      id: 'credential',
-      title: 'Discord Account',
-      type: 'oauth-input',
-      layout: 'full',
-      provider: 'discord',
-      serviceId: 'discord',
-      requiredScopes: ['identify', 'bot', 'messages.read'],
-      placeholder: 'Select Discord account',
-      condition: { field: 'operation', value: 'discord_get_user' },
-    },
-    {
       id: 'botToken',
       title: 'Bot Token',
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter Discord bot token',
       password: true,
-      condition: {
-        field: 'operation',
-        value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'],
-      },
     },
     {
       id: 'serverId',
@@ -95,51 +80,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       placeholder: 'Enter message content...',
       condition: { field: 'operation', value: 'discord_send_message' },
     },
-    {
-      id: 'embedTitle',
-      title: 'Embed Title',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter embed title',
-      condition: {
-        field: 'operation',
-        value: 'discord_send_message',
-        and: {
-          field: 'embed',
-          value: true,
-        },
-      },
-    },
-    {
-      id: 'embedDescription',
-      title: 'Embed Description',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Enter embed description',
-      condition: {
-        field: 'operation',
-        value: 'discord_send_message',
-        and: {
-          field: 'embed',
-          value: true,
-        },
-      },
-    },
-    {
-      id: 'embedColor',
-      title: 'Embed Color',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: 'Enter hex color code (e.g., #FF5733)',
-      condition: {
-        field: 'operation',
-        value: 'discord_send_message',
-        and: {
-          field: 'embed',
-          value: true,
-        },
-      },
-    },
   ],
   tools: {
     access: [
@@ -166,13 +106,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       params: (params) => {
         const commonParams: Record<string, any> = {}
 
-        if (params.operation === 'discord_get_user') {
-          if (!params.credential) throw new Error('Credential required for user operations')
-          commonParams.credential = params.credential
-        } else {
-          if (!params.botToken) throw new Error('Bot token required for this operation')
-          commonParams.botToken = params.botToken
-        }
+        if (!params.botToken) throw new Error('Bot token required for this operation')
+        commonParams.botToken = params.botToken
 
         switch (params.operation) {
           case 'discord_send_message':
@@ -181,13 +116,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               serverId: params.serverId,
               channelId: params.channelId,
               content: params.content,
-              embed: params.embed
-                ? {
-                    title: params.embedTitle,
-                    description: params.embedDescription,
-                    color: params.embedColor,
-                  }
-                : undefined,
             }
           case 'discord_get_messages':
             return {
@@ -218,11 +146,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       required: true,
       description: 'The Discord operation to perform',
     },
-    credential: {
-      type: 'string',
-      required: true,
-      description: 'Discord OAuth credential (for user operations)',
-    },
     botToken: {
       type: 'string',
       required: true,
@@ -242,26 +165,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       type: 'string',
       required: false,
       description: 'The content of the message to send',
-    },
-    embed: {
-      type: 'boolean',
-      required: false,
-      description: 'Whether to use a rich embed',
-    },
-    embedTitle: {
-      type: 'string',
-      required: false,
-      description: 'The title of the embed',
-    },
-    embedDescription: {
-      type: 'string',
-      required: false,
-      description: 'The description of the embed',
-    },
-    embedColor: {
-      type: 'string',
-      required: false,
-      description: 'The color of the embed in hex format',
     },
     limit: {
       type: 'number',

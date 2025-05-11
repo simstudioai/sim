@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 
+interface DiscordServer {
+  id: string
+  name: string
+  icon: string | null
+}
+
 const logger = createLogger('DiscordServersAPI')
 
 export async function POST(request: Request) {
@@ -42,7 +48,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: errorMessage }, { status: response.status })
       }
 
-      const server = await response.json()
+      const server = (await response.json()) as DiscordServer
       logger.info(`Successfully fetched server: ${server.name}`)
 
       return NextResponse.json({
@@ -84,11 +90,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
-    const servers = await response.json()
+    const servers = (await response.json()) as DiscordServer[]
     logger.info(`Successfully fetched ${servers.length} servers`)
 
     return NextResponse.json({
-      servers: servers.map((server: any) => ({
+      servers: servers.map((server: DiscordServer) => ({
         id: server.id,
         name: server.name,
         icon: server.icon

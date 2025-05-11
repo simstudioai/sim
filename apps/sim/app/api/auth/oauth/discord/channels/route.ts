@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 
+interface DiscordChannel {
+  id: string
+  name: string
+  type: number
+  guild_id?: string
+}
+
 const logger = createLogger('DiscordChannelsAPI')
 
 export async function POST(request: Request) {
@@ -47,7 +54,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: errorMessage }, { status: response.status })
       }
 
-      const channel = await response.json()
+      const channel = (await response.json()) as DiscordChannel
 
       // Verify this is a text channel and belongs to the requested server
       if (channel.guild_id !== serverId) {
@@ -102,15 +109,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: errorMessage }, { status: response.status })
     }
 
-    const channels = await response.json()
+    const channels = (await response.json()) as DiscordChannel[]
 
     // Filter to just text channels (type 0)
-    const textChannels = channels.filter((channel: any) => channel.type === 0)
+    const textChannels = channels.filter((channel: DiscordChannel) => channel.type === 0)
 
     logger.info(`Successfully fetched ${textChannels.length} text channels`)
 
     return NextResponse.json({
-      channels: textChannels.map((channel: any) => ({
+      channels: textChannels.map((channel: DiscordChannel) => ({
         id: channel.id,
         name: channel.name,
         type: channel.type,

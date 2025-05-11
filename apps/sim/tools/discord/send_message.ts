@@ -1,6 +1,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
-import { DiscordSendMessageParams, DiscordSendMessageResponse } from './types'
+import {
+  DiscordAPIError,
+  DiscordMessage,
+  DiscordSendMessageParams,
+  DiscordSendMessageResponse,
+} from './types'
 
 const logger = createLogger('DiscordSendMessage')
 
@@ -14,9 +19,16 @@ export const discordSendMessageTool: ToolConfig<
   version: '1.0.0',
 
   params: {
+    botToken: {
+      type: 'string',
+      required: true,
+      requiredForToolCall: true,
+      description: 'The bot token for authentication',
+    },
     channelId: {
       type: 'string',
       required: true,
+      optionalToolInput: true,
       description: 'The Discord channel ID to send the message to',
     },
     content: {
@@ -27,17 +39,8 @@ export const discordSendMessageTool: ToolConfig<
     serverId: {
       type: 'string',
       required: true,
+      optionalToolInput: true,
       description: 'The Discord server ID (guild ID)',
-    },
-    botToken: {
-      type: 'string',
-      required: false,
-      description: 'The bot token for authentication (required if credential not provided)',
-    },
-    credential: {
-      type: 'string',
-      required: false,
-      description: 'Discord OAuth credential ID (required if botToken not provided)',
     },
   },
 
@@ -50,36 +53,20 @@ export const discordSendMessageTool: ToolConfig<
         'Content-Type': 'application/json',
       }
 
-      // If botToken is provided, use it for authorization
       if (params.botToken) {
         headers['Authorization'] = `Bot ${params.botToken}`
       }
 
       return headers
     },
-    body: (params) => {
-      const body: any = {}
+    body: (params: DiscordSendMessageParams) => {
+      const body: Record<string, any> = {}
 
-      // Add content if provided
       if (params.content) {
         body.content = params.content
       }
 
-      // Add embed if provided
-      if (params.embed) {
-        body.embeds = [
-          {
-            title: params.embed.title,
-            description: params.embed.description,
-            color: params.embed.color
-              ? parseInt(params.embed.color.replace('#', ''), 16)
-              : undefined,
-          },
-        ]
-      }
-
-      // Ensure at least content or embeds is provided
-      if (!body.content && (!body.embeds || body.embeds.length === 0)) {
+      if (!body.content) {
         body.content = 'Message sent from Sim Studio'
       }
 
@@ -92,7 +79,7 @@ export const discordSendMessageTool: ToolConfig<
       let errorMessage = `Failed to send Discord message: ${response.status} ${response.statusText}`
 
       try {
-        const errorData = await response.json()
+        const errorData = (await response.json()) as DiscordAPIError
         errorMessage = `Failed to send Discord message: ${errorData.message || response.statusText}`
         logger.error('Discord API error', { status: response.status, error: errorData })
       } catch (e) {
@@ -108,7 +95,7 @@ export const discordSendMessageTool: ToolConfig<
       }
     }
 
-    const data = await response.json()
+    const data = (await response.json()) as DiscordMessage
     return {
       success: true,
       output: {
@@ -118,8 +105,8 @@ export const discordSendMessageTool: ToolConfig<
     }
   },
 
-  transformError: (error) => {
+  transformError: (error: Error | unknown): string => {
     logger.error('Error sending Discord message', { error })
-    return `Error sending Discord message: ${error.error || String(error.error)}`
+    return `Error sending Discord message: ${error instanceof Error ? error.message : String(error)}`
   },
 }
