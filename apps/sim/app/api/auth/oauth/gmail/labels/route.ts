@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch labels from Gmail API
-    logger.info(`[${requestId}] Fetching labels from Gmail API`)
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -80,9 +79,6 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
-
-    // Log the number of labels received
-    logger.info(`[${requestId}] Received ${data.labels?.length || 0} labels from Gmail API`)
 
     // Transform the labels to a more usable format
     const labels = data.labels.map((label: any) => {

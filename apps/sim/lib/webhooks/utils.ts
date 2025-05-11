@@ -1295,7 +1295,7 @@ export async function configureGmailPolling(
 ): Promise<boolean> {
   const logger = createLogger('GmailWebhookSetup')
   logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
-  
+
   try {
     // Validate OAuth access by attempting to get a token
     const accessToken = await getOAuthToken(userId, 'google-email')
@@ -1303,22 +1303,24 @@ export async function configureGmailPolling(
       logger.error(`[${requestId}] Failed to retrieve Gmail access token for user ${userId}`)
       return false
     }
-    
+
     // Get existing webhook configuration or use defaults
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
-    
+
     // Convert string values to appropriate types
-    const maxEmailsPerPoll = typeof providerConfig.maxEmailsPerPoll === 'string' 
-      ? parseInt(providerConfig.maxEmailsPerPoll, 10) || 10
-      : (providerConfig.maxEmailsPerPoll || 10)
-    
-    const pollingInterval = typeof providerConfig.pollingInterval === 'string'
-      ? parseInt(providerConfig.pollingInterval, 10) || 5
-      : (providerConfig.pollingInterval || 5)
-    
+    const maxEmailsPerPoll =
+      typeof providerConfig.maxEmailsPerPoll === 'string'
+        ? parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
+        : providerConfig.maxEmailsPerPoll || 25
+
+    const pollingInterval =
+      typeof providerConfig.pollingInterval === 'string'
+        ? parseInt(providerConfig.pollingInterval, 10) || 5
+        : providerConfig.pollingInterval || 5
+
     // Set initial timestamp and store userId for later access during polling
     const now = new Date()
-    
+
     // Update the webhook configuration
     await db
       .update(webhook)
@@ -1334,12 +1336,15 @@ export async function configureGmailPolling(
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
           lastCheckedTimestamp: now.toISOString(),
           setupCompleted: true,
+          singleEmailMode: false, // Always set to false to process all emails individually
         },
         updatedAt: now,
       })
       .where(eq(webhook.id, webhookData.id))
-    
-    logger.info(`[${requestId}] Successfully configured Gmail polling for webhook ${webhookData.id}`)
+
+    logger.info(
+      `[${requestId}] Successfully configured Gmail polling for webhook ${webhookData.id}`
+    )
     return true
   } catch (error: any) {
     logger.error(`[${requestId}] Failed to configure Gmail polling`, {

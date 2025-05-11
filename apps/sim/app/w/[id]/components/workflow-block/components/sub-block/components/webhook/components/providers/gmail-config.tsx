@@ -63,25 +63,30 @@ const exampleEmailEvent = JSON.stringify(
     email: {
       id: '18e0ffabd5b5a0f4',
       threadId: '18e0ffabd5b5a0f4',
-      labelIds: ['INBOX', 'IMPORTANT'],
-      snippet: 'Hello, this is a snippet of the email content...',
-      historyId: '12345',
-      internalDate: '1627890123000',
-      payload: {
-        mimeType: 'text/plain',
-        headers: [
-          { name: 'From', value: 'sender@example.com' },
-          { name: 'To', value: 'recipient@example.com' },
-          { name: 'Subject', value: 'Email Subject' },
-          { name: 'Date', value: 'Mon, 2 Aug 2023 10:15:23 +0000' },
-        ],
-        body: {
-          data: 'Base64 encoded content',
-          size: 1024,
+      // Basic info
+      subject: 'Monthly Report - April 2025',
+      from: 'sender@example.com',
+      to: 'recipient@example.com',
+      cc: 'team@example.com',
+      date: '2025-05-10T10:15:23.000Z',
+      // Content
+      bodyText:
+        'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
+      bodyHtml:
+        '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
+      snippet: 'Hello, Please find attached the monthly report for April 2025...',
+      // Metadata
+      labels: ['INBOX', 'IMPORTANT'],
+      hasAttachments: true,
+      attachments: [
+        {
+          filename: 'report-april-2025.pdf',
+          mimeType: 'application/pdf',
+          size: 2048576,
         },
-      },
+      ],
     },
-    timestamp: '2023-08-02T10:15:30.123Z',
+    timestamp: '2025-05-10T10:15:30.123Z',
   },
   null,
   2
@@ -272,21 +277,6 @@ export function GmailConfig({
           </div>
           <p className="text-xs text-muted-foreground ml-6">
             Emails will be marked as read after being processed by your workflow.
-          </p>
-
-          <div className="flex items-center space-x-2 mt-3">
-            <Checkbox
-              id="single-email-mode"
-              checked={singleEmailMode}
-              onCheckedChange={(checked) => setSingleEmailMode(checked as boolean)}
-            />
-            <Label htmlFor="single-email-mode" className="text-sm font-medium cursor-pointer">
-              Process only one email per polling interval
-            </Label>
-          </div>
-          <p className="text-xs text-muted-foreground ml-6">
-            When enabled, only the most recent email will be processed each minute. When disabled,
-            multiple emails will be processed in each polling interval.
           </p>
         </div>
       </ConfigSection>

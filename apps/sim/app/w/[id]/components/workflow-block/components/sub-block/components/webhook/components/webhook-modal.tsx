@@ -110,7 +110,6 @@ export function WebhookModal({
     labelFilterBehavior: 'INCLUDE',
     processIncomingEmails: true,
     markAsRead: false,
-    singleEmailMode: true,
   })
 
   // Gmail config state
@@ -118,7 +117,6 @@ export function WebhookModal({
   const [labelFilterBehavior, setLabelFilterBehavior] = useState<string>('INCLUDE')
   const [processIncomingEmails, setProcessIncomingEmails] = useState<boolean>(true)
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
-  const [singleEmailMode, setSingleEmailMode] = useState<boolean>(true)
 
   // Get the current provider configuration
   const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
@@ -262,12 +260,7 @@ export function WebhookModal({
                 // Set additional Gmail config options if they exist
                 if (config.markAsRead !== undefined) {
                   setMarkAsRead(config.markAsRead)
-                  setOriginalValues(prev => ({...prev, markAsRead: config.markAsRead}))
-                }
-                
-                if (config.singleEmailMode !== undefined) {
-                  setSingleEmailMode(config.singleEmailMode)
-                  setOriginalValues(prev => ({...prev, singleEmailMode: config.singleEmailMode}))
+                  setOriginalValues((prev) => ({ ...prev, markAsRead: config.markAsRead }))
                 }
               }
             }
@@ -314,8 +307,7 @@ export function WebhookModal({
         (selectedLabels.length !== originalValues.selectedLabels.length ||
           labelFilterBehavior !== originalValues.labelFilterBehavior ||
           processIncomingEmails !== originalValues.processIncomingEmails ||
-          markAsRead !== originalValues.markAsRead ||
-          singleEmailMode !== originalValues.singleEmailMode))
+          markAsRead !== originalValues.markAsRead))
 
     setHasUnsavedChanges(hasChanges)
   }, [
@@ -340,7 +332,6 @@ export function WebhookModal({
     labelFilterBehavior,
     processIncomingEmails,
     markAsRead,
-    singleEmailMode,
   ])
 
   // Validate required fields for current provider
@@ -416,8 +407,8 @@ export function WebhookModal({
           labelFilterBehavior,
           processIncomingEmails,
           markAsRead,
-          maxEmailsPerPoll: 100,
-          singleEmailMode,
+          maxEmailsPerPoll: 25,
+          singleEmailMode: false,
         }
       case 'generic':
         // Parse the allowed IPs into an array
@@ -502,7 +493,6 @@ export function WebhookModal({
             labelFilterBehavior,
             processIncomingEmails,
             markAsRead,
-            singleEmailMode,
           })
           setHasUnsavedChanges(false)
           setTestResult({
@@ -680,8 +670,8 @@ export function WebhookModal({
             webhookUrl={webhookUrl}
             markAsRead={markAsRead}
             setMarkAsRead={setMarkAsRead}
-            singleEmailMode={singleEmailMode}
-            setSingleEmailMode={setSingleEmailMode}
+            singleEmailMode={false}
+            setSingleEmailMode={() => {}}
           />
         )
       case 'discord':
