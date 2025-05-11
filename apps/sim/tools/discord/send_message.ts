@@ -24,11 +24,6 @@ export const discordSendMessageTool: ToolConfig<
       required: false,
       description: 'The text content of the message',
     },
-    embed: {
-      type: 'object',
-      required: false,
-      description: 'Optional rich embed for the message',
-    },
     serverId: {
       type: 'string',
       required: true,

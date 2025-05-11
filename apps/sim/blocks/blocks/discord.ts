@@ -6,7 +6,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
   type: 'discord',
   name: 'Discord',
   description: 'Interact with Discord',
-  longDescription: 
+  longDescription:
     'Connect to Discord to send messages, manage channels, and interact with servers. Automate notifications, community management, and integrate Discord into your workflows.',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -43,7 +43,10 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       layout: 'full',
       placeholder: 'Enter Discord bot token',
       password: true,
-      condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'] },
+      condition: {
+        field: 'operation',
+        value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'],
+      },
     },
     {
       id: 'serverId',
@@ -53,7 +56,10 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       provider: 'discord',
       serviceId: 'discord',
       placeholder: 'Select Discord server',
-      condition: { field: 'operation', value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'] },
+      condition: {
+        field: 'operation',
+        value: ['discord_send_message', 'discord_get_messages', 'discord_get_server'],
+      },
     },
     {
       id: 'channelId',
@@ -90,20 +96,13 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       condition: { field: 'operation', value: 'discord_send_message' },
     },
     {
-      id: 'embed',
-      title: 'Use Rich Embed',
-      type: 'switch',
-      layout: 'half',
-      condition: { field: 'operation', value: 'discord_send_message' },
-    },
-    {
       id: 'embedTitle',
       title: 'Embed Title',
       type: 'short-input',
       layout: 'half',
       placeholder: 'Enter embed title',
-      condition: { 
-        field: 'operation', 
+      condition: {
+        field: 'operation',
         value: 'discord_send_message',
         and: {
           field: 'embed',
@@ -117,8 +116,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter embed description',
-      condition: { 
-        field: 'operation', 
+      condition: {
+        field: 'operation',
         value: 'discord_send_message',
         and: {
           field: 'embed',
@@ -132,8 +131,8 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       type: 'short-input',
       layout: 'half',
       placeholder: 'Enter hex color code (e.g., #FF5733)',
-      condition: { 
-        field: 'operation', 
+      condition: {
+        field: 'operation',
         value: 'discord_send_message',
         and: {
           field: 'embed',
@@ -143,7 +142,12 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     },
   ],
   tools: {
-    access: ['discord_send_message', 'discord_get_messages', 'discord_get_server', 'discord_get_user'],
+    access: [
+      'discord_send_message',
+      'discord_get_messages',
+      'discord_get_server',
+      'discord_get_user',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -161,7 +165,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       },
       params: (params) => {
         const commonParams: Record<string, any> = {}
-        
+
         if (params.operation === 'discord_get_user') {
           if (!params.credential) throw new Error('Credential required for user operations')
           commonParams.credential = params.credential
@@ -169,7 +173,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
           if (!params.botToken) throw new Error('Bot token required for this operation')
           commonParams.botToken = params.botToken
         }
-        
+
         switch (params.operation) {
           case 'discord_send_message':
             return {
@@ -177,11 +181,13 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               serverId: params.serverId,
               channelId: params.channelId,
               content: params.content,
-              embed: params.embed ? {
-                title: params.embedTitle,
-                description: params.embedDescription,
-                color: params.embedColor,
-              } : undefined,
+              embed: params.embed
+                ? {
+                    title: params.embedTitle,
+                    description: params.embedDescription,
+                    color: params.embedColor,
+                  }
+                : undefined,
             }
           case 'discord_get_messages':
             return {
@@ -266,7 +272,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       type: 'string',
       required: true,
       description: 'The ID of the Discord user',
-    }
+    },
   },
   outputs: {
     response: {
@@ -276,4 +282,4 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
       },
     },
   },
-} 
+}

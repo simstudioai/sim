@@ -29,7 +29,7 @@ export type SubBlockType =
   | 'webhook-config' // Webhook configuration
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
-  | 'project-selector' // Project selector for Jira
+  | 'project-selector' // Project selector for Jira, Discord, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'input-format' // Input structure format
   | 'file-upload' // File uploader
