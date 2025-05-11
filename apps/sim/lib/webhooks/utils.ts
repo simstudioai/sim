@@ -653,8 +653,6 @@ export function verifyProviderWebhook(
     case 'stripe':
       break // Stripe verification would go here
     case 'gmail':
-      // For Gmail, we verify using the webhook secret if one is provided
-      // The request is typically coming from our own polling service
       if (providerConfig.secret) {
         const secretHeader = request.headers.get('X-Webhook-Secret')
         if (secretHeader !== providerConfig.secret) {
@@ -1297,17 +1295,14 @@ export async function configureGmailPolling(
   logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
 
   try {
-    // Validate OAuth access by attempting to get a token
     const accessToken = await getOAuthToken(userId, 'google-email')
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to retrieve Gmail access token for user ${userId}`)
       return false
     }
 
-    // Get existing webhook configuration or use defaults
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
 
-    // Convert string values to appropriate types
     const maxEmailsPerPoll =
       typeof providerConfig.maxEmailsPerPoll === 'string'
         ? parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
@@ -1318,10 +1313,8 @@ export async function configureGmailPolling(
         ? parseInt(providerConfig.pollingInterval, 10) || 5
         : providerConfig.pollingInterval || 5
 
-    // Set initial timestamp and store userId for later access during polling
     const now = new Date()
 
-    // Update the webhook configuration
     await db
       .update(webhook)
       .set({
@@ -1330,7 +1323,6 @@ export async function configureGmailPolling(
           userId, // Store user ID for OAuth access during polling
           maxEmailsPerPoll,
           pollingInterval,
-          processIncomingEmails: true, // Always set to true - emails will always be processed
           markAsRead: providerConfig.markAsRead || false,
           labelIds: providerConfig.labelIds || ['INBOX'],
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',

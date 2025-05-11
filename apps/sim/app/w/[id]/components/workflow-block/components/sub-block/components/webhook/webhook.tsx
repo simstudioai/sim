@@ -520,7 +520,6 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   // Check if the webhook is connected for the selected provider
   const isWebhookConnected = webhookId && webhookProvider === actualProvider
 
-  // Handle credential selection for Gmail
   const handleCredentialChange = (credentialId: string) => {
     setGmailCredentialId(credentialId)
   }

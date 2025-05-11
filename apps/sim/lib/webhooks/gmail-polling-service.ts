@@ -61,12 +61,6 @@ export async function pollGmailWebhooks() {
           // Get webhook configuration
           const config = webhookData.providerConfig as unknown as GmailWebhookConfig
 
-          // Always process emails for active webhooks
-          // We've removed the processIncomingEmails check since active webhooks will always process emails
-
-          // Remove the polling interval check since we're controlling execution frequency via CRON
-          // We always want to check for new emails every time this function is called
-
           const now = new Date()
 
           // Fetch new emails

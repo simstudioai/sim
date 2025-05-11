@@ -27,7 +27,6 @@ const TOOLTIPS = {
   markAsRead: 'Emails will be marked as read after being processed by your workflow.',
 }
 
-// Fallback Gmail labels in case API call fails
 const FALLBACK_GMAIL_LABELS = [
   { id: 'INBOX', name: 'Inbox' },
   { id: 'SENT', name: 'Sent' },
@@ -45,7 +44,6 @@ interface GmailLabel {
   messagesUnread?: number
 }
 
-// Format category labels for better readability
 const formatLabelName = (label: GmailLabel): string => {
   let formattedName = label.name.replace(/0$/, '')
   if (formattedName.startsWith('Category_')) {
@@ -112,7 +110,6 @@ export function GmailConfig({
       setLabelError(null)
 
       try {
-        // Get first credential ID from OAuth credentials
         const credentialsResponse = await fetch('/api/auth/oauth/credentials?provider=google-email')
         if (!credentialsResponse.ok) {
           throw new Error('Failed to get Google credentials')
@@ -125,7 +122,6 @@ export function GmailConfig({
 
         const credentialId = credentialsData.credentials[0].id
 
-        // Fetch labels using the credential
         const response = await fetch(`/api/auth/oauth/gmail/labels?credentialId=${credentialId}`)
         if (!response.ok) {
           throw new Error('Failed to fetch Gmail labels')

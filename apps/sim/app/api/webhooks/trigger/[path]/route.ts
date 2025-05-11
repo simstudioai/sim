@@ -306,7 +306,7 @@ export async function POST(
             'No subject',
         })
 
-        const executionId = crypto.randomUUID()
+        const executionId = uuidv4()
         logger.info(`[${requestId}] Executing workflow ${foundWorkflow.id} for Gmail email`)
 
         return await processWebhook(

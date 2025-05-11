@@ -111,7 +111,6 @@ export function WebhookModal({
     markAsRead: false,
   })
 
-  // Gmail config state
   const [selectedLabels, setSelectedLabels] = useState<string[]>(['INBOX'])
   const [labelFilterBehavior, setLabelFilterBehavior] = useState<string>('INCLUDE')
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
@@ -252,7 +251,6 @@ export function WebhookModal({
                   labelFilterBehavior,
                 }))
 
-                // Set additional Gmail config options if they exist
                 if (config.markAsRead !== undefined) {
                   setMarkAsRead(config.markAsRead)
                   setOriginalValues((prev) => ({ ...prev, markAsRead: config.markAsRead }))
