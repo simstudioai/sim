@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { CheckCheck, Copy, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,7 +35,12 @@ export function WebhookUrlField({
               <Info className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right" align="center" className="max-w-[300px] p-3 z-[100]">
+          <TooltipContent
+            side="right"
+            align="center"
+            className="max-w-[300px] p-3 z-[100]"
+            role="tooltip"
+          >
             <p className="text-sm">URL that will receive webhook requests</p>
           </TooltipContent>
         </Tooltip>

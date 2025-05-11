@@ -289,7 +289,7 @@ export async function POST(
     try {
       logger.info(`[${requestId}] Gmail webhook request received for webhook: ${foundWebhook.id}`)
 
-      const webhookSecret = (foundWebhook as any).secret
+      const webhookSecret = foundWebhook.secret
       if (webhookSecret) {
         const secretHeader = request.headers.get('X-Webhook-Secret')
         if (secretHeader !== webhookSecret) {

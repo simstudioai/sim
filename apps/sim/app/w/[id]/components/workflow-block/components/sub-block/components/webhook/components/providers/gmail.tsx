@@ -85,8 +85,8 @@ const exampleEmailEvent = {
 interface GmailConfigProps {
   selectedLabels: string[]
   setSelectedLabels: (labels: string[]) => void
-  labelFilterBehavior: string
-  setLabelFilterBehavior: (behavior: string) => void
+  labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
+  setLabelFilterBehavior: (behavior: 'INCLUDE' | 'EXCLUDE') => void
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
 }
@@ -105,6 +105,7 @@ export function GmailConfig({
 
   // Fetch Gmail labels
   useEffect(() => {
+    let mounted = true
     const fetchLabels = async () => {
       setIsLoadingLabels(true)
       setLabelError(null)
@@ -129,20 +130,25 @@ export function GmailConfig({
 
         const data = await response.json()
         if (data.labels && Array.isArray(data.labels)) {
-          setLabels(data.labels)
+          if (mounted) setLabels(data.labels)
         } else {
           throw new Error('Invalid labels data format')
         }
       } catch (error) {
         logger.error('Error fetching Gmail labels:', error)
-        setLabelError('Could not fetch Gmail labels. Using default labels instead.')
-        setLabels(FALLBACK_GMAIL_LABELS)
+        if (mounted) {
+          setLabelError('Could not fetch Gmail labels. Using default labels instead.')
+          setLabels(FALLBACK_GMAIL_LABELS)
+        }
       } finally {
-        setIsLoadingLabels(false)
+        if (mounted) setIsLoadingLabels(false)
       }
     }
 
     fetchLabels()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const toggleLabel = (labelId: string) => {
@@ -169,7 +175,12 @@ export function GmailConfig({
                 <Info className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="right" align="center" className="max-w-[300px] p-3 z-[100]">
+            <TooltipContent
+              side="right"
+              align="center"
+              className="max-w-[300px] p-3 z-[100]"
+              role="tooltip"
+            >
               <p className="text-sm">{TOOLTIPS.labels}</p>
             </TooltipContent>
           </Tooltip>
@@ -220,7 +231,12 @@ export function GmailConfig({
                   <Info className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right" align="center" className="max-w-[300px] p-3 z-[100]">
+              <TooltipContent
+                side="right"
+                align="center"
+                className="max-w-[300px] p-3 z-[100]"
+                role="tooltip"
+              >
                 <p className="text-sm">{TOOLTIPS.labelFilter}</p>
               </TooltipContent>
             </Tooltip>

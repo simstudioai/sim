@@ -655,7 +655,15 @@ export function verifyProviderWebhook(
     case 'gmail':
       if (providerConfig.secret) {
         const secretHeader = request.headers.get('X-Webhook-Secret')
-        if (secretHeader !== providerConfig.secret) {
+        if (!secretHeader || secretHeader.length !== providerConfig.secret.length) {
+          logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
+          return new NextResponse('Unauthorized', { status: 401 })
+        }
+        let result = 0
+        for (let i = 0; i < secretHeader.length; i++) {
+          result |= secretHeader.charCodeAt(i) ^ providerConfig.secret.charCodeAt(i)
+        }
+        if (result !== 0) {
           logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
           return new NextResponse('Unauthorized', { status: 401 })
         }

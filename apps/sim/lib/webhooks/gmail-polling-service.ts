@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { Logger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { webhook } from '@/db/schema'
@@ -16,6 +17,16 @@ interface GmailWebhookConfig {
   historyId?: string
   processedEmailIds?: string[]
   pollingInterval?: number
+}
+
+interface GmailEmail {
+  id: string
+  threadId: string
+  historyId?: string
+  labelIds?: string[]
+  payload?: any
+  snippet?: string
+  internalDate?: string
 }
 
 export async function pollGmailWebhooks() {
@@ -239,11 +250,16 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, r
       logger.info(`[${requestId}] Processing ${idsToFetch.length} emails from history API`)
 
       // Fetch full email details for each message
-      emails = await Promise.all(
-        idsToFetch.map(async (messageId) => {
-          return await getEmailDetails(accessToken, messageId)
-        })
-      )
+      const emailPromises = idsToFetch.map(async (messageId) => {
+        return getEmailDetails(accessToken, messageId)
+      })
+
+      const emailResults = await Promise.allSettled(emailPromises)
+      emails = emailResults
+        .filter(
+          (result): result is PromiseFulfilledResult<GmailEmail> => result.status === 'fulfilled'
+        )
+        .map((result) => result.value)
 
       // Filter emails by labels if needed
       emails = filterEmailsByLabels(emails, config)
@@ -360,11 +376,16 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
     )
 
     // Fetch full email details for each message
-    const emails = await Promise.all(
-      idsToFetch.map(async (message: { id: string }) => {
-        return await getEmailDetails(accessToken, message.id)
-      })
-    )
+    const emailPromises = idsToFetch.map(async (message: { id: string }) => {
+      return getEmailDetails(accessToken, message.id)
+    })
+
+    const emailResults = await Promise.allSettled(emailPromises)
+    const emails = emailResults
+      .filter(
+        (result): result is PromiseFulfilledResult<GmailEmail> => result.status === 'fulfilled'
+      )
+      .map((result) => result.value)
 
     // Get the latest history ID from the first email (most recent)
     if (emails.length > 0 && emails[0].historyId) {
@@ -380,7 +401,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
   }
 }
 
-async function getEmailDetails(accessToken: string, messageId: string) {
+async function getEmailDetails(accessToken: string, messageId: string): Promise<GmailEmail> {
   const messageUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`
 
   const messageResponse = await fetch(messageUrl, {
@@ -399,7 +420,7 @@ async function getEmailDetails(accessToken: string, messageId: string) {
   return await messageResponse.json()
 }
 
-function filterEmailsByLabels(emails: any[], config: GmailWebhookConfig) {
+function filterEmailsByLabels(emails: GmailEmail[], config: GmailWebhookConfig): GmailEmail[] {
   if (!config.labelIds.length) {
     return emails
   }
@@ -532,7 +553,7 @@ async function processEmails(
       logger.debug(`[${requestId}] Sending simplified email payload for ${email.id}`)
 
       // Trigger the webhook
-      const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/trigger/${webhookData.path}`
+      const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -570,16 +591,27 @@ async function processEmails(
 async function markEmailAsRead(accessToken: string, messageId: string) {
   const modifyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/modify`
 
-  await fetch(modifyUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      removeLabelIds: ['UNREAD'],
-    }),
-  })
+  try {
+    const response = await fetch(modifyUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        removeLabelIds: ['UNREAD'],
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to mark email ${messageId} as read: ${response.status} ${response.statusText}`
+      )
+    }
+  } catch (error) {
+    logger.error(`Error marking email ${messageId} as read:`, error)
+    throw error
+  }
 }
 
 async function updateWebhookLastChecked(webhookId: string, timestamp: string, historyId?: string) {

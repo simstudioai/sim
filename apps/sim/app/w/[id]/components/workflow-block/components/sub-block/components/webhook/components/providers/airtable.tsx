@@ -110,7 +110,12 @@ export function AirtableConfig({
                   <Info className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right" align="center" className="max-w-[300px] p-3 z-[100]">
+              <TooltipContent
+                side="right"
+                align="center"
+                className="max-w-[300px] p-3 z-[100]"
+                role="tooltip"
+              >
                 <p className="text-sm">
                   Enable to receive the complete record data in the payload, not just changes.
                 </p>

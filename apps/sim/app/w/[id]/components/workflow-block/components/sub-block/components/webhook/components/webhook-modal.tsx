@@ -112,7 +112,7 @@ export function WebhookModal({
   })
 
   const [selectedLabels, setSelectedLabels] = useState<string[]>(['INBOX'])
-  const [labelFilterBehavior, setLabelFilterBehavior] = useState<string>('INCLUDE')
+  const [labelFilterBehavior, setLabelFilterBehavior] = useState<'INCLUDE' | 'EXCLUDE'>('INCLUDE')
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
   // Get the current provider configuration
@@ -297,7 +297,8 @@ export function WebhookModal({
         (telegramBotToken !== originalValues.telegramBotToken ||
           telegramTriggerPhrase !== originalValues.telegramTriggerPhrase)) ||
       (webhookProvider === 'gmail' &&
-        (selectedLabels.length !== originalValues.selectedLabels.length ||
+        (!selectedLabels.every((label) => originalValues.selectedLabels.includes(label)) ||
+          !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||
           labelFilterBehavior !== originalValues.labelFilterBehavior ||
           markAsRead !== originalValues.markAsRead))
 
@@ -346,6 +347,7 @@ export function WebhookModal({
         break
       case 'telegram':
         isValid = telegramBotToken.trim() !== '' && telegramTriggerPhrase.trim() !== ''
+        break
       case 'gmail':
         isValid = selectedLabels.length > 0
         break
