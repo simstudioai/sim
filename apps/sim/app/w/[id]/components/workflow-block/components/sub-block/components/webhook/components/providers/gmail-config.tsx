@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { GmailIcon } from '@/components/icons'
+import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Notice } from '@/components/ui/notice'
-import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
 import {
   Select,
   SelectContent,
@@ -12,15 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Logger } from '@/lib/logs/console-logger'
+import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
 import { ConfigSection } from '../ui/config-section'
 import { TestResultDisplay } from '../ui/test-result'
-import { Logger } from '@/lib/logs/console-logger'
 
 const logger = new Logger('GmailConfig')
 
 // Simple spinner component
 const Spinner = ({ className }: { className?: string }) => (
-  <div className={`animate-spin rounded-full border-2 border-current border-t-transparent ${className || ''}`} />
+  <div
+    className={`animate-spin rounded-full border-2 border-current border-t-transparent ${className || ''}`}
+  />
 )
 
 // Fallback Gmail labels in case API call fails
@@ -43,43 +45,43 @@ interface GmailLabel {
 
 // Format category labels for better readability
 const formatLabelName = (label: GmailLabel): string => {
-  let formattedName = label.name.replace(/0$/, ''); // Remove trailing "0" from all labels
-  
+  let formattedName = label.name.replace(/0$/, '') // Remove trailing "0" from all labels
+
   if (formattedName.startsWith('Category_')) {
     // Convert "Category_forums" to "Forums"
     return formattedName
       .replace('Category_', '')
       .replace(/_/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase());
+      .replace(/\b\w/g, (c) => c.toUpperCase())
   }
-  
-  return formattedName;
+
+  return formattedName
 }
 
 const exampleEmailEvent = JSON.stringify(
   {
     email: {
-      id: "18e0ffabd5b5a0f4",
-      threadId: "18e0ffabd5b5a0f4",
-      labelIds: ["INBOX", "IMPORTANT"],
-      snippet: "Hello, this is a snippet of the email content...",
-      historyId: "12345",
-      internalDate: "1627890123000",
+      id: '18e0ffabd5b5a0f4',
+      threadId: '18e0ffabd5b5a0f4',
+      labelIds: ['INBOX', 'IMPORTANT'],
+      snippet: 'Hello, this is a snippet of the email content...',
+      historyId: '12345',
+      internalDate: '1627890123000',
       payload: {
-        mimeType: "text/plain",
+        mimeType: 'text/plain',
         headers: [
-          { name: "From", value: "sender@example.com" },
-          { name: "To", value: "recipient@example.com" },
-          { name: "Subject", value: "Email Subject" },
-          { name: "Date", value: "Mon, 2 Aug 2023 10:15:23 +0000" }
+          { name: 'From', value: 'sender@example.com' },
+          { name: 'To', value: 'recipient@example.com' },
+          { name: 'Subject', value: 'Email Subject' },
+          { name: 'Date', value: 'Mon, 2 Aug 2023 10:15:23 +0000' },
         ],
         body: {
-          data: "Base64 encoded content",
-          size: 1024
-        }
-      }
+          data: 'Base64 encoded content',
+          size: 1024,
+        },
+      },
     },
-    timestamp: "2023-08-02T10:15:30.123Z"
+    timestamp: '2023-08-02T10:15:30.123Z',
   },
   null,
   2
@@ -139,28 +141,28 @@ export function GmailConfig({
       try {
         // Get first credential ID from OAuth credentials
         const credentialsResponse = await fetch('/api/auth/oauth/credentials?provider=google-email')
-        
+
         if (!credentialsResponse.ok) {
           throw new Error('Failed to get Google credentials')
         }
-        
+
         const credentialsData = await credentialsResponse.json()
-        
+
         if (!credentialsData.credentials || !credentialsData.credentials.length) {
           throw new Error('No Google credentials found')
         }
-        
+
         const credentialId = credentialsData.credentials[0].id
-        
+
         // Fetch labels using the credential
         const response = await fetch(`/api/auth/oauth/gmail/labels?credentialId=${credentialId}`)
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch Gmail labels')
         }
-        
+
         const data = await response.json()
-        
+
         if (data.labels && Array.isArray(data.labels)) {
           setLabels(data.labels)
         } else {
@@ -180,7 +182,7 @@ export function GmailConfig({
 
   const toggleLabel = (labelId: string) => {
     if (selectedLabels.includes(labelId)) {
-      setSelectedLabels(selectedLabels.filter(id => id !== labelId))
+      setSelectedLabels(selectedLabels.filter((id) => id !== labelId))
     } else {
       setSelectedLabels([...selectedLabels, labelId])
     }
@@ -191,9 +193,10 @@ export function GmailConfig({
       <ConfigSection title="Email Monitoring Configuration">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Select which email labels to monitor. The system will automatically detect and process new emails in these labels.
+            Select which email labels to monitor. The system will automatically detect and process
+            new emails in these labels.
           </p>
-          
+
           {isLoadingLabels ? (
             <div className="flex justify-center py-4">
               <Spinner className="h-6 w-6 text-primary" />
@@ -203,29 +206,26 @@ export function GmailConfig({
               {labelError && (
                 <p className="text-sm text-amber-500 dark:text-amber-400">{labelError}</p>
               )}
-              
+
               <div className="flex flex-wrap gap-2">
-                {labels.map(label => (
+                {labels.map((label) => (
                   <Badge
                     key={label.id}
-                    variant={selectedLabels.includes(label.id) ? "default" : "outline"}
+                    variant={selectedLabels.includes(label.id) ? 'default' : 'outline'}
                     className="cursor-pointer"
                     onClick={() => toggleLabel(label.id)}
                   >
                     {formatLabelName(label)}
-                    {label.messagesUnread && label.messagesUnread > 0 && (
-                      <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] h-4 w-4 min-w-[16px]">
-                        {label.messagesUnread}
-                      </span>
-                    )}
                   </Badge>
                 ))}
               </div>
             </>
           )}
-          
+
           <div className="pt-2">
-            <Label htmlFor="label-behavior" className="mb-1 block">Label Filter Behavior</Label>
+            <Label htmlFor="label-behavior" className="mb-1 block">
+              Label Filter Behavior
+            </Label>
             <Select value={labelFilterBehavior} onValueChange={setLabelFilterBehavior}>
               <SelectTrigger id="label-behavior" className="w-full">
                 <SelectValue placeholder="Select behavior" />
@@ -236,8 +236,8 @@ export function GmailConfig({
               </SelectContent>
             </Select>
             <p className="mt-1 text-xs text-muted-foreground">
-              {labelFilterBehavior === 'INCLUDE' 
-                ? 'Your workflow will process emails with the selected labels.' 
+              {labelFilterBehavior === 'INCLUDE'
+                ? 'Your workflow will process emails with the selected labels.'
                 : 'Your workflow will process emails without the selected labels.'}
             </p>
           </div>
@@ -247,15 +247,12 @@ export function GmailConfig({
       <ConfigSection title="Email Processing Options">
         <div className="space-y-4">
           <div className="flex items-center space-x-2">
-            <Checkbox 
+            <Checkbox
               id="process-emails"
               checked={processIncomingEmails}
               onCheckedChange={(checked) => setProcessIncomingEmails(checked as boolean)}
             />
-            <Label 
-              htmlFor="process-emails" 
-              className="text-sm font-medium cursor-pointer"
-            >
+            <Label htmlFor="process-emails" className="text-sm font-medium cursor-pointer">
               Automatically process incoming emails
             </Label>
           </div>
@@ -264,15 +261,12 @@ export function GmailConfig({
           </p>
 
           <div className="flex items-center space-x-2 mt-3">
-            <Checkbox 
+            <Checkbox
               id="mark-as-read"
               checked={markAsRead}
               onCheckedChange={(checked) => setMarkAsRead(checked as boolean)}
             />
-            <Label 
-              htmlFor="mark-as-read" 
-              className="text-sm font-medium cursor-pointer"
-            >
+            <Label htmlFor="mark-as-read" className="text-sm font-medium cursor-pointer">
               Mark emails as read after processing
             </Label>
           </div>
@@ -281,21 +275,18 @@ export function GmailConfig({
           </p>
 
           <div className="flex items-center space-x-2 mt-3">
-            <Checkbox 
+            <Checkbox
               id="single-email-mode"
               checked={singleEmailMode}
               onCheckedChange={(checked) => setSingleEmailMode(checked as boolean)}
             />
-            <Label 
-              htmlFor="single-email-mode" 
-              className="text-sm font-medium cursor-pointer"
-            >
+            <Label htmlFor="single-email-mode" className="text-sm font-medium cursor-pointer">
               Process only one email per polling interval
             </Label>
           </div>
           <p className="text-xs text-muted-foreground ml-6">
-            When enabled, only the most recent email will be processed each minute. 
-            When disabled, multiple emails will be processed in each polling interval.
+            When enabled, only the most recent email will be processed each minute. When disabled,
+            multiple emails will be processed in each polling interval.
           </p>
         </div>
       </ConfigSection>
