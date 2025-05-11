@@ -1,9 +1,8 @@
 #!/bin/sh
-# Ensure Bun environment is properly set up
-export BUN_INSTALL=/root/.bun
-export PATH=$BUN_INSTALL/bin:$PATH
+set -e
 
 cd apps/sim
 bunx drizzle-kit push
 cd ../..
-exec "$@" 
+
+bun run start --host "0.0.0.0"

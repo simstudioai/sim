@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   simstudio:
     build:
@@ -15,6 +13,10 @@ services:
       - /app/apps/sim/.next
       - /app/apps/docs/node_modules
       - /app/apps/docs/.next
+    deploy:
+      resources:
+        limits:
+          memory: 8G
     environment:
       - NODE_ENV=development
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
@@ -30,6 +32,7 @@ services:
       - GITHUB_CLIENT_SECRET=placeholder
       - RESEND_API_KEY=placeholder
       - BUN_INSTALL_CACHE_DIR=/app/.bun/cache
+      - NODE_OPTIONS=--max-old-space-size=4096
     depends_on:
       db:
         condition: service_healthy

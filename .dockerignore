@@ -1,14 +1,10 @@
-# Exclude files from Docker build
-.git
-.github
-node_modules
-.bun
-bun.lockb
-.next
-.vercel
-.husky
-.env
-.env.*
-bun-debug.log
+LICENSE
+NOTICE
+.prettierrc
+.prettierignore
 README.md
-.devcontainer 
+.gitignore
+.husky
+.github
+.devcontainer
+.env.example
