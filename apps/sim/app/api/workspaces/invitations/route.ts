@@ -198,7 +198,8 @@ async function sendInvitationEmail({
 }) {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
-    const invitationLink = `${baseUrl}/api/workspaces/invitations/accept?token=${token}`
+    // Always use the client-side invite route with token parameter
+    const invitationLink = `${baseUrl}/invite/${token}?token=${token}`
     
     const emailHtml = await render(
       WorkspaceInvitationEmail({
@@ -211,7 +212,7 @@ async function sendInvitationEmail({
     await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'noreply@simstudio.ai',
       to,
-      subject: `You've been invited to join "${workspaceName}" on SimStudio`,
+      subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,
     })
     

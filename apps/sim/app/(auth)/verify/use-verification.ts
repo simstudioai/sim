@@ -42,6 +42,8 @@ export function useVerification({
   const [isSendingInitialOtp, setIsSendingInitialOtp] = useState(false)
   const [isInvalidOtp, setIsInvalidOtp] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
+  const [isInviteFlow, setIsInviteFlow] = useState(false)
 
   // Debug notification store
   useEffect(() => {
@@ -50,11 +52,35 @@ export function useVerification({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Get stored email
       const storedEmail = sessionStorage.getItem('verificationEmail')
       if (storedEmail) {
         setEmail(storedEmail)
-        return
       }
+      
+      // Check for redirect information
+      const storedRedirectUrl = sessionStorage.getItem('inviteRedirectUrl')
+      if (storedRedirectUrl) {
+        setRedirectUrl(storedRedirectUrl)
+      }
+      
+      // Check if this is an invite flow
+      const storedIsInviteFlow = sessionStorage.getItem('isInviteFlow')
+      if (storedIsInviteFlow === 'true') {
+        setIsInviteFlow(true)
+      }
+    }
+    
+    // Also check URL parameters for redirect information
+    const redirectParam = searchParams.get('redirectAfter')
+    if (redirectParam) {
+      setRedirectUrl(redirectParam)
+    }
+    
+    // Check for invite_flow parameter
+    const inviteFlowParam = searchParams.get('invite_flow')
+    if (inviteFlowParam === 'true') {
+      setIsInviteFlow(true)
     }
   }, [searchParams])
 
@@ -104,10 +130,24 @@ export function useVerification({
         // Clear email from sessionStorage after successful verification
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('verificationEmail')
+          
+          // Also clear invite-related items
+          if (isInviteFlow) {
+            sessionStorage.removeItem('inviteRedirectUrl')
+            sessionStorage.removeItem('isInviteFlow')
+          }
         }
 
-        // Redirect to dashboard after a short delay
-        setTimeout(() => router.push('/w'), 2000)
+        // Redirect to proper page after a short delay
+        setTimeout(() => {
+          if (isInviteFlow && redirectUrl) {
+            // For invitation flow, redirect to the invitation page
+            router.push(redirectUrl)
+          } else {
+            // Default redirect to dashboard
+            router.push('/w')
+          }
+        }, 2000)
       } else {
         logger.info('Setting invalid OTP state - API error response')
         const message = 'Invalid verification code. Please check and try again.'

@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-function getErrorMessage(reason: string): string {
+function getErrorMessage(reason: string, details?: string): string {
   switch (reason) {
     case 'missing-token':
       return 'The invitation link is invalid or missing a required parameter.'
@@ -17,7 +17,9 @@ function getErrorMessage(reason: string): string {
     case 'already-processed':
       return 'This invitation has already been accepted or declined.'
     case 'email-mismatch':
-      return 'This invitation was sent to a different email address than the one you are logged in with.'
+      return details
+        ? details
+        : 'This invitation was sent to a different email address than the one you are logged in with.'
     case 'workspace-not-found':
       return 'The workspace associated with this invitation could not be found.'
     case 'server-error':
@@ -30,12 +32,13 @@ function getErrorMessage(reason: string): string {
 export default function InviteError() {
   const searchParams = useSearchParams()
   const reason = searchParams?.get('reason') || 'unknown'
+  const details = searchParams?.get('details')
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
     // Only set the error message on the client side
-    setErrorMessage(getErrorMessage(reason))
-  }, [reason])
+    setErrorMessage(getErrorMessage(reason, details || undefined))
+  }, [reason, details])
 
   // Provide a fallback message for SSR
   const displayMessage = errorMessage || 'Loading error details...'

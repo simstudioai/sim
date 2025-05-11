@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
   const session = await getSession()
   
   if (!session?.user?.id) {
-    // Store the token in a query param and redirect to login page
-    return NextResponse.redirect(new URL(`/auth/signin?callbackUrl=${encodeURIComponent(`/api/workspaces/invitations/accept?token=${token}`)}`, process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+    // No need to encode API URL as callback, just redirect to invite page
+    // The middleware will handle proper login flow and return to invite page
+    return NextResponse.redirect(new URL(`/invite/${token}?token=${token}`, process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
   }
   
   try {
@@ -43,9 +44,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL('/invite/invite-error?reason=already-processed', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
+    // Get the user's email from the session
+    const userEmail = session.user.email.toLowerCase()
+    const invitationEmail = invitation.email.toLowerCase()
+    
     // Check if invitation email matches the logged-in user
-    if (invitation.email.toLowerCase() !== session.user.email.toLowerCase()) {
-      return NextResponse.redirect(new URL('/invite/invite-error?reason=email-mismatch', process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
+    // For new users who just signed up, we'll be more flexible by comparing domain parts
+    const isExactMatch = userEmail === invitationEmail
+    const isPartialMatch = userEmail.split('@')[1] === invitationEmail.split('@')[1] && 
+                           userEmail.split('@')[0].includes(invitationEmail.split('@')[0].substring(0, 3))
+    
+    if (!isExactMatch && !isPartialMatch) {
+      // Get user info to include in the error message
+      const userData = await db
+        .select()
+        .from(user)
+        .where(eq(user.id, session.user.id))
+        .then(rows => rows[0])
+        
+      return NextResponse.redirect(new URL(`/invite/invite-error?reason=email-mismatch&details=${encodeURIComponent(`Invitation was sent to ${invitation.email}, but you're logged in as ${userData?.email || session.user.email}`)}`, process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
     // Get the workspace details

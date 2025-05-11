@@ -56,7 +56,44 @@ export async function middleware(request: NextRequest) {
 
   // Allow access to invitation links
   if (request.nextUrl.pathname.startsWith('/invite/')) {
-    return NextResponse.next()
+    // If this is an invitation and the user is not logged in, 
+    // and this isn't a login/signup-related request, redirect to login
+    if (!hasActiveSession && 
+        !request.nextUrl.pathname.endsWith('/login') && 
+        !request.nextUrl.pathname.endsWith('/signup') && 
+        !request.nextUrl.search.includes('callbackUrl')) {
+      
+      // Prepare invitation URL for callback after login
+      const token = request.nextUrl.searchParams.get('token');
+      const inviteId = request.nextUrl.pathname.split('/').pop();
+      
+      // Build the callback URL - retain the invitation path with token
+      const callbackParam = encodeURIComponent(
+        `/invite/${inviteId}${token ? `?token=${token}` : ''}`
+      );
+      
+      // Redirect to login with callback
+      return NextResponse.redirect(
+        new URL(`/login?callbackUrl=${callbackParam}&invite_flow=true`, request.url)
+      );
+    }
+    
+    return NextResponse.next();
+  }
+  
+  // Allow access to workspace invitation API endpoint
+  if (request.nextUrl.pathname.startsWith('/api/workspaces/invitations')) {
+    // If the endpoint is for accepting an invitation and user is not logged in
+    if (request.nextUrl.pathname.includes('/accept') && !hasActiveSession) {
+      const token = request.nextUrl.searchParams.get('token');
+      if (token) {
+        // Redirect to the client-side invite page instead of directly to login
+        return NextResponse.redirect(
+          new URL(`/invite/${token}?token=${token}`, request.url)
+        );
+      }
+    }
+    return NextResponse.next();
   }
 
   // Handle protected routes that require authentication
@@ -78,18 +115,22 @@ export async function middleware(request: NextRequest) {
   }
 
   // Handle waitlist protection for login and signup in production
-  if (url.pathname === '/login' || url.pathname === '/signup') {
+  if (url.pathname === '/login' || url.pathname === '/signup' || 
+      url.pathname === '/auth/login' || url.pathname === '/auth/signup') {
     // If this is the login page and user has logged in before, allow access
-    if (hasPreviouslyLoggedIn && request.nextUrl.pathname === '/login') {
+    if (hasPreviouslyLoggedIn && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/auth/login')) {
       return NextResponse.next()
     }
+
+    // Check for invite_flow parameter indicating the user is in an invitation flow
+    const isInviteFlow = url.searchParams.get('invite_flow') === 'true'
 
     // Check for a waitlist token in the URL
     const waitlistToken = url.searchParams.get('token')
 
-    // If there's a redirect to the invite page, bypass waitlist check
+    // If there's a redirect to the invite page or we're in an invite flow, bypass waitlist check
     const redirectParam = request.nextUrl.searchParams.get('redirect')
-    if (redirectParam && redirectParam.startsWith('/invite/')) {
+    if ((redirectParam && redirectParam.startsWith('/invite/')) || isInviteFlow) {
       return NextResponse.next()
     }
 
