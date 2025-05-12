@@ -189,6 +189,26 @@ export async function POST(
   foundWebhook = webhooks[0].webhook
   foundWorkflow = webhooks[0].workflow
 
+  // Special handling for Telegram webhooks to work around middleware User-Agent checks
+  if (foundWebhook.provider === 'telegram') {
+    // Log detailed information about the request for debugging
+    const userAgent = request.headers.get('user-agent') || 'empty'
+    logger.info(`[${requestId}] Received Telegram webhook request:`, {
+      userAgent,
+      path,
+      clientIp: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
+      method: request.method,
+      contentType: request.headers.get('content-type'),
+      hasUpdate: !!body?.update_id
+    })
+
+    // Ensure User-Agent headers for Telegram in future requests from the bot
+    // We can't modify the incoming request, but we can recommend adding it for future setup
+    if (!userAgent || userAgent === 'empty') {
+      logger.warn(`[${requestId}] Telegram webhook request missing User-Agent header. Recommend reconfiguring webhook with 'TelegramBot/1.0' User-Agent.`)
+    }
+  }
+
   // Detect provider type
   const isAirtableWebhook = foundWebhook.provider === 'airtable'
   const isGmailWebhook = foundWebhook.provider === 'gmail'

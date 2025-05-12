@@ -127,6 +127,124 @@ export async function GET(request: NextRequest) {
         })
       }
 
+      case 'telegram': {
+        const botToken = providerConfig.botToken
+        const triggerPhrase = providerConfig.triggerPhrase
+
+        if (!botToken || !triggerPhrase) {
+          logger.warn(`[${requestId}] Telegram webhook missing configuration: ${webhookId}`)
+          return NextResponse.json(
+            { success: false, error: 'Webhook has incomplete configuration' },
+            { status: 400 }
+          )
+        }
+
+        // Test the webhook endpoint with a simple message to check if it's reachable
+        const testMessage = {
+          update_id: 12345,
+          message: {
+            message_id: 67890,
+            from: {
+              id: 123456789,
+              first_name: "Test",
+              username: "testbot"
+            },
+            chat: {
+              id: 123456789,
+              first_name: "Test",
+              username: "testbot",
+              type: "private"
+            },
+            date: Math.floor(Date.now() / 1000),
+            text: "This is a test message"
+          }
+        }
+
+        logger.debug(`[${requestId}] Testing Telegram webhook connection`, {
+          webhookId,
+          url: webhookUrl
+        })
+
+        // Make a test request to the webhook endpoint
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'TelegramBot/1.0'
+          },
+          body: JSON.stringify(testMessage)
+        })
+
+        // Get the response details
+        const status = response.status
+        let responseText = '';
+        try {
+          responseText = await response.text();
+        } catch (e) {
+          // Ignore if we can't get response text
+        }
+
+        // Consider success if we get a 2xx response
+        const success = status >= 200 && status < 300
+
+        if (success) {
+          logger.info(`[${requestId}] Telegram webhook test successful: ${webhookId}`)
+        } else {
+          logger.warn(`[${requestId}] Telegram webhook test failed: ${webhookId}`, {
+            status,
+            responseText
+          })
+        }
+
+        // Get webhook info from Telegram API
+        let webhookInfo = null
+        try {
+          const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
+          const infoResponse = await fetch(webhookInfoUrl, {
+            headers: {
+              'User-Agent': 'TelegramBot/1.0'
+            }
+          })
+          if (infoResponse.ok) {
+            const infoJson = await infoResponse.json()
+            if (infoJson.ok) {
+              webhookInfo = infoJson.result
+            }
+          }
+        } catch (e) {
+          logger.warn(`[${requestId}] Failed to get Telegram webhook info`, e)
+        }
+
+        // Format the curl command for testing
+        const curlCommand = [
+          `curl -X POST "${webhookUrl}"`,
+          `-H "Content-Type: application/json"`,
+          `-H "User-Agent: TelegramBot/1.0"`,
+          `-d '${JSON.stringify(testMessage, null, 2)}'`
+        ].join(' \\\n')
+
+        return NextResponse.json({
+          success,
+          webhook: {
+            id: foundWebhook.id,
+            url: webhookUrl,
+            botToken: `${botToken.substring(0, 5)}...${botToken.substring(botToken.length - 5)}`, // Show partial token for security
+            triggerPhrase,
+            isActive: foundWebhook.isActive
+          },
+          test: {
+            status,
+            responseText,
+            webhookInfo
+          },
+          message: success
+            ? 'Telegram webhook appears to be working. Your bot should now receive messages.'
+            : 'Telegram webhook test failed. Please check server logs for more details.',
+          curlCommand,
+          info: "To fix issues with Telegram webhooks getting 403 Forbidden responses, ensure the webhook request includes a User-Agent header."
+        })
+      }
+
       case 'github': {
         const contentType = providerConfig.contentType || 'application/json'
 
