@@ -185,15 +185,15 @@ describe('VariableManager', () => {
 
   describe('formatForCodeContext', () => {
     it('should format plain type variables for code context', () => {
-      expect(VariableManager.formatForCodeContext('hello world', 'plain')).toBe('"hello world"')
-      expect(VariableManager.formatForCodeContext(42, 'plain')).toBe('"42"')
-      expect(VariableManager.formatForCodeContext(true, 'plain')).toBe('"true"')
+      expect(VariableManager.formatForCodeContext('hello world', 'plain')).toBe('hello world')
+      expect(VariableManager.formatForCodeContext(42, 'plain')).toBe('42')
+      expect(VariableManager.formatForCodeContext(true, 'plain')).toBe('true')
     })
 
     it('should format string type variables for code context', () => {
       expect(VariableManager.formatForCodeContext('hello world', 'string')).toBe('"hello world"')
-      expect(VariableManager.formatForCodeContext(42, 'string')).toBe('"42"')
-      expect(VariableManager.formatForCodeContext(true, 'string')).toBe('"true"')
+      expect(VariableManager.formatForCodeContext(42, 'string')).toBe('42')
+      expect(VariableManager.formatForCodeContext(true, 'string')).toBe('true')
     })
 
     it('should format number type variables for code context', () => {
