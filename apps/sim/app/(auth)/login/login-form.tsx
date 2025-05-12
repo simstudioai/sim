@@ -37,14 +37,14 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [, setMounted] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
 
-  // Extract callbackUrl from the URL for both form and OAuth providers
-  const callbackUrl = searchParams?.get('callbackUrl') || '/w'
-  const isInviteFlow = searchParams?.get('invite_flow') === 'true'
+  // Initialize state for URL parameters
+  const [callbackUrl, setCallbackUrl] = useState('/w')
+  const [isInviteFlow, setIsInviteFlow] = useState(false)
 
   // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
@@ -55,9 +55,21 @@ export default function LoginPage({
     message: string
   }>({ type: null, message: '' })
 
+  // Extract URL parameters after component mounts to avoid SSR issues
   useEffect(() => {
     setMounted(true)
-  }, [])
+
+    // Only access search params on the client side
+    if (searchParams) {
+      const callback = searchParams.get('callbackUrl')
+      if (callback) {
+        setCallbackUrl(callback)
+      }
+
+      const inviteFlow = searchParams.get('invite_flow') === 'true'
+      setIsInviteFlow(inviteFlow)
+    }
+  }, [searchParams])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -228,12 +240,14 @@ export default function LoginPage({
           </CardHeader>
           <CardContent>
             <div className="grid gap-6">
-              <SocialLoginButtons
-                githubAvailable={githubAvailable}
-                googleAvailable={googleAvailable}
-                callbackURL={callbackUrl}
-                isProduction={isProduction}
-              />
+              {mounted && (
+                <SocialLoginButtons
+                  githubAvailable={githubAvailable}
+                  googleAvailable={googleAvailable}
+                  callbackURL={callbackUrl}
+                  isProduction={isProduction}
+                />
+              )}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -300,7 +314,7 @@ export default function LoginPage({
             <p className="text-sm text-gray-500 text-center w-full">
               Don't have an account?{' '}
               <Link
-                href={`/signup${searchParams ? `?${searchParams.toString()}` : ''}`}
+                href={mounted && searchParams ? `/signup?${searchParams.toString()}` : '/signup'}
                 className="text-primary hover:underline"
               >
                 Sign up
