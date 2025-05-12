@@ -152,10 +152,7 @@ export async function executeTool(
 
     // For internal routes or when skipProxy is true, call the API directly
     if (tool.request.isInternalRoute || skipProxy) {
-      console.log('tool', tool)
-      console.log('contextParams', contextParams)
       const result = await handleInternalRequest(toolId, tool, contextParams)
-      console.log('result', result)
 
       // Apply post-processing if available and not skipped
       if (tool.postProcess && result.success && !skipPostProcess) {
