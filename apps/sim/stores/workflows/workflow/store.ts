@@ -17,8 +17,11 @@ const initialState = {
   edges: [],
   loops: {},
   lastSaved: undefined,
+  // Legacy deployment fields (keeping for compatibility but they will be deprecated)
   isDeployed: false,
   deployedAt: undefined,
+  // New field for per-workflow deployment tracking
+  deploymentStatuses: {},
   needsRedeployment: false,
   hasActiveSchedule: false,
   hasActiveWebhook: false,
@@ -382,8 +385,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             edges: currentState.edges,
             loops: currentState.loops,
             history: currentState.history,
+            // Include both legacy and new deployment status fields
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
+            deploymentStatuses: currentState.deploymentStatuses,
             lastSaved: Date.now(),
           })
 
@@ -683,11 +688,59 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }))
       },
 
-      setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => {
+      // Method to get deployment status for a specific workflow
+      getWorkflowDeploymentStatus: (workflowId: string | null): DeploymentStatus | null => {
+        if (!workflowId) {
+          // If no workflow ID provided, check the active workflow
+          workflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!workflowId) return null
+        }
+
+        const { deploymentStatuses = {} } = get()
+        
+        // First try to get from the workflow-specific deployment statuses
+        if (deploymentStatuses[workflowId]) {
+          return deploymentStatuses[workflowId]
+        }
+        
+        // For backward compatibility, fallback to the global isDeployed/deployedAt if this is the active workflow
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (workflowId === activeWorkflowId && get().isDeployed) {
+          return {
+            isDeployed: get().isDeployed || false,
+            deployedAt: get().deployedAt,
+          }
+        }
+        
+        // No deployment status found
+        return null
+      },
+
+      // Updated method to set deployment status for a specific workflow
+      setDeploymentStatus: (workflowId: string | null, isDeployed: boolean, deployedAt?: Date, apiKey?: string) => {
+        if (!workflowId) {
+          workflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!workflowId) return
+        }
+
+        const newDeploymentStatuses = {
+          ...get().deploymentStatuses,
+          [workflowId]: {
+            isDeployed,
+            deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+            apiKey,
+          },
+        }
+
+        // Also update the legacy fields for backwards compatibility
         const newState = {
           ...get(),
-          isDeployed,
-          deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+          deploymentStatuses: newDeploymentStatuses,
+          // If this is the active workflow, also set the global state for backward compatibility
+          isDeployed: workflowId === useWorkflowRegistry.getState().activeWorkflowId ? isDeployed : get().isDeployed,
+          deployedAt: workflowId === useWorkflowRegistry.getState().activeWorkflowId 
+            ? (deployedAt || (isDeployed ? new Date() : undefined)) 
+            : get().deployedAt,
           needsRedeployment: isDeployed ? false : get().needsRedeployment,
         }
 
@@ -721,20 +774,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       revertToDeployedState: (deployedState: WorkflowState) => {
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        
+        // Preserving the workflow-specific deployment status if it exists
+        const deploymentStatus = activeWorkflowId 
+          ? get().getWorkflowDeploymentStatus(activeWorkflowId) 
+          : null;
+        
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
           loops: deployedState.loops,
+          // Legacy fields for backward compatibility
           isDeployed: true,
           needsRedeployment: false,
           hasActiveWebhook: false, // Reset webhook status
+          // Keep existing deployment statuses and update for the active workflow if needed
+          deploymentStatuses: {
+            ...get().deploymentStatuses,
+            ...(activeWorkflowId && deploymentStatus ? {
+              [activeWorkflowId]: deploymentStatus
+            } : {})
+          }
         }
 
         // Update the main workflow state
         set(newState)
 
         // Get the active workflow ID
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (!activeWorkflowId) return
 
         // Initialize subblock store with values from deployed state
