@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: 'npm'
-    directory: '/sim'
+    directory: 'apps/sim'
     schedule:
       interval: 'weekly'
       day: 'monday'
@@ -23,7 +23,7 @@ updates:
 
   # Documentation site dependencies (/docs)
   - package-ecosystem: 'npm'
-    directory: '/docs'
+    directory: 'apps/docs'
     schedule:
       interval: 'weekly'
       day: 'wednesday'
