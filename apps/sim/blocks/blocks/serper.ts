@@ -8,6 +8,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
   description: 'Search the web using Serper',
   longDescription:
     "Access real-time web search results with Serper's Google Search API integration. Retrieve structured search data including web pages, news, images, and places with customizable language and region settings.",
+  docsLink: 'https://docs.simstudio.ai/tools/serper',
   category: 'tools',
   bgColor: '#2B3543',
   icon: SerperIcon,

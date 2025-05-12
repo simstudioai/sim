@@ -23,6 +23,7 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
     'Integrate Airtable functionality to manage table records. List, get, create, ' +
     'update single, or update multiple records using OAuth authentication. ' +
     'Requires base ID, table ID, and operation-specific parameters.',
+  docsLink: 'https://docs.simstudio.ai/tools/airtable',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: AirtableIcon,

@@ -21,6 +21,7 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   description: 'Add a condition',
   longDescription:
     'Add a condition to the workflow to branch the execution path based on a boolean expression.',
+  docsLink: 'https://docs.simstudio.ai/blocks/condition',
   bgColor: '#FF972F',
   icon: ConditionalIcon,
   category: 'blocks',

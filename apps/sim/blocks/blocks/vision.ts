@@ -8,6 +8,7 @@ export const VisionBlock: BlockConfig<VisionResponse> = {
   description: 'Analyze images with vision models',
   longDescription:
     'Process visual content with customizable prompts to extract insights and information from images.',
+  docsLink: 'https://docs.simstudio.ai/tools/vision',
   category: 'tools',
   bgColor: '#4D5FFF',
   icon: EyeIcon,

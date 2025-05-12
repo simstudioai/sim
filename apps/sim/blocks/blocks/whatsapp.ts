@@ -16,6 +16,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppBlockOutput> = {
   description: 'Send WhatsApp messages',
   longDescription:
     'Send messages to WhatsApp users using the WhatsApp Business API. Requires WhatsApp Business API configuration.',
+  docsLink: 'https://docs.simstudio.ai/tools/whatsapp',
   category: 'tools',
   bgColor: '#25D366',
   icon: WhatsAppIcon,

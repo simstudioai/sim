@@ -49,6 +49,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   description: 'Build an agent',
   longDescription:
     'Create powerful AI agents using any LLM provider with customizable system prompts and tool integrations.',
+  docsLink: 'https://docs.simstudio.ai/blocks/agent',
   category: 'blocks',
   bgColor: '#802FFF',
   icon: AgentIcon,

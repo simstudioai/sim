@@ -26,6 +26,7 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   description: 'Search the web',
   longDescription:
     'Searches the web using the Google Custom Search API, which provides high-quality search results from the entire internet or a specific site defined by a custom search engine ID.',
+  docsLink: 'https://docs.simstudio.ai/tools/google_search',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: GoogleIcon,

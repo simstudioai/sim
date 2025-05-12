@@ -14,6 +14,7 @@ export const RedditBlock: BlockConfig<
   description: 'Access Reddit data and content',
   longDescription:
     'Access Reddit data to retrieve posts and comments from any subreddit. Get post titles, content, authors, scores, comments and more.',
+  docsLink: 'https://docs.simstudio.ai/tools/reddit',
   category: 'tools',
   bgColor: '#FF5700',
   icon: RedditIcon,

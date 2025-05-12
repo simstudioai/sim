@@ -385,10 +385,12 @@ async function createTelegramWebhookSubscription(
       allowed_updates: ['message'],
     }
 
+    // Configure user-agent header to ensure Telegram can identify itself to our middleware
     const telegramResponse = await fetch(telegramApiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'TelegramBot/1.0'
       },
       body: JSON.stringify(requestBody),
     })
@@ -407,6 +409,29 @@ async function createTelegramWebhookSubscription(
     logger.info(
       `[${requestId}] Successfully created Telegram webhook for webhook ${webhookData.id}.`
     )
+    
+    // Get webhook info to ensure it's properly set up
+    try {
+      const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
+      const webhookInfo = await fetch(webhookInfoUrl, {
+        headers: {
+          'User-Agent': 'TelegramBot/1.0'
+        }
+      });
+      const webhookInfoJson = await webhookInfo.json();
+      
+      if (webhookInfoJson.ok) {
+        logger.info(`[${requestId}] Telegram webhook info:`, {
+          url: webhookInfoJson.result.url,
+          has_custom_certificate: webhookInfoJson.result.has_custom_certificate,
+          pending_update_count: webhookInfoJson.result.pending_update_count,
+          webhookId: webhookData.id
+        });
+      }
+    } catch (error) {
+      // Non-critical error, just log
+      logger.warn(`[${requestId}] Failed to get webhook info`, error);
+    }
   } catch (error: any) {
     logger.error(
       `[${requestId}] Exception during Telegram webhook creation for webhook ${webhookData.id}.`,

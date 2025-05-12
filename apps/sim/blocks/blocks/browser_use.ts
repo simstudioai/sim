@@ -19,6 +19,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   description: 'Run browser automation tasks',
   longDescription:
     'Execute browser automation tasks with BrowserUse to navigate the web, scrape data, and perform actions as if a real user was interacting with the browser. The task runs asynchronously and the block will poll for completion before returning results.',
+  docsLink: 'https://docs.simstudio.ai/tools/browser_use',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: BrowserUseIcon,
