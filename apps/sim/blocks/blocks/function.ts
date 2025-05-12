@@ -30,7 +30,6 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
       type: {
         result: 'any',
         stdout: 'string',
-        executionTime: 'number',
       },
     },
   },

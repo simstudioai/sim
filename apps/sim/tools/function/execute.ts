@@ -55,7 +55,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       output: {
         result: result.output.result,
         stdout: result.output.stdout,
-        executionTime: result.output.executionTime,
       },
     }
   },

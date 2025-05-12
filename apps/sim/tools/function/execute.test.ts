@@ -85,7 +85,6 @@ describe('Function Execute Tool', () => {
         output: {
           result: 42,
           stdout: 'console.log output',
-          executionTime: 15,
         },
       })
 
@@ -98,7 +97,6 @@ describe('Function Execute Tool', () => {
       expect(result.success).toBe(true)
       expect(result.output.result).toBe(42)
       expect(result.output.stdout).toBe('console.log output')
-      expect(result.output.executionTime).toBe(15)
     })
 
     test('should handle execution errors', async () => {

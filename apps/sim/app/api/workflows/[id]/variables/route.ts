@@ -63,11 +63,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         variablesRecord[variable.id] = variable
       })
 
+      // Get existing variables to merge with the incoming ones
+      const existingVariables = (workflowRecord[0].variables as Record<string, Variable>) || {}
+      
+      // Create a timestamp based on the current request
+      
+      // Merge variables: Keep existing ones and update/add new ones
+      // This prevents variables from being deleted during race conditions
+      const mergedVariables = {
+        ...existingVariables,
+        ...variablesRecord
+      }
+
       // Update workflow with variables
       await db
         .update(workflow)
         .set({
-          variables: variablesRecord,
+          variables: mergedVariables,
           updatedAt: new Date(),
         })
         .where(eq(workflow.id, workflowId))

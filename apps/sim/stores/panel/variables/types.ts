@@ -1,4 +1,8 @@
-export type VariableType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'plain'
+/**
+ * Variable types supported in the application
+ * Note: 'string' is deprecated - use 'plain' for text values instead
+ */
+export type VariableType = 'plain' | 'number' | 'boolean' | 'object' | 'array' | 'string'
 
 /**
  * Represents a workflow variable with workflow-specific naming
@@ -10,6 +14,7 @@ export interface Variable {
   name: string // Must be unique per workflow
   type: VariableType
   value: any
+  validationError?: string // Tracks format validation errors
 }
 
 export interface VariablesStore {

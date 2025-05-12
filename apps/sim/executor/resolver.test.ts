@@ -599,7 +599,7 @@ describe('InputResolver', () => {
       const result = resolver.resolveInputs(block, mockContext)
 
       // String should be quoted in code context
-      expect(result.code).toContain('const name = "\"Hello\"";')
+      expect(result.code).toContain('const name = "Hello";')
       // Number should not be quoted
       expect(result.code).toContain('const num = 42;')
     })

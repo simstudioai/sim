@@ -1,7 +1,16 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { ChevronDown, Copy, MoreVertical, Plus, Trash } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  Copy,
+  MoreVertical,
+  Plus,
+  Trash,
+} from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -51,6 +60,9 @@ export function Variables({ panelWidth }: VariablesProps) {
   // Track editor references
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
+  // Track which variables are currently being edited
+  const [activeEditors, setActiveEditors] = useState<Record<string, boolean>>({})
+
   // Auto-save when variables are added/edited
   const handleAddVariable = () => {
     if (!activeWorkflowId) return
@@ -68,8 +80,8 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   const getTypeIcon = (type: VariableType) => {
     switch (type) {
-      case 'string':
-        return 'Aa'
+      case 'plain':
+        return 'Abc'
       case 'number':
         return '123'
       case 'boolean':
@@ -78,7 +90,7 @@ export function Variables({ panelWidth }: VariablesProps) {
         return '{}'
       case 'array':
         return '[]'
-      case 'plain':
+      case 'string':
         return 'Abc'
       default:
         return '?'
@@ -87,8 +99,8 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   const getPlaceholder = (type: VariableType) => {
     switch (type) {
-      case 'string':
-        return '"Hello world"'
+      case 'plain':
+        return 'Plain text value'
       case 'number':
         return '42'
       case 'boolean':
@@ -97,7 +109,7 @@ export function Variables({ panelWidth }: VariablesProps) {
         return '{\n  "key": "value"\n}'
       case 'array':
         return '[\n  1,\n  2,\n  3\n]'
-      case 'plain':
+      case 'string':
         return 'Plain text value'
       default:
         return ''
@@ -117,16 +129,100 @@ export function Variables({ panelWidth }: VariablesProps) {
     }
   }
 
+  // Handle editor value changes - store exactly what user types
+  const handleEditorChange = (variable: Variable, newValue: string) => {
+    // Store the raw value directly, no parsing or formatting
+    updateVariable(variable.id, {
+      value: newValue,
+      // Clear any previous validation errors so they'll be recalculated
+      validationError: undefined,
+    })
+  }
+
+  // Only track focus state for UI purposes
+  const handleEditorBlur = (variableId: string) => {
+    setActiveEditors((prev) => ({
+      ...prev,
+      [variableId]: false,
+    }))
+  }
+
+  // Track when editor becomes active
+  const handleEditorFocus = (variableId: string) => {
+    setActiveEditors((prev) => ({
+      ...prev,
+      [variableId]: true,
+    }))
+  }
+
+  // Always return raw value without any formatting
   const formatValue = (variable: Variable) => {
     if (variable.value === '') return ''
 
-    try {
-      // Use the VariableManager to format values consistently
-      return VariableManager.formatForEditor(variable.value, variable.type)
-    } catch (e) {
-      console.error('Error formatting value:', e)
-      // If formatting fails, return as is
-      return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
+    // Always return raw value exactly as typed
+    return typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)
+  }
+
+  // Get validation status based on type and value
+  const getValidationStatus = (variable: Variable): string | undefined => {
+    // Empty values don't need validation
+    if (variable.value === '') return undefined
+
+    // Otherwise validate based on type
+    switch (variable.type) {
+      case 'number':
+        return isNaN(Number(variable.value)) ? 'Not a valid number' : undefined
+      case 'boolean':
+        return !/^(true|false)$/i.test(String(variable.value).trim())
+          ? 'Expected "true" or "false"'
+          : undefined
+      case 'object':
+        try {
+          // Handle both JavaScript and JSON syntax
+          let valueToValidate = String(variable.value).trim()
+
+          // If it's clearly JS syntax, convert it to valid JSON
+          if (valueToValidate.includes("'") || /\b\w+\s*:/.test(valueToValidate)) {
+            // Replace JS single quotes with double quotes, but handle escaped quotes correctly
+            valueToValidate = valueToValidate
+              .replace(/(\w+)\s*:/g, '"$1":') // Convert unquoted property names to quoted
+              .replace(/'/g, '"') // Replace single quotes with double quotes
+          }
+
+          const parsed = JSON.parse(valueToValidate)
+          return !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
+            ? 'Not a valid JSON object'
+            : undefined
+        } catch {
+          return 'Invalid JSON object syntax'
+        }
+      case 'array':
+        try {
+          // Use actual JavaScript evaluation instead of trying to convert to JSON
+          // This properly handles all valid JS array syntax including mixed types
+          let valueToEvaluate = String(variable.value).trim()
+
+          // Basic security check to prevent arbitrary code execution
+          if (!valueToEvaluate.startsWith('[') || !valueToEvaluate.endsWith(']')) {
+            return 'Not a valid array format'
+          }
+
+          // Use Function constructor to safely evaluate the array expression
+          // This is safer than eval() and handles all JS array syntax correctly
+          const parsed = new Function(`return ${valueToEvaluate}`)()
+
+          // Verify it's actually an array
+          if (!Array.isArray(parsed)) {
+            return 'Not a valid array'
+          }
+
+          return undefined // Valid array
+        } catch (e) {
+          console.log('Array parsing error:', e)
+          return 'Invalid array syntax'
+        }
+      default:
+        return undefined
     }
   }
 
@@ -139,20 +235,6 @@ export function Variables({ panelWidth }: VariablesProps) {
       }
     })
   }, [workflowVariables])
-
-  // Handle editor value changes
-  const handleEditorChange = (variable: Variable, newValue: string) => {
-    try {
-      // Use the VariableManager to consistently parse input values
-      const processedValue = VariableManager.parseInputForStorage(newValue, variable.type)
-
-      // Update the variable with the processed value
-      updateVariable(variable.id, { value: processedValue })
-    } catch (e) {
-      // If processing fails, use the raw value
-      updateVariable(variable.id, { value: newValue })
-    }
-  }
 
   return (
     <ScrollArea className="h-full">
@@ -199,11 +281,11 @@ export function Variables({ panelWidth }: VariablesProps) {
                         </Tooltip>
                         <DropdownMenuContent align="end" className="min-w-32">
                           <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'string' })}
+                            onClick={() => updateVariable(variable.id, { type: 'plain' })}
                             className="cursor-pointer flex items-center"
                           >
-                            <div className="w-5 text-center mr-2 font-mono text-sm">Aa</div>
-                            <span>String</span>
+                            <div className="w-5 text-center mr-2 font-mono text-sm">Abc</div>
+                            <span>Plain</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => updateVariable(variable.id, { type: 'number' })}
@@ -232,13 +314,6 @@ export function Variables({ panelWidth }: VariablesProps) {
                           >
                             <div className="w-5 text-center mr-2 font-mono text-sm">[]</div>
                             <span>Array</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'plain' })}
-                            className="cursor-pointer flex items-center"
-                          >
-                            <div className="w-5 text-center mr-2 font-mono text-sm">Abc</div>
-                            <span>Plain</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -281,6 +356,10 @@ export function Variables({ panelWidth }: VariablesProps) {
                     ref={(el) => {
                       editorRefs.current[variable.id] = el
                     }}
+                    style={{
+                      maxWidth: panelWidth ? `${panelWidth - 50}px` : '100%',
+                      overflowWrap: 'break-word',
+                    }}
                   >
                     {variable.value === '' && (
                       <div className="absolute top-[8.5px] left-4 text-muted-foreground/50 pointer-events-none select-none">
@@ -291,6 +370,8 @@ export function Variables({ panelWidth }: VariablesProps) {
                       key={`editor-${variable.id}-${variable.type}`}
                       value={formatValue(variable)}
                       onValueChange={handleEditorChange.bind(null, variable)}
+                      onBlur={() => handleEditorBlur(variable.id)}
+                      onFocus={() => handleEditorFocus(variable.id)}
                       highlight={(code) =>
                         highlight(
                           code,
@@ -302,10 +383,31 @@ export function Variables({ panelWidth }: VariablesProps) {
                       style={{
                         fontFamily: 'inherit',
                         lineHeight: '21px',
+                        width: '100%',
+                        wordWrap: 'break-word',
+                        whiteSpace: 'pre-wrap',
                       }}
                       className="focus:outline-none w-full"
-                      textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap"
+                      textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full whitespace-pre-wrap break-words overflow-visible"
                     />
+
+                    {/* Show validation indicator for any non-empty variable */}
+                    {variable.value !== '' && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="absolute top-[4px] right-[0px] cursor-help group">
+                            {getValidationStatus(variable) && (
+                              <div className="p-1 rounded-md group-hover:bg-muted/80 group-hover:shadow-sm transition-all duration-200 border border-transparent group-hover:border-muted/50">
+                                <AlertTriangle className="h-4 w-4 text-muted-foreground opacity-30 group-hover:opacity-100 transition-opacity duration-200" />
+                              </div>
+                            )}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs">
+                          {getValidationStatus(variable) && <p>{getValidationStatus(variable)}</p>}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </div>
               ))}
