@@ -101,26 +101,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL(`/w/${invitation.workspaceId}`, process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))
     }
     
-    // Add user to workspace
-    await db
-      .insert(workspaceMember)
-      .values({
-        id: randomUUID(),
-        workspaceId: invitation.workspaceId,
-        userId: session.user.id,
-        role: invitation.role,
-        joinedAt: new Date(),
-        updatedAt: new Date(),
-      })
-    
-    // Mark invitation as accepted
-    await db
-      .update(workspaceInvitation)
-      .set({
-        status: 'accepted',
-        updatedAt: new Date(),
-      })
-      .where(eq(workspaceInvitation.id, invitation.id))
+    // Add user to workspace and mark invitation as accepted atomically
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(workspaceMember)
+        .values({
+          id: randomUUID(),
+          workspaceId: invitation.workspaceId,
+          userId: session.user.id,
+          role: invitation.role,
+          joinedAt: new Date(),
+          updatedAt: new Date(),
+        })
+      
+      await tx
+        .update(workspaceInvitation)
+        .set({
+          status: 'accepted',
+          updatedAt: new Date(),
+        })
+        .where(eq(workspaceInvitation.id, invitation.id))
+    })
     
     // Redirect to the workspace
     return NextResponse.redirect(new URL(`/w/${invitation.workspaceId}`, process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'))

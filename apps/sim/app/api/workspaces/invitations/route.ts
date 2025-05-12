@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     const existingUser = await db
       .select()
       .from(user)
-      .where(eq(user.email, email))
+      .where(eq(sql.lower(user.email), email.toLowerCase()))
       .then(rows => rows[0])
     
     if (existingUser) {

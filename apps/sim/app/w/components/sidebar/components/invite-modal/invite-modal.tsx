@@ -338,7 +338,8 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                   disabled={
                     (emails.length === 0 && !inputValue.trim()) ||
                     isSubmitting ||
-                    !activeWorkspaceId
+                    !activeWorkspaceId ||
+                    (emails.length === 0 && invalidEmails.length > 0)
                   }
                   className={cn(
                     'gap-2 font-medium',
