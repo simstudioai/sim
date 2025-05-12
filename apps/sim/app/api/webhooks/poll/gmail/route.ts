@@ -40,10 +40,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const authHeader = request.headers.get('authorization')
-    const webhookSecret = process.env.WEBHOOK_POLLING_SECRET
+    const webhookSecret = process.env.CRON_SECRET || process.env.WEBHOOK_POLLING_SECRET
 
     if (!webhookSecret) {
-      logger.warn(`WEBHOOK_POLLING_SECRET is not set`)
       return new NextResponse('Configuration error: Webhook secret is not set', { status: 500 })
     }
 
