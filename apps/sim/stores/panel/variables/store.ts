@@ -13,10 +13,21 @@ const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
 const saveTimers = new Map<string, NodeJS.Timeout>()
 // Track which workflows have already been loaded
 const loadedWorkflows = new Set<string>()
+// Track recently added variable IDs with timestamps
+const recentlyAddedVariables = new Map<string, number>()
+// Time window in ms to consider a variable as "recently added" (3 seconds)
+const RECENT_VARIABLE_WINDOW = 3000
 
 // Clear a workspace from the loaded tracking when switching workspaces
 export function clearWorkflowVariablesTracking() {
   loadedWorkflows.clear()
+  // Also clear any old entries from recentlyAddedVariables
+  const now = Date.now()
+  recentlyAddedVariables.forEach((timestamp, id) => {
+    if (now - timestamp > RECENT_VARIABLE_WINDOW * 2) {
+      recentlyAddedVariables.delete(id)
+    }
+  })
 }
 
 /**
@@ -150,6 +161,9 @@ export const useVariablesStore = create<VariablesStore>()(
             newVariable.validationError = validationError
           }
 
+          // Mark this variable as recently added with current timestamp
+          recentlyAddedVariables.set(id, Date.now())
+
           set((state) => ({
             variables: {
               ...state.variables,
@@ -157,8 +171,21 @@ export const useVariablesStore = create<VariablesStore>()(
             },
           }))
 
-          // Auto-save to DB
-          get().saveVariables(variable.workflowId)
+          // Use the same debounced save mechanism as updateVariable
+          const workflowId = variable.workflowId
+          
+          // Clear existing timer for this workflow if it exists
+          if (saveTimers.has(workflowId)) {
+            clearTimeout(saveTimers.get(workflowId))
+          }
+          
+          // Set new debounced save timer
+          const timer = setTimeout(() => {
+            get().saveVariables(workflowId)
+            saveTimers.delete(workflowId)
+          }, SAVE_DEBOUNCE_DELAY)
+          
+          saveTimers.set(workflowId, timer)
 
           return id
         },
@@ -309,8 +336,19 @@ export const useVariablesStore = create<VariablesStore>()(
             const workflowId = state.variables[id].workflowId
             const { [id]: _, ...rest } = state.variables
 
-            // Auto-save to DB - no debounce for deletion
-            setTimeout(() => get().saveVariables(workflowId), 0)
+            // Use the same debounced save mechanism for consistency
+            // Clear existing timer for this workflow if it exists
+            if (saveTimers.has(workflowId)) {
+              clearTimeout(saveTimers.get(workflowId))
+            }
+            
+            // Set new debounced save timer
+            const timer = setTimeout(() => {
+              get().saveVariables(workflowId)
+              saveTimers.delete(workflowId)
+            }, SAVE_DEBOUNCE_DELAY)
+            
+            saveTimers.set(workflowId, timer)
 
             return { variables: rest }
           })
@@ -334,6 +372,9 @@ export const useVariablesStore = create<VariablesStore>()(
             uniqueName = `${baseName} (${nameIndex})`
             nameIndex++
           }
+          
+          // Mark this duplicated variable as recently added
+          recentlyAddedVariables.set(newId, Date.now())
 
           set((state) => ({
             variables: {
@@ -348,20 +389,77 @@ export const useVariablesStore = create<VariablesStore>()(
             },
           }))
 
-          // Auto-save to DB
-          get().saveVariables(variable.workflowId)
+          // Use the same debounced save mechanism
+          const workflowId = variable.workflowId
+          
+          // Clear existing timer for this workflow if it exists
+          if (saveTimers.has(workflowId)) {
+            clearTimeout(saveTimers.get(workflowId))
+          }
+          
+          // Set new debounced save timer
+          const timer = setTimeout(() => {
+            get().saveVariables(workflowId)
+            saveTimers.delete(workflowId)
+          }, SAVE_DEBOUNCE_DELAY)
+          
+          saveTimers.set(workflowId, timer)
 
           return newId
         },
 
         loadVariables: async (workflowId) => {
-          // Skip if already loaded to prevent redundant API calls
-          if (loadedWorkflows.has(workflowId)) return
+          // Skip if already loaded to prevent redundant API calls, but ensure
+          // we check for the special case of recently added variables first
+          if (loadedWorkflows.has(workflowId)) {
+            // Even if workflow is loaded, check if we have recent variables to protect
+            const workflowVariables = Object.values(get().variables)
+              .filter((v) => v.workflowId === workflowId)
+            
+            const now = Date.now()
+            const hasRecentVariables = workflowVariables.some(v => 
+              recentlyAddedVariables.has(v.id) && 
+              (now - (recentlyAddedVariables.get(v.id) || 0) < RECENT_VARIABLE_WINDOW)
+            )
+            
+            // No force reload needed if no recent variables and we've already loaded
+            if (!hasRecentVariables) {
+              return
+            }
+            
+            // Otherwise continue and do a full load+merge to protect recent variables
+          }
 
           try {
             set({ isLoading: true, error: null })
 
             const response = await fetch(`${API_ENDPOINTS.WORKFLOWS}/${workflowId}/variables`)
+
+            // Capture current variables for this workflow before we modify anything
+            const currentWorkflowVariables = Object.values(get().variables)
+              .filter((v) => v.workflowId === workflowId)
+              .reduce((acc, v) => {
+                acc[v.id] = v
+                return acc
+              }, {} as Record<string, Variable>)
+              
+            // Check which variables were recently added (within the last few seconds)
+            const now = Date.now()
+            const protectedVariableIds = new Set<string>()
+            
+            // Identify variables that should be protected from being overwritten
+            Object.keys(currentWorkflowVariables).forEach(id => {
+              // Protect recently added variables
+              if (recentlyAddedVariables.has(id) && 
+                  (now - (recentlyAddedVariables.get(id) || 0) < RECENT_VARIABLE_WINDOW)) {
+                protectedVariableIds.add(id)
+              }
+              
+              // Also protect variables that are currently being edited (have pending changes)
+              if (saveTimers.has(workflowId)) {
+                protectedVariableIds.add(id)
+              }
+            })
 
             // Handle 404 workflow not found gracefully
             if (response.status === 404) {
@@ -377,6 +475,13 @@ export const useVariablesStore = create<VariablesStore>()(
                   },
                   {} as Record<string, Variable>
                 )
+                
+                // Add back protected variables that should not be removed
+                Object.keys(currentWorkflowVariables).forEach(id => {
+                  if (protectedVariableIds.has(id)) {
+                    otherVariables[id] = currentWorkflowVariables[id]
+                  }
+                })
 
                 // Mark this workflow as loaded to prevent further attempts
                 loadedWorkflows.add(workflowId)
@@ -413,12 +518,22 @@ export const useVariablesStore = create<VariablesStore>()(
                   },
                   {} as Record<string, Variable>
                 )
+                
+                // Create the final variables object, prioritizing protected variables
+                const finalVariables = { ...otherVariables, ...migratedData }
+                
+                // Restore any protected variables that shouldn't be overwritten
+                Object.keys(currentWorkflowVariables).forEach(id => {
+                  if (protectedVariableIds.has(id)) {
+                    finalVariables[id] = currentWorkflowVariables[id]
+                  }
+                })
 
                 // Mark this workflow as loaded
                 loadedWorkflows.add(workflowId)
 
                 return {
-                  variables: { ...otherVariables, ...migratedData },
+                  variables: finalVariables,
                   isLoading: false,
                 }
               })
@@ -434,6 +549,13 @@ export const useVariablesStore = create<VariablesStore>()(
                   },
                   {} as Record<string, Variable>
                 )
+                
+                // Add back protected variables that should not be removed
+                Object.keys(currentWorkflowVariables).forEach(id => {
+                  if (protectedVariableIds.has(id)) {
+                    otherVariables[id] = currentWorkflowVariables[id]
+                  }
+                })
 
                 // Mark this workflow as loaded
                 loadedWorkflows.add(workflowId)
@@ -468,6 +590,12 @@ export const useVariablesStore = create<VariablesStore>()(
             const workflowVariables = Object.values(get().variables).filter(
               (variable) => variable.workflowId === workflowId
             )
+            
+            // Record the last save attempt timestamp for each variable to track sync state
+            workflowVariables.forEach(variable => {
+              // Mark save attempt time for all variables being saved
+              recentlyAddedVariables.set(variable.id, Date.now())
+            })
 
             // Send to DB
             const response = await fetch(`${API_ENDPOINTS.WORKFLOWS}/${workflowId}/variables`, {
@@ -502,10 +630,8 @@ export const useVariablesStore = create<VariablesStore>()(
               isLoading: false,
             })
 
-            // Reload from DB to ensure consistency
-            // Reset tracking to force a reload
-            loadedWorkflows.delete(workflowId)
-            get().loadVariables(workflowId)
+            // Don't reload variables after save error - this could cause data loss
+            // Just clear the loading state
           }
         },
 
@@ -518,6 +644,14 @@ export const useVariablesStore = create<VariablesStore>()(
         // Reset the loaded workflow tracking
         resetLoaded: () => {
           loadedWorkflows.clear()
+          
+          // Clean up stale entries from recentlyAddedVariables
+          const now = Date.now()
+          recentlyAddedVariables.forEach((timestamp, id) => {
+            if (now - timestamp > RECENT_VARIABLE_WINDOW * 2) {
+              recentlyAddedVariables.delete(id)
+            }
+          })
         },
       }),
       {
