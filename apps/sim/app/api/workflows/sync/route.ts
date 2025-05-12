@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow, workspace } from '@/db/schema'
+import { workflow, workspace, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
@@ -80,6 +80,26 @@ export async function GET(request: Request) {
         )
       }
 
+      // Verify the user is a member of the workspace
+      const isMember = await db
+        .select({ id: workspaceMember.id })
+        .from(workspaceMember)
+        .where(and(
+          eq(workspaceMember.workspaceId, workspaceId),
+          eq(workspaceMember.userId, userId)
+        ))
+        .then((rows) => rows.length > 0)
+
+      if (!isMember) {
+        logger.warn(
+          `[${requestId}] User ${userId} attempted to access workspace ${workspaceId} without membership`
+        )
+        return NextResponse.json(
+          { error: 'Access denied to this workspace', code: 'WORKSPACE_ACCESS_DENIED' },
+          { status: 403 }
+        )
+      }
+
       // Migrate any orphaned workflows to this workspace
       await migrateOrphanedWorkflows(userId, workspaceId)
     }
@@ -88,11 +108,12 @@ export async function GET(request: Request) {
     let workflows
 
     if (workspaceId) {
-      // Filter by user ID and workspace ID
+      // Filter by workspace ID only, not user ID
+      // This allows sharing workflows across workspace members
       workflows = await db
         .select()
         .from(workflow)
-        .where(and(eq(workflow.userId, userId), eq(workflow.workspaceId, workspaceId)))
+        .where(eq(workflow.workspaceId, workspaceId))
     } else {
       // Filter by user ID only, including workflows without workspace IDs
       workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
@@ -186,7 +207,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Validate that the workspace exists if one is specified
+      // Validate workspace membership and permissions
+      let userRole: string | null = null;
+      
       if (workspaceId) {
         const workspaceExists = await db
           .select({ id: workspace.id })
@@ -206,9 +229,32 @@ export async function POST(req: NextRequest) {
             { status: 404 }
           )
         }
+
+        // Verify the user is a member of the workspace
+        const membership = await db
+          .select({ role: workspaceMember.role })
+          .from(workspaceMember)
+          .where(and(
+            eq(workspaceMember.workspaceId, workspaceId),
+            eq(workspaceMember.userId, session.user.id)
+          ))
+          .then((rows) => rows[0])
+
+        if (!membership) {
+          logger.warn(
+            `[${requestId}] User ${session.user.id} attempted to sync to workspace ${workspaceId} without membership`
+          )
+          return NextResponse.json(
+            { error: 'Access denied to this workspace', code: 'WORKSPACE_ACCESS_DENIED' },
+            { status: 403 }
+          )
+        }
+
+        // Store user's role for permission checks later
+        userRole = membership.role;
       }
 
-      // Get all workflows for the user from the database
+      // Get all workflows for the workspace from the database
       // If workspaceId is provided, only get workflows for that workspace
       let dbWorkflows
 
@@ -216,7 +262,7 @@ export async function POST(req: NextRequest) {
         dbWorkflows = await db
           .select()
           .from(workflow)
-          .where(and(eq(workflow.userId, session.user.id), eq(workflow.workspaceId, workspaceId)))
+          .where(eq(workflow.workspaceId, workspaceId))
       } else {
         dbWorkflows = await db.select().from(workflow).where(eq(workflow.userId, session.user.id))
       }
@@ -260,6 +306,17 @@ export async function POST(req: NextRequest) {
             })
           )
         } else {
+          // Check if user has permission to update this workflow
+          const canUpdate = dbWorkflow.userId === session.user.id || 
+                          (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'));
+                          
+          if (!canUpdate) {
+            logger.warn(
+              `[${requestId}] User ${session.user.id} attempted to update workflow ${id} without permission`
+            )
+            continue; // Skip this workflow update and move to the next one
+          }
+          
           // Existing workflow - update if needed
           const needsUpdate =
             JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
@@ -291,13 +348,24 @@ export async function POST(req: NextRequest) {
       }
 
       // Handle deletions - workflows in DB but not in client
-      // Only delete workflows for the current workspace!
+      // Only delete workflows for the current workspace and only those the user can modify
       for (const dbWorkflow of dbWorkflows) {
         if (
           !processedIds.has(dbWorkflow.id) &&
           (!workspaceId || dbWorkflow.workspaceId === workspaceId)
         ) {
-          operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
+          // Check if the user has permission to delete this workflow
+          // Users can delete their own workflows, or any workflow if they're a workspace owner/admin
+          const canDelete = dbWorkflow.userId === session.user.id || 
+                           (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'));
+          
+          if (canDelete) {
+            operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
+          } else {
+            logger.warn(
+              `[${requestId}] User ${session.user.id} attempted to delete workflow ${dbWorkflow.id} without permission`
+            )
+          }
         }
       }
 

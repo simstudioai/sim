@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { Variable } from '@/stores/panel/variables/types'
 import { db } from '@/db'
-import { workflow } from '@/db/schema'
+import { workflow, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('WorkflowVariablesAPI')
 
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if the workflow belongs to the user
+    // Get the workflow record
     const workflowRecord = await db
       .select()
       .from(workflow)
@@ -45,9 +45,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    if (workflowRecord[0].userId !== session.user.id) {
+    const workflowData = workflowRecord[0]
+    const workspaceId = workflowData.workspaceId
+
+    // Check authorization - either the user owns the workflow or is a member of the workspace
+    let isAuthorized = workflowData.userId === session.user.id
+
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace membership
+    if (!isAuthorized && workspaceId) {
+      const membership = await db
+        .select()
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workspaceId),
+            eq(workspaceMember.userId, session.user.id)
+          )
+        )
+        .limit(1)
+
+      isAuthorized = membership.length > 0
+    }
+
+    if (!isAuthorized) {
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted to update variables for workflow ${workflowId} owned by ${workflowRecord[0].userId}`
+        `[${requestId}] User ${session.user.id} attempted to update variables for workflow ${workflowId} without permission`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -115,7 +137,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if the workflow belongs to the user
+    // Get the workflow record
     const workflowRecord = await db
       .select()
       .from(workflow)
@@ -127,15 +149,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
-    if (workflowRecord[0].userId !== session.user.id) {
+    const workflowData = workflowRecord[0]
+    const workspaceId = workflowData.workspaceId
+
+    // Check authorization - either the user owns the workflow or is a member of the workspace
+    let isAuthorized = workflowData.userId === session.user.id
+
+    // If not authorized by ownership and the workflow belongs to a workspace, check workspace membership
+    if (!isAuthorized && workspaceId) {
+      const membership = await db
+        .select()
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workspaceId),
+            eq(workspaceMember.userId, session.user.id)
+          )
+        )
+        .limit(1)
+
+      isAuthorized = membership.length > 0
+    }
+
+    if (!isAuthorized) {
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted to access variables for workflow ${workflowId} owned by ${workflowRecord[0].userId}`
+        `[${requestId}] User ${session.user.id} attempted to access variables for workflow ${workflowId} without permission`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Return variables if they exist
-    const variables = (workflowRecord[0].variables as Record<string, Variable>) || {}
+    const variables = (workflowData.variables as Record<string, Variable>) || {}
 
     // Add cache headers to prevent frequent reloading
     const headers = new Headers({
