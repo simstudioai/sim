@@ -315,7 +315,7 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
   // Create a function to clear the redeployment flag and update deployment status
   const updateDeploymentStatus = (isDeployed: boolean, deployedAt?: Date) => {
     // Update deployment status in workflow store
-    setDeploymentStatus(isDeployed, deployedAt)
+    setDeploymentStatus(workflowId || null, isDeployed, deployedAt)
 
     // Manually update the needsRedeployment flag in workflow store
     useWorkflowStore.getState().setNeedsRedeploymentFlag(false)

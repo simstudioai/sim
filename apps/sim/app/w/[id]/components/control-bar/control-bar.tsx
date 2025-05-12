@@ -292,6 +292,7 @@ export function ControlBar() {
           const data = await response.json()
           // Update the store with the status from the API
           setDeploymentStatus(
+            activeWorkflowId, 
             data.isDeployed,
             data.deployedAt ? new Date(data.deployedAt) : undefined
           )
@@ -329,7 +330,7 @@ export function ControlBar() {
 
   // Add a manual method to update the deployment status and clear the needsRedeployment flag
   const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
-    setDeploymentStatus(isDeployed, deployedAt)
+    setDeploymentStatus(activeWorkflowId, isDeployed, deployedAt)
     setNeedsRedeployment(false)
     useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
   }

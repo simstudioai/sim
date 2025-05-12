@@ -132,6 +132,7 @@ function resetWorkflowStores() {
     loops: {},
     isDeployed: false,
     deployedAt: undefined,
+    deploymentStatuses: {}, // Reset deployment statuses map
     hasActiveSchedule: false,
     history: {
       past: [],
@@ -343,6 +344,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
+            deploymentStatuses: currentState.deploymentStatuses,
             lastSaved: Date.now(),
           })
 
@@ -356,7 +358,17 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Load workflow state for the new active workflow
         const parsedState = loadWorkflowState(id)
         if (parsedState) {
-          const { blocks, edges, history, loops, isDeployed, deployedAt } = parsedState
+          const { blocks, edges, history, loops, isDeployed, deployedAt, deploymentStatuses } = parsedState
+
+          // Get workflow-specific deployment status
+          let workflowIsDeployed = isDeployed;
+          let workflowDeployedAt = deployedAt;
+          
+          // Check if we have a workflow-specific deployment status
+          if (deploymentStatuses && deploymentStatuses[id]) {
+            workflowIsDeployed = deploymentStatuses[id].isDeployed;
+            workflowDeployedAt = deploymentStatuses[id].deployedAt;
+          }
 
           // Initialize subblock store with workflow values
           useSubBlockStore.getState().initializeFromWorkflow(id, blocks)
@@ -366,8 +378,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks,
             edges,
             loops,
-            isDeployed: isDeployed !== undefined ? isDeployed : false,
-            deployedAt: deployedAt ? new Date(deployedAt) : undefined,
+            // Set global deployment status based on this workflow's status
+            isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
+            deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
+            // Include the deployment statuses map
+            deploymentStatuses: deploymentStatuses || {},
             hasActiveSchedule: false,
             history: history || {
               past: [],
@@ -376,8 +391,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   blocks,
                   edges,
                   loops: {},
-                  isDeployed: isDeployed !== undefined ? isDeployed : false,
-                  deployedAt: deployedAt,
+                  isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
+                  deployedAt: workflowDeployedAt,
                 },
                 timestamp: Date.now(),
                 action: 'Initial state',
@@ -395,6 +410,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             loops: {},
             isDeployed: false,
             deployedAt: undefined,
+            deploymentStatuses: {},
             hasActiveSchedule: false,
             history: {
               past: [],
@@ -459,6 +475,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             loops: options.marketplaceState.loops || {},
             isDeployed: false,
             deployedAt: undefined,
+            deploymentStatuses: {}, // Initialize empty deployment statuses map
             workspaceId, // Include workspace ID in the state object
             history: {
               past: [],
@@ -582,6 +599,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             loops: {},
             isDeployed: false,
             deployedAt: undefined,
+            deploymentStatuses: {}, // Initialize empty deployment statuses map
             workspaceId, // Include workspace ID in the state object
             history: {
               past: [],
@@ -776,6 +794,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           isDeployed: false, // Reset deployment status
           deployedAt: undefined, // Reset deployment timestamp
           workspaceId, // Include workspaceId in state
+          deploymentStatuses: {}, // Start with empty deployment statuses map
           history: {
             past: [],
             present: {

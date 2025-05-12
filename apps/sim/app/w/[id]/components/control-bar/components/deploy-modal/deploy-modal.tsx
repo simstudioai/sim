@@ -72,7 +72,10 @@ export function DeployModal({
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
-  const { isDeployed, setDeploymentStatus } = useWorkflowStore()
+  // Use workflow-specific deployment status getter
+  const deploymentStatus = useWorkflowStore(state => state.getWorkflowDeploymentStatus(workflowId))
+  const isDeployed = deploymentStatus?.isDeployed || false
+  const setDeploymentStatus = useWorkflowStore(state => state.setDeploymentStatus)
 
   // Local state
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -273,7 +276,7 @@ export function DeployModal({
       const { isDeployed: newDeployStatus, deployedAt } = await response.json()
 
       // Update the store with the deployment status
-      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+      setDeploymentStatus(workflowId, newDeployStatus, deployedAt ? new Date(deployedAt) : undefined, data.apiKey)
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
@@ -322,7 +325,7 @@ export function DeployModal({
       }
 
       // Update deployment status in the store
-      setDeploymentStatus(false)
+      setDeploymentStatus(workflowId, false)
 
       // Reset chat deployment info
       setDeployedChatUrl(null)
@@ -366,10 +369,10 @@ export function DeployModal({
         throw new Error(errorData.error || 'Failed to redeploy workflow')
       }
 
-      const { isDeployed: newDeployStatus, deployedAt } = await response.json()
+      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
 
       // Update deployment status in the store
-      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+      setDeploymentStatus(workflowId, newDeployStatus, deployedAt ? new Date(deployedAt) : undefined, apiKey)
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
@@ -475,10 +478,10 @@ export function DeployModal({
           throw new Error(errorData.error || 'Failed to deploy workflow')
         }
 
-        const { isDeployed: newDeployStatus, deployedAt } = await response.json()
+        const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
 
         // Update the store with the deployment status
-        setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+        setDeploymentStatus(workflowId, newDeployStatus, deployedAt ? new Date(deployedAt) : undefined, apiKey)
 
         logger.info('Workflow automatically deployed for chat deployment')
       } catch (error: any) {

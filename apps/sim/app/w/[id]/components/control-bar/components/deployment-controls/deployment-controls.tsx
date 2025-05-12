@@ -22,7 +22,10 @@ export function DeploymentControls({
   needsRedeployment,
   setNeedsRedeployment,
 }: DeploymentControlsProps) {
-  const { isDeployed } = useWorkflowStore()
+  // Use workflow-specific deployment status
+  const deploymentStatus = useWorkflowStore(state => state.getWorkflowDeploymentStatus(activeWorkflowId))
+  const isDeployed = deploymentStatus?.isDeployed || false
+  
   const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 

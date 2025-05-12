@@ -34,14 +34,24 @@ export interface Loop {
   forEachItems?: any[] | Record<string, any> | string // Items or expression
 }
 
+// New interface for deployment status
+export interface DeploymentStatus {
+  isDeployed: boolean
+  deployedAt?: Date
+  apiKey?: string
+}
+
 export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
   loops: Record<string, Loop>
   lastUpdate?: number
+  // Legacy deployment fields (keeping for compatibility)
   isDeployed?: boolean
   deployedAt?: Date
+  // New field for per-workflow deployment status
+  deploymentStatuses?: Record<string, DeploymentStatus>
   needsRedeployment?: boolean
   hasActiveSchedule?: boolean
   hasActiveWebhook?: boolean
@@ -76,7 +86,8 @@ export interface WorkflowActions {
   updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
   updateLoopForEachItems: (loopId: string, items: string) => void
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
-  setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
+  setDeploymentStatus: (workflowId: string | null, isDeployed: boolean, deployedAt?: Date, apiKey?: string) => void
+  getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setScheduleStatus: (hasActiveSchedule: boolean) => void
   setWebhookStatus: (hasActiveWebhook: boolean) => void
   toggleBlockAdvancedMode: (id: string) => void
