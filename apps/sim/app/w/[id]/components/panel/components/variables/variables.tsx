@@ -68,8 +68,8 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   const getTypeIcon = (type: VariableType) => {
     switch (type) {
-      case 'string':
-        return 'Aa'
+      case 'plain':
+        return 'Abc'
       case 'number':
         return '123'
       case 'boolean':
@@ -78,7 +78,7 @@ export function Variables({ panelWidth }: VariablesProps) {
         return '{}'
       case 'array':
         return '[]'
-      case 'plain':
+      case 'string':
         return 'Abc'
       default:
         return '?'
@@ -87,8 +87,8 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   const getPlaceholder = (type: VariableType) => {
     switch (type) {
-      case 'string':
-        return '"Hello world"'
+      case 'plain':
+        return 'Plain text value'
       case 'number':
         return '42'
       case 'boolean':
@@ -97,7 +97,7 @@ export function Variables({ panelWidth }: VariablesProps) {
         return '{\n  "key": "value"\n}'
       case 'array':
         return '[\n  1,\n  2,\n  3\n]'
-      case 'plain':
+      case 'string':
         return 'Plain text value'
       default:
         return ''
@@ -199,11 +199,11 @@ export function Variables({ panelWidth }: VariablesProps) {
                         </Tooltip>
                         <DropdownMenuContent align="end" className="min-w-32">
                           <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'string' })}
+                            onClick={() => updateVariable(variable.id, { type: 'plain' })}
                             className="cursor-pointer flex items-center"
                           >
-                            <div className="w-5 text-center mr-2 font-mono text-sm">Aa</div>
-                            <span>String</span>
+                            <div className="w-5 text-center mr-2 font-mono text-sm">Abc</div>
+                            <span>Plain</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => updateVariable(variable.id, { type: 'number' })}
@@ -232,13 +232,6 @@ export function Variables({ panelWidth }: VariablesProps) {
                           >
                             <div className="w-5 text-center mr-2 font-mono text-sm">[]</div>
                             <span>Array</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateVariable(variable.id, { type: 'plain' })}
-                            className="cursor-pointer flex items-center"
-                          >
-                            <div className="w-5 text-center mr-2 font-mono text-sm">Abc</div>
-                            <span>Plain</span>
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

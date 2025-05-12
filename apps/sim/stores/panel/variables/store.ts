@@ -19,6 +19,26 @@ export function clearWorkflowVariablesTracking() {
   loadedWorkflows.clear()
 }
 
+/**
+ * Migrates a variable from 'string' type to 'plain' type
+ * Handles the value conversion appropriately
+ */
+function migrateStringToPlain(variable: Variable): Variable {
+  if (variable.type !== 'string') {
+    return variable
+  }
+
+  // Convert string type to plain
+  const updated = {
+    ...variable,
+    type: 'plain' as const,
+  }
+
+  // For plain text, we want to preserve values exactly as they are,
+  // including any quote characters that may be part of the text
+  return updated
+}
+
 export const useVariablesStore = create<VariablesStore>()(
   devtools(
     persist(
@@ -60,32 +80,9 @@ export const useVariablesStore = create<VariablesStore>()(
             nameIndex++
           }
 
-          // Handle initial value
-          let variableValue = variable.value
-
-          // Auto-add quotes for string values if they aren't already quoted
-          if (
-            variable.type === 'string' &&
-            typeof variableValue === 'string' &&
-            variableValue.trim() !== ''
-          ) {
-            // Only add quotes if not already properly quoted
-            const trimmedValue = variableValue.trim()
-
-            // Check if entire string is already properly quoted
-            const isAlreadyQuoted =
-              (trimmedValue.startsWith('"') &&
-                trimmedValue.endsWith('"') &&
-                trimmedValue.length >= 2) ||
-              (trimmedValue.startsWith("'") &&
-                trimmedValue.endsWith("'") &&
-                trimmedValue.length >= 2)
-
-            if (!isAlreadyQuoted) {
-              // Escape any existing quotes in the content
-              const escapedValue = variableValue.replace(/"/g, '\\"')
-              variableValue = `"${escapedValue}"`
-            }
+          // Migrate from string to plain if needed
+          if (variable.type === 'string') {
+            variable.type = 'plain'
           }
 
           set((state) => ({
@@ -96,7 +93,7 @@ export const useVariablesStore = create<VariablesStore>()(
                 workflowId: variable.workflowId,
                 name: uniqueName,
                 type: variable.type,
-                value: variableValue,
+                value: variable.value,
               },
             },
           }))
@@ -203,30 +200,9 @@ export const useVariablesStore = create<VariablesStore>()(
               update = { ...update, name: uniqueName }
             }
 
-            // Auto-add quotes for string values if they aren't already quoted
-            if (
-              update.value !== undefined &&
-              state.variables[id].type === 'string' &&
-              typeof update.value === 'string' &&
-              update.value.trim() !== ''
-            ) {
-              // Only add quotes if not already properly quoted
-              const trimmedValue = update.value.trim()
-
-              // Check if entire string is already properly quoted
-              const isAlreadyQuoted =
-                (trimmedValue.startsWith('"') &&
-                  trimmedValue.endsWith('"') &&
-                  trimmedValue.length >= 2) ||
-                (trimmedValue.startsWith("'") &&
-                  trimmedValue.endsWith("'") &&
-                  trimmedValue.length >= 2)
-
-              if (!isAlreadyQuoted) {
-                // Escape any existing quotes in the content
-                const escapedValue = update.value.replace(/"/g, '\\"')
-                update = { ...update, value: `"${escapedValue}"` }
-              }
+            // If type is being updated to 'string', convert it to 'plain' instead
+            if (update.type === 'string') {
+              update = { ...update, type: 'plain' }
             }
 
             const updated = {
@@ -352,6 +328,12 @@ export const useVariablesStore = create<VariablesStore>()(
 
             if (data && typeof data === 'object') {
               set((state) => {
+                // Migrate any 'string' type variables to 'plain'
+                const migratedData: Record<string, Variable> = {}
+                for (const [id, variable] of Object.entries(data)) {
+                  migratedData[id] = migrateStringToPlain(variable as Variable)
+                }
+
                 // Merge with existing variables from other workflows
                 const otherVariables = Object.values(state.variables).reduce(
                   (acc, variable) => {
@@ -367,7 +349,7 @@ export const useVariablesStore = create<VariablesStore>()(
                 loadedWorkflows.add(workflowId)
 
                 return {
-                  variables: { ...otherVariables, ...data },
+                  variables: { ...otherVariables, ...migratedData },
                   isLoading: false,
                 }
               })

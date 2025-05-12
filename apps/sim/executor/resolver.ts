@@ -242,8 +242,11 @@ export class InputResolver {
     }
 
     try {
+      // Handle 'string' type the same as 'plain' for backward compatibility
+      const type = variable.type === 'string' ? 'plain' : variable.type
+      
       // Use the centralized VariableManager to resolve variable values
-      return VariableManager.resolveForExecution(variable.value, variable.type)
+      return VariableManager.resolveForExecution(variable.value, type)
     } catch (error) {
       logger.error(`Error processing variable ${variable.name} (type: ${variable.type}):`, error)
       return variable.value // Fallback to original value on error
@@ -266,14 +269,23 @@ export class InputResolver {
     currentBlock?: SerializedBlock
   ): string {
     try {
+      // Handle 'string' type the same as 'plain' for backward compatibility
+      const normalizedType = type === 'string' ? 'plain' : type
+      
+      // For plain text, use exactly what's entered without modifications
+      if (normalizedType === 'plain' && typeof value === 'string') {
+        return value
+      }
+      
       // Determine if this needs special handling for code contexts
       const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, String(value))
+      const isFunctionBlock = currentBlock?.metadata?.id === 'function'
 
-      // Use the appropriate formatting method based on context
-      if (needsCodeStringLiteral) {
-        return VariableManager.formatForCodeContext(value, type as any)
+      // Always use code formatting for function blocks
+      if (isFunctionBlock || needsCodeStringLiteral) {
+        return VariableManager.formatForCodeContext(value, normalizedType as any)
       } else {
-        return VariableManager.formatForTemplateInterpolation(value, type as any)
+        return VariableManager.formatForTemplateInterpolation(value, normalizedType as any)
       }
     } catch (error) {
       logger.error(`Error formatting value for interpolation (type: ${type}):`, error)
@@ -1065,6 +1077,11 @@ export class InputResolver {
 
     // Check if this is a block that executes code
     if (block.metadata?.id && codeExecutionBlocks.includes(block.metadata.id)) {
+      // Always return true for function blocks - they need properly formatted string literals
+      if (block.metadata.id === 'function') {
+        return true
+      }
+      
       // Specifically for condition blocks, stringifyForCondition handles quoting
       // so we don't need extra quoting here unless it's within an expression.
       if (block.metadata.id === 'condition' && !expression) {

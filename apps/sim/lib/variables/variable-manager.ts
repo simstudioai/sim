@@ -31,16 +31,20 @@ export class VariableManager {
       if (forExecution) {
         return value
       }
-      // For storage/display, convert to empty string for string types
-      return type === 'string' || type === 'plain' ? '' : value
+      // For storage/display, convert to empty string for text types
+      return type === 'plain' || type === 'string' ? '' : value
+    }
+
+    // For 'plain' type, we want to preserve quotes exactly as entered
+    if (type === 'plain') {
+      return typeof value === 'string' ? value : String(value)
     }
 
     // Remove quotes from string values if present (used by multiple types)
     const unquoted = typeof value === 'string' ? value.replace(/^["'](.*)["']$/s, '$1') : value
 
     switch (type) {
-      case 'plain':
-      case 'string':
+      case 'string': // Handle string type the same as plain for compatibility
         return String(unquoted)
 
       case 'number':
@@ -122,17 +126,18 @@ export class VariableManager {
     if (value === undefined) return context === 'code' ? 'undefined' : ''
     if (value === null) return context === 'code' ? 'null' : ''
 
+    // For plain type, preserve exactly as is without conversion
+    if (type === 'plain') {
+      return typeof value === 'string' ? value : String(value)
+    }
+
     // Convert to native type first to ensure consistent handling
     // We don't use forExecution=true for formatting since we don't want to preserve null/undefined
     const typedValue = this.convertToNativeType(value, type, false)
 
     switch (type) {
-      case 'plain':
-      case 'string':
-        if (context === 'code') {
-          // In code contexts, strings must be quoted
-          return JSON.stringify(String(typedValue))
-        }
+      case 'string': // Handle string type the same as plain for compatibility
+        // For plain text and strings, we don't add quotes in any context
         return String(typedValue)
 
       case 'number':
@@ -211,6 +216,19 @@ export class VariableManager {
    * Formats a value for use in code contexts with proper JavaScript syntax.
    */
   static formatForCodeContext(value: any, type: VariableType): string {
+    // Special handling for null/undefined in code context
+    if (value === null) return 'null'
+    if (value === undefined) return 'undefined'
+
+    // For plain text, use exactly what the user typed, without any conversion
+    // This may cause JavaScript errors if they don't enter valid JS code
+    if (type === 'plain') {
+      return typeof value === 'string' ? value : String(value)
+    } else if (type === 'string') {
+      // For backwards compatibility, add quotes only for string type in code context
+      return typeof value === 'string' ? JSON.stringify(value) : this.formatValue(value, type, 'code')
+    }
+    
     return this.formatValue(value, type, 'code')
   }
 
