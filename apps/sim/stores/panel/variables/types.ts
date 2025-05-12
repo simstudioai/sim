@@ -14,6 +14,7 @@ export interface Variable {
   name: string // Must be unique per workflow
   type: VariableType
   value: any
+  validationError?: string // Tracks format validation errors
 }
 
 export interface VariablesStore {

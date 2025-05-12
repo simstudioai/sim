@@ -20,6 +20,55 @@ export function clearWorkflowVariablesTracking() {
 }
 
 /**
+ * Check if variable format is valid according to type without modifying it
+ * Only provides validation feedback - does not change the value
+ */
+function validateVariable(variable: Variable): string | undefined {
+  try {
+    // We only care about the validation result, not the parsed value
+    switch (variable.type) {
+      case 'number':
+        // Check if it's a valid number
+        if (isNaN(Number(variable.value))) {
+          return 'Not a valid number'
+        }
+        break
+      case 'boolean':
+        // Check if it's a valid boolean
+        if (!/^(true|false)$/i.test(String(variable.value).trim())) {
+          return 'Expected "true" or "false"'
+        }
+        break
+      case 'object':
+        // Check if it's a valid JSON object
+        try {
+          const parsed = JSON.parse(String(variable.value))
+          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return 'Not a valid JSON object'
+          }
+        } catch {
+          return 'Invalid JSON object syntax'
+        }
+        break
+      case 'array':
+        // Check if it's a valid JSON array
+        try {
+          const parsed = JSON.parse(String(variable.value))
+          if (!Array.isArray(parsed)) {
+            return 'Not a valid JSON array'
+          }
+        } catch {
+          return 'Invalid JSON array syntax'
+        }
+        break
+    }
+    return undefined
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Invalid format'
+  }
+}
+
+/**
  * Migrates a variable from 'string' type to 'plain' type
  * Handles the value conversion appropriately
  */
@@ -80,21 +129,31 @@ export const useVariablesStore = create<VariablesStore>()(
             nameIndex++
           }
 
-          // Migrate from string to plain if needed
+          // Check for type conversion - only for backward compatibility
           if (variable.type === 'string') {
             variable.type = 'plain'
+          }
+
+          // Create the new variable with empty value
+          const newVariable: Variable = {
+            id,
+            workflowId: variable.workflowId,
+            name: uniqueName,
+            type: variable.type,
+            value: variable.value || '',
+            validationError: undefined,
+          }
+
+          // Check for validation errors without modifying the value
+          const validationError = validateVariable(newVariable)
+          if (validationError) {
+            newVariable.validationError = validationError
           }
 
           set((state) => ({
             variables: {
               ...state.variables,
-              [id]: {
-                id,
-                workflowId: variable.workflowId,
-                name: uniqueName,
-                type: variable.type,
-                value: variable.value,
-              },
+              [id]: newVariable,
             },
           }))
 
@@ -204,13 +263,23 @@ export const useVariablesStore = create<VariablesStore>()(
             if (update.type === 'string') {
               update = { ...update, type: 'plain' }
             }
+            
+            // Create updated variable to check for validation
+            const updatedVariable: Variable = {
+              ...state.variables[id],
+              ...update,
+              validationError: undefined, // Initialize property to be updated later
+            }
+            
+            // If the type or value changed, check for validation errors
+            if (update.type || update.value !== undefined) {
+              // Only add validation feedback - never modify the value
+              updatedVariable.validationError = validateVariable(updatedVariable)
+            }
 
             const updated = {
               ...state.variables,
-              [id]: {
-                ...state.variables[id],
-                ...update,
-              },
+              [id]: updatedVariable,
             }
 
             // Debounced auto-save to DB
