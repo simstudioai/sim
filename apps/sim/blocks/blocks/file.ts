@@ -53,6 +53,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
       ? 'You can either provide a URL to a file or upload files directly. '
       : 'Upload files directly. ') +
     'Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.',
+  docsLink: 'https://docs.simstudio.ai/tools/dropdown',
   category: 'tools',
   bgColor: '#40916C',
   icon: DocumentIcon,

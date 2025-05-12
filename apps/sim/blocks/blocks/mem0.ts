@@ -11,6 +11,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
   bgColor: '#181C1E',
   icon: Mem0Icon,
   category: 'tools',
+  docsLink: 'https://docs.simstudio.ai/tools/mem0',
   subBlocks: [
     {
       id: 'operation',

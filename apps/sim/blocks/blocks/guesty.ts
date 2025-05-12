@@ -8,6 +8,7 @@ export const GuestyBlock: BlockConfig<GuestyReservationResponse | GuestyGuestRes
   description: 'Interact with Guesty property management system',
   longDescription:
     'Access Guesty property management data including reservations and guest information. Retrieve reservation details by ID or search for guests by phone number.',
+  docsLink: 'https://docs.simstudio.ai/tools/guesty',
   category: 'tools',
   bgColor: '#0051F8', // Guesty brand color
   icon: GuestyIcon,

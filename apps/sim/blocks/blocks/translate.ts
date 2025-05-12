@@ -20,6 +20,7 @@ export const TranslateBlock: BlockConfig = {
   description: 'Translate text to any language',
   longDescription:
     'Convert text between languages while preserving meaning, nuance, and formatting. Utilize powerful language models to produce natural, fluent translations with appropriate cultural adaptations.',
+  docsLink: 'https://docs.simstudio.ai/tools/translate',
   category: 'tools',
   bgColor: '#FF4B4B',
   icon: TranslateIcon,

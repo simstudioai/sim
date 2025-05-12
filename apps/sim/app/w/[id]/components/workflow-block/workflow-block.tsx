@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { BookOpen, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -473,15 +473,43 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             {config.longDescription && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
-                    <Info className="h-5 w-5" />
-                  </Button>
+                  {config.docsLink ? (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-gray-500 p-1 h-7"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(config.docsLink, '_target', 'noopener,noreferrer');
+                      }}
+                    >
+                      <BookOpen className="h-5 w-5" />
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                      <Info className="h-5 w-5" />
+                    </Button>
+                  )}
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[300px] p-4">
                   <div className="space-y-3">
                     <div>
                       <p className="text-sm font-medium mb-1">Description</p>
                       <p className="text-sm text-muted-foreground">{config.longDescription}</p>
+                      {config.docsLink && (
+                        <p className="text-xs text-blue-500 mt-1">
+                          <a 
+                            href={config.docsLink} 
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            View Documentation
+                          </a>
+                        </p>
+                      )}
                     </div>
                     {config.outputs && (
                       <div>

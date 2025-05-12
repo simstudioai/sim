@@ -8,6 +8,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   description: 'Generate images',
   longDescription:
     'Create high-quality images using DALL-E. Configure resolution, quality, style, and other parameters to get exactly the image you need.',
+  docsLink: 'https://docs.simstudio.ai/tools/image_generator',
   category: 'tools',
   bgColor: '#4D5FFF',
   icon: ImageIcon,

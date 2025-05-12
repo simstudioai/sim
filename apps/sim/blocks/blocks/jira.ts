@@ -19,6 +19,7 @@ export const JiraBlock: BlockConfig<JiraResponse> = {
   description: 'Interact with Jira',
   longDescription:
     'Connect to Jira workspaces to read, write, and update issues. Access content, metadata, and integrate Jira documentation into your workflows.',
+  docsLink: 'https://docs.simstudio.ai/tools/jira',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: JiraIcon,

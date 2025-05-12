@@ -10,6 +10,7 @@ export const MemoryBlock: BlockConfig = {
   bgColor: '#FF65BF',
   icon: BrainIcon,
   category: 'blocks',
+  docsLink: 'https://docs.simstudio.ai/tools/memory',
   tools: {
     access: [],
   },

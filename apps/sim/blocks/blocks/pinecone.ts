@@ -9,6 +9,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   description: 'Use Pinecone vector database',
   longDescription:
     "Store, search, and retrieve vector embeddings using Pinecone's specialized vector database. Generate embeddings from text and perform semantic similarity searches with customizable filtering options.",
+  docsLink: 'https://docs.simstudio.ai/tools/pinecone',
   category: 'tools',
   bgColor: '#0D1117',
   icon: PineconeIcon,

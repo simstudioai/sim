@@ -11,6 +11,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   longDescription:
     "Access Tavily's AI-powered search engine to find relevant information from across the web. Extract and process content from specific URLs with customizable depth options.",
   category: 'tools',
+  docsLink: 'https://docs.simstudio.ai/tools/tavily',
   bgColor: '#0066FF',
   icon: TavilyIcon,
   subBlocks: [

@@ -8,6 +8,7 @@ export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
   description: 'Send a message through Telegram',
   longDescription:
     'Send messages to any Telegram channel using your Bot API key. Integrate automated notifications and alerts into your workflow to keep your team informed.',
+  docsLink: 'https://docs.simstudio.ai/tools/telegram',
   category: 'tools',
   bgColor: '#E0E0E0',
   icon: TelegramIcon,
