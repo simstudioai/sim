@@ -170,48 +170,14 @@ export const RedditBlock: BlockConfig<
     },
   },
   inputs: {
-    action: {
-      type: 'string',
-      required: true,
-      description: 'The action to perform: get_posts or get_comments',
-    },
-    subreddit: {
-      type: 'string',
-      required: true,
-      description: 'The name of the subreddit to fetch data from (without the r/ prefix)',
-    },
-    sort: {
-      type: 'string',
-      required: true,
-      description: 'Sort method for posts: "hot", "new", "top", or "rising" (default: "hot")',
-    },
-    time: {
-      type: 'string',
-      required: false,
-      description:
-        'Time filter for "top" sorted posts: "hour", "day", "week", "month", "year", or "all" (default: "day")',
-    },
-    limit: {
-      type: 'number',
-      required: false,
-      description: 'Maximum number of posts to return (default: 10, max: 100)',
-    },
-    postId: {
-      type: 'string',
-      required: true,
-      description: 'The ID of the Reddit post to fetch comments from',
-    },
-    commentSort: {
-      type: 'string',
-      required: false,
-      description:
-        'Sort method for comments: "confidence", "top", "new", "controversial", "old", "random", "qa" (default: "confidence")',
-    },
-    commentLimit: {
-      type: 'number',
-      required: false,
-      description: 'Maximum number of comments to return (default: 50, max: 100)',
-    },
+    action: { type: 'string', required: true },
+    subreddit: { type: 'string', required: true },
+    sort: { type: 'string', required: true },
+    time: { type: 'string', required: false },
+    limit: { type: 'number', required: false },
+    postId: { type: 'string', required: true },
+    commentSort: { type: 'string', required: false },
+    commentLimit: { type: 'number', required: false },
   },
   outputs: {
     response: {

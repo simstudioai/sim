@@ -87,6 +87,11 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'read:user:jira': 'Read your Jira user',
   'read:field-configuration:jira': 'Read your Jira field configuration',
   'read:issue-details:jira': 'Read your Jira issue details',
+  'identify': 'Read your Discord user',
+  'bot': 'Read your Discord bot',
+  'messages.read': 'Read your Discord messages',
+  'guilds': 'Read your Discord guilds',
+  'guilds.members.read': 'Read your Discord guild members',
 }
 
 // Convert OAuth scope to user-friendly description

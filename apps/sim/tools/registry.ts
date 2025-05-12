@@ -64,6 +64,7 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
+import { discordGetMessagesTool, discordGetServerTool, discordGetUserTool, discordSendMessageTool } from './discord'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -152,4 +153,8 @@ export const tools: Record<string, ToolConfig> = {
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,
   clay_populate: clayPopulateTool,
-}
+  discord_send_message: discordSendMessageTool,
+  discord_get_messages: discordGetMessagesTool,
+  discord_get_server: discordGetServerTool,
+  discord_get_user: discordGetUserTool,
+} 

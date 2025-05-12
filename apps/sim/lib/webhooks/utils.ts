@@ -1149,7 +1149,6 @@ export async function fetchAndProcessAirtablePayloads(
         webhookId: webhookData.id,
         workflowId: workflowData.id,
         error: (error as Error).message,
-        stack: (error as Error).stack,
       }
     )
     // Persist this higher-level error

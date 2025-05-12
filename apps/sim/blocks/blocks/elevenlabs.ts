@@ -31,22 +31,10 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   },
 
   inputs: {
-    text: {
-      type: 'string',
-      required: true,
-    },
-    voiceId: {
-      type: 'string',
-      required: true,
-    },
-    modelId: {
-      type: 'string',
-      required: false,
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-    },
+    text: { type: 'string', required: true },
+    voiceId: { type: 'string', required: true },
+    modelId: { type: 'string', required: false },
+    apiKey: { type: 'string', required: true },
   },
 
   outputs: {

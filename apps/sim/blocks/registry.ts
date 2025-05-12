@@ -11,6 +11,7 @@ import { BrowserUseBlock } from './blocks/browser_use'
 import { ClayBlock } from './blocks/clay'
 import { ConditionBlock } from './blocks/condition'
 import { ConfluenceBlock } from './blocks/confluence'
+import { DiscordBlock } from './blocks/discord'
 import { ElevenLabsBlock } from './blocks/elevenlabs'
 import { EvaluatorBlock } from './blocks/evaluator'
 import { ExaBlock } from './blocks/exa'
@@ -65,6 +66,7 @@ export const registry: Record<string, BlockConfig> = {
   clay: ClayBlock,
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
+  discord: DiscordBlock,
   elevenlabs: ElevenLabsBlock,
   evaluator: EvaluatorBlock,
   exa: ExaBlock,
@@ -80,8 +82,8 @@ export const registry: Record<string, BlockConfig> = {
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
-  linkup: LinkupBlock,
   jira: JiraBlock,
+  linkup: LinkupBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
@@ -98,6 +100,7 @@ export const registry: Record<string, BlockConfig> = {
   starter: StarterBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
+  telegram: TelegramBlock,
   thinking: ThinkingBlock,
   translate: TranslateBlock,
   twilio_sms: TwilioSMSBlock,
@@ -106,7 +109,6 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  telegram: TelegramBlock,
 }
 
 // Helper functions to access the registry

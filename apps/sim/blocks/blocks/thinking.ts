@@ -31,11 +31,7 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   ],
 
   inputs: {
-    thought: {
-      type: 'string',
-      required: true,
-      description: 'The detailed thought process or instruction for the model.',
-    },
+    thought: { type: 'string', required: true },
   },
 
   outputs: {
