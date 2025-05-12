@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: 'npm'
-    directory: '/sim'
+    directory: 'apps/sim'
     schedule:
       interval: 'weekly'
       day: 'monday'
@@ -12,8 +12,8 @@ updates:
       - 'dependencies'
       - 'security'
     commit-message:
-      prefix: 'fix(deps)'
-      prefix-development: 'chore(deps)'
+      prefix: 'fix'
+      prefix-development: 'chore'
       include: 'scope'
     groups:
       dependencies:
@@ -23,7 +23,7 @@ updates:
 
   # Documentation site dependencies (/docs)
   - package-ecosystem: 'npm'
-    directory: '/docs'
+    directory: 'apps/docs'
     schedule:
       interval: 'weekly'
       day: 'wednesday'
@@ -33,7 +33,7 @@ updates:
       - 'dependencies'
       - 'security'
     commit-message:
-      prefix: 'docs(deps)'
+      prefix: 'docs'
       include: 'scope'
     groups:
       docs-dependencies:
@@ -53,7 +53,7 @@ updates:
       - 'dependencies'
       - 'security'
     commit-message:
-      prefix: 'chore(deps)'
+      prefix: 'chore'
       include: 'scope'
     groups:
       root-dependencies:
@@ -72,7 +72,7 @@ updates:
       - 'dependencies'
       - 'security'
     commit-message:
-      prefix: 'ci(deps)'
+      prefix: 'ci'
     groups:
       actions:
         applies-to: security-updates
@@ -90,7 +90,7 @@ updates:
       - 'dependencies'
       - 'security'
     commit-message:
-      prefix: 'docker(deps)'
+      prefix: 'docker'
     groups:
       docker:
         applies-to: security-updates
