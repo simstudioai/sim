@@ -494,6 +494,33 @@ export const useVariablesStore = create<VariablesStore>()(
               return
             }
 
+            // Handle unauthorized (401) or forbidden (403) gracefully
+            if (response.status === 401 || response.status === 403) {
+              logger.warn(`No permission to access variables for workflow ${workflowId}`)
+              set((state) => {
+                // Keep variables from other workflows
+                const otherVariables = Object.values(state.variables).reduce(
+                  (acc, variable) => {
+                    if (variable.workflowId !== workflowId) {
+                      acc[variable.id] = variable
+                    }
+                    return acc
+                  },
+                  {} as Record<string, Variable>
+                )
+
+                // Mark this workflow as loaded but with access issues
+                loadedWorkflows.add(workflowId)
+
+                return {
+                  variables: otherVariables,
+                  isLoading: false,
+                  error: 'You do not have permission to access these variables',
+                }
+              })
+              return
+            }
+
             if (!response.ok) {
               throw new Error(`Failed to load workflow variables: ${response.statusText}`)
             }
