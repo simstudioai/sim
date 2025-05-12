@@ -45,7 +45,7 @@ export interface DiscordUser {
   verified?: boolean
 }
 
-interface DiscordAuthParams {
+export interface DiscordAuthParams {
   botToken: string
   serverId: string
 }
@@ -56,7 +56,7 @@ export interface DiscordSendMessageParams extends DiscordAuthParams {
   embed?: {
     title?: string
     description?: string
-    color?: string
+    color?: string | number
   }
 }
 

@@ -64,7 +64,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
 
     let data: DiscordUser
     try {
-      data = await response.json()
+      data = await response.clone().json()
     } catch (e) {
       return {
         success: false,
@@ -84,6 +84,6 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
 
   transformError: (error) => {
     logger.error('Error retrieving Discord user information', { error })
-    return `Error retrieving Discord user information: ${error.error || String(error.error)}`
+    return `Error retrieving Discord user information: ${error.error}`
   },
 }

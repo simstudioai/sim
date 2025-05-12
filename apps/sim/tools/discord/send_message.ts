@@ -95,13 +95,24 @@ export const discordSendMessageTool: ToolConfig<
       }
     }
 
-    const data = (await response.json()) as DiscordMessage
-    return {
-      success: true,
-      output: {
-        message: 'Discord message sent successfully',
-        data,
-      },
+    try {
+      const data = (await response.json()) as DiscordMessage
+      return {
+        success: true,
+        output: {
+          message: 'Discord message sent successfully',
+          data,
+        },
+      }
+    } catch (e) {
+      logger.error('Error parsing successful Discord response', { error: e })
+      return {
+        success: false,
+        error: 'Failed to parse Discord response',
+        output: {
+          message: 'Failed to parse Discord response',
+        },
+      }
     }
   },
 

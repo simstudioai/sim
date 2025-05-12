@@ -28,7 +28,7 @@ With a Discord account or bot, you can:
 - **Get server**: Get information about a specific server
 - **Get user**: Get information about a specific user
 
-In Sim Studio, the Discord integration enables your agents to access and leverage your organization's Discord servers. Agents can retrieve information from Discord channels, search for specific content, and send messages. This allows your workflows to integrate with your Discord communities, automate notifications, and create interactive experiences.
+In Sim Studio, the Discord integration enables your agents to access and leverage your organization's Discord servers. Agents can retrieve information from Discord channels, search for specific users, get server information, and send messages. This allows your workflows to integrate with your Discord communities, automate notifications, and create interactive experiences.
 
 > **Important:** To read message content, your Discord bot needs the "Message Content Intent" enabled in the Discord Developer Portal. Without this permission, you'll still receive message metadata but the content field will appear empty.
 
@@ -79,7 +79,6 @@ Retrieve messages from a Discord channel
 | `botToken`  | string | Yes      | The bot token for authentication                                 |
 | `channelId` | string | Yes      | The Discord channel ID to retrieve messages from                 |
 | `limit`     | number | No       | Maximum number of messages to retrieve \(default: 10, max: 100\) |
-| `serverId`  | string | Yes      | The Discord server ID \(guild ID\)                               |
 
 #### Output
 
@@ -127,7 +126,7 @@ Retrieve information about a Discord user
 
 | Parameter   | Type   | Required | Description |
 | ----------- | ------ | -------- | ----------- |
-| `operation` | string | No       | Operation   |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 

@@ -80,9 +80,10 @@ export function DiscordChannelSelector({
       setChannels(data.channels || [])
 
       // If we have a selected channel ID, find the channel info
-      if (selectedChannelId) {
+      const currentSelectedId = selectedChannelId // Store in local variable
+      if (currentSelectedId) {
         const channelInfo = data.channels?.find(
-          (channel: DiscordChannelInfo) => channel.id === selectedChannelId
+          (channel: DiscordChannelInfo) => channel.id === currentSelectedId
         )
         if (channelInfo) {
           setSelectedChannel(channelInfo)
@@ -102,7 +103,7 @@ export function DiscordChannelSelector({
   // Handle open change - only fetch channels when the dropdown is opened
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
-    
+
     // Only fetch channels when opening the dropdown and if we have valid token and server
     if (isOpen && botToken && serverId && (!initialFetchDone || channels.length === 0)) {
       fetchChannels()
@@ -113,10 +114,10 @@ export function DiscordChannelSelector({
   // This is more efficient than fetching all channels
   const fetchSelectedChannelInfo = useCallback(async () => {
     if (!botToken || !serverId || !selectedChannelId) return
-    
+
     setIsLoading(true)
     setError(null)
-    
+
     try {
       // Only fetch the specific channel by ID instead of all channels
       const response = await fetch('/api/auth/oauth/discord/channels', {
@@ -124,18 +125,18 @@ export function DiscordChannelSelector({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           botToken,
           serverId,
-          channelId: selectedChannelId 
+          channelId: selectedChannelId,
         }),
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch Discord channel')
       }
-      
+
       const data = await response.json()
       if (data.channel) {
         setSelectedChannel(data.channel)
@@ -168,10 +169,10 @@ export function DiscordChannelSelector({
   useEffect(() => {
     if (value !== selectedChannelId) {
       setSelectedChannelId(value)
-      
+
       // Find channel info for the new value
       if (value && channels.length > 0) {
-        const channelInfo = channels.find(channel => channel.id === value)
+        const channelInfo = channels.find((channel) => channel.id === value)
         setSelectedChannel(channelInfo || null)
         onChannelInfoChange?.(channelInfo || null)
       } else if (value) {
@@ -184,7 +185,14 @@ export function DiscordChannelSelector({
         onChannelInfoChange?.(null)
       }
     }
-  }, [value, channels, selectedChannelId, selectedChannel, fetchSelectedChannelInfo, onChannelInfoChange])
+  }, [
+    value,
+    channels,
+    selectedChannelId,
+    selectedChannel,
+    fetchSelectedChannelInfo,
+    onChannelInfoChange,
+  ])
 
   // Handle channel selection
   const handleSelectChannel = (channel: DiscordChannelInfo) => {
@@ -302,13 +310,11 @@ export function DiscordChannelSelector({
             </div>
             <div className="overflow-hidden flex-1 min-w-0">
               <h4 className="text-xs font-medium truncate">{selectedChannel.name}</h4>
-              <div className="text-xs text-muted-foreground">
-                Channel ID: {selectedChannel.id}
-              </div>
+              <div className="text-xs text-muted-foreground">Channel ID: {selectedChannel.id}</div>
             </div>
           </div>
         </div>
       )}
     </div>
   )
-} 
+}

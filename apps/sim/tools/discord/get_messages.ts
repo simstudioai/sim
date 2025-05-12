@@ -36,12 +36,6 @@ export const discordGetMessagesTool: ToolConfig<
       required: false,
       description: 'Maximum number of messages to retrieve (default: 10, max: 100)',
     },
-    serverId: {
-      type: 'string',
-      required: true,
-      optionalToolInput: true,
-      description: 'The Discord server ID (guild ID)',
-    },
   },
 
   request: {
@@ -108,6 +102,6 @@ export const discordGetMessagesTool: ToolConfig<
 
   transformError: (error) => {
     logger.error('Error retrieving Discord messages', { error })
-    return `Error retrieving Discord messages: ${error.error || String(error.error)}`
+    return `Error retrieving Discord messages: ${error instanceof Error ? error.message : String(error)}`
   },
 }

@@ -48,19 +48,27 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
   },
 
   transformResponse: async (response: Response) => {
-    if (!response.ok) {
-      let errorMessage = `Discord API error: ${response.status} ${response.statusText}`
+    let responseData: any
 
-      try {
-        const errorData = (await response.json()) as DiscordAPIError
-        logger.error('Discord API error', {
-          status: response.status,
-          error: errorData,
-        })
-        errorMessage = `Discord API error: ${errorData.message || response.statusText}`
-      } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
+    try {
+      responseData = await response.json()
+    } catch (e) {
+      logger.error('Error parsing Discord API response', { status: response.status, error: e })
+      return {
+        success: false,
+        error: 'Failed to parse server data',
+        output: { message: 'Failed to parse server data' },
       }
+    }
+
+    if (!response.ok) {
+      const errorData = responseData as DiscordAPIError
+      const errorMessage = `Discord API error: ${errorData.message || response.statusText}`
+
+      logger.error('Discord API error', {
+        status: response.status,
+        error: errorData,
+      })
 
       return {
         success: false,
@@ -71,23 +79,11 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
       }
     }
 
-    let serverData: DiscordGuild
-    try {
-      serverData = await response.json()
-    } catch (e) {
-      logger.error('Error parsing Discord API response', { error: e })
-      return {
-        success: false,
-        error: 'Failed to parse server data',
-        output: { message: 'Failed to parse server data' },
-      }
-    }
-
     return {
       success: true,
       output: {
         message: 'Successfully retrieved server information',
-        data: serverData,
+        data: responseData as DiscordGuild,
       },
     }
   },

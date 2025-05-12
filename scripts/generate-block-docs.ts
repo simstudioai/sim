@@ -261,7 +261,7 @@ function extractInputs(content: string): Record<string, any> {
   const inputs: Record<string, any> = {}
 
   // Find all input property definitions
-  const propMatches = inputsContent.match(/(\w+)\s*:\s*{[^}]*}/g)
+  const propMatches = inputsContent.match(/(\w+)\s*:\s*{[\s\S]*?}/g)
   if (!propMatches) {
     // Try an alternative approach for the whole inputs section
     const inputLines = inputsContent.split('\n')
@@ -287,8 +287,9 @@ function extractInputs(content: string): Record<string, any> {
     if (!propMatch) return
 
     const propName = propMatch[1]
-    const typeMatch = propText.match(/type\s*:\s*['"]?([^'"}, ]+)['"]?/)
-    const requiredMatch = propText.match(/required\s*:\s*(true|false)/)
+    const typeMatch = propText.match(/type\s*:\s*['"]?([^'"}, ]+)['"]?/s)
+    const requiredMatch = propText.match(/required\s*:\s*(true|false)/s)
+    const descriptionMatch = propText.match(/description\s*:\s*['"]([^'"]+)['"]/s)
 
     inputs[propName] = {
       type: typeMatch ? typeMatch[1] : 'any',

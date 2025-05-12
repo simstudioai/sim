@@ -626,7 +626,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                             <div className="flex items-center justify-center w-6 h-6 rounded bg-blue-500">
                               <WrenchIcon className="w-4 h-4 text-white" />
                             </div>
-                            <span className="w-full truncate">{customTool.title}</span>
+                            <span className="truncate max-w-[140px]">{customTool.title}</span>
                           </ToolCommand.Item>
                         ))}
                       </ToolCommand.Group>
@@ -654,7 +654,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                             >
                               <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
                             </div>
-                            <span className="w-full truncate">{block.name}</span>
+                            <span className="truncate max-w-[140px]">{block.name}</span>
                           </ToolCommand.Item>
                         ))}
                       </ToolCommand.Group>
@@ -840,9 +840,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                             <SelectContent>
                               {operationOptions.map((option) => (
                                 <SelectItem key={option.id} value={option.id}>
-                                  <span className="block truncate max-w-[160px]">
-                                    {option.label}
-                                  </span>
+                                  {option.label}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -989,7 +987,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               <div className="flex items-center justify-center w-6 h-6 rounded bg-blue-500">
                                 <WrenchIcon className="w-4 h-4 text-white" />
                               </div>
-                              <span className="w-full truncate">{customTool.title}</span>
+                              <span className="truncate max-w-[140px]">{customTool.title}</span>
                             </ToolCommand.Item>
                           ))}
                         </ToolCommand.Group>
@@ -1019,7 +1017,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               >
                                 <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
                               </div>
-                              <span className="w-full truncate">{block.name}</span>
+                              <span className="truncate max-w-[140px]">{block.name}</span>
                             </ToolCommand.Item>
                           ))}
                         </ToolCommand.Group>

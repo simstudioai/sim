@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
-import { JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 import { DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -27,10 +27,10 @@ export function ProjectSelectorInput({
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
   const isDiscord = provider === 'discord'
-  
+
   // For Jira, we need the domain
-  const domain = !isDiscord ? (getValue(blockId, 'domain') as string || '') : ''
-  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string || '') : ''
+  const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
+  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
 
   // Get the current value from the store
   useEffect(() => {
@@ -103,7 +103,7 @@ export function ProjectSelectorInput({
               label={subBlock.placeholder || 'Select Jira project'}
               disabled={disabled}
               showPreview={true}
-              onProjectInfoChange={(info: JiraProjectInfo | null) => setProjectInfo(info)}
+              onProjectInfoChange={setProjectInfo}
             />
           </div>
         </TooltipTrigger>

@@ -108,7 +108,6 @@ export async function POST(request: Request) {
       {
         error: 'Failed to retrieve Discord servers',
         details: (error as Error).message,
-        stack: (error as Error).stack,
       },
       { status: 500 }
     )

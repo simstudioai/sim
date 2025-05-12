@@ -23,7 +23,6 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
         { label: 'Get Server Information', id: 'discord_get_server' },
         { label: 'Get User Information', id: 'discord_get_user' },
       ],
-      value: () => 'discord_send_message',
     },
     {
       id: 'botToken',
@@ -122,7 +121,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
               ...commonParams,
               serverId: params.serverId,
               channelId: params.channelId,
-              limit: params.limit ? Math.min(Math.max(1, parseInt(params.limit)), 100) : 10,
+              limit: params.limit ? Math.min(Math.max(1, Number(params.limit)), 100) : 10,
             }
           case 'discord_get_server':
             return {
@@ -141,41 +140,13 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     },
   },
   inputs: {
-    operation: {
-      type: 'string',
-      required: true,
-      description: 'The Discord operation to perform',
-    },
-    botToken: {
-      type: 'string',
-      required: true,
-      description: 'Discord bot token for API access',
-    },
-    serverId: {
-      type: 'string',
-      required: true,
-      description: 'The ID of the Discord server (guild)',
-    },
-    channelId: {
-      type: 'string',
-      required: true,
-      description: 'The ID of the Discord channel',
-    },
-    content: {
-      type: 'string',
-      required: false,
-      description: 'The content of the message to send',
-    },
-    limit: {
-      type: 'number',
-      required: false,
-      description: 'The maximum number of messages to retrieve',
-    },
-    userId: {
-      type: 'string',
-      required: true,
-      description: 'The ID of the Discord user',
-    },
+    operation: { type: 'string', required: true },
+    botToken: { type: 'string', required: true },
+    serverId: { type: 'string', required: false },
+    channelId: { type: 'string', required: false },
+    content: { type: 'string', required: false },
+    limit: { type: 'number', required: false },
+    userId: { type: 'string', required: false },
   },
   outputs: {
     response: {

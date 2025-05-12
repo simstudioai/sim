@@ -79,26 +79,10 @@ export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
   },
 
   inputs: {
-    query: {
-      type: 'string',
-      required: true,
-      description: 'The search query to execute',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      description: 'Google API key',
-    },
-    searchEngineId: {
-      type: 'string',
-      required: true,
-      description: 'Custom Search Engine ID',
-    },
-    num: {
-      type: 'string',
-      required: false,
-      description: 'Number of results to return (default: 10, max: 10)',
-    },
+    query: { type: 'string', required: true },
+    apiKey: { type: 'string', required: true },
+    searchEngineId: { type: 'string', required: true },
+    num: { type: 'string', required: false },
   },
 
   outputs: {
