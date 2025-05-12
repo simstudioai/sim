@@ -1,42 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { Logger } from '@/lib/logs/console-logger'
+import { acquireLock, releaseLock } from '@/lib/redis'
 import { pollGmailWebhooks } from '@/lib/webhooks/gmail-polling-service'
 
 const logger = new Logger('GmailPollingAPI')
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // Allow up to 5 minutes for polling to complete
+export const maxDuration = 180 // Allow up to 3 minutes for polling to complete
 
-interface PollingTask {
-  promise: Promise<any>
-  startedAt: number
-}
-
-const activePollingTasks = new Map<string, PollingTask>()
-const STALE_TASK_THRESHOLD_MS = 10 * 60 * 1000 // 10 minutes
-
-function cleanupStaleTasks() {
-  const now = Date.now()
-  let removedCount = 0
-
-  for (const [requestId, task] of activePollingTasks.entries()) {
-    if (now - task.startedAt > STALE_TASK_THRESHOLD_MS) {
-      activePollingTasks.delete(requestId)
-      removedCount++
-    }
-  }
-
-  if (removedCount > 0) {
-    logger.info(`Cleaned up ${removedCount} stale polling tasks`)
-  }
-
-  return removedCount
-}
+const LOCK_KEY = 'gmail-polling-lock'
+const LOCK_TTL_SECONDS = 180 // Same as maxDuration (3 min)
 
 export async function GET(request: NextRequest) {
   const requestId = nanoid()
   logger.info(`Gmail webhook polling triggered (${requestId})`)
+
+  let lockValue: string | undefined
 
   try {
     const authHeader = request.headers.get('authorization')
@@ -51,49 +31,42 @@ export async function GET(request: NextRequest) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    cleanupStaleTasks()
+    lockValue = requestId // unique value to identify the holder
+    const locked = await acquireLock(LOCK_KEY, lockValue, LOCK_TTL_SECONDS)
 
-    const pollingTask: PollingTask = {
-      promise: null as any,
-      startedAt: Date.now(),
+    if (!locked) {
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Polling already in progress – skipped',
+          requestId,
+          status: 'skip',
+        },
+        { status: 202 }
+      )
     }
 
-    pollingTask.promise = pollGmailWebhooks()
-      .then((results) => {
-        logger.info(`Gmail polling completed successfully (${requestId})`, {
-          userCount: results?.total || 0,
-          successful: results?.successful || 0,
-          failed: results?.failed || 0,
-        })
-        activePollingTasks.delete(requestId)
-        return results
-      })
-      .catch((error) => {
-        logger.error(`Error in background Gmail polling task (${requestId}):`, error)
-        activePollingTasks.delete(requestId)
-        throw error
-      })
-
-    activePollingTasks.set(requestId, pollingTask)
+    const results = await pollGmailWebhooks()
 
     return NextResponse.json({
       success: true,
-      message: 'Gmail webhook polling started successfully',
+      message: 'Gmail polling completed',
       requestId,
-      status: 'polling_started',
-      activeTasksCount: activePollingTasks.size,
+      status: 'completed',
+      ...results,
     })
   } catch (error) {
-    logger.error(`Error initiating Gmail webhook polling (${requestId}):`, error)
-
+    logger.error(`Error during Gmail polling (${requestId}):`, error)
     return NextResponse.json(
       {
         success: false,
-        message: 'Failed to start Gmail webhook polling',
+        message: 'Gmail polling failed',
         error: error instanceof Error ? error.message : 'Unknown error',
         requestId,
       },
       { status: 500 }
     )
+  } finally {
+    await releaseLock(LOCK_KEY).catch(() => {})
   }
 }

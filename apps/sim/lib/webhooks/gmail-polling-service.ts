@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { Logger } from '@/lib/logs/console-logger'
+import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
@@ -29,6 +30,21 @@ interface GmailEmail {
   internalDate?: string
 }
 
+export interface SimplifiedEmail {
+  id: string
+  threadId: string
+  subject: string
+  from: string
+  to: string
+  cc: string
+  date: string | null
+  bodyText: string
+  bodyHtml: string
+  labels: string[]
+  hasAttachments: boolean
+  attachments: Array<{ filename: string; mimeType: string; size: number }>
+}
+
 export async function pollGmailWebhooks() {
   logger.info('Starting Gmail webhook polling')
 
@@ -46,116 +62,136 @@ export async function pollGmailWebhooks() {
 
     logger.info(`Found ${activeWebhooks.length} active Gmail webhooks`)
 
-    const results = await Promise.allSettled(
-      activeWebhooks.map(async (webhookData) => {
-        const webhookId = webhookData.id
-        const requestId = nanoid()
+    // Limit the number of webhooks processed in parallel to avoid
+    // exhausting Postgres or Gmail API connections when many users exist.
+    const CONCURRENCY = 10
 
-        try {
-          // Extract user ID from webhook metadata if available
-          const metadata = webhookData.providerConfig as any
-          const userId = metadata?.userId
+    const running: Promise<any>[] = []
+    const settledResults: PromiseSettledResult<any>[] = []
 
-          if (!userId) {
-            logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
-            return { success: false, webhookId, error: 'No user ID' }
-          }
+    const enqueue = async (webhookData: (typeof activeWebhooks)[number]) => {
+      const webhookId = webhookData.id
+      const requestId = nanoid()
 
-          // Get OAuth token for Gmail API
-          const accessToken = await getOAuthToken(userId, 'google-email')
+      try {
+        // Extract user ID from webhook metadata if available
+        const metadata = webhookData.providerConfig as any
+        const userId = metadata?.userId
 
-          if (!accessToken) {
-            logger.error(`[${requestId}] Failed to get Gmail access token for webhook ${webhookId}`)
-            return { success: false, webhookId, error: 'No access token' }
-          }
+        if (!userId) {
+          logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
+          return { success: false, webhookId, error: 'No user ID' }
+        }
 
-          // Get webhook configuration
-          const config = webhookData.providerConfig as unknown as GmailWebhookConfig
+        // Get OAuth token for Gmail API
+        const accessToken = await getOAuthToken(userId, 'google-email')
 
-          const now = new Date()
+        if (!accessToken) {
+          logger.error(`[${requestId}] Failed to get Gmail access token for webhook ${webhookId}`)
+          return { success: false, webhookId, error: 'No access token' }
+        }
 
-          // Fetch new emails
-          const fetchResult = await fetchNewEmails(accessToken, config, requestId)
+        // Get webhook configuration
+        const config = webhookData.providerConfig as unknown as GmailWebhookConfig
 
-          const { emails, latestHistoryId } = fetchResult
+        const now = new Date()
 
-          if (!emails || !emails.length) {
-            // Update last checked timestamp
-            await updateWebhookLastChecked(
-              webhookId,
-              now.toISOString(),
-              latestHistoryId || config.historyId
-            )
-            logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-            return { success: true, webhookId, status: 'no_emails' }
-          }
+        // Fetch new emails
+        const fetchResult = await fetchNewEmails(accessToken, config, requestId)
 
-          logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
+        const { emails, latestHistoryId } = fetchResult
 
-          // Get processed email IDs (to avoid duplicates)
-          const processedEmailIds = config.processedEmailIds || []
-
-          // Filter out emails that have already been processed
-          const newEmails = emails.filter((email) => !processedEmailIds.includes(email.id))
-
-          if (newEmails.length === 0) {
-            logger.info(
-              `[${requestId}] All emails have already been processed for webhook ${webhookId}`
-            )
-            await updateWebhookLastChecked(
-              webhookId,
-              now.toISOString(),
-              latestHistoryId || config.historyId
-            )
-            return { success: true, webhookId, status: 'already_processed' }
-          }
-
-          logger.info(
-            `[${requestId}] Processing ${newEmails.length} new emails for webhook ${webhookId}`
-          )
-
-          // Process all emails (process each email as a separate workflow trigger)
-          const emailsToProcess = newEmails
-
-          // Process emails
-          const processed = await processEmails(
-            emailsToProcess,
-            webhookData,
-            config,
-            accessToken,
-            requestId
-          )
-
-          // Record which email IDs have been processed
-          const newProcessedIds = [
-            ...processedEmailIds,
-            ...emailsToProcess.map((email) => email.id),
-          ]
-          // Keep only the most recent 100 IDs to prevent the list from growing too large
-          const trimmedProcessedIds = newProcessedIds.slice(-100)
-
-          // Update webhook with latest history ID, timestamp, and processed email IDs
-          await updateWebhookData(
+        if (!emails || !emails.length) {
+          // Update last checked timestamp
+          await updateWebhookLastChecked(
             webhookId,
             now.toISOString(),
-            latestHistoryId || config.historyId,
-            trimmedProcessedIds
+            latestHistoryId || config.historyId
           )
-
-          return {
-            success: true,
-            webhookId,
-            emailsFound: emails.length,
-            newEmails: newEmails.length,
-            emailsProcessed: processed,
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-          logger.error(`[${requestId}] Error processing Gmail webhook ${webhookId}:`, error)
-          return { success: false, webhookId, error: errorMessage }
+          logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
+          return { success: true, webhookId, status: 'no_emails' }
         }
-      })
-    )
+
+        logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
+
+        // Get processed email IDs (to avoid duplicates)
+        const processedEmailIds = config.processedEmailIds || []
+
+        // Filter out emails that have already been processed
+        const newEmails = emails.filter((email) => !processedEmailIds.includes(email.id))
+
+        if (newEmails.length === 0) {
+          logger.info(
+            `[${requestId}] All emails have already been processed for webhook ${webhookId}`
+          )
+          await updateWebhookLastChecked(
+            webhookId,
+            now.toISOString(),
+            latestHistoryId || config.historyId
+          )
+          return { success: true, webhookId, status: 'already_processed' }
+        }
+
+        logger.info(
+          `[${requestId}] Processing ${newEmails.length} new emails for webhook ${webhookId}`
+        )
+
+        // Process all emails (process each email as a separate workflow trigger)
+        const emailsToProcess = newEmails
+
+        // Process emails
+        const processed = await processEmails(
+          emailsToProcess,
+          webhookData,
+          config,
+          accessToken,
+          requestId
+        )
+
+        // Record which email IDs have been processed
+        const newProcessedIds = [...processedEmailIds, ...emailsToProcess.map((email) => email.id)]
+        // Keep only the most recent 100 IDs to prevent the list from growing too large
+        const trimmedProcessedIds = newProcessedIds.slice(-100)
+
+        // Update webhook with latest history ID, timestamp, and processed email IDs
+        await updateWebhookData(
+          webhookId,
+          now.toISOString(),
+          latestHistoryId || config.historyId,
+          trimmedProcessedIds
+        )
+
+        return {
+          success: true,
+          webhookId,
+          emailsFound: emails.length,
+          newEmails: newEmails.length,
+          emailsProcessed: processed,
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        logger.error(`[${requestId}] Error processing Gmail webhook ${webhookId}:`, error)
+        return { success: false, webhookId, error: errorMessage }
+      }
+    }
+
+    for (const webhookData of activeWebhooks) {
+      running.push(enqueue(webhookData))
+
+      if (running.length >= CONCURRENCY) {
+        const result = await Promise.race(running)
+        running.splice(running.indexOf(result), 1)
+        settledResults.push(result)
+      }
+    }
+
+    while (running.length) {
+      const result = await Promise.race(running)
+      running.splice(running.indexOf(result), 1)
+      settledResults.push(result)
+    }
+
+    const results = settledResults
 
     const summary = {
       total: results.length,
@@ -301,8 +337,8 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
         // Less than an hour ago
         // Calculate buffer in seconds - the greater of:
         // 1. Twice the configured polling interval (or 2 minutes if not set)
-        // 2. At least 5 minutes (300 seconds)
-        const bufferSeconds = Math.max((config.pollingInterval || 2) * 60 * 2, 300)
+        // 2. At least 3 minutes (180 seconds)
+        const bufferSeconds = Math.max((config.pollingInterval || 2) * 60 * 2, 180)
 
         // Calculate the cutoff time with buffer
         const cutoffTime = new Date(lastCheckedTime.getTime() - bufferSeconds * 1000)
@@ -448,6 +484,20 @@ async function processEmails(
 
   for (const email of emails) {
     try {
+      // Deduplicate at Redis level (guards against races between cron runs)
+      const dedupeKey = `gmail:${webhookData.id}:${email.id}`
+      try {
+        const alreadyProcessed = await hasProcessedMessage(dedupeKey)
+        if (alreadyProcessed) {
+          logger.info(
+            `[${requestId}] Duplicate email ${email.id} for webhook ${webhookData.id} – skipping`
+          )
+          continue
+        }
+      } catch (err) {
+        logger.warn(`[${requestId}] Redis check failed for ${email.id}, continuing`, err)
+      }
+
       // Extract useful information from email to create a simplified payload
       // First, extract headers into a map for easy access
       const headers: Record<string, string> = {}
@@ -525,20 +575,16 @@ async function processEmails(
       }
 
       // Create simplified email object
-      const simplifiedEmail = {
+      const simplifiedEmail: SimplifiedEmail = {
         id: email.id,
         threadId: email.threadId,
-        // Basic info
         subject: headers.subject || '[No Subject]',
         from: headers.from || '',
         to: headers.to || '',
         cc: headers.cc || '',
         date: date,
-        // Content
         bodyText: textContent,
         bodyHtml: htmlContent,
-        snippet: email.snippet || '',
-        // Metadata
         labels: email.labelIds || [],
         hasAttachments: attachments.length > 0,
         attachments: attachments,
@@ -560,6 +606,7 @@ async function processEmails(
         headers: {
           'Content-Type': 'application/json',
           'X-Webhook-Secret': webhookData.secret || '',
+          'User-Agent': 'SimStudio/1.0',
         },
         body: JSON.stringify(payload),
       })
@@ -579,6 +626,8 @@ async function processEmails(
       }
 
       processedCount++
+
+      await markMessageAsProcessed(dedupeKey)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error(`[${requestId}] Error processing email ${email.id}:`, errorMessage)

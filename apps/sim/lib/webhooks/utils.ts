@@ -257,6 +257,11 @@ export function formatWebhookInput(
     } else {
       return null
     }
+  } else if (foundWebhook.provider === 'gmail') {
+    if (body && typeof body === 'object' && 'email' in body) {
+      return body // { email: {...}, timestamp: ... }
+    }
+    return body
   } else {
     // Generic format for Slack and other providers
     return {
