@@ -10,6 +10,5 @@ export interface CodeExecutionOutput extends ToolResponse {
   output: {
     result: any
     stdout: string
-    executionTime: number
   }
 }

@@ -1284,7 +1284,6 @@ export class Executor {
         response: {
           result: output?.result,
           stdout: output?.stdout || '',
-          executionTime: output?.executionTime || 0,
         },
       }
     }
