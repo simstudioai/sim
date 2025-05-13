@@ -1,9 +1,11 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
-import { client } from './auth-client'
+import { client } from '../auth-client'
+import { calculateUsageLimit } from './utils'
+import { checkEnterprisePlan } from './utils'
 
 const logger = createLogger('Subscription')
 
@@ -122,6 +124,65 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
 }
 
 /**
+ * Check if the user is on the Enterprise plan
+ */
+export async function isEnterprisePlan(userId: string): Promise<boolean> {
+  try {
+    // In development, enable Enterprise features for easier testing
+    if (!isProd) {
+      return true
+    }
+
+    // First check organizations the user belongs to (prioritize org subscriptions)
+    const memberships = await db
+      .select()
+      .from(schema.member)
+      .where(eq(schema.member.userId, userId))
+
+    // Check each organization for active Enterprise subscriptions
+    for (const membership of memberships) {
+      const orgSubscriptions = await db
+        .select()
+        .from(schema.subscription)
+        .where(eq(schema.subscription.referenceId, membership.organizationId))
+
+      const orgHasEnterprisePlan = orgSubscriptions.some(
+        (sub) => sub.status === 'active' && sub.plan === 'enterprise'
+      )
+
+      if (orgHasEnterprisePlan) {
+        logger.info('User has enterprise plan via organization', {
+          userId,
+          orgId: membership.organizationId,
+        })
+        return true
+      }
+    }
+
+    // If no org subscriptions found, check direct subscriptions
+    const directSubscriptions = await db
+      .select()
+      .from(schema.subscription)
+      .where(eq(schema.subscription.referenceId, userId))
+
+    // Find active enterprise subscription
+    const hasDirectEnterprisePlan = directSubscriptions.some(
+      (sub) => sub.status === 'active' && sub.plan === 'enterprise'
+    )
+
+    if (hasDirectEnterprisePlan) {
+      logger.info('User has direct enterprise plan', { userId })
+      return true
+    }
+
+    return false
+  } catch (error) {
+    logger.error('Error checking enterprise plan status', { error, userId })
+    return false
+  }
+}
+
+/**
  * Check if a user has exceeded their cost limit based on their subscription plan
  */
 export async function hasExceededCostLimit(userId: string): Promise<boolean> {
@@ -131,52 +192,73 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
       return false
     }
 
-    // Get user's direct subscription
-    const { data: directSubscriptions } = await client.subscription.list({
-      query: { referenceId: userId },
-    })
+    // Get all applicable subscriptions for the user
+    let activeSubscription = null
 
-    // Find active direct subscription
-    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
-
-    // Get organizations the user belongs to
-    const memberships = await db
+    // First check for direct subscription
+    const userSubscriptions = await db
       .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
+      .from(schema.subscription)
+      .where(
+        and(eq(schema.subscription.referenceId, userId), eq(schema.subscription.status, 'active'))
+      )
 
-    let highestCostLimit = 0
-
-    // Check cost limit from direct subscription
-    if (activeDirectSubscription && typeof activeDirectSubscription.limits?.cost === 'number') {
-      highestCostLimit = activeDirectSubscription.limits.cost
+    if (userSubscriptions.length > 0) {
+      activeSubscription = userSubscriptions[0]
     }
 
-    // Check cost limits from organization subscriptions
-    for (const membership of memberships) {
-      const { data: orgSubscriptions } = await client.subscription.list({
-        query: { referenceId: membership.organizationId },
-      })
+    // If no direct subscription, check for organization subscriptions
+    if (!activeSubscription) {
+      const memberships = await db
+        .select()
+        .from(schema.member)
+        .where(eq(schema.member.userId, userId))
 
-      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
+      for (const membership of memberships) {
+        const orgId = membership.organizationId
 
-      if (
-        activeOrgSubscription &&
-        typeof activeOrgSubscription.limits?.cost === 'number' &&
-        activeOrgSubscription.limits.cost > highestCostLimit
-      ) {
-        highestCostLimit = activeOrgSubscription.limits.cost
+        const orgSubscriptions = await db
+          .select()
+          .from(schema.subscription)
+          .where(
+            and(
+              eq(schema.subscription.referenceId, orgId),
+              eq(schema.subscription.status, 'active')
+            )
+          )
+
+        if (orgSubscriptions.length > 0) {
+          // Prioritize enterprise, then team, then pro plans
+          const enterpriseSub = orgSubscriptions.find((sub) => checkEnterprisePlan(sub))
+          const teamSub = orgSubscriptions.find(
+            (sub) => sub.plan === 'team' && sub.status === 'active'
+          )
+          const proSub = orgSubscriptions.find(
+            (sub) => sub.plan === 'pro' && sub.status === 'active'
+          )
+
+          // Use the highest tier subscription
+          activeSubscription = enterpriseSub || teamSub || proSub || null
+          if (activeSubscription) break
+        }
       }
     }
 
-    // If no subscription found, use default free tier limit
-    if (highestCostLimit === 0) {
-      highestCostLimit = process.env.FREE_TIER_COST_LIMIT
-        ? parseFloat(process.env.FREE_TIER_COST_LIMIT)
-        : 5
+    // Calculate limit using our standardized function
+    let limit = 0
+    if (activeSubscription) {
+      limit = calculateUsageLimit(activeSubscription)
+      logger.info('Using calculated subscription limit', {
+        userId,
+        plan: activeSubscription.plan,
+        seats: activeSubscription.seats || 1,
+        limit,
+      })
+    } else {
+      // Free tier limit
+      limit = process.env.FREE_TIER_COST_LIMIT ? parseFloat(process.env.FREE_TIER_COST_LIMIT) : 5
+      logger.info('Using free tier limit', { userId, limit })
     }
-
-    logger.info('User cost limit from subscription', { userId, costLimit: highestCostLimit })
 
     // Get user's actual usage from the database
     const statsRecords = await db
@@ -192,7 +274,9 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     // Get the current cost and compare with the limit
     const currentCost = parseFloat(statsRecords[0].totalCost.toString())
 
-    return currentCost >= highestCostLimit
+    logger.info('Checking cost limit', { userId, currentCost, limit })
+
+    return currentCost >= limit
   } catch (error) {
     logger.error('Error checking cost limit', { error, userId })
     return false // Be conservative in case of error

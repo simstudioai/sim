@@ -39,6 +39,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general')
   const [isPro, setIsPro] = useState(false)
   const [isTeam, setIsTeam] = useState(false)
+  const [isEnterprise, setIsEnterprise] = useState(false)
   const [subscriptionData, setSubscriptionData] = useState<any>(null)
   const [usageData, setUsageData] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -63,10 +64,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           const subData = await proStatusResponse.json()
           setIsPro(subData.isPro)
           setIsTeam(subData.isTeam)
+          setIsEnterprise(subData.isEnterprise)
 
-          if (!subData.isTeam && activeSection === 'team') {
-            setActiveSection('general')
-          }
+          // No longer redirecting to general if they have a team subscription but no org
+          // Instead, let them see the team tab where they can create an org
         }
 
         const usageResponse = await fetch('/api/user/usage')
@@ -80,11 +81,23 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
           if (result.data && result.data.length > 0) {
             const activeSubscription = result.data.find(
-              (sub) => sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'pro')
+              (sub) =>
+                sub.status === 'active' &&
+                (sub.plan === 'team' || sub.plan === 'pro' || sub.plan === 'enterprise')
             )
 
             if (activeSubscription) {
               setSubscriptionData(activeSubscription)
+            }
+          }
+
+          if (!subscriptionData && isEnterprise) {
+            const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+            if (enterpriseResponse.ok) {
+              const enterpriseData = await enterpriseResponse.json()
+              if (enterpriseData.subscription) {
+                setSubscriptionData(enterpriseData.subscription)
+              }
             }
           }
         } catch (error) {
@@ -104,7 +117,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     } else {
       hasLoadedInitialData.current = false
     }
-  }, [open, loadSettings, subscription, activeSection])
+  }, [open, loadSettings, subscription, activeSection, isEnterprise, subscriptionData])
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {
@@ -120,6 +133,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   }, [onOpenChange])
 
   const isSubscriptionEnabled = !!client.subscription
+
+  // Always show team tab if user has team or enterprise subscription
+  const showTeamManagement = isTeam || isEnterprise
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -146,6 +162,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               activeSection={activeSection}
               onSectionChange={setActiveSection}
               isTeam={isTeam}
+              isEnterprise={isEnterprise}
             />
           </div>
 
@@ -172,13 +189,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                   onOpenChange={onOpenChange}
                   cachedIsPro={isPro}
                   cachedIsTeam={isTeam}
+                  cachedIsEnterprise={isEnterprise}
                   cachedUsageData={usageData}
                   cachedSubscriptionData={subscriptionData}
                   isLoading={isLoading}
                 />
               </div>
             )}
-            {isTeam && (
+            {showTeamManagement && (
               <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
                 <TeamManagement />
               </div>

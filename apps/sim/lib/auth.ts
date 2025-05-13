@@ -19,7 +19,8 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
-const isProd = process.env.NODE_ENV === 'production'
+// const isProd = process.env.NODE_ENV === 'production'
+const isProd = true
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account
@@ -79,18 +80,18 @@ export const auth = betterAuth({
               .from(schema.member)
               .where(eq(schema.member.userId, session.userId))
               .limit(1)
-            
+
             if (members.length > 0) {
-              logger.info('Found organization for user', { 
-                userId: session.userId, 
-                organizationId: members[0].organizationId 
+              logger.info('Found organization for user', {
+                userId: session.userId,
+                organizationId: members[0].organizationId,
               })
-              
+
               return {
                 data: {
                   ...session,
-                  activeOrganizationId: members[0].organizationId
-                }
+                  activeOrganizationId: members[0].organizationId,
+                },
               }
             } else {
               logger.info('No organizations found for user', { userId: session.userId })
@@ -537,13 +538,7 @@ export const auth = betterAuth({
           authorizationUrl: 'https://discord.com/api/oauth2/authorize',
           tokenUrl: 'https://discord.com/api/oauth2/token',
           userInfoUrl: 'https://discord.com/api/users/@me',
-          scopes: [
-            'identify',
-            'bot',
-            'messages.read',
-            'guilds',
-            'guilds.members.read',
-          ],
+          scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
           responseType: 'code',
           accessType: 'offline',
           authentication: 'basic',
@@ -572,7 +567,9 @@ export const auth = betterAuth({
                 id: profile.id,
                 name: profile.username || 'Discord User',
                 email: profile.email || `${profile.id}@discord.user`,
-                image: profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : null,
+                image: profile.avatar
+                  ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
+                  : null,
                 emailVerified: profile.verified || false,
                 createdAt: now,
                 updatedAt: now,

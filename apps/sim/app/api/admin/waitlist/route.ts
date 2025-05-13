@@ -8,6 +8,7 @@ import {
   rejectWaitlistUser,
   resendApprovalEmail,
 } from '@/lib/waitlist/service'
+import { isAuthorized } from '../utils'
 
 const logger = new Logger('WaitlistAPI')
 
@@ -30,25 +31,6 @@ const batchActionSchema = z.object({
   emails: z.array(z.string().email()).min(1).max(100),
   action: z.literal('batchApprove'),
 })
-
-// Admin password from environment variables
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ''
-
-// Check if the request has valid admin password
-function isAuthorized(request: NextRequest) {
-  // Get authorization header (Bearer token)
-  const authHeader = request.headers.get('authorization')
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return false
-  }
-
-  // Extract token
-  const token = authHeader.split(' ')[1]
-
-  // Compare with expected token
-  return token === ADMIN_PASSWORD
-}
 
 // Catch and handle Resend API errors
 function detectResendRateLimitError(error: any): boolean {
@@ -101,10 +83,6 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'all'
     const search = searchParams.get('search') || undefined
 
-    logger.info(
-      `API route: Received request with status: "${status}", search: "${search || 'none'}", page: ${page}, limit: ${limit}`
-    )
-
     // Validate params
     const validatedParams = getQuerySchema.safeParse({ page, limit, status, search })
 
@@ -128,11 +106,6 @@ export async function GET(request: NextRequest) {
       validatedParams.data.search
     )
 
-    logger.info(
-      `API route: Returning ${entries.entries.length} entries for status: "${status}", total: ${entries.total}`
-    )
-
-    // Return response with cache control header to prevent caching
     return new NextResponse(JSON.stringify({ success: true, data: entries }), {
       headers: {
         'Content-Type': 'application/json',

@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { db } from '@/db'
 import { member, organization as organizationTable, subscription, userStats } from '@/db/schema'
 import { createLogger } from './logs/console-logger'
-import { isProPlan, isTeamPlan } from './subscription'
+import { calculateUsageLimit, checkEnterprisePlan } from './subscription/utils'
 
 const logger = createLogger('UsageMonitor')
 
@@ -78,6 +78,136 @@ async function getTeamSeats(userId: string): Promise<number> {
 }
 
 /**
+ * Gets enterprise subscription allowance based on seats and per-seat allowance
+ * Used to calculate usage limits for enterprise plans
+ */
+async function getEnterpriseAllowance(userId: string): Promise<number> {
+  try {
+    // Check for direct enterprise subscription
+    const userSubscriptions = await db
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, userId),
+          eq(subscription.plan, 'enterprise'),
+          eq(subscription.status, 'active')
+        )
+      )
+
+    if (userSubscriptions.length > 0) {
+      const enterpriseSub = userSubscriptions[0]
+      // Using checkEnterprisePlan for consistency
+      if (checkEnterprisePlan(enterpriseSub)) {
+        const seats = enterpriseSub.seats || 100 // Default to 100 seats if not specified
+        let perSeatAllowance = 200 // Default per-seat allowance
+        let totalAllowance = seats * perSeatAllowance
+
+        // Try to get allowance from metadata field
+        if (enterpriseSub.metadata) {
+          const metadata = enterpriseSub.metadata as {
+            perSeatAllowance?: number
+            totalAllowance?: number
+            updatedAt?: string
+          }
+
+          if (metadata.totalAllowance) {
+            totalAllowance = metadata.totalAllowance
+            logger.info('Found stored total allowance', { totalAllowance })
+          } else if (metadata.perSeatAllowance) {
+            perSeatAllowance = metadata.perSeatAllowance
+            totalAllowance = seats * perSeatAllowance
+            logger.info('Calculated total allowance from per-seat value', {
+              perSeatAllowance,
+              seats,
+              totalAllowance,
+            })
+          }
+        }
+
+        logger.info('Found direct enterprise subscription', {
+          userId,
+          seats,
+          perSeatAllowance,
+          totalAllowance,
+        })
+
+        return totalAllowance
+      }
+    }
+
+    // Check if user is part of an organization with an enterprise subscription
+    const memberships = await db.select().from(member).where(eq(member.userId, userId))
+
+    for (const membership of memberships) {
+      const orgId = membership.organizationId
+
+      // Check for organization's enterprise subscription
+      const orgSubscriptions = await db
+        .select()
+        .from(subscription)
+        .where(
+          and(
+            eq(subscription.referenceId, orgId),
+            eq(subscription.plan, 'enterprise'),
+            eq(subscription.status, 'active')
+          )
+        )
+
+      if (orgSubscriptions.length > 0) {
+        const enterpriseSub = orgSubscriptions[0]
+        // Using checkEnterprisePlan for consistency
+        if (checkEnterprisePlan(enterpriseSub)) {
+          const seats = enterpriseSub.seats || 100 // Default to 100 seats if not specified
+          let perSeatAllowance = 200 // Default per-seat allowance
+          let totalAllowance = seats * perSeatAllowance
+
+          // Try to get allowance from metadata field
+          if (enterpriseSub.metadata) {
+            // Cast the metadata to the expected shape
+            const metadata = enterpriseSub.metadata as {
+              perSeatAllowance?: number
+              totalAllowance?: number
+              updatedAt?: string
+            }
+
+            if (metadata.totalAllowance) {
+              totalAllowance = metadata.totalAllowance
+              logger.info('Found stored total allowance for org', { totalAllowance })
+            } else if (metadata.perSeatAllowance) {
+              perSeatAllowance = metadata.perSeatAllowance
+              totalAllowance = seats * perSeatAllowance
+              logger.info('Calculated total allowance from per-seat value for org', {
+                perSeatAllowance,
+                seats,
+                totalAllowance,
+              })
+            }
+          }
+
+          logger.info('Found organization enterprise subscription', {
+            userId,
+            orgId,
+            seats,
+            perSeatAllowance,
+            totalAllowance,
+          })
+
+          return totalAllowance
+        }
+      }
+    }
+
+    // No enterprise subscription found, return a high default value
+    return 20000 // $20,000 default allowance
+  } catch (error) {
+    logger.error('Error getting enterprise allowance', { error, userId })
+    // Be generous on error
+    return 20000 // $20,000 default allowance
+  }
+}
+
+/**
  * Checks a user's cost usage against their subscription plan limit
  * and returns usage information including whether they're approaching the limit
  */
@@ -99,41 +229,61 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       }
     }
 
-    // Production environment - check real subscription limits
+    // Get all applicable subscriptions for the user
+    let activeSubscription = null
+    let limit = 0
 
-    // Get user's subscription details
-    const isPro = await isProPlan(userId)
-    const isTeam = await isTeamPlan(userId)
+    // First check for direct subscription
+    const userSubscriptions = await db
+      .select()
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
 
-    logger.info('User subscription status', { userId, isPro, isTeam })
+    if (userSubscriptions.length > 0) {
+      activeSubscription = userSubscriptions[0]
+    }
 
-    // Determine the limit based on subscription type
-    let limit: number
+    // If no direct subscription, check for organization subscriptions
+    if (!activeSubscription) {
+      const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
-    if (isTeam) {
-      // For team plans, get the number of seats and multiply by per-seat limit
-      const teamSeats = await getTeamSeats(userId)
-      const perSeatLimit = process.env.TEAM_TIER_COST_LIMIT
-        ? parseFloat(process.env.TEAM_TIER_COST_LIMIT)
-        : 40
+      for (const membership of memberships) {
+        const orgId = membership.organizationId
 
-      limit = perSeatLimit * teamSeats
+        const orgSubscriptions = await db
+          .select()
+          .from(subscription)
+          .where(and(eq(subscription.referenceId, orgId), eq(subscription.status, 'active')))
 
-      logger.info('Using team plan limit', {
+        if (orgSubscriptions.length > 0) {
+          // Prioritize enterprise, then team, then pro plans
+          const enterpriseSub = orgSubscriptions.find((sub) => checkEnterprisePlan(sub))
+          const teamSub = orgSubscriptions.find(
+            (sub) => sub.plan === 'team' && sub.status === 'active'
+          )
+          const proSub = orgSubscriptions.find(
+            (sub) => sub.plan === 'pro' && sub.status === 'active'
+          )
+
+          // Use the highest tier subscription
+          activeSubscription = enterpriseSub || teamSub || proSub || null
+          if (activeSubscription) break
+        }
+      }
+    }
+
+    // Calculate limit using our standardized function
+    if (activeSubscription) {
+      limit = calculateUsageLimit(activeSubscription)
+      logger.info('Using calculated subscription limit', {
         userId,
-        seats: teamSeats,
-        perSeatLimit,
-        totalLimit: limit,
+        plan: activeSubscription.plan,
+        seats: activeSubscription.seats || 1,
+        limit,
       })
-    } else if (isPro) {
-      // Pro plan has a fixed limit
-      limit = process.env.PRO_TIER_COST_LIMIT ? parseFloat(process.env.PRO_TIER_COST_LIMIT) : 20
-
-      logger.info('Using pro plan limit', { userId, limit })
     } else {
       // Free tier limit
       limit = process.env.FREE_TIER_COST_LIMIT ? parseFloat(process.env.FREE_TIER_COST_LIMIT) : 5
-
       logger.info('Using free tier limit', { userId, limit })
     }
 

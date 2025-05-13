@@ -5,6 +5,7 @@ import { LockIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // The admin password for client components should use NEXT_PUBLIC prefix for accessibility
 // In production, setup appropriate env vars and secure access patterns
@@ -49,8 +50,10 @@ export default function PasswordAuth({ children }: { children: React.ReactNode }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Checking authentication...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <Skeleton className="h-12 w-12 rounded-full mb-4" />
+        <Skeleton className="h-6 w-48 mb-2" />
+        <Skeleton className="h-4 w-64" />
       </div>
     )
   }

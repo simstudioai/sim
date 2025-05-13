@@ -254,6 +254,7 @@ export const subscription = pgTable('subscription', {
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),
   trialEnd: timestamp('trial_end'),
+  metadata: jsonb('metadata'),
 })
 
 export const chat = pgTable(

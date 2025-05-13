@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       .from(user)
       .leftJoin(
         subscription,
-        sql`${user.id} = ${subscription.referenceId} AND ${subscription.status} = 'active'`
+        sql`${user.id} = ${subscription.referenceId} AND ${subscription.status} = 'active' AND ${subscription.plan} IN ('pro', 'team', 'enterprise')`
       )
       .where(sql`${subscription.id} IS NULL`)
 

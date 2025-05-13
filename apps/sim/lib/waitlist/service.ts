@@ -151,10 +151,6 @@ export async function getWaitlistEntries(
       countResult = await db.select({ value: count() }).from(waitlist)
     }
 
-    console.log(
-      `Service: Found ${entries.length} entries with ${status === 'all' ? 'all statuses' : `status=${status}`}, total: ${countResult[0]?.value || 0}`
-    )
-
     return {
       entries,
       total: countResult[0]?.value || 0,

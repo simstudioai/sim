@@ -2,19 +2,27 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { AlertCircleIcon, InfoIcon, RotateCcwIcon } from 'lucide-react'
+import {
+  AlertCircleIcon,
+  CheckIcon,
+  InfoIcon,
+  RotateCcwIcon,
+  UserCheckIcon,
+  UserIcon,
+  UserXIcon,
+} from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Logger } from '@/lib/logs/console-logger'
+import { FilterBar } from '../components/filter-bar/filter-bar'
+import { Pagination } from '../components/pagination/pagination'
+import { SearchBar } from '../components/search-bar/search-bar'
 import { BatchActions } from './components/batch-actions/batch-actions'
 import { BatchResultsModal } from './components/batch-results-modal/batch-results-modal'
-import { FilterBar } from './components/filter-bar/filter-bar'
-import { Pagination } from './components/pagination/pagination'
-import { SearchBar } from './components/search-bar/search-bar'
 import { WaitlistAlert } from './components/waitlist-alert/waitlist-alert'
 import { WaitlistTable as WaitlistDataTable } from './components/waitlist-table/waitlist-table'
-import { useWaitlistStore } from './stores/store'
+import { useWaitlistStore } from './stores/waitlist-store'
 
 const logger = new Logger('WaitlistTable')
 
@@ -61,30 +69,14 @@ export function WaitlistTable() {
 
   // Auth token for API calls
   const [apiToken, setApiToken] = useState('')
-  const [authChecked, setAuthChecked] = useState(false)
 
-  // Check authentication and redirect if needed
+  // Set up auth token for API calls
   useEffect(() => {
-    // Check if user is authenticated
+    // Get admin token from session storage
     const token = sessionStorage.getItem('admin-auth-token') || ''
-    const isAuth = sessionStorage.getItem('admin-auth') === 'true'
-
     setApiToken(token)
 
-    // If not authenticated, redirect to admin home page to show the login form
-    if (!isAuth || !token) {
-      logger.warn('Not authenticated, redirecting to admin page')
-      router.push('/admin')
-      return
-    }
-
-    setAuthChecked(true)
-  }, [router])
-
-  // Get status from URL on initial load - only if authenticated
-  useEffect(() => {
-    if (!authChecked) return
-
+    // Get status from URL on initial load
     const urlStatus = searchParams.get('status') || 'all'
     // Make sure it's a valid status
     const validStatus = ['all', 'pending', 'approved', 'rejected'].includes(urlStatus)
@@ -92,7 +84,10 @@ export function WaitlistTable() {
       : 'all'
 
     setStatus(validStatus)
-  }, [searchParams, setStatus, authChecked])
+
+    // Initial data fetch
+    fetchEntries()
+  }, [searchParams, setStatus, fetchEntries])
 
   // Handle status filter change
   const handleStatusChange = useCallback(
@@ -485,7 +480,7 @@ export function WaitlistTable() {
   }
 
   // If not authenticated yet, show loading state
-  if (!authChecked) {
+  if (!apiToken) {
     return (
       <div className="flex justify-center items-center py-20">
         <Skeleton className="h-16 w-16 rounded-full" />
@@ -498,7 +493,58 @@ export function WaitlistTable() {
       {/* Top bar with filters, search and refresh */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-2">
         {/* Filter buttons in a single row */}
-        <FilterBar currentStatus={status} onStatusChange={handleStatusChange} />
+        <FilterBar
+          currentFilter={status}
+          onFilterChange={handleStatusChange}
+          filters={[
+            {
+              id: 'all',
+              label: 'All',
+              icon: <UserIcon className="h-3.5 w-3.5" />,
+              className:
+                status === 'all'
+                  ? 'bg-blue-100 text-blue-900 hover:bg-blue-200 hover:text-blue-900'
+                  : '',
+            },
+            {
+              id: 'pending',
+              label: 'Pending',
+              icon: <UserIcon className="h-3.5 w-3.5" />,
+              className:
+                status === 'pending'
+                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200 hover:text-amber-900'
+                  : '',
+            },
+            {
+              id: 'approved',
+              label: 'Approved',
+              icon: <UserCheckIcon className="h-3.5 w-3.5" />,
+              className:
+                status === 'approved'
+                  ? 'bg-green-100 text-green-900 hover:bg-green-200 hover:text-green-900'
+                  : '',
+            },
+            {
+              id: 'rejected',
+              label: 'Rejected',
+              icon: <UserXIcon className="h-3.5 w-3.5" />,
+              className:
+                status === 'rejected'
+                  ? 'bg-red-100 text-red-900 hover:bg-red-200 hover:text-red-900'
+                  : '',
+            },
+            {
+              id: 'signed_up',
+              label: 'Signed Up',
+              icon: <CheckIcon className="h-3.5 w-3.5" />,
+              className:
+                status === 'signed_up'
+                  ? 'bg-purple-100 text-purple-900 hover:bg-purple-200 hover:text-purple-900'
+                  : '',
+            },
+          ]}
+          variant="colored"
+        />
 
         {/* Search and refresh aligned to the right */}
         <div className="flex items-center gap-2 w-full sm:w-auto">

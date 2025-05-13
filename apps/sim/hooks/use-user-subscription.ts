@@ -5,6 +5,7 @@ interface UserSubscription {
   isLoading: boolean
   plan: string | null
   error: Error | null
+  isEnterprise: boolean
 }
 
 export function useUserSubscription(): UserSubscription {
@@ -13,6 +14,7 @@ export function useUserSubscription(): UserSubscription {
     isLoading: true,
     plan: null,
     error: null,
+    isEnterprise: false,
   })
 
   useEffect(() => {
@@ -31,13 +33,15 @@ export function useUserSubscription(): UserSubscription {
           isLoading: false,
           plan: data.plan,
           error: null,
+          isEnterprise: data.plan === 'enterprise' || false,
         })
       } catch (error) {
         setSubscription({
-          isPaid: false, // Default to free plan if we can't verify
+          isPaid: false,
           isLoading: false,
           plan: null,
           error: error instanceof Error ? error : new Error('Unknown error'),
+          isEnterprise: false,
         })
       }
     }
