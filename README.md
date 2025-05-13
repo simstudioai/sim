@@ -26,9 +26,8 @@ There are several ways to self-host Sim Studio:
 ### Option 1: Docker Environment (Recommended)
 
 ```bash
-# Clone your forked repository
-git clone https://github.com/YOUR_USERNAME/sim.git
-cd sim
+# Clone the repository
+git clone https://github.com/simstudioai/sim.git
 
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
 cp .env.example .env
