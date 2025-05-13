@@ -1,29 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { isProPlan, isTeamPlan } from '@/lib/subscription'
+import { db } from '@/db'
+import { subscription } from '@/db/schema'
 
-const logger = createLogger('UserSubscriptionAPI')
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Get the authenticated user
+    // Get current authenticated user
     const session = await getSession()
 
     if (!session?.user?.id) {
-      logger.warn('Unauthorized subscription access attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    // Check if the user is on the Pro plan
-    const isPro = await isProPlan(session.user.id)
+    // Query the subscription for this user
+    const subscriptions = await db
+      .select({
+        id: subscription.id,
+        plan: subscription.plan,
+        status: subscription.status,
+      })
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, session.user.id), eq(subscription.status, 'active')))
+      .limit(1)
 
-    // Check if the user is on the Team plan
-    const isTeam = await isTeamPlan(session.user.id)
+    const activeSub = subscriptions[0]
 
-    return NextResponse.json({ isPro, isTeam })
+    const isPaid =
+      activeSub &&
+      activeSub.status === 'active' &&
+      (activeSub.plan === 'pro' || activeSub.plan === 'team')
+
+    return NextResponse.json({
+      isPaid,
+      plan: activeSub?.plan || 'free',
+      status: activeSub?.status || null,
+    })
   } catch (error) {
-    logger.error('Error checking subscription status:', error)
-    return NextResponse.json({ error: 'Failed to check subscription status' }, { status: 500 })
+    console.error('Error fetching subscription:', error)
+    return NextResponse.json({ error: 'Failed to fetch subscription data' }, { status: 500 })
   }
 }
