@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
@@ -8,7 +8,7 @@ import { decryptSecret } from '@/lib/utils'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
-import { chat, environment as envTable, workflow } from '@/db/schema'
+import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
 import { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
@@ -495,6 +495,38 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
           `[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}`
         )
 
+        // Update user stats for successful streaming chat execution
+        if (executionData.success) {
+          try {
+            // Find the workflow to get the user ID
+            const workflowData = await db
+              .select({ userId: workflow.userId })
+              .from(workflow)
+              .where(eq(workflow.id, workflowId))
+              .limit(1)
+
+            if (workflowData.length > 0) {
+              const userId = workflowData[0].userId
+
+              // Update the user stats
+              await db
+                .update(userStats)
+                .set({
+                  totalChatExecutions: sql`total_chat_executions + 1`,
+                  lastActive: new Date(),
+                })
+                .where(eq(userStats.userId, userId))
+
+              logger.debug(
+                `[${requestId}] Updated user stats: incremented totalChatExecutions for streaming chat`
+              )
+            }
+          } catch (error) {
+            // Don't fail if stats update fails
+            logger.error(`[${requestId}] Failed to update streaming chat execution stats:`, error)
+          }
+        }
+
         return { success: true }
       } catch (error) {
         logger.error(`[${requestId}] Failed to persist streaming chat execution logs:`, error)
@@ -528,6 +560,36 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
     ;(result as any).metadata = {
       ...(result.metadata || {}),
       source: 'chat',
+    }
+  }
+
+  // Update user stats to increment totalChatExecutions if the execution was successful
+  if (result.success) {
+    try {
+      // Find the workflow to get the user ID
+      const workflowData = await db
+        .select({ userId: workflow.userId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (workflowData.length > 0) {
+        const userId = workflowData[0].userId
+
+        // Update the user stats
+        await db
+          .update(userStats)
+          .set({
+            totalChatExecutions: sql`total_chat_executions + 1`,
+            lastActive: new Date(),
+          })
+          .where(eq(userStats.userId, userId))
+
+        logger.debug(`[${requestId}] Updated user stats: incremented totalChatExecutions`)
+      }
+    } catch (error) {
+      // Don't fail the chat response if stats update fails
+      logger.error(`[${requestId}] Failed to update chat execution stats:`, error)
     }
   }
 

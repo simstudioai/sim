@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats, workflow } from '@/db/schema'
 
 const logger = createLogger('UserStatsAPI')
+
+const userStatsResponseSchema = z.object({
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  totalManualExecutions: z.number().int().nonnegative(),
+  totalApiCalls: z.number().int().nonnegative(),
+  totalWebhookTriggers: z.number().int().nonnegative(),
+  totalScheduledExecutions: z.number().int().nonnegative(),
+  totalChatExecutions: z.number().int().nonnegative(),
+  totalTokensUsed: z.number().int().nonnegative(),
+  totalCost: z.string().or(z.number()),
+  lastActive: z.date(),
+  workflowCount: z.number().int().nonnegative(),
+})
 
 /**
  * GET endpoint to retrieve user statistics including the count of workflows
@@ -41,6 +56,7 @@ export async function GET(request: NextRequest) {
         totalApiCalls: 0,
         totalWebhookTriggers: 0,
         totalScheduledExecutions: 0,
+        totalChatExecutions: 0,
         totalTokensUsed: 0,
         totalCost: '0.00',
         lastActive: new Date(),

@@ -23,6 +23,7 @@ export interface UserStatsEntry {
   totalApiCalls: number
   totalWebhookTriggers: number
   totalScheduledExecutions: number
+  totalChatExecutions: number
   lastActive: Date
   subscriptionPlan: string | null
   subscriptionStatus: string | null

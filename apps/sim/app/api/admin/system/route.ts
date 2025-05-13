@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, count, eq, gte, sum } from 'drizzle-orm'
+import { count, gte } from 'drizzle-orm'
+import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { session, user, workflow, workflowLogs } from '@/db/schema'
+import { isAuthorized } from '../utils'
 
 const logger = createLogger('SystemStats')
 
+const systemStatsQuerySchema = z.object({
+  period: z.enum(['24h', '7d', '30d']).default('24h'),
+})
+
 export async function GET(req: NextRequest) {
   try {
-    // Validate the admin token
-    const authHeader = req.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-
-    if (!token) {
+    if (!isAuthorized(req)) {
       return NextResponse.json(
         {
           success: false,
@@ -22,9 +24,25 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Get the period from query parameters
     const { searchParams } = new URL(req.url)
-    const period = searchParams.get('period') || '24h'
+    const periodParam = searchParams.get('period') || '24h'
+
+    const validatedParams = systemStatsQuerySchema.safeParse({
+      period: periodParam,
+    })
+
+    if (!validatedParams.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invalid parameters',
+          errors: validatedParams.error.format(),
+        },
+        { status: 400 }
+      )
+    }
+
+    const { period } = validatedParams.data
 
     // Get total users count
     const totalUsers = await db
@@ -61,11 +79,8 @@ export async function GET(req: NextRequest) {
       .from(workflowLogs)
       .then((res) => res[0].sum)
 
-    // Get system stats - you might want to implement actual uptime monitoring
-    // For now using a placeholder value
+    // TODO: GET SYSTEM UPTIME, USING PLACEHOLDER VALUE
     const uptime = '99.9%'
-
-    logger.info(`Fetched system stats for period: ${period}`)
 
     return NextResponse.json({
       success: true,

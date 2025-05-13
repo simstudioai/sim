@@ -1,37 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
-import { and, eq, isNull, ne, or } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
 import { db } from '@/db'
 import { subscription, user } from '@/db/schema'
 import { isAuthorized } from '../utils'
 
-// Define proper result type for subscriptions
-interface SubscriptionRecord {
-  id: string
-  userId: string
-  plan: string
-  status: string | null
-  seats: number | null
-  periodStart: Date | null
-  periodEnd: Date | null
-  cancelAtPeriodEnd: boolean | null
-}
+const getSubscriptionsQuerySchema = z.object({
+  userIds: z
+    .string()
+    .optional()
+    .transform((ids) => ids?.split(',') || []),
+  plan: z.string().optional(),
+  status: z.string().optional(),
+  includeIncomplete: z.preprocess((val) => val === 'true', z.boolean().optional().default(false)),
+  stats: z.preprocess((val) => val === 'true', z.boolean().optional().default(false)),
+})
+
+const createEnterpriseSubscriptionSchema = z.object({
+  userId: z.string().uuid(),
+  seats: z.number().int().positive(),
+  expirationDate: z.string().datetime().optional(),
+})
 
 export async function GET(req: NextRequest) {
   try {
-    // Admin authentication check
     if (!isAuthorized(req)) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get query parameters
-    const url = new URL(req.url)
-    const userIds = url.searchParams.get('userIds')?.split(',')
-    const plan = url.searchParams.get('plan')
-    const status = url.searchParams.get('status')
-    const includeIncomplete = url.searchParams.get('includeIncomplete') === 'true'
-    const statsOnly = url.searchParams.get('stats') === 'true'
+    const { searchParams } = new URL(req.url)
+    const userIdsParam = searchParams.get('userIds') || undefined
+    const planParam = searchParams.get('plan') || undefined
+    const statusParam = searchParams.get('status') || undefined
+    const includeIncompleteParam = searchParams.get('includeIncomplete') || undefined
+    const statsParam = searchParams.get('stats') || undefined
+
+    const validatedParams = getSubscriptionsQuerySchema.safeParse({
+      userIds: userIdsParam,
+      plan: planParam,
+      status: statusParam,
+      includeIncomplete: includeIncompleteParam,
+      stats: statsParam,
+    })
+
+    if (!validatedParams.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invalid parameters',
+          errors: validatedParams.error.format(),
+        },
+        { status: 400 }
+      )
+    }
+
+    const { userIds, plan, status, includeIncomplete, stats: statsOnly } = validatedParams.data
 
     // If requesting stats only, return aggregated stats
     if (statsOnly) {
@@ -87,7 +112,7 @@ export async function GET(req: NextRequest) {
     }
 
     // If userIds are provided, fetch subscriptions by userIds (replaces batch endpoint)
-    if (userIds && userIds.length > 0) {
+    if (userIds.length > 0) {
       // Use the query builder instead of raw SQL for better type safety
       const subscriptions = await db
         .select({
@@ -252,20 +277,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
 
-    const {
-      referenceId,
-      seats = 100, // Default to generous seat count
-      perSeatAllowance = 200, // Default per-seat allowance
-      totalAllowance = seats * perSeatAllowance, // Calculate if not provided
-      plan = 'enterprise', // Default to enterprise plan
-      notes = '',
-    } = await req.json()
+    const body = await req.json()
+    const validatedData = createEnterpriseSubscriptionSchema.safeParse(body)
 
-    if (!referenceId) {
+    if (!validatedData.success) {
       return NextResponse.json(
         {
           success: false,
-          message: 'Reference ID is required',
+          message: 'Invalid request body',
+          errors: validatedData.error.format(),
+        },
+        { status: 400 }
+      )
+    }
+
+    const { userId, seats, expirationDate } = validatedData.data
+
+    if (!userId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'User ID is required',
         },
         { status: 400 }
       )
@@ -281,13 +313,13 @@ export async function POST(req: NextRequest) {
     const existing = await db
       .select()
       .from(subscription)
-      .where(and(eq(subscription.referenceId, referenceId), eq(subscription.plan, plan)))
+      .where(and(eq(subscription.referenceId, userId), eq(subscription.plan, 'enterprise')))
       .limit(1)
 
     // Store allowance data in the new metadata field
     const metadata = {
-      perSeatAllowance,
-      totalAllowance,
+      perSeatAllowance: seats,
+      totalAllowance: seats * 200, // Assuming a default perSeatAllowance of 200
       updatedAt: new Date().toISOString(),
     }
 
@@ -304,17 +336,15 @@ export async function POST(req: NextRequest) {
         .where(eq(subscription.id, existing[0].id))
 
       // Log the update for debugging
-      console.log(
-        `Enterprise subscription updated with per-seat allowance: $${perSeatAllowance}, total: $${totalAllowance}`
-      )
+      console.log(`Enterprise subscription updated with per-seat allowance: $${seats}`)
 
       return NextResponse.json({
         success: true,
         message: 'Subscription updated',
         data: {
           subscriptionId: existing[0].id,
-          perSeatAllowance,
-          totalAllowance,
+          perSeatAllowance: seats,
+          totalAllowance: seats * 200,
         },
       })
     }
@@ -323,8 +353,8 @@ export async function POST(req: NextRequest) {
     const newSubscriptionId = uuidv4()
     await db.insert(subscription).values({
       id: newSubscriptionId,
-      plan,
-      referenceId,
+      plan: 'enterprise',
+      referenceId: userId,
       status: 'active',
       seats,
       periodStart,
@@ -333,17 +363,15 @@ export async function POST(req: NextRequest) {
     })
 
     // Log the creation for debugging
-    console.log(
-      `Enterprise subscription created with per-seat allowance: $${perSeatAllowance}, total: $${totalAllowance}`
-    )
+    console.log(`Enterprise subscription created with per-seat allowance: $${seats}`)
 
     return NextResponse.json({
       success: true,
       message: 'Subscription created',
       data: {
         subscriptionId: newSubscriptionId,
-        perSeatAllowance,
-        totalAllowance,
+        perSeatAllowance: seats,
+        totalAllowance: seats * 200,
       },
     })
   } catch (error) {

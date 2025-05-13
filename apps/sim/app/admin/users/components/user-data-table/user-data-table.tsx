@@ -207,7 +207,9 @@ export function UserDataTable({
                             `${formatNumber(
                               user.totalManualExecutions +
                                 user.totalWebhookTriggers +
-                                user.totalScheduledExecutions
+                                user.totalScheduledExecutions +
+                                user.totalApiCalls +
+                                user.totalChatExecutions
                             )}`
                           )
                         }
@@ -217,13 +219,17 @@ export function UserDataTable({
                           {formatNumber(
                             user.totalManualExecutions +
                               user.totalWebhookTriggers +
-                              user.totalScheduledExecutions
+                              user.totalScheduledExecutions +
+                              user.totalApiCalls +
+                              user.totalChatExecutions
                           )}
                           {copiedValue ===
                             `${formatNumber(
                               user.totalManualExecutions +
                                 user.totalWebhookTriggers +
-                                user.totalScheduledExecutions
+                                user.totalScheduledExecutions +
+                                user.totalApiCalls +
+                                user.totalChatExecutions
                             )}` && (
                             <CheckIcon className="h-3 w-3 text-green-500 ml-1.5 flex-shrink-0" />
                           )}
@@ -235,6 +241,8 @@ export function UserDataTable({
                         <div>Manual: {formatNumber(user.totalManualExecutions)}</div>
                         <div>Webhook: {formatNumber(user.totalWebhookTriggers)}</div>
                         <div>Scheduled: {formatNumber(user.totalScheduledExecutions)}</div>
+                        <div>API: {formatNumber(user.totalApiCalls)}</div>
+                        <div>Chat: {formatNumber(user.totalChatExecutions)}</div>
                       </div>
                     </TooltipContent>
                   </Tooltip>

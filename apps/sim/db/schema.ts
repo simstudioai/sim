@@ -224,6 +224,7 @@ export const userStats = pgTable('user_stats', {
   totalApiCalls: integer('total_api_calls').notNull().default(0),
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
+  totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   lastActive: timestamp('last_active').notNull().defaultNow(),

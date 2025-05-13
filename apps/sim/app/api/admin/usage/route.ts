@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, count, eq, gte, isNull, ne, not, sum } from 'drizzle-orm'
+import { and, count, eq, gte, isNull, not, sum } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import {
@@ -16,18 +16,14 @@ import {
   workflowLogs,
   workflowSchedule,
   workspace,
-  workspaceMember,
 } from '@/db/schema'
+import { isAuthorized } from '../utils'
 
 const logger = createLogger('UsageStats')
 
 export async function GET(req: NextRequest) {
   try {
-    // Validate the admin token
-    const authHeader = req.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-
-    if (!token) {
+    if (!isAuthorized(req)) {
       return NextResponse.json(
         {
           success: false,
@@ -75,11 +71,10 @@ export async function GET(req: NextRequest) {
 
     // Get chat executions directly from workflow logs
     const chatExecutionsResult = await db
-      .select({ total: count() })
-      .from(workflowLogs)
-      .where(eq(workflowLogs.trigger, 'chat'))
+      .select({ total: sum(userStats.totalChatExecutions) })
+      .from(userStats)
 
-    const chatExecutions = chatExecutionsResult[0]?.total || 0
+    const totalChatExecutions = chatExecutionsResult[0]?.total || 0
 
     // Get total registered webhooks
     const registeredWebhooksCount = await db
@@ -205,7 +200,7 @@ export async function GET(req: NextRequest) {
         totalWebhookTriggers,
         totalManualExecutions,
         totalScheduledExecutions,
-        chatExecutions,
+        totalChatExecutions,
         registeredWebhooksCount,
         schedulesCreatedCount,
         chatInterfacesCount,

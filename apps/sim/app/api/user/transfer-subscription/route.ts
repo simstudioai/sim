@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
 const logger = createLogger('TransferSubscriptionAPI')
+
+const transferSubscriptionSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  organizationId: z.string().uuid(),
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,16 +23,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Parse the request body
+    // Parse and validate the request body
     const body = await request.json()
-    const { subscriptionId, organizationId } = body
+    const validationResult = transferSubscriptionSchema.safeParse(body)
 
-    if (!subscriptionId || !organizationId) {
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'Missing required fields: subscriptionId and organizationId' },
+        {
+          error: 'Invalid request parameters',
+          details: validationResult.error.format(),
+        },
         { status: 400 }
       )
     }
+
+    const { subscriptionId, organizationId } = validationResult.data
 
     logger.info('Transferring subscription to organization', {
       userId: session.user.id,

@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { db } from '@/db'
 import { member, subscription } from '@/db/schema'
 
-const logger = createLogger('UpdateSubscriptionSeats')
+const logger = createLogger('UpdateSubscriptionSeatsAPI')
+
+const updateSeatsSchema = z.object({
+  subscriptionId: z.string().uuid(),
+  seats: z.number().int().positive(),
+})
 
 interface SubscriptionMetadata {
   perSeatAllowance?: number
@@ -24,16 +30,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    // Parse request body
-    const { subscriptionId, seats } = await req.json()
+    const rawBody = await req.json()
+    const validationResult = updateSeatsSchema.safeParse(rawBody)
 
-    if (!subscriptionId) {
-      return NextResponse.json({ error: 'Subscription ID is required' }, { status: 400 })
+    if (!validationResult.success) {
+      return NextResponse.json(
+        {
+          error: 'Invalid request parameters',
+          details: validationResult.error.format(),
+        },
+        { status: 400 }
+      )
     }
 
-    if (!seats || typeof seats !== 'number' || seats < 1) {
-      return NextResponse.json({ error: 'Valid seat count is required' }, { status: 400 })
-    }
+    const { subscriptionId, seats } = validationResult.data
 
     // Query for the subscription
     const subscriptions = await db

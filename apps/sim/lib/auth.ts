@@ -19,8 +19,7 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('Auth')
 
-// const isProd = process.env.NODE_ENV === 'production'
-const isProd = true
+const isProd = process.env.NODE_ENV === 'production'
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account

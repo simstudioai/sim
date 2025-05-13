@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { count } from 'drizzle-orm'
-import { eq } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { waitlist } from '@/db/schema'
+import { isAuthorized } from '../../utils'
 
-const logger = createLogger('WaitlistStats')
+const logger = createLogger('WaitlistStatsAPI')
 
 export async function GET(request: NextRequest) {
   try {
-    // Validate the admin token (basic for now)
-    const authHeader = request.headers.get('authorization')
-    const token = authHeader?.replace('Bearer ', '')
-
-    if (!token) {
+    if (!isAuthorized(request)) {
       return NextResponse.json(
         {
           success: false,

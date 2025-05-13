@@ -10,7 +10,7 @@ interface UsageStats {
   totalWebhookTriggers: number
   totalManualExecutions: number
   totalScheduledExecutions: number
-  chatExecutions: number
+  totalChatExecutions: number
   registeredWebhooksCount: number
   schedulesCreatedCount: number
   chatInterfacesCount: number
@@ -178,7 +178,7 @@ export function UsageStatsCard({ view = 'overview' }: UsageStatsCardProps) {
                 <StatItem value={formatNumber(stats.totalManualExecutions)} label="Manual" />
                 <StatItem value={formatNumber(stats.totalScheduledExecutions)} label="Scheduled" />
                 <StatItem value={formatNumber(stats.totalWebhookTriggers)} label="Webhook" />
-                <StatItem value={formatNumber(stats.chatExecutions)} label="Chat" />
+                <StatItem value={formatNumber(stats.totalChatExecutions)} label="Chat" />
               </div>
             </div>
 

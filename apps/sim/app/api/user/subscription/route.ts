@@ -4,20 +4,18 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { db } from '@/db'
-import { member, subscription } from '@/db/schema'
+import { subscription } from '@/db/schema'
 
 const logger = createLogger('UserSubscriptionAPI')
 
 export async function GET() {
   try {
-    // Get current authenticated user
     const session = await getSession()
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
-    // Query the subscription for this user
     const subscriptions = await db
       .select({
         id: subscription.id,

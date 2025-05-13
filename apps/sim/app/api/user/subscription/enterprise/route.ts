@@ -6,7 +6,7 @@ import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { db } from '@/db'
 import { member, subscription } from '@/db/schema'
 
-const logger = createLogger('EnterpriseSubscription')
+const logger = createLogger('EnterpriseSubscriptionAPI')
 
 export async function GET() {
   try {

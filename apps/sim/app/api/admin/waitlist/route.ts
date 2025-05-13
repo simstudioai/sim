@@ -12,7 +12,6 @@ import { isAuthorized } from '../utils'
 
 const logger = new Logger('WaitlistAPI')
 
-// Schema for GET request query parameters
 const getQuerySchema = z.object({
   page: z.coerce.number().optional().default(1),
   limit: z.coerce.number().optional().default(20),
@@ -20,13 +19,11 @@ const getQuerySchema = z.object({
   search: z.string().optional(),
 })
 
-// Schema for POST request body
 const actionSchema = z.object({
   email: z.string().email(),
   action: z.enum(['approve', 'reject', 'resend']),
 })
 
-// Schema for batch approval request
 const batchActionSchema = z.object({
   emails: z.array(z.string().email()).min(1).max(100),
   action: z.literal('batchApprove'),

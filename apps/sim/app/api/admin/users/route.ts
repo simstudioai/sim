@@ -1,26 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
+import { z } from 'zod'
 import { db } from '@/db'
 import { subscription, user, userStats } from '@/db/schema'
 import { isAuthorized } from '../utils'
 
+const getUsersQuerySchema = z.object({
+  page: z.coerce.number().positive().default(1),
+  limit: z.coerce.number().positive().default(50),
+  filter: z.enum(['all', 'active', 'inactive', 'paid']).default('all'),
+  search: z.string().optional(),
+  sortField: z
+    .enum([
+      'name',
+      'email',
+      'totalTokensUsed',
+      'totalCost',
+      'totalExecutions',
+      'lastActive',
+      'subscriptionPlan',
+    ])
+    .default('lastActive'),
+  sortDirection: z.enum(['asc', 'desc']).default('desc'),
+})
+
 export async function GET(req: NextRequest) {
   try {
-    // Admin authentication check
     if (!isAuthorized(req)) {
       return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 })
     }
 
     // Get query parameters
     const url = new URL(req.url)
-    const page = parseInt(url.searchParams.get('page') || '1')
-    const limit = parseInt(url.searchParams.get('limit') || '50')
-    const filter = url.searchParams.get('filter') || 'all'
-    const search = url.searchParams.get('search') || ''
-    const sortField = url.searchParams.get('sortField') || 'lastActive'
-    const sortDirection = url.searchParams.get('sortDirection') || 'desc'
+    const pageParam = url.searchParams.get('page') || '1'
+    const limitParam = url.searchParams.get('limit') || '50'
+    const filterParam = url.searchParams.get('filter') || 'all'
+    const searchParam = url.searchParams.get('search') || ''
+    const sortFieldParam = url.searchParams.get('sortField') || 'lastActive'
+    const sortDirectionParam = url.searchParams.get('sortDirection') || 'desc'
 
-    // Build query using SQL template literals
+    const validatedParams = getUsersQuerySchema.safeParse({
+      page: pageParam,
+      limit: limitParam,
+      filter: filterParam,
+      search: searchParam,
+      sortField: sortFieldParam,
+      sortDirection: sortDirectionParam,
+    })
+
+    if (!validatedParams.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invalid parameters',
+          errors: validatedParams.error.format(),
+        },
+        { status: 400 }
+      )
+    }
+
+    const { page, limit, filter, search, sortField, sortDirection } = validatedParams.data
+
     const query = sql`
       SELECT 
         ${user.id}, 
@@ -34,6 +74,7 @@ export async function GET(req: NextRequest) {
         COALESCE(${userStats.totalCost}, 0) AS "totalCost",
         COALESCE(${userStats.totalManualExecutions}, 0) AS "totalManualExecutions",
         COALESCE(${userStats.totalApiCalls}, 0) AS "totalApiCalls",
+        COALESCE(${userStats.totalChatExecutions}, 0) AS "totalChatExecutions",
         COALESCE(${userStats.totalWebhookTriggers}, 0) AS "totalWebhookTriggers",
         COALESCE(${userStats.totalScheduledExecutions}, 0) AS "totalScheduledExecutions",
         COALESCE(${userStats.lastActive}, ${user.updatedAt}) AS "lastActive",
@@ -50,7 +91,6 @@ export async function GET(req: NextRequest) {
       ORDER BY ${getSortOrderSQL(sortField, sortDirection)}
     `
 
-    // Execute the query with proper typing
     interface UserResult {
       id: string
       name: string
@@ -64,6 +104,7 @@ export async function GET(req: NextRequest) {
       totalApiCalls: number
       totalWebhookTriggers: number
       totalScheduledExecutions: number
+      totalChatExecutions: number
       lastActive: Date
       subscriptionPlan: string | null
       subscriptionStatus: string | null
@@ -89,7 +130,6 @@ export async function GET(req: NextRequest) {
 
     let filteredUsers = [...users]
 
-    // Apply filters server-side
     if (filter !== 'all') {
       if (filter === 'active') {
         const thirtyDaysAgo = new Date()
@@ -106,10 +146,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Get total count for pagination
     const totalCount = filteredUsers.length
 
-    // Apply pagination
     const offset = (page - 1) * limit
     const paginatedUsers = filteredUsers.slice(offset, offset + limit)
 
@@ -137,7 +175,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Helper function to generate sort SQL
 function getSortOrderSQL(sortField: string | null, sortDirection: string) {
   const direction = sortDirection === 'asc' ? sql`ASC` : sql`DESC`
 
@@ -153,7 +190,9 @@ function getSortOrderSQL(sortField: string | null, sortDirection: string) {
     case 'totalExecutions':
       return sql`(COALESCE(${userStats.totalManualExecutions}, 0) + 
                  COALESCE(${userStats.totalWebhookTriggers}, 0) + 
-                 COALESCE(${userStats.totalScheduledExecutions}, 0)) ${direction}`
+                 COALESCE(${userStats.totalScheduledExecutions}, 0) +
+                 COALESCE(${userStats.totalApiCalls}, 0) +
+                 COALESCE(${userStats.totalChatExecutions}, 0)) ${direction}`
     case 'lastActive':
       return sql`COALESCE(${userStats.lastActive}, ${user.updatedAt}) ${direction}`
     case 'subscriptionPlan':
