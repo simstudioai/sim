@@ -281,10 +281,25 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         // Find and remove all child blocks if this is a parent node
         const blocksToRemove = new Set([id])
-        Object.entries(newState.blocks).forEach(([blockId, block]) => {
-          if (block.data?.parentId === id) {
-            blocksToRemove.add(blockId)
-          }
+        
+        // Recursively find all descendant blocks (children, grandchildren, etc.)
+        const findAllDescendants = (parentId: string) => {
+          Object.entries(newState.blocks).forEach(([blockId, block]) => {
+            if (block.data?.parentId === parentId) {
+              blocksToRemove.add(blockId)
+              // Recursively find this block's children
+              findAllDescendants(blockId)
+            }
+          })
+        }
+        
+        // Start recursive search from the target block
+        findAllDescendants(id)
+        
+        console.log('[WorkflowStore/removeBlock] Found blocks to remove:', {
+          targetId: id,
+          totalBlocksToRemove: Array.from(blocksToRemove),
+          includesHierarchy: blocksToRemove.size > 1
         })
 
         // Clean up subblock values before removing the block
@@ -306,25 +321,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           }))
         }
-
-        // // Clean up loops
-        // Object.entries(newState.loops).forEach(([loopId, loop]) => {
-        //   if (loop && loop.nodes) {
-        //     const hasRemovedNodes = loop.nodes.some(nodeId => blocksToRemove.has(nodeId))
-        //     if (hasRemovedNodes) {
-        //       // If removing these nodes would leave the loop empty, delete the loop
-        //       const remainingNodes = loop.nodes.filter(nodeId => !blocksToRemove.has(nodeId))
-        //       if (remainingNodes.length === 0) {
-        //         delete newState.loops[loopId]
-        //       } else {
-        //         newState.loops[loopId] = {
-        //           ...loop,
-        //           nodes: remainingNodes,
-        //         }
-        //       }
-        //     }
-        //   }
-        // })
 
        // Remove all edges connected to any of the blocks being removed
        newState.edges = newState.edges.filter(edge => 

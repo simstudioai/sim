@@ -61,6 +61,7 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
         position: 'relative',
         overflow: 'visible',
         ...borderStyle,
+        pointerEvents: 'all',
         transition: 'width 0.2s ease-out, height 0.2s ease-out, border-color 0.2s ease-in-out, background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
       }}
       data-node-id={id}
@@ -114,22 +115,22 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
 
         {/* Loop Start Block - positioned at left middle */}
         <div 
-          className="absolute top-1/2 left-10 w-28 transform -translate-y-1/2"
+          className="absolute top-1/2 left-8 w-10 transform -translate-y-1/2"
           style={{ pointerEvents: 'auto' }} // Re-enable pointer events
         >
           <div 
-            className="bg-[#40E0D0]/20 border border-[#40E0D0]/50 rounded-md p-4 h-24 relative hover:bg-[#40E0D0]/30 transition-colors flex items-center justify-center"
+            className="bg-[#2FB3FF] border border-[#2FB3FF]/50 rounded-md p-2 h-12 relative hover:bg-[#2FB3FF]/90 transition-colors flex items-center justify-center"
             data-parent-id={id}
             data-node-role="loop-start"
             data-extent="parent"
           >
-            <StartIcon className="text-[#40E0D0]" />
+            <StartIcon className="text-white w-8 h-8" />
 
             <Handle
               type="source"
               position={Position.Right}
               id="loop-start-source"
-              className="!w-[7px] !h-5 !bg-[#40E0D0] dark:!bg-[#40E0D0] !rounded-[2px] !border-none !z-[30] group-hover:!shadow-[0_0_0_3px_rgba(64,224,208,0.15)] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150"
+              className="!w-[7px] !h-5 !bg-slate-300 dark:!bg-slate!rounded-[2px] !border-none !z-[30] group-hover:!shadow-[0_0_0_3px_rgba(64,224,208,0.15)] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150"
               style={{ 
                 right: "-6px", 
                 top: "50%",
