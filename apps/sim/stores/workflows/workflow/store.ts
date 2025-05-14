@@ -81,9 +81,52 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set({ needsRedeployment })
       },
 
-      addBlock: (id: string, type: string, name: string, position: Position) => {
+      addBlock: (id: string, type: string, name: string, position: Position, data?: Record<string, any>, parentId?: string, extent?: 'parent') => {
         const blockConfig = getBlock(type)
+        // For custom nodes like loop that don't use BlockConfig
+        if (!blockConfig && type === 'loop') {
+          // Merge parentId and extent into data if provided
+          const nodeData = {
+            ...data,
+            ...(parentId && { parentId, extent: extent || 'parent' })
+          }
+
+          const newState = {
+            blocks: {
+              ...get().blocks,
+              [id]: {
+                id,
+                type,
+                name,
+                position,
+                subBlocks: {},
+                outputs: {},
+                enabled: true,
+                horizontalHandles: true,
+                isWide: false,
+                height: 0,
+                data: nodeData
+              },
+            },
+            edges: [...get().edges],
+            loops: { ...get().loops },
+          }
+
+          set(newState)
+          pushHistory(set, get, newState, `Add ${type} node`)
+          get().updateLastSaved()
+          workflowSync.sync()
+          return
+        }
+
         if (!blockConfig) return
+        
+        // Merge parentId and extent into data for regular blocks
+        const nodeData = {
+          ...data,
+          ...(parentId && { parentId, extent: extent || 'parent' })
+        }
+
 
         const subBlocks: Record<string, SubBlockState> = {}
         blockConfig.subBlocks.forEach((subBlock) => {
@@ -111,6 +154,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               horizontalHandles: true,
               isWide: false,
               height: 0,
+              data: nodeData,
             },
           },
           edges: [...get().edges],
@@ -140,6 +184,90 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // No sync here as this is a frequent operation during dragging
       },
 
+      updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              data: {
+                ...state.blocks[id].data,
+                width: dimensions.width,
+                height: dimensions.height,
+              },
+            },
+          },
+          edges: [...state.edges],
+        }))
+        get().updateLastSaved()
+        workflowSync.sync()
+      },
+
+      updateParentId: (id: string, parentId: string, extent: 'parent') => {
+        const block = get().blocks[id];
+        if (!block) {
+          console.warn(`Cannot set parent: Block ${id} not found`);
+          return;
+        }
+
+        console.log('UpdateParentId called:', { 
+          blockId: id, 
+          blockName: block.name, 
+          blockType: block.type, 
+          newParentId: parentId,
+          extent,
+          currentParentId: block.data?.parentId 
+        });
+
+        // Skip if the parent ID hasn't changed
+        if (block.data?.parentId === parentId) {
+          console.log('Parent ID unchanged, skipping update');
+          return;
+        }
+
+        // Store current absolute position
+        const absolutePosition = { ...block.position };
+
+        // Handle empty or null parentId (removing from parent)
+        const newData = !parentId 
+          ? { ...block.data } // Remove parentId and extent if empty
+          : { 
+              ...block.data, 
+              parentId, 
+              extent 
+            };
+
+        // Remove parentId and extent properties for empty parent ID
+        if (!parentId && newData.parentId) {
+          delete newData.parentId;
+          delete newData.extent;
+        }
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              position: absolutePosition,
+              data: newData
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+        };
+
+        console.log('[WorkflowStore/updateParentId] Updated parentId relationship:', {
+          blockId: id,
+          newParentId: parentId || 'None (removed parent)',
+          keepingPosition: absolutePosition
+        });
+
+        set(newState);
+        pushHistory(set, get, newState, parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`);
+        get().updateLastSaved();
+        workflowSync.sync();
+      },
+
       removeBlock: (id: string) => {
         // First, clean up any subblock values for this block
         const subBlockStore = useSubBlockStore.getState()
@@ -151,12 +279,24 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           loops: { ...get().loops },
         }
 
+        // Find and remove all child blocks if this is a parent node
+        const blocksToRemove = new Set([id])
+        Object.entries(newState.blocks).forEach(([blockId, block]) => {
+          if (block.data?.parentId === id) {
+            blocksToRemove.add(blockId)
+          }
+        })
+
         // Clean up subblock values before removing the block
         if (activeWorkflowId) {
           const updatedWorkflowValues = {
             ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
           }
-          delete updatedWorkflowValues[id]
+
+          // Remove values for all blocks being deleted
+          blocksToRemove.forEach(blockId => {
+            delete updatedWorkflowValues[blockId]
+          })
 
           // Update subblock store
           useSubBlockStore.setState((state) => ({
@@ -169,24 +309,35 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         // Clean up loops
         Object.entries(newState.loops).forEach(([loopId, loop]) => {
-          if (loop.nodes.includes(id)) {
-            // If removing this node would leave the loop empty, delete the loop
-            if (loop.nodes.length <= 1) {
-              delete newState.loops[loopId]
-            } else {
-              newState.loops[loopId] = {
-                ...loop,
-                nodes: loop.nodes.filter((nodeId) => nodeId !== id),
+          if (loop && loop.nodes) {
+            const hasRemovedNodes = loop.nodes.some(nodeId => blocksToRemove.has(nodeId))
+            if (hasRemovedNodes) {
+              // If removing these nodes would leave the loop empty, delete the loop
+              const remainingNodes = loop.nodes.filter(nodeId => !blocksToRemove.has(nodeId))
+              if (remainingNodes.length === 0) {
+                delete newState.loops[loopId]
+              } else {
+                newState.loops[loopId] = {
+                  ...loop,
+                  nodes: remainingNodes,
+                }
               }
             }
           }
         })
 
-        // Delete the block last
-        delete newState.blocks[id]
+       // Remove all edges connected to any of the blocks being removed
+       newState.edges = newState.edges.filter(edge => 
+        !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
+      )
+
+      // Delete all blocks marked for removal
+      blocksToRemove.forEach(blockId => {
+        delete newState.blocks[blockId]
+      })
 
         set(newState)
-        pushHistory(set, get, newState, 'Remove block')
+        pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -276,9 +427,24 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       removeEdge: (edgeId: string) => {
-        const newEdges = get().edges.filter((edge) => edge.id !== edgeId)
+         // Validate the edge exists
+        const edgeToRemove = get().edges.find(edge => edge.id === edgeId);
+        if (!edgeToRemove) {
+          console.warn(`Attempted to remove non-existent edge: ${edgeId}`);
+          return;
+        }
+ 
+        console.log('Removing edge in store:', { 
+          id: edgeId, 
+          source: edgeToRemove.source, 
+          target: edgeToRemove.target 
+        });
+ 
+        const newEdges = get().edges.filter((edge) => edge.id !== edgeId);
 
         // Recalculate all loops after edge removal
+
+        //TODO: comment this loop logic out.
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
         const existingLoops = get().loops
