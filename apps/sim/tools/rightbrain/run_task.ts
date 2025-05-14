@@ -45,41 +45,6 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
       description: 'Rightbrain API key',
     },
   },
-  directExecution: async (params) => {
-    const { baseUrl, orgId, projectId, taskId } = processUrl(params.url)
-
-    const client = new BrainClient({
-      accessToken: params.apiKey,
-      baseUrl: `${baseUrl}/api/v1`,
-      organizationId: orgId,
-      projectId,
-    })
-
-    try {
-      const response = await client.runTask({ id: taskId, inputs: params.inputs })
-      return { output: response, success: true }
-    } catch (error) {
-      if (error instanceof BrainClientError) {
-        if (
-          error.response &&
-          typeof error.response === 'object' &&
-          'detail' in error.response &&
-          typeof error.response.detail === 'object' &&
-          error.response.detail &&
-          'message' in error.response.detail &&
-          typeof error.response.detail.message === 'string'
-        ) {
-          throw new Error(error.response.detail.message)
-        }
-      }
-
-      if (error instanceof Error) {
-        throw new Error(error.message)
-      }
-
-      throw new Error('failed to run task')
-    }
-  },
   request: {
     url: (params) => params.url,
     method: 'POST',
@@ -87,10 +52,13 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => params.inputs,
+    body: (params) => ({
+      task_input: params.inputs,
+    }),
   },
   transformError: (error) => {
-    const message = error.response?.detail?.message || error.message || 'Failed to run task'
+    const message =
+      error.response?.detail?.message || error.message || error.error || 'Failed to run task'
 
     return message
   },

@@ -2469,7 +2469,7 @@ export function RightBrainIcon(props: SVGProps<SVGSVGElement>) {
     <svg
       {...props}
       height="656.0pt"
-      stroke-miterlimit="10"
+      strokeMiterlimit="10"
       version="1.1"
       viewBox="0 0 695 656"
       width="695.0"
