@@ -1,5 +1,4 @@
 import { DocumentIcon } from '@/components/icons'
-import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { FileParserOutput } from '@/tools/file/types'
@@ -7,7 +6,12 @@ import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../ty
 
 const logger = createLogger('FileBlock')
 
-const isS3Enabled = env.USE_S3 === 'true'
+// Create a safe client-only env subset to avoid server-side env access errors
+const clientEnv = {
+  USE_S3: process.env.USE_S3,
+}
+
+const isS3Enabled = clientEnv.USE_S3
 const shouldEnableURLInput = isProd || isS3Enabled
 
 // Define sub-blocks conditionally

@@ -3,19 +3,25 @@ import { emailOTPClient, genericOAuthClient } from 'better-auth/client/plugins'
 import { organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import { isProd } from '@/lib/environment'
-import { env } from './env'
+
+const clientEnv = {
+  NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
+  NODE_ENV: process.env.NODE_ENV,
+  VERCEL_ENV: process.env.VERCEL_ENV || '',
+  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+}
 
 export function getBaseURL() {
   let baseURL
 
-  if (env.VERCEL_ENV === 'preview') {
-    baseURL = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
-  } else if (env.VERCEL_ENV === 'development') {
-    baseURL = `https://${env.NEXT_PUBLIC_VERCEL_URL}`
-  } else if (env.VERCEL_ENV === 'production') {
-    baseURL = env.BETTER_AUTH_URL
-  } else if (env.NODE_ENV === 'development') {
-    baseURL = env.BETTER_AUTH_URL
+  if (clientEnv.VERCEL_ENV === 'preview') {
+    baseURL = `https://${clientEnv.NEXT_PUBLIC_VERCEL_URL}`
+  } else if (clientEnv.VERCEL_ENV === 'development') {
+    baseURL = `https://${clientEnv.NEXT_PUBLIC_VERCEL_URL}`
+  } else if (clientEnv.VERCEL_ENV === 'production') {
+    baseURL = clientEnv.BETTER_AUTH_URL
+  } else if (clientEnv.NODE_ENV === 'development') {
+    baseURL = clientEnv.BETTER_AUTH_URL
   }
 
   return baseURL

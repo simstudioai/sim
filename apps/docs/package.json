@@ -4,9 +4,9 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "dotenv -- next dev --port 3001",
-    "build": "dotenv -- next build",
-    "start": "dotenv -- next start",
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start",
     "postinstall": "fumadocs-mdx"
   },
   "dependencies": {

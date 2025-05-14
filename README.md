@@ -30,6 +30,7 @@ There are several ways to self-host Sim Studio:
 git clone https://github.com/simstudioai/sim.git
 
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
+cd apps/sim
 cp .env.example .env
 
 # Start Sim Studio using the provided script
@@ -130,7 +131,7 @@ services:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/sim.git
+git clone https://github.com/simstudioai/sim.git
 cd sim
 
 # Install dependencies
@@ -140,11 +141,12 @@ bun install
 2. **Set Up Environment**
 
 ```bash
+cd apps/sim
 cp .env.example .env  # or create a new .env file
 
 # Configure your .env file with the required environment variables:
 # - Database connection (PostgreSQL)
-# - Authentication settings (Better-Auth Secret)
+# - Authentication settings (Better-Auth Secret,  Better-Auth URL)
 ```
 
 ⚠️ **Important Notes:**
