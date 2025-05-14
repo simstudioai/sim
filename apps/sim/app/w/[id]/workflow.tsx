@@ -44,7 +44,6 @@ const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
 function WorkflowContent() {
   // State
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
   const { mode, isExpanded } = useSidebarStore()
   // In hover mode, act as if sidebar is always collapsed for layout purposes
@@ -53,6 +52,11 @@ function WorkflowContent() {
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
+  // Enhanced edge selection with parent context
+  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<{
+    id: string;
+    parentLoopId?: string;
+  } | null>(null)
   // Hooks
   const params = useParams()
   const router = useRouter()
@@ -145,12 +149,18 @@ function WorkflowContent() {
       maxY = Math.max(maxY, node.position.y + nodeHeight);
     });
 
-    // Add padding around the bounding box (give extra space on the right/bottom)
-    const padding = 200;
+
+    // Add buffer padding to all sides (20px buffer before edges)
+    const sidePadding = 220; // 200px original padding + 20px buffer
 
     // Ensure the width and height are never less than the minimums
-    const width = Math.max(minWidth, maxX + padding);
-    const height = Math.max(minHeight, maxY + padding);
+    // Apply padding to all sides (left/right and top/bottom)
+    const width = Math.max(minWidth, maxX + sidePadding);
+    const height = Math.max(minHeight, maxY + sidePadding + 100);
+    console.log('minHeight', minHeight)
+    console.log('maxY', maxY)
+    console.log('sidePadding', sidePadding)
+    console.log('height', height)
 
     return { width, height };
   }, [getNodes]);
@@ -183,7 +193,7 @@ function WorkflowContent() {
 
   // Create a debounced version of resizeLoopNodes to avoid too many updates
   const debouncedResizeLoopNodes = useMemo(
-    () => debounce(resizeLoopNodes, 100), 
+    () => debounce(resizeLoopNodes, 50), // Reduced from 100ms to 50ms for better responsiveness
     [resizeLoopNodes]
   );
 
@@ -651,6 +661,35 @@ function WorkflowContent() {
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
+        // Check if connecting nodes across loop boundaries
+        const sourceNode = getNodes().find(n => n.id === connection.source);
+        const targetNode = getNodes().find(n => n.id === connection.target);
+        
+        if (!sourceNode || !targetNode) return;
+        
+        // Get parent information (handle loop start node case)
+        const sourceParentId = sourceNode.parentId || 
+                              (connection.sourceHandle === 'loop-start-source' ? 
+                                connection.source : undefined);
+        const targetParentId = targetNode.parentId;
+        
+        // Special case for loop-start-source: Always allow connections to nodes within the same loop
+        if (connection.sourceHandle === 'loop-start-source' && targetNode.parentId === sourceNode.id) {
+          // This is a connection from loop start to a node inside the loop - always allow
+          addEdge({
+            ...connection,
+            id: crypto.randomUUID(),
+            type: 'workflowEdge',
+          });
+          return;
+        }
+        
+        // Prevent connections across loop boundaries
+        if ((sourceParentId && !targetParentId) || (!sourceParentId && targetParentId) || 
+            (sourceParentId && targetParentId && sourceParentId !== targetParentId)) {
+          return;
+        }
+        
         addEdge({
           ...connection,
           id: crypto.randomUUID(),
@@ -658,7 +697,7 @@ function WorkflowContent() {
         })
       }
     },
-    [addEdge]
+    [addEdge, getNodes]
   )
 
   // Handle node drag to detect intersections with loop nodes
@@ -873,39 +912,63 @@ function WorkflowContent() {
 
   // Update onPaneClick to only handle edge selection
   const onPaneClick = useCallback(() => {
-    setSelectedEdgeId(null)
+    setSelectedEdgeInfo(null)
   }, [])
 
   // Edge selection
   const onEdgeClick = useCallback((event: React.MouseEvent, edge: any) => {
-    setSelectedEdgeId(edge.id)
-  }, [])
+    event.stopPropagation(); // Prevent bubbling
+    
+    // Determine if edge is inside a loop by checking its source/target nodes
+    const sourceNode = getNodes().find(n => n.id === edge.source);
+    const targetNode = getNodes().find(n => n.id === edge.target);
+    
+    // An edge is inside a loop if either source or target has a parent
+    // If source and target have different parents, prioritize source's parent
+    const parentLoopId = sourceNode?.parentId || targetNode?.parentId;
+    
+    setSelectedEdgeInfo({
+      id: edge.id,
+      parentLoopId
+    });
+  }, [getNodes]);
 
   // Transform edges to include selection state
-  const edgesWithSelection = edges.map((edge) => ({
-    ...edge,
-    type: edge.type || 'workflowEdge',
-    data: {
-      selectedEdgeId,
-      onDelete: (edgeId: string) => {
-        removeEdge(edgeId)
-        setSelectedEdgeId(null)
+  const edgesWithSelection = edges.map((edge) => {
+    // Check if this edge connects nodes inside a loop
+    const sourceNode = getNodes().find(n => n.id === edge.source);
+    const targetNode = getNodes().find(n => n.id === edge.target);
+    const isInsideLoop = Boolean(sourceNode?.parentId) || Boolean(targetNode?.parentId);
+    
+    // Determine if this edge is selected
+    const isSelected = selectedEdgeInfo?.id === edge.id;
+
+    return {
+      ...edge,
+      type: edge.type || 'workflowEdge',
+      data: {
+        selectedEdgeInfo,
+        isInsideLoop,
+        onDelete: (edgeId: string) => {
+          removeEdge(edgeId)
+          setSelectedEdgeInfo(null)
+        },
       },
-    },
-  }))
+    }
+  })
 
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
-        removeEdge(selectedEdgeId)
-        setSelectedEdgeId(null)
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeInfo) {
+        removeEdge(selectedEdgeInfo.id)
+        setSelectedEdgeInfo(null)
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEdgeId, removeEdge])
+  }, [selectedEdgeInfo, removeEdge])
 
   // Handle sub-block value updates from custom events
   useEffect(() => {
