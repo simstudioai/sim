@@ -127,6 +127,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               'o3',
               'o3-preview',
               'o4-mini',
+              'gpt-4.1',
               // Claude models
               'claude-3-5-sonnet-20240620',
               'claude-3-7-sonnet-20250219',

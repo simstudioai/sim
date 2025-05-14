@@ -32,6 +32,12 @@ const modelPricing: ModelPricingMap = {
     output: 4.4,
     updatedAt: '2025-04-16',
   },
+  'gpt-4.1': {
+    input: 2.0,
+    cachedInput: 0.5,
+    output: 8.0,
+    updatedAt: '2025-05-13',
+  },
 
   // Anthropic Models
   'claude-3-5-sonnet-20240620': {
