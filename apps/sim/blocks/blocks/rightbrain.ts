@@ -5,7 +5,7 @@ import { BlockConfig } from '../types'
 export const RightBrainBlock: BlockConfig<RightBrainRunTaskResponse> = {
   type: 'rightbrain',
   name: 'Rightbrain',
-  description: 'Run RB task',
+  description: 'Run a Rightbrain AI task',
   longDescription:
     'Rightbrain lets you reliably deploy LLMs for specific tasks across any app or workflow by turning simple instructions into scalable APIs.',
   docsLink: 'https://docs.rightbrain.ai/intro',
