@@ -53,9 +53,7 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      task_input: params.inputs,
-    }),
+    body: (params) => params.inputs,
   },
   transformError: (error) => {
     const message =
