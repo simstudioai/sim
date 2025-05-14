@@ -1,1 +1,0 @@
-ALTER TABLE "user_stats" ADD COLUMN "total_chat_executions" integer DEFAULT 0 NOT NULL;

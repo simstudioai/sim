@@ -246,20 +246,6 @@
       "when": 1746167417863,
       "tag": "0034_brainy_revanche",
       "breakpoints": true
-    },
-    {
-      "idx": 35,
-      "version": "7",
-      "when": 1747041949354,
-      "tag": "0035_slim_energizer",
-      "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "7",
-      "when": 1747174605087,
-      "tag": "0036_awesome_nightcrawler",
-      "breakpoints": true
     }
   ]
 }
