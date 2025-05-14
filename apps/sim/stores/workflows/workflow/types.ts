@@ -38,7 +38,7 @@ export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
-  loops: Record<string, Loop>
+  // loops: Record<string, Loop>
   lastUpdate?: number
   isDeployed?: boolean
   deployedAt?: Date
@@ -74,9 +74,9 @@ export interface WorkflowActions {
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
-  updateLoopIterations: (loopId: string, iterations: number) => void
-  updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
-  updateLoopForEachItems: (loopId: string, items: string) => void
+  // updateLoopIterations: (loopId: string, iterations: number) => void
+  // updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
+  // updateLoopForEachItems: (loopId: string, items: string) => void
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
