@@ -109,7 +109,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               },
             },
             edges: [...get().edges],
-            loops: { ...get().loops },
+            // loops: { ...get().loops },
           }
 
           set(newState)
@@ -158,7 +158,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loops: { ...get().loops },
+          // loops: { ...get().loops },
         }
 
         set(newState)
@@ -253,7 +253,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loops: { ...get().loops },
+          // loops: { ...get().loops },
         };
 
         console.log('[WorkflowStore/updateParentId] Updated parentId relationship:', {
@@ -276,7 +276,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
-          loops: { ...get().loops },
+          // loops: { ...get().loops },
         }
 
         // Find and remove all child blocks if this is a parent node
@@ -307,24 +307,24 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }))
         }
 
-        // Clean up loops
-        Object.entries(newState.loops).forEach(([loopId, loop]) => {
-          if (loop && loop.nodes) {
-            const hasRemovedNodes = loop.nodes.some(nodeId => blocksToRemove.has(nodeId))
-            if (hasRemovedNodes) {
-              // If removing these nodes would leave the loop empty, delete the loop
-              const remainingNodes = loop.nodes.filter(nodeId => !blocksToRemove.has(nodeId))
-              if (remainingNodes.length === 0) {
-                delete newState.loops[loopId]
-              } else {
-                newState.loops[loopId] = {
-                  ...loop,
-                  nodes: remainingNodes,
-                }
-              }
-            }
-          }
-        })
+        // // Clean up loops
+        // Object.entries(newState.loops).forEach(([loopId, loop]) => {
+        //   if (loop && loop.nodes) {
+        //     const hasRemovedNodes = loop.nodes.some(nodeId => blocksToRemove.has(nodeId))
+        //     if (hasRemovedNodes) {
+        //       // If removing these nodes would leave the loop empty, delete the loop
+        //       const remainingNodes = loop.nodes.filter(nodeId => !blocksToRemove.has(nodeId))
+        //       if (remainingNodes.length === 0) {
+        //         delete newState.loops[loopId]
+        //       } else {
+        //         newState.loops[loopId] = {
+        //           ...loop,
+        //           nodes: remainingNodes,
+        //         }
+        //       }
+        //     }
+        //   }
+        // })
 
        // Remove all edges connected to any of the blocks being removed
        newState.edges = newState.edges.filter(edge => 
@@ -371,7 +371,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Recalculate all loops after adding the edge
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
-        const existingLoops = get().loops
+        // const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -385,12 +385,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
               // Check if this path matches an existing loop
               let existingLoop: Loop | undefined
-              Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(',')
-                if (loopCanonicalPath === canonicalPath) {
-                  existingLoop = loop
-                }
-              })
+              // Object.values(existingLoops).forEach((loop) => {
+              //   const loopCanonicalPath = [...loop.nodes].sort().join(',')
+              //   if (loopCanonicalPath === canonicalPath) {
+              //     existingLoop = loop
+              //   }
+              // })
 
               if (existingLoop) {
                 // Preserve the existing loop's properties
@@ -442,57 +442,60 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
  
         const newEdges = get().edges.filter((edge) => edge.id !== edgeId);
 
-        // Recalculate all loops after edge removal
+                // Recalculate all loops after edge removal
 
         //TODO: comment this loop logic out.
-        const newLoops: Record<string, Loop> = {}
-        const processedPaths = new Set<string>()
-        const existingLoops = get().loops
+        // const newLoops: Record<string, Loop> = {}
+        // const processedPaths = new Set<string>()
+        // const existingLoops = get().loops
 
-        // Check for cycles from each node
-        const nodes = new Set(newEdges.map((e) => e.source))
-        nodes.forEach((node) => {
-          const { paths } = detectCycle(newEdges, node)
-          paths.forEach((path) => {
-            // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(',')
-            if (!processedPaths.has(canonicalPath)) {
-              processedPaths.add(canonicalPath)
+        // // Check for cycles from each node
+        // const nodes = new Set(newEdges.map((e) => e.source))
+        // nodes.forEach((node) => {
+        //   const { paths } = detectCycle(newEdges, node)
+        //   paths.forEach((path) => {
+        //     // Create a canonical path representation for deduplication
+        //     const canonicalPath = [...path].sort().join(',')
+        //     if (!processedPaths.has(canonicalPath)) {
+        //       processedPaths.add(canonicalPath)
 
-              // Check if this path matches an existing loop
-              let existingLoop: Loop | undefined
-              Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(',')
-                if (loopCanonicalPath === canonicalPath) {
-                  existingLoop = loop
-                }
-              })
+        //       // Check if this path matches an existing loop
+        //       let existingLoop: Loop | undefined
+        //       Object.values(existingLoops).forEach((loop) => {
+        //         const loopCanonicalPath = [...loop.nodes].sort().join(',')
+        //         if (loopCanonicalPath === canonicalPath) {
+        //           existingLoop = loop
+        //         }
+        //       })
 
-              if (existingLoop) {
-                // Preserve the existing loop's properties
-                newLoops[existingLoop.id] = {
-                  ...existingLoop,
-                  nodes: path, // Update nodes in case order changed
-                }
-              } else {
-                // Create a new loop with default settings
-                const loopId = crypto.randomUUID()
-                newLoops[loopId] = {
-                  id: loopId,
-                  nodes: path,
-                  iterations: 5,
-                  loopType: 'for',
-                  forEachItems: '',
-                }
-              }
-            }
-          })
-        })
+        //       if (existingLoop) {
+        //         // Preserve the existing loop's properties
+        //         newLoops[existingLoop.id] = {
+        //           ...existingLoop,
+        //           nodes: path, // Update nodes in case order changed
+        //         }
+        //       } else {
+        //         // Create a new loop with default settings
+        //         const loopId = crypto.randomUUID()
+        //         newLoops[loopId] = {
+        //           id: loopId,
+        //           nodes: path,
+        //           iterations: 5,
+        //           loopType: 'for',
+        //           forEachItems: '',
+        //         }
+        //       }
+        //     }
+        //   })
+        // })
 
+
+
+        // Only remove the specific edge by ID and maintain existing loops
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loops: newLoops,
+          loops: {  }, // TODO: potentially remove this or edit, before removing: ...get().loops
         }
 
         set(newState)
@@ -546,7 +549,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           saveWorkflowState(activeWorkflowId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
-            loops: currentState.loops,
+            // loops: currentState.loops,
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
@@ -620,7 +623,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loops: { ...get().loops },
+          // loops: { ...get().loops },
         }
 
         // Update the subblock store with the duplicated values
@@ -678,7 +681,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loops: { ...get().loops },
+          // loops: { ...get().loops },
         }
 
         // Update references in subblock store
@@ -760,7 +763,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...state.edges],
-          loops: { ...get().loops },
+          // loops: { ...get().loops },
         }))
         get().updateLastSaved()
         get().sync.markDirty()
@@ -782,65 +785,62 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // No sync needed for height changes, just visual
       },
 
-      updateLoopIterations: (loopId: string, iterations: number) => {
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges],
-          loops: {
-            ...get().loops,
-            [loopId]: {
-              ...get().loops[loopId],
-              iterations: Math.max(1, Math.min(50, iterations)), // Clamp between 1-50
-            },
-          },
-        }
+      // updateLoopIterations: (loopId: string, iterations: number) => {
+      //   const newState = {
+      //     blocks: { ...get().blocks },
+      //     edges: [...get().edges],
+      //     loops: {
+      //       ...get().loops,
+      //       [loopId]: {
+      //         ...get().loops[loopId],
+      //         iterations: Math.max(1, Math.min(50, iterations)), // Clamp between 1-50
+      //       },
+      //     },
+      //   }
 
-        set(newState)
-        pushHistory(set, get, newState, 'Update loop iterations')
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
-      },
+      //   set(newState)
+      //   pushHistory(set, get, newState, 'Update loop iterations')
+      //   get().updateLastSaved()
+      //   workflowSync.sync()
+      // },
 
-      updateLoopType: (loopId: string, loopType: Loop['loopType']) => {
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges],
-          loops: {
-            ...get().loops,
-            [loopId]: {
-              ...get().loops[loopId],
-              loopType,
-            },
-          },
-        }
+      // updateLoopType: (loopId: string, loopType: Loop['loopType']) => {
+      //   const newState = {
+      //     blocks: { ...get().blocks },
+      //     edges: [...get().edges],
+      //     loops: {
+      //       ...get().loops,
+      //       [loopId]: {
+      //         ...get().loops[loopId],
+      //         loopType,
+      //       },
+      //     },
+      //   }
 
-        set(newState)
-        pushHistory(set, get, newState, 'Update loop type')
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
-      },
+      //   set(newState)
+      //   pushHistory(set, get, newState, 'Update loop type')
+      //   get().updateLastSaved()
+      //   workflowSync.sync()
+      // },
 
-      updateLoopForEachItems: (loopId: string, items: string) => {
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges],
-          loops: {
-            ...get().loops,
-            [loopId]: {
-              ...get().loops[loopId],
-              forEachItems: items,
-            },
-          },
-        }
+      // updateLoopForEachItems: (loopId: string, items: string) => {
+      //   const newState = {
+      //     blocks: { ...get().blocks },
+      //     edges: [...get().edges],
+      //     loops: {
+      //       ...get().loops,
+      //       [loopId]: {
+      //         ...get().loops[loopId],
+      //         forEachItems: items,
+      //       },
+      //     },
+      //   }
 
-        set(newState)
-        pushHistory(set, get, newState, 'Update forEach items')
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
-      },
+      //   set(newState)
+      //   pushHistory(set, get, newState, 'Update forEach items')
+      //   get().updateLastSaved()
+      //   workflowSync.sync()
+      // },
 
       triggerUpdate: () => {
         set((state) => ({
@@ -890,7 +890,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
-          loops: deployedState.loops,
+          // loops: deployedState.loops,
           isDeployed: true,
           needsRedeployment: false,
           hasActiveWebhook: false, // Reset webhook status

@@ -1,5 +1,8 @@
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getSmoothStepPath } from 'reactflow'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('WorkflowEdge')
 
 export const WorkflowEdge = ({
   id,
@@ -25,16 +28,17 @@ export const WorkflowEdge = ({
     offset: isHorizontal ? 30 : 20,
   })
 
-  // Check if this edge is selected using the enhanced selection state
-  const isSelected = data?.selectedEdgeInfo?.id === id;
-  const isInsideLoop = data?.isInsideLoop;
+  // Use the directly provided isSelected flag instead of computing it
+  const isSelected = data?.isSelected ?? false;
+  const isInsideLoop = data?.isInsideLoop ?? false;
+  const parentLoopId = data?.parentLoopId;
+
 
   // Merge any style props passed from parent
   const edgeStyle = {
     strokeWidth: isSelected ? 2.5 : 2,
     stroke: isSelected ? '#475569' : '#94a3b8',
     strokeDasharray: '5,5',
-    zIndex: isInsideLoop ? 100 : -10,
     ...style
   };
 
@@ -44,7 +48,11 @@ export const WorkflowEdge = ({
         path={edgePath}
         data-testid="workflow-edge"
         style={edgeStyle}
-        interactionWidth={20}
+        interactionWidth={30}
+        data-edge-id={id}
+        data-parent-loop-id={parentLoopId}
+        data-is-selected={isSelected ? 'true' : 'false'}
+        data-is-inside-loop={isInsideLoop ? 'true' : 'false'}
       />
       <animate
         attributeName="stroke-dashoffset"
@@ -61,13 +69,15 @@ export const WorkflowEdge = ({
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
-              zIndex: 1000,
+              zIndex: 22,
             }}
             onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
+              e.preventDefault();
+              e.stopPropagation();
+              
               if (data?.onDelete) {
-                data.onDelete(id)
+                // Pass this specific edge's ID to the delete function
+                data.onDelete(id);
               }
             }}
           >
