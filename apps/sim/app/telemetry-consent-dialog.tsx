@@ -11,7 +11,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { env } from '@/lib/env'
+import { getNodeEnv } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 
@@ -50,7 +50,7 @@ export function TelemetryConsentDialog() {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   const hasShownDialogThisSession = useRef(false)
-  const isDevelopment = env.NODE_ENV === 'development'
+  const isDevelopment = getNodeEnv() === 'development'
 
   // Check localStorage for saved preferences
   useEffect(() => {
@@ -102,7 +102,7 @@ export function TelemetryConsentDialog() {
       telemetryNotifiedUser,
       telemetryEnabled,
       hasShownInSession: hasShownDialogThisSession.current,
-      environment: env.NODE_ENV,
+      environment: getNodeEnv(),
     })
 
     const localStorageNotified =

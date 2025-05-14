@@ -28,8 +28,8 @@ function resolveCodeVariables(
   const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
   for (const match of envVarMatches) {
     const varName = match.slice(2, -2).trim()
-    // Priority: 1. Environment variables from workflow, 2. Params, 3. env
-    const varValue = envVars[varName] || params[varName] || env[varName] || ''
+    // Priority: 1. Environment variables from workflow, 2. Params
+    const varValue = envVars[varName] || params[varName] || ''
     // Wrap the value in quotes to ensure it's treated as a string literal
     resolvedCode = resolvedCode.replace(match, JSON.stringify(varValue))
   }
