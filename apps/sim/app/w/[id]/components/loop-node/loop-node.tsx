@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import { Handle, NodeProps, Position } from 'reactflow'
+import { memo, useMemo } from 'react'
+import { Handle, NodeProps, Position, useReactFlow } from 'reactflow'
 import { Trash2 } from 'lucide-react'
 import { StartIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
@@ -8,6 +8,46 @@ import { LoopConfigBadges } from './components/loop-config-badges'
 
 
 export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
+  const { getNodes } = useReactFlow();
+  
+  // Determine nesting level by counting parents
+  const nestingLevel = useMemo(() => {
+    let level = 0;
+    let currentParentId = data?.parentId;
+    
+    while (currentParentId) {
+      level++;
+      const parentNode = getNodes().find(n => n.id === currentParentId);
+      if (!parentNode) break;
+      currentParentId = parentNode.data?.parentId;
+    }
+    
+    return level;
+  }, [id, data?.parentId, getNodes]);
+  
+  // Generate different border styles based on nesting level
+  const getBorderStyle = () => {
+    // Base styles
+    const styles = {
+      border: '2px solid #94a3b8',
+      backgroundColor: data?.state === 'valid' ? 'rgba(34,197,94,0.05)' : 'transparent',
+    };
+    
+    // Apply nested styles
+    if (nestingLevel > 0) {
+      // Each nesting level gets a different color
+      const colors = ['#e2e8f0', '#cbd5e1', '#94a3b8', '#64748b', '#475569'];
+      const colorIndex = (nestingLevel - 1) % colors.length;
+      
+      styles.border = `2px solid ${colors[colorIndex]}`;
+      styles.backgroundColor = `${colors[colorIndex]}30`; // Slightly more visible background
+    }
+    
+    return styles;
+  };
+  
+  const borderStyle = getBorderStyle();
+
   return (
     <div 
       className={cn(
@@ -20,18 +60,28 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
         borderRadius: '8px',
         position: 'relative',
         overflow: 'visible',
-        border: '2px solid #94a3b8',
-        backgroundColor: data?.state === 'valid' ? 'rgba(34,197,94,0.05)' : 'transparent',
+        ...borderStyle,
         transition: 'width 0.2s ease-out, height 0.2s ease-out, border-color 0.2s ease-in-out, background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
       }}
       data-node-id={id}
       data-type="loopNode"
+      data-nesting-level={nestingLevel}
     >
       {/* Critical drag handle that controls only the loop node movement */}
       <div 
         className="absolute top-0 left-0 right-0 h-10 workflow-drag-handle cursor-move z-10"
         style={{ pointerEvents: 'auto' }}
       />
+
+      {/* Nesting level indicator */}
+      {nestingLevel > 0 && (
+        <div 
+          className="absolute top-2 left-2 px-2 py-0.5 text-xs rounded-md bg-background/80 border border-border shadow-sm z-10"
+          style={{ pointerEvents: 'none' }}
+        >
+          Nested: L{nestingLevel}
+        </div>
+      )}
 
       {/* Custom visible resize handle */}
       <div 
