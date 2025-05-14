@@ -7,7 +7,7 @@ import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../ty
 
 const logger = createLogger('FileBlock')
 
-const isS3Enabled = env.USE_S3 === 'true'
+const isS3Enabled = env.USE_S3
 const shouldEnableURLInput = isProd || isS3Enabled
 
 // Define sub-blocks conditionally

@@ -65,3 +65,4 @@ start-collector.sh
 
 # Turborepo
 .turbo
+**/.claude/settings.local.json

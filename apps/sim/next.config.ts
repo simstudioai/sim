@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
-import path from 'path'
+import * as path from 'path'
+import * as webpack from 'webpack'
 import { env } from './lib/env'
 
 const nextConfig: NextConfig = {
@@ -19,6 +20,16 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizeCss: true,
   },
+  serverExternalPackages: [
+    '@grpc/grpc-js',
+    '@grpc/proto-loader',
+    '@opentelemetry/exporter-jaeger',
+    '@opentelemetry/exporter-prometheus',
+    '@opentelemetry/otlp-exporter-base',
+    '@opentelemetry/exporter-metrics-otlp-proto',
+    '@opentelemetry/sdk-node',
+    'dotenv',
+  ],
   ...(env.NODE_ENV === 'development' && {
     outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
@@ -36,6 +47,24 @@ const nextConfig: NextConfig = {
           config: [__filename],
         },
         cacheDirectory: path.resolve(process.cwd(), '.next/cache/webpack'),
+      }
+    }
+
+    // Add node polyfills for use with ESM
+    if (isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        stream: require.resolve('stream-browserify'),
+        crypto: require.resolve('crypto-browserify'),
+        path: require.resolve('path-browserify'),
+        fs: false,
+        os: require.resolve('os-browserify'),
+        net: false,
+        tls: false,
+        dgram: false,
+        http: require.resolve('stream-http'),
+        https: require.resolve('https-browserify'),
+        zlib: require.resolve('browserify-zlib'),
       }
     }
 

@@ -2,9 +2,16 @@
   "devDependencies": {
     "@next/env": "^15.3.2",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "browserify-zlib": "0.2.0",
+    "crypto-browserify": "3.12.1",
     "dotenv-cli": "^8.0.0",
+    "https-browserify": "1.0.0",
+    "os-browserify": "0.3.0",
+    "path-browserify": "1.0.1",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
+    "stream-browserify": "3.0.0",
+    "stream-http": "3.2.0",
     "turbo": "^2.5.3"
   },
   "packageManager": "bun@1.2.12",
