@@ -9,14 +9,12 @@ import { chat } from '@/db/schema'
 const logger = createLogger('SubdomainValidateAPI')
 
 export async function GET(request: Request) {
-  // Check if the user is authenticated
   const session = await getSession()
   if (!session || !session.user) {
     return createErrorResponse('Unauthorized', 401)
   }
 
   try {
-    // Get subdomain from query parameters
     const { searchParams } = new URL(request.url)
     const subdomain = searchParams.get('subdomain')
 
@@ -24,7 +22,6 @@ export async function GET(request: Request) {
       return createErrorResponse('Missing subdomain parameter', 400)
     }
 
-    // Check if subdomain follows allowed pattern (only lowercase letters, numbers, and hyphens)
     if (!/^[a-z0-9-]+$/.test(subdomain)) {
       return NextResponse.json(
         {
@@ -35,7 +32,6 @@ export async function GET(request: Request) {
       )
     }
 
-    // Protect reserved subdomains
     const reservedSubdomains = [
       'telemetry',
       'docs',
@@ -47,6 +43,7 @@ export async function GET(request: Request) {
       'blog',
       'help',
       'support',
+      'admin',
     ]
     if (reservedSubdomains.includes(subdomain)) {
       return NextResponse.json(
@@ -58,14 +55,12 @@ export async function GET(request: Request) {
       )
     }
 
-    // Query database to see if subdomain already exists
     const existingDeployment = await db
       .select()
       .from(chat)
       .where(eq(chat.subdomain, subdomain))
       .limit(1)
 
-    // Return availability status
     return createSuccessResponse({
       available: existingDeployment.length === 0,
       subdomain,
