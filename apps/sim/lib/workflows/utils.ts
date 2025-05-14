@@ -3,6 +3,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { userStats, workflow as workflowTable } from '@/db/schema'
+import { env } from '../env'
 
 const logger = createLogger('WorkflowUtils')
 
@@ -21,8 +22,7 @@ export async function updateWorkflowRunCounts(workflowId: string, runs: number =
 
     // Get the origin from the environment or use direct DB update as fallback
     const origin =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (typeof window !== 'undefined' ? window.location.origin : '')
+      env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')
 
     if (origin) {
       // Use absolute URL with origin

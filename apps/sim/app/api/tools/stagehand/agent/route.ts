@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Stagehand } from '@browserbasehq/stagehand'
 import { z } from 'zod'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { ensureZodObject, normalizeUrl } from '../utils'
 
 const logger = createLogger('StagehandAgentAPI')
 
-const BROWSERBASE_API_KEY = process.env.BROWSERBASE_API_KEY
-const BROWSERBASE_PROJECT_ID = process.env.BROWSERBASE_PROJECT_ID
+// Environment variables for Browserbase
+const BROWSERBASE_API_KEY = env.BROWSERBASE_API_KEY
+const BROWSERBASE_PROJECT_ID = env.BROWSERBASE_PROJECT_ID
 
 const requestSchema = z.object({
   task: z.string().min(1),

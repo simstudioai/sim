@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { webhook, workflow } from '@/db/schema'
@@ -254,7 +255,7 @@ async function createAirtableWebhookSubscription(
     const requestOrigin = new URL(request.url).origin
     // Ensure origin does not point to localhost for external API calls
     const effectiveOrigin = requestOrigin.includes('localhost')
-      ? process.env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
+      ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
       : requestOrigin
 
     const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${path}`
@@ -366,7 +367,7 @@ async function createTelegramWebhookSubscription(
     const requestOrigin = new URL(request.url).origin
     // Ensure origin does not point to localhost for external API calls
     const effectiveOrigin = requestOrigin.includes('localhost')
-      ? process.env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
+      ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
       : requestOrigin
 
     const notificationUrl = `${effectiveOrigin}/api/webhooks/trigger/${path}`

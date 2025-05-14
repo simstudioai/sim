@@ -18,12 +18,13 @@ import {
   linkedErrorsIntegration,
   makeFetchTransport,
 } from '@sentry/nextjs'
+import { env } from './lib/env'
 
 // Only in production
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
+if (typeof window !== 'undefined' && env.NODE_ENV === 'production') {
   const client = new BrowserClient({
-    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
-    environment: process.env.NODE_ENV || 'development',
+    dsn: env.NEXT_PUBLIC_SENTRY_DSN || undefined,
+    environment: env.NODE_ENV || 'development',
     transport: makeFetchTransport,
     stackParser: defaultStackParser,
     integrations: [breadcrumbsIntegration(), dedupeIntegration(), linkedErrorsIntegration()],
@@ -40,14 +41,14 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
 }
 
 export const onRouterTransitionStart =
-  process.env.NODE_ENV === 'production' ? captureRouterTransitionStart : () => {}
+  env.NODE_ENV === 'production' ? captureRouterTransitionStart : () => {}
 
 if (typeof window !== 'undefined') {
   const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
   let telemetryEnabled = true
 
   try {
-    if (process.env.NEXT_TELEMETRY_DISABLED === '1') {
+    if (env.NEXT_TELEMETRY_DISABLED === '1') {
       telemetryEnabled = false
     } else {
       const storedPreference = localStorage.getItem(TELEMETRY_STATUS_KEY)

@@ -113,7 +113,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Fetch chat config function
   const fetchChatConfig = async () => {
     try {
-      // Use relative URL instead of absolute URL with process.env.NEXT_PUBLIC_APP_URL
+      // Use relative URL instead of absolute URL with env.NEXT_PUBLIC_APP_URL
       const response = await fetch(`/api/chat/${subdomain}`, {
         credentials: 'same-origin',
         headers: {

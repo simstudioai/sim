@@ -1,14 +1,39 @@
 import { createEnv } from '@t3-oss/env-nextjs'
-import { z } from 'zod'
 import dotenv from 'dotenv'
+import { z } from 'zod'
 
 dotenv.config({ path: '../.env' })
 
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
+    BETTER_AUTH_URL: z.string().url(),
+    BETTER_AUTH_SECRET: z.string().min(32),
+    ENCRYPTION_KEY: z.string().min(32),
+
     POSTGRES_URL: z.string().url().optional(),
     STRIPE_SECRET_KEY: z.string().min(1).optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
+    STRIPE_FREE_PRICE_ID: z.string().min(1).optional(),
+    FREE_TIER_COST_LIMIT: z
+      .string()
+      .regex(/^\d+(\.\d+)?$/)
+      .optional(),
+    STRIPE_PRO_PRICE_ID: z.string().min(1).optional(),
+    PRO_TIER_COST_LIMIT: z
+      .string()
+      .regex(/^\d+(\.\d+)?$/)
+      .optional(),
+    STRIPE_TEAM_PRICE_ID: z.string().min(1).optional(),
+    TEAM_TIER_COST_LIMIT: z
+      .string()
+      .regex(/^\d+(\.\d+)?$/)
+      .optional(),
+    STRIPE_ENTERPRISE_PRICE_ID: z.string().min(1).optional(),
+    ENTERPRISE_TIER_COST_LIMIT: z
+      .string()
+      .regex(/^\d+(\.\d+)?$/)
+      .optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY_1: z.string().min(1).optional(),
@@ -19,15 +44,11 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_3: z.string().min(1).optional(),
     FREESTYLE_API_KEY: z.string().min(1).optional(),
     TELEMETRY_ENDPOINT: z.string().url().optional(),
-    COST_MULTIPLIER: z.string().regex(/^\d+(\.\d+)?$/).optional(),
-    FREE_TIER_COST_LIMIT: z.string().regex(/^\d+(\.\d+)?$/).optional(),
-    PRO_TIER_COST_LIMIT: z.string().regex(/^\d+(\.\d+)?$/).optional(),
-    TEAM_TIER_COST_LIMIT: z.string().regex(/^\d+(\.\d+)?$/).optional(),
-    ENTERPRISE_TIER_COST_LIMIT: z.string().regex(/^\d+(\.\d+)?$/).optional(),
-    ENCRYPTION_KEY: z.string().min(32).optional(),
-    JWT_SECRET: z.string().min(32).optional(),
-    BETTER_AUTH_URL: z.string().url(),
-    BETTER_AUTH_SECRET: z.string().min(32),
+    COST_MULTIPLIER: z
+      .string()
+      .regex(/^\d+(\.\d+)?$/)
+      .optional(),
+    JWT_SECRET: z.string().min(1).optional(),
     BROWSERBASE_API_KEY: z.string().min(1).optional(),
     BROWSERBASE_PROJECT_ID: z.string().min(1).optional(),
     OLLAMA_HOST: z.string().url().optional(),
@@ -43,6 +64,10 @@ export const env = createEnv({
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     USE_S3: z.boolean().optional(),
+    CRON_SECRET: z.string().optional(),
+    FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
+    NODE_ENV: z.string().optional(),
+    GITHUB_TOKEN: z.string().optional(),
 
     // OAuth blocks (all optional)
     GOOGLE_CLIENT_ID: z.string().optional(),
@@ -65,19 +90,28 @@ export const env = createEnv({
     NOTION_CLIENT_SECRET: z.string().optional(),
     DISCORD_CLIENT_ID: z.string().optional(),
     DISCORD_CLIENT_SECRET: z.string().optional(),
+    HUBSPOT_CLIENT_ID: z.string().optional(),
+    HUBSPOT_CLIENT_SECRET: z.string().optional(),
   },
 
   client: {
     NEXT_PUBLIC_APP_URL: z.string().url(),
     NEXT_PUBLIC_VERCEL_URL: z.string().optional(),
-    NEXT_PUBLIC_APP_VERSION: z.string(),
     NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
+    NEXT_PUBLIC_GOOGLE_API_KEY: z.string().optional(),
+    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: z.string().optional(),
   },
 
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    STRIPE_FREE_PRICE_ID: process.env.STRIPE_FREE_PRICE_ID,
+    STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID,
+    STRIPE_TEAM_PRICE_ID: process.env.STRIPE_TEAM_PRICE_ID,
+    STRIPE_ENTERPRISE_PRICE_ID: process.env.STRIPE_ENTERPRISE_PRICE_ID,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_API_KEY_1: process.env.OPENAI_API_KEY_1,
@@ -103,6 +137,8 @@ export const env = createEnv({
     SENTRY_ORG: process.env.SENTRY_ORG,
     SENTRY_PROJECT: process.env.SENTRY_PROJECT,
     SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
+    FREE_PLAN_LOG_RETENTION_DAYS: process.env.FREE_PLAN_LOG_RETENTION_DAYS,
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
 
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
@@ -124,11 +160,16 @@ export const env = createEnv({
     NOTION_CLIENT_SECRET: process.env.NOTION_CLIENT_SECRET,
     DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
     DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
+    HUBSPOT_CLIENT_ID: process.env.HUBSPOT_CLIENT_ID,
+    HUBSPOT_CLIENT_SECRET: process.env.HUBSPOT_CLIENT_SECRET,
 
     REDIS_URL: process.env.REDIS_URL,
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
     NEXT_RUNTIME: process.env.NEXT_RUNTIME,
+    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
     VERCEL_ENV: process.env.VERCEL_ENV,
+    CRON_SECRET: process.env.CRON_SECRET,
+    NODE_ENV: process.env.NODE_ENV,
 
     AWS_REGION: process.env.AWS_REGION,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
@@ -138,7 +179,8 @@ export const env = createEnv({
 
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
-    NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
   },
 })

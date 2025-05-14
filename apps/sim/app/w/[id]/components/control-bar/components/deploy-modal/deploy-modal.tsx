@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TabsContent } from '@/components/ui/tabs'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -217,7 +218,7 @@ export function DeployModal({
         }
 
         const data = await response.json()
-        const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
+        const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
         const inputFormatExample = getInputFormatExample()
 
         setDeploymentInfo({
@@ -278,7 +279,7 @@ export function DeployModal({
       setNeedsRedeployment(false)
 
       // Update the local deployment info
-      const endpoint = `${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
+      const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
       const inputFormatExample = getInputFormatExample()
 
       const newDeploymentInfo = {
@@ -603,7 +604,7 @@ export function DeployModal({
                         <DeployForm
                           apiKeys={apiKeys}
                           keysLoaded={keysLoaded}
-                          endpointUrl={`${process.env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                          endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
                           workflowId={workflowId || ''}
                           onSubmit={onDeploy}
                           getInputFormatExample={getInputFormatExample}

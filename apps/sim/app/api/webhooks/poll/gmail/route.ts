@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
+import { env } from '@/lib/env'
 import { Logger } from '@/lib/logs/console-logger'
 import { acquireLock, releaseLock } from '@/lib/redis'
 import { pollGmailWebhooks } from '@/lib/webhooks/gmail-polling-service'
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const authHeader = request.headers.get('authorization')
-    const webhookSecret = process.env.CRON_SECRET || process.env.WEBHOOK_POLLING_SECRET
+    const webhookSecret = env.CRON_SECRET
 
     if (!webhookSecret) {
       return new NextResponse('Configuration error: Webhook secret is not set', { status: 500 })

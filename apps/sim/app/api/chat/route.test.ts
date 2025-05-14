@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { env } from '@/lib/env'
 
 describe('Chat API Route', () => {
   const mockSelect = vi.fn()
@@ -273,7 +274,7 @@ describe('Chat API Route', () => {
       vi.stubGlobal('process', {
         ...process,
         env: {
-          ...process.env,
+          ...env,
           NODE_ENV: 'development',
         },
       })

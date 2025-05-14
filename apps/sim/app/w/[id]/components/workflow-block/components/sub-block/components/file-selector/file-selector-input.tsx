@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { env } from '@/lib/env'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
@@ -80,8 +81,8 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   }
 
   // For Google Drive
-  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY || ''
+  const clientId = env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+  const apiKey = env.NEXT_PUBLIC_GOOGLE_API_KEY || ''
 
   // Render Discord channel selector
   if (isDiscord) {
