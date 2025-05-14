@@ -1,8 +1,7 @@
-import { BrainClient, BrainClientError } from '@rightbrain/sdk'
 import { ToolConfig } from '../types'
 import { RightBrainRunTaskParams, RightBrainRunTaskResponse } from './types'
 
-export const isValidUUID = (uuid: string) =>
+const isValidUUID = (uuid: string) =>
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i.test(uuid)
 
 const processUrl = (url: string) => {
@@ -46,7 +45,10 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
     },
   },
   request: {
-    url: (params) => params.url,
+    url: (params) => {
+      processUrl(params.url)
+      return params.url
+    },
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
