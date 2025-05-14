@@ -336,3 +336,155 @@ input[type='search']::-ms-clear {
   z-index: 40;
   /* Higher z-index to appear above content */
 }
+
+/* Drag and drop styles for loop node */
+.drag-target {
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.drag-target.drag-over {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.05);
+}
+
+/* Improve dragging performance */
+.smooth-drag-container {
+  contain: layout style paint;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform;
+  transition: transform 0.01s linear;
+  -webkit-transform-style: preserve-3d;
+  -webkit-backface-visibility: hidden;
+}
+
+.smooth-drag-container * {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Optimize node rendering for smooth dragging performance */
+.react-flow__node-workflowBlock {
+  contain: layout style;
+  will-change: transform;
+  user-select: none;
+  touch-action: none;
+}
+
+/* React Flow position transitions within loops */
+.react-flow__node[data-parent-node-id] {
+  transition: transform 0.05s ease;
+  pointer-events: all;
+}
+
+/* Prevent jumpy drag behavior */
+.loop-drop-container .react-flow__node {
+  transform-origin: center;
+  position: absolute;
+}
+
+/* Remove default border from React Flow group nodes */
+.react-flow__node-group {
+  border: none;
+  background-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Ensure child nodes stay within parent bounds */
+.react-flow__node[data-parent-node-id] .react-flow__handle {
+  z-index: 30;
+}
+
+/* Enhanced drag detection */
+.react-flow__node-group.dragging-over {
+  border: 2px solid #40E0D0;
+  background-color: rgba(34,197,94,0.05);
+  transition: all 0.2s ease-in-out;
+}
+
+/* Loop node animation for drag operations */
+@keyframes loop-node-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(64, 224, 208, 0.3);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(64, 224, 208, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(64, 224, 208, 0);
+  }
+}
+
+.loop-node-drag-over {
+  animation: loop-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-color: #40E0D0 !important;
+  border-width: 2px !important;
+  border-style: solid !important;
+  background-color: rgba(64, 224, 208, 0.08) !important;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 0 0 8px rgba(64, 224, 208, 0.1);
+}
+/* Make resizer handles more visible */
+.react-flow__resize-control {
+  z-index: 10;
+  pointer-events: all !important;
+}
+
+.react-flow__resize-control.bottom-right {
+  width: 12px !important;
+  height: 12px !important;
+  background-color: hsl(var(--primary)) !important;
+  border: 2px solid white !important;
+  transition: transform 0.2s ease-in-out;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: all !important;
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+.react-flow__resize-control.bottom-right:hover {
+  transform: scale(1.3);
+  background-color: #40E0D0 !important;
+}
+
+/* Ensure NodeResizer is always above the custom resize handle */
+.react-flow__noderesize {
+  z-index: 11 !important;
+  pointer-events: all !important;
+}
+
+/* Ensure parent borders are visible when hovering over resize controls */
+.react-flow__node-group:hover,
+.hover-highlight {
+  border-color: #1e293b !important;
+}
+
+/* Ensure hover effects work well */
+.group-node-container:hover .react-flow__resize-control.bottom-right {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Child node styling */
+.react-flow__node[data-parent] {
+  border: 1px dashed #4e9eff !important;
+  transition: all 0.2s ease;
+}
+
+/* Visual feedback for nodes that are children of loops */
+.react-flow__node[data-parent]::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #4e9eff;
+  z-index: 5;
+}

@@ -13,7 +13,7 @@ function createLoopLabelNode(loopId: string, bounds: { x: number; y: number }) {
     id: `loop-label-${loopId}`,
     type: 'loopLabel',
     position: { x: 0, y: -32 },
-    parentNode: `loop-${loopId}`,
+    parentId: `loop-${loopId}`,
     draggable: false,
     data: {
       loopId,
@@ -38,7 +38,7 @@ function createLoopInputNode(loopId: string, bounds: { x: number; width: number 
     id: `loop-input-${loopId}`,
     type: 'loopInput',
     position: { x: bounds.width - BADGE_WIDTH, y: -32 }, // Position from right edge
-    parentNode: `loop-${loopId}`,
+    parentId: `loop-${loopId}`,
     draggable: false,
     data: {
       loopId,
