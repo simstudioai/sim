@@ -65,7 +65,7 @@ function WorkflowContent() {
   // Store access
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   //Removed loops from the store
-  const { blocks, edges, addBlock, updateBlockPosition, addEdge, removeEdge, updateParentId } =
+  const { blocks, edges, addBlock, updateBlockPosition, addEdge, removeEdge, updateParentId, removeBlock } =
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
@@ -75,6 +75,114 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
+
+  // Helper function to calculate node depth in hierarchy
+  const getNodeDepth = useCallback((nodeId: string): number => {
+    const node = getNodes().find(n => n.id === nodeId);
+    if (!node || !node.parentId) return 0;
+    return 1 + getNodeDepth(node.parentId);
+  }, [getNodes]);
+
+  // Helper function to get the full hierarchy path of a node
+  const getNodeHierarchy = useCallback((nodeId: string): string[] => {
+    const node = getNodes().find(n => n.id === nodeId);
+    if (!node || !node.parentId) return [nodeId];
+    return [...getNodeHierarchy(node.parentId), nodeId];
+  }, [getNodes]);
+
+  // Helper function to get absolute position of a node (accounting for nested parents)
+  const getNodeAbsolutePosition = useCallback((nodeId: string): { x: number, y: number } => {
+    const node = getNodes().find(n => n.id === nodeId);
+    if (!node) {
+      // Handle case where node doesn't exist anymore by returning origin position
+      // This helps prevent errors during cleanup operations
+      logger.warn('Attempted to get position of non-existent node', { nodeId });
+      return { x: 0, y: 0 };
+    }
+    
+    if (!node.parentId) {
+      return node.position;
+    }
+    
+    // Check if parent exists
+    const parentNode = getNodes().find(n => n.id === node.parentId);
+    if (!parentNode) {
+      // Parent reference is invalid, return node's current position
+      logger.warn('Node references non-existent parent', { 
+        nodeId, 
+        invalidParentId: node.parentId 
+      });
+      return node.position;
+    }
+    
+    // Check for circular reference to prevent infinite recursion
+    const visited = new Set<string>();
+    let current: any = node;
+    while (current && current.parentId) {
+      if (visited.has(current.parentId)) {
+        // Circular reference detected
+        logger.error('Circular parent reference detected', {
+          nodeId,
+          parentChain: Array.from(visited)
+        });
+        return node.position;
+      }
+      visited.add(current.id);
+      current = getNodes().find(n => n.id === current.parentId);
+    }
+    
+    // Get parent's absolute position
+    const parentPos = getNodeAbsolutePosition(node.parentId);
+    
+    // Calculate this node's absolute position
+    return {
+      x: parentPos.x + node.position.x,
+      y: parentPos.y + node.position.y
+    };
+  }, [getNodes]);
+
+  // Helper function to calculate relative position to a new parent
+  const calculateRelativePosition = useCallback((nodeId: string, newParentId: string): { x: number, y: number } => {
+    // Get absolute position of the node
+    const nodeAbsPos = getNodeAbsolutePosition(nodeId);
+    
+    // Get absolute position of the new parent
+    const parentAbsPos = getNodeAbsolutePosition(newParentId);
+    
+    // Calculate relative position
+    return {
+      x: nodeAbsPos.x - parentAbsPos.x,
+      y: nodeAbsPos.y - parentAbsPos.y
+    };
+  }, [getNodeAbsolutePosition]);
+
+  // Helper function to update a node's parent with proper position calculation
+  const updateNodeParent = useCallback((nodeId: string, newParentId: string | null) => {
+    // Skip if no change
+    const node = getNodes().find(n => n.id === nodeId);
+    if (!node) return;
+    
+    const currentParentId = node.parentId || null;
+    if (newParentId === currentParentId) return;
+    
+    if (newParentId) {
+      // Moving to a new parent - calculate relative position
+      const relativePosition = calculateRelativePosition(nodeId, newParentId);
+      
+      // Update both position and parent
+      updateBlockPosition(nodeId, relativePosition);
+      updateParentId(nodeId, newParentId, 'parent');
+      
+      logger.info('Updated node parent', {
+        nodeId,
+        newParentId,
+        relativePosition
+      });
+    }
+    
+    // Resize affected loops
+    debouncedResizeLoopNodes();
+  }, [getNodes, calculateRelativePosition, getNodeAbsolutePosition, updateBlockPosition, updateParentId]);
 
   // Helper function to check if a point is inside a loop node
   const isPointInLoopNode = useCallback((position: { x: number, y: number }): { 
@@ -178,10 +286,16 @@ function WorkflowContent() {
     return { width, height };
   }, [getNodes]);
 
-  // Function to resize all loop nodes 
+  // Function to resize all loop nodes with improved hierarchy handling
   const resizeLoopNodes = useCallback(() => {
-    // Find all loop nodes
-    const loopNodes = getNodes().filter(node => node.type === 'loopNode');
+    // Find all loop nodes and sort by hierarchy depth (parents first)
+    const loopNodes = getNodes()
+      .filter(node => node.type === 'loopNode')
+      .map(node => ({
+        ...node,
+        depth: getNodeDepth(node.id)
+      }))
+      .sort((a, b) => a.depth - b.depth);
 
     // Resize each loop node based on its children
     loopNodes.forEach(loopNode => {
@@ -194,7 +308,7 @@ function WorkflowContent() {
         useWorkflowStore.getState().updateNodeDimensions(loopNode.id, dimensions);
       }
     });
-  }, [getNodes, calculateLoopDimensions]);
+  }, [getNodes, calculateLoopDimensions, getNodeDepth]);
 
   // Use direct resizing function instead of debounced version for immediate updates
   const debouncedResizeLoopNodes = resizeLoopNodes;
@@ -269,6 +383,28 @@ function WorkflowContent() {
 
       if (!type) return
       if (type === 'connectionBlock') return
+
+      // Special handling for loop nodes
+      if (type === 'loop') {
+        // Create a unique ID and name for the loop
+        const id = crypto.randomUUID()
+        const name = 'Loop'
+
+        // Calculate the center position of the viewport
+        const centerPosition = project({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2,
+        })
+
+        // Add the loop node directly to canvas with default dimensions
+        addBlock(id, type, name, centerPosition, {
+          width: 800,
+          height: 1000,
+          type: 'loopNode'
+        })
+        
+        return
+      }
 
       const blockConfig = getBlock(type)
       if (!blockConfig) {
@@ -389,16 +525,16 @@ function WorkflowContent() {
         }
 
         const blockConfig = getBlock(data.type)
-        if (!blockConfig) {
+        if (!blockConfig && data.type !== 'loop') {
           logger.error('Invalid block type:', { data })
           return
         }
         
         // Generate id and name here so they're available in all code paths
         const id = crypto.randomUUID()
-        const name = `${blockConfig.name} ${
-          Object.values(blocks).filter((b) => b.type === data.type).length + 1
-        }`
+        const name = data.type === 'loop' 
+          ? 'Loop' 
+          : `${blockConfig!.name} ${Object.values(blocks).filter((b) => b.type === data.type).length + 1}`
 
         if (loopInfo) {
           // Calculate position relative to the loop node
@@ -674,6 +810,31 @@ function WorkflowContent() {
     return () => {};
   }, [nodes, debouncedResizeLoopNodes]);
 
+  // Special effect to handle cleanup after node deletion
+  useEffect(() => {
+    // Create a mapping of node IDs to check for missing parent references
+    const nodeIds = new Set(Object.keys(blocks));
+    
+    // Check for nodes with invalid parent references
+    Object.entries(blocks).forEach(([id, block]) => {
+      const parentId = block.data?.parentId;
+      
+      // If block has a parent reference but parent no longer exists
+      if (parentId && !nodeIds.has(parentId)) {
+        logger.warn('Found orphaned node with invalid parent reference', {
+          nodeId: id,
+          missingParentId: parentId
+        });
+        
+        // Fix the node by removing its parent reference and calculating absolute position
+        const absolutePosition = getNodeAbsolutePosition(id);
+        
+        // Update the node to remove parent reference and use absolute position
+        updateBlockPosition(id, absolutePosition);
+        updateParentId(id, '', 'parent');
+      }
+    });
+  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePosition]);
 
   // Update edges
   const onEdgesChange = useCallback(
@@ -773,124 +934,161 @@ function WorkflowContent() {
   const onNodeDrag = useCallback(
     (event: React.MouseEvent, node: any) => {
       // Store currently dragged node ID
-      setDraggedNodeId(node.id)
-
-      // Skip if dragging a loop node that already has a parent to avoid nested loop issues
-      if (node.type === 'loopNode' && node.parentId) return;
+      setDraggedNodeId(node.id);
 
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null;
+      
+      // Check if this is a starter block - starter blocks should never be in loops
+      const isStarterBlock = node.data?.type === 'starter';
+      if (isStarterBlock) {
+        // If it's a starter block, remove any highlighting and don't allow it to be dragged into loops
+        if (potentialParentId) {
+          const prevElement = document.querySelector(`[data-id="${potentialParentId}"]`);
+          if (prevElement) {
+            prevElement.classList.remove('loop-node-drag-over');
+          }
+          setPotentialParentId(null);
+          document.body.style.cursor = '';
+        }
+        return; // Exit early - don't process any loop intersections for starter blocks
+      }
+      
+      // Get the node's absolute position to properly calculate intersections
+      const nodeAbsolutePos = getNodeAbsolutePosition(node.id);
+      
+      // Find intersections with loop nodes using absolute coordinates
+      const intersectingNodes = getNodes()
+        .filter(n => {
+          // Only consider loop nodes that aren't the dragged node
+          if (n.type !== 'loopNode' || n.id === node.id) return false;
 
-      // Find intersections with loop nodes
-      const intersectingNodes = getNodes().filter(n => {
-        // Only consider loop nodes that aren't the dragged node
-        if (n.type !== 'loopNode' || n.id === node.id) return false
+          // Skip if this loop is already the parent of the node being dragged
+          if (n.id === currentParentId) return false;
 
-        // Skip if this loop is already the parent of the node being dragged
-        if (n.id === currentParentId) return false
-
-        // Skip self-nesting: prevent a loop from becoming its own descendant
-        if (node.type === 'loopNode') {
-          // Check if the target loop is already a descendant of the dragged loop
-          // This prevents circular parent-child relationships
-          let currentNode = n;
-          while (currentNode && currentNode.parentId) {
-            if (currentNode.parentId === node.id) {
+          // Skip self-nesting: prevent a loop from becoming its own descendant
+          if (node.type === 'loopNode') {
+            // Get the full hierarchy of the potential parent
+            const hierarchy = getNodeHierarchy(n.id);
+            
+            // If the dragged node is in the hierarchy, this would create a circular reference
+            if (hierarchy.includes(node.id)) {
               return false; // Avoid circular nesting
             }
-            const parentNode = getNodes().find(pn => pn.id === currentNode.parentId);
-            if (!parentNode) break;
-            currentNode = parentNode;
           }
-        }
-
-        // Get dimensions based on node type
-        const nodeWidth = node.type === 'loopNode' 
-          ? (node.data?.width || 800) 
-          : (node.type === 'condition' ? 250 : 200);
           
-        const nodeHeight = node.type === 'loopNode' 
-          ? (node.data?.height || 1000) 
-          : (node.type === 'condition' ? 150 : 100);
+          // Get the loop's absolute position
+          const loopAbsolutePos = getNodeAbsolutePosition(n.id);
 
-        // Check if node is within the bounds of the loop node
-        const nodeRect = { 
-          left: node.position.x, 
-          right: node.position.x + nodeWidth,
-          top: node.position.y, 
-          bottom: node.position.y + nodeHeight
-        }
+          // Get dimensions based on node type
+          const nodeWidth = node.type === 'loopNode' 
+            ? (node.data?.width || 800) 
+            : (node.type === 'condition' ? 250 : 200);
+          
+          const nodeHeight = node.type === 'loopNode' 
+            ? (node.data?.height || 1000) 
+            : (node.type === 'condition' ? 150 : 100);
 
-        const loopRect = {
-          left: n.position.x,
-          right: n.position.x + (n.data?.width || 800),
-          top: n.position.y,
-          bottom: n.position.y + (n.data?.height || 1000)
-        }
+          // Check intersection using absolute coordinates
+          const nodeRect = { 
+            left: nodeAbsolutePos.x, 
+            right: nodeAbsolutePos.x + nodeWidth,
+            top: nodeAbsolutePos.y, 
+            bottom: nodeAbsolutePos.y + nodeHeight
+          };
 
-        return (
-          nodeRect.left < loopRect.right &&
-          nodeRect.right > loopRect.left &&
-          nodeRect.top < loopRect.bottom &&
-          nodeRect.bottom > loopRect.top
-        )
-      })
+          const loopRect = {
+            left: loopAbsolutePos.x,
+            right: loopAbsolutePos.x + (n.data?.width || 800),
+            top: loopAbsolutePos.y,
+            bottom: loopAbsolutePos.y + (n.data?.height || 1000)
+          };
+
+          // Check intersection with absolute coordinates for accurate detection
+          return (
+            nodeRect.left < loopRect.right &&
+            nodeRect.right > loopRect.left &&
+            nodeRect.top < loopRect.bottom &&
+            nodeRect.bottom > loopRect.top
+          );
+        })
+        // Add more information for sorting
+        .map(n => ({
+          loop: n,
+          depth: getNodeDepth(n.id),
+          // Calculate size for secondary sorting
+          size: (n.data?.width || 800) * (n.data?.height || 1000)
+        }));
 
       // Update potential parent if there's at least one intersecting loop node
       if (intersectingNodes.length > 0) {
-        // Find smallest loop (for handling nested loops)
-        const smallestLoop = intersectingNodes.sort((a, b) => {
-          const aSize = (a.data?.width || 800) * (a.data?.height || 1000)
-          const bSize = (b.data?.width || 800) * (b.data?.height || 1000)
-          return aSize - bSize
-        })[0]
+        // Sort by depth first (deepest/most nested loops first), then by size if same depth
+        const sortedLoops = intersectingNodes.sort((a, b) => {
+          // First try to compare by hierarchy depth
+          if (a.depth !== b.depth) {
+            return b.depth - a.depth; // Higher depth (more nested) comes first
+          }
+          // If same depth, use size as secondary criterion
+          return a.size - b.size; // Smaller container takes precedence
+        });
+        
+        // Use the most appropriate loop (deepest or smallest at same depth)
+        const bestLoopMatch = sortedLoops[0];
 
-        // Set potential parent and add visual indicator
-        setPotentialParentId(smallestLoop.id)
+        // Add a check to see if the bestLoopMatch is apart of the heirarchy of the node being dragged
+        const hierarchy = getNodeHierarchy(node.id);
+        if (hierarchy.includes(bestLoopMatch.loop.id)) {
+          setPotentialParentId(null);
+          return;
+        }
+
+        setPotentialParentId(bestLoopMatch.loop.id);
 
         // Add highlight class and change cursor
-        const loopElement = document.querySelector(`[data-id="${smallestLoop.id}"]`)
+        const loopElement = document.querySelector(`[data-id="${bestLoopMatch.loop.id}"]`);
         if (loopElement) {
-          loopElement.classList.add('loop-node-drag-over')
-
-          // Change cursor to indicate item can be dropped
-          document.body.style.cursor = 'copy'
+          loopElement.classList.add('loop-node-drag-over');
+          document.body.style.cursor = 'copy';
         }
       } else {
         // Remove highlighting if no longer over a loop
         if (potentialParentId) {
-          const prevElement = document.querySelector(`[data-id="${potentialParentId}"]`)
+          const prevElement = document.querySelector(`[data-id="${potentialParentId}"]`);
           if (prevElement) {
-            prevElement.classList.remove('loop-node-drag-over')
+            prevElement.classList.remove('loop-node-drag-over');
           }
-          setPotentialParentId(null)
-
-          // Reset cursor
-          document.body.style.cursor = ''
+          setPotentialParentId(null);
+          document.body.style.cursor = '';
         }
       }
     },
-    [getNodes, potentialParentId, blocks]
-  )
+    [getNodes, potentialParentId, blocks, getNodeHierarchy, getNodeAbsolutePosition, getNodeDepth]
+  );
 
   // Add in a nodeDrag start event to set the dragStartParentId
   const onNodeDragStart = useCallback((event: React.MouseEvent, node: any) => {
-    setDragStartParentId(node.parentId || blocks[node.id]?.data?.parentId || null)
-  }, [blocks])
+    // Store the original parent ID when starting to drag
+    const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null;
+    setDragStartParentId(currentParentId);
+    
+    logger.info('Node drag started', {
+      nodeId: node.id,
+      startParentId: currentParentId,
+      nodeType: node.type
+    });
+  }, [blocks]);
 
   // Handle node drag stop to establish parent-child relationships
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: any) => {
+      // Clear UI effects
+      document.querySelectorAll('.loop-node-drag-over').forEach(el => {
+        el.classList.remove('loop-node-drag-over');
+      });
+      document.body.style.cursor = '';
 
-      //if the currnt parent ID is the same as the dragStartParentId, then we don't need to do anything
-
-      console.log('potentialParentId', potentialParentId)
-      console.log('dragStartParentId', dragStartParentId)
-
-      // This is the case where the node is being moved inside of it's original parent loop
-      if (potentialParentId === dragStartParentId || (dragStartParentId && !potentialParentId)) return;
-
-      //Else, we want to perform the logic below 
+      // Don't process if the node hasn't actually changed parent or is being moved within same parent
+      if (potentialParentId === dragStartParentId) return;
 
       logger.info('Node drag stopped', { 
         nodeId: node.id, 
@@ -899,136 +1097,47 @@ function WorkflowContent() {
         nodeType: node.type 
       });
 
-      // Clear UI effects
-      document.querySelectorAll('.loop-node-drag-over').forEach(el => {
-        el.classList.remove('loop-node-drag-over');
-      });
-      document.body.style.cursor = '';
+      // Check if this is a starter block - starter blocks should never be in loops
+      const isStarterBlock = node.data?.type === 'starter';
+      if (isStarterBlock) {
+        logger.warn('Prevented starter block from being placed inside a loop', {
+          blockId: node.id,
+          attemptedParentId: potentialParentId
+        });
+        // Reset state without updating parent
+        setDraggedNodeId(null);
+        setPotentialParentId(null);
+        return; // Exit early - don't allow starter blocks to have parents
+      }
 
-      // Find potential new parent loop based on intersections
-      const intersectingNodes = getNodes().filter(n => {
-        // Only consider loop nodes that aren't the dragged node
-        if (n.type !== 'loopNode' || n.id === node.id) return false;
+      // If we're dragging a loop node, do additional checks to prevent circular references
+      if (node.type === 'loopNode' && potentialParentId) {
+        // Get the hierarchy of the potential parent loop
+        const parentHierarchy = getNodeHierarchy(potentialParentId);
         
-        // Skip self-nesting and circular parent checks (keep existing logic)
-        if (node.type === 'loopNode') {
-          let currentNode = n;
-          while (currentNode && currentNode.parentId) {
-            if (currentNode.parentId === node.id) return false;
-            const parentNode = getNodes().find(pn => pn.id === currentNode.parentId);
-            if (!parentNode) break;
-            currentNode = parentNode;
-          }
-        }
-
-        // Calculate node dimensions and check intersection (keep existing logic)
-        const nodeWidth = node.type === 'loopNode' 
-          ? (node.data?.width || 800) 
-          : (node.type === 'condition' ? 250 : 200);
-          
-        const nodeHeight = node.type === 'loopNode' 
-          ? (node.data?.height || 1000) 
-          : (node.type === 'condition' ? 150 : 100);
-
-        // Check intersection with loop nodes
-        const nodeRect = { 
-          left: node.position.x, 
-          right: node.position.x + nodeWidth,
-          top: node.position.y, 
-          bottom: node.position.y + nodeHeight
-        };
-
-        const loopRect = {
-          left: n.position.x,
-          right: n.position.x + (n.data?.width || 800),
-          top: n.position.y,
-          bottom: n.position.y + (n.data?.height || 1000)
-        };
-
-        return (
-          nodeRect.left < loopRect.right &&
-          nodeRect.right > loopRect.left &&
-          nodeRect.top < loopRect.bottom &&
-          nodeRect.bottom > loopRect.top
-        );
-      });
-
-      // Get the new potential parent loop (smallest intersecting loop)
-      const newParentId = intersectingNodes.length > 0 
-        ? intersectingNodes.sort((a, b) => {
-            const aSize = (a.data?.width || 800) * (a.data?.height || 1000);
-            const bSize = (b.data?.width || 800) * (b.data?.height || 1000);
-            return aSize - bSize;
-          })[0].id
-        : null;
-
-      // KEY LOGIC: Only update parent relationship if it's different from starting parent
-      if (newParentId !== dragStartParentId) {
-        if (newParentId) {
-          // Node is being moved to a new parent loop
-          const newParentNode = getNodes().find(n => n.id === newParentId);
-          if (newParentNode) {
-            // Calculate position relative to new parent
-            const relativePosition = {
-              x: node.position.x - newParentNode.position.x,
-              y: node.position.y - newParentNode.position.y
-            };
-            
-            logger.info('Moving node to new parent loop', {
-              nodeId: node.id,
-              oldParentId: dragStartParentId,
-              newParentId,
-              relativePosition
-            });
-            
-            // Update both position and parent ID
-            updateBlockPosition(node.id, relativePosition);
-            updateParentId(node.id, newParentId, 'parent');
-            
-            // Resize loop to fit new content
-            debouncedResizeLoopNodes();
-          }
-        } else if (dragStartParentId) {
-          // Node is being moved out of a loop entirely
-          logger.info('Removing node from parent loop', {
-            nodeId: node.id,
-            oldParentId: dragStartParentId
+        // If the dragged node is in the parent's hierarchy, it would create a circular reference
+        if (parentHierarchy.includes(node.id)) {
+          logger.warn('Prevented circular loop nesting', {
+            draggedLoopId: node.id,
+            potentialParentId,
+            parentHierarchy
           });
-          
-          // Keep current absolute position but remove parent relationship
-          updateParentId(node.id, '', 'parent');
-          
-          // After removing from parent, resize the old parent loop
-          debouncedResizeLoopNodes();
+          return;
         }
-      } else if (newParentId && dragStartParentId === newParentId) {
-        // Node remains in the same parent, just update its position
-        const parentNode = getNodes().find(n => n.id === newParentId);
-        if (parentNode) {
-          // Calculate position relative to same parent
-          const relativePosition = {
-            x: node.position.x - parentNode.position.x,
-            y: node.position.y - parentNode.position.y
-          };
-          
-          logger.info('Repositioning node within same parent loop', {
-            nodeId: node.id,
-            parentId: newParentId,
-            relativePosition
-          });
-          
-          // Only update position, not parent relationship
-          updateBlockPosition(node.id, relativePosition);
-        }
+      }
+
+      // Update the node's parent relationship
+      if (potentialParentId) {
+        // Moving to a new parent loop
+        updateNodeParent(node.id, potentialParentId);
       }
 
       // Reset state
       setDraggedNodeId(null);
       setPotentialParentId(null);
     },
-    [getNodes, dragStartParentId, potentialParentId, updateBlockPosition, updateParentId, debouncedResizeLoopNodes]
-  )
-
+    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchy]
+  );
 
   // Update onPaneClick to only handle edge selection
   const onPaneClick = useCallback(() => {
@@ -1189,9 +1298,9 @@ function WorkflowContent() {
             strokeDasharray: '5,5',
           }}
           connectionLineType={ConnectionLineType.SmoothStep}
-          onNodeClick={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
+          onNodeClick={(e, node) => {
+            // Allow selecting nodes, but stop propagation to prevent triggering other events
+            e.stopPropagation();
           }}
           onPaneClick={onPaneClick}
           onEdgeClick={onEdgeClick}
