@@ -52,10 +52,11 @@ function WorkflowContent() {
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
-  // Enhanced edge selection with parent context
+  // Enhanced edge selection with parent context and unique identifier
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<{
     id: string;
     parentLoopId?: string;
+    contextId?: string; // Unique identifier combining edge ID and context
   } | null>(null)
   // Hooks
   const params = useParams()
@@ -64,7 +65,8 @@ function WorkflowContent() {
 
   // Store access
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
-  const { blocks, edges, loops, addBlock, updateBlockPosition, addEdge, removeEdge, updateParentId } =
+  //Removed loops from the store
+  const { blocks, edges, addBlock, updateBlockPosition, addEdge, removeEdge, updateParentId } =
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
@@ -157,10 +159,6 @@ function WorkflowContent() {
     // Apply padding to all sides (left/right and top/bottom)
     const width = Math.max(minWidth, maxX + sidePadding);
     const height = Math.max(minHeight, maxY + sidePadding + 100);
-    console.log('minHeight', minHeight)
-    console.log('maxY', maxY)
-    console.log('sidePadding', sidePadding)
-    console.log('height', height)
 
     return { width, height };
   }, [getNodes]);
@@ -191,11 +189,8 @@ function WorkflowContent() {
     });
   }, [getNodes, calculateLoopDimensions]);
 
-  // Create a debounced version of resizeLoopNodes to avoid too many updates
-  const debouncedResizeLoopNodes = useMemo(
-    () => debounce(resizeLoopNodes, 50), // Reduced from 100ms to 50ms for better responsiveness
-    [resizeLoopNodes]
-  );
+  // Use direct resizing function instead of debounced version for immediate updates
+  const debouncedResizeLoopNodes = resizeLoopNodes;
 
   // Initialize workflow
   useEffect(() => {
@@ -392,7 +387,8 @@ function WorkflowContent() {
           });
 
           // Resize the loop node to fit the new block
-          setTimeout(() => debouncedResizeLoopNodes(), 50);
+          // Immediate resize without delay
+          debouncedResizeLoopNodes();
 
           // Auto-connect logic for blocks inside loops
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled;
@@ -638,10 +634,8 @@ function WorkflowContent() {
     // Resize all loops to fit their children
     debouncedResizeLoopNodes();
 
-    // Clean up on unmount
-    return () => {
-      debouncedResizeLoopNodes.cancel();
-    };
+    // No need for cleanup with direct function
+    return () => {};
   }, [nodes, debouncedResizeLoopNodes]);
 
 
@@ -650,14 +644,15 @@ function WorkflowContent() {
     (changes: any) => {
       changes.forEach((change: any) => {
         if (change.type === 'remove') {
-          removeEdge(change.id)
+          logger.info('Edge removal requested via ReactFlow:', { edgeId: change.id });
+          removeEdge(change.id);
         }
-      })
+      });
     },
     [removeEdge]
   )
 
-  // Handle connections
+  // Handle connections with improved parent tracking
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
@@ -673,13 +668,28 @@ function WorkflowContent() {
                                 connection.source : undefined);
         const targetParentId = targetNode.parentId;
         
+        // Generate a unique edge ID
+        const edgeId = crypto.randomUUID();
+        
         // Special case for loop-start-source: Always allow connections to nodes within the same loop
         if (connection.sourceHandle === 'loop-start-source' && targetNode.parentId === sourceNode.id) {
           // This is a connection from loop start to a node inside the loop - always allow
+          logger.info('Creating loop start connection:', {
+            edgeId,
+            sourceId: connection.source,
+            targetId: connection.target,
+            parentLoopId: sourceNode.id
+          });
+          
           addEdge({
             ...connection,
-            id: crypto.randomUUID(),
+            id: edgeId,
             type: 'workflowEdge',
+            // Add metadata about the loop context
+            data: {
+              parentLoopId: sourceNode.id,
+              isInsideLoop: true
+            }
           });
           return;
         }
@@ -687,18 +697,41 @@ function WorkflowContent() {
         // Prevent connections across loop boundaries
         if ((sourceParentId && !targetParentId) || (!sourceParentId && targetParentId) || 
             (sourceParentId && targetParentId && sourceParentId !== targetParentId)) {
+          logger.info('Rejected cross-boundary connection:', {
+            sourceId: connection.source,
+            targetId: connection.target,
+            sourceParentId,
+            targetParentId
+          });
           return;
         }
         
+        // Track if this connection is inside a loop
+        const isInsideLoop = Boolean(sourceParentId) || Boolean(targetParentId);
+        const parentLoopId = sourceParentId || targetParentId;
+        
+        logger.info('Creating connection:', {
+          edgeId,
+          sourceId: connection.source,
+          targetId: connection.target,
+          isInsideLoop,
+          parentLoopId
+        });
+        
+        // Add appropriate metadata for loop context
         addEdge({
           ...connection,
-          id: crypto.randomUUID(),
+          id: edgeId,
           type: 'workflowEdge',
-        })
+          data: isInsideLoop ? {
+            parentLoopId,
+            isInsideLoop
+          } : undefined
+        });
       }
     },
     [addEdge, getNodes]
-  )
+  );
 
   // Handle node drag to detect intersections with loop nodes
   const onNodeDrag = useCallback(
@@ -874,8 +907,8 @@ function WorkflowContent() {
           // Only update the position, not the parent relationship
           updateBlockPosition(node.id, relativePosition);
 
-          // Resize the loop after moving the child
-          setTimeout(() => debouncedResizeLoopNodes(), 50);
+          // Immediate resize without delay
+          debouncedResizeLoopNodes();
         } else {
           // Node is not a child of this loop yet, establish the relationship
           logger.info('Setting new parent-child relationship', {
@@ -888,8 +921,8 @@ function WorkflowContent() {
           updateBlockPosition(node.id, relativePosition);
           updateParentId(node.id, smallestLoop.id, 'parent');
 
-          // Resize the loop to accommodate the new child
-          setTimeout(() => debouncedResizeLoopNodes(), 50);
+          // Immediate resize without delay
+          debouncedResizeLoopNodes();
         }
       } else if (blocks[node.id]?.data?.parentId) {
         // If node was in a loop but is now outside, handle removal
@@ -927,48 +960,87 @@ function WorkflowContent() {
     // If source and target have different parents, prioritize source's parent
     const parentLoopId = sourceNode?.parentId || targetNode?.parentId;
     
+    // Create a unique identifier that combines edge ID and parent context
+    const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`;
+    
+    logger.info('Edge selected:', { 
+      edgeId: edge.id, 
+      sourceId: edge.source,
+      targetId: edge.target,
+      sourceNodeParent: sourceNode?.parentId,
+      targetNodeParent: targetNode?.parentId,
+      parentLoopId,
+      contextId
+    });
+    
     setSelectedEdgeInfo({
       id: edge.id,
-      parentLoopId
+      parentLoopId,
+      contextId
     });
   }, [getNodes]);
 
-  // Transform edges to include selection state
+  // Transform edges to include improved selection state
   const edgesWithSelection = edges.map((edge) => {
     // Check if this edge connects nodes inside a loop
     const sourceNode = getNodes().find(n => n.id === edge.source);
     const targetNode = getNodes().find(n => n.id === edge.target);
-    const isInsideLoop = Boolean(sourceNode?.parentId) || Boolean(targetNode?.parentId);
+    const parentLoopId = sourceNode?.parentId || targetNode?.parentId;
+    const isInsideLoop = Boolean(parentLoopId);
     
-    // Determine if this edge is selected
-    const isSelected = selectedEdgeInfo?.id === edge.id;
-
+    // Create a unique context ID for this edge
+    const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`;
+    
+    // Determine if this edge is selected using context-aware matching
+    const isSelected = selectedEdgeInfo?.contextId === edgeContextId;
+    
     return {
       ...edge,
       type: edge.type || 'workflowEdge',
       data: {
-        selectedEdgeInfo,
+        // Send only necessary data to the edge component
+        isSelected,
         isInsideLoop,
+        parentLoopId,
         onDelete: (edgeId: string) => {
-          removeEdge(edgeId)
-          setSelectedEdgeInfo(null)
+          // Log deletion for debugging
+          logger.info('Deleting edge:', { 
+            edgeId, 
+            fromSelection: selectedEdgeInfo?.id === edgeId,
+            contextId: edgeContextId 
+          });
+          
+          // Only delete this specific edge
+          removeEdge(edgeId);
+          
+          // Only clear selection if this was the selected edge
+          if (selectedEdgeInfo?.id === edgeId) {
+            setSelectedEdgeInfo(null);
+          }
         },
       },
     }
-  })
+  });
 
-  // Handle keyboard shortcuts
+  // Handle keyboard shortcuts with better edge tracking
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeInfo) {
-        removeEdge(selectedEdgeInfo.id)
-        setSelectedEdgeInfo(null)
+        logger.info('Keyboard shortcut edge deletion:', { 
+          edgeId: selectedEdgeInfo.id,
+          parentLoopId: selectedEdgeInfo.parentLoopId,
+          contextId: selectedEdgeInfo.contextId
+        });
+        
+        // Only delete the specific selected edge
+        removeEdge(selectedEdgeInfo.id);
+        setSelectedEdgeInfo(null);
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedEdgeInfo, removeEdge])
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedEdgeInfo, removeEdge]);
 
   // Handle sub-block value updates from custom events
   useEffect(() => {

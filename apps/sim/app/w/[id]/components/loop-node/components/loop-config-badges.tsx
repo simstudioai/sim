@@ -1,17 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { IterationCw, ListOrdered, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { createLogger } from '@/lib/logs/console-logger'
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
-const logger = createLogger('LoopConfigBadges')
 
 interface LoopConfigBadgesProps {
   nodeId: string
@@ -103,7 +101,7 @@ export function LoopConfigBadges({ nodeId, data }: LoopConfigBadgesProps) {
   }, [updateNodeData])
 
   return (
-    <div className="absolute -top-8 left-0 right-0 flex justify-between px-4 z-10">
+    <div className="absolute -top-9 left-0 right-0 flex justify-between z-10">
       {/* Loop Type Badge */}
       <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
         <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -115,11 +113,6 @@ export function LoopConfigBadges({ nodeId, data }: LoopConfigBadgesProps) {
               'flex items-center gap-1'
             )}
           >
-            {loopType === 'for' ? (
-              <IterationCw className="h-3 w-3 mr-1 text-[#40E0D0]" />
-            ) : (
-              <ListOrdered className="h-3 w-3 mr-1 text-[#40E0D0]" />
-            )}
             {loopType === 'for' ? 'For Loop' : 'For Each'}
             <ChevronDown className="h-3 w-3 text-muted-foreground" />
           </Badge>
@@ -135,7 +128,6 @@ export function LoopConfigBadges({ nodeId, data }: LoopConfigBadgesProps) {
                 )}
                 onClick={() => handleLoopTypeChange('for')}
               >
-                <IterationCw className="h-4 w-4 text-[#40E0D0]" />
                 <span className="text-sm">For Loop</span>
               </div>
               <div
@@ -145,7 +137,6 @@ export function LoopConfigBadges({ nodeId, data }: LoopConfigBadgesProps) {
                 )}
                 onClick={() => handleLoopTypeChange('forEach')}
               >
-                <ListOrdered className="h-4 w-4 text-[#40E0D0]" />
                 <span className="text-sm">For Each</span>
               </div>
             </div>
