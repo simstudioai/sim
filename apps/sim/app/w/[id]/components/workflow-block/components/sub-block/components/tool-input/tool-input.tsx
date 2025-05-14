@@ -673,7 +673,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
             const toolBlock = !isCustomTool
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
-            const toolId = !isCustomTool ? (tool.operation ?? getToolIdFromBlock(tool.type)) : null
+            const toolId = !isCustomTool ? getToolIdFromBlock(tool.type) : null
             const hasOperations = !isCustomTool && hasMultipleOperations(tool.type)
             const operationOptions = hasOperations ? getOperationOptions(tool.type) : []
 
