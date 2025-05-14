@@ -18,6 +18,8 @@ export function useUserSubscription(): UserSubscription {
   })
 
   useEffect(() => {
+    let mounted = true
+
     const fetchSubscription = async () => {
       try {
         const response = await fetch('/api/user/subscription')
@@ -28,25 +30,34 @@ export function useUserSubscription(): UserSubscription {
 
         const data = await response.json()
 
-        setSubscription({
-          isPaid: data.isPaid,
-          isLoading: false,
-          plan: data.plan,
-          error: null,
-          isEnterprise: data.plan === 'enterprise' || false,
-        })
+        if (mounted) {
+          setSubscription({
+            isPaid: data.isPaid,
+            isLoading: false,
+            plan: data.plan,
+            error: null,
+            isEnterprise: data.plan === 'enterprise' || false,
+          })
+        }
       } catch (error) {
-        setSubscription({
-          isPaid: false,
-          isLoading: false,
-          plan: null,
-          error: error instanceof Error ? error : new Error('Unknown error'),
-          isEnterprise: false,
-        })
+        if (mounted) {
+          setSubscription({
+            isPaid: false,
+            isLoading: false,
+            plan: null,
+            error: error instanceof Error ? error : new Error('Unknown error'),
+            isEnterprise: false,
+          })
+        }
       }
     }
 
     fetchSubscription()
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      mounted = false
+    }
   }, [])
 
   return subscription

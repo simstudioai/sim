@@ -34,6 +34,10 @@ describe('Subscription Utilities', () => {
       expect(calculateUsageLimit(null)).toBe(5)
     })
 
+    it('returns free-tier limit when subscription is undefined', () => {
+      expect(calculateUsageLimit(undefined)).toBe(5)
+    })
+
     it('returns free-tier limit when subscription is not active', () => {
       expect(calculateUsageLimit({ plan: 'pro', status: 'canceled', seats: 1 })).toBe(5)
     })

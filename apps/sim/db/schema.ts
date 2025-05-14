@@ -3,7 +3,6 @@ import {
   decimal,
   integer,
   json,
-  jsonb,
   pgTable,
   text,
   timestamp,
@@ -255,7 +254,7 @@ export const subscription = pgTable('subscription', {
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),
   trialEnd: timestamp('trial_end'),
-  metadata: jsonb('metadata'),
+  metadata: json('metadata'),
 })
 
 export const chat = pgTable(
@@ -298,7 +297,7 @@ export const organization = pgTable('organization', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
-  metadata: jsonb('metadata'),
+  metadata: json('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

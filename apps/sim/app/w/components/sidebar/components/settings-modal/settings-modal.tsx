@@ -79,6 +79,21 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         try {
           const result = await subscription.list()
 
+          if (isEnterprise) {
+            try {
+              const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+              if (enterpriseResponse.ok) {
+                const enterpriseData = await enterpriseResponse.json()
+                if (enterpriseData.subscription) {
+                  setSubscriptionData(enterpriseData.subscription)
+                  return
+                }
+              }
+            } catch (error) {
+              logger.error('Error fetching enterprise subscription', error)
+            }
+          }
+
           if (result.data && result.data.length > 0) {
             const activeSubscription = result.data.find(
               (sub) =>
@@ -88,16 +103,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
             if (activeSubscription) {
               setSubscriptionData(activeSubscription)
-            }
-          }
-
-          if (!subscriptionData && isEnterprise) {
-            const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
-            if (enterpriseResponse.ok) {
-              const enterpriseData = await enterpriseResponse.json()
-              if (enterpriseData.subscription) {
-                setSubscriptionData(enterpriseData.subscription)
-              }
             }
           }
         } catch (error) {
@@ -117,7 +122,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     } else {
       hasLoadedInitialData.current = false
     }
-  }, [open, loadSettings, subscription, activeSection, isEnterprise, subscriptionData])
+  }, [open, loadSettings, subscription, activeSection, isEnterprise])
 
   useEffect(() => {
     const handleOpenSettings = (event: CustomEvent<{ tab: SettingsSection }>) => {

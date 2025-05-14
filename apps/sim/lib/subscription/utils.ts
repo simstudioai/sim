@@ -1,9 +1,13 @@
-/**
- * Determine if a subscription is an enterprise plan
- * Use this as a single source of truth for enterprise subscription detection
- */
 export function checkEnterprisePlan(subscription: any): boolean {
   return subscription?.plan === 'enterprise' && subscription?.status === 'active'
+}
+
+export function checkProPlan(subscription: any): boolean {
+  return subscription?.plan === 'pro' && subscription?.status === 'active'
+}
+
+export function checkTeamPlan(subscription: any): boolean {
+  return subscription?.plan === 'team' && subscription?.status === 'active'
 }
 
 /**

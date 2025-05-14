@@ -4,8 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 import { client } from '../auth-client'
-import { calculateUsageLimit } from './utils'
-import { checkEnterprisePlan } from './utils'
+import { calculateUsageLimit, checkEnterprisePlan, checkProPlan, checkTeamPlan } from './utils'
 
 const logger = createLogger('Subscription')
 
@@ -146,9 +145,7 @@ export async function isEnterprisePlan(userId: string): Promise<boolean> {
         .from(schema.subscription)
         .where(eq(schema.subscription.referenceId, membership.organizationId))
 
-      const orgHasEnterprisePlan = orgSubscriptions.some(
-        (sub) => sub.status === 'active' && sub.plan === 'enterprise'
-      )
+      const orgHasEnterprisePlan = orgSubscriptions.some((sub) => checkEnterprisePlan(sub))
 
       if (orgHasEnterprisePlan) {
         logger.info('User has enterprise plan via organization', {
@@ -166,9 +163,7 @@ export async function isEnterprisePlan(userId: string): Promise<boolean> {
       .where(eq(schema.subscription.referenceId, userId))
 
     // Find active enterprise subscription
-    const hasDirectEnterprisePlan = directSubscriptions.some(
-      (sub) => sub.status === 'active' && sub.plan === 'enterprise'
-    )
+    const hasDirectEnterprisePlan = directSubscriptions.some((sub) => checkEnterprisePlan(sub))
 
     if (hasDirectEnterprisePlan) {
       logger.info('User has direct enterprise plan', { userId })
@@ -204,7 +199,13 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
       )
 
     if (userSubscriptions.length > 0) {
-      activeSubscription = userSubscriptions[0]
+      // Prioritize enterprise, then team, then pro plans (same as we do for org subs)
+      const enterpriseSub = userSubscriptions.find((sub) => checkEnterprisePlan(sub))
+      const teamSub = userSubscriptions.find((sub) => checkTeamPlan(sub))
+      const proSub = userSubscriptions.find((sub) => checkProPlan(sub))
+
+      // Use the highest tier subscription
+      activeSubscription = enterpriseSub || teamSub || proSub || null
     }
 
     // If no direct subscription, check for organization subscriptions
@@ -229,16 +230,16 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
         if (orgSubscriptions.length > 0) {
           // Prioritize enterprise, then team, then pro plans
-          const enterpriseSub = orgSubscriptions.find((sub) => checkEnterprisePlan(sub))
-          const teamSub = orgSubscriptions.find(
+          const orgEnterpriseSub = orgSubscriptions.find((sub) => checkEnterprisePlan(sub))
+          const orgTeamSub = orgSubscriptions.find(
             (sub) => sub.plan === 'team' && sub.status === 'active'
           )
-          const proSub = orgSubscriptions.find(
+          const orgProSub = orgSubscriptions.find(
             (sub) => sub.plan === 'pro' && sub.status === 'active'
           )
 
           // Use the highest tier subscription
-          activeSubscription = enterpriseSub || teamSub || proSub || null
+          activeSubscription = orgEnterpriseSub || orgTeamSub || orgProSub || null
           if (activeSubscription) break
         }
       }

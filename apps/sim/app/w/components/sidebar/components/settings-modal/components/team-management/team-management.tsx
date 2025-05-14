@@ -867,35 +867,38 @@ export function TeamManagement() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
+                      onClick={async () => {
                         const currentSeats = subscriptionData.seats || 1
 
                         // For enterprise plans, we need a custom endpoint
                         if (checkEnterprisePlan(subscriptionData)) {
-                          // This assumes you'll create an API endpoint for updating enterprise seats
-                          fetch('/api/user/subscription/update-seats', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                              subscriptionId: subscriptionData.id,
-                              seats: currentSeats + 1,
-                            }),
-                          })
-                            .then((response) => {
-                              if (!response.ok)
-                                return response.json().then((err) => {
-                                  throw err
-                                })
-                              return refreshOrganization()
+                          try {
+                            const response = await fetch('/api/user/subscription/update-seats', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                subscriptionId: subscriptionData.id,
+                                seats: currentSeats + 1,
+                              }),
                             })
-                            .catch((err) => {
-                              setError(err.error || 'Failed to update seats')
-                            })
+
+                            if (!response.ok) {
+                              const errorData = await response.json()
+                              throw new Error(errorData.error || 'Failed to update seats')
+                            }
+
+                            await refreshOrganization()
+                          } catch (error) {
+                            const errorMessage =
+                              error instanceof Error ? error.message : 'Failed to update seats'
+                            setError(errorMessage)
+                            logger.error('Error updating enterprise seats', { error })
+                          }
                         } else {
                           // For team plans, use the normal upgrade flow
-                          confirmTeamUpgrade(currentSeats + 1)
+                          await confirmTeamUpgrade(currentSeats + 1)
                         }
                       }}
                       disabled={isLoading}

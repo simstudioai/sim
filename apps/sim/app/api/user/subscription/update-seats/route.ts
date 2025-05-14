@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -13,6 +13,15 @@ const updateSeatsSchema = z.object({
   subscriptionId: z.string().uuid(),
   seats: z.number().int().positive(),
 })
+
+// Define a schema for subscription metadata
+const subscriptionMetadataSchema = z
+  .object({
+    perSeatAllowance: z.number().positive().optional(),
+    totalAllowance: z.number().positive().optional(),
+    updatedAt: z.string().optional(),
+  })
+  .catchall(z.any())
 
 interface SubscriptionMetadata {
   perSeatAllowance?: number
@@ -69,41 +78,67 @@ export async function POST(req: Request) {
     }
 
     // Verify the user has permission to update this subscription
-    // Either they own it directly or are a member of the organization
+    // Either they own it directly or are an admin/owner of the organization
     let hasPermission = sub.referenceId === session.user.id
 
     if (!hasPermission) {
-      // Check if user is member of organization that owns this subscription
+      // Check if user is an admin or owner of the organization that owns this subscription
       const memberships = await db
         .select()
         .from(member)
-        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, sub.referenceId)))
+        .where(
+          and(
+            eq(member.userId, session.user.id),
+            eq(member.organizationId, sub.referenceId),
+            or(eq(member.role, 'owner'), eq(member.role, 'admin'))
+          )
+        )
         .limit(1)
 
       hasPermission = memberships.length > 0
+
+      if (!hasPermission) {
+        logger.warn('Unauthorized subscription update attempt', {
+          userId: session.user.id,
+          subscriptionId,
+          referenceId: sub.referenceId,
+        })
+
+        return NextResponse.json(
+          { error: 'You must be an admin or owner to update subscription settings' },
+          { status: 403 }
+        )
+      }
     }
 
-    if (!hasPermission) {
+    // Validate the metadata structure before modification
+    let validatedMetadata: SubscriptionMetadata
+    try {
+      validatedMetadata = subscriptionMetadataSchema.parse(sub.metadata || {})
+    } catch (error) {
+      logger.error('Invalid subscription metadata format', {
+        error,
+        subscriptionId,
+        metadata: sub.metadata,
+      })
       return NextResponse.json(
-        { error: 'You do not have permission to update this subscription' },
-        { status: 403 }
+        { error: 'Subscription metadata has invalid format' },
+        { status: 400 }
       )
     }
 
     // Update the subscription with new seat count
     // For enterprise subscriptions, we need to recalculate the total allowance if it exists
-    const metadata = (sub.metadata || {}) as SubscriptionMetadata
-
-    if (metadata.perSeatAllowance) {
-      metadata.totalAllowance = seats * metadata.perSeatAllowance
-      metadata.updatedAt = new Date().toISOString()
+    if (validatedMetadata.perSeatAllowance && validatedMetadata.perSeatAllowance > 0) {
+      validatedMetadata.totalAllowance = seats * validatedMetadata.perSeatAllowance
+      validatedMetadata.updatedAt = new Date().toISOString()
     }
 
     await db
       .update(subscription)
       .set({
         seats,
-        metadata,
+        metadata: validatedMetadata,
       })
       .where(eq(subscription.id, subscriptionId))
 
@@ -121,7 +156,7 @@ export async function POST(req: Request) {
         subscriptionId,
         seats,
         plan: sub.plan,
-        metadata,
+        metadata: validatedMetadata,
       },
     })
   } catch (error) {
