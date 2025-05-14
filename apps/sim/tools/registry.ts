@@ -8,6 +8,12 @@ import { autoblocksPromptManagerTool } from './autoblocks'
 import { browserUseRunTaskTool } from './browser_use'
 import { clayPopulateTool } from './clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
+import {
+  discordGetMessagesTool,
+  discordGetServerTool,
+  discordGetUserTool,
+  discordSendMessageTool,
+} from './discord'
 import { elevenLabsTtsTool } from './elevenlabs'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
@@ -48,6 +54,7 @@ import {
   pineconeUpsertTextTool,
 } from './pinecone'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
+import { runTaskTool } from './rightbrain'
 import { s3GetObjectTool } from './s3'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
@@ -64,7 +71,6 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
-import { discordGetMessagesTool, discordGetServerTool, discordGetUserTool, discordSendMessageTool } from './discord'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -121,6 +127,7 @@ export const tools: Record<string, ToolConfig> = {
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,
+  rightbrain_run_task: runTaskTool,
   google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
@@ -157,4 +164,4 @@ export const tools: Record<string, ToolConfig> = {
   discord_get_messages: discordGetMessagesTool,
   discord_get_server: discordGetServerTool,
   discord_get_user: discordGetUserTool,
-} 
+}
