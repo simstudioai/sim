@@ -22,7 +22,7 @@ const processUrl = (url: string) => {
 export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskResponse> = {
   id: 'rightbrain_run_task',
   name: 'Rightbrain Run Task',
-  description: 'Run a task on Rightbrain',
+  description: 'Run a Rightbrain AI task',
   version: '1.0.0',
   params: {
     url: {
