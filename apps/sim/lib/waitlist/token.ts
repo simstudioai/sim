@@ -1,5 +1,6 @@
 import { jwtVerify, SignJWT } from 'jose'
 import { nanoid } from 'nanoid'
+import { env } from '../env'
 
 interface TokenPayload {
   email: string
@@ -17,7 +18,7 @@ interface DecodedToken {
 
 // Get JWT secret from environment variables
 const getJwtSecret = () => {
-  const secret = process.env.JWT_SECRET
+  const secret = env.JWT_SECRET
   if (!secret) {
     throw new Error('JWT_SECRET environment variable is not set')
   }

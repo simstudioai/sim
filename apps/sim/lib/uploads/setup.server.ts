@@ -1,4 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from '../env'
 import { ensureUploadsDirectory, USE_S3_STORAGE } from './setup'
 
 const logger = createLogger('UploadsSetup')
@@ -10,7 +11,7 @@ if (typeof process !== 'undefined') {
 
   if (USE_S3_STORAGE) {
     // Verify AWS credentials
-    if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    if (!env.AWS_ACCESS_KEY_ID || !env.AWS_SECRET_ACCESS_KEY) {
       logger.warn('AWS credentials are not set in environment variables.')
       logger.warn('Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for S3 storage.')
     } else {

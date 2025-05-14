@@ -4,6 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 import { client } from './auth-client'
+import { env } from './env'
 
 const logger = createLogger('Subscription')
 
@@ -171,9 +172,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     // If no subscription found, use default free tier limit
     if (highestCostLimit === 0) {
-      highestCostLimit = process.env.FREE_TIER_COST_LIMIT
-        ? parseFloat(process.env.FREE_TIER_COST_LIMIT)
-        : 5
+      highestCostLimit = env.FREE_TIER_COST_LIMIT ? parseFloat(env.FREE_TIER_COST_LIMIT) : 5
     }
 
     logger.info('User cost limit from subscription', { userId, costLimit: highestCostLimit })

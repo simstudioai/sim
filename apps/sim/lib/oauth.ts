@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import {
   AirtableIcon,
   ConfluenceIcon,
+  DiscordIcon,
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
@@ -13,9 +14,9 @@ import {
   NotionIcon,
   SupabaseIcon,
   xIcon,
-  DiscordIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './env'
 
 const logger = createLogger('OAuth')
 
@@ -45,7 +46,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   | 'discord'
-  
+
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -251,13 +252,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'discord',
         icon: (props) => DiscordIcon(props),
         baseProviderIcon: (props) => DiscordIcon(props),
-        scopes: [
-          'identify',
-          'bot',
-          'messages.read',
-          'guilds',
-          'guilds.members.read',
-        ],
+        scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
       },
     },
     defaultService: 'discord',
@@ -416,52 +411,52 @@ export async function refreshOAuthToken(
     switch (provider) {
       case 'google':
         tokenEndpoint = 'https://oauth2.googleapis.com/token'
-        clientId = process.env.GOOGLE_CLIENT_ID
-        clientSecret = process.env.GOOGLE_CLIENT_SECRET
+        clientId = env.GOOGLE_CLIENT_ID
+        clientSecret = env.GOOGLE_CLIENT_SECRET
         break
       case 'github':
         tokenEndpoint = 'https://github.com/login/oauth/access_token'
-        clientId = process.env.GITHUB_CLIENT_ID
-        clientSecret = process.env.GITHUB_CLIENT_SECRET
+        clientId = env.GITHUB_CLIENT_ID
+        clientSecret = env.GITHUB_CLIENT_SECRET
         break
       case 'x':
         tokenEndpoint = 'https://api.x.com/2/oauth2/token'
-        clientId = process.env.X_CLIENT_ID
-        clientSecret = process.env.X_CLIENT_SECRET
+        clientId = env.X_CLIENT_ID
+        clientSecret = env.X_CLIENT_SECRET
         useBasicAuth = true
         break
       case 'confluence':
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
-        clientId = process.env.CONFLUENCE_CLIENT_ID
-        clientSecret = process.env.CONFLUENCE_CLIENT_SECRET
+        clientId = env.CONFLUENCE_CLIENT_ID
+        clientSecret = env.CONFLUENCE_CLIENT_SECRET
         useBasicAuth = true
         break
       case 'jira':
         tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
-        clientId = process.env.JIRA_CLIENT_ID
-        clientSecret = process.env.JIRA_CLIENT_SECRET
+        clientId = env.JIRA_CLIENT_ID
+        clientSecret = env.JIRA_CLIENT_SECRET
         useBasicAuth = true
         break
       case 'airtable':
         tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
-        clientId = process.env.AIRTABLE_CLIENT_ID
-        clientSecret = process.env.AIRTABLE_CLIENT_SECRET
+        clientId = env.AIRTABLE_CLIENT_ID
+        clientSecret = env.AIRTABLE_CLIENT_SECRET
         useBasicAuth = true
         break
       case 'supabase':
         tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
-        clientId = process.env.SUPABASE_CLIENT_ID
-        clientSecret = process.env.SUPABASE_CLIENT_SECRET
+        clientId = env.SUPABASE_CLIENT_ID
+        clientSecret = env.SUPABASE_CLIENT_SECRET
         break
       case 'notion':
         tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
-        clientId = process.env.NOTION_CLIENT_ID
-        clientSecret = process.env.NOTION_CLIENT_SECRET
+        clientId = env.NOTION_CLIENT_ID
+        clientSecret = env.NOTION_CLIENT_SECRET
         break
       case 'discord':
         tokenEndpoint = 'https://discord.com/api/v10/oauth2/token'
-        clientId = process.env.DISCORD_CLIENT_ID
-        clientSecret = process.env.DISCORD_CLIENT_SECRET
+        clientId = env.DISCORD_CLIENT_ID
+        clientSecret = env.DISCORD_CLIENT_SECRET
         useBasicAuth = true
         break
       default:
@@ -501,7 +496,12 @@ export async function refreshOAuthToken(
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
-    } else if (provider === 'x' || provider === 'confluence' || provider === 'jira' || provider === 'discord') {
+    } else if (
+      provider === 'x' ||
+      provider === 'confluence' ||
+      provider === 'jira' ||
+      provider === 'discord'
+    ) {
       const authString = `${clientId}:${clientSecret}`
       const basicAuth = Buffer.from(authString).toString('base64')
       headers['Authorization'] = `Basic ${basicAuth}`

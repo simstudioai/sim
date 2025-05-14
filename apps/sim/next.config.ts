@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 import { withSentryConfig } from '@sentry/nextjs'
 import path from 'path'
+import { env } from './lib/env'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -11,19 +12,19 @@ const nextConfig: NextConfig = {
       'api.stability.ai',
     ],
   },
-  output: process.env.NODE_ENV === 'development' ? 'standalone' : undefined,
+  output: env.NODE_ENV === 'development' ? 'standalone' : undefined,
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
   experimental: {
     optimizeCss: true,
   },
-  ...(process.env.NODE_ENV === 'development' && {
+  ...(env.NODE_ENV === 'development' && {
     outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
   webpack: (config, { isServer, dev }) => {
     // Skip webpack configuration in development when using Turbopack
-    if (dev && process.env.NEXT_RUNTIME === 'turbopack') {
+    if (dev && env.NEXT_RUNTIME === 'turbopack') {
       return config
     }
 
@@ -112,7 +113,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.OLLAMA_HOST || 'http://localhost:11434'} https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${env.OLLAMA_HOST || 'http://localhost:11434'} https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
           },
         ],
       },
@@ -122,11 +123,11 @@ const nextConfig: NextConfig = {
 
 const sentryConfig = {
   silent: true,
-  org: process.env.SENTRY_ORG || '',
-  project: process.env.SENTRY_PROJECT || '',
-  authToken: process.env.SENTRY_AUTH_TOKEN || undefined,
-  disableSourceMapUpload: process.env.NODE_ENV !== 'production',
-  autoInstrumentServerFunctions: process.env.NODE_ENV === 'production',
+  org: env.SENTRY_ORG || '',
+  project: env.SENTRY_PROJECT || '',
+  authToken: env.SENTRY_AUTH_TOKEN || undefined,
+  disableSourceMapUpload: env.NODE_ENV !== 'production',
+  autoInstrumentServerFunctions: env.NODE_ENV === 'production',
   bundleSizeOptimizations: {
     excludeDebugStatements: true,
     excludePerformanceMonitoring: true,
@@ -136,6 +137,6 @@ const sentryConfig = {
   },
 }
 
-export default process.env.NODE_ENV === 'development'
+export default env.NODE_ENV === 'development'
   ? nextConfig
   : withSentryConfig(nextConfig, sentryConfig)

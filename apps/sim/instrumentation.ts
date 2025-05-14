@@ -11,18 +11,17 @@
 // See: https://nextjs.org/docs/app/building-your-application/optimizing/open-telemetry
 // Set experimental.instrumentationHook = true in next.config.ts to enable this
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './lib/env.ts'
 
 const Sentry =
-  process.env.NODE_ENV === 'production'
-    ? require('@sentry/nextjs')
-    : { captureRequestError: () => {} }
+  env.NODE_ENV === 'production' ? require('@sentry/nextjs') : { captureRequestError: () => {} }
 
 const logger = createLogger('OtelInstrumentation')
 
 const DEFAULT_TELEMETRY_CONFIG = {
-  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
+  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
   serviceName: 'sim-studio',
-  serviceVersion: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
+  serviceVersion: '0.1.0',
   serverSide: { enabled: true },
   batchSettings: {
     maxQueueSize: 100,
@@ -33,20 +32,20 @@ const DEFAULT_TELEMETRY_CONFIG = {
 }
 
 export async function register() {
-  if (process.env.NODE_ENV === 'production') {
-    if (process.env.NEXT_RUNTIME === 'nodejs') {
+  if (env.NODE_ENV === 'production') {
+    if (env.NEXT_RUNTIME === 'nodejs') {
       await import('./sentry.server.config')
     }
 
-    if (process.env.NEXT_RUNTIME === 'edge') {
+    if (env.NEXT_RUNTIME === 'edge') {
       await import('./sentry.edge.config')
     }
   }
 
   // OpenTelemetry instrumentation
-  if (process.env.NEXT_RUNTIME === 'nodejs') {
+  if (env.NEXT_RUNTIME === 'nodejs') {
     try {
-      if (process.env.NEXT_TELEMETRY_DISABLED === '1') {
+      if (env.NEXT_TELEMETRY_DISABLED === '1') {
         logger.info('OpenTelemetry telemetry disabled via environment variable')
         return
       }
@@ -92,7 +91,7 @@ export async function register() {
       const configResource = resourceFromAttributes({
         [SemanticResourceAttributes.SERVICE_NAME]: telemetryConfig.serviceName,
         [SemanticResourceAttributes.SERVICE_VERSION]: telemetryConfig.serviceVersion,
-        [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV,
+        [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: env.NODE_ENV,
       })
 
       const sdk = new NodeSDK({

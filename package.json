@@ -29,6 +29,8 @@
     "react-dom": "19.1.0"
   },
   "dependencies": {
-    "@types/bun": "^1.2.12"
+    "@t3-oss/env-nextjs": "0.13.4",
+    "@types/bun": "^1.2.12",
+    "bun": "^1.2.13"
   }
 }

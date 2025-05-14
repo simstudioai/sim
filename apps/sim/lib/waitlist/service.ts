@@ -9,6 +9,7 @@ import { sendBatchEmails, sendEmail } from '@/lib/mailer'
 import { createToken, verifyToken } from '@/lib/waitlist/token'
 import { db } from '@/db'
 import { waitlist } from '@/db/schema'
+import { env } from '../env'
 
 // Define types for better type safety
 export type WaitlistStatus = 'pending' | 'approved' | 'rejected' | 'signed_up'
@@ -196,7 +197,7 @@ export async function approveWaitlistUser(
     })
 
     // Generate signup link with token
-    const signupLink = `${process.env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
+    const signupLink = `${env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
 
     // IMPORTANT: Send approval email BEFORE updating the status
     // This ensures we don't mark users as approved if email fails
@@ -427,7 +428,7 @@ export async function resendApprovalEmail(
     })
 
     // Generate signup link with token
-    const signupLink = `${process.env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
+    const signupLink = `${env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
 
     // Send approval email
     try {
@@ -554,7 +555,7 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
         })
 
         // Generate signup link with token
-        const signupLink = `${process.env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
+        const signupLink = `${env.NEXT_PUBLIC_APP_URL}/signup?token=${token}`
 
         // Generate email HTML
         const emailHtml = await renderWaitlistApprovalEmail(user.email, signupLink)

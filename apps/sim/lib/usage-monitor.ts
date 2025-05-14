@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { db } from '@/db'
 import { member, organization as organizationTable, subscription, userStats } from '@/db/schema'
+import { env } from './env'
 import { createLogger } from './logs/console-logger'
 import { isProPlan, isTeamPlan } from './subscription'
 
@@ -113,9 +114,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     if (isTeam) {
       // For team plans, get the number of seats and multiply by per-seat limit
       const teamSeats = await getTeamSeats(userId)
-      const perSeatLimit = process.env.TEAM_TIER_COST_LIMIT
-        ? parseFloat(process.env.TEAM_TIER_COST_LIMIT)
-        : 40
+      const perSeatLimit = env.TEAM_TIER_COST_LIMIT ? parseFloat(env.TEAM_TIER_COST_LIMIT) : 40
 
       limit = perSeatLimit * teamSeats
 
@@ -127,12 +126,12 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       })
     } else if (isPro) {
       // Pro plan has a fixed limit
-      limit = process.env.PRO_TIER_COST_LIMIT ? parseFloat(process.env.PRO_TIER_COST_LIMIT) : 20
+      limit = env.PRO_TIER_COST_LIMIT ? parseFloat(env.PRO_TIER_COST_LIMIT) : 20
 
       logger.info('Using pro plan limit', { userId, limit })
     } else {
       // Free tier limit
-      limit = process.env.FREE_TIER_COST_LIMIT ? parseFloat(process.env.FREE_TIER_COST_LIMIT) : 5
+      limit = env.FREE_TIER_COST_LIMIT ? parseFloat(env.FREE_TIER_COST_LIMIT) : 5
 
       logger.info('Using free tier limit', { userId, limit })
     }
