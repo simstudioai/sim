@@ -737,7 +737,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
        * @returns The ID of the newly created workflow
        */
       duplicateWorkflow: (sourceId: string) => {
-        const { workflows } = get()
+        const { workflows, activeWorkspaceId } = get()
         const sourceWorkflow = workflows[sourceId]
 
         if (!sourceWorkflow) {
@@ -754,6 +754,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return null
         }
 
+        // Get the workspace ID from the source workflow or fall back to active workspace
+        const workspaceId = sourceWorkflow.workspaceId || (activeWorkspaceId || undefined)
+
         // Generate new workflow metadata
         const newWorkflow: WorkflowMetadata = {
           id,
@@ -761,6 +764,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           lastModified: new Date(),
           description: sourceWorkflow.description,
           color: getNextWorkflowColor(workflows),
+          workspaceId, // Include the workspaceId in the new workflow
           // Do not copy marketplace data
         }
 
@@ -771,6 +775,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           loops: sourceState.loops || {},
           isDeployed: false, // Reset deployment status
           deployedAt: undefined, // Reset deployment timestamp
+          workspaceId, // Include workspaceId in state
           history: {
             past: [],
             present: {
@@ -780,6 +785,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 loops: sourceState.loops || {},
                 isDeployed: false,
                 deployedAt: undefined,
+                workspaceId, // Include workspaceId in history state
               },
               timestamp: Date.now(),
               action: 'Duplicated workflow',
@@ -826,7 +832,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Trigger sync
         useWorkflowStore.getState().sync.forceSync()
 
-        logger.info(`Duplicated workflow ${sourceId} to ${id}`)
+        logger.info(`Duplicated workflow ${sourceId} to ${id} in workspace ${workspaceId || 'none'}`)
 
         return id
       },
