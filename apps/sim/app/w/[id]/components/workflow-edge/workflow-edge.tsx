@@ -10,6 +10,7 @@ export const WorkflowEdge = ({
   sourcePosition,
   targetPosition,
   data,
+  style,
 }: EdgeProps) => {
   const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
 
@@ -24,19 +25,25 @@ export const WorkflowEdge = ({
     offset: isHorizontal ? 30 : 20,
   })
 
-  const isSelected = id === data?.selectedEdgeId
+  // Check if this edge is selected using the enhanced selection state
+  const isSelected = data?.selectedEdgeInfo?.id === id;
+  const isInsideLoop = data?.isInsideLoop;
+
+  // Merge any style props passed from parent
+  const edgeStyle = {
+    strokeWidth: isSelected ? 2.5 : 2,
+    stroke: isSelected ? '#475569' : '#94a3b8',
+    strokeDasharray: '5,5',
+    zIndex: isInsideLoop ? 100 : -10,
+    ...style
+  };
 
   return (
     <>
       <BaseEdge
         path={edgePath}
         data-testid="workflow-edge"
-        style={{
-          strokeWidth: 2,
-          stroke: isSelected ? '#475569' : '#94a3b8',
-          strokeDasharray: '5,5',
-          zIndex: -10,
-        }}
+        style={edgeStyle}
         interactionWidth={20}
       />
       <animate
@@ -50,7 +57,7 @@ export const WorkflowEdge = ({
       {isSelected && (
         <EdgeLabelRenderer>
           <div
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] nodrag nopan"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] nodrag nopan shadow-sm"
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
