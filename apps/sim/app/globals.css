@@ -351,24 +351,6 @@ input[type='search']::-ms-clear {
   background-color: hsl(var(--primary) / 0.05);
 }
 
-/* Improve dragging performance */
-.smooth-drag-container {
-  contain: layout style paint;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  perspective: 1000px;
-  will-change: transform;
-  transition: transform 0.01s linear;
-  -webkit-transform-style: preserve-3d;
-  -webkit-backface-visibility: hidden;
-}
-
-.smooth-drag-container * {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
-
 /* Optimize node rendering for smooth dragging performance */
 .react-flow__node-workflowBlock {
   contain: layout style;
@@ -404,7 +386,6 @@ input[type='search']::-ms-clear {
 
 /* Enhanced drag detection */
 .react-flow__node-group.dragging-over {
-  border: 2px solid #40E0D0;
   background-color: rgba(34,197,94,0.05);
   transition: all 0.2s ease-in-out;
 }
@@ -424,12 +405,9 @@ input[type='search']::-ms-clear {
 
 .loop-node-drag-over {
   animation: loop-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  border-color: #40E0D0 !important;
-  border-width: 2px !important;
   border-style: solid !important;
-  background-color: rgba(64, 224, 208, 0.08) !important;
-  transition: all 0.2s ease-in-out;
-  box-shadow: 0 0 0 8px rgba(64, 224, 208, 0.1);
+  background-color: rgba(47, 179, 255, 0.08) !important;
+  box-shadow: 0 0 0 8px rgba(47, 179, 255, 0.1);
 }
 /* Make resizer handles more visible */
 .react-flow__resize-control {
@@ -453,7 +431,7 @@ input[type='search']::-ms-clear {
 
 .react-flow__resize-control.bottom-right:hover {
   transform: scale(1.3);
-  background-color: #40E0D0 !important;
+  background-color: #2FB3FF !important;
 }
 
 /* Ensure NodeResizer is always above the custom resize handle */
