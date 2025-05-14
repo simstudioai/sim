@@ -62,18 +62,6 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
 
             logger.info(`Loaded ${data.length} custom tools from server`)
 
-            // Log details of loaded tools for debugging
-            if (data.length > 0) {
-              logger.info(
-                'Custom tools loaded:',
-                data.map((tool) => ({
-                  id: tool.id,
-                  title: tool.title,
-                  functionName: tool.schema?.function?.name || 'unknown',
-                }))
-              )
-            }
-
             set({
               tools: transformedTools,
               isLoading: false,

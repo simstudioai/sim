@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 
 /**
  * Detect if the current platform is Mac
@@ -67,4 +68,38 @@ export function useKeyboardShortcuts(onRunWorkflow: () => void, isDisabled = fal
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onRunWorkflow, isDisabled, isMac])
+}
+
+/**
+ * Hook to manage global navigation shortcuts
+ */
+export function useGlobalShortcuts() {
+  const router = useRouter()
+  const isMac = useMemo(() => isMacPlatform(), [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input, textarea, or contenteditable element
+      const activeElement = document.activeElement
+      const isEditableElement =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.hasAttribute('contenteditable')
+
+      if (isEditableElement) return
+
+      // Cmd/Ctrl + Shift + L - Navigate to Logs
+      if (
+        event.key.toLowerCase() === 'l' &&
+        event.shiftKey &&
+        ((isMac && event.metaKey) || (!isMac && event.ctrlKey))
+      ) {
+        event.preventDefault()
+        router.push('/w/logs')
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [router, isMac])
 }

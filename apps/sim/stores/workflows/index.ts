@@ -8,7 +8,11 @@ import { BlockState, WorkflowState } from './workflow/types'
 
 const logger = createLogger('Workflows')
 
-// Get a workflow with its state merged in by ID
+/**
+ * Get a workflow with its state merged in by ID
+ * @param workflowId ID of the workflow to retrieve
+ * @returns The workflow with merged state values or null if not found
+ */
 export function getWorkflowWithValues(workflowId: string) {
   const { workflows } = useWorkflowRegistry.getState()
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -64,7 +68,11 @@ export function getWorkflowWithValues(workflowId: string) {
   }
 }
 
-// Get a specific block with its subblock values merged in
+/**
+ * Get a specific block with its subblock values merged in
+ * @param blockId ID of the block to retrieve
+ * @returns The block with merged subblock values or null if not found
+ */
 export function getBlockWithValues(blockId: string): BlockState | null {
   const workflowState = useWorkflowStore.getState()
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -75,15 +83,16 @@ export function getBlockWithValues(blockId: string): BlockState | null {
   return mergedBlocks[blockId] || null
 }
 
-// Get all workflows with their values merged
+/**
+ * Get all workflows with their values merged
+ * Used for sync operations to prepare the payload
+ * @returns An object containing all workflows with their merged state values
+ */
 export function getAllWorkflowsWithValues() {
   const { workflows, activeWorkspaceId } = useWorkflowRegistry.getState()
   const result: Record<string, any> = {}
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
-
-  // Log for debugging
-  logger.info(`Preparing workflows for sync with active workspace: ${activeWorkspaceId}`)
 
   for (const [id, metadata] of Object.entries(workflows)) {
     // Skip workflows that don't belong to the active workspace
@@ -138,11 +147,18 @@ export function getAllWorkflowsWithValues() {
       },
     }
   }
-
-  logger.info(
-    `Prepared ${Object.keys(result).length} workflows for sync from workspace ${activeWorkspaceId}`
-  )
+  
   return result
+}
+
+/**
+ * Convenience function to mark workflows as dirty and initiate a sync
+ * This is a shortcut for other files to trigger sync operations
+ */
+export function syncWorkflows() {
+  const workflowStore = useWorkflowStore.getState();
+  workflowStore.sync.markDirty();
+  workflowStore.sync.forceSync();
 }
 
 export { useWorkflowRegistry, useWorkflowStore, useSubBlockStore }

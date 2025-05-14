@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -23,6 +23,15 @@ export function SocialLoginButtons({
   const [isGithubLoading, setIsGithubLoading] = useState(false)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const { addNotification } = useNotificationStore()
+  const [mounted, setMounted] = useState(false)
+
+  // Set mounted state to true on client-side
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Only render on the client side to avoid hydration errors
+  if (!mounted) return null
 
   async function signInWithGithub() {
     if (!githubAvailable) return

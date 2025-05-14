@@ -57,6 +57,8 @@ function SignupFormContent({
   const [showValidationError, setShowValidationError] = useState(false)
   const [email, setEmail] = useState('')
   const [waitlistToken, setWaitlistToken] = useState('')
+  const [redirectUrl, setRedirectUrl] = useState('')
+  const [isInviteFlow, setIsInviteFlow] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -71,6 +73,23 @@ function SignupFormContent({
       setWaitlistToken(tokenParam)
       // Verify the token and get the email
       verifyWaitlistToken(tokenParam)
+    }
+
+    // Handle redirection for invitation flow
+    const redirectParam = searchParams.get('redirect')
+    if (redirectParam) {
+      setRedirectUrl(redirectParam)
+
+      // Check if this is part of an invitation flow
+      if (redirectParam.startsWith('/invite/')) {
+        setIsInviteFlow(true)
+      }
+    }
+
+    // Explicitly check for invite_flow parameter
+    const inviteFlowParam = searchParams.get('invite_flow')
+    if (inviteFlowParam === 'true') {
+      setIsInviteFlow(true)
     }
   }, [searchParams])
 
@@ -207,9 +226,22 @@ function SignupFormContent({
 
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('verificationEmail', emailValue)
+
+        // If this is an invitation flow, store that information for after verification
+        if (isInviteFlow && redirectUrl) {
+          sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
+          sessionStorage.setItem('isInviteFlow', 'true')
+        }
       }
 
-      router.push(`/verify?fromSignup=true`)
+      // If verification is required, go to verify page with proper redirect
+      if (isInviteFlow && redirectUrl) {
+        router.push(
+          `/verify?fromSignup=true&redirectAfter=${encodeURIComponent(redirectUrl)}&invite_flow=true`
+        )
+      } else {
+        router.push(`/verify?fromSignup=true`)
+      }
     } catch (err: any) {
       console.error('Uncaught signup error:', err)
     } finally {

@@ -8,7 +8,12 @@ import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
-import { getSyncManagers, initializeSyncManagers, resetSyncManagers } from './sync-registry'
+import { 
+  getSyncManagers, 
+  initializeSyncManagers, 
+  resetSyncManagers, 
+  isSyncInitialized
+} from './sync-registry'
 import {
   loadRegistry,
   loadSubblockValues,
@@ -18,14 +23,22 @@ import {
 } from './workflows/persistence'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { workflowSync } from './workflows/sync'
+import { 
+  workflowSync, 
+  isRegistryInitialized,
+  markWorkflowsDirty
+} from './workflows/sync'
 import { useWorkflowStore } from './workflows/workflow/store'
 import { BlockState } from './workflows/workflow/types'
+
+// Import the syncWorkflows function directly
+import { syncWorkflows } from './workflows'
 
 const logger = createLogger('Stores')
 
 // Track initialization state
 let isInitializing = false
+let appFullyInitialized = false
 
 /**
  * Initialize the application state and sync system
@@ -39,6 +52,10 @@ async function initializeApplication(): Promise<void> {
   if (typeof window === 'undefined' || isInitializing) return
 
   isInitializing = true
+  appFullyInitialized = false
+  
+  // Track initialization start time
+  const initStartTime = Date.now()
 
   try {
     // Load environment variables directly from DB
@@ -88,11 +105,27 @@ async function initializeApplication(): Promise<void> {
 
     // 2. Register cleanup
     window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    // Log initialization timing information
+    const initDuration = Date.now() - initStartTime
+    logger.info(`Application initialization completed in ${initDuration}ms`)
+    
+    // Mark application as fully initialized
+    appFullyInitialized = true
   } catch (error) {
     logger.error('Error during application initialization:', { error })
+    // Still mark as initialized to prevent being stuck in initializing state
+    appFullyInitialized = true
   } finally {
     isInitializing = false
   }
+}
+
+/**
+ * Checks if application is fully initialized
+ */
+export function isAppInitialized(): boolean {
+  return appFullyInitialized && isRegistryInitialized() && isSyncInitialized();
 }
 
 function initializeWorkflowState(workflowId: string): void {
@@ -166,6 +199,9 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
     }
   }
 
+  // Mark workflows as dirty to ensure sync on exit
+  syncWorkflows();
+
   // 2. Final sync for managers that need it
   getSyncManagers()
     .filter((manager) => manager.config.syncOnExit)
@@ -207,6 +243,9 @@ export async function clearUserData(): Promise<void> {
     const keysToKeep = ['next-favicon', 'theme']
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
     keysToRemove.forEach((key) => localStorage.removeItem(key))
+
+    // Reset application initialization state
+    appFullyInitialized = false
 
     logger.info('User data cleared successfully')
   } catch (error) {
@@ -307,6 +346,9 @@ export async function reinitializeAfterLogin(): Promise<void> {
   if (typeof window === 'undefined') return
 
   try {
+    // Reset application initialization state
+    appFullyInitialized = false
+    
     // Reset sync managers to prevent any active syncs during reinitialization
     resetSyncManagers()
 
@@ -448,11 +490,14 @@ function createFirstWorkflowWithAgentBlock(): void {
   // Save the updated workflow state
   saveWorkflowState(workflowId, updatedState)
 
+  // Mark as dirty to ensure sync
+  syncWorkflows();
+  
   // Resume sync managers after initialization
   setTimeout(() => {
     const syncManagers = getSyncManagers()
     syncManagers.forEach((manager) => manager.startIntervalSync())
-    workflowSync.sync()
+    syncWorkflows()
   }, 1000)
 
   logger.info('First workflow with agent block created successfully')

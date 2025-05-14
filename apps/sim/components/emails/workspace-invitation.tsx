@@ -12,48 +12,45 @@ import {
   Section,
   Text,
 } from '@react-email/components'
-import { format } from 'date-fns'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
-interface InvitationEmailProps {
+interface WorkspaceInvitationEmailProps {
+  workspaceName?: string
   inviterName?: string
-  organizationName?: string
-  inviteLink?: string
-  invitedEmail?: string
-  updatedDate?: Date
+  invitationLink?: string
 }
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
-export const InvitationEmail = ({
-  inviterName = 'A team member',
-  organizationName = 'an organization',
-  inviteLink = '',
-  invitedEmail = '',
-  updatedDate = new Date(),
-}: InvitationEmailProps) => {
-  // Extract invitation ID or token from inviteLink if present
-  let enhancedLink = inviteLink
+export const WorkspaceInvitationEmail = ({
+  workspaceName = 'Workspace',
+  inviterName = 'Someone',
+  invitationLink = '',
+}: WorkspaceInvitationEmailProps) => {
+  // Extract token from the link to ensure we're using the correct format
+  let enhancedLink = invitationLink
 
-  // Check if link contains an ID (old format) and append token parameter if needed
-  if (inviteLink && !inviteLink.includes('token=')) {
-    try {
-      const url = new URL(inviteLink)
-      const invitationId = url.pathname.split('/').pop()
-      if (invitationId) {
-        enhancedLink = `${baseUrl}/invite/${invitationId}?token=${invitationId}`
+  try {
+    // If the link is pointing to the API endpoint directly, update it to use the client route
+    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
+      const url = new URL(invitationLink)
+      const token = url.searchParams.get('token')
+      if (token) {
+        enhancedLink = `${baseUrl}/invite/${token}?token=${token}`
       }
-    } catch (e) {
-      console.error('Error parsing invite link:', e)
     }
+  } catch (e) {
+    console.error('Error enhancing invitation link:', e)
   }
 
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
-        <Preview>You've been invited to join {organizationName} on Sim Studio</Preview>
+        <Preview>
+          You've been invited to join the "{workspaceName}" workspace on Sim Studio!
+        </Preview>
         <Container style={baseStyles.container}>
           <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
@@ -81,32 +78,23 @@ export const InvitationEmail = ({
           <Section style={baseStyles.content}>
             <Text style={baseStyles.paragraph}>Hello,</Text>
             <Text style={baseStyles.paragraph}>
-              <strong>{inviterName}</strong> has invited you to join{' '}
-              <strong>{organizationName}</strong> on Sim Studio. Sim Studio is a powerful,
-              user-friendly platform for building, testing, and optimizing agentic workflows.
+              {inviterName} has invited you to join the "{workspaceName}" workspace on Sim Studio!
+            </Text>
+            <Text style={baseStyles.paragraph}>
+              Sim Studio is a powerful platform for building, testing, and optimizing AI workflows.
+              Join this workspace to collaborate with your team.
             </Text>
             <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
             <Text style={baseStyles.paragraph}>
-              This invitation will expire in 48 hours. If you believe this invitation was sent in
-              error, please ignore this email.
+              This invitation link will expire in 7 days. If you have any questions or need
+              assistance, feel free to reach out to our support team.
             </Text>
             <Text style={baseStyles.paragraph}>
               Best regards,
               <br />
               The Sim Studio Team
-            </Text>
-            <Text
-              style={{
-                ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
-              }}
-            >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} to {invitedEmail} with
-              an invitation to join {organizationName} on Sim Studio.
             </Text>
           </Section>
         </Container>
@@ -117,4 +105,4 @@ export const InvitationEmail = ({
   )
 }
 
-export default InvitationEmail
+export default WorkspaceInvitationEmail

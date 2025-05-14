@@ -12,9 +12,11 @@ import {
   PanelRight,
   PenLine,
   ScrollText,
+  Send,
   Settings,
   Shapes,
   Store,
+  Users,
 } from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -24,8 +26,10 @@ import { useSession } from '@/lib/auth-client'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { getKeyboardShortcutText, useGlobalShortcuts } from '@/app/w/hooks/use-keyboard-shortcuts'
 import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { HelpModal } from './components/help-modal/help-modal'
+import { InviteModal } from './components/invite-modal/invite-modal'
 import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 import { SidebarControl } from './components/sidebar-control/sidebar-control'
@@ -34,6 +38,8 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
   useRegistryLoading()
+  // Initialize global keyboard shortcuts
+  useGlobalShortcuts()
 
   const {
     workflows,
@@ -47,6 +53,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showInviteMembers, setShowInviteMembers] = useState(false)
   const {
     mode,
     isExpanded,
@@ -70,8 +77,8 @@ export function Sidebar() {
 
   // Update modal state in the store when settings or help modals open/close
   useEffect(() => {
-    setAnyModalOpen(showSettings || showHelp)
-  }, [showSettings, showHelp, setAnyModalOpen])
+    setAnyModalOpen(showSettings || showHelp || showInviteMembers)
+  }, [showSettings, showHelp, showInviteMembers, setAnyModalOpen])
 
   // Reset explicit mouse enter state when modal state changes
   useEffect(() => {
@@ -261,6 +268,8 @@ export function Sidebar() {
               label="Logs"
               active={pathname === '/w/logs'}
               isCollapsed={isCollapsed}
+              shortcutCommand={getKeyboardShortcutText('L', true, true)}
+              shortcutCommandPosition="below"
             />
             <NavSection.Item
               icon={<Settings className="h-[18px] w-[18px]" />}
@@ -275,10 +284,23 @@ export function Sidebar() {
         <div className="flex-grow"></div>
       </div>
 
-      {/* Bottom buttons container - Always at bottom */}
-      <div className="flex-shrink-0 px-3 py-3">
-        {isCollapsed ? (
+      {isCollapsed ? (
+        <div className="flex-shrink-0 px-3 pb-3 pt-1">
           <div className="flex flex-col space-y-[1px]">
+            {/* Invite members button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  onClick={() => setShowInviteMembers(true)}
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                >
+                  <Send className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Invite Members</TooltipContent>
+            </Tooltip>
+
+            {/* Help button */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
@@ -291,31 +313,60 @@ export function Sidebar() {
               <TooltipContent side="right">Help</TooltipContent>
             </Tooltip>
 
+            {/* Sidebar control */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <SidebarControl />
               </TooltipTrigger>
+              <TooltipContent side="right">Toggle sidebar</TooltipContent>
             </Tooltip>
           </div>
-        ) : (
-          <div className="flex justify-between">
-            {/* Sidebar control on left */}
-            <SidebarControl />
-
-            {/* Help button on right */}
+        </div>
+      ) : (
+        <>
+          {/* Invite members bar */}
+          <div className="flex-shrink-0 px-3 pt-1">
             <div
-              onClick={() => setShowHelp(true)}
-              className="flex items-center justify-center rounded-md w-8 h-8 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              onClick={() => setShowInviteMembers(true)}
+              className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
             >
-              <HelpCircle className="h-[18px] w-[18px]" />
-              <span className="sr-only">Help</span>
+              <Send className="h-[18px] w-[18px]" />
+              <span className="ml-2">Invite members</span>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Bottom buttons container */}
+          <div className="flex-shrink-0 px-3 pb-3 pt-1">
+            <div className="flex justify-between">
+              {/* Sidebar control on left with tooltip */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <SidebarControl />
+                </TooltipTrigger>
+                <TooltipContent side="top">Toggle sidebar</TooltipContent>
+              </Tooltip>
+
+              {/* Help button on right with tooltip */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    onClick={() => setShowHelp(true)}
+                    className="flex items-center justify-center rounded-md w-8 h-8 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                  >
+                    <HelpCircle className="h-[18px] w-[18px]" />
+                    <span className="sr-only">Help</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top">Help, contact</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+        </>
+      )}
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
+      <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
     </aside>
   )
 }

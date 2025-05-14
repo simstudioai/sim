@@ -11,7 +11,12 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
-import { fetchWorkflowsFromDB, workflowSync } from '../sync'
+import { 
+  fetchWorkflowsFromDB, 
+  workflowSync, 
+  resetRegistryInitialization,
+  markWorkflowsDirty 
+} from '../sync'
 import { useWorkflowStore } from '../workflow/store'
 import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
@@ -20,6 +25,10 @@ const logger = createLogger('WorkflowRegistry')
 
 // Storage key for active workspace
 const ACTIVE_WORKSPACE_KEY = 'active-workspace-id'
+
+// Track workspace transitions to prevent race conditions
+let isWorkspaceTransitioning = false;
+const TRANSITION_TIMEOUT = 5000; // 5 seconds maximum for workspace transitions
 
 // Helps clean up any localStorage data that isn't needed for the current workspace
 function cleanupLocalStorageForWorkspace(workspaceId: string): void {
@@ -150,6 +159,32 @@ function resetWorkflowStores() {
   })
 }
 
+/**
+ * Handles workspace transition state tracking
+ * @param isTransitioning Whether workspace is currently transitioning
+ */
+function setWorkspaceTransitioning(isTransitioning: boolean): void {
+  isWorkspaceTransitioning = isTransitioning;
+  
+  // Set a safety timeout to prevent permanently stuck in transition state
+  if (isTransitioning) {
+    setTimeout(() => {
+      if (isWorkspaceTransitioning) {
+        logger.warn('Forcing workspace transition to complete due to timeout');
+        isWorkspaceTransitioning = false;
+      }
+    }, TRANSITION_TIMEOUT);
+  }
+}
+
+/**
+ * Checks if workspace is currently in transition
+ * @returns True if workspace is transitioning
+ */
+export function isWorkspaceInTransition(): boolean {
+  return isWorkspaceTransitioning;
+}
+
 export const useWorkflowRegistry = create<WorkflowRegistry>()(
   devtools(
     (set, get) => ({
@@ -178,10 +213,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
+        // Set transition state
+        setWorkspaceTransitioning(true);
+        
         logger.info(`Switching from deleted workspace ${currentWorkspaceId} to ${newWorkspaceId}`)
 
         // Reset all workflow state
         resetWorkflowStores()
+        
+        // Reset registry initialization state
+        resetRegistryInitialization();
 
         // Save to localStorage for persistence
         if (typeof window !== 'undefined') {
@@ -203,6 +244,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
             // Clean up any stale localStorage data
             cleanupLocalStorageForWorkspace(newWorkspaceId)
+            
+            // End transition state
+            setWorkspaceTransitioning(false);
           })
           .catch((error) => {
             logger.error('Error fetching workflows after workspace deletion:', {
@@ -210,6 +254,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               workspaceId: newWorkspaceId,
             })
             set({ isLoading: false, error: 'Failed to load workspace data' })
+            
+            // End transition state even on error
+            setWorkspaceTransitioning(false);
           })
       },
 
@@ -221,11 +268,23 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         if (id === currentWorkspaceId) {
           return
         }
+        
+        // Prevent multiple workspace transitions at once
+        if (isWorkspaceTransitioning) {
+          logger.warn('Workspace already transitioning, ignoring new request');
+          return;
+        }
+
+        // Set transition state
+        setWorkspaceTransitioning(true);
 
         logger.info(`Switching workspace from ${currentWorkspaceId} to ${id}`)
 
         // Reset all workflow state
         resetWorkflowStores()
+        
+        // Reset registry initialization state
+        resetRegistryInitialization();
 
         // Save to localStorage for persistence
         if (typeof window !== 'undefined') {
@@ -250,10 +309,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
             // Clean up any stale localStorage data for this workspace
             cleanupLocalStorageForWorkspace(id)
+            
+            // End transition state
+            setWorkspaceTransitioning(false);
           })
           .catch((error) => {
             logger.error('Error fetching workflows for workspace:', { error, workspaceId: id })
             set({ isLoading: false, error: 'Failed to load workspace data' })
+            
+            // End transition state even on error
+            setWorkspaceTransitioning(false);
           })
       },
 
@@ -322,8 +387,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: parsedState.lastSaved || Date.now(),
           })
-
-          logger.info(`Switched to workflow ${id}`)
         } else {
           // If no saved state, initialize with empty state
           useWorkflowStore.setState({
@@ -574,8 +637,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useWorkflowStore.setState(initialState)
         }
 
+        // Mark as dirty to ensure sync
+        useWorkflowStore.getState().sync.markDirty();
+        
         // Trigger sync
-        workflowSync.sync()
+        useWorkflowStore.getState().sync.forceSync()
 
         logger.info(`Created new workflow with ID ${id} in workspace ${workspaceId || 'none'}`)
 
@@ -654,8 +720,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useSubBlockStore.getState().initializeFromWorkflow(id, state.blocks)
         }
 
-        // Trigger sync to save to the database with marketplace attributes
-        workflowSync.sync()
+        // Mark as dirty to ensure sync
+        useWorkflowStore.getState().sync.markDirty();
+        
+        // Trigger sync
+        useWorkflowStore.getState().sync.forceSync()
 
         logger.info(`Created marketplace workflow ${id} imported from ${marketplaceId}`)
 
@@ -751,8 +820,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           saveSubblockValues(id, JSON.parse(JSON.stringify(sourceSubblockValues)))
         }
 
+        // Mark as dirty to ensure sync
+        useWorkflowStore.getState().sync.markDirty();
+        
         // Trigger sync
-        workflowSync.sync()
+        useWorkflowStore.getState().sync.forceSync()
 
         logger.info(`Duplicated workflow ${sourceId} to ${id}`)
 
@@ -783,8 +855,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             logger.error(`Error cancelling schedule for deleted workflow ${id}:`, { error })
           })
 
+          // Mark as dirty to ensure sync
+          useWorkflowStore.getState().sync.markDirty();
+          
           // Sync deletion with database
-          workflowSync.sync()
+          useWorkflowStore.getState().sync.forceSync()
 
           // If deleting active workflow, switch to another one
           let newActiveWorkflowId = state.activeWorkflowId
@@ -874,8 +949,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           // Update localStorage
           saveRegistry(updatedWorkflows)
 
+          // Mark as dirty to ensure sync
+          useWorkflowStore.getState().sync.markDirty();
+          
           // Use PUT for workflow updates
-          workflowSync.sync()
+          useWorkflowStore.getState().sync.forceSync()
 
           return {
             workflows: updatedWorkflows,

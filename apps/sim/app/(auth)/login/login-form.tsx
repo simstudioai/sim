@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -35,11 +35,16 @@ export default function LoginPage({
   isProduction: boolean
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [, setMounted] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const { addNotification } = useNotificationStore()
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
+
+  // Initialize state for URL parameters
+  const [callbackUrl, setCallbackUrl] = useState('/w')
+  const [isInviteFlow, setIsInviteFlow] = useState(false)
 
   // Forgot password states
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
@@ -50,9 +55,21 @@ export default function LoginPage({
     message: string
   }>({ type: null, message: '' })
 
+  // Extract URL parameters after component mounts to avoid SSR issues
   useEffect(() => {
     setMounted(true)
-  }, [])
+
+    // Only access search params on the client side
+    if (searchParams) {
+      const callback = searchParams.get('callbackUrl')
+      if (callback) {
+        setCallbackUrl(callback)
+      }
+
+      const inviteFlow = searchParams.get('invite_flow') === 'true'
+      setIsInviteFlow(inviteFlow)
+    }
+  }, [searchParams])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -62,11 +79,12 @@ export default function LoginPage({
     const email = formData.get('email') as string
 
     try {
+      // Use the extracted callbackUrl instead of hardcoded value
       const result = await client.signIn.email(
         {
           email,
           password,
-          callbackURL: '/w',
+          callbackURL: callbackUrl,
         },
         {
           onError: (ctx) => {
@@ -214,16 +232,22 @@ export default function LoginPage({
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Welcome back</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardDescription>
+              {isInviteFlow
+                ? 'Sign in to continue to the invitation'
+                : 'Enter your credentials to access your account'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-6">
-              <SocialLoginButtons
-                githubAvailable={githubAvailable}
-                googleAvailable={googleAvailable}
-                callbackURL="/w"
-                isProduction={isProduction}
-              />
+              {mounted && (
+                <SocialLoginButtons
+                  githubAvailable={githubAvailable}
+                  googleAvailable={googleAvailable}
+                  callbackURL={callbackUrl}
+                  isProduction={isProduction}
+                />
+              )}
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
@@ -289,7 +313,10 @@ export default function LoginPage({
           <CardFooter>
             <p className="text-sm text-gray-500 text-center w-full">
               Don't have an account?{' '}
-              <Link href="/signup" className="text-primary hover:underline">
+              <Link
+                href={mounted && searchParams ? `/signup?${searchParams.toString()}` : '/signup'}
+                className="text-primary hover:underline"
+              >
                 Sign up
               </Link>
             </p>
