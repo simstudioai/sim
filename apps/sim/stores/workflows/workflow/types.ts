@@ -17,6 +17,7 @@ export interface BlockState {
   horizontalHandles?: boolean
   isWide?: boolean
   height?: number
+  data?: Record<string, any>
 }
 
 export interface SubBlockState {
@@ -57,8 +58,10 @@ export interface SyncControl {
 }
 
 export interface WorkflowActions {
-  addBlock: (id: string, type: string, name: string, position: Position) => void
+  addBlock: (id: string, type: string, name: string, position: Position, data?: Record<string, any>, parentId?: string, extent?: 'parent') => void
   updateBlockPosition: (id: string, position: Position) => void
+  updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
+  updateParentId: (id: string, parentId: string, extent: 'parent') => void
   removeBlock: (id: string) => void
   addEdge: (edge: Edge) => void
   removeEdge: (edgeId: string) => void
