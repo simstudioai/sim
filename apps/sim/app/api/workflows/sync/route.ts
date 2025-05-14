@@ -47,8 +47,57 @@ const SyncPayloadSchema = z.object({
   workspaceId: z.string().optional(),
 })
 
+// Cache for workspace membership to reduce DB queries
+const workspaceMembershipCache = new Map<string, { role: string, expires: number }>();
+const CACHE_TTL = 60000; // 1 minute cache expiration
+
+/**
+ * Efficiently verifies user's membership and role in a workspace with caching
+ * @param userId User ID to check
+ * @param workspaceId Workspace ID to check
+ * @returns Role if user is a member, null otherwise
+ */
+async function verifyWorkspaceMembership(userId: string, workspaceId: string): Promise<string | null> {
+  // Create cache key from userId and workspaceId
+  const cacheKey = `${userId}:${workspaceId}`;
+  
+  // Check cache first
+  const cached = workspaceMembershipCache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return cached.role;
+  }
+  
+  // If not in cache or expired, query the database
+  try {
+    const membership = await db
+      .select({ role: workspaceMember.role })
+      .from(workspaceMember)
+      .where(and(
+        eq(workspaceMember.workspaceId, workspaceId),
+        eq(workspaceMember.userId, userId)
+      ))
+      .then((rows) => rows[0]);
+    
+    if (!membership) {
+      return null;
+    }
+    
+    // Cache the result
+    workspaceMembershipCache.set(cacheKey, {
+      role: membership.role,
+      expires: Date.now() + CACHE_TTL
+    });
+    
+    return membership.role;
+  } catch (error) {
+    logger.error(`Error verifying workspace membership for ${userId} in ${workspaceId}:`, error);
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
   const url = new URL(request.url)
   const workspaceId = url.searchParams.get('workspaceId')
 
@@ -62,8 +111,9 @@ export async function GET(request: Request) {
 
     const userId = session.user.id
 
-    // If workspaceId is provided, verify it exists first
+    // If workspaceId is provided, verify it exists and user is a member
     if (workspaceId) {
+      // Check workspace exists first
       const workspaceExists = await db
         .select({ id: workspace.id })
         .from(workspace)
@@ -80,17 +130,10 @@ export async function GET(request: Request) {
         )
       }
 
-      // Verify the user is a member of the workspace
-      const isMember = await db
-        .select({ id: workspaceMember.id })
-        .from(workspaceMember)
-        .where(and(
-          eq(workspaceMember.workspaceId, workspaceId),
-          eq(workspaceMember.userId, userId)
-        ))
-        .then((rows) => rows.length > 0)
-
-      if (!isMember) {
+      // Verify the user is a member of the workspace using our optimized function
+      const userRole = await verifyWorkspaceMembership(userId, workspaceId)
+      
+      if (!userRole) {
         logger.warn(
           `[${requestId}] User ${userId} attempted to access workspace ${workspaceId} without membership`
         )
@@ -100,8 +143,10 @@ export async function GET(request: Request) {
         )
       }
 
-      // Migrate any orphaned workflows to this workspace
-      await migrateOrphanedWorkflows(userId, workspaceId)
+      // Migrate any orphaned workflows to this workspace (in background)
+      migrateOrphanedWorkflows(userId, workspaceId).catch(error => {
+        logger.error(`[${requestId}] Error migrating orphaned workflows:`, error)
+      })
     }
 
     // Fetch workflows for the user
@@ -119,10 +164,14 @@ export async function GET(request: Request) {
       workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
     }
 
+    const elapsed = Date.now() - startTime
+    logger.info(`[${requestId}] Workflow fetch completed in ${elapsed}ms for ${workflows.length} workflows`)
+    
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })
   } catch (error: any) {
-    logger.error(`[${requestId}] Workflow fetch error`, error)
+    const elapsed = Date.now() - startTime
+    logger.error(`[${requestId}] Workflow fetch error after ${elapsed}ms`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
@@ -144,15 +193,35 @@ async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
       `Migrating ${orphanedWorkflows.length} orphaned workflows to workspace ${workspaceId}`
     )
 
-    // Update each workflow to associate it with the provided workspace
-    for (const { id } of orphanedWorkflows) {
+    // Update workflows in batch if possible
+    try {
+      // Batch update all orphaned workflows
       await db
         .update(workflow)
         .set({
           workspaceId: workspaceId,
           updatedAt: new Date(),
         })
-        .where(eq(workflow.id, id))
+        .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
+        
+      logger.info(`Successfully migrated ${orphanedWorkflows.length} workflows to workspace ${workspaceId}`)
+    } catch (batchError) {
+      logger.warn('Batch migration failed, falling back to individual updates:', batchError)
+      
+      // Fallback to individual updates if batch update fails
+      for (const { id } of orphanedWorkflows) {
+        try {
+          await db
+            .update(workflow)
+            .set({
+              workspaceId: workspaceId,
+              updatedAt: new Date(),
+            })
+            .where(eq(workflow.id, id))
+        } catch (updateError) {
+          logger.error(`Failed to migrate workflow ${id}:`, updateError)
+        }
+      }
     }
   } catch (error) {
     logger.error('Error migrating orphaned workflows:', error)
@@ -162,6 +231,7 @@ async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
 
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
 
   try {
     const session = await getSession()
@@ -182,20 +252,22 @@ export async function POST(req: NextRequest) {
 
         if (workspaceId) {
           existingWorkflows = await db
-            .select()
+            .select({ id: workflow.id })
             .from(workflow)
-            .where(and(eq(workflow.userId, session.user.id), eq(workflow.workspaceId, workspaceId)))
+            .where(eq(workflow.workspaceId, workspaceId))
+            .limit(1)
         } else {
           existingWorkflows = await db
-            .select()
+            .select({ id: workflow.id })
             .from(workflow)
             .where(eq(workflow.userId, session.user.id))
+            .limit(1)
         }
 
         // If user has existing workflows, but client sends empty, reject the sync
         if (existingWorkflows.length > 0) {
           logger.warn(
-            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has ${existingWorkflows.length} workflows in workspace ${workspaceId || 'default'}`
+            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has workflows in workspace ${workspaceId || 'default'}`
           )
           return NextResponse.json(
             {
@@ -230,17 +302,10 @@ export async function POST(req: NextRequest) {
           )
         }
 
-        // Verify the user is a member of the workspace
-        const membership = await db
-          .select({ role: workspaceMember.role })
-          .from(workspaceMember)
-          .where(and(
-            eq(workspaceMember.workspaceId, workspaceId),
-            eq(workspaceMember.userId, session.user.id)
-          ))
-          .then((rows) => rows[0])
+        // Verify the user is a member of the workspace using our optimized function
+        userRole = await verifyWorkspaceMembership(session.user.id, workspaceId)
 
-        if (!membership) {
+        if (!userRole) {
           logger.warn(
             `[${requestId}] User ${session.user.id} attempted to sync to workspace ${workspaceId} without membership`
           )
@@ -249,9 +314,6 @@ export async function POST(req: NextRequest) {
             { status: 403 }
           )
         }
-
-        // Store user's role for permission checks later
-        userRole = membership.role;
       }
 
       // Get all workflows for the workspace from the database
@@ -372,7 +434,16 @@ export async function POST(req: NextRequest) {
       // Execute all operations in parallel
       await Promise.all(operations)
 
-      return NextResponse.json({ success: true })
+      const elapsed = Date.now() - startTime
+      
+      return NextResponse.json({ 
+        success: true,
+        stats: {
+          elapsed,
+          operations: operations.length,
+          workflows: Object.keys(clientWorkflows).length
+        }
+      })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
         logger.warn(`[${requestId}] Invalid workflow data`, {
@@ -386,7 +457,8 @@ export async function POST(req: NextRequest) {
       throw validationError
     }
   } catch (error) {
-    logger.error(`[${requestId}] Workflow sync error`, error)
+    const elapsed = Date.now() - startTime
+    logger.error(`[${requestId}] Workflow sync error after ${elapsed}ms`, error)
     return NextResponse.json({ error: 'Workflow sync failed' }, { status: 500 })
   }
 }
