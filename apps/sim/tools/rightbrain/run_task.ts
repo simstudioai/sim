@@ -34,7 +34,6 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
     inputs: {
       type: 'object',
       required: true,
-      requiredForToolCall: true,
       description: 'Task inputs',
     },
     apiKey: {

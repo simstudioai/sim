@@ -9,7 +9,7 @@ export const RightBrainBlock: BlockConfig<RightBrainRunTaskResponse> = {
   longDescription:
     'Rightbrain lets you reliably deploy LLMs for specific tasks across any app or workflow by turning simple instructions into scalable APIs.',
   docsLink: 'https://docs.rightbrain.ai/intro',
-  category: 'blocks',
+  category: 'tools',
   bgColor: '#E0E0E0',
   icon: RightBrainIcon,
   subBlocks: [
