@@ -26,6 +26,21 @@ export interface SubBlockState {
   value: string | number | string[][] | null
 }
 
+export interface LoopBlock {
+  id: string;
+  loopType: 'for' | 'forEach';
+  count: number;  // UI representation of iterations
+  collection: string;  // UI representation of forEachItems
+  width: number;
+  height: number;
+  executionState: {
+    currentIteration: number;
+    isExecuting: boolean;
+    startTime: null | number;
+    endTime: null | number;
+  }
+}
+
 export interface Loop {
   id: string
   nodes: string[]
@@ -38,7 +53,8 @@ export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
-  // loops: Record<string, Loop>
+  loopBlocks: Record<string, Loop>
+  loops: Record<string, Loop>
   lastUpdate?: number
   isDeployed?: boolean
   deployedAt?: Date
@@ -74,9 +90,10 @@ export interface WorkflowActions {
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
-  // updateLoopIterations: (loopId: string, iterations: number) => void
-  // updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
-  // updateLoopForEachItems: (loopId: string, items: string) => void
+  updateLoopCount: (loopId: string, count: number) => void
+  updateLoopType: (loopId: string, loopType: 'for' | 'forEach') => void
+  updateLoopCollection: (loopId: string, collection: string) => void
+  generateLoopBlocks: () => Record<string, Loop>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
