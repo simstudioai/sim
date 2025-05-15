@@ -63,6 +63,11 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
   },
   transformResponse: async (response) => {
     const data = await response.json()
+
+    if (data?.is_error) {
+      throw new Error(data.response?.detail?.message || 'Failed to run task')
+    }
+
     return {
       success: true,
       output: {
