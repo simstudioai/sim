@@ -18,9 +18,9 @@ import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edge'
-import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
-import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
-import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
+// import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
+// import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
+// import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
 import { getBlock } from '@/blocks'
 import { SubBlockConfig } from '@/blocks/types'
 
@@ -56,8 +56,8 @@ interface ExtendedSubBlockConfig extends SubBlockConfig {
 // Define node types
 const nodeTypes: NodeTypes = {
   workflowBlock: PreviewWorkflowBlock,
-  loopLabel: LoopLabel,
-  loopInput: LoopInput,
+  // loopLabel: LoopLabel,
+  // loopInput: LoopInput,
 }
 
 // Define edge types
@@ -513,21 +513,21 @@ function WorkflowPreviewContent({
     const nodeArray: Node[] = []
 
     // Add loop nodes
-    Object.entries(workflowState.loops || {}).forEach(([loopId, loop]) => {
-      const loopNodes = createLoopNode({
-        loopId,
-        loop: loop as any,
-        blocks: workflowState.blocks,
-      })
+    // Object.entries(workflowState.loops || {}).forEach(([loopId, loop]) => {
+    //   const loopNodes = createLoopNode({
+    //     loopId,
+    //     loop: loop as any,
+    //     blocks: workflowState.blocks,
+    //   })
 
-      if (loopNodes) {
-        if (Array.isArray(loopNodes)) {
-          nodeArray.push(...(loopNodes as Node[]))
-        } else {
-          nodeArray.push(loopNodes)
-        }
-      }
-    })
+    //   if (loopNodes) {
+    //     if (Array.isArray(loopNodes)) {
+    //       nodeArray.push(...(loopNodes as Node[]))
+    //     } else {
+    //       nodeArray.push(loopNodes)
+    //     }
+    //   }
+    // })
 
     // Add block nodes
     Object.entries(workflowState.blocks).forEach(([blockId, block]) => {

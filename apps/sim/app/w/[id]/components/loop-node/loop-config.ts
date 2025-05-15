@@ -15,7 +15,6 @@ export const LoopTool = {
     width: 500,
     height: 300,
     extent: 'parent',
-    // Store loop execution state
     executionState: {
       currentIteration: 0,
       isExecuting: false,
