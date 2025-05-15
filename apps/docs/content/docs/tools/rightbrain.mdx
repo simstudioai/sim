@@ -443,17 +443,18 @@ To use the Rightbrain tool in Sim Studio:
 
 - **Fetch your API Key**: Obtain your API key from your [Rightbrain dashboard](https://app.rightbrain.ai/preferences?tab=api-clients).
 - **Get Task Details**: Navigate to the specific Rightbrain Task you want to run. From the Task Run view, click the **Integrate** button.
-  - **Copy Task Run URL**: Click the **Task Run URL** to copy it.
-  - **Copy Example Input JSON**: Copy the example `task_input` structure.
+  - **Fetch API Key**: Create or choose an existing API key and copy it.
+  - **Task Run URL**: Click the **Task Run URL** button from the Quick Copy section to copy it.
+  - **Task Input JSON**: Copy the example `task_input` structure.
 
 ### Sim Studio
 
-- **Select the Rightbrain Tool**: Drag into the Sim Studio canvas.
-- Paste the **Task Run URL** into the "Task URL" field in the Rightbrain tool.
+- **Rightbrain Tool**: Drag the Rightbrain tool into the Sim Studio canvas.
+- Paste the **Task Run URL** into the "Task URL" input field.
 - Paste the example **Task Inputs** JSON object in the "Task Inputs" code field. This is where you will want to dynamically inject Sim Studio variables from previous blocks/tools in your workflow.
-- Paste your **Rightbrain API Key** into the "API Key" field.
+- Paste your **Rightbrain API Key** into the "API Key" input field.
 
-Sim Studio will then be able to execute your Rightbrain task, and the results will be available via the tool's output `response` object.
+Sim Studio will then be able to execute your Rightbrain task, and the results will be available via the tool's `response` object.
 {/* MANUAL-CONTENT-END */}
 
 Rightbrain lets you reliably deploy LLMs for specific tasks across any app or workflow by turning simple instructions into scalable APIs.
