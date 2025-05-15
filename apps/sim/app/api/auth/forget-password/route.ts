@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 
+export async function generateStaticParams() {
+  return []
+}
+
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('ForgetPasswordAPI')
 
 export async function POST(request: NextRequest) {

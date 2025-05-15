@@ -7,6 +7,12 @@ interface DiscordServer {
   icon: string | null
 }
 
+export async function generateStaticParams() {
+  return []
+}
+
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('DiscordServersAPI')
 
 export async function POST(request: Request) {

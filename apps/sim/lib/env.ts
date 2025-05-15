@@ -1,7 +1,12 @@
 import { createEnv } from '@t3-oss/env-nextjs'
+import { env as runtimeEnv } from 'next-runtime-env'
 import { z } from 'zod'
 
+const getEnv = (variable: string) => runtimeEnv(variable) ?? process.env[variable]
+
 export const env = createEnv({
+  skipValidation: true,
+
   server: {
     DATABASE_URL: z.string().url(),
     BETTER_AUTH_URL: z.string().url(),
@@ -89,6 +94,7 @@ export const env = createEnv({
     DISCORD_CLIENT_SECRET: z.string().optional(),
     HUBSPOT_CLIENT_ID: z.string().optional(),
     HUBSPOT_CLIENT_SECRET: z.string().optional(),
+    DOCKER_BUILD: z.boolean().optional(),
   },
 
   client: {
@@ -100,84 +106,13 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: z.string().optional(),
   },
 
-  runtimeEnv: {
-    DATABASE_URL: process.env.DATABASE_URL,
-    POSTGRES_URL: process.env.POSTGRES_URL,
-    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-    STRIPE_FREE_PRICE_ID: process.env.STRIPE_FREE_PRICE_ID,
-    STRIPE_PRO_PRICE_ID: process.env.STRIPE_PRO_PRICE_ID,
-    STRIPE_TEAM_PRICE_ID: process.env.STRIPE_TEAM_PRICE_ID,
-    STRIPE_ENTERPRISE_PRICE_ID: process.env.STRIPE_ENTERPRISE_PRICE_ID,
-    RESEND_API_KEY: process.env.RESEND_API_KEY,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-    OPENAI_API_KEY_1: process.env.OPENAI_API_KEY_1,
-    OPENAI_API_KEY_2: process.env.OPENAI_API_KEY_2,
-    OPENAI_API_KEY_3: process.env.OPENAI_API_KEY_3,
-    ANTHROPIC_API_KEY_1: process.env.ANTHROPIC_API_KEY_1,
-    ANTHROPIC_API_KEY_2: process.env.ANTHROPIC_API_KEY_2,
-    ANTHROPIC_API_KEY_3: process.env.ANTHROPIC_API_KEY_3,
-    FREESTYLE_API_KEY: process.env.FREESTYLE_API_KEY,
-    TELEMETRY_ENDPOINT: process.env.TELEMETRY_ENDPOINT,
-    COST_MULTIPLIER: process.env.COST_MULTIPLIER,
-    FREE_TIER_COST_LIMIT: process.env.FREE_TIER_COST_LIMIT,
-    PRO_TIER_COST_LIMIT: process.env.PRO_TIER_COST_LIMIT,
-    TEAM_TIER_COST_LIMIT: process.env.TEAM_TIER_COST_LIMIT,
-    ENTERPRISE_TIER_COST_LIMIT: process.env.ENTERPRISE_TIER_COST_LIMIT,
-    ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
-    JWT_SECRET: process.env.JWT_SECRET,
-    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
-    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
-    BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
-    OLLAMA_HOST: process.env.OLLAMA_HOST,
-    SENTRY_ORG: process.env.SENTRY_ORG,
-    SENTRY_PROJECT: process.env.SENTRY_PROJECT,
-    SENTRY_AUTH_TOKEN: process.env.SENTRY_AUTH_TOKEN,
-    FREE_PLAN_LOG_RETENTION_DAYS: process.env.FREE_PLAN_LOG_RETENTION_DAYS,
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-    GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
-    GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
-    GITHUB_REPO_CLIENT_ID: process.env.GITHUB_REPO_CLIENT_ID,
-    GITHUB_REPO_CLIENT_SECRET: process.env.GITHUB_REPO_CLIENT_SECRET,
-    X_CLIENT_ID: process.env.X_CLIENT_ID,
-    X_CLIENT_SECRET: process.env.X_CLIENT_SECRET,
-    CONFLUENCE_CLIENT_ID: process.env.CONFLUENCE_CLIENT_ID,
-    CONFLUENCE_CLIENT_SECRET: process.env.CONFLUENCE_CLIENT_SECRET,
-    JIRA_CLIENT_ID: process.env.JIRA_CLIENT_ID,
-    JIRA_CLIENT_SECRET: process.env.JIRA_CLIENT_SECRET,
-    AIRTABLE_CLIENT_ID: process.env.AIRTABLE_CLIENT_ID,
-    AIRTABLE_CLIENT_SECRET: process.env.AIRTABLE_CLIENT_SECRET,
-    SUPABASE_CLIENT_ID: process.env.SUPABASE_CLIENT_ID,
-    SUPABASE_CLIENT_SECRET: process.env.SUPABASE_CLIENT_SECRET,
-    NOTION_CLIENT_ID: process.env.NOTION_CLIENT_ID,
-    NOTION_CLIENT_SECRET: process.env.NOTION_CLIENT_SECRET,
-    DISCORD_CLIENT_ID: process.env.DISCORD_CLIENT_ID,
-    DISCORD_CLIENT_SECRET: process.env.DISCORD_CLIENT_SECRET,
-    HUBSPOT_CLIENT_ID: process.env.HUBSPOT_CLIENT_ID,
-    HUBSPOT_CLIENT_SECRET: process.env.HUBSPOT_CLIENT_SECRET,
-
-    REDIS_URL: process.env.REDIS_URL,
-    NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED,
-    NEXT_RUNTIME: process.env.NEXT_RUNTIME,
-    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
-    VERCEL_ENV: process.env.VERCEL_ENV,
-    CRON_SECRET: process.env.CRON_SECRET,
-    NODE_ENV: process.env.NODE_ENV,
-
-    AWS_REGION: process.env.AWS_REGION,
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-    S3_BUCKET_NAME: process.env.S3_BUCKET_NAME,
-    USE_S3: process.env.USE_S3,
-
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
-    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
+  // Only need to define client variables, server variables are automatically handled
+  experimental__runtimeEnv: {
+    NEXT_PUBLIC_APP_URL: getEnv('NEXT_PUBLIC_APP_URL'),
+    NEXT_PUBLIC_VERCEL_URL: getEnv('NEXT_PUBLIC_VERCEL_URL'),
+    NEXT_PUBLIC_SENTRY_DSN: getEnv('NEXT_PUBLIC_SENTRY_DSN'),
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'),
+    NEXT_PUBLIC_GOOGLE_API_KEY: getEnv('NEXT_PUBLIC_GOOGLE_API_KEY'),
+    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
   },
 })

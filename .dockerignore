@@ -8,3 +8,4 @@ README.md
 .github
 .devcontainer
 .env.example
+node_modules

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getCredential, getUserId, refreshTokenIfNeeded } from '../utils'
 
+export async function generateStaticParams() {
+  return []
+}
+
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('OAuthTokenAPI')
 
 /**

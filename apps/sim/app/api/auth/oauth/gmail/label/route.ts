@@ -6,6 +6,12 @@ import { db } from '@/db'
 import { account } from '@/db/schema'
 import { refreshAccessTokenIfNeeded } from '../../utils'
 
+export async function generateStaticParams() {
+  return []
+}
+
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('GmailLabelAPI')
 
 export async function GET(request: NextRequest) {
