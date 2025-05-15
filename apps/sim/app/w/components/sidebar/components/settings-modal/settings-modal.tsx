@@ -65,9 +65,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           setIsPro(subData.isPro)
           setIsTeam(subData.isTeam)
           setIsEnterprise(subData.isEnterprise)
-
-          // No longer redirecting to general if they have a team subscription but no org
-          // Instead, let them see the team tab where they can create an org
         }
 
         const usageResponse = await fetch('/api/user/usage')
@@ -139,7 +136,6 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const isSubscriptionEnabled = !!client.subscription
 
-  // Always show team tab if user has team or enterprise subscription
   const showTeamManagement = isTeam || isEnterprise
 
   return (

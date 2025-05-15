@@ -54,7 +54,6 @@ export function useUserSubscription(): UserSubscription {
 
     fetchSubscription()
 
-    // Cleanup function to prevent state updates after unmount
     return () => {
       mounted = false
     }

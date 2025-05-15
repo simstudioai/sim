@@ -97,12 +97,11 @@ export function SettingsNavigation({
   isEnterprise = false,
 }: SettingsNavigationProps) {
   const navigationItems = allNavigationItems.filter((item) => {
-    // Hide items based on development environment
     if (item.hideInDev && isDev) {
       return false
     }
 
-    // Hide team tab if user doesn't have team subscription
+    // Hide team tab if user doesn't have team or enterprisesubscription
     if (item.requiresTeam && !isTeam && !isEnterprise) {
       return false
     }

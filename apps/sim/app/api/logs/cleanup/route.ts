@@ -24,7 +24,6 @@ export async function POST(request: Request) {
       retentionDate.getDate() - Number(process.env.FREE_PLAN_LOG_RETENTION_DAYS)
     )
 
-    // Find all free users (users without an active subscription)
     const freeUsers = await db
       .select({ userId: user.id })
       .from(user)
@@ -42,8 +41,6 @@ export async function POST(request: Request) {
     const freeUserIds = freeUsers.map((u) => u.userId)
     logger.info(`Found ${freeUserIds.length} free users for log cleanup`)
 
-    // Delete logs older than retention date for free users
-    // First, get the workflows owned by free users
     const freeUserWorkflows = await db
       .select({ workflowId: workflowLogs.workflowId })
       .from(workflowLogs)
@@ -60,7 +57,6 @@ export async function POST(request: Request) {
 
     const workflowIds = freeUserWorkflows.map((w) => w.workflowId)
 
-    // Delete logs for these workflows that are older than the retention date
     const result = await db
       .delete(workflowLogs)
       .where(

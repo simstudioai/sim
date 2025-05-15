@@ -10,7 +10,6 @@ const logger = createLogger('EnterpriseSubscriptionAPI')
 
 export async function GET() {
   try {
-    // Get current authenticated user
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -19,7 +18,6 @@ export async function GET() {
 
     const userId = session.user.id
 
-    // First check for direct enterprise subscription
     const userSubscriptions = await db
       .select()
       .from(subscription)
@@ -36,13 +34,11 @@ export async function GET() {
       })
     }
 
-    // If no direct subscription, check for organization memberships
     const memberships = await db
       .select({ organizationId: member.organizationId })
       .from(member)
       .where(eq(member.userId, userId))
 
-    // Check each organization for enterprise subscription
     for (const { organizationId } of memberships) {
       const orgSubscriptions = await db
         .select()
@@ -65,7 +61,6 @@ export async function GET() {
       }
     }
 
-    // No enterprise subscription found
     return NextResponse.json({
       success: false,
       subscription: null,

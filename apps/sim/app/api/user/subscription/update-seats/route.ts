@@ -14,7 +14,6 @@ const updateSeatsSchema = z.object({
   seats: z.number().int().positive(),
 })
 
-// Define a schema for subscription metadata
 const subscriptionMetadataSchema = z
   .object({
     perSeatAllowance: z.number().positive().optional(),
@@ -32,7 +31,6 @@ interface SubscriptionMetadata {
 
 export async function POST(req: Request) {
   try {
-    // Get current authenticated user
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -54,7 +52,6 @@ export async function POST(req: Request) {
 
     const { subscriptionId, seats } = validationResult.data
 
-    // Query for the subscription
     const subscriptions = await db
       .select()
       .from(subscription)
@@ -67,7 +64,6 @@ export async function POST(req: Request) {
 
     const sub = subscriptions[0]
 
-    // Verify this is an enterprise subscription
     if (!checkEnterprisePlan(sub)) {
       return NextResponse.json(
         {
@@ -77,12 +73,9 @@ export async function POST(req: Request) {
       )
     }
 
-    // Verify the user has permission to update this subscription
-    // Either they own it directly or are an admin/owner of the organization
     let hasPermission = sub.referenceId === session.user.id
 
     if (!hasPermission) {
-      // Check if user is an admin or owner of the organization that owns this subscription
       const memberships = await db
         .select()
         .from(member)
@@ -111,7 +104,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // Validate the metadata structure before modification
     let validatedMetadata: SubscriptionMetadata
     try {
       validatedMetadata = subscriptionMetadataSchema.parse(sub.metadata || {})
@@ -127,8 +119,6 @@ export async function POST(req: Request) {
       )
     }
 
-    // Update the subscription with new seat count
-    // For enterprise subscriptions, we need to recalculate the total allowance if it exists
     if (validatedMetadata.perSeatAllowance && validatedMetadata.perSeatAllowance > 0) {
       validatedMetadata.totalAllowance = seats * validatedMetadata.perSeatAllowance
       validatedMetadata.updatedAt = new Date().toISOString()

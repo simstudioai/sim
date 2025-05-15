@@ -15,7 +15,6 @@ const transferSubscriptionSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    // Get the authenticated user
     const session = await getSession()
 
     if (!session?.user?.id) {
@@ -23,7 +22,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Parse and validate the request body
     const body = await request.json()
     const validationResult = transferSubscriptionSchema.safeParse(body)
 
@@ -45,7 +43,6 @@ export async function POST(request: NextRequest) {
       organizationId,
     })
 
-    // Verify the user has access to both the subscription and organization
     const subscription = await db
       .select()
       .from(schema.subscription)
@@ -57,7 +54,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
     }
 
-    // Verify the subscription belongs to the user
     if (subscription.referenceId !== session.user.id) {
       logger.warn('Unauthorized subscription transfer - subscription does not belong to user', {
         userId: session.user.id,
@@ -69,7 +65,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify the organization exists
     const organization = await db
       .select()
       .from(schema.organization)
@@ -81,7 +76,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    // Verify the user has admin access to the organization (is owner or admin)
     const member = await db
       .select()
       .from(schema.member)
@@ -103,7 +97,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update the subscription to point to the organization instead of the user
     await db
       .update(schema.subscription)
       .set({ referenceId: organizationId })
