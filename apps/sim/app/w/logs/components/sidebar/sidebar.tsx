@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Code, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -11,6 +11,7 @@ import { formatDate } from '@/app/w/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
+import LogMarkdownRenderer from './components/markdown-renderer'
 
 interface LogSidebarProps {
   log: WorkflowLog | null
@@ -57,30 +58,38 @@ const formatJsonContent = (content: string): React.ReactNode => {
   if (match) {
     const systemComment = match[1]
     const actualContent = content.substring(match[0].length).trim()
-    const { formatted } = tryPrettifyJson(actualContent)
+    const { isJson, formatted } = tryPrettifyJson(actualContent)
 
     return (
       <div className="w-full">
         <div className="text-sm font-medium mb-2 text-muted-foreground">{systemComment}</div>
         <div className="bg-secondary/30 p-3 rounded-md relative group">
           <CopyButton text={formatted} className="h-7 w-7 z-10" />
-          <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-            {formatted}
-          </pre>
+          {isJson ? (
+            <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
+              {formatted}
+            </pre>
+          ) : (
+            <LogMarkdownRenderer content={formatted} />
+          )}
         </div>
       </div>
     )
   }
 
   // If no system comment pattern found, show the whole content
-  const { formatted } = tryPrettifyJson(content)
+  const { isJson, formatted } = tryPrettifyJson(content)
 
   return (
     <div className="bg-secondary/30 p-3 rounded-md relative group w-full">
       <CopyButton text={formatted} className="h-7 w-7 z-10" />
-      <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-        {formatted}
-      </pre>
+      {isJson ? (
+        <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
+          {formatted}
+        </pre>
+      ) : (
+        <LogMarkdownRenderer content={formatted} />
+      )}
     </div>
   )
 }

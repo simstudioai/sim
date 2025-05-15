@@ -400,9 +400,7 @@ export default function Logs() {
                           {/* Time column */}
                           <td className="px-4 py-3">
                             <div className="flex flex-col justify-center">
-                              <div
-                                className={`text-xs font-medium flex items-center ${isSelected ? 'text-foreground' : ''}`}
-                              >
+                              <div className="text-xs font-medium flex items-center">
                                 <span>{formattedDate.formatted}</span>
                                 <span className="mx-1.5 text-muted-foreground hidden xl:inline">
                                   •
@@ -466,19 +464,14 @@ export default function Logs() {
 
                           {/* Message column */}
                           <td className="px-4 py-3">
-                            <div
-                              className={`text-sm truncate ${isSelected ? 'text-foreground' : ''}`}
-                              title={log.message}
-                            >
+                            <div className="text-sm truncate" title={log.message}>
                               {log.message}
                             </div>
                           </td>
 
                           {/* Duration column */}
                           <td className="px-4 py-3">
-                            <div
-                              className={`text-xs ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}
-                            >
+                            <div className="text-xs text-muted-foreground">
                               {log.duration || '—'}
                             </div>
                           </td>
