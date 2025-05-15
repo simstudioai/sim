@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Building, CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +19,69 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
 
 const logger = createLogger('TeamManagement')
+
+type User = { name?: string; email?: string }
+
+type Member = {
+  id: string
+  role: string
+  user?: User
+}
+
+type Invitation = {
+  id: string
+  email: string
+  status: string
+}
+
+type Organization = {
+  id: string
+  name: string
+  slug: string
+  members?: Member[]
+  invitations?: Invitation[]
+  createdAt: string | Date
+  [key: string]: unknown
+}
+
+interface SubscriptionMetadata {
+  perSeatAllowance?: number
+  totalAllowance?: number
+  [key: string]: unknown
+}
+
+type Subscription = {
+  id: string
+  plan: string
+  status: string
+  seats?: number
+  referenceId: string
+  cancelAtPeriodEnd?: boolean
+  periodEnd?: number | Date
+  trialEnd?: number | Date
+  metadata?: SubscriptionMetadata
+  [key: string]: unknown
+}
+
+function calculateSeatUsage(org?: Organization | null) {
+  const members = org?.members?.length ?? 0
+  const pending = org?.invitations?.filter((inv) => inv.status === 'pending').length ?? 0
+  return { used: members + pending, members, pending }
+}
+
+function useOrganizationRole(userEmail: string | undefined, org: Organization | null | undefined) {
+  return useMemo(() => {
+    if (!userEmail || !org?.members) {
+      return { userRole: 'member', isAdminOrOwner: false }
+    }
+    const currentMember = org.members.find((m) => m.user?.email === userEmail)
+    const role = currentMember?.role ?? 'member'
+    return {
+      userRole: role,
+      isAdminOrOwner: role === 'owner' || role === 'admin',
+    }
+  }, [userEmail, org])
+}
 
 export function TeamManagement() {
   const { data: session } = useSession()
@@ -41,13 +104,16 @@ export function TeamManagement() {
   const [orgSlug, setOrgSlug] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState(false)
   const [activeTab, setActiveTab] = useState('members')
-  const [activeOrganization, setActiveOrganization] = useState<any>(null)
-  const [subscriptionData, setSubscriptionData] = useState<any>(null)
+  const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null)
+  const [subscriptionData, setSubscriptionData] = useState<Subscription | null>(null)
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false)
   const [hasTeamPlan, setHasTeamPlan] = useState(false)
   const [hasEnterprisePlan, setHasEnterprisePlan] = useState(false)
-  const [userRole, setUserRole] = useState<string>('member')
-  const [isAdminOrOwner, setIsAdminOrOwner] = useState(false)
+  const { userRole, isAdminOrOwner } = useOrganizationRole(session?.user?.email, activeOrganization)
+  const { used: usedSeats } = useMemo(
+    () => calculateSeatUsage(activeOrganization),
+    [activeOrganization]
+  )
 
   const loadData = useCallback(async () => {
     if (!session?.user) return
@@ -85,28 +151,12 @@ export function TeamManagement() {
     if (activeOrg) {
       setActiveOrganization(activeOrg)
 
-      // Determine the user's role in this organization
-      if (session?.user?.email && activeOrg.members) {
-        const currentMember = activeOrg.members.find(
-          (m: any) => m.user?.email === session.user?.email
-        )
-
-        if (currentMember) {
-          setUserRole(currentMember.role)
-          setIsAdminOrOwner(currentMember.role === 'owner' || currentMember.role === 'admin')
-          logger.info('User role in organization', {
-            role: currentMember.role,
-            isAdminOrOwner: currentMember.role === 'owner' || currentMember.role === 'admin',
-          })
-        }
-      }
-
       // Load subscription data for the organization
       if (activeOrg.id) {
         loadOrganizationSubscription(activeOrg.id)
       }
     }
-  }, [activeOrg, session?.user?.email])
+  }, [activeOrg])
 
   // Load organization's subscription data
   const loadOrganizationSubscription = async (orgId: string) => {
@@ -163,7 +213,7 @@ export function TeamManagement() {
                 }
               }
             } catch (err) {
-              logger.error('Error fetching enterprise subscription', err)
+              logger.error('Error fetching enterprise subscription', { error: err })
             }
           }
 
@@ -205,19 +255,20 @@ export function TeamManagement() {
   const handleReduceSeats = async () => {
     if (!session?.user || !activeOrganization || !subscriptionData) return
 
+    // Don't allow enterprise users to modify seats
+    if (checkEnterprisePlan(subscriptionData)) {
+      setError('Enterprise plan seats can only be modified by contacting support')
+      return
+    }
+
     const currentSeats = subscriptionData.seats || 0
     if (currentSeats <= 1) {
       setError('Cannot reduce seats below 1')
       return
     }
 
-    // Calculate current usage
-    const currentMemberCount = activeOrganization.members?.length || 0
-    const pendingInvitationCount =
-      activeOrganization.invitations?.filter((inv: any) => inv.status === 'pending').length || 0
-    const totalCount = currentMemberCount + pendingInvitationCount
+    const { used: totalCount } = calculateSeatUsage(activeOrganization)
 
-    // Check if we need to remove members before reducing seats
     if (totalCount >= currentSeats) {
       setError(
         `You have ${totalCount} active members/invitations. Please remove members or cancel invitations before reducing seats.`
@@ -226,66 +277,23 @@ export function TeamManagement() {
     }
 
     try {
-      setIsLoading(true)
-      setError(null)
-
-      // Reduce the seats by 1
-      const newSeatCount = currentSeats - 1
-
-      // If it's an enterprise plan, handle through custom endpoint
-      if (checkEnterprisePlan(subscriptionData)) {
-        // For enterprise plans, update via admin endpoint with credentials
-        const response = await fetch('/api/user/subscription/update-seats', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            subscriptionId: subscriptionData.id,
-            seats: newSeatCount,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to update seat count')
-        }
-      } else {
-        // For team plans, use the client API
-        const { error } = await client.subscription.upgrade({
-          plan: 'team',
-          referenceId: activeOrganization.id,
-          successUrl: window.location.href,
-          cancelUrl: window.location.href,
-          seats: newSeatCount,
-        })
-
-        if (error) {
-          throw new Error(error.message || 'Failed to update seat count')
-        }
-      }
-
+      await updateSeats(currentSeats - 1)
       await refreshOrganization()
     } catch (err: any) {
       setError(err.message || 'Failed to reduce seats')
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  // Generate a slug from organization name
   const generateSlug = (name: string) => {
     return name.toLowerCase().replace(/[^a-z0-9]/g, '-')
   }
 
-  // Handle organization name change
   const handleOrgNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
     setOrgName(newName)
     setOrgSlug(generateSlug(newName))
   }
 
-  // Create a new organization
   const handleCreateOrganization = async () => {
     if (!session?.user) return
 
@@ -318,9 +326,43 @@ export function TeamManagement() {
       // directly through a custom API endpoint instead of using upgrade
       if (hasTeamPlan || hasEnterprisePlan) {
         const userSubResponse = await client.subscription.list()
-        const teamSubscription = userSubResponse.data?.find(
+
+        let teamSubscription = userSubResponse.data?.find(
           (sub) => (sub.plan === 'team' || sub.plan === 'enterprise') && sub.status === 'active'
         )
+
+        // If no subscription was found through the client API but user has enterprise plan,
+        // fetch it directly through our enterprise subscription endpoint
+        if (!teamSubscription && hasEnterprisePlan) {
+          logger.info('No subscription found via client API, checking enterprise endpoint')
+          try {
+            const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+            if (enterpriseResponse.ok) {
+              const enterpriseData = await enterpriseResponse.json()
+              if (enterpriseData.subscription) {
+                teamSubscription = enterpriseData.subscription
+                logger.info('Found enterprise subscription via direct API', {
+                  subscriptionId: teamSubscription?.id,
+                  plan: teamSubscription?.plan,
+                  seats: teamSubscription?.seats,
+                })
+              }
+            }
+          } catch (err) {
+            logger.error('Error fetching enterprise subscription details', { error: err })
+          }
+        }
+
+        logger.info('Team subscription to transfer', {
+          found: !!teamSubscription,
+          details: teamSubscription
+            ? {
+                id: teamSubscription.id,
+                plan: teamSubscription.plan,
+                status: teamSubscription.status,
+              }
+            : null,
+        })
 
         if (teamSubscription) {
           logger.info('Found subscription to transfer', {
@@ -331,23 +373,40 @@ export function TeamManagement() {
           })
 
           // Use a custom API endpoint to transfer the subscription without going to Stripe
-          const transferResponse = await fetch('/api/user/transfer-subscription', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              subscriptionId: teamSubscription.id,
-              organizationId: orgId,
-            }),
-          })
+          try {
+            const transferResponse = await fetch(
+              `/api/user/subscription/${teamSubscription.id}/transfer`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  organizationId: orgId,
+                }),
+              }
+            )
 
-          if (!transferResponse.ok) {
-            const errorData = await transferResponse.json()
-            throw new Error(errorData.error || 'Failed to transfer subscription to organization')
+            if (!transferResponse.ok) {
+              const errorText = await transferResponse.text()
+              let errorMessage = 'Failed to transfer subscription'
+
+              try {
+                if (errorText && errorText.trim().startsWith('{')) {
+                  const errorData = JSON.parse(errorText)
+                  errorMessage = errorData.error || errorMessage
+                }
+              } catch (e) {
+                // Parsing failed, use the raw text
+                errorMessage = errorText || errorMessage
+              }
+
+              throw new Error(errorMessage)
+            }
+          } catch (transferError) {
+            logger.error('Subscription transfer failed', {
+              error: transferError instanceof Error ? transferError.message : String(transferError),
+            })
+            throw transferError
           }
-
-          logger.info('Successfully transferred subscription to organization')
         }
       }
 
@@ -422,30 +481,26 @@ export function TeamManagement() {
       setError(null)
       setInviteSuccess(false)
 
-      // Check seat limit - compare current members + pending invitations against seats
-      const currentMemberCount = activeOrganization.members?.length || 0
-      const pendingInvitationCount =
-        activeOrganization.invitations?.filter((inv: any) => inv.status === 'pending').length || 0
-      const totalCount = currentMemberCount + pendingInvitationCount
+      const {
+        used: totalCount,
+        pending: pendingInvitationCount,
+        members: currentMemberCount,
+      } = calculateSeatUsage(activeOrganization)
 
-      // Get the number of seats from subscription data
       const seatLimit = subscriptionData?.seats || 0
 
       logger.info('Checking seat availability for invitation', {
         currentMembers: currentMemberCount,
         pendingInvites: pendingInvitationCount,
         totalUsed: totalCount,
-        seatLimit: seatLimit,
+        seatLimit,
         subscriptionId: subscriptionData?.id,
       })
 
       if (totalCount >= seatLimit) {
-        const error = `You've reached your team seat limit of ${seatLimit}. Please upgrade your plan for more seats.`
-        logger.warn('Invitation failed - seat limit reached', {
-          totalCount,
-          seatLimit,
-        })
-        setError(error)
+        setError(
+          `You've reached your team seat limit of ${seatLimit}. Please upgrade your plan for more seats.`
+        )
         return
       }
 
@@ -516,35 +571,11 @@ export function TeamManagement() {
       // If the user opted to reduce seats as well
       if (shouldReduceSeats && subscriptionData) {
         const currentSeats = subscriptionData.seats || 0
-
         if (currentSeats > 1) {
-          // Determine if we're dealing with enterprise or team plan
-          if (checkEnterprisePlan(subscriptionData)) {
-            // Handle enterprise plan seat reduction
-            const response = await fetch('/api/user/subscription/update-seats', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                subscriptionId: subscriptionData.id,
-                seats: currentSeats - 1,
-              }),
-            })
-
-            if (!response.ok) {
-              const errorData = await response.json()
-              throw new Error(errorData.error || 'Failed to reduce seats')
-            }
-          } else {
-            // Handle team plan seat reduction
-            await client.subscription.upgrade({
-              plan: 'team',
-              referenceId: activeOrganization.id,
-              successUrl: window.location.href,
-              cancelUrl: window.location.href,
-              seats: currentSeats - 1,
-            })
+          try {
+            await updateSeats(currentSeats - 1)
+          } catch (err) {
+            throw err
           }
         }
       }
@@ -582,7 +613,6 @@ export function TeamManagement() {
     }
   }
 
-  // Get the effective plan name for display
   const getEffectivePlanName = () => {
     if (!subscriptionData) return 'No Plan'
 
@@ -597,6 +627,35 @@ export function TeamManagement() {
       )
     }
   }
+
+  const updateSeats = useCallback(
+    async (newSeatCount: number) => {
+      if (!subscriptionData || !activeOrganization) return
+
+      // Don't allow enterprise users to modify seats
+      if (checkEnterprisePlan(subscriptionData)) {
+        setError('Enterprise plan seats can only be modified by contacting support')
+        return
+      }
+
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        const { error } = await client.subscription.upgrade({
+          plan: 'team',
+          referenceId: activeOrganization.id,
+          successUrl: window.location.href,
+          cancelUrl: window.location.href,
+          seats: newSeatCount,
+        })
+        if (error) throw new Error(error.message || 'Failed to update seats')
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [subscriptionData, activeOrganization]
+  )
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return <TeamManagementSkeleton />
@@ -836,76 +895,47 @@ export function TeamManagement() {
                   <div className="flex justify-between text-sm mb-2">
                     <span>Used</span>
                     <span>
-                      {(activeOrganization.members?.length || 0) +
-                        (activeOrganization.invitations?.filter(
-                          (inv: any) => inv.status === 'pending'
-                        ).length || 0)}
-                      /{subscriptionData.seats || 0}
+                      {usedSeats}/{subscriptionData.seats || 0}
                     </span>
                   </div>
                   <Progress
-                    value={
-                      (((activeOrganization.members?.length || 0) +
-                        (activeOrganization.invitations?.filter(
-                          (inv: any) => inv.status === 'pending'
-                        ).length || 0)) /
-                        (subscriptionData.seats || 1)) *
-                      100
-                    }
+                    value={(usedSeats / (subscriptionData.seats || 1)) * 100}
                     className="h-2"
                   />
 
-                  <div className="mt-4 flex justify-between">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleReduceSeats}
-                      disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
-                    >
-                      Remove Seat
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        const currentSeats = subscriptionData.seats || 1
-
-                        // For enterprise plans, we need a custom endpoint
-                        if (checkEnterprisePlan(subscriptionData)) {
+                  {checkEnterprisePlan(subscriptionData) ? (
+                    <div></div>
+                  ) : (
+                    <div className="mt-4 flex justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleReduceSeats}
+                        disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
+                      >
+                        Remove Seat
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          const currentSeats = subscriptionData.seats || 1
                           try {
-                            const response = await fetch('/api/user/subscription/update-seats', {
-                              method: 'POST',
-                              headers: {
-                                'Content-Type': 'application/json',
-                              },
-                              body: JSON.stringify({
-                                subscriptionId: subscriptionData.id,
-                                seats: currentSeats + 1,
-                              }),
-                            })
-
-                            if (!response.ok) {
-                              const errorData = await response.json()
-                              throw new Error(errorData.error || 'Failed to update seats')
-                            }
-
+                            await updateSeats(currentSeats + 1)
                             await refreshOrganization()
                           } catch (error) {
                             const errorMessage =
                               error instanceof Error ? error.message : 'Failed to update seats'
                             setError(errorMessage)
-                            logger.error('Error updating enterprise seats', { error })
+                            logger.error('Error updating seats', { error })
                           }
-                        } else {
-                          // For team plans, use the normal upgrade flow
-                          await confirmTeamUpgrade(currentSeats + 1)
-                        }
-                      }}
-                      disabled={isLoading}
-                    >
-                      Add Seat
-                    </Button>
-                  </div>
+                        }}
+                        disabled={isLoading}
+                      >
+                        Add Seat
+                      </Button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground space-y-2">
@@ -969,7 +999,7 @@ export function TeamManagement() {
           </div>
 
           {/* Pending Invitations - only show to admins/owners */}
-          {isAdminOrOwner && activeOrganization.invitations?.length > 0 && (
+          {isAdminOrOwner && (activeOrganization.invitations?.length ?? 0) > 0 && (
             <div className="rounded-md border">
               <h4 className="text-sm font-medium p-4 border-b">Pending Invitations</h4>
 
@@ -1166,7 +1196,6 @@ export function TeamManagement() {
   )
 }
 
-// Skeleton component for team management loading state
 function TeamManagementSkeleton() {
   return (
     <div className="p-6 space-y-6">
@@ -1219,12 +1248,10 @@ function TeamManagementSkeleton() {
   )
 }
 
-// Skeleton component for loading state in buttons
 function ButtonSkeleton() {
   return <Skeleton className="h-9 w-24" />
 }
 
-// Skeleton component for loading state in team seats
 function TeamSeatsSkeleton() {
   return (
     <div className="flex items-center space-x-2">
