@@ -21,7 +21,8 @@ const MarketplaceDataSchema = z
 const WorkflowStateSchema = z.object({
   blocks: z.record(z.any()),
   edges: z.array(z.any()),
-  loops: z.record(z.any()),
+  loops: z.record(z.any()).default({}),
+  loopBlocks: z.record(z.any()).optional(),
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z

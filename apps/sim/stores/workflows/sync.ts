@@ -263,7 +263,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       const workflowState = {
         blocks: state.blocks || {},
         edges: state.edges || [],
-        loops: state.loops || {},
+        loopBlocks: state.loopBlocks || {},
         isDeployed: isDeployed || false,
         deployedAt: deployedAt ? new Date(deployedAt) : undefined,
         apiKey,
