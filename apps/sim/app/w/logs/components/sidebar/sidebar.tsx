@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { redactApiKeys } from '@/lib/utils'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
@@ -21,42 +22,6 @@ interface LogSidebarProps {
   onNavigatePrev?: () => void
   hasNext?: boolean
   hasPrev?: boolean
-}
-
-/**
- * Recursively redacts API keys in an object
- * @param obj The object to redact API keys from
- * @returns A new object with API keys redacted
- */
-const redactApiKeys = (obj: any): any => {
-  if (!obj || typeof obj !== 'object') {
-    return obj
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(redactApiKeys)
-  }
-
-  const result: Record<string, any> = {}
-
-  for (const [key, value] of Object.entries(obj)) {
-    // Check if the key is 'apiKey' (case insensitive) or related keys
-    if (
-      key.toLowerCase() === 'apikey' ||
-      key.toLowerCase() === 'api_key' ||
-      key.toLowerCase() === 'access_token' ||
-      key.toLowerCase().includes('secret') ||
-      key.toLowerCase().includes('password')
-    ) {
-      result[key] = '***REDACTED***'
-    } else if (typeof value === 'object' && value !== null) {
-      result[key] = redactApiKeys(value)
-    } else {
-      result[key] = value
-    }
-  }
-
-  return result
 }
 
 /**
@@ -123,7 +88,6 @@ const formatJsonContent = (content: string, blockInput?: Record<string, any>): R
   )
 }
 
-// Component for displaying block content with collapsible input
 const BlockContentDisplay = ({
   systemComment,
   formatted,
@@ -137,12 +101,10 @@ const BlockContentDisplay = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
 
-  // Redact API keys in block input
   const redactedBlockInput = useMemo(() => {
     return blockInput ? redactApiKeys(blockInput) : undefined
   }, [blockInput])
 
-  // Redact API keys in output content if it's JSON
   const redactedOutput = useMemo(() => {
     if (!isJson) return formatted
 
@@ -151,7 +113,6 @@ const BlockContentDisplay = ({
       const redactedJson = redactApiKeys(parsedOutput)
       return JSON.stringify(redactedJson, null, 2)
     } catch (e) {
-      // If parsing fails, return the original content
       return formatted
     }
   }, [formatted, isJson])
@@ -246,26 +207,19 @@ export function Sidebar({
   const formattedContent = useMemo(() => {
     if (!log) return null
 
-    // Check for block input in various places in the metadata
     let blockInput: Record<string, any> | undefined = undefined
 
-    // Direct blockInput in metadata
     if (log.metadata?.blockInput) {
       blockInput = log.metadata.blockInput
-    }
-    // Look for input in trace spans for this block
-    else if (log.metadata?.traceSpans) {
-      // Try to extract block ID from the message for matching
+    } else if (log.metadata?.traceSpans) {
       const blockIdMatch = log.message.match(/Block .+?(\d+)/i)
       const blockId = blockIdMatch ? blockIdMatch[1] : null
 
-      // Find the matching trace span if available
       if (blockId) {
         const matchingSpan = log.metadata.traceSpans.find(
           (span) => span.blockId === blockId || span.name.includes(`Block ${blockId}`)
         )
 
-        // Check if the span has input data
         if (matchingSpan && matchingSpan.input) {
           blockInput = matchingSpan.input
         }
@@ -275,7 +229,6 @@ export function Sidebar({
     return formatJsonContent(log.message, blockInput)
   }, [log])
 
-  // Reset scroll position when log changes
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
