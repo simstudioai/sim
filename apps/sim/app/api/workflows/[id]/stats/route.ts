@@ -58,6 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           totalApiCalls: 0,
           totalWebhookTriggers: 0,
           totalScheduledExecutions: 0,
+          totalChatExecutions: 0,
           totalTokensUsed: 0,
           totalCost: '0.00',
           lastActive: new Date(),

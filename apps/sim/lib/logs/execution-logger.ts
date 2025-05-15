@@ -682,6 +682,7 @@ export async function persistExecutionLogs(
               totalApiCalls: 0,
               totalWebhookTriggers: 0,
               totalScheduledExecutions: 0,
+              totalChatExecutions: 0,
               totalTokensUsed: totalTokens,
               totalCost: costToStore.toString(),
               lastActive: new Date(),

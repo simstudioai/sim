@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { checkEnterprisePlan } from '@/lib/subscription/utils'
 
 const logger = createLogger('TeamManagement')
 
@@ -44,6 +45,7 @@ export function TeamManagement() {
   const [subscriptionData, setSubscriptionData] = useState<any>(null)
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false)
   const [hasTeamPlan, setHasTeamPlan] = useState(false)
+  const [hasEnterprisePlan, setHasEnterprisePlan] = useState(false)
   const [userRole, setUserRole] = useState<string>('member')
   const [isAdminOrOwner, setIsAdminOrOwner] = useState(false)
 
@@ -58,16 +60,17 @@ export function TeamManagement() {
       const orgsResponse = await client.organization.list()
       setOrganizations(orgsResponse.data || [])
 
-      // Check if user has a team subscription
+      // Check if user has a team or enterprise subscription
       const response = await fetch('/api/user/subscription')
       const data = await response.json()
       setHasTeamPlan(data.isTeam)
+      setHasEnterprisePlan(data.isEnterprise)
 
-      // If user has team plan but no organizations, prompt to create one
-      if (data.isTeam && (!orgsResponse.data || orgsResponse.data.length === 0)) {
+      // Set default organization name and slug for organization creation
+      // but no longer automatically showing the dialog
+      if (data.isTeam || data.isEnterprise) {
         setOrgName(`${session.user.name || 'My'}'s Team`)
         setOrgSlug(generateSlug(`${session.user.name || 'My'}'s Team`))
-        setCreateOrgDialogOpen(true)
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load data')
@@ -129,20 +132,43 @@ export function TeamManagement() {
           })),
         })
 
-        // Filter to only active team subscription
+        // Find active team or enterprise subscription
         const teamSubscription = data?.find((sub) => sub.status === 'active' && sub.plan === 'team')
+        const enterpriseSubscription = data?.find((sub) => checkEnterprisePlan(sub))
 
-        if (teamSubscription) {
-          logger.info('Found active team subscription', {
-            id: teamSubscription.id,
-            seats: teamSubscription.seats,
+        // Use enterprise plan if available, otherwise team plan
+        const activeSubscription = enterpriseSubscription || teamSubscription
+
+        if (activeSubscription) {
+          logger.info('Found active subscription', {
+            id: activeSubscription.id,
+            plan: activeSubscription.plan,
+            seats: activeSubscription.seats,
           })
-          setSubscriptionData([teamSubscription])
+          setSubscriptionData(activeSubscription)
         } else {
-          logger.warn('No active team subscription found for organization', {
-            orgId,
-          })
-          setSubscriptionData([])
+          // If no subscription found through client API, check for enterprise subscriptions
+          if (hasEnterprisePlan) {
+            try {
+              const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+              if (enterpriseResponse.ok) {
+                const enterpriseData = await enterpriseResponse.json()
+                if (enterpriseData.subscription) {
+                  logger.info('Found enterprise subscription', {
+                    id: enterpriseData.subscription.id,
+                    seats: enterpriseData.subscription.seats,
+                  })
+                  setSubscriptionData(enterpriseData.subscription)
+                  return
+                }
+              }
+            } catch (err) {
+              logger.error('Error fetching enterprise subscription', err)
+            }
+          }
+
+          logger.warn('No active subscription found for organization', { orgId })
+          setSubscriptionData(null)
         }
       }
     } catch (err: any) {
@@ -177,10 +203,9 @@ export function TeamManagement() {
 
   // Handle seat reduction - remove members when seats are reduced
   const handleReduceSeats = async () => {
-    if (!session?.user || !activeOrganization || !subscriptionData || subscriptionData.length === 0)
-      return
+    if (!session?.user || !activeOrganization || !subscriptionData) return
 
-    const currentSeats = subscriptionData[0]?.seats || 0
+    const currentSeats = subscriptionData.seats || 0
     if (currentSeats <= 1) {
       setError('Cannot reduce seats below 1')
       return
@@ -207,20 +232,40 @@ export function TeamManagement() {
       // Reduce the seats by 1
       const newSeatCount = currentSeats - 1
 
-      // Upgrade with reduced seat count
-      const { error } = await client.subscription.upgrade({
-        plan: 'team',
-        referenceId: activeOrganization.id,
-        successUrl: window.location.href,
-        cancelUrl: window.location.href,
-        seats: newSeatCount,
-      })
+      // If it's an enterprise plan, handle through custom endpoint
+      if (checkEnterprisePlan(subscriptionData)) {
+        // For enterprise plans, update via admin endpoint with credentials
+        const response = await fetch('/api/user/subscription/update-seats', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            subscriptionId: subscriptionData.id,
+            seats: newSeatCount,
+          }),
+        })
 
-      if (error) {
-        setError(error.message || 'Failed to update seat count')
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to update seat count')
+        }
       } else {
-        await refreshOrganization()
+        // For team plans, use the client API
+        const { error } = await client.subscription.upgrade({
+          plan: 'team',
+          referenceId: activeOrganization.id,
+          successUrl: window.location.href,
+          cancelUrl: window.location.href,
+          seats: newSeatCount,
+        })
+
+        if (error) {
+          throw new Error(error.message || 'Failed to update seat count')
+        }
       }
+
+      await refreshOrganization()
     } catch (err: any) {
       setError(err.message || 'Failed to reduce seats')
     } finally {
@@ -269,17 +314,18 @@ export function TeamManagement() {
         organizationId: orgId,
       })
 
-      // If the user has a team subscription, update the subscription reference
+      // If the user has a team or enterprise subscription, update the subscription reference
       // directly through a custom API endpoint instead of using upgrade
-      if (hasTeamPlan) {
+      if (hasTeamPlan || hasEnterprisePlan) {
         const userSubResponse = await client.subscription.list()
         const teamSubscription = userSubResponse.data?.find(
-          (sub) => sub.plan === 'team' && sub.status === 'active'
+          (sub) => (sub.plan === 'team' || sub.plan === 'enterprise') && sub.status === 'active'
         )
 
         if (teamSubscription) {
-          logger.info('Found user team subscription to transfer', {
+          logger.info('Found subscription to transfer', {
             subscriptionId: teamSubscription.id,
+            plan: teamSubscription.plan,
             seats: teamSubscription.seats,
             targetOrgId: orgId,
           })
@@ -383,15 +429,14 @@ export function TeamManagement() {
       const totalCount = currentMemberCount + pendingInvitationCount
 
       // Get the number of seats from subscription data
-      const teamSubscription = subscriptionData?.[0]
-      const seatLimit = teamSubscription?.seats || 0
+      const seatLimit = subscriptionData?.seats || 0
 
       logger.info('Checking seat availability for invitation', {
         currentMembers: currentMemberCount,
         pendingInvites: pendingInvitationCount,
         totalUsed: totalCount,
         seatLimit: seatLimit,
-        subscriptionId: teamSubscription?.id,
+        subscriptionId: subscriptionData?.id,
       })
 
       if (totalCount >= seatLimit) {
@@ -469,18 +514,38 @@ export function TeamManagement() {
       })
 
       // If the user opted to reduce seats as well
-      if (shouldReduceSeats && subscriptionData && subscriptionData.length > 0) {
-        const currentSeats = subscriptionData[0]?.seats || 0
+      if (shouldReduceSeats && subscriptionData) {
+        const currentSeats = subscriptionData.seats || 0
 
         if (currentSeats > 1) {
-          // Reduce the seat count by 1
-          await client.subscription.upgrade({
-            plan: 'team',
-            referenceId: activeOrganization.id,
-            successUrl: window.location.href,
-            cancelUrl: window.location.href,
-            seats: currentSeats - 1,
-          })
+          // Determine if we're dealing with enterprise or team plan
+          if (checkEnterprisePlan(subscriptionData)) {
+            // Handle enterprise plan seat reduction
+            const response = await fetch('/api/user/subscription/update-seats', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                subscriptionId: subscriptionData.id,
+                seats: currentSeats - 1,
+              }),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json()
+              throw new Error(errorData.error || 'Failed to reduce seats')
+            }
+          } else {
+            // Handle team plan seat reduction
+            await client.subscription.upgrade({
+              plan: 'team',
+              referenceId: activeOrganization.id,
+              successUrl: window.location.href,
+              cancelUrl: window.location.href,
+              seats: currentSeats - 1,
+            })
+          }
         }
       }
 
@@ -517,7 +582,23 @@ export function TeamManagement() {
     }
   }
 
-  if (isLoading && !activeOrganization && !hasTeamPlan) {
+  // Get the effective plan name for display
+  const getEffectivePlanName = () => {
+    if (!subscriptionData) return 'No Plan'
+
+    if (checkEnterprisePlan(subscriptionData)) {
+      return 'Enterprise'
+    } else if (subscriptionData.plan === 'team') {
+      return 'Team'
+    } else {
+      return (
+        subscriptionData.plan?.charAt(0).toUpperCase() + subscriptionData.plan?.slice(1) ||
+        'Unknown'
+      )
+    }
+  }
+
+  if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return <TeamManagementSkeleton />
   }
 
@@ -553,20 +634,76 @@ export function TeamManagement() {
   if (!activeOrganization) {
     return (
       <div className="p-6 space-y-6">
-        <div className="text-center space-y-4">
+        <div className="space-y-6">
           <h3 className="text-lg font-medium">
-            {hasTeamPlan ? 'Create Your Team Workspace' : 'No Team Workspace'}
+            {hasTeamPlan || hasEnterprisePlan ? 'Create Your Team Workspace' : 'No Team Workspace'}
           </h3>
-          <p className="text-sm text-muted-foreground">
-            {hasTeamPlan
-              ? "You're subscribed to a team plan. Create your workspace to start collaborating with your team."
-              : "You don't have a team workspace yet. Create one to start collaborating with your team."}
-          </p>
 
-          <Button onClick={() => setCreateOrgDialogOpen(true)}>
-            <Building className="w-4 h-4 mr-2" />
-            Create Team Workspace
-          </Button>
+          {hasTeamPlan || hasEnterprisePlan ? (
+            <div className="border rounded-lg p-6 space-y-6">
+              <p className="text-sm text-muted-foreground">
+                You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
+                workspace to start collaborating with your team.
+              </p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Team Name</label>
+                  <Input value={orgName} onChange={handleOrgNameChange} placeholder="My Team" />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Team URL</label>
+                  <div className="flex items-center space-x-2">
+                    <div className="bg-muted px-3 py-2 rounded-l-md text-sm text-muted-foreground">
+                      simstudio.ai/team/
+                    </div>
+                    <Input
+                      value={orgSlug}
+                      onChange={(e) => setOrgSlug(e.target.value)}
+                      className="rounded-l-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <Alert variant="destructive">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex justify-end space-x-2">
+                <Button
+                  onClick={handleCreateOrganization}
+                  disabled={!orgName || !orgSlug || isCreatingOrg}
+                >
+                  {isCreatingOrg && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                  Create Team Workspace
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                You don't have a team workspace yet. To collaborate with others, first upgrade to a
+                team or enterprise plan.
+              </p>
+
+              <Button
+                onClick={() => {
+                  // Open the subscription tab
+                  const event = new CustomEvent('open-settings', {
+                    detail: { tab: 'subscription' },
+                  })
+                  window.dispatchEvent(event)
+                }}
+              >
+                Upgrade to Team Plan
+              </Button>
+            </>
+          )}
         </div>
 
         <Dialog open={createOrgDialogOpen} onOpenChange={setCreateOrgDialogOpen}>
@@ -694,7 +831,7 @@ export function TeamManagement() {
 
               {isLoadingSubscription ? (
                 <TeamSeatsSkeleton />
-              ) : subscriptionData && subscriptionData.length > 0 ? (
+              ) : subscriptionData ? (
                 <>
                   <div className="flex justify-between text-sm mb-2">
                     <span>Used</span>
@@ -703,7 +840,7 @@ export function TeamManagement() {
                         (activeOrganization.invitations?.filter(
                           (inv: any) => inv.status === 'pending'
                         ).length || 0)}
-                      /{subscriptionData[0]?.seats || 0}
+                      /{subscriptionData.seats || 0}
                     </span>
                   </div>
                   <Progress
@@ -712,7 +849,7 @@ export function TeamManagement() {
                         (activeOrganization.invitations?.filter(
                           (inv: any) => inv.status === 'pending'
                         ).length || 0)) /
-                        (subscriptionData[0]?.seats || 1)) *
+                        (subscriptionData.seats || 1)) *
                       100
                     }
                     className="h-2"
@@ -723,16 +860,46 @@ export function TeamManagement() {
                       variant="outline"
                       size="sm"
                       onClick={handleReduceSeats}
-                      disabled={(subscriptionData[0]?.seats || 0) <= 1 || isLoading}
+                      disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
                     >
                       Remove Seat
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        const currentSeats = subscriptionData[0]?.seats || 1
-                        confirmTeamUpgrade(currentSeats + 1)
+                      onClick={async () => {
+                        const currentSeats = subscriptionData.seats || 1
+
+                        // For enterprise plans, we need a custom endpoint
+                        if (checkEnterprisePlan(subscriptionData)) {
+                          try {
+                            const response = await fetch('/api/user/subscription/update-seats', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                subscriptionId: subscriptionData.id,
+                                seats: currentSeats + 1,
+                              }),
+                            })
+
+                            if (!response.ok) {
+                              const errorData = await response.json()
+                              throw new Error(errorData.error || 'Failed to update seats')
+                            }
+
+                            await refreshOrganization()
+                          } catch (error) {
+                            const errorMessage =
+                              error instanceof Error ? error.message : 'Failed to update seats'
+                            setError(errorMessage)
+                            logger.error('Error updating enterprise seats', { error })
+                          }
+                        } else {
+                          // For team plans, use the normal upgrade flow
+                          await confirmTeamUpgrade(currentSeats + 1)
+                        }
                       }}
                       disabled={isLoading}
                     >
@@ -742,7 +909,7 @@ export function TeamManagement() {
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground space-y-2">
-                  <p>No active team subscription found for this organization.</p>
+                  <p>No active subscription found for this organization.</p>
                   <p>
                     This might happen if your subscription was created for your personal account but
                     hasn't been properly transferred to the organization.
@@ -875,12 +1042,24 @@ export function TeamManagement() {
                         }`}
                       ></div>
                       <span className="capitalize font-medium">
-                        {subscriptionData.status}
+                        {getEffectivePlanName()} {subscriptionData.status}
                         {subscriptionData.cancelAtPeriodEnd ? ' (Cancels at period end)' : ''}
                       </span>
                     </div>
                     <div className="text-sm text-muted-foreground">
                       <div>Team seats: {subscriptionData.seats}</div>
+                      {checkEnterprisePlan(subscriptionData) && subscriptionData.metadata && (
+                        <div>
+                          {subscriptionData.metadata.perSeatAllowance && (
+                            <div>
+                              Per-seat allowance: ${subscriptionData.metadata.perSeatAllowance}
+                            </div>
+                          )}
+                          {subscriptionData.metadata.totalAllowance && (
+                            <div>Total allowance: ${subscriptionData.metadata.totalAllowance}</div>
+                          )}
+                        </div>
+                      )}
                       {subscriptionData.periodEnd && (
                         <div>
                           Next billing date:{' '}

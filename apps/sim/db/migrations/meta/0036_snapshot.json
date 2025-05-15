@@ -1,6 +1,6 @@
 {
-  "id": "6b2a09e3-ba7e-40d5-b22a-170932cac7ae",
-  "prevId": "efe2d701-31f6-4549-a44c-345d74c28043",
+  "id": "d0d916d6-52f3-4bd6-9b03-20049a4cdd72",
+  "prevId": "6b2a09e3-ba7e-40d5-b22a-170932cac7ae",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -719,7 +719,7 @@
         },
         "metadata": {
           "name": "metadata",
-          "type": "jsonb",
+          "type": "json",
           "primaryKey": false,
           "notNull": false
         },
@@ -1010,6 +1010,12 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -1126,6 +1132,13 @@
         },
         "total_scheduled_executions": {
           "name": "total_scheduled_executions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "total_chat_executions": {
+          "name": "total_chat_executions",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

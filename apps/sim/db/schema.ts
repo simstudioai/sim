@@ -3,7 +3,6 @@ import {
   decimal,
   integer,
   json,
-  jsonb,
   pgTable,
   text,
   timestamp,
@@ -224,6 +223,7 @@ export const userStats = pgTable('user_stats', {
   totalApiCalls: integer('total_api_calls').notNull().default(0),
   totalWebhookTriggers: integer('total_webhook_triggers').notNull().default(0),
   totalScheduledExecutions: integer('total_scheduled_executions').notNull().default(0),
+  totalChatExecutions: integer('total_chat_executions').notNull().default(0),
   totalTokensUsed: integer('total_tokens_used').notNull().default(0),
   totalCost: decimal('total_cost').notNull().default('0'),
   lastActive: timestamp('last_active').notNull().defaultNow(),
@@ -254,6 +254,7 @@ export const subscription = pgTable('subscription', {
   seats: integer('seats'),
   trialStart: timestamp('trial_start'),
   trialEnd: timestamp('trial_end'),
+  metadata: json('metadata'),
 })
 
 export const chat = pgTable(
@@ -296,7 +297,7 @@ export const organization = pgTable('organization', {
   name: text('name').notNull(),
   slug: text('slug').notNull(),
   logo: text('logo'),
-  metadata: jsonb('metadata'),
+  metadata: json('metadata'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

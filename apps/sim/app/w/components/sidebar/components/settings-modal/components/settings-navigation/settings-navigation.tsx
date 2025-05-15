@@ -25,6 +25,7 @@ interface SettingsNavigationProps {
       | 'privacy'
   ) => void
   isTeam?: boolean
+  isEnterprise?: boolean
 }
 
 type NavigationItem = {
@@ -93,15 +94,15 @@ export function SettingsNavigation({
   activeSection,
   onSectionChange,
   isTeam = false,
+  isEnterprise = false,
 }: SettingsNavigationProps) {
   const navigationItems = allNavigationItems.filter((item) => {
-    // Hide items based on development environment
     if (item.hideInDev && isDev) {
       return false
     }
 
-    // Hide team tab if user doesn't have team subscription
-    if (item.requiresTeam && !isTeam) {
+    // Hide team tab if user doesn't have team or enterprisesubscription
+    if (item.requiresTeam && !isTeam && !isEnterprise) {
       return false
     }
 

@@ -1,9 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { db } from '@/db'
-import { member, organization as organizationTable, subscription, userStats } from '@/db/schema'
+import { userStats } from '@/db/schema'
 import { createLogger } from './logs/console-logger'
-import { isProPlan, isTeamPlan } from './subscription'
+import { getHighestPrioritySubscription } from './subscription/subscription'
+import { calculateUsageLimit } from './subscription/utils'
 
 const logger = createLogger('UsageMonitor')
 
@@ -16,65 +17,6 @@ interface UsageData {
   isExceeded: boolean
   currentUsage: number
   limit: number
-}
-
-/**
- * Gets the number of seats for a team subscription
- * Used to calculate usage limits for team plans
- */
-async function getTeamSeats(userId: string): Promise<number> {
-  try {
-    // First check if user is part of an organization with a team subscription
-    const memberships = await db.select().from(member).where(eq(member.userId, userId)).limit(1)
-
-    if (memberships.length > 0) {
-      const orgId = memberships[0].organizationId
-
-      // Check for organization's team subscription
-      const orgSubscriptions = await db
-        .select()
-        .from(subscription)
-        .where(eq(subscription.referenceId, orgId))
-
-      const teamSubscription = orgSubscriptions.find(
-        (sub) => sub.status === 'active' && sub.plan === 'team'
-      )
-
-      if (teamSubscription?.seats) {
-        logger.info('Found organization team subscription with seats', {
-          userId,
-          orgId,
-          seats: teamSubscription.seats,
-        })
-        return teamSubscription.seats
-      }
-    }
-
-    // If no organization team subscription, check for personal team subscription
-    const userSubscriptions = await db
-      .select()
-      .from(subscription)
-      .where(eq(subscription.referenceId, userId))
-
-    const teamSubscription = userSubscriptions.find(
-      (sub) => sub.status === 'active' && sub.plan === 'team'
-    )
-
-    if (teamSubscription?.seats) {
-      logger.info('Found personal team subscription with seats', {
-        userId,
-        seats: teamSubscription.seats,
-      })
-      return teamSubscription.seats
-    }
-
-    // Default to 10 seats if we know they're on a team plan but couldn't get seats info
-    return 10
-  } catch (error) {
-    logger.error('Error getting team seats', { error, userId })
-    // Default to 10 seats on error
-    return 10
-  }
 }
 
 /**
@@ -99,41 +41,21 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       }
     }
 
-    // Production environment - check real subscription limits
+    // Determine subscription (single source of truth)
+    let activeSubscription = await getHighestPrioritySubscription(userId)
+    let limit = 0
 
-    // Get user's subscription details
-    const isPro = await isProPlan(userId)
-    const isTeam = await isTeamPlan(userId)
-
-    logger.info('User subscription status', { userId, isPro, isTeam })
-
-    // Determine the limit based on subscription type
-    let limit: number
-
-    if (isTeam) {
-      // For team plans, get the number of seats and multiply by per-seat limit
-      const teamSeats = await getTeamSeats(userId)
-      const perSeatLimit = process.env.TEAM_TIER_COST_LIMIT
-        ? parseFloat(process.env.TEAM_TIER_COST_LIMIT)
-        : 40
-
-      limit = perSeatLimit * teamSeats
-
-      logger.info('Using team plan limit', {
+    if (activeSubscription) {
+      limit = calculateUsageLimit(activeSubscription)
+      logger.info('Using calculated subscription limit', {
         userId,
-        seats: teamSeats,
-        perSeatLimit,
-        totalLimit: limit,
+        plan: activeSubscription.plan,
+        seats: activeSubscription.seats || 1,
+        limit,
       })
-    } else if (isPro) {
-      // Pro plan has a fixed limit
-      limit = process.env.PRO_TIER_COST_LIMIT ? parseFloat(process.env.PRO_TIER_COST_LIMIT) : 20
-
-      logger.info('Using pro plan limit', { userId, limit })
     } else {
       // Free tier limit
-      limit = process.env.FREE_TIER_COST_LIMIT ? parseFloat(process.env.FREE_TIER_COST_LIMIT) : 5
-
+      limit = parseFloat(process.env.FREE_TIER_COST_LIMIT!)
       logger.info('Using free tier limit', { userId, limit })
     }
 

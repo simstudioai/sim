@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
         totalApiCalls: 0,
         totalWebhookTriggers: 0,
         totalScheduledExecutions: 0,
+        totalChatExecutions: 0,
         totalTokensUsed: 0,
         totalCost: '0.00',
         lastActive: new Date(),

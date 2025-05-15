@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, like, or, SQL } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, like, or } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
 import {
   getEmailSubject,
@@ -98,30 +98,22 @@ export async function getWaitlistEntries(
     // First, determine if we need to apply status filter
     const shouldFilterByStatus = status && status !== 'all'
 
-    console.log('Service: Filtering by status:', shouldFilterByStatus ? status : 'No status filter')
-
     // Now build the conditions
     if (shouldFilterByStatus && search && search.trim()) {
       // Both status and search
-      console.log('Service: Applying status + search filter:', status)
       whereCondition = and(
         eq(waitlist.status, status as string),
         like(waitlist.email, `%${search.trim()}%`)
       )
     } else if (shouldFilterByStatus) {
       // Only status
-      console.log('Service: Applying status filter only:', status)
       whereCondition = eq(waitlist.status, status as string)
     } else if (search && search.trim()) {
       // Only search
-      console.log('Service: Applying search filter only')
       whereCondition = like(waitlist.email, `%${search.trim()}%`)
     } else {
-      console.log('Service: No filters applied, showing all entries')
+      whereCondition = null
     }
-
-    // Log what filter is being applied
-    console.log('Service: Where condition:', whereCondition ? 'applied' : 'none')
 
     // Get entries with conditions
     let entries = []
@@ -150,10 +142,6 @@ export async function getWaitlistEntries(
     } else {
       countResult = await db.select({ value: count() }).from(waitlist)
     }
-
-    console.log(
-      `Service: Found ${entries.length} entries with ${status === 'all' ? 'all statuses' : `status=${status}`}, total: ${countResult[0]?.value || 0}`
-    )
 
     return {
       entries,
