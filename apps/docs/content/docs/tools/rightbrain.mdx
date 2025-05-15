@@ -429,13 +429,32 @@ import { BlockInfoCard } from '@/components/ui/block-info-card'
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Rightbrain](https://rightbrain.ai) lets you reliably deploy LLMs for specific tasks across any app
-or workflow by turning prompts into production-ready APIs.
+[Rightbrain](https://rightbrain.ai) helps you ship AI features faster by turning prompts and simple instructions into production-ready, scalable APIs. It allows you to build LLM prototypes in minutes, continuously optimize performance, and deploy them for specific tasks across any app or workflow without extended development cycles.
 
-In Sim Studio, the Rightbrain integration enables your agents to run a Rightbrain AI task.
+In Sim Studio, the Rightbrain integration enables your agents to seamlessly run these Rightbrain AI tasks as part of their workflows.
 {/* MANUAL-CONTENT-END */}
 
 ## Usage Instructions
+
+{/* MANUAL-CONTENT-START:usage */}
+To use the Rightbrain tool in Sim Studio:
+
+### Rightbrain
+
+- **Fetch your API Key**: Obtain your API key from your [Rightbrain dashboard](https://app.rightbrain.ai/preferences?tab=api-clients).
+- **Get Task Details**: Navigate to the specific Rightbrain Task you want to run. From the Task Run view, click the **Integrate** button.
+  - **Copy Task Run URL**: Click the **Task Run URL** to copy it.
+  - **Copy Example Input JSON**: Copy the example `task_input` structure.
+
+### Sim Studio
+
+- **Select the Rightbrain Tool**: Drag into the Sim Studio canvas.
+- Paste the **Task Run URL** into the "Task URL" field in the Rightbrain tool.
+- Paste the example **Task Inputs** JSON object in the "Task Inputs" code field. This is where you will want to dynamically inject Sim Studio variables from previous blocks/tools in your workflow.
+- Paste your **Rightbrain API Key** into the "API Key" field.
+
+Sim Studio will then be able to execute your Rightbrain task, and the results will be available via the tool's output `response` object.
+{/* MANUAL-CONTENT-END */}
 
 Rightbrain lets you reliably deploy LLMs for specific tasks across any app or workflow by turning simple instructions into scalable APIs.
 
@@ -443,15 +462,15 @@ Rightbrain lets you reliably deploy LLMs for specific tasks across any app or wo
 
 ### `rightbrain_run_task`
 
-Run a Rightbrain AI task
+Run a Rightbrain AI task. Tasks are created in the Rightbrain app and can be chained together or connected to other apps with Sim Studio to dynamically process inputs, outputs or a combination of both. A task response can be found in the `response.response` object.
 
 #### Input
 
-| Parameter | Type   | Required | Description             |
-| --------- | ------ | -------- | ----------------------- |
-| `url`     | string | Yes      | The Rightbrain task URL |
-| `inputs`  | object | Yes      | Task inputs             |
-| `apiKey`  | string | Yes      | Rightbrain API key      |
+| Parameter | Type   | Required | Description                     |
+| --------- | ------ | -------- | ------------------------------- |
+| `url`     | string | Yes      | Rightbrain task URL             |
+| `inputs`  | object | Yes      | The task input_data JSON object |
+| `apiKey`  | string | Yes      | Your Rightbrain API key         |
 
 #### Output
 
@@ -475,9 +494,9 @@ Run a Rightbrain AI task
 
 ### Input
 
-| Parameter | Type   | Required | Description          |
-| --------- | ------ | -------- | -------------------- |
-| `url`     | string | Yes      | Task URL - Enter URL |
+| Parameter | Type   | Required | Description                    |
+| --------- | ------ | -------- | ------------------------------ |
+| `url`     | string | Yes      | Task URL - Rightbrain task URL |
 
 ### Outputs
 

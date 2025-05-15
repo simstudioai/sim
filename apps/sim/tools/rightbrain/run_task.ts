@@ -22,25 +22,26 @@ const processUrl = (url: string) => {
 export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskResponse> = {
   id: 'rightbrain_run_task',
   name: 'Rightbrain Run Task',
-  description: 'Run a Rightbrain AI task',
+  description:
+    'Run a Rightbrain AI task. Tasks are created in the Rightbrain app and can be chained together or connected to other apps with Sim Studio to dynamically process inputs, outputs or a combination of both. A task response can be found in the `response.response` object.',
   version: '1.0.0',
   params: {
     url: {
       type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: 'The Rightbrain task URL',
+      description: 'Rightbrain task URL',
     },
     inputs: {
       type: 'object',
       required: true,
-      description: 'Task inputs',
+      description: 'The task input_data JSON object',
     },
     apiKey: {
       type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: 'Rightbrain API key',
+      description: 'Your Rightbrain API key',
     },
   },
   request: {

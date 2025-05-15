@@ -18,14 +18,14 @@ export const RightBrainBlock: BlockConfig<RightBrainRunTaskResponse> = {
       title: 'Task URL',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Enter URL',
+      placeholder: 'Rightbrain task URL',
     },
     {
       id: 'inputs',
       title: 'Task inputs',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter inputs JSON...',
+      placeholder: 'The task input_data JSON object',
     },
     {
       id: 'apiKey',
