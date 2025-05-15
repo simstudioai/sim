@@ -23,6 +23,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ChatDeploy } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployForm } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
@@ -72,10 +73,11 @@ export function DeployModal({
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
-  // Use workflow-specific deployment status getter
-  const deploymentStatus = useWorkflowStore(state => state.getWorkflowDeploymentStatus(workflowId))
+  
+  // Use registry store for deployment-related functions
+  const deploymentStatus = useWorkflowRegistry(state => state.getWorkflowDeploymentStatus(workflowId))
   const isDeployed = deploymentStatus?.isDeployed || false
-  const setDeploymentStatus = useWorkflowStore(state => state.setDeploymentStatus)
+  const setDeploymentStatus = useWorkflowRegistry(state => state.setDeploymentStatus)
 
   // Local state
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -83,7 +85,6 @@ export function DeployModal({
   const [deploymentInfo, setDeploymentInfo] = useState<DeploymentInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [keysLoaded, setKeysLoaded] = useState(false)
   const [activeTab, setActiveTab] = useState<TabView>('api')
   const [isChatDeploying, setIsChatDeploying] = useState(false)

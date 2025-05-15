@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
 const logger = createLogger('DeploymentControls')
@@ -23,7 +23,8 @@ export function DeploymentControls({
   setNeedsRedeployment,
 }: DeploymentControlsProps) {
   // Use workflow-specific deployment status
-  const deploymentStatus = useWorkflowStore(state => state.getWorkflowDeploymentStatus(activeWorkflowId))
+  const deploymentStatus = useWorkflowRegistry(state => 
+    state.getWorkflowDeploymentStatus(activeWorkflowId))
   const isDeployed = deploymentStatus?.isDeployed || false
   
   const [isDeploying, setIsDeploying] = useState(false)

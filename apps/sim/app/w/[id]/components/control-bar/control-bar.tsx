@@ -88,9 +88,8 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
-    useWorkflowStore()
-  const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow, duplicateWorkflow } =
+  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
+  const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow, duplicateWorkflow, setDeploymentStatus } =
     useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
@@ -174,6 +173,11 @@ export function ControlBar() {
     const marketplaceData = getMarketplaceData()
     return marketplaceData?.status === 'owner'
   }
+
+  // Get deployment status from registry
+  const deploymentStatus = useWorkflowRegistry(state => 
+    state.getWorkflowDeploymentStatus(activeWorkflowId))
+  const isDeployed = deploymentStatus?.isDeployed || false
 
   // Client-side only rendering for the timestamp
   useEffect(() => {
