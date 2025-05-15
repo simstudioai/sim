@@ -104,6 +104,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // If self-hosted skip waitlist
+  if (env.DOCKER_BUILD) {
+    return NextResponse.next()
+  }
+
   // Skip waitlist protection for development environment
   if (isDevelopment) {
     return NextResponse.next()

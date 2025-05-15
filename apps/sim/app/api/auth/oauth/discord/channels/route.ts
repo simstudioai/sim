@@ -8,6 +8,12 @@ interface DiscordChannel {
   guild_id?: string
 }
 
+export async function generateStaticParams() {
+  return []
+}
+
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('DiscordChannelsAPI')
 
 export async function POST(request: Request) {

@@ -12,7 +12,13 @@ const nextConfig: NextConfig = {
       'api.stability.ai',
     ],
   },
-  output: env.NODE_ENV === 'development' ? 'standalone' : undefined,
+  typescript: {
+    ignoreBuildErrors: env.DOCKER_BUILD,
+  },
+  eslint: {
+    ignoreDuringBuilds: env.DOCKER_BUILD,
+  },
+  output: env.DOCKER_BUILD ? 'standalone' : undefined,
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },

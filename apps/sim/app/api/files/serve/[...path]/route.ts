@@ -12,6 +12,12 @@ import {
   getContentType,
 } from '../../utils'
 
+export async function generateStaticParams() {
+  return []
+}
+
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('FilesServeAPI')
 
 /**
