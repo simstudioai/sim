@@ -196,9 +196,9 @@ function WorkflowContent() {
       .filter(n => {
         const loopRect = {
           left: n.position.x,
-          right: n.position.x + (n.data?.width || 800),
+          right: n.position.x + (n.data?.width || 500), 
           top: n.position.y,
-          bottom: n.position.y + (n.data?.height || 1000)
+          bottom: n.position.y + (n.data?.height || 300)
         };
 
         return (
@@ -212,8 +212,8 @@ function WorkflowContent() {
         loopId: n.id,
         loopPosition: n.position,
         dimensions: {
-          width: n.data?.width || 800,
-          height: n.data?.height || 1000
+          width: n.data?.width || 500,  
+          height: n.data?.height || 300
         }
       }));
 
@@ -232,8 +232,8 @@ function WorkflowContent() {
   // Helper function to calculate proper dimensions for a loop node based on its children
   const calculateLoopDimensions = useCallback((loopId: string): { width: number, height: number } => {
     // Default minimum dimensions
-    const minWidth = 800;
-    const minHeight = 1000;
+    const minWidth = 500;
+    const minHeight = 300;
 
     // Get all child nodes of this loop
     const childNodes = getNodes().filter(node => node.parentId === loopId);
@@ -254,14 +254,37 @@ function WorkflowContent() {
       let nodeHeight;
       
       if (node.type === 'loopNode') {
-        // For nested loops, use their actual dimensions plus extra padding
-        nodeWidth = node.data?.width || 800;
-        nodeHeight = node.data?.height || 1000;
-      } else if (node.type === 'workflowBlock' && node.data?.type === 'condition') {
-        nodeWidth = 250;
-        nodeHeight = 350;
+        // For nested loops, don't add excessive padding to the parent
+        // Use actual dimensions without additional padding to prevent cascading expansion
+        nodeWidth = node.data?.width || 500;
+        nodeHeight = node.data?.height || 300;
+      } else if (node.type === 'workflowBlock') {
+        // Handle all workflowBlock types appropriately
+        const blockType = node.data?.type;
+        
+        switch (blockType) {
+          case 'agent':
+          case 'api':
+            // Tall blocks
+            nodeWidth = 350;
+            nodeHeight = 650;
+            break;
+          case 'condition':
+          case 'function':            
+            nodeWidth = 250;
+            nodeHeight = 200;
+            break;
+          case 'router':
+            nodeWidth = 250;
+            nodeHeight = 350;
+            break;
+          default:
+            // Default dimensions for other block types
+            nodeWidth = 200;
+            nodeHeight = 200;
+        }
       } else {
-        // Default dimensions for regular nodes
+        // Default dimensions for any other node types
         nodeWidth = 200;
         nodeHeight = 200;
       }
@@ -275,14 +298,16 @@ function WorkflowContent() {
     // Add buffer padding to all sides (20px buffer before edges)
     // Add extra padding for nested loops to prevent tight boundaries
     const hasNestedLoops = childNodes.some(node => node.type === 'loopNode');
-    const sidePadding = hasNestedLoops ? 300 : 220; // Extra padding for loops containing other loops
-    const bottomPadding = hasNestedLoops ? 200 : 120; // More bottom padding for loops
-
+    
+    // More reasonable padding values, especially for nested loops
+    // Reduce the excessive padding that was causing parent loops to be too large
+    const sidePadding = hasNestedLoops ? 150 : 120; // Reduced padding for loops containing other loops
+    
     // Ensure the width and height are never less than the minimums
     // Apply padding to all sides (left/right and top/bottom)
     const width = Math.max(minWidth, maxX + sidePadding);
-    const height = Math.max(minHeight, maxY + sidePadding + bottomPadding);
-
+    const height = Math.max(minHeight, maxY + sidePadding);
+  
     return { width, height };
   }, [getNodes]);
 
@@ -398,10 +423,29 @@ function WorkflowContent() {
 
         // Add the loop node directly to canvas with default dimensions
         addBlock(id, type, name, centerPosition, {
-          width: 800,
-          height: 1000,
+          width: 500,
+          height: 300,
           type: 'loopNode'
         })
+        
+        // Auto-connect logic for loop nodes
+        const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
+        if (isAutoConnectEnabled) {
+          const closestBlock = findClosestOutput(centerPosition)
+          if (closestBlock) {
+            // Get appropriate source handle
+            const sourceHandle = determineSourceHandle(closestBlock)
+
+            addEdge({
+              id: crypto.randomUUID(),
+              source: closestBlock.id,
+              target: id,
+              sourceHandle,
+              targetHandle: 'target',
+              type: 'workflowEdge',
+            })
+          }
+        }
         
         return
       }
@@ -441,7 +485,7 @@ function WorkflowContent() {
             target: id,
             sourceHandle,
             targetHandle: 'target',
-            type: 'custom',
+            type: 'workflowEdge',
           })
         }
       }
@@ -497,8 +541,8 @@ function WorkflowContent() {
 
             // Add the loop as a child of the parent loop
             addBlock(id, data.type, name, relativePosition, {
-              width: 800,
-              height: 1000,
+              width: 500,
+              height: 300,
               type: 'loopNode',
               parentId: loopInfo.loopId,
               extent: 'parent'
@@ -510,15 +554,76 @@ function WorkflowContent() {
               relativePosition
             });
             
+            // Auto-connect the nested loop to nodes inside the parent loop
+            const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled;
+            if (isAutoConnectEnabled) {
+              // Try to find other nodes in the parent loop to connect to
+              const loopNodes = getNodes().filter(n => n.parentId === loopInfo.loopId);
+              
+              if (loopNodes.length > 0) {
+                // Connect to the closest node in the loop
+                const closestNode = loopNodes
+                  .map(n => ({
+                    id: n.id,
+                    distance: Math.sqrt(
+                      Math.pow(n.position.x - relativePosition.x, 2) +
+                      Math.pow(n.position.y - relativePosition.y, 2)
+                    )
+                  }))
+                  .sort((a, b) => a.distance - b.distance)[0];
+                
+                if (closestNode) {
+                  // Get appropriate source handle
+                  const sourceNode = getNodes().find(n => n.id === closestNode.id);
+                  const sourceType = sourceNode?.data?.type;
+                  
+                  // Default source handle
+                  let sourceHandle = 'source';
+                  
+                  // For condition blocks, use the condition-true handle
+                  if (sourceType === 'condition') {
+                    sourceHandle = 'condition-true';
+                  }
+                  
+                  addEdge({
+                    id: crypto.randomUUID(),
+                    source: closestNode.id,
+                    target: id,
+                    sourceHandle,
+                    targetHandle: 'target',
+                    type: 'workflowEdge',
+                  });
+                }
+              }
+            }
+            
             // Resize the parent loop to fit the new child loop
             debouncedResizeLoopNodes();
           } else {
             // Add the loop node directly to canvas with default dimensions
             addBlock(id, data.type, name, position, {
-              width: 800,
-              height: 1000,
+              width: 500,
+              height: 300,
               type: 'loopNode'
             });
+            
+            // Auto-connect the loop to the closest node on the canvas
+            const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled;
+            if (isAutoConnectEnabled) {
+              const closestBlock = findClosestOutput(position);
+              if (closestBlock) {
+                const sourceHandle = determineSourceHandle(closestBlock);
+                
+                addEdge({
+                  id: crypto.randomUUID(),
+                  source: closestBlock.id,
+                  target: id,
+                  sourceHandle,
+                  targetHandle: 'target',
+                  type: 'workflowEdge',
+                });
+              }
+            }
           }
 
           return
@@ -745,8 +850,8 @@ function WorkflowContent() {
           dragHandle: '.workflow-drag-handle',
           data: {
             ...block.data,
-            width: block.data?.width || 800,
-            height: block.data?.height || 1000,
+            width: block.data?.width || 500,
+            height: block.data?.height || 300,
           },
         })
         return
@@ -982,11 +1087,11 @@ function WorkflowContent() {
 
           // Get dimensions based on node type
           const nodeWidth = node.type === 'loopNode' 
-            ? (node.data?.width || 800) 
-            : (node.type === 'condition' ? 250 : 200);
+            ? (node.data?.width || 500) 
+            : (node.type === 'condition' ? 250 : 350);
           
           const nodeHeight = node.type === 'loopNode' 
-            ? (node.data?.height || 1000) 
+            ? (node.data?.height || 300) 
             : (node.type === 'condition' ? 150 : 100);
 
           // Check intersection using absolute coordinates
@@ -999,9 +1104,9 @@ function WorkflowContent() {
 
           const loopRect = {
             left: loopAbsolutePos.x,
-            right: loopAbsolutePos.x + (n.data?.width || 800),
+            right: loopAbsolutePos.x + (n.data?.width || 500),
             top: loopAbsolutePos.y,
-            bottom: loopAbsolutePos.y + (n.data?.height || 1000)
+            bottom: loopAbsolutePos.y + (n.data?.height || 300)
           };
 
           // Check intersection with absolute coordinates for accurate detection
@@ -1017,7 +1122,7 @@ function WorkflowContent() {
           loop: n,
           depth: getNodeDepth(n.id),
           // Calculate size for secondary sorting
-          size: (n.data?.width || 800) * (n.data?.height || 1000)
+          size: (n.data?.width || 500) * (n.data?.height || 300)
         }));
 
       // Update potential parent if there's at least one intersecting loop node

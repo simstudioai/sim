@@ -12,8 +12,8 @@ export const LoopTool = {
     loopType: 'for',
     count: 5,
     collection: '',
-    width: 800,
-    height: 1000,
+    width: 500,
+    height: 300,
     extent: 'parent',
     // Store loop execution state
     executionState: {
@@ -24,8 +24,8 @@ export const LoopTool = {
     }
   },
   style: {
-    width: 800,
-    height: 1000,
+    width: 500,
+    height: 300,
   },
   // Specify that this should be rendered as a ReactFlow group node
   isResizable: true,
