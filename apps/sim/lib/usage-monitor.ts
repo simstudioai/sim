@@ -1,9 +1,10 @@
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { db } from '@/db'
-import { member, organization as organizationTable, subscription, userStats } from '@/db/schema'
+import { userStats } from '@/db/schema'
 import { createLogger } from './logs/console-logger'
-import { calculateUsageLimit, checkEnterprisePlan } from './subscription/utils'
+import { getHighestPrioritySubscription } from './subscription/subscription'
+import { calculateUsageLimit } from './subscription/utils'
 
 const logger = createLogger('UsageMonitor')
 
@@ -40,50 +41,10 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       }
     }
 
-    // Get all applicable subscriptions for the user
-    let activeSubscription = null
+    // Determine subscription (single source of truth)
+    let activeSubscription = await getHighestPrioritySubscription(userId)
     let limit = 0
 
-    // First check for direct subscription
-    const userSubscriptions = await db
-      .select()
-      .from(subscription)
-      .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
-
-    if (userSubscriptions.length > 0) {
-      activeSubscription = userSubscriptions[0]
-    }
-
-    // If no direct subscription, check for organization subscriptions
-    if (!activeSubscription) {
-      const memberships = await db.select().from(member).where(eq(member.userId, userId))
-
-      for (const membership of memberships) {
-        const orgId = membership.organizationId
-
-        const orgSubscriptions = await db
-          .select()
-          .from(subscription)
-          .where(and(eq(subscription.referenceId, orgId), eq(subscription.status, 'active')))
-
-        if (orgSubscriptions.length > 0) {
-          // Prioritize enterprise, then team, then pro plans
-          const enterpriseSub = orgSubscriptions.find((sub) => checkEnterprisePlan(sub))
-          const teamSub = orgSubscriptions.find(
-            (sub) => sub.plan === 'team' && sub.status === 'active'
-          )
-          const proSub = orgSubscriptions.find(
-            (sub) => sub.plan === 'pro' && sub.status === 'active'
-          )
-
-          // Use the highest tier subscription
-          activeSubscription = enterpriseSub || teamSub || proSub || null
-          if (activeSubscription) break
-        }
-      }
-    }
-
-    // Calculate limit using our standardized function
     if (activeSubscription) {
       limit = calculateUsageLimit(activeSubscription)
       logger.info('Using calculated subscription limit', {

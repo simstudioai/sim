@@ -36,7 +36,7 @@ export function useUserSubscription(): UserSubscription {
             isLoading: false,
             plan: data.plan,
             error: null,
-            isEnterprise: data.plan === 'enterprise' || false,
+            isEnterprise: !!data.isEnterprise,
           })
         }
       } catch (error) {

@@ -1,59 +1,25 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { member, subscription, userStats } from '@/db/schema'
 import { client } from '../auth-client'
 import { calculateUsageLimit, checkEnterprisePlan, checkProPlan, checkTeamPlan } from './utils'
 
 const logger = createLogger('Subscription')
 
-/**
- * Check if the user is on the Pro plan
- */
 export async function isProPlan(userId: string): Promise<boolean> {
   try {
-    // In development, enable Pro features for easier testing
     if (!isProd) {
       return true
     }
 
-    // First check organizations the user belongs to (prioritize org subscriptions)
-    const memberships = await db
-      .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
-
-    // Check each organization for active Pro or Team subscriptions
-    for (const membership of memberships) {
-      const orgSubscriptions = await db
-        .select()
-        .from(schema.subscription)
-        .where(eq(schema.subscription.referenceId, membership.organizationId))
-
-      const orgHasProPlan = orgSubscriptions.some(
-        (sub) => sub.status === 'active' && (sub.plan === 'pro' || sub.plan === 'team')
-      )
-
-      if (orgHasProPlan) {
-        logger.info('User has pro plan via organization', {
-          userId,
-          orgId: membership.organizationId,
-        })
-        return true
-      }
-    }
-
-    // If no org subscriptions, check direct subscriptions
     const directSubscriptions = await db
       .select()
-      .from(schema.subscription)
-      .where(eq(schema.subscription.referenceId, userId))
+      .from(subscription)
+      .where(eq(subscription.referenceId, userId))
 
-    // Find active pro subscription (either Pro or Team plan)
-    const hasDirectProPlan = directSubscriptions.some(
-      (sub) => sub.status === 'active' && (sub.plan === 'pro' || sub.plan === 'team')
-    )
+    const hasDirectProPlan = directSubscriptions.some(checkProPlan)
 
     if (hasDirectProPlan) {
       logger.info('User has direct pro plan', { userId })
@@ -67,28 +33,19 @@ export async function isProPlan(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if the user is on the Team plan
- */
 export async function isTeamPlan(userId: string): Promise<boolean> {
   try {
-    // In development, enable Team features for easier testing
     if (!isProd) {
       return true
     }
 
-    // First check organizations the user belongs to (prioritize org subscriptions)
-    const memberships = await db
-      .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
+    const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
-    // Check each organization for active Team subscriptions
     for (const membership of memberships) {
       const orgSubscriptions = await db
         .select()
-        .from(schema.subscription)
-        .where(eq(schema.subscription.referenceId, membership.organizationId))
+        .from(subscription)
+        .where(eq(subscription.referenceId, membership.organizationId))
 
       const orgHasTeamPlan = orgSubscriptions.some(
         (sub) => sub.status === 'active' && sub.plan === 'team'
@@ -99,16 +56,12 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
       }
     }
 
-    // If no org subscriptions found, check direct subscriptions
     const directSubscriptions = await db
       .select()
-      .from(schema.subscription)
-      .where(eq(schema.subscription.referenceId, userId))
+      .from(subscription)
+      .where(eq(subscription.referenceId, userId))
 
-    // Find active team subscription
-    const hasDirectTeamPlan = directSubscriptions.some(
-      (sub) => sub.status === 'active' && sub.plan === 'team'
-    )
+    const hasDirectTeamPlan = directSubscriptions.some(checkTeamPlan)
 
     if (hasDirectTeamPlan) {
       logger.info('User has direct team plan', { userId })
@@ -122,28 +75,19 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if the user is on the Enterprise plan
- */
 export async function isEnterprisePlan(userId: string): Promise<boolean> {
   try {
-    // In development, enable Enterprise features for easier testing
     if (!isProd) {
       return true
     }
 
-    // First check organizations the user belongs to (prioritize org subscriptions)
-    const memberships = await db
-      .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
+    const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
-    // Check each organization for active Enterprise subscriptions
     for (const membership of memberships) {
       const orgSubscriptions = await db
         .select()
-        .from(schema.subscription)
-        .where(eq(schema.subscription.referenceId, membership.organizationId))
+        .from(subscription)
+        .where(eq(subscription.referenceId, membership.organizationId))
 
       const orgHasEnterprisePlan = orgSubscriptions.some((sub) => checkEnterprisePlan(sub))
 
@@ -156,14 +100,12 @@ export async function isEnterprisePlan(userId: string): Promise<boolean> {
       }
     }
 
-    // If no org subscriptions found, check direct subscriptions
     const directSubscriptions = await db
       .select()
-      .from(schema.subscription)
-      .where(eq(schema.subscription.referenceId, userId))
+      .from(subscription)
+      .where(eq(subscription.referenceId, userId))
 
-    // Find active enterprise subscription
-    const hasDirectEnterprisePlan = directSubscriptions.some((sub) => checkEnterprisePlan(sub))
+    const hasDirectEnterprisePlan = directSubscriptions.some(checkEnterprisePlan)
 
     if (hasDirectEnterprisePlan) {
       logger.info('User has direct enterprise plan', { userId })
@@ -177,75 +119,49 @@ export async function isEnterprisePlan(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if a user has exceeded their cost limit based on their subscription plan
- */
 export async function hasExceededCostLimit(userId: string): Promise<boolean> {
   try {
-    // In development, users never exceed their limit
     if (!isProd) {
       return false
     }
 
-    // Get all applicable subscriptions for the user
     let activeSubscription = null
 
-    // First check for direct subscription
     const userSubscriptions = await db
       .select()
-      .from(schema.subscription)
-      .where(
-        and(eq(schema.subscription.referenceId, userId), eq(schema.subscription.status, 'active'))
-      )
+      .from(subscription)
+      .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
 
     if (userSubscriptions.length > 0) {
-      // Prioritize enterprise, then team, then pro plans (same as we do for org subs)
-      const enterpriseSub = userSubscriptions.find((sub) => checkEnterprisePlan(sub))
-      const teamSub = userSubscriptions.find((sub) => checkTeamPlan(sub))
-      const proSub = userSubscriptions.find((sub) => checkProPlan(sub))
+      const enterpriseSub = userSubscriptions.find(checkEnterprisePlan)
+      const teamSub = userSubscriptions.find(checkTeamPlan)
+      const proSub = userSubscriptions.find(checkProPlan)
 
-      // Use the highest tier subscription
       activeSubscription = enterpriseSub || teamSub || proSub || null
     }
 
-    // If no direct subscription, check for organization subscriptions
     if (!activeSubscription) {
-      const memberships = await db
-        .select()
-        .from(schema.member)
-        .where(eq(schema.member.userId, userId))
+      const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
       for (const membership of memberships) {
         const orgId = membership.organizationId
 
         const orgSubscriptions = await db
           .select()
-          .from(schema.subscription)
-          .where(
-            and(
-              eq(schema.subscription.referenceId, orgId),
-              eq(schema.subscription.status, 'active')
-            )
-          )
+          .from(subscription)
+          .where(and(eq(subscription.referenceId, orgId), eq(subscription.status, 'active')))
 
         if (orgSubscriptions.length > 0) {
-          // Prioritize enterprise, then team, then pro plans
-          const orgEnterpriseSub = orgSubscriptions.find((sub) => checkEnterprisePlan(sub))
-          const orgTeamSub = orgSubscriptions.find(
-            (sub) => sub.plan === 'team' && sub.status === 'active'
-          )
-          const orgProSub = orgSubscriptions.find(
-            (sub) => sub.plan === 'pro' && sub.status === 'active'
-          )
+          const orgEnterpriseSub = orgSubscriptions.find(checkEnterprisePlan)
+          const orgTeamSub = orgSubscriptions.find(checkTeamPlan)
+          const orgProSub = orgSubscriptions.find(checkProPlan)
 
-          // Use the highest tier subscription
           activeSubscription = orgEnterpriseSub || orgTeamSub || orgProSub || null
           if (activeSubscription) break
         }
       }
     }
 
-    // Calculate limit using our standardized function
     let limit = 0
     if (activeSubscription) {
       limit = calculateUsageLimit(activeSubscription)
@@ -256,23 +172,16 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
         limit,
       })
     } else {
-      // Free tier limit
       limit = process.env.FREE_TIER_COST_LIMIT ? parseFloat(process.env.FREE_TIER_COST_LIMIT) : 5
       logger.info('Using free tier limit', { userId, limit })
     }
 
-    // Get user's actual usage from the database
-    const statsRecords = await db
-      .select()
-      .from(schema.userStats)
-      .where(eq(schema.userStats.userId, userId))
+    const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
 
     if (statsRecords.length === 0) {
-      // No usage yet, so they haven't exceeded the limit
       return false
     }
 
-    // Get the current cost and compare with the limit
     const currentCost = parseFloat(statsRecords[0].totalCost.toString())
 
     logger.info('Checking cost limit', { userId, currentCost, limit })
@@ -284,35 +193,24 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if a user is allowed to share workflows based on their subscription plan
- */
 export async function isSharingEnabled(userId: string): Promise<boolean> {
   try {
-    // In development, always allow sharing
     if (!isProd) {
       return true
     }
 
-    // Check direct subscription
     const { data: directSubscriptions } = await client.subscription.list({
       query: { referenceId: userId },
     })
 
     const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
-    // If user has direct pro/team subscription with sharing enabled
     if (activeDirectSubscription && activeDirectSubscription.limits?.sharingEnabled) {
       return true
     }
 
-    // Check organizations the user belongs to
-    const memberships = await db
-      .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
+    const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
-    // Check each organization for a subscription with sharing enabled
     for (const membership of memberships) {
       const { data: orgSubscriptions } = await client.subscription.list({
         query: { referenceId: membership.organizationId },
@@ -332,35 +230,24 @@ export async function isSharingEnabled(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if multiplayer collaboration is enabled for the user
- */
 export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
   try {
-    // In development, always enable multiplayer
     if (!isProd) {
       return true
     }
 
-    // Check direct subscription
     const { data: directSubscriptions } = await client.subscription.list({
       query: { referenceId: userId },
     })
 
     const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
-    // If user has direct team subscription with multiplayer enabled
     if (activeDirectSubscription && activeDirectSubscription.limits?.multiplayerEnabled) {
       return true
     }
 
-    // Check organizations the user belongs to
-    const memberships = await db
-      .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
+    const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
-    // Check each organization for a subscription with multiplayer enabled
     for (const membership of memberships) {
       const { data: orgSubscriptions } = await client.subscription.list({
         query: { referenceId: membership.organizationId },
@@ -380,24 +267,18 @@ export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
   }
 }
 
-/**
- * Check if workspace collaboration is enabled for the user
- */
 export async function isWorkspaceCollaborationEnabled(userId: string): Promise<boolean> {
   try {
-    // In development, always enable workspace collaboration
     if (!isProd) {
       return true
     }
 
-    // Check direct subscription
     const { data: directSubscriptions } = await client.subscription.list({
       query: { referenceId: userId },
     })
 
     const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
-    // If user has direct team subscription with workspace collaboration enabled
     if (
       activeDirectSubscription &&
       activeDirectSubscription.limits?.workspaceCollaborationEnabled
@@ -405,11 +286,7 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
       return true
     }
 
-    // Check organizations the user belongs to
-    const memberships = await db
-      .select()
-      .from(schema.member)
-      .where(eq(schema.member.userId, userId))
+    const memberships = await db.select().from(member).where(eq(member.userId, userId))
 
     // Check each organization for a subscription with workspace collaboration enabled
     for (const membership of memberships) {
@@ -429,4 +306,41 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
     logger.error('Error checking workspace collaboration permission', { error, userId })
     return false // Be conservative in case of error
   }
+}
+
+export async function getHighestPrioritySubscription(userId: string) {
+  const personalSubs = await db
+    .select()
+    .from(subscription)
+    .where(and(eq(subscription.referenceId, userId), eq(subscription.status, 'active')))
+
+  const memberships = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+
+  const orgIds = memberships.map((m: { organizationId: string }) => m.organizationId)
+
+  let orgSubs: any[] = []
+  if (orgIds.length > 0) {
+    orgSubs = await db
+      .select()
+      .from(subscription)
+      .where(and(inArray(subscription.referenceId, orgIds), eq(subscription.status, 'active')))
+  }
+
+  const allSubs = [...personalSubs, ...orgSubs]
+
+  if (allSubs.length === 0) return null
+
+  const enterpriseSub = allSubs.find((s) => checkEnterprisePlan(s))
+  if (enterpriseSub) return enterpriseSub
+
+  const teamSub = allSubs.find((s) => checkTeamPlan(s))
+  if (teamSub) return teamSub
+
+  const proSub = allSubs.find((s) => checkProPlan(s))
+  if (proSub) return proSub
+
+  return null
 }
