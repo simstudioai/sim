@@ -18,7 +18,7 @@ import {
   workflowSync,
 } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
-import { WorkflowMetadata, WorkflowRegistry } from './types'
+import { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 const logger = createLogger('WorkflowRegistry')
@@ -196,6 +196,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null,
       isLoading: false,
       error: null,
+      // Initialize deployment statuses
+      deploymentStatuses: {},
 
       // Set loading state
       setLoading: (loading: boolean) => {
@@ -323,7 +325,106 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           })
       },
 
-      // Switch to a different workflow and manage state persistence
+      // Method to get deployment status for a specific workflow
+      getWorkflowDeploymentStatus: (workflowId: string | null): DeploymentStatus | null => {
+        if (!workflowId) {
+          // If no workflow ID provided, check the active workflow
+          workflowId = get().activeWorkflowId
+          if (!workflowId) return null
+        }
+
+        const { deploymentStatuses = {} } = get()
+        
+        // First try to get from the workflow-specific deployment statuses
+        if (deploymentStatuses[workflowId]) {
+          return deploymentStatuses[workflowId]
+        }
+        
+        // For backward compatibility, check the workflow state in workflow store
+        // This will only be relevant during the transition period
+        const workflowState = loadWorkflowState(workflowId)
+        if (workflowState) {
+          // Check workflow-specific status in the workflow state
+          if (workflowState.deploymentStatuses?.[workflowId]) {
+            return workflowState.deploymentStatuses[workflowId]
+          }
+          
+          // Fallback to legacy fields if needed
+          if (workflowState.isDeployed) {
+            return {
+              isDeployed: workflowState.isDeployed || false,
+              deployedAt: workflowState.deployedAt,
+            }
+          }
+        }
+        
+        // No deployment status found
+        return null
+      },
+
+      // Method to set deployment status for a specific workflow
+      setDeploymentStatus: (workflowId: string | null, isDeployed: boolean, deployedAt?: Date, apiKey?: string) => {
+        if (!workflowId) {
+          workflowId = get().activeWorkflowId
+          if (!workflowId) return
+        }
+
+        // Update the deployment statuses in the registry
+        set((state) => ({
+          deploymentStatuses: {
+            ...state.deploymentStatuses,
+            [workflowId as string]: {
+              isDeployed,
+              deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+              apiKey,
+            },
+          }
+        }))
+
+        // Also update the workflow store if this is the active workflow
+        const { activeWorkflowId } = get()
+        if (workflowId === activeWorkflowId) {
+          // Update the workflow store for backward compatibility
+          useWorkflowStore.setState((state) => ({
+            isDeployed,
+            deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+            needsRedeployment: isDeployed ? false : state.needsRedeployment,
+            deploymentStatuses: {
+              ...state.deploymentStatuses,
+              [workflowId as string]: {
+                isDeployed,
+                deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+                apiKey,
+              }
+            }
+          }))
+        }
+
+        // Save the deployment status in the workflow state
+        const workflowState = loadWorkflowState(workflowId)
+        if (workflowState) {
+          saveWorkflowState(workflowId, {
+            ...workflowState,
+            // Update both legacy and new fields for compatibility
+            isDeployed: workflowId === activeWorkflowId ? isDeployed : workflowState.isDeployed,
+            deployedAt: workflowId === activeWorkflowId ? 
+              (deployedAt || (isDeployed ? new Date() : undefined)) : workflowState.deployedAt,
+            deploymentStatuses: {
+              ...(workflowState.deploymentStatuses || {}),
+              [workflowId]: {
+                isDeployed,
+                deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
+                apiKey,
+              }
+            }
+          })
+        }
+
+        // Trigger workflow sync to update server state
+        workflowSync.sync()
+      },
+
+      // Modified setActiveWorkflow to load deployment statuses
       setActiveWorkflow: async (id: string) => {
         const { workflows } = get()
         if (!workflows[id]) {
@@ -358,7 +459,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Load workflow state for the new active workflow
         const parsedState = loadWorkflowState(id)
         if (parsedState) {
-          const { blocks, edges, history, loops, isDeployed, deployedAt, deploymentStatuses } = parsedState
+          const { 
+            blocks, 
+            edges, 
+            history, 
+            loops, 
+            isDeployed, 
+            deployedAt, 
+            deploymentStatuses 
+          } = parsedState
 
           // Get workflow-specific deployment status
           let workflowIsDeployed = isDeployed;
@@ -402,6 +511,33 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: parsedState.lastSaved || Date.now(),
           })
+<<<<<<< HEAD
+=======
+
+          // Update the deployment statuses in the registry
+          if (deploymentStatuses) {
+            set((state) => ({
+              deploymentStatuses: {
+                ...state.deploymentStatuses,
+                ...deploymentStatuses
+              }
+            }))
+          } else if (workflowIsDeployed !== undefined) {
+            // If there's no deployment statuses object but we have legacy deployment status,
+            // create an entry in the deploymentStatuses map
+            set((state) => ({
+              deploymentStatuses: {
+                ...state.deploymentStatuses,
+                [id]: {
+                  isDeployed: workflowIsDeployed as boolean,
+                  deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined
+                }
+              }
+            }))
+          }
+
+          logger.info(`Switched to workflow ${id}`)
+>>>>>>> 5b406ec6 (fix: moved the deployment status logic to registry store)
         } else {
           // If no saved state, initialize with empty state
           useWorkflowStore.setState({

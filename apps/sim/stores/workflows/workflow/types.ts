@@ -85,8 +85,6 @@ export interface WorkflowActions {
   updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
   updateLoopForEachItems: (loopId: string, items: string) => void
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
-  setDeploymentStatus: (workflowId: string | null, isDeployed: boolean, deployedAt?: Date, apiKey?: string) => void
-  getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setScheduleStatus: (hasActiveSchedule: boolean) => void
   setWebhookStatus: (hasActiveWebhook: boolean) => void
 
