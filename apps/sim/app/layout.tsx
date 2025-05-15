@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next'
+import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import './globals.css'
@@ -159,6 +161,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ZoomPrevention />
         <TelemetryConsentDialog />
         {children}
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   )
