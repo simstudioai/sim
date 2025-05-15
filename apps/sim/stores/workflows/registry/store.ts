@@ -511,8 +511,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: parsedState.lastSaved || Date.now(),
           })
-<<<<<<< HEAD
-=======
 
           // Update the deployment statuses in the registry
           if (deploymentStatuses) {
@@ -537,7 +535,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
 
           logger.info(`Switched to workflow ${id}`)
->>>>>>> 5b406ec6 (fix: moved the deployment status logic to registry store)
         } else {
           // If no saved state, initialize with empty state
           useWorkflowStore.setState({
