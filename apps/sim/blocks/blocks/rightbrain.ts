@@ -7,7 +7,7 @@ export const RightBrainBlock: BlockConfig<RightBrainRunTaskResponse> = {
   name: 'Rightbrain',
   description: 'Run a Rightbrain AI task',
   longDescription:
-    'Rightbrain lets you reliably deploy LLMs for specific tasks across any app or workflow by turning simple instructions into scalable APIs.',
+    'Rightbrain allows you to build LLM features in minutes and instantly deploy them for specific tasks across any app or workflow without extended development cycles.',
   docsLink: 'https://docs.rightbrain.ai/intro',
   category: 'tools',
   bgColor: '#E0E0E0',
