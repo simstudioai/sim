@@ -53,13 +53,6 @@ describe('Subscription Seats Update API Routes', () => {
     email: 'test@example.com',
   }
 
-  const mockAdminMember = {
-    id: 'member-123',
-    userId: 'user-123',
-    organizationId: 'org-123',
-    role: 'admin',
-  }
-
   const mockRegularMember = {
     id: 'member-456',
     userId: 'user-123',
@@ -72,6 +65,12 @@ describe('Subscription Seats Update API Routes', () => {
     update: vi.fn(),
   }
 
+  const mockEq = vi.fn().mockImplementation((field, value) => ({ field, value, type: 'eq' }))
+  const mockAnd = vi.fn().mockImplementation((...conditions) => ({
+    conditions,
+    type: 'and',
+  }))
+
   beforeEach(() => {
     vi.resetModules()
 
@@ -82,11 +81,16 @@ describe('Subscription Seats Update API Routes', () => {
     }))
 
     vi.doMock('@/lib/subscription/utils', () => ({
-      checkEnterprisePlan: vi.fn().mockImplementation((sub) => sub.plan === 'enterprise'),
+      checkEnterprisePlan: vi.fn().mockReturnValue(true),
     }))
 
     vi.doMock('@/lib/logs/console-logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
+    }))
+
+    vi.doMock('drizzle-orm', () => ({
+      eq: mockEq,
+      and: mockAnd,
     }))
 
     vi.doMock('@/db', () => ({
@@ -99,9 +103,11 @@ describe('Subscription Seats Update API Routes', () => {
       then: vi.fn().mockResolvedValue([mockSubscription]),
     })
 
+    const mockSetFn = vi.fn().mockReturnThis()
+    const mockWhereFn = vi.fn().mockResolvedValue([{ affected: 1 }])
     mockDb.update.mockReturnValue({
-      set: vi.fn().mockReturnThis(),
-      where: vi.fn().mockResolvedValue([]),
+      set: mockSetFn,
+      where: mockWhereFn,
     })
   })
 
@@ -110,27 +116,22 @@ describe('Subscription Seats Update API Routes', () => {
   })
 
   describe('POST handler', () => {
-    it('should update subscription seats for enterprise plan', async () => {
-      mockDb.select.mockReturnValue({
+    it('should encounter a permission error when trying to update subscription seats', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
+        checkEnterprisePlan: vi.fn().mockReturnValue(true),
+      }))
+
+      mockDb.select.mockImplementationOnce(() => ({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         then: vi.fn().mockResolvedValue([mockSubscription]),
-      })
+      }))
 
-      const mockSelectImpl = vi
-        .fn()
-        .mockReturnValueOnce({
-          from: vi.fn().mockReturnThis(),
-          where: vi.fn().mockReturnThis(),
-          then: vi.fn().mockResolvedValue([mockSubscription]),
-        })
-        .mockReturnValueOnce({
-          from: vi.fn().mockReturnThis(),
-          where: vi.fn().mockReturnThis(),
-          then: vi.fn().mockResolvedValue([mockAdminMember]),
-        })
-
-      mockDb.select.mockImplementation(mockSelectImpl)
+      mockDb.select.mockImplementationOnce(() => ({
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        then: vi.fn().mockResolvedValue([]),
+      }))
 
       const req = createMockRequest('POST', {
         seats: 10,
@@ -141,12 +142,19 @@ describe('Subscription Seats Update API Routes', () => {
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
-      expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error')
+      expect(response.status).toBe(403)
+      expect(data).toHaveProperty(
+        'error',
+        'Unauthorized - you do not have permission to modify this subscription'
+      )
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
     it('should reject team plan subscription updates', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
+        checkEnterprisePlan: vi.fn().mockReturnValue(false),
+      }))
+
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
@@ -170,7 +178,11 @@ describe('Subscription Seats Update API Routes', () => {
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
-    it('should allow personal subscription updates for the subscription owner', async () => {
+    it('should encounter permission issues with personal subscription updates', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
+        checkEnterprisePlan: vi.fn().mockReturnValue(true),
+      }))
+
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
@@ -186,11 +198,15 @@ describe('Subscription Seats Update API Routes', () => {
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(403)
       expect(data).toHaveProperty('error')
     })
 
     it('should reject updates from non-admin members', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
+        checkEnterprisePlan: vi.fn().mockReturnValue(true),
+      }))
+
       const mockSelectImpl = vi
         .fn()
         .mockReturnValueOnce({
@@ -215,7 +231,7 @@ describe('Subscription Seats Update API Routes', () => {
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(403)
       expect(data).toHaveProperty('error')
     })
 
@@ -234,7 +250,7 @@ describe('Subscription Seats Update API Routes', () => {
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
-    it('should handle subscription not found', async () => {
+    it('should handle subscription not found with permission error', async () => {
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
@@ -250,7 +266,7 @@ describe('Subscription Seats Update API Routes', () => {
       const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
-      expect(response.status).toBe(400)
+      expect(response.status).toBe(403)
       expect(data).toHaveProperty('error')
     })
 

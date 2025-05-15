@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const mem = await db
         .select()
         .from(member)
-        .where(eq(member.userId, session.user.id) && eq(member.organizationId, sub.referenceId))
+        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, sub.referenceId)))
         .then((rows) => rows[0])
 
       hasAccess = mem && (mem.role === 'owner' || mem.role === 'admin')

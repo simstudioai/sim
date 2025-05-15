@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const mem = await db
       .select()
       .from(member)
-      .where(eq(member.userId, session.user.id) && eq(member.organizationId, organizationId))
+      .where(and(eq(member.userId, session.user.id), eq(member.organizationId, organizationId)))
       .then((rows) => rows[0])
 
     const isPersonalTransfer = sub.referenceId === session.user.id
