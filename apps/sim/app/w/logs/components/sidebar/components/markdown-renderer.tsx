@@ -72,7 +72,7 @@ export default function LogMarkdownRenderer({ content }: { content: string }) {
   }
 
   return (
-    <div className="text-sm whitespace-pre-wrap w-full overflow-y-auto max-h-[500px] overflow-x-hidden font-mono">
+    <div className="text-sm whitespace-pre-wrap w-full overflow-visible font-mono">
       <ReactMarkdown components={customComponents}>{processedContent}</ReactMarkdown>
     </div>
   )

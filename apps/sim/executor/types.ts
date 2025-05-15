@@ -50,6 +50,7 @@ export interface BlockLog {
   durationMs: number // Duration of execution in milliseconds
   success: boolean // Whether execution completed successfully
   output?: any // Output data from successful execution
+  input?: any // Input data for the block execution
   error?: string // Error message if execution failed
 }
 

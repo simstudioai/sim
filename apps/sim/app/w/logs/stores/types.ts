@@ -52,6 +52,7 @@ export interface TraceSpan {
   tokens?: number
   relativeStartMs?: number // Time in ms from the start of the parent span
   blockId?: string // Added to track the original block ID for relationship mapping
+  input?: Record<string, any> // Added to store input data for this span
 }
 
 export interface WorkflowLog {
@@ -68,6 +69,7 @@ export interface WorkflowLog {
     traceSpans?: TraceSpan[]
     totalDuration?: number
     cost?: CostMetadata
+    blockInput?: Record<string, any>
   }
 }
 

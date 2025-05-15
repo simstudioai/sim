@@ -24,6 +24,42 @@ interface LogSidebarProps {
 }
 
 /**
+ * Recursively redacts API keys in an object
+ * @param obj The object to redact API keys from
+ * @returns A new object with API keys redacted
+ */
+const redactApiKeys = (obj: any): any => {
+  if (!obj || typeof obj !== 'object') {
+    return obj
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(redactApiKeys)
+  }
+
+  const result: Record<string, any> = {}
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Check if the key is 'apiKey' (case insensitive) or related keys
+    if (
+      key.toLowerCase() === 'apikey' ||
+      key.toLowerCase() === 'api_key' ||
+      key.toLowerCase() === 'access_token' ||
+      key.toLowerCase().includes('secret') ||
+      key.toLowerCase().includes('password')
+    ) {
+      result[key] = '***REDACTED***'
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = redactApiKeys(value)
+    } else {
+      result[key] = value
+    }
+  }
+
+  return result
+}
+
+/**
  * Tries to parse a string as JSON and prettify it
  */
 const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string } => {
@@ -50,7 +86,7 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
 /**
  * Formats JSON content for display, handling multiple JSON objects separated by '--'
  */
-const formatJsonContent = (content: string): React.ReactNode => {
+const formatJsonContent = (content: string, blockInput?: Record<string, any>): React.ReactNode => {
   // Look for a pattern like "Block Agent 1 (agent):" to separate system comment from content
   const blockPattern = /^(Block .+?\(.+?\):)\s*/
   const match = content.match(blockPattern)
@@ -61,19 +97,12 @@ const formatJsonContent = (content: string): React.ReactNode => {
     const { isJson, formatted } = tryPrettifyJson(actualContent)
 
     return (
-      <div className="w-full">
-        <div className="text-sm font-medium mb-2 text-muted-foreground">{systemComment}</div>
-        <div className="bg-secondary/30 p-3 rounded-md relative group">
-          <CopyButton text={formatted} className="h-7 w-7 z-10" />
-          {isJson ? (
-            <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-              {formatted}
-            </pre>
-          ) : (
-            <LogMarkdownRenderer content={formatted} />
-          )}
-        </div>
-      </div>
+      <BlockContentDisplay
+        systemComment={systemComment}
+        formatted={formatted}
+        isJson={isJson}
+        blockInput={blockInput}
+      />
     )
   }
 
@@ -90,6 +119,98 @@ const formatJsonContent = (content: string): React.ReactNode => {
       ) : (
         <LogMarkdownRenderer content={formatted} />
       )}
+    </div>
+  )
+}
+
+// Component for displaying block content with collapsible input
+const BlockContentDisplay = ({
+  systemComment,
+  formatted,
+  isJson,
+  blockInput,
+}: {
+  systemComment: string
+  formatted: string
+  isJson: boolean
+  blockInput?: Record<string, any>
+}) => {
+  const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
+
+  // Redact API keys in block input
+  const redactedBlockInput = useMemo(() => {
+    return blockInput ? redactApiKeys(blockInput) : undefined
+  }, [blockInput])
+
+  // Redact API keys in output content if it's JSON
+  const redactedOutput = useMemo(() => {
+    if (!isJson) return formatted
+
+    try {
+      const parsedOutput = JSON.parse(formatted)
+      const redactedJson = redactApiKeys(parsedOutput)
+      return JSON.stringify(redactedJson, null, 2)
+    } catch (e) {
+      // If parsing fails, return the original content
+      return formatted
+    }
+  }, [formatted, isJson])
+
+  return (
+    <div className="w-full">
+      <div className="text-sm font-medium text-muted-foreground mb-2">{systemComment}</div>
+
+      {/* Tabs for switching between output and input */}
+      {redactedBlockInput && (
+        <div className="flex space-x-1 mb-2">
+          <button
+            onClick={() => setActiveTab('output')}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              activeTab === 'output'
+                ? 'bg-secondary text-foreground'
+                : 'hover:bg-secondary/50 text-muted-foreground'
+            }`}
+          >
+            Output
+          </button>
+          <button
+            onClick={() => setActiveTab('input')}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              activeTab === 'input'
+                ? 'bg-secondary text-foreground'
+                : 'hover:bg-secondary/50 text-muted-foreground'
+            }`}
+          >
+            Input
+          </button>
+        </div>
+      )}
+
+      {/* Content based on active tab */}
+      <div className="bg-secondary/30 p-3 rounded-md relative group">
+        {activeTab === 'output' ? (
+          <>
+            <CopyButton text={redactedOutput} className="h-7 w-7 z-10" />
+            {isJson ? (
+              <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-visible">
+                {redactedOutput}
+              </pre>
+            ) : (
+              <LogMarkdownRenderer content={redactedOutput} />
+            )}
+          </>
+        ) : (
+          <>
+            <CopyButton
+              text={JSON.stringify(redactedBlockInput, null, 2)}
+              className="h-7 w-7 z-10"
+            />
+            <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-visible">
+              {JSON.stringify(redactedBlockInput, null, 2)}
+            </pre>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -124,7 +245,34 @@ export function Sidebar({
 
   const formattedContent = useMemo(() => {
     if (!log) return null
-    return formatJsonContent(log.message)
+
+    // Check for block input in various places in the metadata
+    let blockInput: Record<string, any> | undefined = undefined
+
+    // Direct blockInput in metadata
+    if (log.metadata?.blockInput) {
+      blockInput = log.metadata.blockInput
+    }
+    // Look for input in trace spans for this block
+    else if (log.metadata?.traceSpans) {
+      // Try to extract block ID from the message for matching
+      const blockIdMatch = log.message.match(/Block .+?(\d+)/i)
+      const blockId = blockIdMatch ? blockIdMatch[1] : null
+
+      // Find the matching trace span if available
+      if (blockId) {
+        const matchingSpan = log.metadata.traceSpans.find(
+          (span) => span.blockId === blockId || span.name.includes(`Block ${blockId}`)
+        )
+
+        // Check if the span has input data
+        if (matchingSpan && matchingSpan.input) {
+          blockInput = matchingSpan.input
+        }
+      }
+    }
+
+    return formatJsonContent(log.message, blockInput)
   }, [log])
 
   // Reset scroll position when log changes
@@ -306,8 +454,11 @@ export function Sidebar({
           </div>
 
           {/* Content */}
-          <ScrollArea className="h-[calc(100vh-64px-49px)] w-full" ref={scrollAreaRef}>
-            <div className="p-4 space-y-4 w-full overflow-hidden pr-6">
+          <ScrollArea
+            className="h-[calc(100vh-64px-49px)] w-full overflow-y-auto"
+            ref={scrollAreaRef}
+          >
+            <div className="p-4 space-y-4 w-full pr-6">
               {/* Timestamp */}
               <div>
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Timestamp</h3>
@@ -383,7 +534,7 @@ export function Sidebar({
                 </div>
               )}
 
-              {/* Message Content - MOVED ABOVE the Trace Spans and Cost */}
+              {/* Message Content */}
               <div className="pb-2 w-full">
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Message</h3>
                 <div className="w-full">{formattedContent}</div>

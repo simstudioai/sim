@@ -581,7 +581,10 @@ export async function persistExecutionLogs(
         duration: log.success ? `${log.durationMs}ms` : 'NA',
         trigger: triggerType,
         createdAt: new Date(log.endedAt || log.startedAt),
-        metadata,
+        metadata: {
+          ...metadata,
+          ...(log.input ? { blockInput: log.input } : {}),
+        },
       })
 
       if (metadata) {

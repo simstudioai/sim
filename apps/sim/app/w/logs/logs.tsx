@@ -506,10 +506,7 @@ export default function Logs() {
                           <span>Showing {filteredLogs.length} logs</span>
                           <div className="flex items-center gap-4">
                             {isFetchingMore ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                <span>Loading more...</span>
-                              </div>
+                              <div className="flex items-center gap-2"></div>
                             ) : hasMore ? (
                               <button
                                 type="button"
