@@ -8,12 +8,6 @@ import { autoblocksPromptManagerTool } from './autoblocks'
 import { browserUseRunTaskTool } from './browser_use'
 import { clayPopulateTool } from './clay'
 import { confluenceRetrieveTool, confluenceUpdateTool } from './confluence'
-import {
-  discordGetMessagesTool,
-  discordGetServerTool,
-  discordGetUserTool,
-  discordSendMessageTool,
-} from './discord'
 import { elevenLabsTtsTool } from './elevenlabs'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
