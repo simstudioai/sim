@@ -7,7 +7,7 @@ export const RightBrainBlock: BlockConfig<RightBrainRunTaskResponse> = {
   name: 'Rightbrain',
   description: 'Run a Rightbrain AI task',
   longDescription:
-    'Rightbrain allows you to build LLM features in minutes and instantly deploy them for specific tasks across any app or workflow without extended development cycles.',
+    'Your Rightbrain task will execute as part of your Sim Studio workflow, with results available via the `response` object.',
   docsLink: 'https://docs.rightbrain.ai/intro',
   category: 'tools',
   bgColor: '#E0E0E0',
