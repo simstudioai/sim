@@ -3,11 +3,11 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { SyncManager } from './sync'
 import { isLocalStorageMode } from './sync-core'
-import { 
-  fetchWorkflowsFromDB, 
-  workflowSync, 
-  isRegistryInitialized, 
-  resetRegistryInitialization
+import {
+  fetchWorkflowsFromDB,
+  isRegistryInitialized,
+  resetRegistryInitialization,
+  workflowSync,
 } from './workflows/sync'
 
 const logger = createLogger('SyncRegistry')
@@ -46,24 +46,24 @@ export async function initializeSyncManagers(): Promise<boolean> {
     managers = [workflowSync]
 
     // Reset registry initialization state before fetching
-    resetRegistryInitialization();
+    resetRegistryInitialization()
 
     // Fetch data from DB
     try {
       // Remove environment variables fetch
       await fetchWorkflowsFromDB()
-      
+
       // Wait for a short period to ensure registry is properly initialized
       if (!isRegistryInitialized()) {
-        logger.info('Waiting for registry initialization to complete...');
-        await new Promise(resolve => setTimeout(resolve, 500));
+        logger.info('Waiting for registry initialization to complete...')
+        await new Promise((resolve) => setTimeout(resolve, 500))
       }
-      
+
       // Verify initialization complete
       if (!isRegistryInitialized()) {
-        logger.warn('Registry initialization may not have completed properly');
+        logger.warn('Registry initialization may not have completed properly')
       } else {
-        logger.info('Registry initialization verified');
+        logger.info('Registry initialization verified')
       }
     } catch (error) {
       logger.error('Error fetching data from DB:', { error })

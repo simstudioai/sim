@@ -474,13 +474,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   {config.docsLink ? (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="text-gray-500 p-1 h-7"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        window.open(config.docsLink, '_target', 'noopener,noreferrer');
+                        e.stopPropagation()
+                        window.open(config.docsLink, '_target', 'noopener,noreferrer')
                       }}
                     >
                       <BookOpen className="h-5 w-5" />
@@ -498,12 +498,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       <p className="text-sm text-muted-foreground">{config.longDescription}</p>
                       {config.docsLink && (
                         <p className="text-xs text-blue-500 mt-1">
-                          <a 
-                            href={config.docsLink} 
+                          <a
+                            href={config.docsLink}
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => {
-                              e.stopPropagation();
+                              e.stopPropagation()
                             }}
                           >
                             View Documentation

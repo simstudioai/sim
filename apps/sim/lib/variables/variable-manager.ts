@@ -226,9 +226,11 @@ export class VariableManager {
       return typeof value === 'string' ? value : String(value)
     } else if (type === 'string') {
       // For backwards compatibility, add quotes only for string type in code context
-      return typeof value === 'string' ? JSON.stringify(value) : this.formatValue(value, type, 'code')
+      return typeof value === 'string'
+        ? JSON.stringify(value)
+        : this.formatValue(value, type, 'code')
     }
-    
+
     return this.formatValue(value, type, 'code')
   }
 

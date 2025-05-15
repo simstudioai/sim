@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         validation.workflow.deployedState as any
       )
     }
-    
+
     return createSuccessResponse({
       isDeployed: validation.workflow.isDeployed,
       deployedAt: validation.workflow.deployedAt,

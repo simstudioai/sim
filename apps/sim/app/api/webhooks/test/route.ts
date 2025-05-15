@@ -146,23 +146,23 @@ export async function GET(request: NextRequest) {
             message_id: 67890,
             from: {
               id: 123456789,
-              first_name: "Test",
-              username: "testbot"
+              first_name: 'Test',
+              username: 'testbot',
             },
             chat: {
               id: 123456789,
-              first_name: "Test",
-              username: "testbot",
-              type: "private"
+              first_name: 'Test',
+              username: 'testbot',
+              type: 'private',
             },
             date: Math.floor(Date.now() / 1000),
-            text: "This is a test message"
-          }
+            text: 'This is a test message',
+          },
         }
 
         logger.debug(`[${requestId}] Testing Telegram webhook connection`, {
           webhookId,
-          url: webhookUrl
+          url: webhookUrl,
         })
 
         // Make a test request to the webhook endpoint
@@ -170,16 +170,16 @@ export async function GET(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'TelegramBot/1.0'
+            'User-Agent': 'TelegramBot/1.0',
           },
-          body: JSON.stringify(testMessage)
+          body: JSON.stringify(testMessage),
         })
 
         // Get the response details
         const status = response.status
-        let responseText = '';
+        let responseText = ''
         try {
-          responseText = await response.text();
+          responseText = await response.text()
         } catch (e) {
           // Ignore if we can't get response text
         }
@@ -192,7 +192,7 @@ export async function GET(request: NextRequest) {
         } else {
           logger.warn(`[${requestId}] Telegram webhook test failed: ${webhookId}`, {
             status,
-            responseText
+            responseText,
           })
         }
 
@@ -202,8 +202,8 @@ export async function GET(request: NextRequest) {
           const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
           const infoResponse = await fetch(webhookInfoUrl, {
             headers: {
-              'User-Agent': 'TelegramBot/1.0'
-            }
+              'User-Agent': 'TelegramBot/1.0',
+            },
           })
           if (infoResponse.ok) {
             const infoJson = await infoResponse.json()
@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
           `curl -X POST "${webhookUrl}"`,
           `-H "Content-Type: application/json"`,
           `-H "User-Agent: TelegramBot/1.0"`,
-          `-d '${JSON.stringify(testMessage, null, 2)}'`
+          `-d '${JSON.stringify(testMessage, null, 2)}'`,
         ].join(' \\\n')
 
         return NextResponse.json({
@@ -230,18 +230,18 @@ export async function GET(request: NextRequest) {
             url: webhookUrl,
             botToken: `${botToken.substring(0, 5)}...${botToken.substring(botToken.length - 5)}`, // Show partial token for security
             triggerPhrase,
-            isActive: foundWebhook.isActive
+            isActive: foundWebhook.isActive,
           },
           test: {
             status,
             responseText,
-            webhookInfo
+            webhookInfo,
           },
           message: success
             ? 'Telegram webhook appears to be working. Your bot should now receive messages.'
             : 'Telegram webhook test failed. Please check server logs for more details.',
           curlCommand,
-          info: "To fix issues with Telegram webhooks getting 403 Forbidden responses, ensure the webhook request includes a User-Agent header."
+          info: 'To fix issues with Telegram webhooks getting 403 Forbidden responses, ensure the webhook request includes a User-Agent header.',
         })
       }
 

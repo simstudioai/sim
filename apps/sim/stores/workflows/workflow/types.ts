@@ -49,11 +49,11 @@ export interface WorkflowState {
 // New interface for sync control
 export interface SyncControl {
   // Mark the workflow as changed, requiring sync
-  markDirty: () => void;
+  markDirty: () => void
   // Check if the workflow has unsaved changes
-  isDirty: () => boolean;
+  isDirty: () => boolean
   // Immediately trigger a sync
-  forceSync: () => void;
+  forceSync: () => void
 }
 
 export interface WorkflowActions {
@@ -78,7 +78,7 @@ export interface WorkflowActions {
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
   setWebhookStatus: (hasActiveWebhook: boolean) => void
-  
+
   // Add the sync control methods to the WorkflowActions interface
   sync: SyncControl
 }

@@ -147,7 +147,7 @@ export function getAllWorkflowsWithValues() {
       },
     }
   }
-  
+
   return result
 }
 
@@ -156,9 +156,9 @@ export function getAllWorkflowsWithValues() {
  * This is a shortcut for other files to trigger sync operations
  */
 export function syncWorkflows() {
-  const workflowStore = useWorkflowStore.getState();
-  workflowStore.sync.markDirty();
-  workflowStore.sync.forceSync();
+  const workflowStore = useWorkflowStore.getState()
+  workflowStore.sync.markDirty()
+  workflowStore.sync.forceSync()
 }
 
 export { useWorkflowRegistry, useWorkflowStore, useSubBlockStore }

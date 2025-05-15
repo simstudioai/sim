@@ -4,65 +4,18 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import {
+  createMockRequest,
+  mockAdminMember,
+  mockDb,
+  mockLogger,
+  mockOrganization,
+  mockRegularMember,
+  mockSubscription,
+  mockUser,
+} from '@/app/api/__test-utils__/utils'
 
 describe('Subscription Transfer API Routes', () => {
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }
-
-  const mockUser = {
-    id: 'user-123',
-    email: 'test@example.com',
-  }
-
-  const mockSubscription = {
-    id: 'sub-123',
-    plan: 'enterprise',
-    status: 'active',
-    seats: 5,
-    referenceId: 'user-123',
-    metadata: {
-      perSeatAllowance: 100,
-      totalAllowance: 500,
-      updatedAt: '2023-01-01T00:00:00.000Z',
-    },
-  }
-
-  const mockOrganization = {
-    id: 'org-456',
-    name: 'Test Organization',
-    slug: 'test-org',
-  }
-
-  const mockAdminMember = {
-    id: 'member-123',
-    userId: 'user-123',
-    organizationId: 'org-456',
-    role: 'admin',
-  }
-
-  const mockRegularMember = {
-    id: 'member-456',
-    userId: 'user-123',
-    organizationId: 'org-456',
-    role: 'member',
-  }
-
-  const mockDb = {
-    select: vi.fn(),
-    update: vi.fn(),
-  }
-
-  const mockEq = vi.fn().mockImplementation((field, value) => ({ field, value, type: 'eq' }))
-  const mockAnd = vi.fn().mockImplementation((...conditions) => ({
-    conditions,
-    type: 'and',
-  }))
-
   beforeEach(() => {
     vi.resetModules()
 
@@ -74,11 +27,6 @@ describe('Subscription Transfer API Routes', () => {
 
     vi.doMock('@/lib/logs/console-logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      eq: mockEq,
-      and: mockAnd,
     }))
 
     vi.doMock('@/db', () => ({

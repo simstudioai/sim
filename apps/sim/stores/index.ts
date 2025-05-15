@@ -8,12 +8,14 @@ import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
-import { 
-  getSyncManagers, 
-  initializeSyncManagers, 
-  resetSyncManagers, 
-  isSyncInitialized
+import {
+  getSyncManagers,
+  initializeSyncManagers,
+  isSyncInitialized,
+  resetSyncManagers,
 } from './sync-registry'
+// Import the syncWorkflows function directly
+import { syncWorkflows } from './workflows'
 import {
   loadRegistry,
   loadSubblockValues,
@@ -23,16 +25,9 @@ import {
 } from './workflows/persistence'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { 
-  workflowSync, 
-  isRegistryInitialized,
-  markWorkflowsDirty
-} from './workflows/sync'
+import { isRegistryInitialized, markWorkflowsDirty, workflowSync } from './workflows/sync'
 import { useWorkflowStore } from './workflows/workflow/store'
 import { BlockState } from './workflows/workflow/types'
-
-// Import the syncWorkflows function directly
-import { syncWorkflows } from './workflows'
 
 const logger = createLogger('Stores')
 
@@ -53,7 +48,7 @@ async function initializeApplication(): Promise<void> {
 
   isInitializing = true
   appFullyInitialized = false
-  
+
   // Track initialization start time
   const initStartTime = Date.now()
 
@@ -105,11 +100,11 @@ async function initializeApplication(): Promise<void> {
 
     // 2. Register cleanup
     window.addEventListener('beforeunload', handleBeforeUnload)
-    
+
     // Log initialization timing information
     const initDuration = Date.now() - initStartTime
     logger.info(`Application initialization completed in ${initDuration}ms`)
-    
+
     // Mark application as fully initialized
     appFullyInitialized = true
   } catch (error) {
@@ -125,7 +120,7 @@ async function initializeApplication(): Promise<void> {
  * Checks if application is fully initialized
  */
 export function isAppInitialized(): boolean {
-  return appFullyInitialized && isRegistryInitialized() && isSyncInitialized();
+  return appFullyInitialized && isRegistryInitialized() && isSyncInitialized()
 }
 
 function initializeWorkflowState(workflowId: string): void {
@@ -200,7 +195,7 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
   }
 
   // Mark workflows as dirty to ensure sync on exit
-  syncWorkflows();
+  syncWorkflows()
 
   // 2. Final sync for managers that need it
   getSyncManagers()
@@ -348,7 +343,7 @@ export async function reinitializeAfterLogin(): Promise<void> {
   try {
     // Reset application initialization state
     appFullyInitialized = false
-    
+
     // Reset sync managers to prevent any active syncs during reinitialization
     resetSyncManagers()
 
@@ -491,8 +486,8 @@ function createFirstWorkflowWithAgentBlock(): void {
   saveWorkflowState(workflowId, updatedState)
 
   // Mark as dirty to ensure sync
-  syncWorkflows();
-  
+  syncWorkflows()
+
   // Resume sync managers after initialization
   setTimeout(() => {
     const syncManagers = getSyncManagers()

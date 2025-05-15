@@ -4,73 +4,18 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import {
+  createMockRequest,
+  mockDb,
+  mockLogger,
+  mockPersonalSubscription,
+  mockRegularMember,
+  mockSubscription,
+  mockTeamSubscription,
+  mockUser,
+} from '@/app/api/__test-utils__/utils'
 
 describe('Subscription Seats Update API Routes', () => {
-  const mockLogger = {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  }
-
-  const mockSubscription = {
-    id: 'sub-123',
-    plan: 'enterprise',
-    status: 'active',
-    seats: 5,
-    referenceId: 'org-123',
-    metadata: {
-      perSeatAllowance: 100,
-      totalAllowance: 500,
-      updatedAt: '2023-01-01T00:00:00.000Z',
-    },
-  }
-
-  const mockTeamSubscription = {
-    id: 'sub-456',
-    plan: 'team',
-    status: 'active',
-    seats: 5,
-    referenceId: 'org-123',
-  }
-
-  const mockPersonalSubscription = {
-    id: 'sub-789',
-    plan: 'enterprise',
-    status: 'active',
-    seats: 5,
-    referenceId: 'user-123',
-    metadata: {
-      perSeatAllowance: 100,
-      totalAllowance: 500,
-      updatedAt: '2023-01-01T00:00:00.000Z',
-    },
-  }
-
-  const mockUser = {
-    id: 'user-123',
-    email: 'test@example.com',
-  }
-
-  const mockRegularMember = {
-    id: 'member-456',
-    userId: 'user-123',
-    organizationId: 'org-123',
-    role: 'member',
-  }
-
-  const mockDb = {
-    select: vi.fn(),
-    update: vi.fn(),
-  }
-
-  const mockEq = vi.fn().mockImplementation((field, value) => ({ field, value, type: 'eq' }))
-  const mockAnd = vi.fn().mockImplementation((...conditions) => ({
-    conditions,
-    type: 'and',
-  }))
-
   beforeEach(() => {
     vi.resetModules()
 
@@ -86,11 +31,6 @@ describe('Subscription Seats Update API Routes', () => {
 
     vi.doMock('@/lib/logs/console-logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
-    }))
-
-    vi.doMock('drizzle-orm', () => ({
-      eq: mockEq,
-      and: mockAnd,
     }))
 
     vi.doMock('@/db', () => ({

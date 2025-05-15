@@ -679,24 +679,26 @@ export function verifyProviderWebhook(
       // Log the user agent for debugging purposes
       const userAgent = request.headers.get('user-agent') || ''
       logger.debug(`[${requestId}] Telegram webhook request received with User-Agent: ${userAgent}`)
-      
+
       // Check if the user agent is empty and warn about it
       if (!userAgent) {
-        logger.warn(`[${requestId}] Telegram webhook request has empty User-Agent header. This may be blocked by middleware.`)
+        logger.warn(
+          `[${requestId}] Telegram webhook request has empty User-Agent header. This may be blocked by middleware.`
+        )
       }
 
       // We'll accept the request anyway since we're in the provider-specific logic,
       // but we'll log the information for debugging
-      
+
       // Telegram uses IP addresses in specific ranges
       // This is optional verification that could be added if IP verification is needed
-      const clientIp = 
+      const clientIp =
         request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
         request.headers.get('x-real-ip') ||
         'unknown'
-      
+
       logger.debug(`[${requestId}] Telegram webhook request from IP: ${clientIp}`)
-      
+
       break
     case 'generic':
       // Generic auth logic: requireAuth, token, secretHeaderName, allowedIps
