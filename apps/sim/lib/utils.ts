@@ -330,8 +330,8 @@ export const redactApiKeys = (obj: any): any => {
       key.toLowerCase() === 'apikey' ||
       key.toLowerCase() === 'api_key' ||
       key.toLowerCase() === 'access_token' ||
-      key.toLowerCase().includes('secret') ||
-      key.toLowerCase().includes('password')
+      /\bsecret\b/i.test(key.toLowerCase()) ||
+      /\bpassword\b/i.test(key.toLowerCase())
     ) {
       result[key] = '***REDACTED***'
     } else if (typeof value === 'object' && value !== null) {
