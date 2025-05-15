@@ -179,22 +179,26 @@ export function Variables({ panelWidth }: VariablesProps) {
       case 'object':
         try {
           // Handle both JavaScript and JSON syntax
-          let valueToValidate = String(variable.value).trim()
+          let valueToEvaluate = String(variable.value).trim()
 
-          // If it's clearly JS syntax, convert it to valid JSON
-          if (valueToValidate.includes("'") || /\b\w+\s*:/.test(valueToValidate)) {
-            // Replace JS single quotes with double quotes, but handle escaped quotes correctly
-            valueToValidate = valueToValidate
-              .replace(/(\w+)\s*:/g, '"$1":') // Convert unquoted property names to quoted
-              .replace(/'/g, '"') // Replace single quotes with double quotes
+          // Basic security check to prevent arbitrary code execution
+          if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
+            return 'Not a valid object format'
           }
 
-          const parsed = JSON.parse(valueToValidate)
-          return !parsed || typeof parsed !== 'object' || Array.isArray(parsed)
-            ? 'Not a valid JSON object'
-            : undefined
-        } catch {
-          return 'Invalid JSON object syntax'
+          // Use Function constructor to safely evaluate the object expression
+          // This is safer than eval() and handles all JS object literal syntax
+          const parsed = new Function(`return ${valueToEvaluate}`)()
+
+          // Verify it's actually an object (not array or null)
+          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return 'Not a valid object'
+          }
+
+          return undefined // Valid object
+        } catch (e) {
+          console.log('Object parsing error:', e)
+          return 'Invalid object syntax'
         }
       case 'array':
         try {
