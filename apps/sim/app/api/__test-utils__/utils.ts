@@ -1,9 +1,6 @@
 import { vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-/**
- * Mock sample workflow state for testing
- */
 export const sampleWorkflowState = {
   blocks: {
     'starter-id': {
@@ -65,51 +62,108 @@ export const sampleWorkflowState = {
   isDeployed: false,
 }
 
-/**
- * Mock database with test data
- */
-export function mockDb() {
-  return {
-    select: vi.fn().mockImplementation(() => ({
-      from: vi.fn().mockImplementation(() => ({
-        where: vi.fn().mockImplementation(() => ({
-          limit: vi.fn().mockImplementation(() => [
-            {
-              id: 'workflow-id',
-              userId: 'user-id',
-              state: sampleWorkflowState,
-            },
-          ]),
-        })),
+export const mockDb = {
+  select: vi.fn().mockImplementation(() => ({
+    from: vi.fn().mockImplementation(() => ({
+      where: vi.fn().mockImplementation(() => ({
+        limit: vi.fn().mockImplementation(() => [
+          {
+            id: 'workflow-id',
+            userId: 'user-id',
+            state: sampleWorkflowState,
+          },
+        ]),
       })),
     })),
-    update: vi.fn().mockImplementation(() => ({
-      set: vi.fn().mockImplementation(() => ({
-        where: vi.fn().mockResolvedValue([]),
-      })),
+  })),
+  update: vi.fn().mockImplementation(() => ({
+    set: vi.fn().mockImplementation(() => ({
+      where: vi.fn().mockResolvedValue([]),
     })),
-  }
+  })),
+  eq: vi.fn().mockImplementation((field, value) => ({ field, value, type: 'eq' })),
+  and: vi.fn().mockImplementation((...conditions) => ({
+    conditions,
+    type: 'and',
+  })),
 }
 
-/**
- * Mock environment variables for testing
- */
+export const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}
+
+export const mockUser = {
+  id: 'user-123',
+  email: 'test@example.com',
+}
+
+export const mockSubscription = {
+  id: 'sub-123',
+  plan: 'enterprise',
+  status: 'active',
+  seats: 5,
+  referenceId: 'user-123',
+  metadata: {
+    perSeatAllowance: 100,
+    totalAllowance: 500,
+    updatedAt: '2023-01-01T00:00:00.000Z',
+  },
+}
+
+export const mockOrganization = {
+  id: 'org-456',
+  name: 'Test Organization',
+  slug: 'test-org',
+}
+
+export const mockAdminMember = {
+  id: 'member-123',
+  userId: 'user-123',
+  organizationId: 'org-456',
+  role: 'admin',
+}
+
+export const mockRegularMember = {
+  id: 'member-456',
+  userId: 'user-123',
+  organizationId: 'org-456',
+  role: 'member',
+}
+
+export const mockTeamSubscription = {
+  id: 'sub-456',
+  plan: 'team',
+  status: 'active',
+  seats: 5,
+  referenceId: 'org-123',
+}
+
+export const mockPersonalSubscription = {
+  id: 'sub-789',
+  plan: 'enterprise',
+  status: 'active',
+  seats: 5,
+  referenceId: 'user-123',
+  metadata: {
+    perSeatAllowance: 100,
+    totalAllowance: 500,
+    updatedAt: '2023-01-01T00:00:00.000Z',
+  },
+}
+
 export const mockEnvironmentVars = {
   OPENAI_API_KEY: 'encrypted:openai-api-key',
   SERPER_API_KEY: 'encrypted:serper-api-key',
 }
 
-/**
- * Mock decrypted environment variables for testing
- */
 export const mockDecryptedEnvVars = {
   OPENAI_API_KEY: 'sk-test123',
   SERPER_API_KEY: 'serper-test123',
 }
 
-/**
- * Create mock Next.js request for testing
- */
 export function createMockRequest(
   method: string = 'GET',
   body?: any,
@@ -125,11 +179,7 @@ export function createMockRequest(
   })
 }
 
-/**
- * Mock the executeWorkflow function dependencies
- */
 export function mockExecutionDependencies() {
-  // Mock decryptSecret function
   vi.mock('@/lib/utils', async () => {
     const actual = await vi.importActual('@/lib/utils')
     return {
@@ -150,13 +200,11 @@ export function mockExecutionDependencies() {
     }
   })
 
-  // Mock execution logger functions
   vi.mock('@/lib/logs/execution-logger', () => ({
     persistExecutionLogs: vi.fn().mockResolvedValue(undefined),
     persistExecutionError: vi.fn().mockResolvedValue(undefined),
   }))
 
-  // Mock trace spans builder
   vi.mock('@/lib/logs/trace-spans', () => ({
     buildTraceSpans: vi.fn().mockReturnValue({
       traceSpans: [],
@@ -164,12 +212,10 @@ export function mockExecutionDependencies() {
     }),
   }))
 
-  // Mock workflow utils
   vi.mock('@/lib/workflows/utils', () => ({
     updateWorkflowRunCounts: vi.fn().mockResolvedValue(undefined),
   }))
 
-  // Mock serializer
   vi.mock('@/serializer', () => ({
     Serializer: vi.fn().mockImplementation(() => ({
       serializeWorkflow: vi.fn().mockReturnValue({
@@ -205,7 +251,6 @@ export function mockExecutionDependencies() {
     })),
   }))
 
-  // Mock executor
   vi.mock('@/executor', () => ({
     Executor: vi.fn().mockImplementation(() => ({
       execute: vi.fn().mockResolvedValue({
@@ -226,15 +271,11 @@ export function mockExecutionDependencies() {
     })),
   }))
 
-  // Mock database
   vi.mock('@/db', () => ({
-    db: mockDb(),
+    db: mockDb,
   }))
 }
 
-/**
- * Mock the workflow access validation middleware
- */
 export function mockWorkflowAccessValidation(shouldSucceed = true) {
   if (shouldSucceed) {
     vi.mock('@/app/api/workflows/middleware', () => ({
@@ -258,11 +299,7 @@ export function mockWorkflowAccessValidation(shouldSucceed = true) {
   }
 }
 
-/**
- * Get mocked dependencies for validation
- */
 export async function getMockedDependencies() {
-  // Using dynamic imports to avoid module resolution issues
   const utilsModule = await import('@/lib/utils')
   const logsModule = await import('@/lib/logs/execution-logger')
   const traceSpansModule = await import('@/lib/logs/trace-spans')

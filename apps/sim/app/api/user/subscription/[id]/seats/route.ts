@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { and, eq, or } from 'drizzle-orm'
+import { NextRequest, NextResponse } from 'next/server'
+import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -7,11 +7,10 @@ import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { db } from '@/db'
 import { member, subscription } from '@/db/schema'
 
-const logger = createLogger('UpdateSubscriptionSeatsAPI')
+const logger = createLogger('SubscriptionSeatsUpdateAPI')
 
 const updateSeatsSchema = z.object({
-  subscriptionId: z.string().uuid(),
-  seats: z.number().int().positive(),
+  seats: z.number().int().min(1),
 })
 
 const subscriptionMetadataSchema = z
@@ -29,17 +28,29 @@ interface SubscriptionMetadata {
   [key: string]: any
 }
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const subscriptionId = (await params).id
     const session = await getSession()
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      logger.warn('Unauthorized seats update attempt')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const rawBody = await req.json()
-    const validationResult = updateSeatsSchema.safeParse(rawBody)
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      return NextResponse.json(
+        {
+          error: 'Invalid JSON in request body',
+        },
+        { status: 400 }
+      )
+    }
 
+    const validationResult = updateSeatsSchema.safeParse(body)
     if (!validationResult.success) {
       return NextResponse.json(
         {
@@ -50,58 +61,44 @@ export async function POST(req: Request) {
       )
     }
 
-    const { subscriptionId, seats } = validationResult.data
+    const { seats } = validationResult.data
 
-    const subscriptions = await db
+    const sub = await db
       .select()
       .from(subscription)
       .where(eq(subscription.id, subscriptionId))
-      .limit(1)
+      .then((rows) => rows[0])
 
-    if (subscriptions.length === 0) {
+    if (!sub) {
       return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
     }
 
-    const sub = subscriptions[0]
-
     if (!checkEnterprisePlan(sub)) {
       return NextResponse.json(
-        {
-          error: 'Only enterprise subscriptions can be updated through this endpoint',
-        },
+        { error: 'Only enterprise subscriptions can be updated through this endpoint' },
         { status: 400 }
       )
     }
 
-    let hasPermission = sub.referenceId === session.user.id
+    const isPersonalSubscription = sub.referenceId === session.user.id
 
-    if (!hasPermission) {
-      const memberships = await db
+    let hasAccess = isPersonalSubscription
+
+    if (!isPersonalSubscription) {
+      const mem = await db
         .select()
         .from(member)
-        .where(
-          and(
-            eq(member.userId, session.user.id),
-            eq(member.organizationId, sub.referenceId),
-            or(eq(member.role, 'owner'), eq(member.role, 'admin'))
-          )
-        )
-        .limit(1)
+        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, sub.referenceId)))
+        .then((rows) => rows[0])
 
-      hasPermission = memberships.length > 0
+      hasAccess = mem && (mem.role === 'owner' || mem.role === 'admin')
+    }
 
-      if (!hasPermission) {
-        logger.warn('Unauthorized subscription update attempt', {
-          userId: session.user.id,
-          subscriptionId,
-          referenceId: sub.referenceId,
-        })
-
-        return NextResponse.json(
-          { error: 'You must be an admin or owner to update subscription settings' },
-          { status: 403 }
-        )
-      }
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Unauthorized - you do not have permission to modify this subscription' },
+        { status: 403 }
+      )
     }
 
     let validatedMetadata: SubscriptionMetadata
@@ -132,30 +129,23 @@ export async function POST(req: Request) {
       })
       .where(eq(subscription.id, subscriptionId))
 
-    logger.info('Updated subscription seats', {
+    logger.info('Subscription seats updated', {
       subscriptionId,
-      previousSeats: sub.seats,
+      oldSeats: sub.seats,
       newSeats: seats,
       userId: session.user.id,
     })
 
     return NextResponse.json({
       success: true,
-      message: 'Subscription seats updated',
-      data: {
-        subscriptionId,
-        seats,
-        plan: sub.plan,
-        metadata: validatedMetadata,
-      },
+      message: 'Subscription seats updated successfully',
+      seats,
+      metadata: validatedMetadata,
     })
   } catch (error) {
-    logger.error('Error updating subscription seats:', error)
-    return NextResponse.json(
-      {
-        error: 'Failed to update subscription seats',
-      },
-      { status: 500 }
-    )
+    logger.error('Error updating subscription seats', {
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return NextResponse.json({ error: 'Failed to update subscription seats' }, { status: 500 })
   }
 }

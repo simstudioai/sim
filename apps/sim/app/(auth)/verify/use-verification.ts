@@ -57,26 +57,26 @@ export function useVerification({
       if (storedEmail) {
         setEmail(storedEmail)
       }
-      
+
       // Check for redirect information
       const storedRedirectUrl = sessionStorage.getItem('inviteRedirectUrl')
       if (storedRedirectUrl) {
         setRedirectUrl(storedRedirectUrl)
       }
-      
+
       // Check if this is an invite flow
       const storedIsInviteFlow = sessionStorage.getItem('isInviteFlow')
       if (storedIsInviteFlow === 'true') {
         setIsInviteFlow(true)
       }
     }
-    
+
     // Also check URL parameters for redirect information
     const redirectParam = searchParams.get('redirectAfter')
     if (redirectParam) {
       setRedirectUrl(redirectParam)
     }
-    
+
     // Check for invite_flow parameter
     const inviteFlowParam = searchParams.get('invite_flow')
     if (inviteFlowParam === 'true') {
@@ -130,7 +130,7 @@ export function useVerification({
         // Clear email from sessionStorage after successful verification
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('verificationEmail')
-          
+
           // Also clear invite-related items
           if (isInviteFlow) {
             sessionStorage.removeItem('inviteRedirectUrl')

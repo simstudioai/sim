@@ -37,13 +37,13 @@ const initialState = {
 // Create a consolidated sync control implementation
 /**
  * The SyncControl implementation provides a clean, centralized way to handle workflow syncing.
- * 
+ *
  * This pattern offers several advantages:
  * 1. It encapsulates sync logic through a clear, standardized interface
  * 2. It allows components to mark workflows as dirty without direct dependencies
  * 3. It prevents race conditions by ensuring changes are properly tracked before syncing
  * 4. It centralizes sync decisions to avoid redundant or conflicting operations
- * 
+ *
  * Usage:
  * - Call markDirty() when workflow state changes but sync can be deferred
  * - Call forceSync() when an immediate sync to the server is needed
@@ -61,7 +61,7 @@ const createSyncControl = (): SyncControl => ({
   forceSync: () => {
     markWorkflowsDirty() // Always mark as dirty before forcing a sync
     workflowSync.sync()
-  }
+  },
 })
 
 export const useWorkflowStore = create<WorkflowStoreWithHistory>()(

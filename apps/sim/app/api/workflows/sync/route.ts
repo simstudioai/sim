@@ -48,37 +48,40 @@ const SyncPayloadSchema = z.object({
 })
 
 // Cache for workspace membership to reduce DB queries
-const workspaceMembershipCache = new Map<string, { role: string, expires: number }>();
-const CACHE_TTL = 60000; // 1 minute cache expiration
-const MAX_CACHE_SIZE = 1000; // Maximum number of entries to prevent unbounded growth
+const workspaceMembershipCache = new Map<string, { role: string; expires: number }>()
+const CACHE_TTL = 60000 // 1 minute cache expiration
+const MAX_CACHE_SIZE = 1000 // Maximum number of entries to prevent unbounded growth
 
 /**
  * Cleans up expired entries from the workspace membership cache
  */
 function cleanupExpiredCacheEntries(): void {
-  const now = Date.now();
-  let expiredCount = 0;
-  
+  const now = Date.now()
+  let expiredCount = 0
+
   // Remove expired entries
   for (const [key, value] of workspaceMembershipCache.entries()) {
     if (value.expires <= now) {
-      workspaceMembershipCache.delete(key);
-      expiredCount++;
+      workspaceMembershipCache.delete(key)
+      expiredCount++
     }
   }
-  
+
   // If we're still over the limit after removing expired entries,
   // remove the oldest entries (those that will expire soonest)
   if (workspaceMembershipCache.size > MAX_CACHE_SIZE) {
-    const entries = Array.from(workspaceMembershipCache.entries())
-      .sort((a, b) => a[1].expires - b[1].expires);
-      
-    const toRemove = entries.slice(0, workspaceMembershipCache.size - MAX_CACHE_SIZE);
-    toRemove.forEach(([key]) => workspaceMembershipCache.delete(key));
-    
-    logger.debug(`Cache cleanup: removed ${expiredCount} expired entries and ${toRemove.length} additional entries due to size limit`);
+    const entries = Array.from(workspaceMembershipCache.entries()).sort(
+      (a, b) => a[1].expires - b[1].expires
+    )
+
+    const toRemove = entries.slice(0, workspaceMembershipCache.size - MAX_CACHE_SIZE)
+    toRemove.forEach(([key]) => workspaceMembershipCache.delete(key))
+
+    logger.debug(
+      `Cache cleanup: removed ${expiredCount} expired entries and ${toRemove.length} additional entries due to size limit`
+    )
   } else if (expiredCount > 0) {
-    logger.debug(`Cache cleanup: removed ${expiredCount} expired entries`);
+    logger.debug(`Cache cleanup: removed ${expiredCount} expired entries`)
   }
 }
 
@@ -88,46 +91,46 @@ function cleanupExpiredCacheEntries(): void {
  * @param workspaceId Workspace ID to check
  * @returns Role if user is a member, null otherwise
  */
-async function verifyWorkspaceMembership(userId: string, workspaceId: string): Promise<string | null> {
+async function verifyWorkspaceMembership(
+  userId: string,
+  workspaceId: string
+): Promise<string | null> {
   // Opportunistic cleanup of expired cache entries
   if (workspaceMembershipCache.size > MAX_CACHE_SIZE / 2) {
-    cleanupExpiredCacheEntries();
+    cleanupExpiredCacheEntries()
   }
-  
+
   // Create cache key from userId and workspaceId
-  const cacheKey = `${userId}:${workspaceId}`;
-  
+  const cacheKey = `${userId}:${workspaceId}`
+
   // Check cache first
-  const cached = workspaceMembershipCache.get(cacheKey);
+  const cached = workspaceMembershipCache.get(cacheKey)
   if (cached && cached.expires > Date.now()) {
-    return cached.role;
+    return cached.role
   }
-  
+
   // If not in cache or expired, query the database
   try {
     const membership = await db
       .select({ role: workspaceMember.role })
       .from(workspaceMember)
-      .where(and(
-        eq(workspaceMember.workspaceId, workspaceId),
-        eq(workspaceMember.userId, userId)
-      ))
-      .then((rows) => rows[0]);
-    
+      .where(and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, userId)))
+      .then((rows) => rows[0])
+
     if (!membership) {
-      return null;
+      return null
     }
-    
+
     // Cache the result
     workspaceMembershipCache.set(cacheKey, {
       role: membership.role,
-      expires: Date.now() + CACHE_TTL
-    });
-    
-    return membership.role;
+      expires: Date.now() + CACHE_TTL,
+    })
+
+    return membership.role
   } catch (error) {
-    logger.error(`Error verifying workspace membership for ${userId} in ${workspaceId}:`, error);
-    return null;
+    logger.error(`Error verifying workspace membership for ${userId} in ${workspaceId}:`, error)
+    return null
   }
 }
 
@@ -168,7 +171,7 @@ export async function GET(request: Request) {
 
       // Verify the user is a member of the workspace using our optimized function
       const userRole = await verifyWorkspaceMembership(userId, workspaceId)
-      
+
       if (!userRole) {
         logger.warn(
           `[${requestId}] User ${userId} attempted to access workspace ${workspaceId} without membership`
@@ -180,7 +183,7 @@ export async function GET(request: Request) {
       }
 
       // Migrate any orphaned workflows to this workspace (in background)
-      migrateOrphanedWorkflows(userId, workspaceId).catch(error => {
+      migrateOrphanedWorkflows(userId, workspaceId).catch((error) => {
         logger.error(`[${requestId}] Error migrating orphaned workflows:`, error)
       })
     }
@@ -191,18 +194,17 @@ export async function GET(request: Request) {
     if (workspaceId) {
       // Filter by workspace ID only, not user ID
       // This allows sharing workflows across workspace members
-      workflows = await db
-        .select()
-        .from(workflow)
-        .where(eq(workflow.workspaceId, workspaceId))
+      workflows = await db.select().from(workflow).where(eq(workflow.workspaceId, workspaceId))
     } else {
       // Filter by user ID only, including workflows without workspace IDs
       workflows = await db.select().from(workflow).where(eq(workflow.userId, userId))
     }
 
     const elapsed = Date.now() - startTime
-    logger.info(`[${requestId}] Workflow fetch completed in ${elapsed}ms for ${workflows.length} workflows`)
-    
+    logger.info(
+      `[${requestId}] Workflow fetch completed in ${elapsed}ms for ${workflows.length} workflows`
+    )
+
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })
   } catch (error: any) {
@@ -239,11 +241,13 @@ async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
           updatedAt: new Date(),
         })
         .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
-        
-      logger.info(`Successfully migrated ${orphanedWorkflows.length} workflows to workspace ${workspaceId}`)
+
+      logger.info(
+        `Successfully migrated ${orphanedWorkflows.length} workflows to workspace ${workspaceId}`
+      )
     } catch (batchError) {
       logger.warn('Batch migration failed, falling back to individual updates:', batchError)
-      
+
       // Fallback to individual updates if batch update fails
       for (const { id } of orphanedWorkflows) {
         try {
@@ -316,8 +320,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Validate workspace membership and permissions
-      let userRole: string | null = null;
-      
+      let userRole: string | null = null
+
       if (workspaceId) {
         const workspaceExists = await db
           .select({ id: workspace.id })
@@ -357,10 +361,7 @@ export async function POST(req: NextRequest) {
       let dbWorkflows
 
       if (workspaceId) {
-        dbWorkflows = await db
-          .select()
-          .from(workflow)
-          .where(eq(workflow.workspaceId, workspaceId))
+        dbWorkflows = await db.select().from(workflow).where(eq(workflow.workspaceId, workspaceId))
       } else {
         dbWorkflows = await db.select().from(workflow).where(eq(workflow.userId, session.user.id))
       }
@@ -405,16 +406,17 @@ export async function POST(req: NextRequest) {
           )
         } else {
           // Check if user has permission to update this workflow
-          const canUpdate = dbWorkflow.userId === session.user.id || 
-                          (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'));
-                          
+          const canUpdate =
+            dbWorkflow.userId === session.user.id ||
+            (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'))
+
           if (!canUpdate) {
             logger.warn(
               `[${requestId}] User ${session.user.id} attempted to update workflow ${id} without permission`
             )
-            continue; // Skip this workflow update and move to the next one
+            continue // Skip this workflow update and move to the next one
           }
-          
+
           // Existing workflow - update if needed
           const needsUpdate =
             JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
@@ -454,9 +456,10 @@ export async function POST(req: NextRequest) {
         ) {
           // Check if the user has permission to delete this workflow
           // Users can delete their own workflows, or any workflow if they're a workspace owner/admin
-          const canDelete = dbWorkflow.userId === session.user.id || 
-                           (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'));
-          
+          const canDelete =
+            dbWorkflow.userId === session.user.id ||
+            (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'))
+
           if (canDelete) {
             operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
           } else {
@@ -471,14 +474,14 @@ export async function POST(req: NextRequest) {
       await Promise.all(operations)
 
       const elapsed = Date.now() - startTime
-      
-      return NextResponse.json({ 
+
+      return NextResponse.json({
         success: true,
         stats: {
           elapsed,
           operations: operations.length,
-          workflows: Object.keys(clientWorkflows).length
-        }
+          workflows: Object.keys(clientWorkflows).length,
+        },
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {

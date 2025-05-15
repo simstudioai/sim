@@ -244,7 +244,7 @@ export class InputResolver {
     try {
       // Handle 'string' type the same as 'plain' for backward compatibility
       const type = variable.type === 'string' ? 'plain' : variable.type
-      
+
       // Use the centralized VariableManager to resolve variable values
       return VariableManager.resolveForExecution(variable.value, type)
     } catch (error) {
@@ -271,12 +271,12 @@ export class InputResolver {
     try {
       // Handle 'string' type the same as 'plain' for backward compatibility
       const normalizedType = type === 'string' ? 'plain' : type
-      
+
       // For plain text, use exactly what's entered without modifications
       if (normalizedType === 'plain' && typeof value === 'string') {
         return value
       }
-      
+
       // Determine if this needs special handling for code contexts
       const needsCodeStringLiteral = this.needsCodeStringLiteral(currentBlock, String(value))
       const isFunctionBlock = currentBlock?.metadata?.id === 'function'
@@ -1081,7 +1081,7 @@ export class InputResolver {
       if (block.metadata.id === 'function') {
         return true
       }
-      
+
       // Specifically for condition blocks, stringifyForCondition handles quoting
       // so we don't need extra quoting here unless it's within an expression.
       if (block.metadata.id === 'condition' && !expression) {

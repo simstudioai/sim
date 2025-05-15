@@ -97,7 +97,7 @@ export function DiscordServerSelector({
   // Handle open change - only fetch servers when the dropdown is opened
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
-    
+
     // Only fetch servers when opening the dropdown and if we have a valid token
     if (isOpen && botToken && (!initialFetchDone || servers.length === 0)) {
       fetchServers()
@@ -108,10 +108,10 @@ export function DiscordServerSelector({
   // This is more efficient than fetching all servers
   const fetchSelectedServerInfo = useCallback(async () => {
     if (!botToken || !selectedServerId) return
-    
+
     setIsLoading(true)
     setError(null)
-    
+
     try {
       // Only fetch the specific server by ID instead of all servers
       const response = await fetch('/api/auth/oauth/discord/servers', {
@@ -119,17 +119,17 @@ export function DiscordServerSelector({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           botToken,
-          serverId: selectedServerId 
+          serverId: selectedServerId,
         }),
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to fetch Discord server')
       }
-      
+
       const data = await response.json()
       if (data.server) {
         setSelectedServer(data.server)
@@ -160,10 +160,10 @@ export function DiscordServerSelector({
   useEffect(() => {
     if (value !== selectedServerId) {
       setSelectedServerId(value)
-      
+
       // Find server info for the new value
       if (value && servers.length > 0) {
-        const serverInfo = servers.find(server => server.id === value)
+        const serverInfo = servers.find((server) => server.id === value)
         setSelectedServer(serverInfo || null)
       } else if (value) {
         // If we have a value but no server info, we might need to fetch it
@@ -314,13 +314,11 @@ export function DiscordServerSelector({
             </div>
             <div className="overflow-hidden flex-1 min-w-0">
               <h4 className="text-xs font-medium truncate">{selectedServer.name}</h4>
-              <div className="text-xs text-muted-foreground">
-                Server ID: {selectedServer.id}
-              </div>
+              <div className="text-xs text-muted-foreground">Server ID: {selectedServer.id}</div>
             </div>
           </div>
         </div>
       )}
     </div>
   )
-} 
+}

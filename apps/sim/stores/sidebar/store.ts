@@ -40,4 +40,4 @@ export const useSidebarStore = create<SidebarState>()(
       name: 'sidebar-state',
     }
   )
-) 
+)

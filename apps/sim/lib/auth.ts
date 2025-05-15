@@ -868,15 +868,14 @@ export const auth = betterAuth({
           organization({
             // Allow team plan subscribers to create organizations
             allowUserToCreateOrganization: async (user) => {
-              // Get subscription data
               const dbSubscriptions = await db
                 .select()
                 .from(schema.subscription)
                 .where(eq(schema.subscription.referenceId, user.id))
 
-              // Check if user has active team subscription
               const hasTeamPlan = dbSubscriptions.some(
-                (sub) => sub.status === 'active' && sub.plan === 'team'
+                (sub) =>
+                  sub.status === 'active' && (sub.plan === 'team' || sub.plan === 'enterprise')
               )
 
               return hasTeamPlan
@@ -885,7 +884,6 @@ export const auth = betterAuth({
             membershipLimit: 50,
             // Validate seat limits before sending invitations
             beforeInvite: async ({ organization }: { organization: { id: string } }) => {
-              // Get subscription for this organization
               const subscriptions = await db
                 .select()
                 .from(schema.subscription)
@@ -902,7 +900,6 @@ export const auth = betterAuth({
                 throw new Error('No active team subscription for this organization')
               }
 
-              // Count current members + pending invitations
               const members = await db
                 .select()
                 .from(schema.member)

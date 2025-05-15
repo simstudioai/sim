@@ -184,13 +184,11 @@ export async function POST(request: NextRequest) {
 
     // --- Gmail webhook setup ---
     if (savedWebhook && provider === 'gmail') {
-      logger.info(
-        `[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`
-      )
+      logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
         const { configureGmailPolling } = await import('@/lib/webhooks/utils')
         const success = await configureGmailPolling(userId, savedWebhook, requestId)
-        
+
         if (!success) {
           logger.error(`[${requestId}] Failed to configure Gmail polling`)
           return NextResponse.json(
@@ -201,7 +199,7 @@ export async function POST(request: NextRequest) {
             { status: 500 }
           )
         }
-        
+
         logger.info(`[${requestId}] Successfully configured Gmail polling`)
       } catch (err) {
         logger.error(`[${requestId}] Error setting up Gmail webhook configuration`, err)
@@ -390,7 +388,7 @@ async function createTelegramWebhookSubscription(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'TelegramBot/1.0'
+        'User-Agent': 'TelegramBot/1.0',
       },
       body: JSON.stringify(requestBody),
     })
@@ -409,28 +407,28 @@ async function createTelegramWebhookSubscription(
     logger.info(
       `[${requestId}] Successfully created Telegram webhook for webhook ${webhookData.id}.`
     )
-    
+
     // Get webhook info to ensure it's properly set up
     try {
       const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
       const webhookInfo = await fetch(webhookInfoUrl, {
         headers: {
-          'User-Agent': 'TelegramBot/1.0'
-        }
-      });
-      const webhookInfoJson = await webhookInfo.json();
-      
+          'User-Agent': 'TelegramBot/1.0',
+        },
+      })
+      const webhookInfoJson = await webhookInfo.json()
+
       if (webhookInfoJson.ok) {
         logger.info(`[${requestId}] Telegram webhook info:`, {
           url: webhookInfoJson.result.url,
           has_custom_certificate: webhookInfoJson.result.has_custom_certificate,
           pending_update_count: webhookInfoJson.result.pending_update_count,
-          webhookId: webhookData.id
-        });
+          webhookId: webhookData.id,
+        })
       }
     } catch (error) {
       // Non-critical error, just log
-      logger.warn(`[${requestId}] Failed to get webhook info`, error);
+      logger.warn(`[${requestId}] Failed to get webhook info`, error)
     }
   } catch (error: any) {
     logger.error(

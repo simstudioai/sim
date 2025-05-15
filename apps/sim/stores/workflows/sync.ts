@@ -24,7 +24,7 @@ const LOADING_TIMEOUT = 3000 // 3 seconds maximum loading time
 
 // Add registry initialization tracking
 let registryFullyInitialized = false
-const REGISTRY_INIT_TIMEOUT = 10000; // 10 seconds maximum for registry initialization
+const REGISTRY_INIT_TIMEOUT = 10000 // 10 seconds maximum for registry initialization
 
 /**
  * Checks if the system is currently in the process of loading data from the database
@@ -50,7 +50,7 @@ export function isActivelyLoadingFromDB(): boolean {
  * @returns true if registry is initialized, false otherwise
  */
 export function isRegistryInitialized(): boolean {
-  return registryFullyInitialized;
+  return registryFullyInitialized
 }
 
 /**
@@ -58,21 +58,21 @@ export function isRegistryInitialized(): boolean {
  * Should be called only after all workflows have been loaded from DB
  */
 function setRegistryInitialized(): void {
-  registryFullyInitialized = true;
-  logger.info('Workflow registry fully initialized');
+  registryFullyInitialized = true
+  logger.info('Workflow registry fully initialized')
 }
 
 /**
  * Reset registry initialization state when needed (e.g., workspace switch, logout)
  */
 export function resetRegistryInitialization(): void {
-  registryFullyInitialized = false;
-  logger.info('Workflow registry initialization reset');
+  registryFullyInitialized = false
+  logger.info('Workflow registry initialization reset')
 }
 
 // Enhanced workflow state tracking
-let lastWorkflowState: Record<string, any> = {};
-let isDirty = false;
+let lastWorkflowState: Record<string, any> = {}
+let isDirty = false
 
 /**
  * Checks if workflow state has actually changed since last sync
@@ -81,43 +81,46 @@ let isDirty = false;
  */
 function hasWorkflowChanges(currentState: Record<string, any>): boolean {
   if (!currentState || Object.keys(currentState).length === 0) {
-    return false; // Empty state should not trigger sync
+    return false // Empty state should not trigger sync
   }
-  
+
   if (Object.keys(lastWorkflowState).length === 0) {
     // First time check, mark as changed
-    lastWorkflowState = JSON.parse(JSON.stringify(currentState));
-    return true;
+    lastWorkflowState = JSON.parse(JSON.stringify(currentState))
+    return true
   }
-  
+
   // Check if workflow count changed
   if (Object.keys(currentState).length !== Object.keys(lastWorkflowState).length) {
-    lastWorkflowState = JSON.parse(JSON.stringify(currentState));
-    return true;
+    lastWorkflowState = JSON.parse(JSON.stringify(currentState))
+    return true
   }
-  
+
   // Deep comparison of workflow states
-  let hasChanges = false;
+  let hasChanges = false
   for (const [id, workflow] of Object.entries(currentState)) {
-    if (!lastWorkflowState[id] || JSON.stringify(workflow) !== JSON.stringify(lastWorkflowState[id])) {
-      hasChanges = true;
-      break;
+    if (
+      !lastWorkflowState[id] ||
+      JSON.stringify(workflow) !== JSON.stringify(lastWorkflowState[id])
+    ) {
+      hasChanges = true
+      break
     }
   }
-  
+
   if (hasChanges) {
-    lastWorkflowState = JSON.parse(JSON.stringify(currentState));
+    lastWorkflowState = JSON.parse(JSON.stringify(currentState))
   }
-  
-  return hasChanges;
+
+  return hasChanges
 }
 
 /**
  * Mark workflows as dirty (changed) to force a sync
  */
 export function markWorkflowsDirty(): void {
-  isDirty = true;
-  logger.info('Workflows marked as dirty, will sync on next opportunity');
+  isDirty = true
+  logger.info('Workflows marked as dirty, will sync on next opportunity')
 }
 
 /**
@@ -125,14 +128,14 @@ export function markWorkflowsDirty(): void {
  * @returns true if workflows are dirty and need syncing
  */
 export function areWorkflowsDirty(): boolean {
-  return isDirty;
+  return isDirty
 }
 
 /**
  * Reset the dirty flag after a successful sync
  */
 export function resetDirtyFlag(): void {
-  isDirty = false;
+  isDirty = false
 }
 
 /**
@@ -144,8 +147,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
   try {
     // Reset registry initialization state
-    resetRegistryInitialization();
-    
+    resetRegistryInitialization()
+
     // Set loading state in registry
     useWorkflowRegistry.getState().setLoading(true)
 
@@ -210,9 +213,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       )
       // Clear any existing workflows to ensure a clean state
       useWorkflowRegistry.setState({ workflows: {} })
-      
+
       // Mark registry as initialized even with empty data
-      setRegistryInitialized();
+      setRegistryInitialized()
       return
     }
 
@@ -321,7 +324,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     useWorkflowRegistry.setState({ workflows: registryWorkflows })
 
     // Capture initial state for change detection
-    lastWorkflowState = getAllWorkflowsWithValues();
+    lastWorkflowState = getAllWorkflowsWithValues()
 
     // 9. Set the first workflow as active if there's no active workflow
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -337,14 +340,14 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         logger.info(`Set first workflow ${firstWorkflowId} as active`)
       }
     }
-    
+
     // Mark registry as fully initialized now that all data is loaded
-    setRegistryInitialized();
+    setRegistryInitialized()
   } catch (error) {
     logger.error('Error fetching workflows from DB:', { error })
-    
+
     // Mark registry as initialized even on error to allow fallback mechanisms
-    setRegistryInitialized();
+    setRegistryInitialized()
   } finally {
     // Reset the flag after a short delay to allow state to settle
     setTimeout(() => {
@@ -365,7 +368,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       if (workflowCount > 0 && activeWorkflowId && activeDBSyncNeeded()) {
         // Small delay for state to fully settle before allowing syncs
         setTimeout(() => {
-          isDirty = true; // Explicitly mark as dirty for first sync
+          isDirty = true // Explicitly mark as dirty for first sync
           workflowSync.sync()
         }, 500)
       }
@@ -388,7 +391,7 @@ function activeDBSyncNeeded(): boolean {
 
   // Add additional checks here if needed for specific workflow changes
   // For now, we'll simply avoid the automatic sync after load
-  return isDirty;
+  return isDirty
 }
 
 // Create the basic sync configuration
@@ -399,8 +402,8 @@ const workflowSyncConfig = {
 
     // Skip sync if registry is not fully initialized yet
     if (!isRegistryInitialized()) {
-      logger.info('Skipping workflow sync while registry is not fully initialized');
-      return { skipSync: true };
+      logger.info('Skipping workflow sync while registry is not fully initialized')
+      return { skipSync: true }
     }
 
     // Skip sync if we're currently loading from DB to prevent overwriting DB data
@@ -414,12 +417,12 @@ const workflowSyncConfig = {
 
     // Only sync if there are actually changes
     if (!isDirty && !hasWorkflowChanges(allWorkflowsData)) {
-      logger.info('Skipping workflow sync - no changes detected');
-      return { skipSync: true };
+      logger.info('Skipping workflow sync - no changes detected')
+      return { skipSync: true }
     }
-    
+
     // Reset dirty flag since we're about to sync
-    resetDirtyFlag();
+    resetDirtyFlag()
 
     // Get the active workspace ID
     const activeWorkspaceId = useWorkflowRegistry.getState().activeWorkspaceId
@@ -486,12 +489,12 @@ export const workflowSync = {
   sync: () => {
     // Skip sync if not initialized
     if (!isRegistryInitialized()) {
-      logger.info('Sync requested but registry not fully initialized yet - delaying');
+      logger.info('Sync requested but registry not fully initialized yet - delaying')
       // If we're not initialized, mark dirty and check again later
-      isDirty = true;
-      return;
+      isDirty = true
+      return
     }
-    
+
     // Clear any existing timeout
     if (syncDebounceTimer) {
       clearTimeout(syncDebounceTimer)

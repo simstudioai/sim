@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import {
   AirtableIcon,
   ConfluenceIcon,
+  DiscordIcon,
   GithubIcon,
   GmailIcon,
   GoogleCalendarIcon,
@@ -13,7 +14,6 @@ import {
   NotionIcon,
   SupabaseIcon,
   xIcon,
-  DiscordIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -45,7 +45,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   | 'discord'
-  
+
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -251,13 +251,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'discord',
         icon: (props) => DiscordIcon(props),
         baseProviderIcon: (props) => DiscordIcon(props),
-        scopes: [
-          'identify',
-          'bot',
-          'messages.read',
-          'guilds',
-          'guilds.members.read',
-        ],
+        scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
       },
     },
     defaultService: 'discord',
@@ -501,7 +495,12 @@ export async function refreshOAuthToken(
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
-    } else if (provider === 'x' || provider === 'confluence' || provider === 'jira' || provider === 'discord') {
+    } else if (
+      provider === 'x' ||
+      provider === 'confluence' ||
+      provider === 'jira' ||
+      provider === 'discord'
+    ) {
       const authString = `${clientId}:${clientSecret}`
       const basicAuth = Buffer.from(authString).toString('base64')
       headers['Authorization'] = `Basic ${basicAuth}`
