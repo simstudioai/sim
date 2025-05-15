@@ -25,6 +25,33 @@ import { NotificationList } from '@/app/w/[id]/components/notifications/notifica
 
 const logger = createLogger('LoginForm')
 
+// Validate callback URL to prevent open redirect vulnerabilities
+const validateCallbackUrl = (url: string): boolean => {
+  try {
+    // If it's a relative URL, it's safe
+    if (url.startsWith('/')) {
+      return true
+    }
+
+    // If absolute URL, check if it belongs to the same origin
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+    if (url.startsWith(currentOrigin)) {
+      return true
+    }
+
+    // Add other trusted domains if needed
+    // const trustedDomains = ['trusted-domain.com']
+    // if (trustedDomains.some(domain => url.startsWith(`https://${domain}`))) {
+    //   return true
+    // }
+
+    return false
+  } catch (error) {
+    logger.error('Error validating callback URL:', { error, url })
+    return false
+  }
+}
+
 export default function LoginPage({
   githubAvailable,
   googleAvailable,
@@ -63,7 +90,13 @@ export default function LoginPage({
     if (searchParams) {
       const callback = searchParams.get('callbackUrl')
       if (callback) {
-        setCallbackUrl(callback)
+        // Validate the callbackUrl before setting it
+        if (validateCallbackUrl(callback)) {
+          setCallbackUrl(callback)
+        } else {
+          logger.warn('Invalid callback URL detected and blocked:', { url: callback })
+          // Keep the default safe value ('/w')
+        }
       }
 
       const inviteFlow = searchParams.get('invite_flow') === 'true'
@@ -79,12 +112,14 @@ export default function LoginPage({
     const email = formData.get('email') as string
 
     try {
-      // Use the extracted callbackUrl instead of hardcoded value
+      // Final validation before submission
+      const safeCallbackUrl = validateCallbackUrl(callbackUrl) ? callbackUrl : '/w'
+
       const result = await client.signIn.email(
         {
           email,
           password,
-          callbackURL: callbackUrl,
+          callbackURL: safeCallbackUrl,
         },
         {
           onError: (ctx) => {

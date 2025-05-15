@@ -50,6 +50,37 @@ const SyncPayloadSchema = z.object({
 // Cache for workspace membership to reduce DB queries
 const workspaceMembershipCache = new Map<string, { role: string, expires: number }>();
 const CACHE_TTL = 60000; // 1 minute cache expiration
+const MAX_CACHE_SIZE = 1000; // Maximum number of entries to prevent unbounded growth
+
+/**
+ * Cleans up expired entries from the workspace membership cache
+ */
+function cleanupExpiredCacheEntries(): void {
+  const now = Date.now();
+  let expiredCount = 0;
+  
+  // Remove expired entries
+  for (const [key, value] of workspaceMembershipCache.entries()) {
+    if (value.expires <= now) {
+      workspaceMembershipCache.delete(key);
+      expiredCount++;
+    }
+  }
+  
+  // If we're still over the limit after removing expired entries,
+  // remove the oldest entries (those that will expire soonest)
+  if (workspaceMembershipCache.size > MAX_CACHE_SIZE) {
+    const entries = Array.from(workspaceMembershipCache.entries())
+      .sort((a, b) => a[1].expires - b[1].expires);
+      
+    const toRemove = entries.slice(0, workspaceMembershipCache.size - MAX_CACHE_SIZE);
+    toRemove.forEach(([key]) => workspaceMembershipCache.delete(key));
+    
+    logger.debug(`Cache cleanup: removed ${expiredCount} expired entries and ${toRemove.length} additional entries due to size limit`);
+  } else if (expiredCount > 0) {
+    logger.debug(`Cache cleanup: removed ${expiredCount} expired entries`);
+  }
+}
 
 /**
  * Efficiently verifies user's membership and role in a workspace with caching
@@ -58,6 +89,11 @@ const CACHE_TTL = 60000; // 1 minute cache expiration
  * @returns Role if user is a member, null otherwise
  */
 async function verifyWorkspaceMembership(userId: string, workspaceId: string): Promise<string | null> {
+  // Opportunistic cleanup of expired cache entries
+  if (workspaceMembershipCache.size > MAX_CACHE_SIZE / 2) {
+    cleanupExpiredCacheEntries();
+  }
+  
   // Create cache key from userId and workspaceId
   const cacheKey = `${userId}:${workspaceId}`;
   

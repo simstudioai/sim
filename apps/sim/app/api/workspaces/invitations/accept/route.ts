@@ -48,13 +48,26 @@ export async function GET(req: NextRequest) {
     const userEmail = session.user.email.toLowerCase()
     const invitationEmail = invitation.email.toLowerCase()
     
-    // Check if invitation email matches the logged-in user
-    // For new users who just signed up, we'll be more flexible by comparing domain parts
+    // Check if the logged-in user's email matches the invitation
+    // We'll use exact matching as the primary check
     const isExactMatch = userEmail === invitationEmail
-    const isPartialMatch = userEmail.split('@')[1] === invitationEmail.split('@')[1] && 
-                           userEmail.split('@')[0].includes(invitationEmail.split('@')[0].substring(0, 3))
     
-    if (!isExactMatch && !isPartialMatch) {
+    // For SSO or company email variants, check domain and normalized username
+    // This handles cases like john.doe@company.com vs john@company.com
+    const normalizeUsername = (email: string): string => {
+      return email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    }
+    
+    const isSameDomain = userEmail.split('@')[1] === invitationEmail.split('@')[1]
+    const normalizedUserEmail = normalizeUsername(userEmail)
+    const normalizedInvitationEmail = normalizeUsername(invitationEmail)
+    const isSimilarUsername = normalizedUserEmail === normalizedInvitationEmail || 
+                            (normalizedUserEmail.includes(normalizedInvitationEmail) || 
+                             normalizedInvitationEmail.includes(normalizedUserEmail))
+    
+    const isValidMatch = isExactMatch || (isSameDomain && isSimilarUsername)
+    
+    if (!isValidMatch) {
       // Get user info to include in the error message
       const userData = await db
         .select()

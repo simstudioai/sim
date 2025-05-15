@@ -146,8 +146,6 @@ export default function Invite() {
           invitationId: inviteId,
         })
 
-        console.log('Invitation acceptance response:', response)
-
         // Set the active organization to the one just joined
         const orgId =
           response.data?.invitation.organizationId || invitationDetails?.data?.organizationId
