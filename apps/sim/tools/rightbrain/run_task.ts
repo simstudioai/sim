@@ -35,7 +35,7 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
     inputs: {
       type: 'object',
       required: true,
-      description: 'The task input_data JSON object',
+      description: 'The task_input JSON object',
     },
     apiKey: {
       type: 'string',

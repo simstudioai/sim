@@ -25,7 +25,7 @@ export const RightBrainBlock: BlockConfig<RightBrainRunTaskResponse> = {
       title: 'Task inputs',
       type: 'code',
       layout: 'full',
-      placeholder: 'The task input_data JSON object',
+      placeholder: 'The task_input JSON object',
     },
     {
       id: 'apiKey',
