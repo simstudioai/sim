@@ -10,23 +10,36 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   searchQuery: '',
   loading: true,
   error: null,
+  page: 1,
+  hasMore: true,
+  isFetchingMore: false,
 
-  setLogs: (logs) => {
-    set({ logs, filteredLogs: logs, loading: false })
+  setLogs: (logs, append = false) => {
+    if (append) {
+      const currentLogs = [...get().logs]
+      const newLogs = [...currentLogs, ...logs]
+      set({ logs: newLogs })
+      get().applyFilters()
+    } else {
+      set({ logs, filteredLogs: logs, loading: false })
+    }
   },
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
+    get().resetPagination()
     get().applyFilters()
   },
 
   setLevel: (level) => {
     set({ level })
+    get().resetPagination()
     get().applyFilters()
   },
 
   setWorkflowIds: (workflowIds) => {
     set({ workflowIds })
+    get().resetPagination()
     get().applyFilters()
   },
 
@@ -41,17 +54,27 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     set({ workflowIds: currentWorkflowIds })
+    get().resetPagination()
     get().applyFilters()
   },
 
   setSearchQuery: (searchQuery) => {
     set({ searchQuery })
+    get().resetPagination()
     get().applyFilters()
   },
 
   setLoading: (loading) => set({ loading }),
 
   setError: (error) => set({ error }),
+
+  setPage: (page) => set({ page }),
+
+  setHasMore: (hasMore) => set({ hasMore }),
+
+  setIsFetchingMore: (isFetchingMore) => set({ isFetchingMore }),
+
+  resetPagination: () => set({ page: 1, hasMore: true }),
 
   applyFilters: () => {
     const { logs, timeRange, level, workflowIds, searchQuery } = get()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -12,8 +12,8 @@ import { LogsResponse, WorkflowLog } from './stores/types'
 import { formatDate } from './utils/format-date'
 
 const logger = createLogger('Logs')
+const LOGS_PER_PAGE = 50
 
-// Helper function to get level badge styling
 const getLevelBadgeStyles = (level: string) => {
   switch (level.toLowerCase()) {
     case 'error':
@@ -25,7 +25,6 @@ const getLevelBadgeStyles = (level: string) => {
   }
 }
 
-// Helper function to get trigger badge styling
 const getTriggerBadgeStyles = (trigger: string) => {
   switch (trigger.toLowerCase()) {
     case 'manual':
@@ -43,30 +42,45 @@ const getTriggerBadgeStyles = (trigger: string) => {
   }
 }
 
-// Add a new CSS class for the selected row animation
 const selectedRowAnimation = `
   @keyframes borderPulse {
-    0% { border-left-color: hsl(var(--primary) / 0.3); }
-    50% { border-left-color: hsl(var(--primary) / 0.7); }
-    100% { border-left-color: hsl(var(--primary) / 0.5); }
+    0% { border-left-color: hsl(var(--primary) / 0.3) }
+    50% { border-left-color: hsl(var(--primary) / 0.7) }
+    100% { border-left-color: hsl(var(--primary) / 0.5) }
   }
   .selected-row {
-    animation: borderPulse 1s ease-in-out;
-    border-left-color: hsl(var(--primary) / 0.5);
+    animation: borderPulse 1s ease-in-out
+    border-left-color: hsl(var(--primary) / 0.5)
   }
 `
 
 export default function Logs() {
-  const { filteredLogs, logs, loading, error, setLogs, setLoading, setError } = useFilterStore()
+  const {
+    filteredLogs,
+    logs,
+    loading,
+    error,
+    setLogs,
+    setLoading,
+    setError,
+    page,
+    setPage,
+    hasMore,
+    setHasMore,
+    isFetchingMore,
+    setIsFetchingMore,
+  } = useFilterStore()
+
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
   const [selectedLogIndex, setSelectedLogIndex] = useState<number>(-1)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
+  const loaderRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const { mode, isExpanded } = useSidebarStore()
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  // Group logs by executionId to identify the last log in each group
   const executionGroups = useMemo(() => {
     const groups: Record<string, WorkflowLog[]> = {}
 
@@ -80,7 +94,6 @@ export default function Logs() {
       }
     })
 
-    // Sort logs within each group by createdAt
     Object.keys(groups).forEach((executionId) => {
       groups[executionId].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -90,16 +103,13 @@ export default function Logs() {
     return groups
   }, [filteredLogs])
 
-  // Handle log click
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
-    // Find the index of the clicked log in the filtered logs array
     const index = filteredLogs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
   }
 
-  // Navigate to the next log
   const handleNavigateNext = () => {
     if (selectedLogIndex < filteredLogs.length - 1) {
       const nextIndex = selectedLogIndex + 1
@@ -108,7 +118,6 @@ export default function Logs() {
     }
   }
 
-  // Navigate to the previous log
   const handleNavigatePrev = () => {
     if (selectedLogIndex > 0) {
       const prevIndex = selectedLogIndex - 1
@@ -117,12 +126,10 @@ export default function Logs() {
     }
   }
 
-  // Close sidebar
   const handleCloseSidebar = () => {
     setIsSidebarOpen(false)
   }
 
-  // Scroll selected log into view when it changes
   useEffect(() => {
     if (selectedRowRef.current) {
       selectedRowRef.current.scrollIntoView({
@@ -132,13 +139,18 @@ export default function Logs() {
     }
   }, [selectedLogIndex])
 
-  // Fetch logs on component mount
-  useEffect(() => {
-    const fetchLogs = async () => {
+  const fetchLogs = useCallback(
+    async (pageNum: number, append: boolean = false) => {
       try {
-        setLoading(true)
-        // Include workflow data in the response
-        const response = await fetch('/api/logs?includeWorkflow=true')
+        if (pageNum === 1) {
+          setLoading(true)
+        } else {
+          setIsFetchingMore(true)
+        }
+
+        const response = await fetch(
+          `/api/logs?includeWorkflow=true&limit=${LOGS_PER_PAGE}&offset=${(pageNum - 1) * LOGS_PER_PAGE}`
+        )
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -146,26 +158,94 @@ export default function Logs() {
 
         const data: LogsResponse = await response.json()
 
-        setLogs(data.data)
+        setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
+
+        setLogs(data.data, append)
         setError(null)
       } catch (err) {
         logger.error('Failed to fetch logs:', { err })
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
       } finally {
-        setLoading(false)
+        if (pageNum === 1) {
+          setLoading(false)
+        } else {
+          setIsFetchingMore(false)
+        }
+      }
+    },
+    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore]
+  )
+
+  const loadMoreLogs = useCallback(() => {
+    if (!isFetchingMore && hasMore) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      setIsFetchingMore(true)
+      setTimeout(() => {
+        fetchLogs(nextPage, true)
+      }, 50)
+    }
+  }, [fetchLogs, isFetchingMore, hasMore, page, setPage, setIsFetchingMore])
+
+  useEffect(() => {
+    if (loading || !hasMore) return
+
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) return
+
+    const handleScroll = () => {
+      if (!scrollContainer) return
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+
+      const scrollPercentage = (scrollTop / (scrollHeight - clientHeight)) * 100
+
+      if (scrollPercentage > 60 && !isFetchingMore && hasMore) {
+        loadMoreLogs()
       }
     }
 
-    fetchLogs()
-  }, [setLogs, setLoading, setError])
+    scrollContainer.addEventListener('scroll', handleScroll)
 
-  // Add keyboard navigation for the logs table
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+    }
+  }, [loading, hasMore, isFetchingMore, loadMoreLogs])
+
+  useEffect(() => {
+    const currentLoaderRef = loaderRef.current
+    const scrollContainer = scrollContainerRef.current
+
+    if (!currentLoaderRef || !scrollContainer || loading || !hasMore) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isFetchingMore) {
+          loadMoreLogs()
+        }
+      },
+      {
+        root: scrollContainer,
+        threshold: 0.1,
+        rootMargin: '200px 0px 0px 0px',
+      }
+    )
+
+    observer.observe(currentLoaderRef)
+
+    return () => {
+      observer.unobserve(currentLoaderRef)
+    }
+  }, [loading, hasMore, isFetchingMore, loadMoreLogs])
+
+  useEffect(() => {
+    fetchLogs(1)
+  }, [fetchLogs])
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle keyboard navigation if we have logs and a log is selected
       if (filteredLogs.length === 0) return
 
-      // If no log is selected yet, select the first one on arrow key press
       if (selectedLogIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
         setSelectedLogIndex(0)
@@ -173,13 +253,11 @@ export default function Logs() {
         return
       }
 
-      // Up arrow key for previous log
       if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey && selectedLogIndex > 0) {
         e.preventDefault()
         handleNavigatePrev()
       }
 
-      // Down arrow key for next log
       if (
         e.key === 'ArrowDown' &&
         !e.metaKey &&
@@ -190,7 +268,6 @@ export default function Logs() {
         handleNavigateNext()
       }
 
-      // Enter key to open/close sidebar
       if (e.key === 'Enter' && selectedLog) {
         e.preventDefault()
         setIsSidebarOpen(!isSidebarOpen)
@@ -267,8 +344,8 @@ export default function Logs() {
             </div>
 
             {/* Table body - scrollable */}
-            <div className="flex-1 overflow-auto">
-              {loading ? (
+            <div className="flex-1 overflow-auto" ref={scrollContainerRef}>
+              {loading && page === 1 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -323,9 +400,7 @@ export default function Logs() {
                           {/* Time column */}
                           <td className="px-4 py-3">
                             <div className="flex flex-col justify-center">
-                              <div
-                                className={`text-xs font-medium flex items-center ${isSelected ? 'text-foreground' : ''}`}
-                              >
+                              <div className="text-xs font-medium flex items-center">
                                 <span>{formattedDate.formatted}</span>
                                 <span className="mx-1.5 text-muted-foreground hidden xl:inline">
                                   •
@@ -389,25 +464,64 @@ export default function Logs() {
 
                           {/* Message column */}
                           <td className="px-4 py-3">
-                            <div
-                              className={`text-sm truncate ${isSelected ? 'text-foreground' : ''}`}
-                              title={log.message}
-                            >
+                            <div className="text-sm truncate" title={log.message}>
                               {log.message}
                             </div>
                           </td>
 
                           {/* Duration column */}
                           <td className="px-4 py-3">
-                            <div
-                              className={`text-xs ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}
-                            >
+                            <div className="text-xs text-muted-foreground">
                               {log.duration || '—'}
                             </div>
                           </td>
                         </tr>
                       )
                     })}
+
+                    {/* Infinite scroll loader */}
+                    {hasMore && (
+                      <tr>
+                        <td colSpan={7}>
+                          <div
+                            ref={loaderRef}
+                            className="py-2 flex items-center justify-center"
+                            style={{ height: '50px' }}
+                          >
+                            {isFetchingMore && (
+                              <div className="flex items-center gap-2 text-muted-foreground opacity-70">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-xs">Loading more logs...</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Footer status indicator - useful for development */}
+                    <tr className="border-t">
+                      <td colSpan={7}>
+                        <div className="py-2 px-4 text-xs text-muted-foreground flex justify-between items-center">
+                          <span>Showing {filteredLogs.length} logs</span>
+                          <div className="flex items-center gap-4">
+                            {isFetchingMore ? (
+                              <div className="flex items-center gap-2"></div>
+                            ) : hasMore ? (
+                              <button
+                                type="button"
+                                onClick={loadMoreLogs}
+                                className="text-xs text-primary hover:underline"
+                              >
+                                Load more logs
+                              </button>
+                            ) : (
+                              <span>End of logs</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               )}

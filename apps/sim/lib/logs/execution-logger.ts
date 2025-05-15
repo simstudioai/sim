@@ -2,6 +2,7 @@ import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
+import { redactApiKeys } from '@/lib/utils'
 import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
 import { ExecutionResult as ExecutorResult } from '@/executor/types'
@@ -581,7 +582,10 @@ export async function persistExecutionLogs(
         duration: log.success ? `${log.durationMs}ms` : 'NA',
         trigger: triggerType,
         createdAt: new Date(log.endedAt || log.startedAt),
-        metadata,
+        metadata: {
+          ...metadata,
+          ...(log.input ? { blockInput: log.input } : {}),
+        },
       })
 
       if (metadata) {
@@ -976,34 +980,4 @@ function isValidDate(dateString: string): boolean {
   } catch (e) {
     return false
   }
-}
-
-// Add this utility function for redacting API keys in tool call inputs
-function redactApiKeys(obj: any): any {
-  if (!obj || typeof obj !== 'object') {
-    return obj
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(redactApiKeys)
-  }
-
-  const result: Record<string, any> = {}
-
-  for (const [key, value] of Object.entries(obj)) {
-    // Check if the key is 'apiKey' (case insensitive) or related keys
-    if (
-      key.toLowerCase() === 'apikey' ||
-      key.toLowerCase() === 'api_key' ||
-      key.toLowerCase() === 'access_token'
-    ) {
-      result[key] = '***REDACTED***'
-    } else if (typeof value === 'object' && value !== null) {
-      result[key] = redactApiKeys(value)
-    } else {
-      result[key] = value
-    }
-  }
-
-  return result
 }

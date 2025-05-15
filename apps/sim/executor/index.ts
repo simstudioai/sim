@@ -1007,6 +1007,9 @@ export class Executor {
       // Resolve inputs (which will look up references to other blocks including starter)
       const inputs = this.resolver.resolveInputs(block, context)
 
+      // Store input data in the block log
+      blockLog.input = inputs
+
       // Track block execution start
       trackWorkflowTelemetry('block_execution_start', {
         workflowId: context.workflowId,

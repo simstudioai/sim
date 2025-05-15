@@ -1,16 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Code, X } from 'lucide-react'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { redactApiKeys } from '@/lib/utils'
 import { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
+import LogMarkdownRenderer from './components/markdown-renderer'
 
 interface LogSidebarProps {
   log: WorkflowLog | null
@@ -49,7 +51,7 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
 /**
  * Formats JSON content for display, handling multiple JSON objects separated by '--'
  */
-const formatJsonContent = (content: string): React.ReactNode => {
+const formatJsonContent = (content: string, blockInput?: Record<string, any>): React.ReactNode => {
   // Look for a pattern like "Block Agent 1 (agent):" to separate system comment from content
   const blockPattern = /^(Block .+?\(.+?\):)\s*/
   const match = content.match(blockPattern)
@@ -57,30 +59,119 @@ const formatJsonContent = (content: string): React.ReactNode => {
   if (match) {
     const systemComment = match[1]
     const actualContent = content.substring(match[0].length).trim()
-    const { formatted } = tryPrettifyJson(actualContent)
+    const { isJson, formatted } = tryPrettifyJson(actualContent)
 
     return (
-      <div className="w-full">
-        <div className="text-sm font-medium mb-2 text-muted-foreground">{systemComment}</div>
-        <div className="bg-secondary/30 p-3 rounded-md relative group">
-          <CopyButton text={formatted} className="h-7 w-7 z-10" />
-          <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-            {formatted}
-          </pre>
-        </div>
-      </div>
+      <BlockContentDisplay
+        systemComment={systemComment}
+        formatted={formatted}
+        isJson={isJson}
+        blockInput={blockInput}
+      />
     )
   }
 
   // If no system comment pattern found, show the whole content
-  const { formatted } = tryPrettifyJson(content)
+  const { isJson, formatted } = tryPrettifyJson(content)
 
   return (
     <div className="bg-secondary/30 p-3 rounded-md relative group w-full">
       <CopyButton text={formatted} className="h-7 w-7 z-10" />
-      <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
-        {formatted}
-      </pre>
+      {isJson ? (
+        <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
+          {formatted}
+        </pre>
+      ) : (
+        <LogMarkdownRenderer content={formatted} />
+      )}
+    </div>
+  )
+}
+
+const BlockContentDisplay = ({
+  systemComment,
+  formatted,
+  isJson,
+  blockInput,
+}: {
+  systemComment: string
+  formatted: string
+  isJson: boolean
+  blockInput?: Record<string, any>
+}) => {
+  const [activeTab, setActiveTab] = useState<'output' | 'input'>(blockInput ? 'output' : 'output')
+
+  const redactedBlockInput = useMemo(() => {
+    return blockInput ? redactApiKeys(blockInput) : undefined
+  }, [blockInput])
+
+  const redactedOutput = useMemo(() => {
+    if (!isJson) return formatted
+
+    try {
+      const parsedOutput = JSON.parse(formatted)
+      const redactedJson = redactApiKeys(parsedOutput)
+      return JSON.stringify(redactedJson, null, 2)
+    } catch (e) {
+      return formatted
+    }
+  }, [formatted, isJson])
+
+  return (
+    <div className="w-full">
+      <div className="text-sm font-medium text-muted-foreground mb-2">{systemComment}</div>
+
+      {/* Tabs for switching between output and input */}
+      {redactedBlockInput && (
+        <div className="flex space-x-1 mb-2">
+          <button
+            onClick={() => setActiveTab('output')}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              activeTab === 'output'
+                ? 'bg-secondary text-foreground'
+                : 'hover:bg-secondary/50 text-muted-foreground'
+            }`}
+          >
+            Output
+          </button>
+          <button
+            onClick={() => setActiveTab('input')}
+            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+              activeTab === 'input'
+                ? 'bg-secondary text-foreground'
+                : 'hover:bg-secondary/50 text-muted-foreground'
+            }`}
+          >
+            Input
+          </button>
+        </div>
+      )}
+
+      {/* Content based on active tab */}
+      <div className="bg-secondary/30 p-3 rounded-md relative group">
+        {activeTab === 'output' ? (
+          <>
+            <CopyButton text={redactedOutput} className="h-7 w-7 z-10" />
+            {isJson ? (
+              <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-visible">
+                {redactedOutput}
+              </pre>
+            ) : (
+              <LogMarkdownRenderer content={redactedOutput} />
+            )}
+          </>
+        ) : (
+          <>
+            <CopyButton
+              text={JSON.stringify(redactedBlockInput, null, 2)}
+              className="h-7 w-7 z-10"
+            />
+            <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-visible">
+              {JSON.stringify(redactedBlockInput, null, 2)}
+            </pre>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -115,10 +206,29 @@ export function Sidebar({
 
   const formattedContent = useMemo(() => {
     if (!log) return null
-    return formatJsonContent(log.message)
+
+    let blockInput: Record<string, any> | undefined = undefined
+
+    if (log.metadata?.blockInput) {
+      blockInput = log.metadata.blockInput
+    } else if (log.metadata?.traceSpans) {
+      const blockIdMatch = log.message.match(/Block .+?(\d+)/i)
+      const blockId = blockIdMatch ? blockIdMatch[1] : null
+
+      if (blockId) {
+        const matchingSpan = log.metadata.traceSpans.find(
+          (span) => span.blockId === blockId || span.name.includes(`Block ${blockId}`)
+        )
+
+        if (matchingSpan && matchingSpan.input) {
+          blockInput = matchingSpan.input
+        }
+      }
+    }
+
+    return formatJsonContent(log.message, blockInput)
   }, [log])
 
-  // Reset scroll position when log changes
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
@@ -297,8 +407,11 @@ export function Sidebar({
           </div>
 
           {/* Content */}
-          <ScrollArea className="h-[calc(100vh-64px-49px)] w-full" ref={scrollAreaRef}>
-            <div className="p-4 space-y-4 w-full overflow-hidden pr-6">
+          <ScrollArea
+            className="h-[calc(100vh-64px-49px)] w-full overflow-y-auto"
+            ref={scrollAreaRef}
+          >
+            <div className="p-4 space-y-4 w-full pr-6">
               {/* Timestamp */}
               <div>
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Timestamp</h3>
@@ -374,7 +487,7 @@ export function Sidebar({
                 </div>
               )}
 
-              {/* Message Content - MOVED ABOVE the Trace Spans and Cost */}
+              {/* Message Content */}
               <div className="pb-2 w-full">
                 <h3 className="text-xs font-medium text-muted-foreground mb-1">Message</h3>
                 <div className="w-full">{formattedContent}</div>
