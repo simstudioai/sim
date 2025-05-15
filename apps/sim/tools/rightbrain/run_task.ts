@@ -61,4 +61,25 @@ export const runTaskTool: ToolConfig<RightBrainRunTaskParams, RightBrainRunTaskR
 
     return message
   },
+  transformResponse: async (response) => {
+    const data = await response.json()
+    return {
+      success: true,
+      output: {
+        charged_credits: data.charged_credits,
+        created: data.created,
+        id: data.id,
+        input_processor_timing: data.input_processor_timing,
+        input_tokens: data.input_tokens,
+        llm_call_timing: data.llm_call_timing,
+        output_tokens: data.output_tokens,
+        response: data.response,
+        run_data: data.run_data,
+        task_id: data.task_id,
+        task_revision_id: data.task_revision_id,
+        total_tokens: data.total_tokens,
+        is_error: data.is_error,
+      },
+    }
+  },
 }
