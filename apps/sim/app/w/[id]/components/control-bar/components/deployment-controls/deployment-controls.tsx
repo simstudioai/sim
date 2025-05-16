@@ -15,12 +15,16 @@ interface DeploymentControlsProps {
   activeWorkflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
+  deployedState: any
+  isLoadingDeployedState: boolean
 }
 
 export function DeploymentControls({
   activeWorkflowId,
   needsRedeployment,
   setNeedsRedeployment,
+  deployedState,
+  isLoadingDeployedState,
 }: DeploymentControlsProps) {
   // Use workflow-specific deployment status
   const deploymentStatus = useWorkflowRegistry((state) =>
@@ -100,6 +104,8 @@ export function DeploymentControls({
         workflowId={activeWorkflowId}
         needsRedeployment={workflowNeedsRedeployment}
         setNeedsRedeployment={setNeedsRedeployment}
+        deployedState={deployedState}
+        isLoadingDeployedState={isLoadingDeployedState}
       />
     </>
   )
