@@ -29,6 +29,7 @@
     "react-dom": "19.1.0"
   },
   "dependencies": {
-    "@vercel/analytics": "^1.5.0"
+    "@vercel/analytics": "^1.5.0",
+    "react-day-picker": "^9.7.0"
   }
 }
