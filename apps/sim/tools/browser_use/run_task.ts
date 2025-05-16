@@ -77,14 +77,35 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     }
 
     const taskId = result.output.id
+    let liveUrlLogged = false
 
-    // Validate pollInterval (minimum 1000ms, fallback to default if invalid)
+    try {
+      const initialTaskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${params.apiKey}`,
+        },
+      })
+
+      if (initialTaskResponse.ok) {
+        const initialTaskData = await initialTaskResponse.json()
+        if (initialTaskData.live_url) {
+          logger.info(
+            `BrowserUse task ${taskId} launched with live URL: ${initialTaskData.live_url}`
+          )
+          result.output.live_url = initialTaskData.live_url
+          liveUrlLogged = true
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to get initial task details for ${taskId}:`, error)
+    }
+
     const pollInterval =
       typeof params.pollInterval === 'number' && params.pollInterval >= 1000
         ? params.pollInterval
         : 5000
 
-    // Validate maxPollTime (minimum 5000ms, fallback to default if invalid)
     const maxPollTime =
       typeof params.maxPollTime === 'number' && params.maxPollTime >= 5000
         ? params.maxPollTime
@@ -92,40 +113,64 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
 
     let elapsedTime = 0
 
-    // Poll until task is finished, failed, or max poll time is reached
     while (elapsedTime < maxPollTime) {
       try {
-        // Fetch task status
-        const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-          },
-        })
-
-        if (!taskResponse.ok) {
-          if (taskResponse.status === 422) {
-            const errorData = await taskResponse.json()
-            throw new Error(JSON.stringify(errorData))
+        const statusResponse = await fetch(
+          `https://api.browser-use.com/api/v1/task/${taskId}/status`,
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+            },
           }
-          throw new Error(`Failed to get task status: ${taskResponse.statusText}`)
+        )
+
+        if (!statusResponse.ok) {
+          throw new Error(`Failed to get task status: ${statusResponse.statusText}`)
         }
 
-        const taskData = await taskResponse.json()
+        const status = await statusResponse.json()
+        result.output.status = status
 
-        // Update the response with the latest task data
-        result.output = taskData as BrowserUseTaskOutput
+        logger.info(`BrowserUse task ${taskId} status: ${status}`)
 
-        // Check if the task has completed
-        if (['finished', 'failed', 'stopped'].includes(taskData.status)) {
+        if (['finished', 'failed', 'stopped'].includes(status)) {
+          const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+            },
+          })
+
+          if (taskResponse.ok) {
+            const taskData = await taskResponse.json()
+            result.output = taskData as BrowserUseTaskOutput
+          }
+
           return result
         }
 
-        // Wait for the poll interval
+        if (!liveUrlLogged && status === 'running') {
+          const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${params.apiKey}`,
+            },
+          })
+
+          if (taskResponse.ok) {
+            const taskData = await taskResponse.json()
+            if (taskData.live_url) {
+              logger.info(`BrowserUse task ${taskId} running with live URL: ${taskData.live_url}`)
+              result.output.live_url = taskData.live_url
+              liveUrlLogged = true
+            }
+          }
+        }
+
         await new Promise((resolve) => setTimeout(resolve, pollInterval))
         elapsedTime += pollInterval
       } catch (error: any) {
-        // If there's an error polling, return the last successful result
         logger.error('Error polling for task status:', {
           message: error.message || 'Unknown error',
           taskId,
@@ -138,7 +183,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       }
     }
 
-    // If we've reached max poll time without completion
     logger.warn(
       `Task ${taskId} did not complete within the maximum polling time (${maxPollTime / 1000}s)`
     )

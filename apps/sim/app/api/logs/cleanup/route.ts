@@ -10,13 +10,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('LogsCleanup')
 
-const BATCH_SIZE = 500
+const BATCH_SIZE = 2000
 const S3_CONFIG = {
   bucket: process.env.S3_LOGS_BUCKET_NAME || '',
   region: process.env.AWS_REGION || '',
 }
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization')
 
@@ -66,89 +66,103 @@ export async function POST(request: Request) {
 
     const workflowIds = workflowsQuery.map((w) => w.id)
 
-    const oldLogs = await db
-      .select({
-        id: workflowLogs.id,
-        workflowId: workflowLogs.workflowId,
-        executionId: workflowLogs.executionId,
-        level: workflowLogs.level,
-        message: workflowLogs.message,
-        duration: workflowLogs.duration,
-        trigger: workflowLogs.trigger,
-        createdAt: workflowLogs.createdAt,
-        metadata: workflowLogs.metadata,
-      })
-      .from(workflowLogs)
-      .where(
-        and(
-          inArray(workflowLogs.workflowId, workflowIds),
-          lt(workflowLogs.createdAt, retentionDate)
-        )
-      )
-      .limit(BATCH_SIZE)
-
-    logger.info(`Found ${oldLogs.length} logs older than ${retentionDate.toISOString()} to archive`)
-
-    if (oldLogs.length === 0) {
-      return NextResponse.json({ message: 'No logs to clean up' })
-    }
-
     const results = {
-      total: oldLogs.length,
+      total: 0,
       archived: 0,
       archiveFailed: 0,
       deleted: 0,
       deleteFailed: 0,
     }
 
-    for (const log of oldLogs) {
-      const today = new Date().toISOString().split('T')[0]
+    const startTime = Date.now()
+    const MAX_BATCHES = 10
 
-      const logKey = `archived-logs/${today}/${log.id}.json`
-      const logData = JSON.stringify(log)
+    let batchesProcessed = 0
+    let hasMoreLogs = true
 
-      try {
-        await s3Client.send(
-          new PutObjectCommand({
-            Bucket: S3_CONFIG.bucket,
-            Key: logKey,
-            Body: logData,
-            ContentType: 'application/json',
-            Metadata: {
-              logId: String(log.id),
-              workflowId: String(log.workflowId),
-              archivedAt: new Date().toISOString(),
-            },
-          })
+    while (hasMoreLogs && batchesProcessed < MAX_BATCHES) {
+      const oldLogs = await db
+        .select({
+          id: workflowLogs.id,
+          workflowId: workflowLogs.workflowId,
+          executionId: workflowLogs.executionId,
+          level: workflowLogs.level,
+          message: workflowLogs.message,
+          duration: workflowLogs.duration,
+          trigger: workflowLogs.trigger,
+          createdAt: workflowLogs.createdAt,
+          metadata: workflowLogs.metadata,
+        })
+        .from(workflowLogs)
+        .where(
+          and(
+            inArray(workflowLogs.workflowId, workflowIds),
+            lt(workflowLogs.createdAt, retentionDate)
+          )
         )
+        .limit(BATCH_SIZE)
 
-        results.archived++
+      results.total += oldLogs.length
+
+      for (const log of oldLogs) {
+        const today = new Date().toISOString().split('T')[0]
+
+        const logKey = `archived-logs/${today}/${log.id}.json`
+        const logData = JSON.stringify(log)
 
         try {
-          const deleteResult = await db
-            .delete(workflowLogs)
-            .where(eq(workflowLogs.id, log.id))
-            .returning({ id: workflowLogs.id })
+          await s3Client.send(
+            new PutObjectCommand({
+              Bucket: S3_CONFIG.bucket,
+              Key: logKey,
+              Body: logData,
+              ContentType: 'application/json',
+              Metadata: {
+                logId: String(log.id),
+                workflowId: String(log.workflowId),
+                archivedAt: new Date().toISOString(),
+              },
+            })
+          )
 
-          if (deleteResult.length > 0) {
-            results.deleted++
-          } else {
+          results.archived++
+
+          try {
+            const deleteResult = await db
+              .delete(workflowLogs)
+              .where(eq(workflowLogs.id, log.id))
+              .returning({ id: workflowLogs.id })
+
+            if (deleteResult.length > 0) {
+              results.deleted++
+            } else {
+              results.deleteFailed++
+              logger.warn(`Failed to delete log ${log.id} after archiving: No rows deleted`)
+            }
+          } catch (deleteError) {
             results.deleteFailed++
-            logger.warn(`Failed to delete log ${log.id} after archiving: No rows deleted`)
+            logger.error(`Error deleting log ${log.id} after archiving:`, { deleteError })
           }
-        } catch (deleteError) {
-          results.deleteFailed++
-          logger.error(`Error deleting log ${log.id} after archiving:`, { deleteError })
+        } catch (archiveError) {
+          results.archiveFailed++
+          logger.error(`Failed to archive log ${log.id}:`, { archiveError })
         }
-      } catch (archiveError) {
-        results.archiveFailed++
-        logger.error(`Failed to archive log ${log.id}:`, { archiveError })
       }
+
+      batchesProcessed++
+      hasMoreLogs = oldLogs.length === BATCH_SIZE
+
+      logger.info(`Processed batch ${batchesProcessed}: ${oldLogs.length} logs`)
     }
 
+    const timeElapsed = (Date.now() - startTime) / 1000
+    const reachedLimit = batchesProcessed >= MAX_BATCHES && hasMoreLogs
+
     return NextResponse.json({
-      message: `Successfully processed ${results.total} logs: archived ${results.archived}, deleted ${results.deleted}`,
+      message: `Processed ${batchesProcessed} batches (${results.total} logs) in ${timeElapsed.toFixed(2)}s${reachedLimit ? ' (batch limit reached)' : ''}`,
       results,
+      complete: !hasMoreLogs,
+      batchLimitReached: reachedLimit,
     })
   } catch (error) {
     logger.error('Error in log cleanup process:', { error })

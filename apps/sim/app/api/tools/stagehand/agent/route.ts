@@ -6,11 +6,9 @@ import { ensureZodObject, normalizeUrl } from '../utils'
 
 const logger = createLogger('StagehandAgentAPI')
 
-// Environment variables for Browserbase
 const BROWSERBASE_API_KEY = process.env.BROWSERBASE_API_KEY
 const BROWSERBASE_PROJECT_ID = process.env.BROWSERBASE_PROJECT_ID
 
-// Input validation schema
 const requestSchema = z.object({
   task: z.string().min(1),
   startUrl: z.string().url(),
@@ -19,16 +17,13 @@ const requestSchema = z.object({
   apiKey: z.string(),
 })
 
-// Helper function to get the schema object from the input
 function getSchemaObject(outputSchema: Record<string, any>): Record<string, any> {
-  // Check if schema is nested under a 'schema' property (common pattern)
   if (outputSchema.schema && typeof outputSchema.schema === 'object') {
     return outputSchema.schema
   }
   return outputSchema
 }
 
-// Helper function to format schema for instructions
 function formatSchemaForInstructions(schema: Record<string, any>): string {
   try {
     return JSON.stringify(schema, null, 2)
@@ -38,7 +33,6 @@ function formatSchemaForInstructions(schema: Record<string, any>): string {
   }
 }
 
-// Helper to extract special action directives with variable placeholders
 function extractActionDirectives(task: string): {
   processedTask: string
   actionDirectives: Array<{ index: number; action: string }>
@@ -438,7 +432,6 @@ export async function POST(request: NextRequest) {
   let stagehand: Stagehand | null = null
 
   try {
-    // Parse and validate request body
     const body = await request.json()
     logger.info('Received Stagehand agent request', {
       startUrl: body.startUrl,

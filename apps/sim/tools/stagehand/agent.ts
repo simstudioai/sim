@@ -47,13 +47,21 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      task: params.task,
-      startUrl: params.startUrl,
-      outputSchema: params.outputSchema,
-      variables: params.variables,
-      apiKey: params.apiKey,
-    }),
+    body: (params) => {
+      let startUrl = params.startUrl
+      if (startUrl && !startUrl.match(/^https?:\/\//i)) {
+        startUrl = `https://${startUrl.trim()}`
+        logger.info(`Normalized URL from ${params.startUrl} to ${startUrl}`)
+      }
+
+      return {
+        task: params.task,
+        startUrl: startUrl,
+        outputSchema: params.outputSchema,
+        variables: params.variables,
+        apiKey: params.apiKey,
+      }
+    },
   },
 
   // Transform the response
