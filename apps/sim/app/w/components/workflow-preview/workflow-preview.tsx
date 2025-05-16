@@ -120,7 +120,7 @@ export function WorkflowPreview({
           blockState: block,
           isReadOnly: true, // Set read-only mode for preview
           isPreview: true, // Indicate this is a preview
-          showSubBlocks,
+          subBlockValues: block.subBlocks || {}, // Use empty object as fallback
         },
       })
 
