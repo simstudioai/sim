@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,10 +20,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { DeployedWorkflowCard } from './deployed-workflow-card'
+
+const logger = createLogger('DeployedWorkflowModal')
 
 interface DeployedWorkflowModalProps {
   isOpen: boolean
@@ -41,8 +44,20 @@ export function DeployedWorkflowModal({
   deployedWorkflowState,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+
+  // Add debug logging to check deployedWorkflowState
+  useEffect(() => {
+    if (isOpen) {
+      if (deployedWorkflowState) {
+        logger.info(`DeployedWorkflowModal received state with ${Object.keys(deployedWorkflowState.blocks || {}).length} blocks`)
+      } else {
+        logger.warn('DeployedWorkflowModal opened but deployedWorkflowState is null or undefined')
+      }
+    }
+  }, [isOpen, deployedWorkflowState]);
 
   // Get current workflow state to compare with deployed state
   const currentWorkflowState = useWorkflowStore((state) => ({
@@ -52,9 +67,12 @@ export function DeployedWorkflowModal({
   }))
 
   const handleRevert = () => {
-    revertToDeployedState(deployedWorkflowState)
-    setShowRevertDialog(false)
-    onClose()
+    if (activeWorkflowId) {
+      logger.info(`Reverting to deployed state for workflow: ${activeWorkflowId}`)
+      revertToDeployedState(deployedWorkflowState)
+      setShowRevertDialog(false)
+      onClose()
+    }
   }
 
   return (
@@ -72,10 +90,16 @@ export function DeployedWorkflowModal({
           </DialogHeader>
         </div>
 
-        <DeployedWorkflowCard
-          currentWorkflowState={currentWorkflowState}
-          deployedWorkflowState={deployedWorkflowState}
-        />
+        {isLoading ? (
+          <div className="flex justify-center items-center h-[500px]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <DeployedWorkflowCard
+            currentWorkflowState={currentWorkflowState}
+            deployedWorkflowState={deployedWorkflowState}
+          />
+        )}
 
         <div className="flex justify-between mt-6">
           <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>

@@ -6,7 +6,7 @@ import { workflow } from '@/db/schema'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
-const logger = createLogger('WorkflowDeployedAPI')
+const logger = createLogger('WorkflowDeployedStateAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return createErrorResponse(validation.error.message, validation.error.status)
     }
 
-    // Fetch just the deployed state
+    // Fetch the workflow's deployed state
     const result = await db
       .select({
         deployedState: workflow.deployedState,
@@ -46,17 +46,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       logger.info(`[${requestId}] No deployed state available for workflow: ${id}`)
       return createSuccessResponse({
         deployedState: null,
-        isDeployed: false,
+        message: 'Workflow is not deployed or has no deployed state',
       })
     }
 
-    logger.info(`[${requestId}] Successfully retrieved DEPLOYED state: ${id}`)
+    logger.info(`[${requestId}] Successfully retrieved deployed state for: ${id}`)
     return createSuccessResponse({
       deployedState: workflowData.deployedState,
-      isDeployed: true,
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployed state: ${id}`, error)
     return createErrorResponse(error.message || 'Failed to fetch deployed state', 500)
   }
-}
+} 
