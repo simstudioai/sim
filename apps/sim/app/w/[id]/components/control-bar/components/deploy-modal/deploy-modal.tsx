@@ -36,6 +36,8 @@ interface DeployModalProps {
   workflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
+  deployedState: any
+  isLoadingDeployedState: boolean
 }
 
 interface ApiKey {
@@ -69,6 +71,8 @@ export function DeployModal({
   workflowId,
   needsRedeployment,
   setNeedsRedeployment,
+  deployedState,
+  isLoadingDeployedState,
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
@@ -604,40 +608,46 @@ export function DeployModal({
             </div>
           </div>
 
-          <div className='flex-1 overflow-y-auto'>
-            <div className='p-6'>
-              {activeTab === 'api' &&
-                (isDeployed ? (
-                  <DeploymentInfo
-                    isLoading={isLoading}
-                    deploymentInfo={deploymentInfo}
-                    onRedeploy={handleRedeploy}
-                    onUndeploy={handleUndeploy}
-                    isSubmitting={isSubmitting}
-                    isUndeploying={isUndeploying}
-                    workflowId={workflowId || undefined}
-                  />
-                ) : (
-                  <>
-                    {apiDeployError && (
-                      <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-                        <div className='font-semibold'>API Deployment Error</div>
-                        <div>{apiDeployError}</div>
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {activeTab === 'api' && (
+                <>
+                  {isDeployed ? (
+                    <DeploymentInfo
+                      isLoading={isLoading}
+                      deploymentInfo={deploymentInfo}
+                      onRedeploy={handleRedeploy}
+                      onUndeploy={handleUndeploy}
+                      isSubmitting={isSubmitting}
+                      isUndeploying={isUndeploying}
+                      needsRedeployment={needsRedeployment}
+                      workflowId={workflowId}
+                      deployedState={deployedState}
+                      isLoadingDeployedState={isLoadingDeployedState}
+                    />
+                  ) : (
+                    <>
+                      {apiDeployError && (
+                        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+                          <div className="font-semibold">API Deployment Error</div>
+                          <div>{apiDeployError}</div>
+                        </div>
+                      )}
+                      <div className="px-1 -mx-1">
+                        <DeployForm
+                          apiKeys={apiKeys}
+                          keysLoaded={keysLoaded}
+                          endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                          workflowId={workflowId || ''}
+                          onSubmit={onDeploy}
+                          getInputFormatExample={getInputFormatExample}
+                          onApiKeyCreated={fetchApiKeys}
+                        />
                       </div>
-                    )}
-                    <div className='-mx-1 px-1'>
-                      <DeployForm
-                        apiKeys={apiKeys}
-                        keysLoaded={keysLoaded}
-                        endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-                        workflowId={workflowId || ''}
-                        onSubmit={onDeploy}
-                        getInputFormatExample={getInputFormatExample}
-                        onApiKeyCreated={fetchApiKeys}
-                      />
-                    </div>
-                  </>
-                ))}
+                    </>
+                  )}
+                </>
+              )}
 
               {activeTab === 'chat' && (
                 <ChatDeploy

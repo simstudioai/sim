@@ -64,6 +64,7 @@ export function DeployedWorkflowCard({
         <div className='h-[500px] w-full'>
           {workflowToShow ? (
             <WorkflowPreview
+              key={showingDeployed ? 'deployed-preview' : 'current-preview'} 
               workflowState={workflowToShow}
               showSubBlocks={true}
               height='100%'

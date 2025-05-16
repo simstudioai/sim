@@ -21,9 +21,12 @@ import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/dep
 import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('DeploymentInfo')
 
 interface DeploymentInfoProps {
-  isLoading: boolean
+  isLoading?: boolean
   deploymentInfo: {
     isDeployed: boolean
     deployedAt?: string
@@ -36,7 +39,10 @@ interface DeploymentInfoProps {
   onUndeploy: () => void
   isSubmitting: boolean
   isUndeploying: boolean
-  workflowId?: string
+  needsRedeployment: boolean
+  workflowId: string | null
+  deployedState: any
+  isLoadingDeployedState: boolean
 }
 
 export function DeploymentInfo({
@@ -46,10 +52,12 @@ export function DeploymentInfo({
   onUndeploy,
   isSubmitting,
   isUndeploying,
+  needsRedeployment,
   workflowId,
+  deployedState,
+  isLoadingDeployedState
 }: DeploymentInfoProps) {
   const [isViewingDeployed, setIsViewingDeployed] = useState(false)
-  const [deployedWorkflowState, setDeployedWorkflowState] = useState<any>(null)
   const { addNotification } = useNotificationStore()
 
   const handleViewDeployed = async () => {
@@ -57,29 +65,15 @@ export function DeploymentInfo({
       addNotification('error', 'Cannot view deployment: Workflow ID is missing', null)
       return
     }
-
-    try {
-      const response = await fetch(`/api/workflows/${workflowId}/deployed`)
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch deployed workflow')
-      }
-
-      const data = await response.json()
-
-      if (data?.deployedState) {
-        setDeployedWorkflowState(data.deployedState)
-        setIsViewingDeployed(true)
-      } else {
-        addNotification('error', 'Failed to view deployment: No deployment state found', workflowId)
-      }
-    } catch (error) {
-      console.error('Error fetching deployed workflow:', error)
-      addNotification(
-        'error',
-        `Failed to fetch deployed workflow: ${(error as Error).message}`,
-        workflowId
-      )
+    
+    // If deployedState is already loaded, use it directly
+    if (deployedState) {
+      logger.info(`Using cached deployed state for workflow: ${workflowId}`)
+      setIsViewingDeployed(true)
+      return
+    } else {
+      logger.debug(`[${workflowId}] No deployed state found`)
+      addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }
   }
 
@@ -168,11 +162,11 @@ export function DeploymentInfo({
         </div>
       </div>
 
-      {deployedWorkflowState && (
+      {deployedState && (
         <DeployedWorkflowModal
           isOpen={isViewingDeployed}
           onClose={() => setIsViewingDeployed(false)}
-          deployedWorkflowState={deployedWorkflowState}
+          deployedWorkflowState={deployedState}
         />
       )}
     </>
