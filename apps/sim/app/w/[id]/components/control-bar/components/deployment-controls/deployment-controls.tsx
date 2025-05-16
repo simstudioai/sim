@@ -17,6 +17,7 @@ interface DeploymentControlsProps {
   setNeedsRedeployment: (value: boolean) => void
   deployedState: any
   isLoadingDeployedState: boolean
+  refetchDeployedState: () => Promise<void>
 }
 
 export function DeploymentControls({
@@ -25,6 +26,7 @@ export function DeploymentControls({
   setNeedsRedeployment,
   deployedState,
   isLoadingDeployedState,
+  refetchDeployedState,
 }: DeploymentControlsProps) {
   const { isDeployed } = useWorkflowStore()
   const [isDeploying, setIsDeploying] = useState(false)
@@ -80,6 +82,7 @@ export function DeploymentControls({
         setNeedsRedeployment={setNeedsRedeployment}
         deployedState={deployedState}
         isLoadingDeployedState={isLoadingDeployedState}
+        refetchDeployedState={refetchDeployedState}
       />
     </>
   )

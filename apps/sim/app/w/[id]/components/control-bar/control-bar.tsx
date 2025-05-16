@@ -173,12 +173,6 @@ export function ControlBar() {
     return !!marketplaceData
   }
 
-  // Check if the current user is the owner of the published workflow
-  const isWorkflowOwner = () => {
-    const marketplaceData = getMarketplaceData()
-    return marketplaceData?.status === 'owner'
-  }
-
   // Client-side only rendering for the timestamp
   useEffect(() => {
     setMounted(true)
@@ -320,6 +314,100 @@ export function ControlBar() {
     }
     checkStatus()
   }, [activeWorkflowId, setDeploymentStatus])
+
+  // Add a function to explicitly fetch deployed state that can be called after redeployment
+  const refetchDeployedState = async () => {
+    if (!activeWorkflowId || !isDeployed) {
+      setDeployedState(null)
+      return;
+    }
+
+    try {
+      setIsLoadingDeployedState(true);
+      logger.info(`[CENTRAL] Explicitly refetching deployed state for workflow: ${activeWorkflowId}`);
+      
+      const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch deployed state: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.deployedState) {
+        logger.info('Successfully refetched deployed state from DB after redeployment');
+        // Create a deep clone to ensure no reference sharing with current state
+        const deepClonedState = JSON.parse(JSON.stringify(data.deployedState));
+        logger.info('deepClonedState', deepClonedState)
+        setDeployedState(deepClonedState);
+      } else {
+        logger.warn('No deployed state found in the database after refetch');
+        setDeployedState(null);
+      }
+    } catch (error) {
+      logger.error('Error refetching deployed state:', error);
+      setDeployedState(null);
+    } finally {
+      setIsLoadingDeployedState(false);
+    }
+  };
+
+  // Fetch deployed state when the workflow ID changes or deployment status changes
+  useEffect(() => {
+    async function fetchDeployedState() {
+      if (!activeWorkflowId || !isDeployed) {
+        setDeployedState(null)
+        return
+      }
+
+      try {
+        setIsLoadingDeployedState(true)
+        logger.info(`[CENTRAL] Fetching deployed state for workflow: ${activeWorkflowId} (Control Bar - Single Source of Truth)`)
+        
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch deployed state: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        if (data.deployedState) {
+          logger.info('Successfully fetched deployed state from DB - This is the only place that should fetch deployed state')
+          // Create a deep clone to ensure no reference sharing with current state
+          const deepClonedState = JSON.parse(JSON.stringify(data.deployedState))
+          logger.info('deepClonedState', deepClonedState)
+          setDeployedState(deepClonedState)
+        } else {
+          logger.warn('No deployed state found in the database')
+          setDeployedState(null)
+        }
+      } catch (error) {
+        logger.error('Error fetching deployed state:', error)
+        setDeployedState(null)
+      } finally {
+        setIsLoadingDeployedState(false)
+      }
+    }
+    
+    fetchDeployedState()
+  }, [activeWorkflowId, isDeployed])
+
+  // Listen for deployment status changes
+  useEffect(() => {
+    // When deployment status changes and isDeployed becomes true,
+    // that means a deployment just occurred, so reset the needsRedeployment flag
+    if (isDeployed) {
+      setNeedsRedeployment(false)
+      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+      
+      // When a workflow is newly deployed, we need to fetch the deployed state
+      if (activeWorkflowId && deployedState === null) {
+        // We'll fetch the deployed state in the other useEffect
+      }
+    } else {
+      // If workflow is undeployed, clear the deployed state
+      setDeployedState(null)
+    }
+  }, [isDeployed, activeWorkflowId])
 
   // Listen for deployment status changes
   useEffect(() => {
@@ -691,6 +779,7 @@ export function ControlBar() {
       setNeedsRedeployment={setNeedsRedeployment}
       deployedState={deployedState}
       isLoadingDeployedState={isLoadingDeployedState}
+      refetchDeployedState={refetchDeployedState}
     />
   )
 
@@ -1125,63 +1214,6 @@ export function ControlBar() {
       </div>
     </div>
   )
-
-  // Fetch deployed state when the workflow ID changes or deployment status changes
-  useEffect(() => {
-    async function fetchDeployedState() {
-      if (!activeWorkflowId || !isDeployed) {
-        setDeployedState(null)
-        return
-      }
-
-      try {
-        setIsLoadingDeployedState(true)
-        logger.info(`[CENTRAL] Fetching deployed state for workflow: ${activeWorkflowId} (Control Bar - Single Source of Truth)`)
-        
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`)
-        if (!response.ok) {
-          throw new Error(`Failed to fetch deployed state: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        
-        if (data.deployedState) {
-          logger.info('Successfully fetched deployed state from DB - This is the only place that should fetch deployed state')
-          // Create a deep clone to ensure no reference sharing with current state
-          const deepClonedState = JSON.parse(JSON.stringify(data.deployedState))
-          setDeployedState(deepClonedState)
-        } else {
-          logger.warn('No deployed state found in the database')
-          setDeployedState(null)
-        }
-      } catch (error) {
-        logger.error('Error fetching deployed state:', error)
-        setDeployedState(null)
-      } finally {
-        setIsLoadingDeployedState(false)
-      }
-    }
-    
-    fetchDeployedState()
-  }, [activeWorkflowId, isDeployed])
-
-  // Listen for deployment status changes
-  useEffect(() => {
-    // When deployment status changes and isDeployed becomes true,
-    // that means a deployment just occurred, so reset the needsRedeployment flag
-    if (isDeployed) {
-      setNeedsRedeployment(false)
-      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-      
-      // When a workflow is newly deployed, we need to fetch the deployed state
-      if (activeWorkflowId && deployedState === null) {
-        // We'll fetch the deployed state in the other useEffect
-      }
-    } else {
-      // If workflow is undeployed, clear the deployed state
-      setDeployedState(null)
-    }
-  }, [isDeployed, activeWorkflowId])
 
   return (
     <div className="flex h-16 w-full items-center justify-between bg-background border-b">
