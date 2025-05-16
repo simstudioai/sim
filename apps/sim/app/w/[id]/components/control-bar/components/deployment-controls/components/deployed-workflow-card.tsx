@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
 
 interface DeployedWorkflowCardProps {
   currentWorkflowState?: {
@@ -27,6 +27,7 @@ export function DeployedWorkflowCard({
 }: DeployedWorkflowCardProps) {
   const [showingDeployed, setShowingDeployed] = useState(true)
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
+  console.log('workflowToShow', workflowToShow)
 
   return (
     <Card className={cn('relative overflow-hidden', className)}>

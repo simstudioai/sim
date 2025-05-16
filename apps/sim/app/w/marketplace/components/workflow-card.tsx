@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { Workflow } from '../marketplace'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
+import { Workflow } from '../marketplace'
 
 /**
  * WorkflowCardProps interface - defines the properties for the WorkflowCard component

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import ReactFlow, {
   Background,
   ConnectionLineType,
@@ -27,7 +27,6 @@ import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edg
 // import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useEffect } from 'react'
 
 const logger = createLogger('WorkflowPreview')
 
@@ -68,7 +67,11 @@ const edgeTypes: EdgeTypes = {
   workflowEdge: WorkflowEdge,
 }
 
-function WorkflowPreviewContent({
+// The subblocks should be getting passed from the state and not the subBlockStore. 
+// Create optional parameter boolan isPreview to pass in the block state to know how to render
+// the subblocks
+
+export function WorkflowPreview({
   workflowState,
   showSubBlocks = true,
   className,
@@ -175,40 +178,34 @@ function WorkflowPreviewContent({
   }, [workflowState])
 
   return (
-    <div style={{ height, width }} className={className}>
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        connectionLineType={ConnectionLineType.SmoothStep}
-        fitView
-        panOnScroll={false}
-        panOnDrag={isPannable}
-        zoomOnScroll={false}
-        draggable={false}
-        defaultViewport={{
-          x: defaultPosition?.x ?? 0,
-          y: defaultPosition?.y ?? 0,
-          zoom: defaultZoom ?? 1,
-        }}
-        minZoom={0.1}
-        maxZoom={2}
-        proOptions={{ hideAttribution: true }}
-        elementsSelectable={false}
-        nodesDraggable={false}
-        nodesConnectable={false}
-      >
-        <Background />
-      </ReactFlow>
-    </div>
-  )
-}
-
-export function WorkflowPreview(props: WorkflowPreviewProps) {
-  return (
     <ReactFlowProvider>
-      <WorkflowPreviewContent {...props} />
+      <div style={{ height, width }} className={className}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          fitView
+          panOnScroll={false}
+          panOnDrag={isPannable}
+          zoomOnScroll={false}
+          draggable={false}
+          defaultViewport={{
+            x: defaultPosition?.x ?? 0,
+            y: defaultPosition?.y ?? 0,
+            zoom: defaultZoom ?? 1,
+          }}
+          minZoom={0.1}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+          elementsSelectable={false}
+          nodesDraggable={false}
+          nodesConnectable={false}
+        >
+          <Background />
+        </ReactFlow>
+      </div>
     </ReactFlowProvider>
   )
 }

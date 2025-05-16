@@ -39,8 +39,6 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
     e.stopPropagation()
   }
 
-  const { getValue } = useSubBlockStore()
-
   const isFieldRequired = () => {
     const blockType = useWorkflowStore.getState().blocks[blockId]?.type
     if (!blockType) return false

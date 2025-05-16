@@ -198,6 +198,260 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
+  // Listen for workflow changes and check if redeployment is needed
+  useEffect(() => {
+    if (!activeWorkflowId || !isDeployed) return
+
+    // Create a debounced function to check for changes
+    let debounceTimer: NodeJS.Timeout | null = null
+    let lastCheckTime = 0
+    let pendingChanges = 0
+    const DEBOUNCE_DELAY = 1000
+    const THROTTLE_INTERVAL = 3000
+
+    // Function to check if redeployment is needed
+    const checkForChanges = async () => {
+      // Skip if we're already showing needsRedeployment
+      if (needsRedeployment) return
+
+      // Reset the pending changes counter
+      pendingChanges = 0
+      lastCheckTime = Date.now()
+
+      try {
+        // Get the deployed state from the API
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+
+          // If the API says we need redeployment, update our state and the store
+          if (data.needsRedeployment) {
+            setNeedsRedeployment(true)
+            // Also update the store state so other components can access this flag
+            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check workflow change status:', { error })
+      }
+    }
+
+    // Debounced check function
+    const debouncedCheck = () => {
+      // Increment the pending changes counter
+      pendingChanges++
+
+      // Clear any existing timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
+      // If we recently checked, and it's within throttle interval, wait longer
+      const timeElapsed = Date.now() - lastCheckTime
+      if (timeElapsed < THROTTLE_INTERVAL && lastCheckTime > 0) {
+        // Wait until the throttle interval has passed
+        const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
+
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, adjustedDelay)
+      } else {
+        // Standard debounce delay if we haven't checked recently
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, DEBOUNCE_DELAY)
+      }
+    }
+
+    // Subscribe to workflow store changes
+    const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
+
+    // Also subscribe to subblock store changes
+    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
+      // Only check for the active workflow
+      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
+
+      // Only trigger when there is an update to the current workflow's subblocks
+      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
+      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
+        debouncedCheck()
+      }
+    })
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      workflowUnsubscribe()
+      subBlockUnsubscribe()
+    }
+  }, [activeWorkflowId, isDeployed, needsRedeployment])
+
+  // Check deployment and publication status on mount or when activeWorkflowId changes
+  useEffect(() => {
+    async function checkStatus() {
+      if (!activeWorkflowId) return
+
+      // Skip API call in localStorage mode
+      if (
+        typeof window !== 'undefined' &&
+        (localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
+          process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
+          process.env.NEXT_PUBLIC_DISABLE_DB_SYNC === 'true')
+      ) {
+        // For localStorage mode, we already have the status in the workflow store
+        // Nothing more to do as the useWorkflowStore already has this information
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+          // Update the store with the status from the API
+          setDeploymentStatus(
+            data.isDeployed,
+            data.deployedAt ? new Date(data.deployedAt) : undefined
+          )
+          setNeedsRedeployment(data.needsRedeployment)
+          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
+        }
+      } catch (error) {
+        logger.error('Failed to check workflow status:', { error })
+      }
+    }
+    checkStatus()
+  }, [activeWorkflowId, setDeploymentStatus])
+
+  // Add a function to explicitly fetch deployed state that can be called after redeployment
+  const refetchDeployedState = async () => {
+    if (!activeWorkflowId || !isDeployed) {
+      setDeployedState(null)
+      return;
+    }
+
+    try {
+      setIsLoadingDeployedState(true);
+      logger.info(`[CENTRAL] Explicitly refetching deployed state for workflow: ${activeWorkflowId}`);
+      
+      const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch deployed state: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.deployedState) {
+        logger.info('Successfully refetched deployed state from DB after redeployment');
+        // Create a deep clone to ensure no reference sharing with current state
+        const deepClonedState = JSON.parse(JSON.stringify(data.deployedState));
+        logger.info('deepClonedState', deepClonedState)
+        setDeployedState(deepClonedState);
+      } else {
+        logger.warn('No deployed state found in the database after refetch');
+        setDeployedState(null);
+      }
+    } catch (error) {
+      logger.error('Error refetching deployed state:', error);
+      setDeployedState(null);
+    } finally {
+      setIsLoadingDeployedState(false);
+    }
+  };
+
+  // Fetch deployed state when the workflow ID changes or deployment status changes
+  useEffect(() => {
+    async function fetchDeployedState() {
+      if (!activeWorkflowId || !isDeployed) {
+        setDeployedState(null)
+        return
+      }
+
+      try {
+        setIsLoadingDeployedState(true)
+        logger.info(`[CENTRAL] Fetching deployed state for workflow: ${activeWorkflowId} (Control Bar - Single Source of Truth)`)
+        
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch deployed state: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        if (data.deployedState) {
+          logger.info('Successfully fetched deployed state from DB - This is the only place that should fetch deployed state')
+          // Create a deep clone to ensure no reference sharing with current state
+          const deepClonedState = JSON.parse(JSON.stringify(data.deployedState))
+          logger.info('deepClonedState', deepClonedState)
+          setDeployedState(deepClonedState)
+        } else {
+          logger.warn('No deployed state found in the database')
+          setDeployedState(null)
+        }
+      } catch (error) {
+        logger.error('Error fetching deployed state:', error)
+        setDeployedState(null)
+      } finally {
+        setIsLoadingDeployedState(false)
+      }
+    }
+    
+    fetchDeployedState()
+  }, [activeWorkflowId, isDeployed])
+
+  // Listen for deployment status changes
+  useEffect(() => {
+    // When deployment status changes and isDeployed becomes true,
+    // that means a deployment just occurred, so reset the needsRedeployment flag
+    if (isDeployed) {
+      setNeedsRedeployment(false)
+      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+      
+      // When a workflow is newly deployed, we need to fetch the deployed state
+      if (activeWorkflowId && deployedState === null) {
+        // We'll fetch the deployed state in the other useEffect
+      }
+    } else {
+      // If workflow is undeployed, clear the deployed state
+      setDeployedState(null)
+    }
+  }, [isDeployed, activeWorkflowId])
+
+  // Listen for deployment status changes
+  useEffect(() => {
+    // When deployment status changes and isDeployed becomes true,
+    // that means a deployment just occurred, so reset the needsRedeployment flag
+    if (isDeployed) {
+      setNeedsRedeployment(false)
+      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+    }
+  }, [isDeployed])
+
+  // Add a listener for the needsRedeployment flag in the workflow store
+  useEffect(() => {
+    const unsubscribe = useWorkflowStore.subscribe((state) => {
+      // Update local state when the store flag changes
+      if (state.needsRedeployment !== undefined) {
+        setNeedsRedeployment(state.needsRedeployment)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Add a manual method to update the deployment status and clear the needsRedeployment flag
+  const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
+    setDeploymentStatus(isDeployed, deployedAt)
+    setNeedsRedeployment(false)
+    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+  }
+
   // Update existing API notifications when needsRedeployment changes
   useEffect(() => {
     if (!activeWorkflowId) return
@@ -540,6 +794,7 @@ export function ControlBar() {
       setNeedsRedeployment={setNeedsRedeployment}
       deployedState={deployedState}
       isLoadingDeployedState={isLoadingDeployedState}
+      refetchDeployedState={refetchDeployedState}
     />
   )
 
@@ -1000,63 +1255,6 @@ export function ControlBar() {
       </div>
     </div>
   )
-
-  // Fetch deployed state when the workflow ID changes or deployment status changes
-  useEffect(() => {
-    async function fetchDeployedState() {
-      if (!activeWorkflowId || !isDeployed) {
-        setDeployedState(null)
-        return
-      }
-
-      try {
-        setIsLoadingDeployedState(true)
-        logger.info(`[CENTRAL] Fetching deployed state for workflow: ${activeWorkflowId} (Control Bar - Single Source of Truth)`)
-        
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`)
-        if (!response.ok) {
-          throw new Error(`Failed to fetch deployed state: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        
-        if (data.deployedState) {
-          logger.info('Successfully fetched deployed state from DB - This is the only place that should fetch deployed state')
-          // Create a deep clone to ensure no reference sharing with current state
-          const deepClonedState = JSON.parse(JSON.stringify(data.deployedState))
-          setDeployedState(deepClonedState)
-        } else {
-          logger.warn('No deployed state found in the database')
-          setDeployedState(null)
-        }
-      } catch (error) {
-        logger.error('Error fetching deployed state:', error)
-        setDeployedState(null)
-      } finally {
-        setIsLoadingDeployedState(false)
-      }
-    }
-    
-    fetchDeployedState()
-  }, [activeWorkflowId, isDeployed])
-
-  // Listen for deployment status changes
-  useEffect(() => {
-    // When deployment status changes and isDeployed becomes true,
-    // that means a deployment just occurred, so reset the needsRedeployment flag
-    if (isDeployed) {
-      setNeedsRedeployment(false)
-      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-      
-      // When a workflow is newly deployed, we need to fetch the deployed state
-      if (activeWorkflowId && deployedState === null) {
-        // We'll fetch the deployed state in the other useEffect
-      }
-    } else {
-      // If workflow is undeployed, clear the deployed state
-      setDeployedState(null)
-    }
-  }, [isDeployed, activeWorkflowId])
 
   return (
     <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
