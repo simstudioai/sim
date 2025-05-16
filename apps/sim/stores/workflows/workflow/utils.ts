@@ -1,4 +1,6 @@
 import { Edge } from 'reactflow'
+import { Loop } from './types';
+import { BlockState } from './types';
 
 /**
  * Performs a depth-first search to detect all cycles in the graph
@@ -55,4 +57,86 @@ export function detectCycle(
     hasCycle: allCycles.length > 0,
     paths: allCycles,
   }
+}
+
+/**
+ * Convert UI loop block to executor Loop format
+ * 
+ * @param loopBlockId - ID of the loop block to convert
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Loop object for execution engine or undefined if not a valid loop
+ */
+export function convertLoopBlockToLoop(
+  loopBlockId: string,
+  blocks: Record<string, BlockState>
+): Loop | undefined {
+  const loopBlock = blocks[loopBlockId];
+  if (!loopBlock || loopBlock.type !== 'loop') return undefined;
+  
+  return {
+    id: loopBlockId,
+    nodes: findChildNodes(loopBlockId, blocks),
+    iterations: loopBlock.data?.count || 5,
+    loopType: loopBlock.data?.loopType || 'for',
+    forEachItems: loopBlock.data?.collection || '',
+  };
+}
+
+/**
+ * Find all nodes that are children of this loop
+ * 
+ * @param loopId - ID of the loop to find children for
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Array of node IDs that are direct children of this loop
+ */
+export function findChildNodes(loopId: string, blocks: Record<string, BlockState>): string[] {
+  return Object.values(blocks)
+    .filter(block => block.data?.parentId === loopId)
+    .map(block => block.id);
+}
+
+/**
+ * Find all descendant nodes, including children, grandchildren, etc.
+ * 
+ * @param loopId - ID of the loop to find descendants for
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Array of node IDs that are descendants of this loop
+ */
+export function findAllDescendantNodes(loopId: string, blocks: Record<string, BlockState>): string[] {
+  const descendants: string[] = [];
+  const findDescendants = (parentId: string) => {
+    const children = Object.values(blocks)
+      .filter(block => block.data?.parentId === parentId)
+      .map(block => block.id);
+    
+    children.forEach(childId => {
+      descendants.push(childId);
+      findDescendants(childId);
+    });
+  };
+  
+  findDescendants(loopId);
+  return descendants;
+}
+
+/**
+ * Builds a complete loopBlocks collection from the UI blocks
+ * 
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Record of Loop objects for execution engine
+ */
+export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<string, Loop> {
+  const loopBlocks: Record<string, Loop> = {};
+  
+  // Find all loop nodes
+  Object.entries(blocks)
+    .filter(([_, block]) => block.type === 'loop')
+    .forEach(([id, block]) => {
+      const loop = convertLoopBlockToLoop(id, blocks);
+      if (loop) {
+        loopBlocks[id] = loop;
+      }
+    });
+  
+  return loopBlocks;
 }

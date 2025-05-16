@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PanelLeftClose, PanelRight, PanelRightClose, Search } from 'lucide-react'
+import { PanelLeftClose, PanelRight, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -10,6 +10,7 @@ import { getAllBlocks, getBlocksByCategory } from '@/blocks'
 import { BlockCategory } from '@/blocks/types'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
+import LoopToolbarItem from './components/toolbar-loop-block/toolbar-loop-block'
 
 export function Toolbar() {
   const [activeTab, setActiveTab] = useState<BlockCategory>('blocks')
@@ -87,6 +88,7 @@ export function Toolbar() {
               {blocks.map((block) => (
                 <ToolbarBlock key={block.type} config={block} />
               ))}
+              {activeTab === 'blocks' && !searchQuery && <LoopToolbarItem />}
             </div>
           </div>
         </ScrollArea>

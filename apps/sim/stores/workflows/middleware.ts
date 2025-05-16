@@ -46,6 +46,7 @@ export const withHistory = (
       state: {
         blocks: initialState.blocks,
         edges: initialState.edges,
+        loopBlocks: initialState.loopBlocks,
         loops: initialState.loops,
       },
       timestamp: Date.now(),
@@ -110,7 +111,7 @@ export const withHistory = (
         saveWorkflowState(activeWorkflowId, {
           blocks: currentState.blocks,
           edges: currentState.edges,
-          loops: currentState.loops,
+          loopBlocks: currentState.loopBlocks,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -161,7 +162,7 @@ export const withHistory = (
         saveWorkflowState(activeWorkflowId, {
           blocks: currentState.blocks,
           edges: currentState.edges,
-          loops: currentState.loops,
+          loopBlocks: currentState.loopBlocks,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -174,11 +175,11 @@ export const withHistory = (
         const newState = {
           blocks: {},
           edges: [],
-          loops: {},
+          loopBlocks: {},
           history: {
             past: [],
             present: {
-              state: { blocks: {}, edges: [], loops: {} },
+              state: { blocks: {}, edges: [], loopBlocks: {}, loops: {} },
               timestamp: Date.now(),
               action: 'Clear workflow',
               subblockValues: {},
@@ -236,7 +237,7 @@ export const withHistory = (
         saveWorkflowState(activeWorkflowId, {
           blocks: currentState.blocks,
           edges: currentState.edges,
-          loops: currentState.loops,
+          loopBlocks: currentState.loopBlocks,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -256,6 +257,7 @@ export const createHistoryEntry = (state: WorkflowState, action: string): Histor
   const stateCopy = {
     blocks: { ...state.blocks },
     edges: [...state.edges],
+    loopBlocks: { ...state.loopBlocks },
     loops: { ...state.loops },
   }
 
