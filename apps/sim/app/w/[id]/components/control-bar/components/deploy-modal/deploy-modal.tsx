@@ -39,6 +39,7 @@ interface DeployModalProps {
   setNeedsRedeployment: (value: boolean) => void
   deployedState: any
   isLoadingDeployedState: boolean
+  refetchDeployedState: () => Promise<void>
 }
 
 interface ApiKey {
@@ -74,6 +75,7 @@ export function DeployModal({
   setNeedsRedeployment,
   deployedState,
   isLoadingDeployedState,
+  refetchDeployedState,
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
@@ -304,6 +306,10 @@ export function DeployModal({
 
       setDeploymentInfo(newDeploymentInfo)
 
+      // Fetch the updated deployed state after deployment
+      logger.info('Deployment successful, fetching initial deployed state')
+      await refetchDeployedState()
+
       // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
@@ -387,6 +393,10 @@ export function DeployModal({
       if (workflowId) {
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
+
+      // Fetch the updated deployed state after redeployment
+      logger.info('Redeployment successful, fetching updated deployed state')
+      await refetchDeployedState()
 
       // Add a success notification
       addNotification('info', 'Workflow successfully redeployed', workflowId)
