@@ -37,6 +37,8 @@ interface DeployModalProps {
   workflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
+  deployedState: any
+  isLoadingDeployedState: boolean
 }
 
 interface ApiKey {
@@ -70,6 +72,8 @@ export function DeployModal({
   workflowId,
   needsRedeployment,
   setNeedsRedeployment,
+  deployedState,
+  isLoadingDeployedState,
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
@@ -600,7 +604,10 @@ export function DeployModal({
                       onUndeploy={handleUndeploy}
                       isSubmitting={isSubmitting}
                       isUndeploying={isUndeploying}
-                      workflowId={workflowId || undefined}
+                      needsRedeployment={needsRedeployment}
+                      workflowId={workflowId}
+                      deployedState={deployedState}
+                      isLoadingDeployedState={isLoadingDeployedState}
                     />
                   ) : (
                     <>
