@@ -9,7 +9,7 @@ import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
-import { Loop, Position, SubBlockState, WorkflowState } from './types'
+import { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { detectCycle, generateLoopBlocks } from './utils'
 
 const initialState = {
