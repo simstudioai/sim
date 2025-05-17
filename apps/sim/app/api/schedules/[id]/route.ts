@@ -117,7 +117,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (action === 'reactivate' || (body.status && body.status === 'active')) {
       if (schedule.status === 'active') {
-        return NextResponse.json({ message: 'Schedule is already active' })
+        return NextResponse.json({ message: 'Schedule is already active' }, { status: 200 })
       }
 
       const now = new Date()

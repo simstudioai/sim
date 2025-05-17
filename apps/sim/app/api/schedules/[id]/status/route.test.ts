@@ -74,6 +74,7 @@ describe('Schedule Status API Route', () => {
     const data = await res.json()
     expect(data).toHaveProperty('status', 'disabled')
     expect(data).toHaveProperty('isDisabled', true)
+    expect(data).toHaveProperty('lastFailedAt')
   })
 
   it('returns 404 if schedule not found', async () => {

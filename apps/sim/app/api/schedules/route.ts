@@ -29,6 +29,35 @@ const ScheduleRequestSchema = z.object({
 const recentRequests = new Map<string, number>()
 const LOGGING_THROTTLE_MS = 5000 // 5 seconds between logging for the same workflow
 
+function hasValidScheduleConfig(
+  scheduleType: string | undefined,
+  scheduleValues: ReturnType<typeof getScheduleTimeValues>,
+  starterBlock: BlockState
+): boolean {
+  switch (scheduleType) {
+    case 'minutes':
+      return !!scheduleValues.minutesInterval
+    case 'hourly':
+      return scheduleValues.hourlyMinute !== undefined
+    case 'daily':
+      return !!scheduleValues.dailyTime[0] || !!scheduleValues.dailyTime[1]
+    case 'weekly':
+      return (
+        !!scheduleValues.weeklyDay &&
+        (!!scheduleValues.weeklyTime[0] || !!scheduleValues.weeklyTime[1])
+      )
+    case 'monthly':
+      return (
+        !!scheduleValues.monthlyDay &&
+        (!!scheduleValues.monthlyTime[0] || !!scheduleValues.monthlyTime[1])
+      )
+    case 'custom':
+      return !!getSubBlockValue(starterBlock, 'cronExpression')
+    default:
+      return false
+  }
+}
+
 /**
  * Get schedule information for a workflow
  */
@@ -126,30 +155,7 @@ export async function POST(req: NextRequest) {
 
     const scheduleValues = getScheduleTimeValues(starterBlock)
 
-    const hasScheduleConfig = (() => {
-      switch (scheduleType) {
-        case 'minutes':
-          return !!scheduleValues.minutesInterval
-        case 'hourly':
-          return scheduleValues.hourlyMinute !== undefined
-        case 'daily':
-          return !!scheduleValues.dailyTime[0] || !!scheduleValues.dailyTime[1]
-        case 'weekly':
-          return (
-            !!scheduleValues.weeklyDay &&
-            (!!scheduleValues.weeklyTime[0] || !!scheduleValues.weeklyTime[1])
-          )
-        case 'monthly':
-          return (
-            !!scheduleValues.monthlyDay &&
-            (!!scheduleValues.monthlyTime[0] || !!scheduleValues.monthlyTime[1])
-          )
-        case 'custom':
-          return !!getSubBlockValue(starterBlock, 'cronExpression')
-        default:
-          return false
-      }
-    })()
+    const hasScheduleConfig = hasValidScheduleConfig(scheduleType, scheduleValues, starterBlock)
 
     if (startWorkflow !== 'schedule' && !hasScheduleConfig) {
       logger.info(
@@ -173,21 +179,20 @@ export async function POST(req: NextRequest) {
     const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
 
     try {
-      const scheduleType = getSubBlockValue(starterBlock, 'scheduleType') || 'daily'
-      const scheduleValues = getScheduleTimeValues(starterBlock)
+      const defaultScheduleType = scheduleType || 'daily'
       const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
       const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
 
       logger.debug(`[${requestId}] Schedule configuration:`, {
-        type: scheduleType,
+        type: defaultScheduleType,
         timezone,
         startDate: scheduleStartAt || 'not specified',
         time: scheduleTime || 'not specified',
       })
 
-      cronExpression = generateCronExpression(scheduleType, scheduleValues)
+      cronExpression = generateCronExpression(defaultScheduleType, scheduleValues)
 
-      nextRunAt = calculateNextRunTime(scheduleType, scheduleValues)
+      nextRunAt = calculateNextRunTime(defaultScheduleType, scheduleValues)
 
       logger.debug(
         `[${requestId}] Generated cron: ${cronExpression}, next run at: ${nextRunAt.toISOString()}`
