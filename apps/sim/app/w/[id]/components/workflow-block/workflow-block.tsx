@@ -37,7 +37,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     nextRunAt: string | null
     lastRanAt: string | null
     timezone: string
+    status?: string
+    isDisabled?: boolean
+    id?: string
   } | null>(null)
+  const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
   const [webhookInfo, setWebhookInfo] = useState<{
     webhookPath: string
     provider: string
@@ -56,7 +60,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
-  const hasActiveSchedule = useWorkflowStore((state) => state.hasActiveSchedule ?? false)
   const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
 
   // Workflow store actions
@@ -68,49 +71,106 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
   const isActive = dataIsActive || isActiveBlock
 
-  // Get schedule information for the tooltip
-  useEffect(() => {
-    if (type === 'starter' && hasActiveSchedule) {
-      const fetchScheduleInfo = async () => {
-        try {
-          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
-          if (!workflowId) return
+  const reactivateSchedule = async (scheduleId: string) => {
+    try {
+      const response = await fetch(`/api/schedules/${scheduleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'reactivate' }),
+      })
 
-          const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
-            cache: 'no-store',
-            headers: {
-              'Cache-Control': 'no-cache',
-            },
-          })
+      if (response.ok) {
+        fetchScheduleInfo()
+      } else {
+        console.error('Failed to reactivate schedule')
+      }
+    } catch (error) {
+      console.error('Error reactivating schedule:', error)
+    }
+  }
 
-          if (response.ok) {
-            const data = await response.json()
-            if (data.schedule) {
-              let scheduleTiming = 'Unknown schedule'
-              if (data.schedule.cronExpression) {
-                scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
-              }
+  const fetchScheduleInfo = async () => {
+    try {
+      setIsLoadingScheduleInfo(true)
+      const workflowId = useWorkflowRegistry.getState().activeWorkflowId
+      if (!workflowId) return
 
-              setScheduleInfo({
-                scheduleTiming,
-                nextRunAt: data.schedule.nextRunAt,
-                lastRanAt: data.schedule.lastRanAt,
-                timezone: data.schedule.timezone || 'UTC',
-              })
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching schedule info:', error)
-        }
+      const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      })
+
+      if (!response.ok) {
+        setScheduleInfo(null)
+        return
       }
 
+      const data = await response.json()
+
+      if (!data.schedule) {
+        setScheduleInfo(null)
+        return
+      }
+
+      let scheduleTiming = 'Unknown schedule'
+      if (data.schedule.cronExpression) {
+        scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
+      }
+
+      const baseInfo = {
+        scheduleTiming,
+        nextRunAt: data.schedule.nextRunAt as string | null,
+        lastRanAt: data.schedule.lastRanAt as string | null,
+        timezone: data.schedule.timezone || 'UTC',
+        status: data.schedule.status as string,
+        isDisabled: data.schedule.status === 'disabled',
+        id: data.schedule.id as string,
+      }
+
+      try {
+        const statusRes = await fetch(`/api/schedules/${baseInfo.id}/status`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        })
+
+        if (statusRes.ok) {
+          const statusData = await statusRes.json()
+          setScheduleInfo({
+            scheduleTiming: baseInfo.scheduleTiming,
+            nextRunAt: statusData.nextRunAt ?? baseInfo.nextRunAt,
+            lastRanAt: statusData.lastRanAt ?? baseInfo.lastRanAt,
+            timezone: baseInfo.timezone,
+            status: statusData.status ?? baseInfo.status,
+            isDisabled: statusData.isDisabled ?? baseInfo.isDisabled,
+            id: baseInfo.id,
+          })
+          return
+        }
+      } catch (err) {
+        console.error('Error fetching schedule status:', err)
+      }
+
+      setScheduleInfo(baseInfo)
+    } catch (error) {
+      console.error('Error fetching schedule info:', error)
+      setScheduleInfo(null)
+    } finally {
+      setIsLoadingScheduleInfo(false)
+    }
+  }
+
+  useEffect(() => {
+    if (type === 'starter') {
       fetchScheduleInfo()
-    } else if (!hasActiveSchedule) {
+    } else {
       setScheduleInfo(null)
     }
-  }, [type, hasActiveSchedule])
+  }, [type])
 
-  // Get webhook information for the tooltip
   useEffect(() => {
     if (type === 'starter' && hasActiveWebhook) {
       const fetchWebhookInfo = async () => {
@@ -140,12 +200,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }, [type, hasActiveWebhook])
 
-  // Update node internals when handles change
   useEffect(() => {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
 
-  // Add debounce helper
   const debounce = (func: Function, wait: number) => {
     let timeout: NodeJS.Timeout
     return (...args: any[]) => {
@@ -154,7 +212,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Add effect to observe size changes with debounced updates
   useEffect(() => {
     if (!contentRef.current) return
 
@@ -167,12 +224,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }, 100)
 
     const resizeObserver = new ResizeObserver((entries) => {
-      // Cancel any pending animation frame
       if (rafId) {
         cancelAnimationFrame(rafId)
       }
 
-      // Schedule the update on the next animation frame
       rafId = requestAnimationFrame(() => {
         for (const entry of entries) {
           const height =
@@ -286,9 +341,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and has active schedule or webhook
+  // Check if this is a starter block and if we need to show schedule / webhook indicators
   const isStarterBlock = type === 'starter'
-  const showScheduleIndicator = isStarterBlock && hasActiveSchedule
   const showWebhookIndicator = isStarterBlock && hasActiveWebhook
 
   const getProviderName = (providerId: string): string => {
@@ -304,6 +358,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
     return providers[providerId] || 'Webhook'
   }
+
+  const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
   return (
     <div className="relative group">
@@ -400,25 +456,51 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               </Badge>
             )}
             {/* Schedule indicator badge - displayed for starter blocks with active schedules */}
-            {showScheduleIndicator && (
+            {shouldShowScheduleBadge && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
                     variant="outline"
-                    className="flex items-center gap-1 text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400 font-normal text-xs"
+                    className={cn(
+                      'flex items-center gap-1 font-normal text-xs',
+                      scheduleInfo?.isDisabled
+                        ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 cursor-pointer'
+                        : 'text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
+                    )}
+                    onClick={
+                      scheduleInfo?.isDisabled && scheduleInfo?.id
+                        ? () => reactivateSchedule(scheduleInfo.id!)
+                        : undefined
+                    }
                   >
                     <div className="relative flex items-center justify-center mr-0.5">
-                      <div className="absolute h-3 w-3 rounded-full bg-green-500/20"></div>
-                      <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
+                      <div
+                        className={cn(
+                          'absolute h-3 w-3 rounded-full',
+                          scheduleInfo?.isDisabled ? 'bg-amber-500/20' : 'bg-green-500/20'
+                        )}
+                      ></div>
+                      <div
+                        className={cn(
+                          'relative h-2 w-2 rounded-full',
+                          scheduleInfo?.isDisabled ? 'bg-amber-500' : 'bg-green-500'
+                        )}
+                      ></div>
                     </div>
-                    Scheduled
+                    {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[300px] p-4">
                   {scheduleInfo ? (
                     <>
                       <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
-                      {scheduleInfo.nextRunAt && (
+                      {scheduleInfo.isDisabled && (
+                        <p className="text-sm text-amber-600 font-medium mt-1">
+                          This schedule is currently disabled due to consecutive failures. Click the
+                          badge to reactivate it.
+                        </p>
+                      )}
+                      {scheduleInfo.nextRunAt && !scheduleInfo.isDisabled && (
                         <p className="text-xs text-muted-foreground mt-1">
                           Next run:{' '}
                           {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}

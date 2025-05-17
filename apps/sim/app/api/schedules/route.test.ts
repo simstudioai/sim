@@ -97,6 +97,9 @@ describe('Schedule Configuration API Route', () => {
     // Fix imports for route.ts
     vi.doMock('crypto', () => ({
       randomUUID: vi.fn(() => 'test-uuid'),
+      default: {
+        randomUUID: vi.fn(() => 'test-uuid'),
+      },
     }))
 
     // Mock the schedule utils

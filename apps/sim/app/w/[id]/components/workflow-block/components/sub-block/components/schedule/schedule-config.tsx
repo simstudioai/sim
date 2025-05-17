@@ -169,7 +169,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       // 4. Make a direct API call instead of relying on sync
       // This gives us more control and better error handling
       logger.debug('Making direct API call to save schedule with complete state')
-      const response = await fetch(`/api/schedules/schedule`, {
+      const response = await fetch(`/api/schedules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -7,7 +7,7 @@ export const STORAGE_KEYS = {
 export const API_ENDPOINTS = {
   SYNC: '/api/workflows/sync',
   ENVIRONMENT: '/api/environment',
-  SCHEDULE: '/api/schedules/schedule',
+  SCHEDULE: '/api/schedules',
   SETTINGS: '/api/settings',
   WORKFLOWS: '/api/workflows',
 }

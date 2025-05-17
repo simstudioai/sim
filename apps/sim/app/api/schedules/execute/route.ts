@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Cron } from 'croner'
-import { eq, lte } from 'drizzle-orm'
+import { and, eq, lte, not } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
@@ -28,6 +28,9 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('ScheduledExecuteAPI')
 
+// Maximum number of consecutive failures before disabling a schedule
+const MAX_CONSECUTIVE_FAILURES = 3
+
 /**
  * Calculate the next run time for a schedule
  * This is a wrapper around the utility function in schedule-utils.ts
@@ -36,17 +39,11 @@ function calculateNextRunTime(
   schedule: typeof workflowSchedule.$inferSelect,
   blocks: Record<string, BlockState>
 ): Date {
-  // Find the starter block
   const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
   if (!starterBlock) throw new Error('No starter block found')
-
-  // Get schedule type from the starter block
   const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
-
-  // Get all schedule values
   const scheduleValues = getScheduleTimeValues(starterBlock)
 
-  // If there's a cron expression, use croner to calculate next run
   if (schedule.cronExpression) {
     const cron = new Cron(schedule.cronExpression)
     const nextDate = cron.nextRun()
@@ -54,19 +51,14 @@ function calculateNextRunTime(
     return nextDate
   }
 
-  // Calculate next run time with our helper function
-  // We pass the lastRanAt from the schedule to help calculate accurate next run time
   const lastRanAt = schedule.lastRanAt ? new Date(schedule.lastRanAt) : null
   return calculateNextTime(scheduleType, scheduleValues, lastRanAt)
 }
 
-// Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
 
-// Keep track of running executions to prevent overlap
 const runningExecutions = new Set<string>()
 
-// Add GET handler for cron job
 export async function GET(req: NextRequest) {
   logger.info(`Scheduled execution triggered at ${new Date().toISOString()}`)
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -75,13 +67,20 @@ export async function GET(req: NextRequest) {
   let dueSchedules: (typeof workflowSchedule.$inferSelect)[] = []
 
   try {
-    // Query schedules due for execution
-    dueSchedules = await db
-      .select()
-      .from(workflowSchedule)
-      .where(lte(workflowSchedule.nextRunAt, now))
-      // Limit to 10 workflows per minute to prevent overload
-      .limit(10)
+    try {
+      dueSchedules = await db
+        .select()
+        .from(workflowSchedule)
+        .where(
+          and(lte(workflowSchedule.nextRunAt, now), not(eq(workflowSchedule.status, 'disabled')))
+        )
+        .limit(10)
+
+      logger.debug(`[${requestId}] Successfully queried schedules: ${dueSchedules.length} found`)
+    } catch (queryError) {
+      logger.error(`[${requestId}] Error in schedule query:`, queryError)
+      throw queryError
+    }
 
     logger.info(`[${requestId}] Processing ${dueSchedules.length} due scheduled workflows`)
 
@@ -89,7 +88,6 @@ export async function GET(req: NextRequest) {
       const executionId = uuidv4()
 
       try {
-        // Skip if this workflow is already running
         if (runningExecutions.has(schedule.workflowId)) {
           logger.debug(`[${requestId}] Skipping workflow ${schedule.workflowId} - already running`)
           continue
@@ -98,7 +96,6 @@ export async function GET(req: NextRequest) {
         runningExecutions.add(schedule.workflowId)
         logger.debug(`[${requestId}] Starting execution of workflow ${schedule.workflowId}`)
 
-        // Retrieve the workflow record
         const [workflowRecord] = await db
           .select()
           .from(workflow)
@@ -111,7 +108,6 @@ export async function GET(req: NextRequest) {
           continue
         }
 
-        // Check if the user has exceeded their usage limits
         const usageCheck = await checkServerSideUsageLimits(workflowRecord.userId)
         if (usageCheck.isExceeded) {
           logger.warn(
@@ -123,7 +119,6 @@ export async function GET(req: NextRequest) {
             }
           )
 
-          // Log an execution error for the user to see why their schedule was skipped
           await persistExecutionError(
             schedule.workflowId,
             executionId,
@@ -134,30 +129,32 @@ export async function GET(req: NextRequest) {
             'schedule'
           )
 
-          // Update the next run time to avoid constant retries
           const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
           const nextRetryAt = new Date(now.getTime() + retryDelay)
 
-          await db
-            .update(workflowSchedule)
-            .set({
-              updatedAt: now,
-              nextRunAt: nextRetryAt,
-            })
-            .where(eq(workflowSchedule.id, schedule.id))
+          try {
+            await db
+              .update(workflowSchedule)
+              .set({
+                updatedAt: now,
+                nextRunAt: nextRetryAt,
+              })
+              .where(eq(workflowSchedule.id, schedule.id))
+
+            logger.debug(`[${requestId}] Updated next retry time due to usage limits`)
+          } catch (updateError) {
+            logger.error(`[${requestId}] Error updating schedule for usage limits:`, updateError)
+          }
 
           runningExecutions.delete(schedule.workflowId)
           continue
         }
 
-        // The state in the database is exactly what we store in localStorage
         const state = workflowRecord.state as WorkflowState
         const { blocks, edges, loops } = state
 
-        // Use the same execution flow as in use-workflow-execution.ts
         const mergedStates = mergeSubblockState(blocks)
 
-        // Retrieve environment variables for this user
         const [userEnv] = await db
           .select()
           .from(environment)
@@ -171,10 +168,8 @@ export async function GET(req: NextRequest) {
           throw new Error('No environment variables found for this user')
         }
 
-        // Parse and validate environment variables
         const variables = EnvVarsSchema.parse(userEnv.variables)
 
-        // Replace environment variables in the block states
         const currentBlockStates = await Object.entries(mergedStates).reduce(
           async (accPromise, [id, block]) => {
             const acc = await accPromise
@@ -183,13 +178,11 @@ export async function GET(req: NextRequest) {
                 const subAcc = await subAccPromise
                 let value = subBlock.value
 
-                // If the value is a string and contains environment variable syntax
                 if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
                   const matches = value.match(/{{([^}]+)}}/g)
                   if (matches) {
-                    // Process all matches sequentially
                     for (const match of matches) {
-                      const varName = match.slice(2, -2) // Remove {{ and }}
+                      const varName = match.slice(2, -2)
                       const encryptedValue = variables[varName]
                       if (!encryptedValue) {
                         throw new Error(`Environment variable "${varName}" was not found`)
@@ -221,7 +214,6 @@ export async function GET(req: NextRequest) {
           Promise.resolve({} as Record<string, Record<string, any>>)
         )
 
-        // Create a map of decrypted environment variables
         const decryptedEnvVars: Record<string, string> = {}
         for (const [key, encryptedValue] of Object.entries(variables)) {
           try {
@@ -233,27 +225,20 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Serialize and execute the workflow
         const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
 
-        // Add workflowId to the input for OAuth credential resolution
         const input = {
           workflowId: schedule.workflowId,
-          // Add _context with workflowId to ensure OAuth token resolution works properly
           _context: {
             workflowId: schedule.workflowId,
           },
         }
 
-        // Process the block states to ensure response formats are properly parsed
-        // This is crucial for agent blocks with response format
         const processedBlockStates = Object.entries(currentBlockStates).reduce(
           (acc, [blockId, blockState]) => {
-            // Check if this block has a responseFormat that needs to be parsed
             if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
               try {
                 logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
-                // Attempt to parse the responseFormat if it's a string
                 const parsedResponseFormat = JSON.parse(blockState.responseFormat)
 
                 acc[blockId] = {
@@ -277,15 +262,12 @@ export async function GET(req: NextRequest) {
 
         logger.info(`[${requestId}] Executing workflow ${schedule.workflowId}`)
 
-        // Get workflow variables
         let workflowVariables = {}
         if (workflowRecord.variables) {
           try {
-            // Parse workflow variables if they're stored as a string
             if (typeof workflowRecord.variables === 'string') {
               workflowVariables = JSON.parse(workflowRecord.variables)
             } else {
-              // Otherwise use as is (already parsed JSON)
               workflowVariables = workflowRecord.variables
             }
             logger.debug(
@@ -296,7 +278,6 @@ export async function GET(req: NextRequest) {
               `[${requestId}] Failed to parse workflow variables: ${schedule.workflowId}`,
               error
             )
-            // Continue execution even if variables can't be parsed
           }
         } else {
           logger.debug(`[${requestId}] No workflow variables found for: ${schedule.workflowId}`)
@@ -304,15 +285,13 @@ export async function GET(req: NextRequest) {
 
         const executor = new Executor(
           serializedWorkflow,
-          processedBlockStates, // Use the processed block states
+          processedBlockStates,
           decryptedEnvVars,
           input,
           workflowVariables
         )
         const result = await executor.execute(schedule.workflowId)
 
-        // Check if we got a StreamingExecution result (with stream + execution properties)
-        // For scheduled executions, we only care about the ExecutionResult part, not the stream
         const executionResult =
           'stream' in result && 'execution' in result ? result.execution : result
 
@@ -321,69 +300,89 @@ export async function GET(req: NextRequest) {
           executionTime: executionResult.metadata?.duration,
         })
 
-        // Update workflow run counts if execution was successful
         if (executionResult.success) {
           await updateWorkflowRunCounts(schedule.workflowId)
 
-          // Track scheduled execution in user stats
-          await db
-            .update(userStats)
-            .set({
-              totalScheduledExecutions: sql`total_scheduled_executions + 1`,
-              lastActive: new Date(),
-            })
-            .where(eq(userStats.userId, workflowRecord.userId))
+          try {
+            await db
+              .update(userStats)
+              .set({
+                totalScheduledExecutions: sql`total_scheduled_executions + 1`,
+                lastActive: now,
+              })
+              .where(eq(userStats.userId, workflowRecord.userId))
+
+            logger.debug(`[${requestId}] Updated user stats for scheduled execution`)
+          } catch (statsError) {
+            logger.error(`[${requestId}] Error updating user stats:`, statsError)
+          }
         }
 
-        // Build trace spans from execution logs
         const { traceSpans, totalDuration } = buildTraceSpans(executionResult)
 
-        // Add trace spans to the execution result
         const enrichedResult = {
           ...executionResult,
           traceSpans,
           totalDuration,
         }
 
-        // Log each execution step and the final result
         await persistExecutionLogs(schedule.workflowId, executionId, enrichedResult, 'schedule')
 
-        // Only update next_run_at if execution was successful
         if (executionResult.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
-          // Calculate the next run time based on the schedule configuration
+
           const nextRunAt = calculateNextRunTime(schedule, blocks)
 
           logger.debug(
             `[${requestId}] Calculated next run time: ${nextRunAt.toISOString()} for workflow ${schedule.workflowId}`
           )
 
-          // Update the schedule with the next run time
-          await db
-            .update(workflowSchedule)
-            .set({
-              lastRanAt: now,
-              updatedAt: now,
-              nextRunAt,
-            })
-            .where(eq(workflowSchedule.id, schedule.id))
+          try {
+            await db
+              .update(workflowSchedule)
+              .set({
+                lastRanAt: now,
+                updatedAt: now,
+                nextRunAt,
+                failedCount: 0, // Reset failure count on success
+              })
+              .where(eq(workflowSchedule.id, schedule.id))
 
-          logger.debug(
-            `[${requestId}] Updated next run time for workflow ${schedule.workflowId} to ${nextRunAt.toISOString()}`
-          )
+            logger.debug(
+              `[${requestId}] Updated next run time for workflow ${schedule.workflowId} to ${nextRunAt.toISOString()}`
+            )
+          } catch (updateError) {
+            logger.error(`[${requestId}] Error updating schedule after success:`, updateError)
+          }
         } else {
           logger.warn(`[${requestId}] Workflow ${schedule.workflowId} execution failed`)
-          // If execution failed, increment next_run_at by a small delay to prevent immediate retries
-          const retryDelay = 1 * 60 * 1000 // 1 minute delay
-          const nextRetryAt = new Date(now.getTime() + retryDelay)
 
-          await db
-            .update(workflowSchedule)
-            .set({
-              updatedAt: now,
-              nextRunAt: nextRetryAt,
-            })
-            .where(eq(workflowSchedule.id, schedule.id))
+          const newFailedCount = (schedule.failedCount || 0) + 1
+          const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+          const nextRunAt = calculateNextRunTime(schedule, blocks)
+
+          if (shouldDisable) {
+            logger.warn(
+              `[${requestId}] Disabling schedule for workflow ${schedule.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+            )
+          }
+
+          try {
+            await db
+              .update(workflowSchedule)
+              .set({
+                updatedAt: now,
+                nextRunAt,
+                failedCount: newFailedCount,
+                lastFailedAt: now,
+                status: shouldDisable ? 'disabled' : 'active',
+              })
+              .where(eq(workflowSchedule.id, schedule.id))
+
+            logger.debug(`[${requestId}] Updated schedule after failure`)
+          } catch (updateError) {
+            logger.error(`[${requestId}] Error updating schedule after failure:`, updateError)
+          }
         }
       } catch (error: any) {
         logger.error(
@@ -391,20 +390,56 @@ export async function GET(req: NextRequest) {
           error
         )
 
-        // Log the error
         await persistExecutionError(schedule.workflowId, executionId, error, 'schedule')
 
-        // On error, increment next_run_at by a small delay to prevent immediate retries
-        const retryDelay = 1 * 60 * 1000 // 1 minute delay
-        const nextRetryAt = new Date(now.getTime() + retryDelay)
+        let nextRunAt: Date
+        try {
+          const [workflowRecord] = await db
+            .select()
+            .from(workflow)
+            .where(eq(workflow.id, schedule.workflowId))
+            .limit(1)
 
-        await db
-          .update(workflowSchedule)
-          .set({
-            updatedAt: now,
-            nextRunAt: nextRetryAt,
-          })
-          .where(eq(workflowSchedule.id, schedule.id))
+          if (workflowRecord) {
+            const state = workflowRecord.state as WorkflowState
+            const { blocks } = state
+            nextRunAt = calculateNextRunTime(schedule, blocks)
+          } else {
+            nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+          }
+        } catch (workflowError) {
+          logger.error(
+            `[${requestId}] Error retrieving workflow for next run calculation`,
+            workflowError
+          )
+          nextRunAt = new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24 hours as a fallback
+        }
+
+        const newFailedCount = (schedule.failedCount || 0) + 1
+        const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+
+        if (shouldDisable) {
+          logger.warn(
+            `[${requestId}] Disabling schedule for workflow ${schedule.workflowId} after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
+          )
+        }
+
+        try {
+          await db
+            .update(workflowSchedule)
+            .set({
+              updatedAt: now,
+              nextRunAt,
+              failedCount: newFailedCount,
+              lastFailedAt: now,
+              status: shouldDisable ? 'disabled' : 'active',
+            })
+            .where(eq(workflowSchedule.id, schedule.id))
+
+          logger.debug(`[${requestId}] Updated schedule after execution error`)
+        } catch (updateError) {
+          logger.error(`[${requestId}] Error updating schedule after execution error:`, updateError)
+        }
       } finally {
         runningExecutions.delete(schedule.workflowId)
       }
