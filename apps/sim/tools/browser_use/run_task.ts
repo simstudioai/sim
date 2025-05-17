@@ -4,6 +4,9 @@ import { BrowserUseRunTaskParams, BrowserUseRunTaskResponse, BrowserUseTaskOutpu
 
 const logger = createLogger('BrowserUseTool')
 
+const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
+const MAX_POLL_TIME_MS = 300000 // 5 minutes maximum polling time
+
 export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskResponse> = {
   id: 'browser_use_run_task',
   name: 'Browser Use',
@@ -16,23 +19,25 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       required: true,
       description: 'What should the browser agent do',
     },
+    variables: {
+      type: 'json',
+      required: false,
+      description: 'Optional variables to use as secrets (format: {key: value})',
+    },
     apiKey: {
       type: 'string',
       required: true,
       description: 'API key for BrowserUse API',
     },
-    pollInterval: {
-      type: 'number',
+    outputSchema: {
+      type: 'json',
       required: false,
-      default: 5000,
-      description: 'Interval between polling requests in milliseconds (default: 5000)',
+      description: 'Optional JSON schema defining the structure of data the agent should return',
     },
-    maxPollTime: {
-      type: 'number',
+    llmModel: {
+      type: 'string',
       required: false,
-      default: 300000,
-      description:
-        'Maximum time to poll for task completion in milliseconds (default: 300000 - 5 minutes)',
+      description: 'LLM model to use (default: gpt-4o)',
     },
   },
 
@@ -43,9 +48,52 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
-    body: (params) => ({
-      task: params.task,
-    }),
+    body: (params) => {
+      const requestBody: Record<string, any> = {
+        task: params.task,
+      }
+
+      if (params.variables) {
+        let secrets: Record<string, string> = {}
+
+        if (Array.isArray(params.variables)) {
+          logger.info('Converting variables array to dictionary format')
+          params.variables.forEach((row) => {
+            if (row.cells && row.cells.Key && row.cells.Value !== undefined) {
+              secrets[row.cells.Key] = row.cells.Value
+              logger.info(`Added secret for key: ${row.cells.Key}`)
+            } else if (row.Key && row.Value !== undefined) {
+              secrets[row.Key] = row.Value
+              logger.info(`Added secret for key: ${row.Key}`)
+            }
+          })
+        } else if (typeof params.variables === 'object' && params.variables !== null) {
+          logger.info('Using variables object directly')
+          secrets = params.variables
+        }
+
+        if (Object.keys(secrets).length > 0) {
+          logger.info(`Found ${Object.keys(secrets).length} secrets to include`)
+          requestBody.secrets = secrets
+        } else {
+          logger.warn('No usable secrets found in variables')
+        }
+      }
+
+      if (params.outputSchema) {
+        requestBody.structured_output_json = JSON.stringify(params.outputSchema)
+      }
+
+      if (params.llmModel) {
+        requestBody.llm_model = params.llmModel
+      }
+
+      requestBody.use_adblock = true
+      requestBody.highlight_elements = true
+      requestBody.save_browser_data = true
+
+      return requestBody
+    },
   },
 
   transformResponse: async (response: Response) => {
@@ -57,7 +105,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       throw new Error(`Request failed with status ${response.status}`)
     }
 
-    const data = (await response.json()) as BrowserUseTaskOutput
+    const data = (await response.json()) as { id: string }
     return {
       success: true,
       output: {
@@ -101,19 +149,9 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       logger.warn(`Failed to get initial task details for ${taskId}:`, error)
     }
 
-    const pollInterval =
-      typeof params.pollInterval === 'number' && params.pollInterval >= 1000
-        ? params.pollInterval
-        : 5000
-
-    const maxPollTime =
-      typeof params.maxPollTime === 'number' && params.maxPollTime >= 5000
-        ? params.maxPollTime
-        : 300000
-
     let elapsedTime = 0
 
-    while (elapsedTime < maxPollTime) {
+    while (elapsedTime < MAX_POLL_TIME_MS) {
       try {
         const statusResponse = await fetch(
           `https://api.browser-use.com/api/v1/task/${taskId}/status`,
@@ -144,7 +182,30 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
 
           if (taskResponse.ok) {
             const taskData = await taskResponse.json()
-            result.output = taskData as BrowserUseTaskOutput
+            result.output = {
+              ...taskData,
+              structuredOutput: null,
+            }
+
+            if (params.outputSchema && taskData.output) {
+              try {
+                const rawOutput =
+                  typeof taskData.output === 'string'
+                    ? JSON.parse(taskData.output)
+                    : taskData.output
+
+                result.output.structuredOutput = rawOutput
+              } catch (e) {
+                logger.warn(`Failed to parse structured output for task ${taskId}`, { error: e })
+              }
+            }
+
+            result.output.agentResult = {
+              success: status === 'finished',
+              completed: true,
+              message: status === 'finished' ? 'Task completed successfully' : `Task ${status}`,
+              actions: taskData.steps || [],
+            }
           }
 
           return result
@@ -168,8 +229,8 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           }
         }
 
-        await new Promise((resolve) => setTimeout(resolve, pollInterval))
-        elapsedTime += pollInterval
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
         logger.error('Error polling for task status:', {
           message: error.message || 'Unknown error',
@@ -184,11 +245,11 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     }
 
     logger.warn(
-      `Task ${taskId} did not complete within the maximum polling time (${maxPollTime / 1000}s)`
+      `Task ${taskId} did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`
     )
     return {
       ...result,
-      error: `Task did not complete within the maximum polling time (${maxPollTime / 1000}s)`,
+      error: `Task did not complete within the maximum polling time (${MAX_POLL_TIME_MS / 1000}s)`,
     }
   },
 

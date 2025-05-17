@@ -3,8 +3,9 @@ import { ToolResponse } from '../types'
 export interface BrowserUseRunTaskParams {
   task: string
   apiKey: string
-  pollInterval?: number
-  maxPollTime?: number
+  outputSchema?: Record<string, any>
+  variables?: Record<string, string>
+  llmModel?: string
 }
 
 export interface BrowserUseTaskStep {
@@ -17,10 +18,17 @@ export interface BrowserUseTaskStep {
 export interface BrowserUseTaskOutput {
   id: string
   task: string
-  output: string | null
+  output: any
   status: 'created' | 'running' | 'finished' | 'stopped' | 'paused' | 'failed'
   steps: BrowserUseTaskStep[]
   live_url: string | null
+  structuredOutput?: Record<string, any>
+  agentResult?: {
+    success: boolean
+    completed: boolean
+    message: string
+    actions: Array<any>
+  }
 }
 
 export interface BrowserUseRunTaskResponse extends ToolResponse {

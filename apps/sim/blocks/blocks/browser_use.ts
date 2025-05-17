@@ -6,10 +6,17 @@ interface BrowserUseResponse extends ToolResponse {
   output: {
     id: string
     task: string
-    output: string | null
+    output: any
     status: string
     steps: any[]
     live_url: string | null
+    structuredOutput?: Record<string, any>
+    agentResult?: {
+      success: boolean
+      completed: boolean
+      message: string
+      actions: Array<any>
+    }
   }
 }
 
@@ -32,6 +39,27 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       placeholder: 'Describe what the browser agent should do...',
     },
     {
+      id: 'variables',
+      title: 'Variables (Secrets)',
+      type: 'table',
+      layout: 'full',
+      columns: ['Key', 'Value'],
+    },
+    {
+      id: 'llmModel',
+      title: 'LLM Model',
+      type: 'dropdown',
+      layout: 'half',
+      options: [
+        { label: 'gpt-4o', id: 'gpt-4o' },
+        { label: 'gpt-4.1', id: 'gpt-4.1' },
+        { label: 'gemini-2.0-flash', id: 'gemini-2.0-flash' },
+        { label: 'gemini-2.0-flash-lite', id: 'gemini-2.0-flash-lite' },
+        { label: 'claude-3-7-sonnet-20250219', id: 'claude-3-7-sonnet-20250219' },
+        { label: 'llama-4-maverick-17b-128e-instruct', id: 'llama-4-maverick-17b-128e-instruct' },
+      ],
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -40,18 +68,13 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       placeholder: 'Enter your BrowserUse API key',
     },
     {
-      id: 'pollInterval',
-      title: 'Poll Interval (ms)',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '5000',
-    },
-    {
-      id: 'maxPollTime',
-      title: 'Max Poll Time (ms)',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '300000',
+      id: 'outputSchema',
+      title: 'Output Schema',
+      type: 'code',
+      layout: 'full',
+      placeholder: `Enter JSON Schema...`,
+      language: 'json',
+      generationType: 'json-schema',
     },
   ],
   tools: {
@@ -60,8 +83,9 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   inputs: {
     task: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    pollInterval: { type: 'number', required: false },
-    maxPollTime: { type: 'number', required: false },
+    outputSchema: { type: 'json', required: false },
+    variables: { type: 'json', required: false },
+    llmModel: { type: 'string', required: false },
   },
   outputs: {
     response: {
@@ -72,6 +96,8 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
         status: 'string',
         steps: 'json',
         live_url: 'any',
+        structuredOutput: 'any',
+        agentResult: 'any',
       },
     },
   },
