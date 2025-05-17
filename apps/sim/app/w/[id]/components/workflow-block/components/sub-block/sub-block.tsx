@@ -1,7 +1,9 @@
+import { useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks/index'
 import { SubBlockConfig } from '@/blocks/types'
 import { CheckboxList } from './components/checkbox-list'
@@ -26,13 +28,36 @@ import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
 import { WebhookConfig } from './components/webhook/webhook'
 
+// Add logger
+const logger = createLogger('SubBlock')
+
 interface SubBlockProps {
   blockId: string
   config: SubBlockConfig
   isConnecting: boolean
+  isPreview?: boolean
+  previewValue?: any
 }
 
-export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
+export function SubBlock({ 
+  blockId, 
+  config, 
+  isConnecting, 
+  isPreview = false, 
+  previewValue = undefined 
+}: SubBlockProps) {
+  // Add debugging logs to trace parent context
+  useEffect(() => {
+    logger.info(`[TRACE] SubBlock ${config.id} for block ${blockId}`, {
+      blockId,
+      subBlockId: config.id,
+      subBlockTitle: config.title,
+      isPreview: isPreview,
+      previewValue: previewValue,
+      usingGlobalStore: !isPreview
+    });
+  }, [blockId, config.id, config.title, isPreview, previewValue]);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
   }
@@ -48,6 +73,9 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   }
 
   const renderInput = () => {
+    // Get the subblock value from the config if available
+    const directValue = isPreview ? previewValue : undefined;
+    
     switch (config.type) {
       case 'short-input':
         return (
@@ -58,6 +86,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             password={config.password}
             isConnecting={isConnecting}
             config={config}
+            isPreview={isPreview}
+            value={directValue}
           />
         )
       case 'long-input':
@@ -69,6 +99,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
             isConnecting={isConnecting}
             rows={config.rows}
             config={config}
+            isPreview={isPreview}
+            value={directValue}
           />
         )
       case 'dropdown':
@@ -78,6 +110,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
               blockId={blockId}
               subBlockId={config.id}
               options={config.options as string[]}
+              isPreview={isPreview}
+              value={directValue}
             />
           </div>
         )
