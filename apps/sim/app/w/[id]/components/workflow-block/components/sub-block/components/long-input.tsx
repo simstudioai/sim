@@ -19,6 +19,8 @@ interface LongInputProps {
   isConnecting: boolean
   config: SubBlockConfig
   rows?: number
+  isPreview?: boolean
+  value?: string
 }
 
 // Constants
@@ -33,8 +35,10 @@ export function LongInput({
   isConnecting,
   config,
   rows,
+  isPreview = false,
+  value: propValue,
 }: LongInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+  const [value, setValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -43,6 +47,17 @@ export function LongInput({
   const overlayRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] LongInput for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   // Calculate initial height based on rows prop with reasonable defaults
   const getInitialHeight = () => {

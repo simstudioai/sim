@@ -20,6 +20,7 @@ interface ShortInputProps {
   config: SubBlockConfig
   value?: string
   onChange?: (value: string) => void
+  isPreview?: boolean
 }
 
 export function ShortInput({
@@ -31,11 +32,18 @@ export function ShortInput({
   config,
   value: propValue,
   onChange,
+  isPreview = false,
 }: ShortInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue(
+    blockId, 
+    subBlockId, 
+    false, // No workflow update needed
+    isPreview, 
+    propValue
+  )
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -45,8 +53,10 @@ export function ShortInput({
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
-  // Use either controlled or uncontrolled value
-  const value = propValue !== undefined ? propValue : storeValue
+  // Use either controlled or uncontrolled value, prioritizing the direct value if in preview mode
+  const value = isPreview && propValue !== undefined 
+    ? propValue 
+    : (propValue !== undefined ? propValue : storeValue)
 
   // Check if this input is API key related
   const isApiKeyField = useMemo(() => {
