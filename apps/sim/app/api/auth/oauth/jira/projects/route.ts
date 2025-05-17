@@ -2,10 +2,6 @@ import { NextResponse } from 'next/server'
 import { Logger } from '@/lib/logs/console-logger'
 import { getJiraCloudId } from '@/tools/jira/utils'
 
-export async function generateStaticParams() {
-  return []
-}
-
 export const dynamic = 'force-dynamic'
 
 const logger = new Logger('jira_projects')

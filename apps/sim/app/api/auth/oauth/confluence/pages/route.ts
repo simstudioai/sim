@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
-export async function generateStaticParams() {
-  return []
-}
-
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {

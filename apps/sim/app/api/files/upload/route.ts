@@ -9,10 +9,6 @@ import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 import { createErrorResponse, createOptionsResponse, InvalidRequestError } from '../utils'
 
-export async function generateStaticParams() {
-  return []
-}
-
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesUploadAPI')

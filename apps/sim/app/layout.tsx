@@ -7,7 +7,6 @@ import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import './globals.css'
 import { ZoomPrevention } from './zoom-prevention'
 
-export const dynamic = 'force-dynamic'
 const logger = createLogger('RootLayout')
 
 // Add browser extension attributes that we want to ignore
