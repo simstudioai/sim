@@ -319,3 +319,111 @@ export async function getMockedDependencies() {
     db: dbModule.db,
   }
 }
+
+export function mockScheduleStatusDb({
+  schedule = [
+    {
+      id: 'schedule-id',
+      workflowId: 'workflow-id',
+      status: 'active',
+      failedCount: 0,
+      lastRanAt: new Date('2024-01-01T00:00:00.000Z'),
+      lastFailedAt: null,
+      nextRunAt: new Date('2024-01-02T00:00:00.000Z'),
+    },
+  ],
+  workflow = [
+    {
+      userId: 'user-id',
+    },
+  ],
+}: {
+  schedule?: any[]
+  workflow?: any[]
+} = {}) {
+  vi.doMock('@/db', () => {
+    let callCount = 0
+
+    const select = vi.fn().mockImplementation(() => ({
+      from: vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockImplementation(() => ({
+          limit: vi.fn().mockImplementation(() => {
+            callCount += 1
+            if (callCount === 1) return schedule
+            if (callCount === 2) return workflow
+            return []
+          }),
+        })),
+      })),
+    }))
+
+    return {
+      db: { select },
+    }
+  })
+}
+
+export function mockScheduleExecuteDb({
+  schedules = [] as any[],
+  workflowRecord = {
+    id: 'workflow-id',
+    userId: 'user-id',
+    state: sampleWorkflowState,
+  },
+  envRecord = {
+    userId: 'user-id',
+    variables: {
+      OPENAI_API_KEY: 'encrypted:openai-api-key',
+      SERPER_API_KEY: 'encrypted:serper-api-key',
+    },
+  },
+}: {
+  schedules?: any[]
+  workflowRecord?: any
+  envRecord?: any
+}): void {
+  vi.doMock('@/db', () => {
+    const select = vi.fn().mockImplementation(() => ({
+      from: vi.fn().mockImplementation((table: any) => {
+        const tbl = String(table)
+        if (tbl === 'workflow_schedule' || tbl === 'schedule') {
+          return {
+            where: vi.fn().mockImplementation(() => ({
+              limit: vi.fn().mockImplementation(() => schedules),
+            })),
+          }
+        }
+
+        if (tbl === 'workflow') {
+          return {
+            where: vi.fn().mockImplementation(() => ({
+              limit: vi.fn().mockImplementation(() => [workflowRecord]),
+            })),
+          }
+        }
+
+        if (tbl === 'environment') {
+          return {
+            where: vi.fn().mockImplementation(() => ({
+              limit: vi.fn().mockImplementation(() => [envRecord]),
+            })),
+          }
+        }
+
+        return {
+          where: vi.fn().mockImplementation(() => ({
+            limit: vi.fn().mockImplementation(() => []),
+          })),
+        }
+      }),
+    }))
+
+    const update = vi.fn().mockImplementation(() => ({
+      set: vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockResolvedValue([]),
+      })),
+    }))
+
+    return { db: { select, update } }
+  })
+}
