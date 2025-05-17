@@ -36,6 +36,7 @@ import { OpenAIBlock } from './blocks/openai'
 import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
+import { RightBrainBlock } from './blocks/rightbrain'
 import { RouterBlock } from './blocks/router'
 import { S3Block } from './blocks/s3'
 import { SerperBlock } from './blocks/serper'
@@ -91,6 +92,7 @@ export const registry: Record<string, BlockConfig> = {
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   reddit: RedditBlock,
+  rightbrain: RightBrainBlock,
   router: RouterBlock,
   s3: S3Block,
   serper: SerperBlock,

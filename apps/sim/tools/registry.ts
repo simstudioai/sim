@@ -54,6 +54,7 @@ import {
   pineconeUpsertTextTool,
 } from './pinecone'
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
+import { runTaskTool } from './rightbrain'
 import { s3GetObjectTool } from './s3'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
 import { searchTool as serperSearch } from './serper'
@@ -126,6 +127,7 @@ export const tools: Record<string, ToolConfig> = {
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,
+  rightbrain_run_task: runTaskTool,
   google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
