@@ -3,10 +3,6 @@ import { Logger } from '@/lib/logs/console-logger'
 import { markWaitlistUserAsSignedUp } from '@/lib/waitlist/service'
 import { verifyToken } from '@/lib/waitlist/token'
 
-export async function generateStaticParams() {
-  return []
-}
-
 export const dynamic = 'force-dynamic'
 
 const logger = new Logger('VerifyWaitlistToken')
