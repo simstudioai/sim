@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,6 +71,45 @@ export function DeployedWorkflowModal({
     loops: state.loops,
     parallels: state.parallels,
   }))
+  
+  // Sanitize states to ensure no invalid blocks are passed to components
+  const sanitizedCurrentState = useMemo(() => {
+    if (!currentWorkflowState) return undefined;
+    
+    return {
+      blocks: Object.fromEntries(
+        Object.entries(currentWorkflowState.blocks || {})
+          .filter(([_, block]) => block && block.type)
+          .map(([id, block]) => {
+            // Deep clone the block to avoid any reference sharing
+            return [id, JSON.parse(JSON.stringify(block))];
+          })
+      ),
+      edges: currentWorkflowState.edges ? [...currentWorkflowState.edges] : [],
+      loops: currentWorkflowState.loops ? {...currentWorkflowState.loops} : {}
+    };
+  }, [currentWorkflowState]);
+  
+  const sanitizedDeployedState = useMemo(() => {
+    if (!deployedWorkflowState) return {
+      blocks: {},
+      edges: [],
+      loops: {}
+    };
+    
+    return {
+      blocks: Object.fromEntries(
+        Object.entries(deployedWorkflowState.blocks || {})
+          .filter(([_, block]) => block && block.type)
+          .map(([id, block]) => {
+            // Deep clone the block to avoid any reference sharing
+            return [id, JSON.parse(JSON.stringify(block))];
+          })
+      ),
+      edges: deployedWorkflowState.edges ? [...deployedWorkflowState.edges] : [],
+      loops: deployedWorkflowState.loops ? {...deployedWorkflowState.loops} : {}
+    };
+  }, [deployedWorkflowState]);
 
   const handleRevert = () => {
 <<<<<<< HEAD
@@ -107,8 +146,8 @@ export function DeployedWorkflowModal({
           </div>
         ) : (
           <DeployedWorkflowCard
-            currentWorkflowState={currentWorkflowState}
-            deployedWorkflowState={deployedWorkflowState}
+            currentWorkflowState={sanitizedCurrentState}
+            deployedWorkflowState={sanitizedDeployedState}
           />
         )}
 

@@ -26,7 +26,11 @@ import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edg
 // import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
 // import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
 import { getBlock } from '@/blocks'
+<<<<<<< HEAD
 import type { SubBlockConfig } from '@/blocks/types'
+=======
+import { cn } from '@/lib/utils'
+>>>>>>> 6f129dfc (fix: subblock rerender fixed)
 
 const logger = createLogger('WorkflowPreview')
 
@@ -81,6 +85,14 @@ export function WorkflowPreview({
   defaultPosition,
   defaultZoom,
 }: WorkflowPreviewProps) {
+  // Use effect to log the workflow state once outside of useMemo
+  useEffect(() => {
+    logger.info('WorkflowPreview received new state', {
+      blockCount: Object.keys(workflowState?.blocks || {}).length,
+      withSubBlocks: Object.values(workflowState?.blocks || {}).filter(b => b.subBlocks && Object.keys(b.subBlocks).length > 0).length,
+    });
+  }, [workflowState]);
+  
   // Transform blocks and loops into ReactFlow nodes
   const nodes: Node[] = useMemo(() => {
     const nodeArray: Node[] = []
@@ -102,11 +114,19 @@ export function WorkflowPreview({
 
     // Add block nodes using the same approach as workflow.tsx
     Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
+      if (!block || !block.type) {
+        logger.warn(`Skipping invalid block: ${blockId}`);
+        return;
+      }
+    
       const blockConfig = getBlock(block.type)
       if (!blockConfig) {
         logger.error(`No configuration found for block type: ${block.type}`, { blockId })
-        return
+        return;
       }
+
+      // Create a deep clone of subBlocks to avoid any references to the original state
+      const subBlocksClone = block.subBlocks ? JSON.parse(JSON.stringify(block.subBlocks)) : {};
 
       nodeArray.push({
         id: blockId,
@@ -120,9 +140,10 @@ export function WorkflowPreview({
           blockState: block,
           isReadOnly: true, // Set read-only mode for preview
           isPreview: true, // Indicate this is a preview
-          subBlockValues: block.subBlocks || {}, // Use empty object as fallback
+          subBlockValues: subBlocksClone, // Use the deep clone to avoid reference issues
         },
       })
+<<<<<<< HEAD
 
       // Add children of this block if it's a loop
       if (block.type === 'loop') {
@@ -156,6 +177,12 @@ export function WorkflowPreview({
           })
         })
       }
+=======
+      logger.info(`Preview node created: ${blockId}`, { 
+        blockType: block.type,
+        hasSubBlocks: block.subBlocks && Object.keys(block.subBlocks).length > 0
+      });
+>>>>>>> 6f129dfc (fix: subblock rerender fixed)
     })
 
     return nodeArray
@@ -179,7 +206,7 @@ export function WorkflowPreview({
 
   return (
     <ReactFlowProvider>
-      <div style={{ height, width }} className={className}>
+      <div style={{ height, width }} className={cn(className, 'preview-mode')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

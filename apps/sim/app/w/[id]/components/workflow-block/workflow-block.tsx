@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -16,17 +17,37 @@ import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
 
+// Add logger for diagnostic logging
+const logger = createLogger('WorkflowBlock')
+
 interface WorkflowBlockProps {
   type: string
   config: BlockConfig
   name: string
   isActive?: boolean
   isPending?: boolean
+  isPreview?: boolean
+  isReadOnly?: boolean
+  subBlockValues?: Record<string, any>
+  blockState?: any
 }
 
 // Combine both interfaces into a single component
 export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isActive: dataIsActive, isPending } = data
+
+  // Add logging for debug purposes
+  useEffect(() => {
+    if (data.isPreview === true) {
+      logger.info(`[PREVIEW-RENDER] Block ${id} rendering in preview mode`, {
+        blockId: id,
+        blockType: type,
+        subBlockValues: data.subBlockValues ? Object.keys(data.subBlockValues) : [],
+        hasDirectSubBlocks: Boolean(data.subBlockValues && Object.keys(data.subBlockValues).length > 0),
+        isReadOnly: data.isReadOnly,
+      });
+    }
+  }, [id, type, data.isPreview, data.subBlockValues, data.isReadOnly]);
 
   // State management
   const [isConnecting, setIsConnecting] = useState(false)
@@ -256,11 +277,15 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
 
-    // Get merged state for this block
+    // Get merged state for this block - use direct props if in preview mode
     const blocks = useWorkflowStore.getState().blocks
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
-    const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
-    const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
+    const isAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
+    
+    // If in preview mode with direct subBlockValues, use those instead of global state
+    const mergedState = data.isPreview && data.subBlockValues 
+      ? { [blockId]: { subBlocks: data.subBlockValues } }
+      : mergeSubblockState(blocks, activeWorkflowId, blockId)
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
@@ -276,9 +301,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       if (!block.condition) return true
 
       // Get the values of the fields this block depends on from merged state
-      const fieldValue = mergedState?.subBlocks[block.condition.field]?.value
+      const fieldValue = mergedState?.[blockId]?.subBlocks[block.condition.field]?.value
       const andFieldValue = block.condition.and
-        ? mergedState?.subBlocks[block.condition.and.field]?.value
+        ? mergedState?.[blockId]?.subBlocks[block.condition.and.field]?.value
         : undefined
 
       // Check if the condition value is an array
@@ -398,6 +423,15 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           isPending && 'ring-2 ring-amber-500',
           'z-[20]'
         )}
+        data-id={id}
+        data-props={data.isPreview ? JSON.stringify({
+          isPreview: data.isPreview,
+          isReadOnly: data.isReadOnly,
+          blockType: type,
+          data: {
+            subBlockValues: data.subBlockValues
+          }
+        }) : undefined}
       >
         {/* Show debug indicator for pending blocks */}
         {isPending && (
@@ -703,7 +737,14 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       key={`${id}-${rowIndex}-${blockIndex}`}
                       className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
                     >
-                      <SubBlock blockId={id} config={subBlock} isConnecting={isConnecting} />
+                      <SubBlock 
+                        blockId={id} 
+                        config={subBlock} 
+                        isConnecting={isConnecting} 
+                        isPreview={data.isPreview} 
+                        previewValue={data.isPreview && data.subBlockValues ? 
+                          (data.subBlockValues[subBlock.id]?.value || null) : null} 
+                      />
                     </div>
                   ))}
                 </div>
