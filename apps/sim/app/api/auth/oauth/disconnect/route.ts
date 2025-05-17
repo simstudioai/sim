@@ -5,6 +5,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { account } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('OAuthDisconnectAPI')
 
 /**

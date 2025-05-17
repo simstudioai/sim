@@ -9,6 +9,8 @@ import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 import { createErrorResponse, createOptionsResponse, InvalidRequestError } from '../utils'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('FilesUploadAPI')
 
 export async function POST(request: NextRequest) {

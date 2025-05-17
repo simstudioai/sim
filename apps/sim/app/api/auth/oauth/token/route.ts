@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getCredential, getUserId, refreshTokenIfNeeded } from '../utils'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('OAuthTokenAPI')
 
 /**
