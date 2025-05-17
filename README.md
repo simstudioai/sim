@@ -30,6 +30,7 @@ There are several ways to self-host Sim Studio:
 git clone https://github.com/simstudioai/sim.git
 
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
+cd sim
 cp .env.example .env
 
 # Start Sim Studio using the provided script
