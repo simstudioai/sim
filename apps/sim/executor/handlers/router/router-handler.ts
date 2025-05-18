@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import { BlockOutput } from '@/blocks/types'
@@ -38,7 +39,7 @@ export class RouterBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(routerConfig.model)
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+      const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
       const url = new URL('/api/providers', baseUrl)
 
       // Create the provider request with proper message formatting

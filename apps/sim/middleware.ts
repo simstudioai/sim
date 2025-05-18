@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
+import { env } from './lib/env'
 import { verifyToken } from './lib/waitlist/token'
 
 const logger = createLogger('Middleware')
 
 // Environment flag to check if we're in development mode
-const isDevelopment = process.env.NODE_ENV === 'development'
+const isDevelopment = env.NODE_ENV === 'development'
 
 const SUSPICIOUS_UA_PATTERNS = [
   /^\s*$/, // Empty user agents
@@ -100,6 +101,11 @@ export async function middleware(request: NextRequest) {
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
+    return NextResponse.next()
+  }
+
+  // If self-hosted skip waitlist
+  if (env.DOCKER_BUILD) {
     return NextResponse.next()
   }
 

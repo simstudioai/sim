@@ -3,7 +3,12 @@ import { isProd } from '@/lib/environment'
 import { MistralParserOutput } from '@/tools/mistral/types'
 import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
-const isS3Enabled = process.env.USE_S3 === 'true'
+// Create a safe client-only env subset to avoid server-side env access errors
+const clientEnv = {
+  USE_S3: process.env.USE_S3,
+}
+
+const isS3Enabled = clientEnv.USE_S3
 const shouldEnableFileUpload = isProd || isS3Enabled
 
 // Define the input method selector block when needed

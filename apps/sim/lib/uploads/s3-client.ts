@@ -5,16 +5,33 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { env } from '../env'
 import { S3_CONFIG } from './setup'
 
-// Create an S3 client
-export const s3Client = new S3Client({
-  region: S3_CONFIG.region || '',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
-})
+// Lazily create a single S3 client instance.
+let _s3Client: S3Client | null = null
+
+export function getS3Client(): S3Client {
+  if (_s3Client) return _s3Client
+
+  const { region } = S3_CONFIG
+
+  if (!region) {
+    throw new Error(
+      'AWS region is missing – set AWS_REGION in your environment or disable S3 uploads.'
+    )
+  }
+
+  _s3Client = new S3Client({
+    region,
+    credentials: {
+      accessKeyId: env.AWS_ACCESS_KEY_ID || '',
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY || '',
+    },
+  })
+
+  return _s3Client
+}
 
 /**
  * File information structure
@@ -45,6 +62,8 @@ export async function uploadToS3(
   // Use a simple timestamp without directory structure
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
   const uniqueKey = `${Date.now()}-${safeFileName}`
+
+  const s3Client = getS3Client()
 
   // Upload the file to S3
   await s3Client.send(
@@ -85,7 +104,7 @@ export async function getPresignedUrl(key: string, expiresIn = 3600) {
     Key: key,
   })
 
-  return getSignedUrl(s3Client, command, { expiresIn })
+  return getSignedUrl(getS3Client(), command, { expiresIn })
 }
 
 /**
@@ -99,7 +118,7 @@ export async function downloadFromS3(key: string) {
     Key: key,
   })
 
-  const response = await s3Client.send(command)
+  const response = await getS3Client().send(command)
   const stream = response.Body as any
 
   // Convert stream to buffer
@@ -116,7 +135,7 @@ export async function downloadFromS3(key: string) {
  * @param key S3 object key
  */
 export async function deleteFromS3(key: string) {
-  await s3Client.send(
+  await getS3Client().send(
     new DeleteObjectCommand({
       Bucket: S3_CONFIG.bucket,
       Key: key,

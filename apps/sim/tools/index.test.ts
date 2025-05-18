@@ -135,20 +135,8 @@ describe('executeTool Function', () => {
 
   beforeEach(() => {
     // Mock fetch
-    global.fetch = Object.assign(
-      vi.fn().mockImplementation(async (url, options) => {
-        if (url.toString().includes('/api/proxy')) {
-          return {
-            ok: true,
-            status: 200,
-            json: () =>
-              Promise.resolve({
-                success: true,
-                output: { result: 'Proxy request successful' },
-              }),
-          }
-        }
-
+    global.fetch = Object.assign(vi.fn().mockImplementation(async (url, options) => {
+      if (url.toString().includes('/api/proxy')) {
         return {
           ok: true,
           status: 200,
@@ -162,9 +150,22 @@ describe('executeTool Function', () => {
             forEach: () => {},
           },
         }
-      }),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            success: true,
+            output: { result: 'Direct request successful' },
+          }),
+        headers: {
+          get: () => 'application/json',
+          forEach: () => {},
+        },
+      }
+    }), { preconnect: vi.fn() }) as typeof fetch
 
     // Set environment variables
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
@@ -247,19 +248,16 @@ describe('executeTool Function', () => {
 
   test('should handle errors from tools', async () => {
     // Mock a failed response
-    global.fetch = Object.assign(
-      vi.fn().mockImplementation(async () => {
-        return {
-          ok: false,
-          status: 400,
-          json: () =>
-            Promise.resolve({
-              error: 'Bad request',
-            }),
-        }
-      }),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    global.fetch = Object.assign(vi.fn().mockImplementation(async () => {
+      return {
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: 'Bad request',
+          }),
+      }
+    }), { preconnect: vi.fn() }) as typeof fetch
 
     const result = await executeTool(
       'http_request',

@@ -3,13 +3,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { SYNC_INTERVALS } from './constants'
-import {
-  DEFAULT_SYNC_CONFIG,
-  isLocalStorageMode,
-  performSync,
-  SyncConfig,
-  SyncOperations,
-} from './sync-core'
+import { DEFAULT_SYNC_CONFIG, performSync, SyncConfig, SyncOperations } from './sync-core'
 
 const logger = createLogger('Sync')
 
@@ -151,19 +145,6 @@ export function createSingletonSyncManager(
       id: key,
       config: configFactory(),
       sync: () => {},
-      startIntervalSync: () => {},
-      stopIntervalSync: () => {},
-      dispose: () => {},
-    }
-  }
-
-  // Use our centralized function to check for localStorage mode
-  if (isLocalStorageMode()) {
-    // Return a no-op manager for localStorage mode
-    return {
-      id: key,
-      config: configFactory(),
-      sync: () => logger.info(`[LocalStorage Mode] Skipping sync for ${key}`),
       startIntervalSync: () => {},
       stopIntervalSync: () => {},
       dispose: () => {},

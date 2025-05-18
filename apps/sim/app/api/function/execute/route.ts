@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { FreestyleSandboxes } from 'freestyle-sandboxes'
 import { createContext, Script } from 'vm'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
 // Explicitly export allowed methods
@@ -27,8 +28,8 @@ function resolveCodeVariables(
   const envVarMatches = resolvedCode.match(/\{\{([^}]+)\}\}/g) || []
   for (const match of envVarMatches) {
     const varName = match.slice(2, -2).trim()
-    // Priority: 1. Environment variables from workflow, 2. Params, 3. process.env
-    const varValue = envVars[varName] || params[varName] || process.env[varName] || ''
+    // Priority: 1. Environment variables from workflow, 2. Params
+    const varValue = envVars[varName] || params[varName] || ''
     // Wrap the value in quotes to ensure it's treated as a string literal
     resolvedCode = resolvedCode.replace(match, JSON.stringify(varValue))
   }
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     let executionMethod = 'vm' // Default execution method
 
     // Try to use Freestyle if the API key is available
-    if (process.env.FREESTYLE_API_KEY) {
+    if (env.FREESTYLE_API_KEY) {
       try {
         logger.info(`[${requestId}] Using Freestyle for code execution`)
         executionMethod = 'freestyle'
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
         }
 
         const freestyle = new FreestyleSandboxes({
-          apiKey: process.env.FREESTYLE_API_KEY,
+          apiKey: env.FREESTYLE_API_KEY,
         })
 
         // Wrap code in export default to match Freestyle's expectations

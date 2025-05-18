@@ -3,7 +3,7 @@ import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page
 import mdxComponents from '@/components/mdx-components'
 import { source } from '@/lib/source'
 
-export const dynamic = 'force-static'
+export const dynamic = 'force-dynamic'
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params

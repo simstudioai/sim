@@ -1,4 +1,5 @@
-FROM node:20-bullseye
+# Use the latest Bun canary image for development
+FROM oven/bun:canary
 
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
@@ -6,12 +7,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install necessary packages for development
 RUN apt-get update \
     && apt-get -y install --no-install-recommends \
-       git curl wget jq sudo postgresql-client \
+       git curl wget jq sudo postgresql-client vim nano \
+       bash-completion ca-certificates lsb-release gnupg \
     && apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
-ARG USERNAME=node
+ARG USERNAME=bun
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
@@ -19,11 +21,15 @@ ARG USER_GID=$USER_UID
 RUN echo "$USERNAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Make sure we have the latest npm
-RUN npm install -g npm@latest
+# Install global packages for development
+RUN bun install -g turbo drizzle-kit typescript @types/node
 
-# Install global packages
-RUN npm install -g drizzle-kit turbo
+# Install bun completions
+RUN bun completions > /etc/bash_completion.d/bun
+
+# Set up shell environment
+RUN echo "export PATH=$PATH:/home/$USERNAME/.bun/bin" >> /etc/profile
+RUN echo "source /etc/profile" >> /etc/bash.bashrc
 
 # Switch back to dialog for any ad-hoc use of apt-get
 ENV DEBIAN_FRONTEND=dialog

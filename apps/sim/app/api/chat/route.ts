@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { encryptSecret } from '@/lib/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
 
       // Return successful response with chat URL
       // Check if we're in development or production
-      const isDevelopment = process.env.NODE_ENV === 'development'
+      const isDevelopment = env.NODE_ENV === 'development'
       const chatUrl = isDevelopment
         ? `http://${subdomain}.localhost:3000`
         : `https://${subdomain}.simstudio.ai`

@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
@@ -435,7 +436,7 @@ async function getCustomTool(
   const identifier = customToolId.replace('custom_', '')
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
     const url = new URL('/api/tools/custom', baseUrl)
 
     // Add workflowId as a query parameter if available

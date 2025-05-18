@@ -12,6 +12,7 @@ import {
   Section,
   Text,
 } from '@react-email/components'
+import { env } from '@/lib/env'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -20,7 +21,7 @@ interface WaitlistApprovalEmailProps {
   signupLink?: string
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
 export const WaitlistApprovalEmail = ({
   email = '',

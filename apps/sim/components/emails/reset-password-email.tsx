@@ -13,6 +13,7 @@ import {
   Text,
 } from '@react-email/components'
 import { format } from 'date-fns'
+import { env } from '@/lib/env'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 
@@ -22,7 +23,7 @@ interface ResetPasswordEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
 export const ResetPasswordEmail = ({
   username = '',

@@ -1,8 +1,14 @@
 /// <reference types="vitest" />
+import nextEnv from '@next/env'
 import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import { resolve } from 'path'
 import { configDefaults, defineConfig } from 'vitest/config'
+
+const { loadEnvConfig } = nextEnv
+
+const projectDir = process.cwd()
+loadEnvConfig(projectDir)
 
 export default defineConfig({
   plugins: [react()],

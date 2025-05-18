@@ -17,6 +17,8 @@ import {
   isS3Path,
 } from '../utils'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('FilesDeleteAPI')
 
 /**

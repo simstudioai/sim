@@ -6,6 +6,8 @@ import { db } from '@/db'
 import { account } from '@/db/schema'
 import { refreshAccessTokenIfNeeded } from '../../utils'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('GoogleDriveFilesAPI')
 
 /**

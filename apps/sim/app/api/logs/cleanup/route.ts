@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { s3Client } from '@/lib/uploads/s3-client'
+import { getS3Client } from '@/lib/uploads/s3-client'
 import { db } from '@/db'
 import { subscription, user, workflow, workflowLogs } from '@/db/schema'
 
@@ -12,19 +13,19 @@ const logger = createLogger('LogsCleanup')
 
 const BATCH_SIZE = 2000
 const S3_CONFIG = {
-  bucket: process.env.S3_LOGS_BUCKET_NAME || '',
-  region: process.env.AWS_REGION || '',
+  bucket: env.S3_LOGS_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
 }
 
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization')
 
-    if (!process.env.CRON_SECRET) {
+    if (!env.CRON_SECRET) {
       return new NextResponse('Configuration error: Cron secret is not set', { status: 500 })
     }
 
-    if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    if (!authHeader || authHeader !== `Bearer ${env.CRON_SECRET}`) {
       logger.warn(`Unauthorized access attempt to logs cleanup endpoint`)
       return new NextResponse('Unauthorized', { status: 401 })
     }
@@ -34,9 +35,7 @@ export async function GET(request: Request) {
     }
 
     const retentionDate = new Date()
-    retentionDate.setDate(
-      retentionDate.getDate() - Number(process.env.FREE_PLAN_LOG_RETENTION_DAYS || '7')
-    )
+    retentionDate.setDate(retentionDate.getDate() - Number(env.FREE_PLAN_LOG_RETENTION_DAYS || '7'))
 
     const freeUsers = await db
       .select({ userId: user.id })
@@ -111,7 +110,7 @@ export async function GET(request: Request) {
         const logData = JSON.stringify(log)
 
         try {
-          await s3Client.send(
+          await getS3Client().send(
             new PutObjectCommand({
               Bucket: S3_CONFIG.bucket,
               Key: logKey,

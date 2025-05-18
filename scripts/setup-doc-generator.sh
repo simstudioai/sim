@@ -19,7 +19,7 @@ cat > package.json << EOF
 EOF
 
 # Install dependencies local to scripts directory
-npm install --save-dev typescript @types/node @types/react ts-node tsx glob
+bun install --save-dev typescript @types/node @types/react ts-node tsx glob
 
 # Setup tsconfig.json
 cat > tsconfig.json << EOF

@@ -214,9 +214,9 @@ If you prefer not to use Docker or Dev Containers:
    ```
 2. **Install Dependencies:**
 
-   - Using NPM:
+   - Using Bun:
      ```bash
-     npm install
+     bun install
      ```
 
 3. **Set Up Environment:**
@@ -229,14 +229,14 @@ If you prefer not to use Docker or Dev Containers:
    - You need a PostgreSQL instance running
    - Run migrations:
      ```bash
-     npm run db:push
+     bun run db:push
      ```
 
 5. **Run the Development Server:**
 
-   - With NPM:
+   - With Bun:
      ```bash
-     npm run dev
+     bun run dev
      ```
 
 6. **Make Your Changes and Test Locally.**
@@ -248,7 +248,7 @@ When working on email templates, you can preview them using a local email previe
 1. **Run the Email Preview Server:**
 
    ```bash
-   npm run email:dev
+   bun run email:dev
    ```
 
 2. **Access the Preview:**

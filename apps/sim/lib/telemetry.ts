@@ -10,6 +10,7 @@
  */
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api'
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './env'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)
 
@@ -28,9 +29,9 @@ export type TelemetryStatus = {
 const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
 
 let telemetryConfig = {
-  endpoint: process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
+  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
   serviceName: 'sim-studio',
-  serviceVersion: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
+  serviceVersion: '0.1.0',
 }
 
 if (typeof window !== 'undefined' && (window as any).__SIM_STUDIO_TELEMETRY_CONFIG) {
@@ -48,7 +49,7 @@ export function getTelemetryStatus(): TelemetryStatus {
   }
 
   try {
-    if (process.env.NEXT_TELEMETRY_DISABLED === '1') {
+    if (env.NEXT_TELEMETRY_DISABLED === '1') {
       return { enabled: false, notifiedUser: true }
     }
 
@@ -104,7 +105,7 @@ export function disableTelemetry(): void {
  * Enables telemetry
  */
 export function enableTelemetry(): void {
-  if (process.env.NEXT_TELEMETRY_DISABLED === '1') {
+  if (env.NEXT_TELEMETRY_DISABLED === '1') {
     logger.info('Telemetry disabled by environment variable, cannot enable')
     return
   }
@@ -141,7 +142,7 @@ function initializeClientTelemetry(): void {
       return
     }
 
-    if (process.env.NODE_ENV === 'production') {
+    if (env.NODE_ENV === 'production') {
       trackEvent('page_view', window.location.pathname)
 
       if (typeof window.history !== 'undefined') {
@@ -264,7 +265,7 @@ export async function trackEvent(
   if (!status.enabled) return
 
   try {
-    if (process.env.NODE_ENV === 'production') {
+    if (env.NODE_ENV === 'production') {
       await fetch('/api/telemetry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

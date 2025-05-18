@@ -12,6 +12,8 @@ import {
   getContentType,
 } from '../../utils'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('FilesServeAPI')
 
 /**

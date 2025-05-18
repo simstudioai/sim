@@ -15,23 +15,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './package-lock.json'
+          node-version: latest
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Install Turbo globally
-        run: npm install -g turbo
+        run: bun install
 
       - name: Run tests with coverage
         env:
           NODE_OPTIONS: '--no-warnings'
-        run: npx turbo run test
+          NEXT_PUBLIC_APP_URL: 'https://www.simstudio.ai'
+          ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
+        run: bun run test
 
       - name: Build application
         env:
@@ -41,7 +43,8 @@ jobs:
           STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
           RESEND_API_KEY: 'dummy_key_for_ci_only'
           AWS_REGION: 'us-west-2'
-        run: npx turbo run build
+          ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
+        run: bun run build
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -59,18 +62,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@main
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './package-lock.json'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm ci
+        run: bun install
 
       - name: Apply migrations
         working-directory: ./apps/sim
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: npx drizzle-kit push
+        run: bunx drizzle-kit push

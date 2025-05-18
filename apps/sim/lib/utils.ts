@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
 import { nanoid } from 'nanoid'
 import { twMerge } from 'tailwind-merge'
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './env'
 
 const logger = createLogger('Utils')
 
@@ -11,7 +12,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY
+  const key = env.ENCRYPTION_KEY
   if (!key || key.length !== 64) {
     throw new Error('ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)')
   }
@@ -286,13 +287,13 @@ export function getRotatingApiKey(provider: string): string {
   const keys = []
 
   if (provider === 'openai') {
-    if (process.env.OPENAI_API_KEY_1) keys.push(process.env.OPENAI_API_KEY_1)
-    if (process.env.OPENAI_API_KEY_2) keys.push(process.env.OPENAI_API_KEY_2)
-    if (process.env.OPENAI_API_KEY_3) keys.push(process.env.OPENAI_API_KEY_3)
+    if (env.OPENAI_API_KEY_1) keys.push(env.OPENAI_API_KEY_1)
+    if (env.OPENAI_API_KEY_2) keys.push(env.OPENAI_API_KEY_2)
+    if (env.OPENAI_API_KEY_3) keys.push(env.OPENAI_API_KEY_3)
   } else if (provider === 'anthropic') {
-    if (process.env.ANTHROPIC_API_KEY_1) keys.push(process.env.ANTHROPIC_API_KEY_1)
-    if (process.env.ANTHROPIC_API_KEY_2) keys.push(process.env.ANTHROPIC_API_KEY_2)
-    if (process.env.ANTHROPIC_API_KEY_3) keys.push(process.env.ANTHROPIC_API_KEY_3)
+    if (env.ANTHROPIC_API_KEY_1) keys.push(env.ANTHROPIC_API_KEY_1)
+    if (env.ANTHROPIC_API_KEY_2) keys.push(env.ANTHROPIC_API_KEY_2)
+    if (env.ANTHROPIC_API_KEY_3) keys.push(env.ANTHROPIC_API_KEY_3)
   }
 
   if (keys.length === 0) {

@@ -8,6 +8,8 @@ import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('OAuthCredentialsAPI')
 
 interface GoogleIdToken {

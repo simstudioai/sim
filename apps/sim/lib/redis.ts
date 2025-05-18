@@ -1,10 +1,11 @@
 import Redis from 'ioredis'
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './env'
 
 const logger = createLogger('Redis')
 
 // Default to localhost if REDIS_URL is not provided
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379'
+const redisUrl = env.REDIS_URL || 'redis://localhost:6379'
 
 // Global Redis client for connection pooling
 // This is important for serverless environments like Vercel

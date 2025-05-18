@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
 import { getTool, getToolAsync } from './utils'
@@ -43,7 +44,7 @@ export async function executeTool(
     if (contextParams.credential) {
       logger.info(`[executeTool] Credential found for ${toolId}, fetching access token.`)
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+        const baseUrl = env.NEXT_PUBLIC_APP_URL
         if (!baseUrl) {
           throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
         }
@@ -340,7 +341,7 @@ async function handleInternalRequest(
   const requestParams = formatRequestParams(tool, params)
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
     // Handle the case where url may be a function or string
     const endpointUrl =
       typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
@@ -542,7 +543,7 @@ async function handleProxyRequest(
   params: Record<string, any>
 ): Promise<ToolResponse> {
   logger.info(`[handleProxyRequest] Entry: toolId=${toolId}`)
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  const baseUrl = env.NEXT_PUBLIC_APP_URL
   if (!baseUrl) {
     throw new Error('NEXT_PUBLIC_APP_URL environment variable is not set')
   }
