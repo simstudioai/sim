@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workspace, workspaceMember } from '@/db/schema'
+import { workspaceMember } from '@/db/schema'
 
-// PATCH /api/workspaces/members/[id] - Update a member's role
+// Update a member's role
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getSession()

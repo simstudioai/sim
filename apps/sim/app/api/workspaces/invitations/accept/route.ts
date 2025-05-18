@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { db } from '@/db'
 import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
 
-// GET /api/workspaces/invitations/accept - Accept an invitation via token
+// Accept an invitation via token
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
 
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(
       new URL(
         '/invite/invite-error?reason=missing-token',
-        process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+        env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
       )
     )
   }
@@ -25,10 +26,7 @@ export async function GET(req: NextRequest) {
     // No need to encode API URL as callback, just redirect to invite page
     // The middleware will handle proper login flow and return to invite page
     return NextResponse.redirect(
-      new URL(
-        `/invite/${token}?token=${token}`,
-        process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
-      )
+      new URL(`/invite/${token}?token=${token}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
     )
   }
 
@@ -44,7 +42,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           '/invite/invite-error?reason=invalid-token',
-          process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -54,7 +52,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           '/invite/invite-error?reason=expired',
-          process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -64,7 +62,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           '/invite/invite-error?reason=already-processed',
-          process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -107,7 +105,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/invite/invite-error?reason=email-mismatch&details=${encodeURIComponent(`Invitation was sent to ${invitation.email}, but you're logged in as ${userData?.email || session.user.email}`)}`,
-          process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -123,7 +121,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           '/invite/invite-error?reason=workspace-not-found',
-          process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -151,10 +149,7 @@ export async function GET(req: NextRequest) {
         .where(eq(workspaceInvitation.id, invitation.id))
 
       return NextResponse.redirect(
-        new URL(
-          `/w/${invitation.workspaceId}`,
-          process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
-        )
+        new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
       )
     }
 
@@ -179,17 +174,14 @@ export async function GET(req: NextRequest) {
 
     // Redirect to the workspace
     return NextResponse.redirect(
-      new URL(
-        `/w/${invitation.workspaceId}`,
-        process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
-      )
+      new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
     )
   } catch (error) {
     console.error('Error accepting invitation:', error)
     return NextResponse.redirect(
       new URL(
         '/invite/invite-error?reason=server-error',
-        process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+        env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
       )
     )
   }

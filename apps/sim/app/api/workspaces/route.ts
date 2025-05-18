@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workflow, workspace, workspaceMember } from '@/db/schema'
 
-// GET /api/workspaces - Get all workspaces for the current user
+// Get all workspaces for the current user
 export async function GET() {
   const session = await getSession()
 

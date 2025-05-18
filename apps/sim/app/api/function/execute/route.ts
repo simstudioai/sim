@@ -4,9 +4,8 @@ import { createContext, Script } from 'vm'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
-// Explicitly export allowed methods
-export const dynamic = 'force-dynamic' // Disable static optimization
-export const runtime = 'nodejs' // Use Node.js runtime
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 const logger = createLogger('FunctionExecuteAPI')
 

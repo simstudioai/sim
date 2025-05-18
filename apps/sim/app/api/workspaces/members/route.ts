@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { user, workspace, workspaceMember } from '@/db/schema'
+import { user, workspaceMember } from '@/db/schema'
 
-// POST /api/workspaces/members - Add a member to a workspace
+// Add a member to a workspace
 export async function POST(req: Request) {
   const session = await getSession()
 

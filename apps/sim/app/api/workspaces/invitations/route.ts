@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { render } from '@react-email/render'
 import { randomUUID } from 'crypto'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { Resend } from 'resend'
 import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
 
-// Initialize Resend for email sending
-const resend = new Resend(process.env.RESEND_API_KEY)
+export const dynamic = 'force-dynamic'
 
-// GET /api/workspaces/invitations - Get all invitations for the user's workspaces
+const logger = createLogger('WorkspaceInvitationsAPI')
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
+
+// Get all invitations for the user's workspaces
 export async function GET(req: NextRequest) {
   const session = await getSession()
 
@@ -53,7 +57,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/workspaces/invitations - Create a new invitation
+// Create a new invitation
 export async function POST(req: NextRequest) {
   const session = await getSession()
 
@@ -204,7 +208,7 @@ async function sendInvitationEmail({
   token: string
 }) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
     // Always use the client-side invite route with token parameter
     const invitationLink = `${baseUrl}/invite/${token}?token=${token}`
 
@@ -216,8 +220,19 @@ async function sendInvitationEmail({
       })
     )
 
+    if (!resend) {
+      logger.error(`RESEND_API_KEY not configured`)
+      return NextResponse.json(
+        {
+          error:
+            'Email service not configured. Please set RESEND_API_KEY in environment variables.',
+        },
+        { status: 500 }
+      )
+    }
+
     await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'noreply@simstudio.ai',
+      from: 'noreply@simstudio.ai',
       to,
       subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,

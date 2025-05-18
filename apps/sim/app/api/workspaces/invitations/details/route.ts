@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workspace, workspaceInvitation } from '@/db/schema'
 
-// GET /api/workspaces/invitations/details - Get invitation details by token
+// Get invitation details by token
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
 
