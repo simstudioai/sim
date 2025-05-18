@@ -2,11 +2,9 @@ import { useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ChannelSelectorInput } from './components/channel-selector/channel-selector-input'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
@@ -45,7 +43,6 @@ export function SubBlock({
   isPreview = false, 
   previewValue = undefined 
 }: SubBlockProps) {
-  
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
   }

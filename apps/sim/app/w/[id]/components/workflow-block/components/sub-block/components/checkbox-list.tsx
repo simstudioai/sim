@@ -1,10 +1,8 @@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-const logger = createLogger('CheckboxList')
 
 interface CheckboxListProps {
   blockId: string
@@ -35,15 +33,6 @@ export function CheckboxList({
           isPreview, 
           propValues?.[option.id]
         )
-        
-        // Log when in preview mode to verify it's working
-        if (isPreview) {
-          logger.info(`[PREVIEW] CheckboxList option ${option.id} for ${blockId}`, {
-            isPreview,
-            propValue: propValues?.[option.id],
-            value
-          });
-        }
         
         return (
           <div key={option.id} className='flex items-center space-x-2'>

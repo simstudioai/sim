@@ -512,15 +512,15 @@ export function ConditionInput({ blockId, subBlockId, isConnecting, isPreview = 
   }, [conditionalBlocks.length])
 
   // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] ConditionInput for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        storeValue
-      });
-    }
-  }, [isPreview, propValue, storeValue, blockId, subBlockId]);
+  // useEffect(() => {
+  //   if (isPreview) {
+  //     logger.info(`[PREVIEW] ConditionInput for ${blockId}:${subBlockId}`, {
+  //       isPreview,
+  //       propValue,
+  //       storeValue
+  //     });
+  //   }
+  // }, [isPreview, propValue, storeValue, blockId, subBlockId]);
 
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {

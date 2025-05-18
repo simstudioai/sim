@@ -5,11 +5,9 @@ import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-const logger = createLogger('TimeInput')
 
 interface TimeInputProps {
   blockId: string
@@ -30,17 +28,6 @@ export function TimeInput({
 }: TimeInputProps) {
   const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true, isPreview, propValue)
   const [isOpen, setIsOpen] = React.useState(false)
-
-  // Log when in preview mode to verify it's working
-  React.useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] TimeInput for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        value
-      });
-    }
-  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   // Convert 24h time string to display format (12h with AM/PM)
   const formatDisplayTime = (time: string) => {

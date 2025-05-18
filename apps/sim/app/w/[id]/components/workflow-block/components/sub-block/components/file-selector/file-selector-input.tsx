@@ -20,7 +20,6 @@ import { MicrosoftFileSelector } from './components/microsoft-file-selector'
 import type { TeamsMessageInfo } from './components/teams-message-selector'
 import { TeamsMessageSelector } from './components/teams-message-selector'
 
-const logger = createLogger('FileSelectorInput')
 
 interface FileSelectorInputProps {
   blockId: string
@@ -47,16 +46,6 @@ export function FileSelectorInput({
   const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
   const [selectedMessageId, setSelectedMessageId] = useState<string>('')
   const [messageInfo, setMessageInfo] = useState<TeamsMessageInfo | null>(null)
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] FileSelectorInput for ${blockId}:${subBlock.id}`, {
-        isPreview,
-        propValue
-      });
-    }
-  }, [isPreview, propValue, blockId, subBlock.id]);
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'

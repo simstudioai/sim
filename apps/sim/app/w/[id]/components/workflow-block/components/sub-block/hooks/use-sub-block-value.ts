@@ -239,10 +239,6 @@ export function useSubBlockValue<T = any>(
               // Update valueRef directly to use the preview value
               valueRef.current = directValue;
               
-              logger.info(`[PREVIEW-DOM] Using direct subblock value for ${blockId}:${subBlockId}`, {
-                directValue,
-                storeValue
-              });
             }
           }
         } else {
@@ -254,48 +250,6 @@ export function useSubBlockValue<T = any>(
       // Ignore errors in preview detection
     }
   }, [blockId, subBlockId, isPreview, directValue, storeValue]);
-
-  // Add logging to trace where values are coming from
-  useEffect(() => {
-    // Skip if we've already determined we're in preview mode
-    if (previewDataRef.current.isInPreview) return;
-    
-    // Check if we're in preview context
-    let isPreviewContext = false;
-    let directSubBlockValue = null;
-    
-    try {
-      // Try to find if this component is within a preview parent
-      const parentBlock = document.querySelector(`[data-id="${blockId}"]`);
-      if (parentBlock) {
-        isPreviewContext = parentBlock.closest('.preview-mode') != null;
-        
-        // Try to find the parent data to see if subBlockValues was passed directly
-        const dataProps = parentBlock.getAttribute('data-props');
-        if (dataProps) {
-          const parsedProps = JSON.parse(dataProps);
-          directSubBlockValue = parsedProps?.data?.subBlockValues?.[subBlockId];
-        }
-      }
-      
-      logger.info(`[DATA-TRACE] SubBlock value source for ${blockId}:${subBlockId}`, {
-        blockId,
-        subBlockId, 
-        storeValueExists: storeValue !== undefined,
-        initialValueExists: initialValue !== null,
-        isPreviewContext,
-        hasDirectSubBlockValue: directSubBlockValue !== undefined && directSubBlockValue !== null,
-        valueFromStore: storeValue,
-        valueFromInitial: initialValue,
-        valueFromDirect: directSubBlockValue,
-        actuallyUsing: previewDataRef.current.isInPreview ? 'directValue' : 
-                       (storeValue !== undefined ? 'globalStore' : 
-                       (initialValue !== null ? 'initialValue' : 'null')),
-      });
-    } catch (e) {
-      // Ignore errors - this is just diagnostic logging
-    }
-  }, [blockId, subBlockId, storeValue, initialValue]);
 
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
