@@ -7,19 +7,15 @@ import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime } from '@/lib/utils'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
 
-// Add logger for diagnostic logging
-const logger = createLogger('WorkflowBlock')
 
 interface WorkflowBlockProps {
   type: string
@@ -36,19 +32,6 @@ interface WorkflowBlockProps {
 // Combine both interfaces into a single component
 export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const { type, config, name, isActive: dataIsActive, isPending } = data
-
-  // Add logging for debug purposes
-  useEffect(() => {
-    if (data.isPreview === true) {
-      logger.info(`[PREVIEW-RENDER] Block ${id} rendering in preview mode`, {
-        blockId: id,
-        blockType: type,
-        subBlockValues: data.subBlockValues ? Object.keys(data.subBlockValues) : [],
-        hasDirectSubBlocks: Boolean(data.subBlockValues && Object.keys(data.subBlockValues).length > 0),
-        isReadOnly: data.isReadOnly,
-      });
-    }
-  }, [id, type, data.isPreview, data.subBlockValues, data.isReadOnly]);
 
   // State management
   const [isConnecting, setIsConnecting] = useState(false)

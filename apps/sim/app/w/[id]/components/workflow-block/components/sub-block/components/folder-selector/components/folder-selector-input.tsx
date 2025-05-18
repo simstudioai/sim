@@ -1,12 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { FolderInfo, FolderSelector } from '../folder-selector'
-
-const logger = createLogger('FolderSelectorInput')
 
 interface FolderSelectorInputProps {
   blockId: string
@@ -26,16 +23,6 @@ export function FolderSelectorInput({
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] FolderSelectorInput for ${blockId}:${subBlock.id}`, {
-        isPreview,
-        propValue
-      });
-    }
-  }, [isPreview, propValue, blockId, subBlock.id]);
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
