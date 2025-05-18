@@ -39,7 +39,6 @@ interface DeploymentInfoProps {
   onUndeploy: () => void
   isSubmitting: boolean
   isUndeploying: boolean
-  needsRedeployment: boolean
   workflowId: string | null
   deployedState: any
   isLoadingDeployedState: boolean
@@ -52,7 +51,6 @@ export function DeploymentInfo({
   onUndeploy,
   isSubmitting,
   isUndeploying,
-  needsRedeployment,
   workflowId,
   deployedState,
   isLoadingDeployedState
@@ -71,7 +69,7 @@ export function DeploymentInfo({
       logger.info(`Using cached deployed state for workflow: ${workflowId}`)
       setIsViewingDeployed(true)
       return
-    } else {
+    } else if (!isLoadingDeployedState) {
       logger.debug(`[${workflowId}] No deployed state found`)
       addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }

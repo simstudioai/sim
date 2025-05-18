@@ -109,7 +109,7 @@ export function DeployedWorkflowModal({
 =======
     if (activeWorkflowId) {
       logger.info(`Reverting to deployed state for workflow: ${activeWorkflowId}`)
-      revertToDeployedState(deployedWorkflowState)
+      revertToDeployedState(sanitizedDeployedState)
       setShowRevertDialog(false)
       onClose()
     }
