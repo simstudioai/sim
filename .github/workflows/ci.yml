@@ -26,7 +26,7 @@ jobs:
       - name: Run tests with coverage
         env:
           NODE_OPTIONS: '--no-warnings'
-        run: bunx turbo run test
+        run: bun run test
 
       - name: Build application
         env:
@@ -36,7 +36,7 @@ jobs:
           STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
           RESEND_API_KEY: 'dummy_key_for_ci_only'
           AWS_REGION: 'us-west-2'
-        run: bunx turbo run build
+        run: bun run build
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
