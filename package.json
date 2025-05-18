@@ -7,7 +7,7 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "turbo": "2.5.3"
   },
-  "packageManager": "bun@1.2.13",
+  "packageManager": "bun@1.2.12",
   "name": "simstudio",
   "version": "0.0.0",
   "private": true,
@@ -31,10 +31,6 @@
   },
   "dependencies": {
     "@t3-oss/env-nextjs": "0.13.4",
-    "@types/bun": "^1.2.12",
-    "@vercel/analytics": "^1.5.0",
-    "bun": "^1.2.13",
-    "next-runtime-env": "3.3.0",
-    "react-day-picker": "^9.7.0"
+    "@vercel/analytics": "1.5.0"
   }
 }

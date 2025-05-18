@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
-    "bun": ">=1.1.0",
+    "bun": ">=1.2.13",
     "node": ">=20.0.0"
   },
   "scripts": {
@@ -64,7 +64,7 @@
     "@radix-ui/react-select": "^2.1.4",
     "@radix-ui/react-separator": "^1.1.2",
     "@radix-ui/react-slider": "^1.2.2",
-    "@radix-ui/react-slot": "^1.2.2",
+    "@radix-ui/react-slot": "1.2.2",
     "@radix-ui/react-switch": "^1.1.2",
     "@radix-ui/react-tabs": "^1.1.2",
     "@radix-ui/react-toggle": "^1.1.2",
@@ -82,7 +82,7 @@
     "croner": "^9.0.0",
     "csv-parse": "^5.6.0",
     "csv-parser": "^3.2.0",
-    "date-fns": "^3.6.0",
+    "date-fns": "4.1.0",
     "drizzle-orm": "^0.41.0",
     "framer-motion": "^12.5.0",
     "freestyle-sandboxes": "^0.0.38",
@@ -101,7 +101,7 @@
     "postgres": "^3.4.5",
     "prismjs": "^1.30.0",
     "react": "19.1.0",
-    "react-day-picker": "^8.10.1",
+    "react-day-picker": "8.10.1",
     "react-dom": "19.1.0",
     "react-google-drive-picker": "^1.2.2",
     "react-hook-form": "^7.54.2",
