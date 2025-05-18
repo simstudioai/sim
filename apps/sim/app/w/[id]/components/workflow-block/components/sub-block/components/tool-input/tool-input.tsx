@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -33,6 +33,8 @@ const logger = createLogger('ToolInput')
 interface ToolInputProps {
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  value?: StoredTool[]
 }
 
 interface StoredTool {
@@ -240,8 +242,8 @@ const formatParamId = (paramId: string): string => {
   return paramId.charAt(0).toUpperCase() + paramId.slice(1)
 }
 
-export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+export function ToolInput({ blockId, subBlockId, isPreview = false, value: propValue }: ToolInputProps) {
+  const [value, setValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
@@ -544,6 +546,17 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     if (!Icon) return null
     return <Icon className={className} />
   }
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] ToolInput for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   return (
     <div className="w-full">
