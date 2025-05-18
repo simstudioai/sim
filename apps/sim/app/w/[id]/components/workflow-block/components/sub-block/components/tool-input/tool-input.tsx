@@ -547,17 +547,6 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
     return <Icon className={className} />
   }
 
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] ToolInput for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        value
-      });
-    }
-  }, [isPreview, propValue, value, blockId, subBlockId]);
-
   return (
     <div className="w-full">
       {selectedTools.length === 0 ? (

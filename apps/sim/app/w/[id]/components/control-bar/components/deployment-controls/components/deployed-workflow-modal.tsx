@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,17 +51,6 @@ export function DeployedWorkflowModal({
   const [isLoading, setIsLoading] = useState(false)
   const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-
-  // Add debug logging to check deployedWorkflowState
-  useEffect(() => {
-    if (isOpen) {
-      if (deployedWorkflowState) {
-        logger.info(`DeployedWorkflowModal received state with ${Object.keys(deployedWorkflowState.blocks || {}).length} blocks`)
-      } else {
-        logger.warn('DeployedWorkflowModal opened but deployedWorkflowState is null or undefined')
-      }
-    }
-  }, [isOpen, deployedWorkflowState]);
 
   // Get current workflow state to compare with deployed state
   const currentWorkflowState = useWorkflowStore((state) => ({
