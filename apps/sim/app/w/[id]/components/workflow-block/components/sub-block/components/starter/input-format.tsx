@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { ChevronDown, Plus, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
