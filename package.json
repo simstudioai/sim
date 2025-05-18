@@ -7,7 +7,7 @@
     "prettier-plugin-tailwindcss": "^0.6.11",
     "turbo": "2.5.3"
   },
-  "packageManager": "bun@1.2.12",
+  "packageManager": "bun@1.2.13",
   "name": "simstudio",
   "version": "0.0.0",
   "private": true,
