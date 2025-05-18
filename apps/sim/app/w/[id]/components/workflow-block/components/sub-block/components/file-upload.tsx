@@ -1,14 +1,17 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('FileUpload')
 
 interface FileUploadProps {
   blockId: string
@@ -16,6 +19,8 @@ interface FileUploadProps {
   maxSize?: number // in MB
   acceptedTypes?: string // comma separated MIME types
   multiple?: boolean // whether to allow multiple file uploads
+  isPreview?: boolean
+  value?: UploadedFile | UploadedFile[] | null
 }
 
 interface UploadedFile {
@@ -37,12 +42,16 @@ export function FileUpload({
   maxSize = 10, // Default 10MB
   acceptedTypes = '*',
   multiple = false, // Default to single file for backward compatibility
+  isPreview = false,
+  value: propValue
 }: FileUploadProps) {
   // State management - handle both single file and array of files
   const [value, setValue] = useSubBlockValue<UploadedFile | UploadedFile[] | null>(
     blockId,
     subBlockId,
-    true
+    true,
+    isPreview,
+    propValue
   )
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -56,6 +65,17 @@ export function FileUpload({
   // Stores
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] FileUpload for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   /**
    * Opens file dialog
