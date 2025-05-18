@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { PublicEnvScript } from 'next-runtime-env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import './globals.css'
@@ -8,7 +9,6 @@ import { ZoomPrevention } from './zoom-prevention'
 
 const logger = createLogger('RootLayout')
 
-// Add browser extension attributes that we want to ignore
 const BROWSER_EXTENSION_ATTRIBUTES = [
   'data-new-gr-c-s-check-loaded',
   'data-gr-ext-installed',
@@ -16,7 +16,6 @@ const BROWSER_EXTENSION_ATTRIBUTES = [
   'data-grammarly',
   'data-fgm',
   'data-lt-installed',
-  // Add other known extension attributes here
 ]
 
 if (typeof window !== 'undefined') {
@@ -156,6 +155,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property="og:image" content="https://simstudio.ai/social/instagram.png" />
         <meta property="og:image:width" content="1080" />
         <meta property="og:image:height" content="1080" />
+
+        <PublicEnvScript />
       </head>
       <body suppressHydrationWarning>
         <ZoomPrevention />

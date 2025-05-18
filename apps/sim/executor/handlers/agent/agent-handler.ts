@@ -1,3 +1,4 @@
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks'
 import { BlockOutput } from '@/blocks/types'
@@ -218,7 +219,7 @@ export class AgentBlockHandler implements BlockHandler {
       hasOutgoingConnections,
     })
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
     const url = new URL('/api/providers', baseUrl)
 
     try {

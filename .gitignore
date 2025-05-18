@@ -2,28 +2,24 @@
 
 # dependencies
 /node_modules
-docs/node_modules
+/apps/**/node_modules
 /packages/**/node_modules
-scripts/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+/scripts/node_modules
+
+# bun specific
+.bun
+bun.lock
+bun-debug.log*
 
 # testing
 /coverage
+/apps/**/coverage
 
 # next.js
 /.next/
-sim/.next/
-sim/out/
-sim/build
-docs/.next/
-docs/out/
-docs/build
+/apps/**/out/
+/apps/**/.next/
+/apps/**/build
 
 # production
 /build
@@ -35,12 +31,6 @@ sim-standalone.tar.gz
 # misc
 .DS_Store
 *.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 
 # env files
 .env
@@ -61,9 +51,9 @@ next-env.d.ts
 .cursorrules
 
 # docs
-docs/.source
-docs/.contentlayer
-docs/.content-collections
+/apps/docs/.source
+/apps/docs/.contentlayer
+/apps/docs/.content-collections
 
 # database instantiation
 **/postgres_data/

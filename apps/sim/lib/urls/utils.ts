@@ -1,3 +1,5 @@
+import { env } from '../env'
+
 /**
  * Returns the base URL of the application, respecting environment variables for deployment environments
  * @returns The base URL string (e.g., 'http://localhost:3000' or 'https://example.com')
@@ -7,13 +9,13 @@ export function getBaseUrl(): string {
     return window.location.origin
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  const baseUrl = env.NEXT_PUBLIC_APP_URL
   if (baseUrl) {
     if (baseUrl.startsWith('http://') || baseUrl.startsWith('https://')) {
       return baseUrl
     }
 
-    const isProd = process.env.NODE_ENV === 'production'
+    const isProd = env.NODE_ENV === 'production'
     const protocol = isProd ? 'https://' : 'http://'
     return `${protocol}${baseUrl}`
   }
@@ -30,7 +32,7 @@ export function getBaseDomain(): string {
     const url = new URL(getBaseUrl())
     return url.host // host includes port if specified
   } catch (e) {
-    const isProd = process.env.NODE_ENV === 'production'
+    const isProd = env.NODE_ENV === 'production'
     return isProd ? 'simstudio.ai' : 'localhost:3000'
   }
 }

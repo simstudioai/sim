@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('TelemetryAPI')
@@ -84,8 +85,8 @@ async function forwardToCollector(data: any): Promise<boolean> {
     return false
   }
 
-  const endpoint = process.env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
-  const timeout = parseInt(process.env.TELEMETRY_TIMEOUT || '') || DEFAULT_TIMEOUT
+  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  const timeout = DEFAULT_TIMEOUT
 
   try {
     const timestamp = Date.now() * 1000000
@@ -96,11 +97,11 @@ async function forwardToCollector(data: any): Promise<boolean> {
       { key: 'service.name', value: { stringValue: 'sim-studio' } },
       {
         key: 'service.version',
-        value: { stringValue: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0' },
+        value: { stringValue: '0.1.0' },
       },
       {
         key: 'deployment.environment',
-        value: { stringValue: process.env.NODE_ENV || 'production' },
+        value: { stringValue: env.NODE_ENV || 'production' },
       },
     ]
 

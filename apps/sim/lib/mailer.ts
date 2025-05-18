@@ -1,5 +1,6 @@
 import { Resend } from 'resend'
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './env'
 
 interface EmailOptions {
   to: string
@@ -27,7 +28,7 @@ interface BatchSendEmailResult {
 
 const logger = createLogger('Mailer')
 
-const resendApiKey = process.env.RESEND_API_KEY
+const resendApiKey = env.RESEND_API_KEY
 const resend =
   resendApiKey && resendApiKey !== 'placeholder' && resendApiKey.trim() !== ''
     ? new Resend(resendApiKey)

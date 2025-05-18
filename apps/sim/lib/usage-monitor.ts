@@ -5,6 +5,7 @@ import { userStats } from '@/db/schema'
 import { createLogger } from './logs/console-logger'
 import { getHighestPrioritySubscription } from './subscription/subscription'
 import { calculateUsageLimit } from './subscription/utils'
+import { env } from './env'
 
 const logger = createLogger('UsageMonitor')
 
@@ -55,7 +56,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       })
     } else {
       // Free tier limit
-      limit = parseFloat(process.env.FREE_TIER_COST_LIMIT!)
+      limit = parseFloat(env.FREE_TIER_COST_LIMIT!)
       logger.info('Using free tier limit', { userId, limit })
     }
 

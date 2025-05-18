@@ -16,21 +16,22 @@ import {
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
+import { env } from './env'
 
 const logger = createLogger('Auth')
 
-const isProd = process.env.NODE_ENV === 'production'
+const isProd = env.NODE_ENV === 'production'
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account
 const validStripeKey =
-  process.env.STRIPE_SECRET_KEY &&
-  process.env.STRIPE_SECRET_KEY.trim() !== '' &&
-  process.env.STRIPE_SECRET_KEY !== 'placeholder'
+  env.STRIPE_SECRET_KEY &&
+  env.STRIPE_SECRET_KEY.trim() !== '' &&
+  env.STRIPE_SECRET_KEY !== 'placeholder'
 
 let stripeClient = null
 if (validStripeKey) {
-  stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
+  stripeClient = new Stripe(env.STRIPE_SECRET_KEY || '', {
     apiVersion: '2025-02-24.acacia',
   })
 }
@@ -39,12 +40,10 @@ if (validStripeKey) {
 // In that case, we don't want to send emails and just log them
 
 const validResendAPIKEY =
-  process.env.RESEND_API_KEY &&
-  process.env.RESEND_API_KEY.trim() !== '' &&
-  process.env.RESEND_API_KEY !== 'placeholder'
+  env.RESEND_API_KEY && env.RESEND_API_KEY.trim() !== '' && env.RESEND_API_KEY !== 'placeholder'
 
 const resend = validResendAPIKEY
-  ? new Resend(process.env.RESEND_API_KEY)
+  ? new Resend(env.RESEND_API_KEY)
   : {
       emails: {
         send: async (...args: any[]) => {
@@ -121,13 +120,13 @@ export const auth = betterAuth({
   },
   socialProviders: {
     github: {
-      clientId: process.env.GITHUB_CLIENT_ID as string,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+      clientId: env.GITHUB_CLIENT_ID as string,
+      clientSecret: env.GITHUB_CLIENT_SECRET as string,
       scopes: ['user:email', 'repo'],
     },
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId: env.GOOGLE_CLIENT_ID as string,
+      clientSecret: env.GOOGLE_CLIENT_SECRET as string,
       scopes: [
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
@@ -209,15 +208,15 @@ export const auth = betterAuth({
       config: [
         {
           providerId: 'github-repo',
-          clientId: process.env.GITHUB_REPO_CLIENT_ID as string,
-          clientSecret: process.env.GITHUB_REPO_CLIENT_SECRET as string,
+          clientId: env.GITHUB_REPO_CLIENT_ID as string,
+          clientSecret: env.GITHUB_REPO_CLIENT_SECRET as string,
           authorizationUrl: 'https://github.com/login/oauth/authorize',
           accessType: 'offline',
           prompt: 'consent',
           tokenUrl: 'https://github.com/login/oauth/access_token',
           userInfoUrl: 'https://api.github.com/user',
           scopes: ['user:email', 'repo', 'read:user', 'workflow'],
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-repo`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/github-repo`,
           getUserInfo: async (tokens) => {
             try {
               // Fetch user profile
@@ -290,8 +289,8 @@ export const auth = betterAuth({
         // Google providers for different purposes
         {
           providerId: 'google-email',
-          clientId: process.env.GOOGLE_CLIENT_ID as string,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
           accessType: 'offline',
           scopes: [
@@ -303,12 +302,12 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/gmail.labels',
           ],
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-email`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-email`,
         },
         {
           providerId: 'google-calendar',
-          clientId: process.env.GOOGLE_CLIENT_ID as string,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
           accessType: 'offline',
           scopes: [
@@ -317,12 +316,12 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/calendar',
           ],
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-calendar`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-calendar`,
         },
         {
           providerId: 'google-drive',
-          clientId: process.env.GOOGLE_CLIENT_ID as string,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
           accessType: 'offline',
           scopes: [
@@ -331,12 +330,12 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-drive`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-drive`,
         },
         {
           providerId: 'google-docs',
-          clientId: process.env.GOOGLE_CLIENT_ID as string,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
           accessType: 'offline',
           scopes: [
@@ -345,12 +344,12 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-docs`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-docs`,
         },
         {
           providerId: 'google-sheets',
-          clientId: process.env.GOOGLE_CLIENT_ID as string,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
           discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
           accessType: 'offline',
           scopes: [
@@ -360,14 +359,14 @@ export const auth = betterAuth({
             'https://www.googleapis.com/auth/drive.file',
           ],
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-sheets`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-sheets`,
         },
 
         // Supabase provider
         {
           providerId: 'supabase',
-          clientId: process.env.SUPABASE_CLIENT_ID as string,
-          clientSecret: process.env.SUPABASE_CLIENT_SECRET as string,
+          clientId: env.SUPABASE_CLIENT_ID as string,
+          clientSecret: env.SUPABASE_CLIENT_SECRET as string,
           authorizationUrl: 'https://api.supabase.com/v1/oauth/authorize',
           tokenUrl: 'https://api.supabase.com/v1/oauth/token',
           // Supabase doesn't have a standard userInfo endpoint that works with our flow,
@@ -376,7 +375,7 @@ export const auth = betterAuth({
           scopes: ['database.read', 'database.write', 'projects.read'],
           responseType: 'code',
           pkce: true,
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/supabase`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/supabase`,
           getUserInfo: async (tokens) => {
             try {
               logger.info('Creating Supabase user profile from token data')
@@ -422,8 +421,8 @@ export const auth = betterAuth({
         // X provider
         {
           providerId: 'x',
-          clientId: process.env.X_CLIENT_ID as string,
-          clientSecret: process.env.X_CLIENT_SECRET as string,
+          clientId: env.X_CLIENT_ID as string,
+          clientSecret: env.X_CLIENT_SECRET as string,
           authorizationUrl: 'https://x.com/i/oauth2/authorize',
           tokenUrl: 'https://api.x.com/2/oauth2/token',
           userInfoUrl: 'https://api.x.com/2/users/me',
@@ -433,7 +432,7 @@ export const auth = betterAuth({
           responseType: 'code',
           prompt: 'consent',
           authentication: 'basic',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/x`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch(
@@ -481,8 +480,8 @@ export const auth = betterAuth({
         // Confluence provider
         {
           providerId: 'confluence',
-          clientId: process.env.CONFLUENCE_CLIENT_ID as string,
-          clientSecret: process.env.CONFLUENCE_CLIENT_SECRET as string,
+          clientId: env.CONFLUENCE_CLIENT_ID as string,
+          clientSecret: env.CONFLUENCE_CLIENT_SECRET as string,
           authorizationUrl: 'https://auth.atlassian.com/authorize',
           tokenUrl: 'https://auth.atlassian.com/oauth/token',
           userInfoUrl: 'https://api.atlassian.com/me',
@@ -492,7 +491,7 @@ export const auth = betterAuth({
           accessType: 'offline',
           authentication: 'basic',
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/confluence`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/confluence`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://api.atlassian.com/me', {
@@ -532,8 +531,8 @@ export const auth = betterAuth({
         // Discord provider
         {
           providerId: 'discord',
-          clientId: process.env.DISCORD_CLIENT_ID as string,
-          clientSecret: process.env.DISCORD_CLIENT_SECRET as string,
+          clientId: env.DISCORD_CLIENT_ID as string,
+          clientSecret: env.DISCORD_CLIENT_SECRET as string,
           authorizationUrl: 'https://discord.com/api/oauth2/authorize',
           tokenUrl: 'https://discord.com/api/oauth2/token',
           userInfoUrl: 'https://discord.com/api/users/@me',
@@ -542,7 +541,7 @@ export const auth = betterAuth({
           accessType: 'offline',
           authentication: 'basic',
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/discord`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/discord`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://discord.com/api/users/@me', {
@@ -583,8 +582,8 @@ export const auth = betterAuth({
         // Jira provider
         {
           providerId: 'jira',
-          clientId: process.env.JIRA_CLIENT_ID as string,
-          clientSecret: process.env.JIRA_CLIENT_SECRET as string,
+          clientId: env.JIRA_CLIENT_ID as string,
+          clientSecret: env.JIRA_CLIENT_SECRET as string,
           authorizationUrl: 'https://auth.atlassian.com/authorize',
           tokenUrl: 'https://auth.atlassian.com/oauth/token',
           userInfoUrl: 'https://api.atlassian.com/me',
@@ -613,7 +612,7 @@ export const auth = betterAuth({
           accessType: 'offline',
           authentication: 'basic',
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/jira`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://api.atlassian.com/me', {
@@ -653,8 +652,8 @@ export const auth = betterAuth({
         // Airtable provider
         {
           providerId: 'airtable',
-          clientId: process.env.AIRTABLE_CLIENT_ID as string,
-          clientSecret: process.env.AIRTABLE_CLIENT_SECRET as string,
+          clientId: env.AIRTABLE_CLIENT_ID as string,
+          clientSecret: env.AIRTABLE_CLIENT_SECRET as string,
           authorizationUrl: 'https://airtable.com/oauth2/v1/authorize',
           tokenUrl: 'https://airtable.com/oauth2/v1/token',
           userInfoUrl: 'https://api.airtable.com/v0/meta/whoami',
@@ -664,14 +663,14 @@ export const auth = betterAuth({
           accessType: 'offline',
           authentication: 'basic',
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/airtable`,
         },
 
         // Notion provider
         {
           providerId: 'notion',
-          clientId: process.env.NOTION_CLIENT_ID as string,
-          clientSecret: process.env.NOTION_CLIENT_SECRET as string,
+          clientId: env.NOTION_CLIENT_ID as string,
+          clientSecret: env.NOTION_CLIENT_SECRET as string,
           authorizationUrl: 'https://api.notion.com/v1/oauth/authorize',
           tokenUrl: 'https://api.notion.com/v1/oauth/token',
           userInfoUrl: 'https://api.notion.com/v1/users/me',
@@ -681,7 +680,7 @@ export const auth = betterAuth({
           accessType: 'offline',
           authentication: 'basic',
           prompt: 'consent',
-          redirectURI: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/notion`,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/notion`,
           getUserInfo: async (tokens) => {
             try {
               const response = await fetch('https://api.notion.com/v1/users/me', {
@@ -724,7 +723,7 @@ export const auth = betterAuth({
       ? [
           stripe({
             stripeClient,
-            stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+            stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
             createCustomerOnSignUp: true,
             onCustomerCreate: async ({ customer, stripeCustomer, user }, request) => {
               logger.info('Stripe customer created', {
@@ -737,11 +736,9 @@ export const auth = betterAuth({
               plans: [
                 {
                   name: 'free',
-                  priceId: process.env.STRIPE_FREE_PRICE_ID || '',
+                  priceId: env.STRIPE_FREE_PRICE_ID || '',
                   limits: {
-                    cost: process.env.FREE_TIER_COST_LIMIT
-                      ? parseInt(process.env.FREE_TIER_COST_LIMIT)
-                      : 5,
+                    cost: env.FREE_TIER_COST_LIMIT ? parseInt(env.FREE_TIER_COST_LIMIT) : 5,
                     sharingEnabled: 0,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,
@@ -749,11 +746,9 @@ export const auth = betterAuth({
                 },
                 {
                   name: 'pro',
-                  priceId: process.env.STRIPE_PRO_PRICE_ID || '',
+                  priceId: env.STRIPE_PRO_PRICE_ID || '',
                   limits: {
-                    cost: process.env.PRO_TIER_COST_LIMIT
-                      ? parseInt(process.env.PRO_TIER_COST_LIMIT)
-                      : 20,
+                    cost: env.PRO_TIER_COST_LIMIT ? parseInt(env.PRO_TIER_COST_LIMIT) : 20,
                     sharingEnabled: 1,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,
@@ -761,11 +756,9 @@ export const auth = betterAuth({
                 },
                 {
                   name: 'team',
-                  priceId: process.env.STRIPE_TEAM_PRICE_ID || '',
+                  priceId: env.STRIPE_TEAM_PRICE_ID || '',
                   limits: {
-                    cost: process.env.TEAM_TIER_COST_LIMIT
-                      ? parseInt(process.env.TEAM_TIER_COST_LIMIT)
-                      : 40, // $40 per seat
+                    cost: env.TEAM_TIER_COST_LIMIT ? parseInt(env.TEAM_TIER_COST_LIMIT) : 40, // $40 per seat
                     sharingEnabled: 1,
                     multiplayerEnabled: 1,
                     workspaceCollaborationEnabled: 1,
@@ -926,7 +919,7 @@ export const auth = betterAuth({
               try {
                 const { invitation, organization, inviter } = data
 
-                const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitation.id}`
+                const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/invite/${invitation.id}`
                 const inviterName = inviter.user?.name || 'A team member'
 
                 const html = await renderInvitationEmail(

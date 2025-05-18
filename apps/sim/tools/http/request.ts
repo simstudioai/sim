@@ -1,3 +1,4 @@
+import { getNodeEnv } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
 import { HttpMethod, TableRow, ToolConfig } from '../types'
@@ -108,7 +109,7 @@ const processUrl = (
 // Check if a URL needs proxy to avoid CORS/method restrictions
 const shouldUseProxy = (url: string): boolean => {
   // Skip proxying in test environment
-  if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+  if (getNodeEnv() === 'test') {
     return false
   }
 

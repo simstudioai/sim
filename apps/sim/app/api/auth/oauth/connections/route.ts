@@ -6,6 +6,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 const logger = createLogger('OAuthConnectionsAPI')
 
 interface GoogleIdToken {
@@ -40,7 +42,7 @@ export async function GET(request: NextRequest) {
       .where(eq(user.id, session.user.id))
       .limit(1)
 
-    const userEmail = userRecord.length > 0 ? userRecord[0].email : null
+    const userEmail = userRecord.length > 0 ? userRecord[0]?.email : null
 
     // Process accounts to determine connections
     const connections: any[] = []

@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { env } from './env'
 
 /**
  * Generates a short title for a chat based on the first message
@@ -6,7 +7,7 @@ import OpenAI from 'openai'
  * @returns A short title or null if API key is not available
  */
 export async function generateChatTitle(message: string): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = env.OPENAI_API_KEY
 
   if (!apiKey) {
     return null

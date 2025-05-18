@@ -5,6 +5,7 @@
  * It is separate from the user-facing logging system in logging.ts.
  */
 import chalk from 'chalk'
+import { env } from '../env'
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -55,7 +56,7 @@ const LOG_CONFIG = {
 }
 
 // Get current environment
-const ENV = process.env.NODE_ENV || 'development'
+const ENV = (process.env.NODE_ENV || 'development') as keyof typeof LOG_CONFIG
 const config = LOG_CONFIG[ENV] || LOG_CONFIG.development
 
 // Format objects for logging

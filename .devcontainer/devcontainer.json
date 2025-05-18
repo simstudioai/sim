@@ -38,7 +38,8 @@
         "rvest.vs-code-prettier-eslint",
         "mikestead.dotenv",
         "dsznajder.es7-react-js-snippets",
-        "steoates.autoimport"
+        "steoates.autoimport",
+        "oven.bun-vscode"
       ]
     }
   },
@@ -49,13 +50,12 @@
 
   "postStartCommand": "bash -c 'if [ ! -f ~/.bashrc ] || ! grep -q \"sim-start\" ~/.bashrc; then cp .devcontainer/.bashrc ~/.bashrc; fi'",
 
-  "remoteUser": "node",
+  "remoteUser": "bun",
 
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers-contrib/features/npm-package:1": {
-      "package": "typescript",
-      "version": "latest"
-    }
+    "ghcr.io/prulloac/devcontainer-features/bun:1": {
+       "version": "latest"
+     }
   }
 }

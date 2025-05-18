@@ -1,4 +1,5 @@
 import { GithubIcon } from '@/components/icons'
+import { env } from '@/lib/env'
 
 /**
  * Format a number to a human-readable format (e.g., 1000 -> 1k, 1100 -> 1.1k)
@@ -16,7 +17,7 @@ function formatNumber(num: number): string {
 }
 
 async function getGitHubStars() {
-  const token = process.env.GITHUB_TOKEN
+  const token = env.GITHUB_TOKEN
 
   try {
     const response = await fetch('https://api.github.com/repos/simstudioai/sim', {

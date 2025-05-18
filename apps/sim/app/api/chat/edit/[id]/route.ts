@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
@@ -70,7 +71,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Create a new result object without the password
     const { password, ...safeData } = chatInstance[0]
 
-    const isDevelopment = process.env.NODE_ENV === 'development'
+    const isDevelopment = env.NODE_ENV === 'development'
 
     const chatUrl = isDevelopment
       ? `http://${chatInstance[0].subdomain}.${getBaseDomain()}`
@@ -220,7 +221,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updatedSubdomain = subdomain || existingChat[0].subdomain
 
-      const isDevelopment = process.env.NODE_ENV === 'development'
+      const isDevelopment = env.NODE_ENV === 'development'
 
       const chatUrl = isDevelopment
         ? `http://${updatedSubdomain}.${getBaseDomain()}`

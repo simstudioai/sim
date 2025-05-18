@@ -1,12 +1,13 @@
 import * as React from 'react'
 import { Container, Img, Link, Section, Text } from '@react-email/components'
+import { env } from '@/lib/env'
 
 interface EmailFooterProps {
   baseUrl?: string
 }
 
 export const EmailFooter = ({
-  baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai',
+  baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai',
 }: EmailFooterProps) => {
   return (
     <Container>

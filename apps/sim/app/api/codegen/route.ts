@@ -1,6 +1,7 @@
 import { unstable_noStore as noStore } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
 export const dynamic = 'force-dynamic'
@@ -9,13 +10,13 @@ export const maxDuration = 60
 
 const logger = createLogger('GenerateCodeAPI')
 
-const openai = process.env.OPENAI_API_KEY
+const openai = env.OPENAI_API_KEY
   ? new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: env.OPENAI_API_KEY,
     })
   : null
 
-if (!process.env.OPENAI_API_KEY) {
+if (!env.OPENAI_API_KEY) {
   logger.warn('OPENAI_API_KEY not found. Code generation API will not function.')
 }
 
@@ -222,7 +223,7 @@ Example 3 (Array Input):
 Generate ONLY the raw body of a JavaScript function based on the user's request.
 The code should be executable within an 'async function(params, environmentVariables) {...}' context.
 - 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
-- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or process.env.
+- 'environmentVariables' (object): Contains environment variables. Reference these using the double curly brace syntax: '{{ENV_VAR_NAME}}'. Do NOT use 'environmentVariables.VAR_NAME' or env.
 
 IMPORTANT FORMATTING RULES:
 1.  Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'apiKey = {{SERVICE_API_KEY}}' not 'apiKey = "{{SERVICE_API_KEY}}"'). Our system replaces these placeholders before execution.

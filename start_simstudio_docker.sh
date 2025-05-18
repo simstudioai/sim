@@ -64,7 +64,7 @@ sleep 5
 
 # Apply migrations automatically
 echo "Applying database migrations..."
-docker compose exec simstudio bash -c "cd apps/sim && npm run db:push"
+docker compose exec simstudio bash -c "cd apps/sim && bun run db:push"
 
 echo "Sim Studio is now running at http://localhost:3000"
 echo "To view logs, run: docker compose logs -f simstudio" 

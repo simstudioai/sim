@@ -16,7 +16,7 @@ import {
   downloadFromS3,
   FileInfo,
   getPresignedUrl,
-  s3Client,
+  getS3Client,
   uploadToS3,
 } from './s3-client'
 
@@ -56,6 +56,8 @@ vi.mock('@/lib/logs/console-logger', () => ({
     debug: vi.fn(),
   }),
 }))
+
+const s3Client = getS3Client()
 
 describe('S3 Client', () => {
   let mockDate: Date

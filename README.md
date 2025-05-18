@@ -30,6 +30,7 @@ There are several ways to self-host Sim Studio:
 git clone https://github.com/simstudioai/sim.git
 
 # Create environment file and update with required environment variables (BETTER_AUTH_SECRET)
+cd apps/sim
 cp .env.example .env
 
 # Start Sim Studio using the provided script
@@ -122,7 +123,7 @@ services:
 3. Open the project in your editor
 4. Click "Reopen in Container" when prompted
 5. The environment will automatically be set up
-6. Run `npm run dev` in the terminal or use the `sim-start` alias
+6. Run `bun run dev` in the terminal or use the `sim-start` alias
 
 ### Option 3: Manual Setup
 
@@ -130,21 +131,22 @@ services:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/sim.git
+git clone https://github.com/simstudioai/sim.git
 cd sim
 
 # Install dependencies
-npm install
+bun install
 ```
 
 2. **Set Up Environment**
 
 ```bash
+cd apps/sim
 cp .env.example .env  # or create a new .env file
 
 # Configure your .env file with the required environment variables:
 # - Database connection (PostgreSQL)
-# - Authentication settings (Better-Auth Secret)
+# - Authentication settings (Better-Auth Secret,  Better-Auth URL)
 ```
 
 ⚠️ **Important Notes:**
@@ -158,7 +160,7 @@ cp .env.example .env  # or create a new .env file
 ```bash
 # Push the database schema
 cd apps/sim
-npx drizzle-kit push
+bunx drizzle-kit push
 ```
 
 4. **Start Development Server**
@@ -166,7 +168,7 @@ npx drizzle-kit push
 ```bash
 # Start the development server
 cd ../..
-npm run dev
+bun run dev
 ```
 
 5. **Open [http://localhost:3000](http://localhost:3000) in your browser**
@@ -174,6 +176,7 @@ npm run dev
 ## Tech Stack
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Runtime**: [Bun](https://bun.sh/)
 - **Database**: PostgreSQL with [Drizzle ORM](https://orm.drizzle.team)
 - **Authentication**: [Better Auth](https://better-auth.com)
 - **UI**: [Shadcn](https://ui.shadcn.com/), [Tailwind CSS](https://tailwindcss.com)

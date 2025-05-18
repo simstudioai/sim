@@ -6,21 +6,6 @@ const logger = createLogger('SyncCore')
  * Core sync types and utilities for optimistic state synchronization
  */
 
-/**
- * Simple utility to check if we're in localStorage mode
- * This is the single source of truth for this check
- */
-export function isLocalStorageMode(): boolean {
-  if (typeof window === 'undefined') return false
-
-  return (
-    localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
-    process.env.USE_LOCAL_STORAGE === 'true' ||
-    process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
-    process.env.DISABLE_DB_SYNC === 'true'
-  )
-}
-
 // Configuration for a sync operation
 export interface SyncConfig {
   // Required configuration
@@ -85,21 +70,6 @@ export async function performSync(config: SyncConfig): Promise<boolean> {
   syncState.inProgress.set(config.endpoint, true)
 
   try {
-    // In localStorage mode, just return success immediately - no need to sync to server
-    if (isLocalStorageMode()) {
-      // Still call onSyncSuccess to maintain expected behavior
-      if (config.onSyncSuccess) {
-        config.onSyncSuccess({
-          success: true,
-          message: 'Skipped sync in localStorage mode',
-        })
-      }
-
-      // Update last sync time
-      syncState.lastSyncTime.set(config.endpoint, Date.now())
-      return true
-    }
-
     // Get the payload to sync
     const payload = await Promise.resolve(config.preparePayload())
 

@@ -2,7 +2,6 @@
 
 import { createLogger } from '@/lib/logs/console-logger'
 import { SyncManager } from './sync'
-import { isLocalStorageMode } from './sync-core'
 import {
   fetchWorkflowsFromDB,
   isRegistryInitialized,
@@ -35,13 +34,6 @@ export async function initializeSyncManagers(): Promise<boolean> {
   initializing = true
 
   try {
-    // Skip DB sync in local storage mode
-    if (isLocalStorageMode()) {
-      managers = [workflowSync]
-      initialized = true
-      return true
-    }
-
     // Initialize sync managers
     managers = [workflowSync]
 

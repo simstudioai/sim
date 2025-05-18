@@ -1,5 +1,6 @@
 import { FreestyleSandboxes } from 'freestyle-sandboxes'
 import { createLogger } from '@/lib/logs/console-logger'
+import { env } from './env'
 
 const logger = createLogger('Freestyle')
 
@@ -16,7 +17,7 @@ export async function getFreestyleClient(): Promise<FreestyleSandboxes> {
 
   try {
     freestyleInstance = new FreestyleSandboxes({
-      apiKey: process.env.FREESTYLE_API_KEY!, // make sure to set this
+      apiKey: env.FREESTYLE_API_KEY!, // make sure to set this
     })
 
     return freestyleInstance

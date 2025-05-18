@@ -19,16 +19,22 @@ alias check-db="PGPASSWORD=postgres psql -h db -U postgres -c '\l'"
 
 # Sim Studio specific aliases
 alias logs="cd /workspace/apps/sim && tail -f logs/*.log 2>/dev/null || echo 'No log files found'"
-alias sim-start="cd /workspace && npm run dev"
-alias sim-migrate="cd /workspace/apps/sim && npx drizzle-kit push"
-alias sim-generate="cd /workspace/apps/sim && npx drizzle-kit generate"
-alias sim-rebuild="cd /workspace && npm run build && npm run dev"
-alias docs-dev="cd /workspace/apps/docs && npm run dev"
+alias sim-start="cd /workspace && bun run dev"
+alias sim-migrate="cd /workspace/apps/sim && bunx drizzle-kit push"
+alias sim-generate="cd /workspace/apps/sim && bunx drizzle-kit generate"
+alias sim-rebuild="cd /workspace && bun run build && bun run start"
+alias docs-dev="cd /workspace/apps/docs && bun run dev"
 
 # Turbo related commands
-alias turbo-build="cd /workspace && npx turbo run build"
-alias turbo-dev="cd /workspace && npx turbo run dev"
-alias turbo-test="cd /workspace && npx turbo run test"
+alias turbo-build="cd /workspace && bunx turbo run build"
+alias turbo-dev="cd /workspace && bunx turbo run dev"
+alias turbo-test="cd /workspace && bunx turbo run test"
+
+# Bun specific commands
+alias bun-update="cd /workspace && bun update"
+alias bun-add="cd /workspace && bun add"
+alias bun-pm="cd /workspace && bun pm"
+alias bun-canary="bun upgrade --canary"
 
 # Default to workspace directory
 cd /workspace 2>/dev/null || true
@@ -52,6 +58,12 @@ if [ -z "$SIM_WELCOME_SHOWN" ]; then
   echo "  turbo-build  - Build all apps using Turborepo"
   echo "  turbo-dev    - Start development mode for all apps"
   echo "  turbo-test   - Run tests for all packages"
+  echo ""
+  echo "Bun commands:"
+  echo "  bun-update   - Update dependencies"
+  echo "  bun-add      - Add a new dependency"
+  echo "  bun-pm       - Manage dependencies"
+  echo "  bun-canary   - Upgrade to the latest canary version of Bun"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 fi 

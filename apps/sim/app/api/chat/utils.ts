@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
@@ -18,7 +19,7 @@ declare global {
 }
 
 const logger = createLogger('ChatAuthUtils')
-const isDevelopment = process.env.NODE_ENV === 'development'
+const isDevelopment = env.NODE_ENV === 'development'
 
 // Simple encryption for the auth token
 export const encryptAuthToken = (subdomainId: string, type: string): string => {

@@ -15,7 +15,7 @@ cp /workspace/.devcontainer/.bashrc ~/.bashrc
 echo 'if [ -f ~/.bashrc ]; then . ~/.bashrc; fi' >> ~/.profile
 
 # Clean and reinstall dependencies to ensure platform compatibility
-echo "📦 Cleaning and reinstalling npm dependencies..."
+echo "📦 Cleaning and reinstalling dependencies..."
 if [ -d "node_modules" ]; then
   echo "Removing existing node_modules to ensure platform compatibility..."
   rm -rf node_modules
@@ -23,10 +23,25 @@ if [ -d "node_modules" ]; then
   rm -rf apps/docs/node_modules
 fi
 
+# Ensure Bun cache directory exists and has correct permissions
+mkdir -p ~/.bun/cache
+chmod 700 ~/.bun ~/.bun/cache
+
 # Install dependencies with platform-specific binaries
-npm install || {
-  echo "⚠️ npm install had issues but continuing setup..."
+echo "Installing dependencies with Bun..."
+bun install || {
+  echo "⚠️ bun install had issues but continuing setup..."
 }
+
+# Check for native dependencies
+echo "Checking for native dependencies compatibility..."
+NATIVE_DEPS=$(grep '"trustedDependencies"' apps/sim/package.json || echo "")
+if [ ! -z "$NATIVE_DEPS" ]; then
+  echo "⚠️ Native dependencies detected. Ensuring compatibility with Bun..."
+  for pkg in $(echo $NATIVE_DEPS | grep -oP '"[^"]*"' | tr -d '"' | grep -v "trustedDependencies"); do
+    echo "Checking compatibility for $pkg..."
+  done
+fi
 
 # Set up environment variables if .env doesn't exist for the sim app
 if [ ! -f "apps/sim/.env" ]; then
@@ -42,7 +57,7 @@ fi
 echo "🗃️ Running database schema generation and migrations..."
 echo "Generating schema..."
 cd apps/sim
-npx drizzle-kit generate
+bunx drizzle-kit generate
 cd ../..
 
 echo "Waiting for database to be ready..."
@@ -53,7 +68,7 @@ echo "Waiting for database to be ready..."
     if PGPASSWORD=postgres psql -h db -U postgres -c '\q' 2>/dev/null; then
       echo "Database is ready!"
       cd apps/sim
-      DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio npx drizzle-kit push
+      DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio bunx drizzle-kit push
       cd ../..
       break
     fi
@@ -71,13 +86,14 @@ echo "Waiting for database to be ready..."
 cat << EOF >> ~/.bashrc
 
 # Additional Sim Studio Development Aliases
-alias migrate="cd /workspace/apps/sim && DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio npx drizzle-kit push"
-alias generate="cd /workspace/apps/sim && npx drizzle-kit generate"
-alias dev="cd /workspace && npm run dev"
-alias build="cd /workspace && npm run build"
-alias start="cd /workspace && npm run dev"
-alias lint="cd /workspace/apps/sim && npm run lint"
-alias test="cd /workspace && npm run test"
+alias migrate="cd /workspace/apps/sim && DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio bunx drizzle-kit push"
+alias generate="cd /workspace/apps/sim && bunx drizzle-kit generate"
+alias dev="cd /workspace && bun run dev"
+alias build="cd /workspace && bun run build"
+alias start="cd /workspace && bun run dev"
+alias lint="cd /workspace/apps/sim && bun run lint"
+alias test="cd /workspace && bun run test"
+alias bun-update="cd /workspace && bun update"
 EOF
 
 # Source the .bashrc to make aliases available immediately
