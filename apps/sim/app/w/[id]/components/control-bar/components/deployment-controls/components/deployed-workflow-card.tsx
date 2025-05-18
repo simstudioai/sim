@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logs/console-logger'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
@@ -114,16 +116,22 @@ export function DeployedWorkflowCard({
             {showingDeployed ? 'Deployed Workflow' : 'Current Workflow'}
           </h3>
           {/* Controls */}
-          <div className='flex items-center gap-4'>
+          <div className="flex items-center gap-2">
             {/* Version toggle - only show if there's a current version */}
             {currentWorkflowState && (
-              <Button
-                variant='outline'
-                size='sm'
-                onClick={() => setShowingDeployed(!showingDeployed)}
-              >
-                {showingDeployed ? 'Show Current' : 'Show Deployed'}
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Label htmlFor="workflow-version-toggle" className="text-sm text-muted-foreground">
+                  Current
+                </Label>
+                <Switch 
+                  id="workflow-version-toggle"
+                  checked={showingDeployed} 
+                  onCheckedChange={setShowingDeployed}
+                />
+                <Label htmlFor="workflow-version-toggle" className="text-sm text-muted-foreground">
+                  Deployed
+                </Label>
+              </div>
             )}
           </div>
         </div>
