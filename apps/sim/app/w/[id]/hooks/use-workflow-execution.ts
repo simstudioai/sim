@@ -114,7 +114,7 @@ export function useWorkflowExecution() {
       for (const [key, val] of Object.entries(currentBlockConfigInputs || {})) {
         const currVal = getValue(blockKey, key);
 
-        if (val.required && ((typeof(currVal) === "string") ? currVal.length == 0 : currVal == null)) {
+        if (val.required && ((typeof(currVal) === "string") ? currVal.length === 0 : currVal === null)) {
           const keySubBlock = currentBlockConfig?.subBlocks.find((sub) => sub.id == key);
           addNotification('error', `"${keySubBlock?.title}" is required for "${value.name}" block.`, activeWorkflowId)
           return false
