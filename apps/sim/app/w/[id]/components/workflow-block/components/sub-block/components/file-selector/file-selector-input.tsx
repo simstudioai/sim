@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
@@ -10,7 +9,6 @@ import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 
-const logger = createLogger('FileSelectorInput')
 
 interface FileSelectorInputProps {
   blockId: string
@@ -34,16 +32,6 @@ export function FileSelectorInput({
   const [issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
   const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] FileSelectorInput for ${blockId}:${subBlock.id}`, {
-        isPreview,
-        propValue
-      });
-    }
-  }, [isPreview, propValue, blockId, subBlock.id]);
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'

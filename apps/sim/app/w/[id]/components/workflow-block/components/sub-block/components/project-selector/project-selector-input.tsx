@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 
-const logger = createLogger('ProjectSelectorInput')
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -30,16 +28,6 @@ export function ProjectSelectorInput({
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] ProjectSelectorInput for ${blockId}:${subBlock.id}`, {
-        isPreview,
-        propValue
-      });
-    }
-  }, [isPreview, propValue, blockId, subBlock.id]);
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
