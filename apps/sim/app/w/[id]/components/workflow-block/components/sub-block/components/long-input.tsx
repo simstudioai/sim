@@ -48,17 +48,6 @@ export function LongInput({
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] LongInput for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        value
-      });
-    }
-  }, [isPreview, propValue, value, blockId, subBlockId]);
-
   // Calculate initial height based on rows prop with reasonable defaults
   const getInitialHeight = () => {
     // Use provided rows or default, then convert to pixels with a minimum
