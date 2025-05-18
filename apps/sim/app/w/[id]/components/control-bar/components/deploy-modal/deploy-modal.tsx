@@ -630,7 +630,6 @@ export function DeployModal({
                       onUndeploy={handleUndeploy}
                       isSubmitting={isSubmitting}
                       isUndeploying={isUndeploying}
-                      needsRedeployment={needsRedeployment}
                       workflowId={workflowId}
                       deployedState={deployedState}
                       isLoadingDeployedState={isLoadingDeployedState}
