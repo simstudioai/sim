@@ -33,17 +33,6 @@ export function Dropdown({
   const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true, isPreview, propValue)
   const [storeInitialized, setStoreInitialized] = useState(false)
 
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] Dropdown for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        value
-      });
-    }
-  }, [isPreview, propValue, value, blockId, subBlockId]);
-
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
     return typeof options === 'function' ? options() : options
