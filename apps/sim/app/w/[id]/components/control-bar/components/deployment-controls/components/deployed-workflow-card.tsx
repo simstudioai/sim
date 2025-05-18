@@ -55,7 +55,7 @@ export function DeployedWorkflowCard({
 
   // Generate a unique key for the workflow preview
   const previewKey = useMemo(() => {
-    return `${showingDeployed ? 'deployed' : 'current'}-preview-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return `${showingDeployed ? 'deployed' : 'current'}-preview`;
   }, [showingDeployed]);
 
   return (

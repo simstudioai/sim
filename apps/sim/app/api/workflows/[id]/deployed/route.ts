@@ -17,7 +17,7 @@ function addNoCacheHeaders(response: NextResponse): NextResponse {
   return response
 }
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id } = await params
 

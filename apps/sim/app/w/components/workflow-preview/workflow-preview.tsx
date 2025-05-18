@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useEffect } from 'react'
+import { cloneDeep } from 'lodash'
 import ReactFlow, {
   Background,
   ConnectionLineType,
@@ -126,7 +127,7 @@ export function WorkflowPreview({
       }
 
       // Create a deep clone of subBlocks to avoid any references to the original state
-      const subBlocksClone = block.subBlocks ? JSON.parse(JSON.stringify(block.subBlocks)) : {};
+      const subBlocksClone = block.subBlocks ? cloneDeep(block.subBlocks) : {};
 
       nodeArray.push({
         id: blockId,

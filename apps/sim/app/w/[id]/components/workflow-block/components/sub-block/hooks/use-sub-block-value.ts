@@ -207,49 +207,11 @@ export function useSubBlockValue<T = any>(
         directValue,
         isPreview
       });
+    } else if (!isPreview && previewDataRef.current.isInPreview) {
+      // Reset preview flag when isPreview prop changes to false
+      previewDataRef.current.isInPreview = false;
     }
   }, [isPreview, directValue, blockId, subBlockId]);
-
-  // Check for preview mode first and get direct subblock values if available
-  useEffect(() => {
-    // Skip DOM-based detection if already in preview mode with direct values
-    if (isPreview && directValue !== undefined) return;
-    
-    try {
-      // Try to find if this component is within a preview parent
-      const parentBlock = document.querySelector(`[data-id="${blockId}"]`);
-      if (parentBlock) {
-        const isPreviewContext = parentBlock.closest('.preview-mode') != null;
-        
-        // Get direct subblock values from parent's data props if in preview mode
-        if (isPreviewContext) {
-          const dataProps = parentBlock.getAttribute('data-props');
-          if (dataProps) {
-            const parsedProps = JSON.parse(dataProps);
-            const directValue = parsedProps?.data?.subBlockValues?.[subBlockId];
-            
-            // If we have direct values in preview mode, use them
-            if (directValue !== undefined && directValue !== null) {
-              // Save the values in our ref
-              previewDataRef.current = {
-                isInPreview: true,
-                directValue: directValue
-              };
-              
-              // Update valueRef directly to use the preview value
-              valueRef.current = directValue;
-              
-            }
-          }
-        } else {
-          // Reset preview flag if we're no longer in preview mode
-          previewDataRef.current.isInPreview = false;
-        }
-      }
-    } catch (e) {
-      // Ignore errors in preview detection
-    }
-  }, [blockId, subBlockId, isPreview, directValue, storeValue]);
 
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
@@ -279,7 +241,7 @@ export function useSubBlockValue<T = any>(
       // Otherwise use the store value or initial value
       valueRef.current = storeValue !== undefined ? storeValue : initialValue;
     }
-  }, [])
+  }, [storeValue, initialValue])
 
   // Update the ref if the store value changes
   // This ensures we're always working with the latest value
