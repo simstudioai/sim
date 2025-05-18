@@ -319,19 +319,6 @@ export function WebhookConfig({
 
   // Store provider-specific configuration
   const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig', false, isPreview, propValue?.providerConfig)
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] WebhookConfig for ${blockId}`, {
-        isPreview,
-        propValue,
-        webhookProvider,
-        webhookPath,
-        providerConfig
-      });
-    }
-  }, [isPreview, propValue, webhookProvider, webhookPath, providerConfig, blockId]);
   
   // Reset provider config when provider changes
   useEffect(() => {

@@ -2,15 +2,9 @@ import { useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-<<<<<<< HEAD
-=======
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { createLogger } from '@/lib/logs/console-logger'
->>>>>>> 6f129dfc (fix: subblock rerender fixed)
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
@@ -33,8 +27,6 @@ import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
 import { WebhookConfig } from './components/webhook/webhook'
 
-// Add logger
-const logger = createLogger('SubBlock')
 
 interface SubBlockProps {
   blockId: string
@@ -51,17 +43,6 @@ export function SubBlock({
   isPreview = false, 
   previewValue = undefined 
 }: SubBlockProps) {
-  // Add debugging logs to trace parent context
-  useEffect(() => {
-    logger.info(`[TRACE] SubBlock ${config.id} for block ${blockId}`, {
-      blockId,
-      subBlockId: config.id,
-      subBlockTitle: config.title,
-      isPreview: isPreview,
-      previewValue: previewValue,
-      usingGlobalStore: !isPreview
-    });
-  }, [blockId, config.id, config.title, isPreview, previewValue]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()

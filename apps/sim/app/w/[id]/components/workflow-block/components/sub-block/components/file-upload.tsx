@@ -4,14 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-const logger = createLogger('FileUpload')
 
 interface FileUploadProps {
   blockId: string
@@ -65,17 +63,6 @@ export function FileUpload({
   // Stores
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] FileUpload for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        value
-      });
-    }
-  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   /**
    * Opens file dialog

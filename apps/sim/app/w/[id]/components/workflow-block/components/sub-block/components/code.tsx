@@ -201,18 +201,7 @@ export function Code({
       clearTimeout(timeoutId)
       resizeObserver.disconnect()
     }
-  }, [code])
-
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] Code for ${blockId}:${subBlockId}`, {
-        isPreview,
-        propValue,
-        storeValue
-      });
-    }
-  }, [isPreview, propValue, storeValue, blockId, subBlockId]);
+  }, [code])  
 
   // Handlers
   const handleDrop = (e: React.DragEvent) => {

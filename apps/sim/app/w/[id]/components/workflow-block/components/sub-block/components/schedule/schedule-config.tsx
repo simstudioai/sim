@@ -57,18 +57,6 @@ export function ScheduleConfig({
   const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow', false, isPreview, propValue?.startWorkflow)
   const isScheduleEnabled = startWorkflow === 'schedule'
 
-  // Log when in preview mode to verify it's working
-  useEffect(() => {
-    if (isPreview) {
-      logger.info(`[PREVIEW] ScheduleConfig for ${blockId}`, {
-        isPreview,
-        propValue,
-        scheduleType,
-        startWorkflow
-      });
-    }
-  }, [isPreview, propValue, scheduleType, startWorkflow, blockId]);
-
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
     setIsLoading(true)
