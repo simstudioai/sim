@@ -1,6 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { Slider } from '@/components/ui/slider'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('SliderInput')
 
 interface SliderInputProps {
   min?: number
@@ -10,6 +13,8 @@ interface SliderInputProps {
   subBlockId: string
   step?: number
   integer?: boolean
+  isPreview?: boolean
+  value?: number
 }
 
 export function SliderInput({
@@ -20,8 +25,21 @@ export function SliderInput({
   subBlockId,
   step = 0.1,
   integer = false,
+  isPreview = false,
+  value: propValue
 }: SliderInputProps) {
-  const [value, setValue] = useSubBlockValue<number>(blockId, subBlockId)
+  const [value, setValue] = useSubBlockValue<number>(blockId, subBlockId, false, isPreview, propValue)
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] SliderInput for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   // Clamp the value within bounds while preserving relative position when possible
   const normalizedValue = useMemo(() => {

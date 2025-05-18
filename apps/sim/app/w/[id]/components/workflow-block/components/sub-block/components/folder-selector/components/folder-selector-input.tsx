@@ -2,41 +2,66 @@
 
 import { useEffect, useState } from 'react'
 import type { SubBlockConfig } from '@/blocks/types'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type FolderInfo, FolderSelector } from '../folder-selector'
+
+const logger = createLogger('FolderSelectorInput')
 
 interface FolderSelectorInputProps {
   blockId: string
   subBlock: SubBlockConfig
   disabled?: boolean
+  isPreview?: boolean
+  value?: string
 }
 
 export function FolderSelectorInput({
   blockId,
   subBlock,
   disabled = false,
+  isPreview = false,
+  value: propValue
 }: FolderSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
 
-  // Get the current value from the store
+  // Log when in preview mode to verify it's working
   useEffect(() => {
-    const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
-      setSelectedFolderId(value)
-    } else {
-      const defaultValue = 'INBOX'
-      setSelectedFolderId(defaultValue)
-      setValue(blockId, subBlock.id, defaultValue)
+    if (isPreview) {
+      logger.info(`[PREVIEW] FolderSelectorInput for ${blockId}:${subBlock.id}`, {
+        isPreview,
+        propValue
+      });
     }
-  }, [blockId, subBlock.id, getValue, setValue])
+  }, [isPreview, propValue, blockId, subBlock.id]);
+
+  // Get the current value from the store or prop value if in preview mode
+  useEffect(() => {
+    if (isPreview && propValue !== undefined) {
+      setSelectedFolderId(propValue);
+    } else {
+      const value = getValue(blockId, subBlock.id);
+      if (value && typeof value === 'string') {
+        setSelectedFolderId(value);
+      } else {
+        const defaultValue = 'INBOX';
+        setSelectedFolderId(defaultValue);
+        if (!isPreview) {
+          setValue(blockId, subBlock.id, defaultValue);
+        }
+      }
+    }
+  }, [blockId, subBlock.id, getValue, setValue, isPreview, propValue]);
 
   // Handle folder selection
   const handleFolderChange = (folderId: string, info?: FolderInfo) => {
-    setSelectedFolderId(folderId)
-    setFolderInfo(info || null)
-    setValue(blockId, subBlock.id, folderId)
+    setSelectedFolderId(folderId);
+    setFolderInfo(info || null);
+    if (!isPreview) {
+      setValue(blockId, subBlock.id, folderId);
+    }
   }
 
   return (

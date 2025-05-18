@@ -5,13 +5,18 @@ import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-drop
 import { formatDisplayText } from '@/components/ui/formatted-text'
 import { Input } from '@/components/ui/input'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('Table')
 
 interface TableProps {
   columns: string[]
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  value?: TableRow[]
 }
 
 interface TableRow {
@@ -19,8 +24,19 @@ interface TableRow {
   cells: Record<string, string>
 }
 
-export function Table({ columns, blockId, subBlockId }: TableProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+export function Table({ columns, blockId, subBlockId, isPreview = false, value: propValue }: TableProps) {
+  const [value, setValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] Table for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   // Create refs for input elements
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())

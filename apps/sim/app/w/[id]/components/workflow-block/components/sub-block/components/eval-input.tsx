@@ -3,7 +3,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('EvalInput')
 
 interface EvalMetric {
   id: string
@@ -18,6 +21,8 @@ interface EvalMetric {
 interface EvalInputProps {
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  value?: EvalMetric[]
 }
 
 // Default values
@@ -28,10 +33,19 @@ const DEFAULT_METRIC: EvalMetric = {
   range: { min: 0, max: 1 },
 }
 
-export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
+export function EvalInput({ blockId, subBlockId, isPreview = false, value: propValue }: EvalInputProps) {
   // State hooks
-  const [value, setValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
+  const [value, setValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId, false, isPreview, propValue)
   const metrics = value || [DEFAULT_METRIC]
+
+  // Log when in preview mode to verify it's working
+  if (isPreview) {
+    logger.info(`[PREVIEW] EvalInput for ${blockId}:${subBlockId}`, {
+      isPreview,
+      propValue,
+      value
+    });
+  }
 
   // Metric operations
   const addMetric = () => {

@@ -7,19 +7,35 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+
+const logger = createLogger('DateInput')
 
 interface DateInputProps {
   blockId: string
   subBlockId: string
   placeholder?: string
+  isPreview?: boolean
+  value?: string
 }
 
-export function DateInput({ blockId, subBlockId, placeholder }: DateInputProps) {
-  const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true)
+export function DateInput({ blockId, subBlockId, placeholder, isPreview = false, value: propValue }: DateInputProps) {
+  const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true, isPreview, propValue)
   const addNotification = useNotificationStore((state) => state.addNotification)
   const date = value ? new Date(value) : undefined
+
+  // Log when in preview mode to verify it's working
+  React.useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] DateInput for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   const isPastDate = React.useMemo(() => {
     if (!date) return false
