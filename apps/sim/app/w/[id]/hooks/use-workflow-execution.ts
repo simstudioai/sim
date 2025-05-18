@@ -12,9 +12,11 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getBlock } from '@/blocks'
 import { Executor } from '@/executor'
 import { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
+import { useSubBlockStore } from '@/stores/workflows'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -27,6 +29,7 @@ export function useWorkflowExecution() {
   const { getAllVariables } = useEnvironmentStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const { getVariablesByWorkflowId, variables } = useVariablesStore()
+  const { getValue } = useSubBlockStore();
   const {
     isExecuting,
     isDebugging,
@@ -100,10 +103,35 @@ export function useWorkflowExecution() {
     }
   }
 
+  const handleCheckRequiredFieldsOfAllBlocks = useCallback(() => {
+    for (const [blockKey, value] of Object.entries(blocks)) {
+      if(value.type === "starter") continue;
+
+      const currentBlockConfig = getBlock(value.type);
+      const currentBlockConfigInputs = currentBlockConfig?.inputs
+
+
+      for (const [key, val] of Object.entries(currentBlockConfigInputs || {})) {
+        const currVal = getValue(blockKey, key);
+
+        if (val.required && ((typeof(currVal) === "string") ? currVal.length == 0 : currVal == null)) {
+          const keySubBlock = currentBlockConfig?.subBlocks.find((sub) => sub.id == key);
+          addNotification('error', `"${keySubBlock?.title}" is required for "${value.name}" block.`, activeWorkflowId)
+          return false
+        }
+      }
+    }
+
+
+    return true;
+  }, [blocks, getBlock, addNotification, activeWorkflowId])
+
   const handleRunWorkflow = useCallback(
     async (workflowInput?: any) => {
       if (!activeWorkflowId) return
 
+      if (!handleCheckRequiredFieldsOfAllBlocks()) return
+      
       // Reset execution result and set execution state
       setExecutionResult(null)
       setIsExecuting(true)
