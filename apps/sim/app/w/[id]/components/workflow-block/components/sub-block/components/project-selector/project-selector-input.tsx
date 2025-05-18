@@ -3,17 +3,22 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SubBlockConfig } from '@/blocks/types'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 import { type LinearProjectInfo, LinearProjectSelector } from './components/linear-project-selector'
 import { type LinearTeamInfo, LinearTeamSelector } from './components/linear-team-selector'
 
+const logger = createLogger('ProjectSelectorInput')
+
 interface ProjectSelectorInputProps {
   blockId: string
   subBlock: SubBlockConfig
   disabled?: boolean
   onProjectSelect?: (projectId: string) => void
+  isPreview?: boolean
+  value?: string
 }
 
 export function ProjectSelectorInput({
@@ -21,10 +26,22 @@ export function ProjectSelectorInput({
   subBlock,
   disabled = false,
   onProjectSelect,
+  isPreview = false,
+  value: propValue
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [_projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] ProjectSelectorInput for ${blockId}:${subBlock.id}`, {
+        isPreview,
+        propValue
+      });
+    }
+  }, [isPreview, propValue, blockId, subBlock.id]);
 
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
@@ -35,13 +52,17 @@ export function ProjectSelectorInput({
   const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
 
-  // Get the current value from the store
+  // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
-      setSelectedProjectId(value)
+    if (isPreview && propValue !== undefined) {
+      setSelectedProjectId(propValue);
+    } else {
+      const value = getValue(blockId, subBlock.id);
+      if (value && typeof value === 'string') {
+        setSelectedProjectId(value);
+      }
     }
-  }, [blockId, subBlock.id, getValue])
+  }, [blockId, subBlock.id, getValue, isPreview, propValue]);
 
   // Handle project selection
   const handleProjectChange = (

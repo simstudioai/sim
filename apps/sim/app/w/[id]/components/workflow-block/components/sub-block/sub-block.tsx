@@ -2,11 +2,6 @@ import { useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-<<<<<<< HEAD
-=======
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { createLogger } from '@/lib/logs/console-logger'
->>>>>>> 6f129dfc (fix: subblock rerender fixed)
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -34,8 +29,6 @@ import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
 import { WebhookConfig } from './components/webhook/webhook'
 
-// Add logger
-const logger = createLogger('SubBlock')
 
 interface SubBlockProps {
   blockId: string
@@ -52,18 +45,7 @@ export function SubBlock({
   isPreview = false, 
   previewValue = undefined 
 }: SubBlockProps) {
-  // Add debugging logs to trace parent context
-  useEffect(() => {
-    logger.info(`[TRACE] SubBlock ${config.id} for block ${blockId}`, {
-      blockId,
-      subBlockId: config.id,
-      subBlockTitle: config.title,
-      isPreview: isPreview,
-      previewValue: previewValue,
-      usingGlobalStore: !isPreview
-    });
-  }, [blockId, config.id, config.title, isPreview, previewValue]);
-
+  
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
   }
@@ -131,10 +113,18 @@ export function SubBlock({
             defaultValue={(config.min || 0) + ((config.max || 100) - (config.min || 0)) / 2}
             step={config.step}
             integer={config.integer}
+            isPreview={isPreview}
+            value={directValue}
           />
         )
       case 'table':
-        return <Table blockId={blockId} subBlockId={config.id} columns={config.columns ?? []} />
+        return <Table 
+          blockId={blockId} 
+          subBlockId={config.id} 
+          columns={config.columns ?? []} 
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'code':
         return (
           <Code
@@ -144,12 +134,25 @@ export function SubBlock({
             placeholder={config.placeholder}
             language={config.language}
             generationType={config.generationType}
+            isPreview={isPreview}
+            value={directValue}
           />
         )
       case 'switch':
-        return <Switch blockId={blockId} subBlockId={config.id} title={config.title ?? ''} />
+        return <Switch 
+          blockId={blockId} 
+          subBlockId={config.id} 
+          title={config.title ?? ''} 
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'tool-input':
-        return <ToolInput blockId={blockId} subBlockId={config.id} />
+        return <ToolInput 
+          blockId={blockId} 
+          subBlockId={config.id}
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'checkbox-list':
         return (
           <CheckboxList
@@ -158,21 +161,46 @@ export function SubBlock({
             title={config.title ?? ''}
             options={config.options as { label: string; id: string }[]}
             layout={config.layout}
+            isPreview={isPreview}
+            value={directValue}
           />
         )
       case 'condition-input':
         return (
-          <ConditionInput blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
+          <ConditionInput 
+            blockId={blockId} 
+            subBlockId={config.id} 
+            isConnecting={isConnecting}
+            isPreview={isPreview}
+            value={directValue}
+          />
         )
       case 'eval-input':
-        return <EvalInput blockId={blockId} subBlockId={config.id} />
+        return <EvalInput 
+          blockId={blockId} 
+          subBlockId={config.id}
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'date-input':
         return (
-          <DateInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+          <DateInput 
+            blockId={blockId} 
+            subBlockId={config.id} 
+            placeholder={config.placeholder}
+            isPreview={isPreview}
+            value={directValue}
+          />
         )
       case 'time-input':
         return (
-          <TimeInput blockId={blockId} subBlockId={config.id} placeholder={config.placeholder} />
+          <TimeInput 
+            blockId={blockId} 
+            subBlockId={config.id} 
+            placeholder={config.placeholder}
+            isPreview={isPreview}
+            value={directValue}
+          />
         )
       case 'file-upload':
         return (
@@ -182,20 +210,34 @@ export function SubBlock({
             acceptedTypes={config.acceptedTypes || '*'}
             multiple={config.multiple === true}
             maxSize={config.maxSize}
+            isPreview={isPreview}
+            value={directValue}
           />
         )
       case 'webhook-config':
         return (
-          <WebhookConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
+          <WebhookConfig 
+            blockId={blockId} 
+            subBlockId={config.id} 
+            isConnecting={isConnecting} 
+            isPreview={isPreview}
+            value={directValue}
+          />
         )
       case 'schedule-config':
         return (
-          <ScheduleConfig blockId={blockId} subBlockId={config.id} isConnecting={isConnecting} />
+          <ScheduleConfig 
+            blockId={blockId} 
+            subBlockId={config.id} 
+            isConnecting={isConnecting}
+            isPreview={isPreview}
+            value={directValue}
+          />
         )
       case 'oauth-input':
         return (
           <CredentialSelector
-            value={typeof config.value === 'string' ? config.value : ''}
+            value={isPreview && directValue ? directValue : (typeof config.value === 'string' ? config.value : '')}
             onChange={(value) => {
               // Use the workflow store to update the value
               const event = new CustomEvent('update-subblock-value', {
@@ -214,15 +256,36 @@ export function SubBlock({
           />
         )
       case 'file-selector':
-        return <FileSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+        return <FileSelectorInput 
+          blockId={blockId} 
+          subBlock={config} 
+          disabled={isConnecting}
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'project-selector':
-        return <ProjectSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
-      case 'channel-selector':
-        return <ChannelSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+        return <ProjectSelectorInput 
+          blockId={blockId} 
+          subBlock={config} 
+          disabled={isConnecting}
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'folder-selector':
-        return <FolderSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+        return <FolderSelectorInput 
+          blockId={blockId} 
+          subBlock={config} 
+          disabled={isConnecting}
+          isPreview={isPreview}
+          value={directValue}
+        />
       case 'input-format':
-        return <InputFormat blockId={blockId} subBlockId={config.id} />
+        return <InputFormat 
+          blockId={blockId} 
+          subBlockId={config.id}
+          isPreview={isPreview}
+          value={directValue}
+        />
       default:
         return <div>Unknown input type: {config.type}</div>
     }

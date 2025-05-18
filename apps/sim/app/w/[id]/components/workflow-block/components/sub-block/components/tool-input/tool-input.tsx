@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -31,6 +31,8 @@ import { ToolCommand } from './components/tool-command/tool-command'
 interface ToolInputProps {
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  value?: StoredTool[]
 }
 
 interface StoredTool {
@@ -270,8 +272,8 @@ const shouldBePasswordField = (blockType: string, paramId: string): boolean => {
   return false
 }
 
-export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+export function ToolInput({ blockId, subBlockId, isPreview = false, value: propValue }: ToolInputProps) {
+  const [value, setValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)

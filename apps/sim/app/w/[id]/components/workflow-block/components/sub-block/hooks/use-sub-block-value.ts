@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
-<<<<<<< HEAD
 import { getProviderFromModel } from '@/providers/utils'
-=======
 import { createLogger } from '@/lib/logs/console-logger'
->>>>>>> 6f129dfc (fix: subblock rerender fixed)
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -162,13 +159,9 @@ function storeApiKeyValue(
 export function useSubBlockValue<T = any>(
   blockId: string,
   subBlockId: string,
-<<<<<<< HEAD
-  triggerWorkflowUpdate = false
-=======
   triggerWorkflowUpdate: boolean = false,
   isPreview: boolean = false,
   directValue?: T
->>>>>>> 6f129dfc (fix: subblock rerender fixed)
 ): readonly [T | null, (value: T) => void] {
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])

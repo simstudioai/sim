@@ -19,9 +19,17 @@ interface ScheduleConfigProps {
   blockId: string
   subBlockId?: string
   isConnecting: boolean
+  isPreview?: boolean
+  value?: any
 }
 
-export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleConfigProps) {
+export function ScheduleConfig({ 
+  blockId, 
+  subBlockId, 
+  isConnecting, 
+  isPreview = false,
+  value: propValue 
+}: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
@@ -42,12 +50,24 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const setScheduleStatus = useWorkflowStore((state) => state.setScheduleStatus)
 
   // Get the schedule type from the block state
-  const [scheduleType] = useSubBlockValue(blockId, 'scheduleType')
+  const [scheduleType] = useSubBlockValue(blockId, 'scheduleType', false, isPreview, propValue?.scheduleType)
 
   // Get the startWorkflow value to determine if scheduling is enabled
   // and expose the setter so we can update it
-  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
-  const _isScheduleEnabled = startWorkflow === 'schedule'
+  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow', false, isPreview, propValue?.startWorkflow)
+  const isScheduleEnabled = startWorkflow === 'schedule'
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] ScheduleConfig for ${blockId}`, {
+        isPreview,
+        propValue,
+        scheduleType,
+        startWorkflow
+      });
+    }
+  }, [isPreview, propValue, scheduleType, startWorkflow, blockId]);
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {

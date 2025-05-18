@@ -287,9 +287,17 @@ interface WebhookConfigProps {
   blockId: string
   subBlockId?: string
   isConnecting: boolean
+  isPreview?: boolean
+  value?: any
 }
 
-export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConfigProps) {
+export function WebhookConfig({ 
+  blockId, 
+  subBlockId, 
+  isConnecting, 
+  isPreview = false, 
+  value: propValue 
+}: WebhookConfigProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -304,21 +312,34 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
 
   // Get the webhook provider from the block state
-  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
+  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider', false, isPreview, propValue?.webhookProvider)
 
   // Store the webhook path
-  const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
+  const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath', false, isPreview, propValue?.webhookPath)
 
   // Store provider-specific configuration
-  const [_providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig', false, isPreview, propValue?.providerConfig)
 
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] WebhookConfig for ${blockId}`, {
+        isPreview,
+        propValue,
+        webhookProvider,
+        webhookPath,
+        providerConfig
+      });
+    }
+  }, [isPreview, propValue, webhookProvider, webhookPath, providerConfig, blockId]);
+  
   // Reset provider config when provider changes
   useEffect(() => {
-    if (webhookProvider) {
+    if (webhookProvider && !isPreview) {
       // Reset the provider config when the provider changes
       setProviderConfig({})
     }
-  }, [webhookProvider, setProviderConfig])
+  }, [webhookProvider, setProviderConfig, isPreview])
 
   // Store the actual provider from the database
   const [actualProvider, setActualProvider] = useState<string | null>(null)

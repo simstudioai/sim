@@ -25,6 +25,8 @@ interface CodeProps {
   placeholder?: string
   language?: 'javascript' | 'json'
   generationType?: 'javascript-function-body' | 'json-schema'
+  isPreview?: boolean
+  value?: string
 }
 
 if (typeof document !== 'undefined') {
@@ -52,6 +54,8 @@ export function Code({
   placeholder = 'Write JavaScript...',
   language = 'javascript',
   generationType = 'javascript-function-body',
+  isPreview = false,
+  value: propValue
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder =
@@ -60,7 +64,7 @@ export function Code({
       : 'Describe the JavaScript code to generate...'
 
   // State management
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
   const [code, setCode] = useState<string>('')
   const [_lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
@@ -198,6 +202,17 @@ export function Code({
       resizeObserver.disconnect()
     }
   }, [code])
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] Code for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        storeValue
+      });
+    }
+  }, [isPreview, propValue, storeValue, blockId, subBlockId]);
 
   // Handlers
   const handleDrop = (e: React.DragEvent) => {

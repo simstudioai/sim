@@ -33,6 +33,8 @@ interface ConditionInputProps {
   blockId: string
   subBlockId: string
   isConnecting: boolean
+  isPreview?: boolean
+  value?: string
 }
 
 // Generate a stable ID based on the blockId and a suffix
@@ -40,8 +42,8 @@ const generateStableId = (blockId: string, suffix: string): string => {
   return `${blockId}-${suffix}`
 }
 
-export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionInputProps) {
-  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+export function ConditionInput({ blockId, subBlockId, isConnecting, isPreview = false, value: propValue }: ConditionInputProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
   const editorRef = useRef<HTMLDivElement>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<{
     [key: string]: number[]
@@ -508,6 +510,17 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       }
     })
   }, [conditionalBlocks.length])
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] ConditionInput for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        storeValue
+      });
+    }
+  }, [isPreview, propValue, storeValue, blockId, subBlockId]);
 
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {

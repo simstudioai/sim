@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { ChevronDown, Plus, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+
+const logger = createLogger('InputFormat')
 
 interface InputField {
   id: string
@@ -22,6 +26,8 @@ interface InputField {
 interface InputFormatProps {
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  value?: InputField[]
 }
 
 // Default values
@@ -32,10 +38,21 @@ const DEFAULT_FIELD: InputField = {
   collapsed: true,
 }
 
-export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
+export function InputFormat({ blockId, subBlockId, isPreview = false, value: propValue }: InputFormatProps) {
   // State hooks
-  const [value, setValue] = useSubBlockValue<InputField[]>(blockId, subBlockId)
+  const [value, setValue] = useSubBlockValue<InputField[]>(blockId, subBlockId, false, isPreview, propValue)
   const fields = value || [DEFAULT_FIELD]
+
+  // Log when in preview mode to verify it's working
+  useEffect(() => {
+    if (isPreview) {
+      logger.info(`[PREVIEW] InputFormat for ${blockId}:${subBlockId}`, {
+        isPreview,
+        propValue,
+        value
+      });
+    }
+  }, [isPreview, propValue, value, blockId, subBlockId]);
 
   // Field operations
   const addField = () => {
