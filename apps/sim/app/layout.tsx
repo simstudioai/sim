@@ -9,7 +9,6 @@ import { ZoomPrevention } from './zoom-prevention'
 
 const logger = createLogger('RootLayout')
 
-// Add browser extension attributes that we want to ignore
 const BROWSER_EXTENSION_ATTRIBUTES = [
   'data-new-gr-c-s-check-loaded',
   'data-gr-ext-installed',
@@ -17,7 +16,6 @@ const BROWSER_EXTENSION_ATTRIBUTES = [
   'data-grammarly',
   'data-fgm',
   'data-lt-installed',
-  // Add other known extension attributes here
 ]
 
 if (typeof window !== 'undefined') {
