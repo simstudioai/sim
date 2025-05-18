@@ -17,14 +17,14 @@ export const runtime = 'nodejs'
  * - limit: Maximum number of results (default: 50)
  * - workflowId: Filter by workflow ID (required)
  */
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   
   try {
     logger.info(`[${requestId}] Processing memory search request`)
     
     // Extract workflowId from query parameters
-    const url = new URL(req.url)
+    const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
     const searchQuery = url.searchParams.get('query')
     const type = url.searchParams.get('type')
@@ -81,7 +81,6 @@ export async function GET(req: NextRequest) {
     )
     
   } catch (error: any) {
-    logger.error(`[${requestId}] Error searching memories:`, error)
     return NextResponse.json(
       {
         success: false,
@@ -102,14 +101,14 @@ export async function GET(req: NextRequest) {
  * - data: Memory content (varies by type)
  * - workflowId: ID of the workflow this memory belongs to
  */
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   
   try {
     logger.info(`[${requestId}] Processing memory creation request`)
     
     // Parse request body
-    const body = await req.json()
+    const body = await request.json()
     const { key, type, data, workflowId } = body
     
     // Validate required fields
@@ -196,7 +195,7 @@ export async function POST(req: NextRequest) {
     
     // Check if memory with the same key already exists for this workflow
     const existingMemory = await db
-      .select({ id: memory.id })
+      .select()
       .from(memory)
       .where(
         and(
@@ -208,15 +207,81 @@ export async function POST(req: NextRequest) {
       .limit(1)
     
     if (existingMemory.length > 0) {
-      logger.warn(`[${requestId}] Memory with key ${key} already exists for workflow ${workflowId}`)
+      logger.info(`[${requestId}] Memory with key ${key} exists, checking if we can append`)
+      
+      // Check if types match
+      if (existingMemory[0].type !== type) {
+        logger.warn(`[${requestId}] Memory type mismatch: existing=${existingMemory[0].type}, new=${type}`)
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              message: `Cannot append memory of type '${type}' to existing memory of type '${existingMemory[0].type}'`,
+            },
+          },
+          { status: 400 }
+        )
+      }
+      
+      // Handle appending based on memory type
+      let updatedData;
+      
+      if (type === 'agent') {
+        // For agent type
+        const newMessage = data;
+        const existingData = existingMemory[0].data;
+        
+        // If existing data is an array, append to it
+        if (Array.isArray(existingData)) {
+          updatedData = [...existingData, newMessage];
+        } 
+        // If existing data is a single message object, convert to array
+        else {
+          updatedData = [existingData, newMessage];
+        }
+      } else {
+        // For raw type
+        // Merge objects if they're objects, otherwise use the new data
+        if (typeof existingMemory[0].data === 'object' && typeof data === 'object') {
+          updatedData = { ...existingMemory[0].data, ...data };
+        } else {
+          updatedData = data;
+        }
+      }
+      
+      // Update the existing memory with appended data
+      await db
+        .update(memory)
+        .set({ 
+          data: updatedData,
+          updatedAt: new Date()
+        })
+        .where(
+          and(
+            eq(memory.key, key),
+            eq(memory.workflowId, workflowId)
+          )
+        )
+      
+      // Fetch the updated memory
+      const updatedMemory = await db
+        .select()
+        .from(memory)
+        .where(
+          and(
+            eq(memory.key, key),
+            eq(memory.workflowId, workflowId)
+          )
+        )
+        .limit(1)
+      
+      logger.info(`[${requestId}] Memory appended successfully: ${key} for workflow: ${workflowId}`)
       return NextResponse.json(
         {
-          success: false,
-          error: {
-            message: 'Memory with this key already exists',
-          },
+          success: true,
+          data: updatedMemory[0]
         },
-        { status: 409 }
+        { status: 200 }
       )
     }
     
@@ -226,7 +291,7 @@ export async function POST(req: NextRequest) {
       workflowId,
       key,
       type,
-      data,
+      data: type === 'agent' ? Array.isArray(data) ? data : [data] : data,
       createdAt: new Date(),
       updatedAt: new Date()
     }
@@ -257,7 +322,6 @@ export async function POST(req: NextRequest) {
       )
     }
     
-    logger.error(`[${requestId}] Error creating memory:`, error)
     return NextResponse.json(
       {
         success: false,

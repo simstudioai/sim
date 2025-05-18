@@ -13,17 +13,17 @@ export const runtime = 'nodejs'
  * GET handler for retrieving a specific memory by ID
  */
 export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string }}
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const id = params.id
+  const { id } = await params
   
   try {
     logger.info(`[${requestId}] Processing memory get request for ID: ${id}`)
     
     // Get workflowId from query parameter (required)
-    const url = new URL(req.url)
+    const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
     
     if (!workflowId) {
@@ -76,7 +76,6 @@ export async function GET(
     )
     
   } catch (error: any) {
-    logger.error(`[${requestId}] Error retrieving memory ${id}:`, error)
     return NextResponse.json(
       {
         success: false,
@@ -93,17 +92,17 @@ export async function GET(
  * DELETE handler for removing a specific memory
  */
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string }}
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const id = params.id
+  const { id } = await params
   
   try {
     logger.info(`[${requestId}] Processing memory delete request for ID: ${id}`)
     
     // Get workflowId from query parameter (required)
-    const url = new URL(req.url)
+    const url = new URL(request.url)
     const workflowId = url.searchParams.get('workflowId')
     
     if (!workflowId) {
@@ -169,7 +168,6 @@ export async function DELETE(
     )
     
   } catch (error: any) {
-    logger.error(`[${requestId}] Error deleting memory ${id}:`, error)
     return NextResponse.json(
       {
         success: false,
@@ -186,17 +184,17 @@ export async function DELETE(
  * PUT handler for updating a specific memory
  */
 export async function PUT(
-  req: NextRequest,
-  { params }: { params: { id: string }}
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const id = params.id
+  const { id } = await params
   
   try {
     logger.info(`[${requestId}] Processing memory update request for ID: ${id}`)
     
     // Parse request body
-    const body = await req.json()
+    const body = await request.json()
     const { data, workflowId } = body
     
     if (!data) {
@@ -318,7 +316,6 @@ export async function PUT(
     )
     
   } catch (error: any) {
-    logger.error(`[${requestId}] Error updating memory ${id}:`, error)
     return NextResponse.json(
       {
         success: false,

@@ -37,11 +37,13 @@ export const MemoryBlock: BlockConfig = {
           errors.push('Operation is required')
         }
 
-        if (params.operation === 'add') {
+        if (params.operation === 'add' || params.operation === 'get' || params.operation === 'delete') {
           if (!params.id) {
-            errors.push('Memory ID is required for add operation')
+            errors.push(`Memory ID is required for ${params.operation} operation`)
           }
+        }
 
+        if (params.operation === 'add') {
           if (!params.type) {
             errors.push('Memory type is required for add operation')
           } else if (params.type === 'agent') {
@@ -56,14 +58,6 @@ export const MemoryBlock: BlockConfig = {
               errors.push('Raw data is required for raw memory')
             }
           }
-        }
-
-        if (params.operation === 'get' && !params.id) {
-          errors.push('Memory ID is required for get operation')
-        }
-
-        if (params.operation === 'delete' && !params.id) {
-          errors.push('Memory ID is required for delete operation')
         }
 
         // Throw error if any required fields are missing
@@ -115,7 +109,7 @@ export const MemoryBlock: BlockConfig = {
   },
   inputs: {
     operation: { type: 'string', required: true },
-    id: { type: 'string', required: false },
+    id: { type: 'string', required: true },
     type: { type: 'string', required: false },
     role: { type: 'string', required: false },
     content: { type: 'string', required: false },

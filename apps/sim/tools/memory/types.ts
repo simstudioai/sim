@@ -4,7 +4,7 @@ export interface MemoryResponse extends ToolResponse {
   output: {
     memory?: any
     memories?: any[]
-    id?: string
+    message: string
   }
 }
 
@@ -21,9 +21,15 @@ export interface MemoryRecord {
   id: string
   key: string
   type: 'agent' | 'raw'
-  data: AgentMemoryData | RawMemoryData
+  data: AgentMemoryData[] | RawMemoryData
   createdAt: string
   updatedAt: string
   workflowId?: string
   workspaceId?: string
+}
+
+export interface MemoryError {
+  code: string
+  message: string
+  details?: Record<string, any>
 } 

@@ -15,12 +15,22 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     }
   },
   request: {
-    url: (params) => {
+    url: (params): any => {
       // Get workflowId from context (set by workflow execution)
       const workflowId = params._context?.workflowId
       
       if (!workflowId) {
-        throw new Error('workflowId is required and must be provided in execution context')
+        return {
+          _errorResponse: {
+            status: 400,
+            data: {
+              success: false,
+              error: {
+                message: 'workflowId is required and must be provided in execution context'
+              }
+            }
+          }
+        }
       }
       
       // Append workflowId as query parameter
@@ -37,7 +47,8 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       const result = await response.json()
       
       if (!response.ok) {
-        throw new Error(result.error?.message || 'Failed to retrieve memory')
+        const errorMessage = result.error?.message || 'Failed to retrieve memory'
+        throw new Error(errorMessage)
       }
       
       const data = result.data || result
@@ -45,8 +56,8 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       return {
         success: true,
         output: {
-          memory: data,
-          id: data.id,
+          memory: data.data,
+          message: 'Memory retrieved successfully'
         },
       }
     } catch (error: any) {
@@ -54,16 +65,21 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
         success: false,
         output: {
           memory: undefined,
+          message: `Failed to retrieve memory: ${error.message || 'Unknown error'}`
         },
+        error: `Failed to retrieve memory: ${error.message || 'Unknown error'}`
       }
     }
   },
   transformError: async (error): Promise<MemoryResponse> => {
+    const errorMessage = `Memory retrieval failed: ${error.message || 'Unknown error'}`
     return {
       success: false,
       output: {
         memory: undefined,
+        message: errorMessage
       },
+      error: errorMessage
     }
   },
 } 

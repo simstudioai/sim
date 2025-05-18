@@ -5,13 +5,13 @@ import { MemoryResponse } from './types'
 export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_add',
   name: 'Add Memory',
-  description: 'Add a new memory to the database',
+  description: 'Add a new memory to the database or append to existing memory with the same ID. When appending to existing memory, the memory types must match.',
   version: '1.0.0',
   params: {
     id: {
       type: 'string',
       required: true,
-      description: 'Identifier for the memory',
+      description: 'Identifier for the memory. If a memory with this ID already exists, the new data will be appended to it.',
     },
     type: {
       type: 'string',
@@ -44,8 +44,19 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       // Get workflowId from context (set by workflow execution)
       const workflowId = params._context?.workflowId
       
+      // Prepare error response instead of throwing error
       if (!workflowId) {
-        throw new Error('workflowId is required and must be provided in execution context')
+        return {
+          _errorResponse: {
+            status: 400,
+            data: {
+              success: false,
+              error: {
+                message: 'workflowId is required and must be provided in execution context'
+              }
+            }
+          }
+        }
       }
       
       const body: Record<string, any> = {
@@ -57,7 +68,17 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       // Set data based on type
       if (params.type === 'agent') {
         if (!params.role || !params.content) {
-          throw new Error('Role and content are required for agent memory')
+          return {
+            _errorResponse: {
+              status: 400,
+              data: {
+                success: false,
+                error: {
+                  message: 'Role and content are required for agent memory'
+                }
+              }
+            }
+          }
         }
         body.data = {
           role: params.role,
@@ -65,7 +86,17 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         }
       } else if (params.type === 'raw') {
         if (!params.rawData) {
-          throw new Error('Raw data is required for raw memory')
+          return {
+            _errorResponse: {
+              status: 400,
+              data: {
+                success: false,
+                error: {
+                  message: 'Raw data is required for raw memory'
+                }
+              }
+            }
+          }
         }
         
         let parsedRawData
@@ -73,7 +104,17 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
           try {
             parsedRawData = JSON.parse(params.rawData)
           } catch (e) {
-            throw new Error('Invalid JSON for raw data')
+            return {
+              _errorResponse: {
+                status: 400,
+                data: {
+                  success: false,
+                  error: {
+                    message: 'Invalid JSON for raw data'
+                  }
+                }
+              }
+            }
           }
         } else {
           parsedRawData = params.rawData
@@ -91,16 +132,18 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       const result = await response.json()
       
       if (!response.ok) {
-        throw new Error(result.error?.message || 'Failed to add memory')
+        const errorMessage = result.error?.message || 'Failed to add memory'
+        throw new Error(errorMessage)
       }
       
       const data = result.data || result
+      const isNewMemory = response.status === 201
       
       return {
         success: true,
         output: {
-          id: data.id,
-          memory: data,
+          memory: data.data,
+          message: isNewMemory ? 'Memory created successfully' : 'Memory appended successfully'
         },
       }
     } catch (error: any) {
@@ -108,16 +151,20 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         success: false,
         output: {
           memory: undefined,
+          message: `Failed to add memory: ${error.message || 'Unknown error occurred'}`
         },
       }
     }
   },
   transformError: async (error): Promise<MemoryResponse> => {
+    const errorMessage = `Memory operation failed: ${error.message || 'Unknown error occurred'}`;
     return {
       success: false,
       output: {
         memory: undefined,
+        message: `Memory operation failed: ${error.message || 'Unknown error occurred'}`
       },
+      error: errorMessage
     }
   },
 } 
