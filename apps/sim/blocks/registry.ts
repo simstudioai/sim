@@ -25,6 +25,7 @@ import { GoogleDocsBlock } from './blocks/google_docs'
 import { GoogleDriveBlock } from './blocks/google_drive'
 import { GoogleSheetsBlock } from './blocks/google_sheets'
 // import { GuestyBlock } from './blocks/guesty'
+import { MemoryBlock } from './blocks/memory'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
 import { JiraBlock } from './blocks/jira'
@@ -92,6 +93,7 @@ export const registry: Record<string, BlockConfig> = {
   pinecone: PineconeBlock,
   reddit: RedditBlock,
   router: RouterBlock,
+  memory: MemoryBlock,
   s3: S3Block,
   serper: SerperBlock,
   stagehand: StagehandBlock,
