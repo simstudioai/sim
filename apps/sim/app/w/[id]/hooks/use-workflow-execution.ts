@@ -124,7 +124,7 @@ export function useWorkflowExecution() {
 
 
     return true;
-  }, [blocks, getBlock, addNotification, activeWorkflowId])
+  }, [blocks, getBlock, getValue, addNotification, activeWorkflowId])
 
   const handleRunWorkflow = useCallback(
     async (workflowInput?: any) => {
