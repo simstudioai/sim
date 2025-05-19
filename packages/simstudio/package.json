@@ -1,6 +1,6 @@
 {
   "name": "simstudio",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "description": "Sim Studio CLI - Run Sim Studio with a single command",
   "main": "dist/index.js",
   "bin": {
