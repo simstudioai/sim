@@ -237,13 +237,20 @@ function extractBlockOutput(logs: any[], blockId: string, path?: string) {
 }
 
 /**
- * Executes a workflow for a chat and extracts the specified output.
- * This function contains the same logic as the internal chat panel.
+ * Executes a workflow for a chat request and returns the formatted output.
+ * 
+ * When workflows reference <start.response.input>, they receive a structured JSON
+ * containing both the message and conversationId for maintaining chat context.
+ * 
+ * @param chatId - Chat deployment identifier
+ * @param message - User's chat message
+ * @param conversationId - Optional ID for maintaining conversation context
+ * @returns Workflow execution result formatted for the chat interface
  */
-export async function executeWorkflowForChat(chatId: string, message: string) {
+export async function executeWorkflowForChat(chatId: string, message: string, conversationId?: string) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
-  logger.debug(`[${requestId}] Executing workflow for chat: ${chatId}`)
+  logger.debug(`[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''}`)
 
   // Find the chat deployment
   const deploymentResult = await db
@@ -418,7 +425,7 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
     workflow: serializedWorkflow,
     currentBlockStates: processedBlockStates,
     envVarValues: decryptedEnvVars,
-    workflowInput: { input: message },
+    workflowInput: { input: message, conversationId },
     workflowVariables,
     contextExtensions: {
       // Always request streaming – the executor will downgrade gracefully if unsupported
@@ -490,10 +497,22 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
           totalDuration,
         }
 
+        // Add conversationId to metadata if available
+        if (conversationId) {
+          if (!enrichedResult.metadata) {
+            enrichedResult.metadata = {
+              duration: totalDuration,
+            };
+          }
+          (enrichedResult.metadata as any).conversationId = conversationId;
+        }
+
         const executionId = uuidv4()
         await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
         logger.debug(
-          `[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}`
+          `[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}${
+            conversationId ? `, conversationId: ${conversationId}` : ''
+          }`
         )
 
         // Update user stats for successful streaming chat execution
@@ -562,6 +581,11 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
       ...(result.metadata || {}),
       source: 'chat',
     }
+
+    // Add conversationId to metadata if available
+    if (conversationId) {
+      (result as any).metadata.conversationId = conversationId
+    }
   }
 
   // Update user stats to increment totalChatExecutions if the execution was successful
@@ -606,13 +630,26 @@ export async function executeWorkflowForChat(chatId: string, message: string) {
       totalDuration,
     }
 
+    // Add conversation ID to metadata if available
+    if (conversationId) {
+      if (!enrichedResult.metadata) {
+        enrichedResult.metadata = {
+          duration: totalDuration,
+        };
+      }
+      (enrichedResult.metadata as any).conversationId = conversationId;
+    }
+
     // Generate a unique execution ID for this chat interaction
     const executionId = uuidv4()
 
     // Persist the logs with 'chat' trigger type
     await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
 
-    logger.debug(`[${requestId}] Persisted execution logs for chat with ID: ${executionId}`)
+    logger.debug(
+      `[${requestId}] Persisted execution logs for chat with ID: ${executionId}${
+        conversationId ? `, conversationId: ${conversationId}` : ''
+      }`)
   } catch (error) {
     // Don't fail the chat response if logging fails
     logger.error(`[${requestId}] Failed to persist chat execution logs:`, error)

@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { OTPInputForm } from '@/components/ui/input-otp-form'
@@ -99,6 +100,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [starCount, setStarCount] = useState('3.4k')
+  const [conversationId, setConversationId] = useState('')
 
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
@@ -163,9 +165,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     }
   }
 
-  // Fetch chat config on mount
+  // Fetch chat config on mount and generate new conversation ID
   useEffect(() => {
     fetchChatConfig()
+    // Generate a new conversation ID whenever the page/chat is refreshed
+    setConversationId(uuidv4())
 
     // Fetch GitHub stars
     getFormattedGitHubStars()
@@ -380,6 +384,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     }
 
     try {
+      // Send structured payload to maintain chat context
+      const payload = {
+        message: userMessage.content,
+        conversationId,
+      }
+
       // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
@@ -388,7 +398,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
         },
-        body: JSON.stringify({ message: userMessage.content }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {

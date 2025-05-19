@@ -72,7 +72,7 @@ export async function POST(
     }
 
     // Use the already parsed body
-    const { message, password, email } = parsedBody
+    const { message, password, email, conversationId } = parsedBody
 
     // If this is an authentication request (has password or email but no message),
     // set auth cookie and return success
@@ -105,8 +105,8 @@ export async function POST(
     }
 
     try {
-      // Execute the workflow using our helper function
-      const result = await executeWorkflowForChat(deployment.id, message)
+      // Execute workflow with structured input (message + conversationId for context)
+      const result = await executeWorkflowForChat(deployment.id, message, conversationId)
 
       // If the executor returned a ReadableStream, stream it directly to the client
       if (result instanceof ReadableStream) {

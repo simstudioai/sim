@@ -714,20 +714,16 @@ export class Executor {
           })
         } else {
         */
-        // No input format defined or not an array,
-        // Handle API call - prioritize using the input as-is
+        // Handle structured input (like API calls or chat messages)
         if (this.workflowInput && typeof this.workflowInput === 'object') {
-          // For API calls, extract input from the nested structure if it exists
-          const inputData =
-            this.workflowInput.input !== undefined
-              ? this.workflowInput.input // Use the nested input data
-              : this.workflowInput // Fallback to direct input
-
-          // Create starter output with both formats for maximum compatibility
+          // Preserve complete workflowInput structure to maintain JSON format
+          // when referenced through <start.response.input>
           const starterOutput = {
             response: {
-              input: inputData,
-              ...inputData, // Make fields directly accessible at response level
+              input: this.workflowInput,
+              // Add top-level fields for backward compatibility
+              message: this.workflowInput.input,
+              conversationId: this.workflowInput.conversationId
             },
           }
 
@@ -737,7 +733,7 @@ export class Executor {
             executionTime: 0,
           })
         } else {
-          // Fallback for other cases
+          // Fallback for primitive input values
           const starterOutput = {
             response: {
               input: this.workflowInput,
@@ -754,17 +750,12 @@ export class Executor {
       } catch (e) {
         logger.warn('Error processing starter block input format:', e)
 
-        // Fallback to raw input with both paths accessible
-        // Ensure we handle both input formats
-        const inputData =
-          this.workflowInput?.input !== undefined
-            ? this.workflowInput.input // Use nested input if available
-            : this.workflowInput // Fallback to direct input
-
+        // Error handler fallback - preserve structure for both direct access and backward compatibility
         const starterOutput = {
           response: {
-            input: inputData,
-            ...inputData, // Add input fields directly at response level too
+            input: this.workflowInput,
+            message: this.workflowInput?.input,
+            conversationId: this.workflowInput?.conversationId
           },
         }
 

@@ -465,6 +465,7 @@ export class InputResolver {
                 }
                 // For all other blocks, stringify objects
                 else {
+                  // Preserve full JSON structure for objects (especially for structured inputs with conversationId)
                   formattedValue = JSON.stringify(replacementValue)
                 }
               } else {
