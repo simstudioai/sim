@@ -3,8 +3,9 @@ import { ToolResponse } from '../types'
 export interface BrowserUseRunTaskParams {
   task: string
   apiKey: string
-  pollInterval?: number
-  maxPollTime?: number
+  variables?: Record<string, string>
+  model?: string
+  save_browser_data?: boolean
 }
 
 export interface BrowserUseTaskStep {
@@ -12,15 +13,15 @@ export interface BrowserUseTaskStep {
   step: number
   evaluation_previous_goal: string
   next_goal: string
+  url?: string
+  extracted_data?: Record<string, any>
 }
 
 export interface BrowserUseTaskOutput {
   id: string
-  task: string
-  output: string | null
-  status: 'created' | 'running' | 'finished' | 'stopped' | 'paused' | 'failed'
+  success: boolean
+  output: any
   steps: BrowserUseTaskStep[]
-  live_url: string | null
 }
 
 export interface BrowserUseRunTaskResponse extends ToolResponse {
